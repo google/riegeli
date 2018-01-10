@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <ios>
-#include <memory>
 #include <type_traits>
 #include <utility>
 

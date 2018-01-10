@@ -15,7 +15,6 @@
 #include "riegeli/base/object.h"
 
 #include <string>
-#include <utility>
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/memory.h"

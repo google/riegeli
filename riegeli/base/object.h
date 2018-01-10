@@ -15,13 +15,7 @@
 #ifndef RIEGELI_BASE_OBJECT_H_
 #define RIEGELI_BASE_OBJECT_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <ios>
-#include <ostream>
-#include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "riegeli/base/assert.h"
