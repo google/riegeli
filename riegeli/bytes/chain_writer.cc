@@ -65,7 +65,7 @@ void ChainWriter::Done() {
 bool ChainWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u);
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  start_pos_ += written_to_buffer();
+  start_pos_ = dest_->size();
   const Chain::Buffer buffer = dest_->MakeAppendBuffer(1, size_hint_);
   start_ = buffer.data();
   cursor_ = buffer.data();
@@ -77,7 +77,6 @@ bool ChainWriter::WriteSlow(string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available());
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Append(src, size_hint_);
   MakeBuffer();
   return true;
@@ -87,7 +86,6 @@ bool ChainWriter::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Append(std::move(src), size_hint_);
   MakeBuffer();
   return true;
@@ -97,7 +95,6 @@ bool ChainWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Append(src, size_hint_);
   MakeBuffer();
   return true;
@@ -107,7 +104,6 @@ bool ChainWriter::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Append(std::move(src), size_hint_);
   MakeBuffer();
   return true;
@@ -116,22 +112,21 @@ bool ChainWriter::WriteSlow(Chain&& src) {
 bool ChainWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
+  start_pos_ = dest_->size();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
   return true;
 }
 
+inline void ChainWriter::DiscardBuffer() { dest_->RemoveSuffix(available()); }
+
 inline void ChainWriter::MakeBuffer() {
+  start_pos_ = dest_->size();
   const Chain::Buffer buffer = dest_->MakeAppendBuffer();
   start_ = buffer.data();
   cursor_ = buffer.data();
   limit_ = buffer.data() + buffer.size();
-}
-
-inline void ChainWriter::DiscardBuffer() {
-  start_pos_ += written_to_buffer();
-  dest_->RemoveSuffix(available());
 }
 
 }  // namespace riegeli

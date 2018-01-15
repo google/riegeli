@@ -97,6 +97,11 @@ bool StringWriter::Flush(FlushType flush_type) {
   return true;
 }
 
+inline void StringWriter::DiscardBuffer() {
+  RIEGELI_ASSERT_LE(pos(), dest_->size());
+  dest_->resize(pos());
+}
+
 inline void StringWriter::MakeBuffer() {
   const size_t size_before = dest_->size();
   // Do not resize by too much because the work of filling the space could be
@@ -106,11 +111,6 @@ inline void StringWriter::MakeBuffer() {
   start_ = &(*dest_)[0];
   cursor_ = &(*dest_)[size_before];
   limit_ = &(*dest_)[dest_->size()];
-}
-
-inline void StringWriter::DiscardBuffer() {
-  RIEGELI_ASSERT_LE(pos(), dest_->size());
-  dest_->resize(pos());
 }
 
 }  // namespace riegeli

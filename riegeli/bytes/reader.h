@@ -65,8 +65,8 @@ class Reader : public Object {
   //  * false (when !healthy()) - failure (available() == 0)
   bool Pull();
 
-  // Data between start() and limit() are available for reading, with cursor()
-  // pointing to the current position.
+  // Buffer pointers. Data between start() and limit() are available for
+  // reading, with cursor() pointing to the current position.
   //
   // Invariant: start() <= cursor() <= limit() (possibly all nullptr)
   const char* start() const { return start_; }

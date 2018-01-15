@@ -66,8 +66,8 @@ class Writer : public Object {
   //  * false - failure (available() == 0, !healthy())
   bool Push();
 
-  // Space between start() and limit() is available for writing data to it, with
-  // cursor() pointing to the current position.
+  // Buffer pointers. Space between start() and limit() is available for writing
+  // data to it, with cursor() pointing to the current position.
   //
   // Invariants:
   //   start() <= cursor() <= limit() (possibly all nullptr)

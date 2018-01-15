@@ -75,25 +75,24 @@ class StringWriter final : public Writer {
   bool WriteSlow(const Chain& src) override;
 
  private:
-  // Appends some uninitialized space to *dest_ and points start_, cursor_, and
-  // limit_ to it if this can be done without reallocation. This is called in
-  // PushSlow(), and also at the end of WriteSlow() so that a next Write() can
-  // fill space between cursor_ and limit_, using the fast path.
-  void MakeBuffer();
-
   // Discards uninitialized space from the end of *dest_, so that it contains
-  // only actual data written. This invalidates start_, cursor_, and limit_.
+  // only actual data written. Invalidates buffer pointers.
   void DiscardBuffer();
 
-  // The string being written to, with uninitialized space appended (possibly
-  // empty), or nullptr if !healthy(). cursor_ points to the uninitialized
-  // space, except that it is nullptr if !healthy().
+  // Appends some uninitialized space to *dest_ if this can be done without
+  // reallocation. Sets buffer pointers to the uninitialized space.
+  void MakeBuffer();
+
+  // If healthy(), the string being written to, with uninitialized space
+  // appended (possibly empty); cursor_ points to the uninitialized space.
   //
-  // Invariants:
-  //   start_ == (healthy() ? &(*dest_)[0] : nullptr)
-  //   limit_ == (healthy() ? &(*dest_)[dest_->size()] : nullptr)
-  //   start_pos_ == 0
+  // Invariant: if healthy() then dest_ != nullptr
   std::string* dest_;
+
+  // Invariants if healthy():
+  //   start_ == &(*dest_)[0]
+  //   limit_ == &(*dest_)[dest_->size()]
+  //   start_pos_ == 0
 };
 
 }  // namespace riegeli

@@ -44,9 +44,10 @@ class BackwardWriter : public Object {
   //  * false - failure (available() == 0, !healthy())
   bool Push();
 
-  // Space between start() (exclusive upper bound) and limit() (inclusive lower
-  // bound) is available for writing data to it, with cursor() pointing to the
-  // current position going downwards (past the next byte to write).
+  // Buffer pointers. Space between start() (exclusive upper bound) and limit()
+  // (inclusive lower bound) is available for writing data to it, with cursor()
+  // pointing to the current position going downwards (past the next byte to
+  // write).
   //
   // Invariants:
   //   start() >= cursor() >= limit() (possibly all nullptr)

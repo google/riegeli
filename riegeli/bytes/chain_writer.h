@@ -75,24 +75,27 @@ class ChainWriter final : public Writer {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Appends some uninitialized space to *dest_ and points start_, cursor_, and
-  // limit_ to it if this can be done without allocation. This is called at the
-  // end of WriteSlow() so that a next Write() can fill space between cursor_
-  // and limit_, using the fast path.
-  void MakeBuffer();
-
   // Discards uninitialized space from the end of *dest_, so that it contains
-  // only actual data written. This invalidates start_, cursor_, and limit_.
+  // only actual data written. Invalidates buffer pointers and start_pos_.
   void DiscardBuffer();
 
-  // The Chain being written to, with uninitialized space appended (possibly
-  // empty), or nullptr if !healthy(). cursor_ points to the uninitialized
-  // space, except that it can be nullptr if the uninitialized space is empty,
-  // and it is nullptr if !healthy().
+  // Appends some uninitialized space to *dest_ if this can be done without
+  // allocation. Sets buffer pointers to the uninitialized space and restores
+  // start_pos_.
+  void MakeBuffer();
+
+  // If healthy(), the Chain being written to, with uninitialized space appended
+  // (possibly empty); cursor_ points to the uninitialized space, except that it
+  // can be nullptr if the uninitialized space is empty.
   //
-  // Invariant: limit_pos() == (dest_ == nullptr ? 0 : dest_->size())
+  // Invariant: if healthy() then dest_ != nullptr
   Chain* dest_;
   size_t size_hint_;
+
+  // Invariants if healthy():
+  //   limit_ == nullptr || limit_ == dest_->blocks().back().data() +
+  //                                  dest_->blocks().back().size()
+  //   limit_pos() == dest_->size()
 };
 
 }  // namespace riegeli

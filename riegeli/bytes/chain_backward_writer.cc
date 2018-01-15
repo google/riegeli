@@ -68,7 +68,7 @@ void ChainBackwardWriter::Done() {
 bool ChainBackwardWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u);
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  start_pos_ += written_to_buffer();
+  start_pos_ = dest_->size();
   const Chain::Buffer buffer = dest_->MakePrependBuffer(1, size_hint_);
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
@@ -80,7 +80,6 @@ bool ChainBackwardWriter::WriteSlow(string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available());
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Prepend(src, size_hint_);
   MakeBuffer();
   return true;
@@ -90,7 +89,6 @@ bool ChainBackwardWriter::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Prepend(std::move(src), size_hint_);
   MakeBuffer();
   return true;
@@ -100,7 +98,6 @@ bool ChainBackwardWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Prepend(src, size_hint_);
   MakeBuffer();
   return true;
@@ -110,22 +107,21 @@ bool ChainBackwardWriter::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   DiscardBuffer();
-  start_pos_ += src.size();
   dest_->Prepend(std::move(src), size_hint_);
   MakeBuffer();
   return true;
 }
 
+inline void ChainBackwardWriter::DiscardBuffer() {
+  dest_->RemovePrefix(available());
+}
+
 inline void ChainBackwardWriter::MakeBuffer() {
+  start_pos_ = dest_->size();
   const Chain::Buffer buffer = dest_->MakePrependBuffer();
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
-}
-
-inline void ChainBackwardWriter::DiscardBuffer() {
-  start_pos_ += written_to_buffer();
-  dest_->RemovePrefix(available());
 }
 
 }  // namespace riegeli
