@@ -16,6 +16,7 @@
 #define RIEGELI_CHUNK_ENCODING_CHUNK_ENCODER_H_
 
 #include <stddef.h>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -74,20 +75,17 @@ class SimpleChunkEncoder final : public ChunkEncoder {
  private:
   class Compressor {
    public:
-    Compressor() : writer_(&data_) {}
+    Compressor(internal::CompressionType compression_type,
+               int compression_level);
 
-    void Reset();
-    ChainWriter* writer() { return &writer_; }
-    bool Encode(ChainWriter* dest, internal::CompressionType compression_type,
-                int compression_level);
-    const Chain& EncodeUncompressed();
+    void Reset(internal::CompressionType compression_type,
+               int compression_level);
+    Writer* writer() const { return writer_.get(); }
+    Chain* Encode();
 
    private:
-    template <typename Engine>
-    bool Compress(ChainWriter* dest, int compression_level);
-
     Chain data_;
-    ChainWriter writer_;
+    std::unique_ptr<Writer> writer_;
   };
 
   internal::CompressionType compression_type_;

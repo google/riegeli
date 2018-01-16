@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -23,6 +24,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/memory.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -35,41 +37,39 @@
 
 namespace riegeli {
 
-inline void SimpleChunkEncoder::Compressor::Reset() {
-  writer_.Cancel();
-  data_.Clear();
-  writer_ = ChainWriter(&data_);
+SimpleChunkEncoder::Compressor::Compressor(
+    internal::CompressionType compression_type, int compression_level) {
+  Reset(compression_type, compression_level);
 }
 
-inline bool SimpleChunkEncoder::Compressor::Encode(
-    ChainWriter* dest, internal::CompressionType compression_type,
-    int compression_level) {
-  if (!writer_.Close()) RIEGELI_UNREACHABLE() << "ChainWriter::Close() failed";
+inline void SimpleChunkEncoder::Compressor::Reset(
+    internal::CompressionType compression_type, int compression_level) {
+  writer_.reset();
+  data_.Clear();
+  std::unique_ptr<Writer> data_writer =
+      riegeli::make_unique<ChainWriter>(&data_);
   switch (compression_type) {
     case internal::CompressionType::kNone:
-      return dest->Write(std::move(data_));
+      writer_ = std::move(data_writer);
+      return;
     case internal::CompressionType::kBrotli:
-      return Compress<BrotliWriter>(dest, compression_level);
+      writer_ = riegeli::make_unique<BrotliWriter>(
+          std::move(data_writer),
+          BrotliWriter::Options().set_compression_level(compression_level));
+      return;
     case internal::CompressionType::kZstd:
-      return Compress<ZstdWriter>(dest, compression_level);
+      writer_ = riegeli::make_unique<ZstdWriter>(
+          std::move(data_writer),
+          ZstdWriter::Options().set_compression_level(compression_level));
+      return;
   }
   RIEGELI_UNREACHABLE() << "Unknown compression type: "
                         << static_cast<int>(compression_type);
 }
 
-inline const Chain& SimpleChunkEncoder::Compressor::EncodeUncompressed() {
-  if (!writer_.Close()) RIEGELI_UNREACHABLE() << "ChainWriter::Close() failed";
-  return data_;
-}
-
-template <typename Engine>
-bool SimpleChunkEncoder::Compressor::Compress(ChainWriter* dest,
-                                              int compression_level) {
-  Engine compressor(dest, typename Engine::Options()
-                              .set_compression_level(compression_level)
-                              .set_size_hint(data_.size()));
-  compressor.Write(std::move(data_));
-  return compressor.Close();
+Chain* SimpleChunkEncoder::Compressor::Encode() {
+  if (RIEGELI_UNLIKELY(!writer_->Close())) return nullptr;
+  return &data_;
 }
 
 ChunkEncoder::~ChunkEncoder() = default;
@@ -77,12 +77,14 @@ ChunkEncoder::~ChunkEncoder() = default;
 SimpleChunkEncoder::SimpleChunkEncoder(
     internal::CompressionType compression_type, int compression_level)
     : compression_type_(compression_type),
-      compression_level_(compression_level) {}
+      compression_level_(compression_level),
+      sizes_compressor_(compression_type, compression_level),
+      values_compressor_(compression_type, compression_level) {}
 
 void SimpleChunkEncoder::Reset() {
   num_records_ = 0;
-  sizes_compressor_.Reset();
-  values_compressor_.Reset();
+  sizes_compressor_.Reset(compression_type_, compression_level_);
+  values_compressor_.Reset(compression_type_, compression_level_);
 }
 
 void SimpleChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
@@ -121,32 +123,16 @@ bool SimpleChunkEncoder::Encode(Chunk* chunk) {
   WriteByte(&data_writer, static_cast<uint8_t>(internal::ChunkType::kSimple));
   WriteByte(&data_writer, static_cast<uint8_t>(compression_type_));
 
-  Chain compressed_sizes;
-  if (compression_type_ == internal::CompressionType::kNone) {
-    // sizes_compressor_ already holds the data as a Chain, there is no need to
-    // copy a Chain to a Chain using ChainWriter.
-    compressed_sizes = sizes_compressor_.EncodeUncompressed();
-  } else {
-    ChainWriter compressed_sizes_writer(&compressed_sizes);
-    if (RIEGELI_UNLIKELY(!sizes_compressor_.Encode(
-            &compressed_sizes_writer, compression_type_, compression_level_))) {
-      return false;
-    }
-    if (!compressed_sizes_writer.Close()) {
-      RIEGELI_UNREACHABLE() << "ChainWriter::Close() failed";
-    }
-  }
-  WriteVarint64(&data_writer, compressed_sizes.size());
-  data_writer.Write(std::move(compressed_sizes));
+  Chain* compressed_sizes = sizes_compressor_.Encode();
+  if (RIEGELI_UNLIKELY(compressed_sizes == nullptr)) return false;
+  WriteVarint64(&data_writer, compressed_sizes->size());
+  data_writer.Write(std::move(*compressed_sizes));
 
   const Position decoded_data_size = values_compressor_.writer()->pos();
-  if (RIEGELI_UNLIKELY(!values_compressor_.Encode(
-          &data_writer, compression_type_, compression_level_))) {
-    return false;
-  }
-  if (!data_writer.Close()) {
-    RIEGELI_UNREACHABLE() << "ChainWriter::Close() failed";
-  }
+  Chain* compressed_values = values_compressor_.Encode();
+  if (RIEGELI_UNLIKELY(compressed_values == nullptr)) return false;
+  data_writer.Write(std::move(*compressed_values));
+  if (RIEGELI_UNLIKELY(!data_writer.Close())) return false;
   chunk->header = ChunkHeader(chunk->data, num_records_, decoded_data_size);
   return true;
 }
