@@ -45,14 +45,13 @@ namespace riegeli {
 // source.
 class Reader : public Object {
  public:
-  // Verifies that the source ends at the current position and closes the
-  // Reader. If the source does not end there, fails the Reader.
+  // Verifies that the source ends at the current position, failing the Reader
+  // if not. Closes the Reader.
   //
   // Return values:
-  //  * true  - success (the source ends at the former current position,
-  //                     the Reader is now closed)
-  //  * false - failure (the source does not end at the current position
-  //                     or the Reader was not healthy)
+  //  * true  - success (the source ends at the former current position)
+  //  * false - failure (the source does not end at the former current position
+  //                     or the Reader was not healthy before closing)
   bool VerifyEndAndClose();
 
   // Ensures that some data are available for reading: pulls more data from the

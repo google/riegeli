@@ -29,8 +29,7 @@
 namespace riegeli {
 
 bool Reader::VerifyEndAndClose() {
-  if (RIEGELI_UNLIKELY(Pull())) return Fail("End of data expected");
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (RIEGELI_UNLIKELY(Pull())) Fail("End of data expected");
   return Close();
 }
 
