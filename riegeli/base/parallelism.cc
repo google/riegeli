@@ -36,7 +36,7 @@ ThreadPool::~ThreadPool() {
 
 void ThreadPool::Schedule(std::function<void()> task) {
   {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     RIEGELI_ASSERT(!exiting_);
     tasks_.push_back(std::move(task));
     if (num_idle_threads_ >= tasks_.size()) {
