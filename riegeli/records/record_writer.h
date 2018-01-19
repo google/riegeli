@@ -186,7 +186,7 @@ class RecordWriter final : public Object {
  public:
   using Options = RecordWriterOptions;
 
-  // Creates a cancelled RecordWriter.
+  // Creates a closed RecordWriter.
   RecordWriter();
 
   // Will write records to the byte Writer which is owned by this RecordWriter
@@ -217,12 +217,9 @@ class RecordWriter final : public Object {
   // elsewhere.
   explicit RecordWriter(ChunkWriter* chunk_writer, Options options = Options());
 
-  // Cancels the target RecordWriter before the move. The source RecordWriter is
-  // left cancelled.
   RecordWriter(RecordWriter&& src) noexcept;
   RecordWriter& operator=(RecordWriter&& src) noexcept;
 
-  // Cancels the RecordWriter.
   ~RecordWriter();
 
   // Writes the next record.
@@ -273,6 +270,11 @@ class RecordWriter final : public Object {
   size_t desired_chunk_size_;
   size_t chunk_size_ = 0;
   std::unique_ptr<ChunkWriter> owned_chunk_writer_;
+  // impl_ must be defined after owned_chunk_writer_ so that it is destroyed
+  // before owned_chunk_writer_, because background work of impl_ may need
+  // owned_chunk_writer_
+  //
+  // Invariant: if healthy() them impl_ != nullptr
   std::unique_ptr<Impl> impl_;
 };
 

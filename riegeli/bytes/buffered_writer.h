@@ -38,6 +38,8 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& src) noexcept;
   void operator=(BufferedWriter&& src) noexcept;
 
+  ~BufferedWriter();
+
   // BufferedWriter provides a partial override of Writer::Done().
   // Derived classes must override it further and include a call to
   // BufferedWriter::Done().
@@ -70,6 +72,12 @@ class BufferedWriter : public Writer {
 };
 
 // Implementation details follow.
+
+inline BufferedWriter::~BufferedWriter() {
+  if (start_ != nullptr) {
+    std::allocator<char>().deallocate(start_, buffer_size_);
+  }
+}
 
 inline void BufferedWriter::Done() {
   if (start_ != nullptr) {

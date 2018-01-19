@@ -28,7 +28,7 @@
 namespace riegeli {
 
 ChainBackwardWriter::ChainBackwardWriter() : dest_(nullptr), size_hint_(0) {
-  MarkCancelled();
+  MarkClosed();
 }
 
 ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
@@ -53,14 +53,10 @@ ChainBackwardWriter& ChainBackwardWriter::operator=(
   return *this;
 }
 
-ChainBackwardWriter::~ChainBackwardWriter() { Cancel(); }
+ChainBackwardWriter::~ChainBackwardWriter() = default;
 
 void ChainBackwardWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
-    DiscardBuffer();
-  } else {
-    dest_->Clear();
-  }
+  if (RIEGELI_LIKELY(healthy())) DiscardBuffer();
   dest_ = nullptr;
   BackwardWriter::Done();
 }

@@ -61,7 +61,6 @@ ChunkReader::ChunkReader(Reader* byte_reader, Options options)
 }
 
 ChunkReader::~ChunkReader() {
-  Cancel();
   if (is_recovering_) {
     recovering_.~Recovering();
   } else {
@@ -70,15 +69,20 @@ ChunkReader::~ChunkReader() {
 }
 
 void ChunkReader::Done() {
-  if (RIEGELI_LIKELY(healthy()) && !skip_corruption_ &&
-      RIEGELI_UNLIKELY(byte_reader_->pos() > pos_)) {
+  if (!skip_corruption_ && RIEGELI_UNLIKELY(byte_reader_->pos() > pos_)) {
     Fail("Truncated Riegeli/records file");
   }
-  if (RIEGELI_LIKELY(healthy()) && owned_byte_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_byte_reader_->Close())) {
-      Fail(owned_byte_reader_->Message());
+  if (owned_byte_reader_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
+      if (RIEGELI_UNLIKELY(!owned_byte_reader_->Close())) {
+        Fail(owned_byte_reader_->Message());
+      }
     }
+    owned_byte_reader_.reset();
   }
+  byte_reader_ = nullptr;
+  skip_corruption_ = false;
+  pos_ = 0;
 }
 
 inline bool ChunkReader::ReadingFailed() {

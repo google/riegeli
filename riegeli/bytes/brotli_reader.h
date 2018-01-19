@@ -31,7 +31,7 @@ class BrotliReader final : public Reader {
  public:
   using Options = BrotliReaderOptions;
 
-  // Creates a cancelled BrotliReader.
+  // Creates a closed BrotliReader.
   BrotliReader();
 
   // Will read Brotli-compressed stream from the byte Reader which is owned by
@@ -56,15 +56,20 @@ class BrotliReader final : public Reader {
   bool HopeForMoreSlow() const override;
 
  private:
+  struct BrotliDecoderStateDeleter {
+    void operator()(BrotliDecoderState* ptr) const;
+  };
+
+  std::unique_ptr<Reader> owned_src_;
+  // Invariant: if healthy() then src_ != nullptr
+  Reader* src_;
+  // If healthy() but decompressor_ == nullptr then all data have been
+  // decompressed.
+  std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
+
   // Invariant:
   //   cursor_ and limit_ point inside the buffer returned by
   //   BrotliDecoderTakeOutput() or are both nullptr
-
-  Reader* src_;
-  std::unique_ptr<Reader> owned_src_;
-  // If healthy() but decompressor_ == nullptr then all data have been
-  // decompressed.
-  BrotliDecoderState* decompressor_;
 };
 
 }  // namespace riegeli

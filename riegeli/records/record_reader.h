@@ -98,7 +98,7 @@ class RecordReader final : public Object {
  public:
   using Options = RecordReaderOptions;
 
-  // Creates a cancelled RecordReader.
+  // Creates a closed RecordReader.
   RecordReader();
 
   // Will read records from the byte Reader which is owned by this RecordReader
@@ -111,12 +111,9 @@ class RecordReader final : public Object {
   // RecordReader.
   explicit RecordReader(Reader* byte_reader, Options options = Options());
 
-  // Cancels the target RecordReader before the move. The source RecordReader is
-  // left cancelled.
   RecordReader(RecordReader&& src) noexcept;
   RecordReader& operator=(RecordReader&& src) noexcept;
 
-  // Cancels the RecordReader.
   ~RecordReader();
 
   // Reads the next record.
@@ -201,6 +198,7 @@ class RecordReader final : public Object {
   // chunk_begin_, and chunk_end_. On failure clears chunk_decoder_.
   bool ReadChunk();
 
+  // Invariant: if healthy() then chunk_reader_ != nullptr
   std::unique_ptr<ChunkReader> chunk_reader_;
   bool skip_corruption_;
   // Position of the beginning of the current chunk or end of file, except when

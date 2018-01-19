@@ -68,28 +68,16 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
   }
 }
 
-class RecordWriter::Impl {
+class RecordWriter::Impl : public Object {
  public:
   Impl() = default;
 
   explicit Impl(std::unique_ptr<ChunkEncoder> chunk_encoder)
       : chunk_encoder_(std::move(chunk_encoder)) {}
 
-  virtual ~Impl();
+  ~Impl();
 
-  // Either Close() or Cancel() must be called once before destruction.
-  //
-  // Precondition: chunk is not open.
-  virtual bool Close() = 0;
-  virtual void Cancel() = 0;
-
-  bool healthy() const { return healthy_.load(std::memory_order_acquire); }
-
-  // Precondition: !healthy()
-  const std::string& message() const {
-    RIEGELI_ASSERT(!healthy());
-    return message_;
-  }
+  // Precondition for Close(): chunk is not open.
 
   // Precondition: chunk is not open.
   virtual void OpenChunk() = 0;
@@ -124,41 +112,29 @@ class RecordWriter::Impl {
   virtual bool Flush(FlushType flush_type) = 0;
 
  protected:
-  RIEGELI_ATTRIBUTE_COLD bool Fail(std::string message);
-
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
-
- private:
-  std::atomic<bool> healthy_{true};
-  // message_ can be changed only while healthy_ is true.
-  std::string message_;
 };
 
 RecordWriter::Impl::~Impl() = default;
-
-inline bool RecordWriter::Impl::Fail(std::string message) {
-  RIEGELI_ASSERT(healthy());
-  message_ = std::move(message);
-  healthy_.store(std::memory_order_release);
-  return false;
-}
 
 class RecordWriter::SerialImpl final : public Impl {
  public:
   SerialImpl(ChunkWriter* chunk_writer, const Options& options)
       : Impl(MakeChunkEncoder(options)), chunk_writer_(chunk_writer) {}
 
-  bool Close() override { return chunk_writer_->Close(); }
-  void Cancel() override { chunk_writer_->Cancel(); }
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+
+ protected:
+  void Done() override {}
 
  private:
   ChunkWriter* chunk_writer_;
 };
 
 bool RecordWriter::SerialImpl::CloseChunk() {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
   Chunk chunk;
   if (RIEGELI_UNLIKELY(!chunk_encoder_->Encode(&chunk))) {
     return Fail("Failed to encode chunk");
@@ -171,6 +147,7 @@ bool RecordWriter::SerialImpl::CloseChunk() {
 }
 
 bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(!chunk_writer_->Flush(flush_type))) {
     if (chunk_writer_->healthy()) return false;
     return Fail(chunk_writer_->Message());
@@ -184,34 +161,36 @@ class RecordWriter::ParallelImpl final : public Impl {
  public:
   ParallelImpl(ChunkWriter* chunk_writer, const Options& options);
 
-  bool Close() override;
-  void Cancel() override;
+  ~ParallelImpl();
+
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(options_); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+
+ protected:
+  void Done() override;
 
  private:
   // A request to the chunk writer thread.
   enum class RequestType {
     kWriteChunkRequest,
     kFlushRequest,
-    kCloseRequest,
+    kDoneRequest,
   };
   struct WriteChunkRequest {
-    // chunk.get().data.empty() when chunk encoder failed.
     std::future<Chunk> chunk;
   };
   struct FlushRequest {
     FlushType flush_type;
     std::promise<bool> done;
   };
-  struct CloseRequest {
-    std::promise<bool> done;
+  struct DoneRequest {
+    std::promise<void> done;
   };
   struct ChunkWriterRequest {
     explicit ChunkWriterRequest(WriteChunkRequest write_chunk_request);
     explicit ChunkWriterRequest(FlushRequest flush_request);
-    explicit ChunkWriterRequest(CloseRequest close_request);
+    explicit ChunkWriterRequest(DoneRequest done_request);
 
     ChunkWriterRequest(ChunkWriterRequest&& src) noexcept;
     ChunkWriterRequest& operator=(ChunkWriterRequest&& src) noexcept;
@@ -222,16 +201,11 @@ class RecordWriter::ParallelImpl final : public Impl {
     union {
       WriteChunkRequest write_chunk_request;
       FlushRequest flush_request;
-      CloseRequest close_request;
+      DoneRequest done_request;
     };
   };
 
-  // If cancelled() is true, a CloseRequest is interpreted as a request to
-  // cancel writing. Also, further expensive work can be skipped.
-  bool cancelled() const { return cancelled_.load(std::memory_order_relaxed); }
-
   Options options_;
-  std::atomic<bool> cancelled_{false};
   ChunkWriter* chunk_writer_;
   std::mutex mutex_;
   // All variables below are guarded by mutex_.
@@ -251,9 +225,9 @@ inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
       flush_request(std::move(flush_request)) {}
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
-    CloseRequest close_request)
-    : request_type(RequestType::kCloseRequest),
-      close_request(std::move(close_request)) {}
+    DoneRequest done_request)
+    : request_type(RequestType::kDoneRequest),
+      done_request(std::move(done_request)) {}
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::~ChunkWriterRequest() {
   switch (request_type) {
@@ -263,8 +237,8 @@ inline RecordWriter::ParallelImpl::ChunkWriterRequest::~ChunkWriterRequest() {
     case RequestType::kFlushRequest:
       flush_request.~FlushRequest();
       return;
-    case RequestType::kCloseRequest:
-      close_request.~CloseRequest();
+    case RequestType::kDoneRequest:
+      done_request.~DoneRequest();
       return;
   }
   RIEGELI_UNREACHABLE() << "Unknown request type: "
@@ -282,8 +256,8 @@ inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
     case RequestType::kFlushRequest:
       new (&flush_request) FlushRequest(std::move(src.flush_request));
       return;
-    case RequestType::kCloseRequest:
-      new (&close_request) CloseRequest(std::move(src.close_request));
+    case RequestType::kDoneRequest:
+      new (&done_request) DoneRequest(std::move(src.done_request));
       return;
   }
   RIEGELI_UNREACHABLE() << "Unknown request type: "
@@ -315,42 +289,35 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       lock.unlock();
       switch (request.request_type) {
         case RequestType::kWriteChunkRequest: {
-          if (RIEGELI_UNLIKELY(!healthy() || cancelled())) continue;
+          // If !healthy(), the chunk must still be waited for, to ensure that
+          // the chunk encoder thread exits before the chunk writer thread
+          // responds to DoneRequest.
           const Chunk chunk = request.write_chunk_request.chunk.get();
-          if (RIEGELI_UNLIKELY(cancelled())) continue;
-          if (RIEGELI_UNLIKELY(chunk.data.empty())) {
-            Fail("Failed to encode chunk");
-            continue;
-          }
+          if (RIEGELI_UNLIKELY(!healthy())) continue;
           if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
             RIEGELI_ASSERT(!chunk_writer_->healthy());
             Fail(chunk_writer_->Message());
           }
           continue;
         }
-        case RequestType::kFlushRequest:
-          if (RIEGELI_UNLIKELY(!healthy() || cancelled())) {
+        case RequestType::kFlushRequest: {
+          if (RIEGELI_UNLIKELY(!healthy())) {
             request.flush_request.done.set_value(false);
             continue;
           }
           if (RIEGELI_UNLIKELY(
                   !chunk_writer_->Flush(request.flush_request.flush_type))) {
-            if (!chunk_writer_->healthy()) {
-              Fail(chunk_writer_->Message());
-            }
+            if (!chunk_writer_->healthy()) Fail(chunk_writer_->Message());
             request.flush_request.done.set_value(false);
             continue;
           }
           request.flush_request.done.set_value(true);
           continue;
-        case RequestType::kCloseRequest:
-          if (RIEGELI_UNLIKELY(!healthy() || cancelled())) {
-            chunk_writer_->Cancel();
-            request.close_request.done.set_value(false);
-            return;
-          }
-          request.close_request.done.set_value(true);
+        }
+        case RequestType::kDoneRequest: {
+          request.done_request.done.set_value();
           return;
+        }
       }
       RIEGELI_UNREACHABLE()
           << "Unknown request type: " << static_cast<int>(request.request_type);
@@ -358,20 +325,23 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
   });
 }
 
-bool RecordWriter::ParallelImpl::Close() {
-  std::promise<bool> done_promise;
-  std::future<bool> done_future = done_promise.get_future();
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    chunk_writer_requests_.emplace_back(CloseRequest{std::move(done_promise)});
-    has_chunk_writer_request_.notify_one();
+RecordWriter::ParallelImpl::~ParallelImpl() {
+  if (RIEGELI_UNLIKELY(!closed())) {
+    // Ask the chunk writer thread to stop working and exit.
+    Fail("Cancelled");
+    Done();
   }
-  return done_future.get();
 }
 
-void RecordWriter::ParallelImpl::Cancel() {
-  cancelled_.store(true, std::memory_order_relaxed);
-  Close();
+void RecordWriter::ParallelImpl::Done() {
+  std::promise<void> done_promise;
+  std::future<void> done_future = done_promise.get_future();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
+    has_chunk_writer_request_.notify_one();
+  }
+  done_future.get();
 }
 
 bool RecordWriter::ParallelImpl::CloseChunk() {
@@ -391,7 +361,9 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   }
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
     Chunk chunk;
-    if (RIEGELI_UNLIKELY(!chunk_encoder->Encode(&chunk))) chunk.data.Clear();
+    if (RIEGELI_UNLIKELY(!chunk_encoder->Encode(&chunk))) {
+      Fail("Failed to encode chunk");
+    }
     delete chunk_encoder;
     chunk_promise->set_value(std::move(chunk));
     delete chunk_promise;
@@ -411,7 +383,7 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-RecordWriter::RecordWriter() : desired_chunk_size_(0) { MarkCancelled(); }
+RecordWriter::RecordWriter() : desired_chunk_size_(0) { MarkClosed(); }
 
 RecordWriter::RecordWriter(std::unique_ptr<Writer> chunk_writer,
                            Options options)
@@ -462,38 +434,36 @@ RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
     Object::operator=(std::move(src));
     desired_chunk_size_ = riegeli::exchange(src.desired_chunk_size_, 0);
     chunk_size_ = riegeli::exchange(src.chunk_size_, 0);
-    owned_chunk_writer_ = std::move(src.owned_chunk_writer_);
+    // impl_ must be assigned before owned_chunk_writer_ because background work
+    // of impl_ may need owned_chunk_writer_.
     impl_ = std::move(src.impl_);
+    owned_chunk_writer_ = std::move(src.owned_chunk_writer_);
   }
   return *this;
 }
 
-RecordWriter::~RecordWriter() { Cancel(); }
+RecordWriter::~RecordWriter() = default;
 
 void RecordWriter::Done() {
   if (RIEGELI_LIKELY(healthy()) && chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) {
-      RIEGELI_ASSERT(!impl_->healthy());
-      Fail(impl_->message());
-    }
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) Fail(impl_->Message());
   }
-  if (RIEGELI_LIKELY(healthy())) {
-    if (RIEGELI_UNLIKELY(!impl_->Close())) {
-      RIEGELI_ASSERT(!impl_->healthy());
-      Fail(impl_->message());
-    } else if (owned_chunk_writer_ != nullptr) {
+  if (RIEGELI_LIKELY(impl_ != nullptr)) {
+    if (RIEGELI_LIKELY(healthy())) {
+      if (RIEGELI_UNLIKELY(!impl_->Close())) Fail(impl_->Message());
+    }
+    impl_.reset();
+  }
+  if (owned_chunk_writer_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_chunk_writer_->Close())) {
-        RIEGELI_ASSERT(owned_chunk_writer_->healthy());
         Fail(owned_chunk_writer_->Message());
       }
     }
-  } else if (impl_ != nullptr) {
-    impl_->Cancel();
+    owned_chunk_writer_.reset();
   }
   desired_chunk_size_ = 0;
   chunk_size_ = 0;
-  owned_chunk_writer_.reset();
-  impl_.reset();
 }
 
 bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
@@ -546,10 +516,7 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
   const size_t kAssumedPointerSize = 8;
   if (chunk_size_ + record_size + kAssumedPointerSize > desired_chunk_size_ &&
       chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) {
-      RIEGELI_ASSERT(!impl_->healthy());
-      return Fail(impl_->message());
-    }
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(impl_->Message());
     impl_->OpenChunk();
     chunk_size_ = 0;
   }
@@ -560,14 +527,11 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
 bool RecordWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) {
-      RIEGELI_ASSERT(!impl_->healthy());
-      return Fail(impl_->message());
-    }
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(impl_->Message());
   }
   if (RIEGELI_UNLIKELY(!impl_->Flush(flush_type))) {
     if (impl_->healthy()) return false;
-    return Fail(impl_->message());
+    return Fail(impl_->Message());
   }
   if (chunk_size_ != 0) {
     impl_->OpenChunk();

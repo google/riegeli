@@ -41,18 +41,18 @@ DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
 DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
     : byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {}
 
+DefaultChunkWriter::~DefaultChunkWriter() = default;
+
 void DefaultChunkWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
-    if (owned_byte_writer_ != nullptr) {
+  if (owned_byte_writer_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_byte_writer_->Close())) {
         Fail(owned_byte_writer_->Message());
       }
     }
-  } else {
-    byte_writer_->Cancel();
+    owned_byte_writer_.reset();
   }
   byte_writer_ = nullptr;
-  owned_byte_writer_.reset();
 }
 
 bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {

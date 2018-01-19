@@ -14,6 +14,8 @@
 
 #include "riegeli/base/object.h"
 
+#include <stddef.h>
+#include <atomic>
 #include <string>
 
 #include "riegeli/base/assert.h"
@@ -22,33 +24,59 @@
 
 namespace riegeli {
 
+bool Object::Close() {
+  const uintptr_t status_before = status_.load(std::memory_order_acquire);
+  switch (status_before) {
+    default:
+      if (reinterpret_cast<Failed*>(status_before)->closed) return false;
+      RIEGELI_FALLTHROUGH;
+    case kHealthy(): {
+      Done();
+      const uintptr_t status_after = status_.load(std::memory_order_relaxed);
+      switch (status_after) {
+        case kHealthy():
+          status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
+          return true;
+        case kClosedSuccessfully():
+          RIEGELI_UNREACHABLE();
+        default:
+          RIEGELI_ASSERT(!reinterpret_cast<Failed*>(status_after)->closed);
+          reinterpret_cast<Failed*>(status_after)->closed = true;
+          return false;
+      }
+    }
+    case kClosedSuccessfully():
+      return true;
+  }
+}
+
 bool Object::Fail(string_view message) {
-  RIEGELI_ASSERT(healthy());
-  state_ = State::kFailed;
-  message_ = std::string(message);
+  RIEGELI_ASSERT(!closed());
+  const uintptr_t new_status =
+      reinterpret_cast<uintptr_t>(new Failed{false, std::string(message)});
+  uintptr_t old_status = kHealthy();
+  if (RIEGELI_UNLIKELY(!status_.compare_exchange_strong(
+          old_status, new_status, std::memory_order_release))) {
+    // status_ was already set, new_status loses.
+    DeleteStatus(new_status);
+  }
   return false;
 }
 
 const std::string& Object::Message() const {
-  switch (state_) {
-    case State::kHealthy: {
-      static const NoDestructor<std::string> kHealthy("Healthy");
-      return *kHealthy;
+  const uintptr_t status = status_.load(std::memory_order_acquire);
+  switch (status) {
+    case kHealthy(): {
+      static const NoDestructor<std::string> kStaticHealthy("Healthy");
+      return *kStaticHealthy;
     }
-    case State::kClosed: {
-      static const NoDestructor<std::string> kClosed("Closed");
-      return *kClosed;
+    case kClosedSuccessfully(): {
+      static const NoDestructor<std::string> kStaticClosed("Closed");
+      return *kStaticClosed;
     }
-    case State::kCancelling:
-    case State::kCancelled: {
-      static const NoDestructor<std::string> kCancelled("Cancelled");
-      return *kCancelled;
-    }
-    case State::kFailed:
-    case State::kFailedAndClosed:
-      return message_;
+    default:
+      return reinterpret_cast<Failed*>(status)->message;
   }
-  RIEGELI_UNREACHABLE() << "Unknown state: " << static_cast<int>(state_);
 }
 
 TypeId Object::GetTypeId() const { return TypeId(); }

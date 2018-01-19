@@ -51,7 +51,7 @@ class ZstdReader final : public BufferedReader {
  public:
   using Options = ZstdReaderOptions;
 
-  // Creates a cancelled ZstdReader.
+  // Creates a closed ZstdReader.
   ZstdReader();
 
   // Will read Zstd-compressed stream from the byte Reader which is owned by
@@ -76,12 +76,17 @@ class ZstdReader final : public BufferedReader {
   bool HopeForMoreSlow() const override;
 
  private:
-  Reader* src_;
+  struct ZSTD_DStreamDeleter {
+    void operator()(ZSTD_DStream* ptr) const;
+  };
+
   std::unique_ptr<Reader> owned_src_;
+  // Invariant: if healthy() then src_ != nullptr
+  Reader* src_;
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed. In this case ZSTD_decompressStream() must not be called
   // again.
-  ZSTD_DStream* decompressor_;
+  std::unique_ptr<ZSTD_DStream, ZSTD_DStreamDeleter> decompressor_;
 };
 
 }  // namespace riegeli

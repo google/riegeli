@@ -28,7 +28,7 @@
 namespace riegeli {
 
 ChainReader::ChainReader() : src_(&owned_src_), iter_(src_->blocks().cbegin()) {
-  MarkCancelled();
+  MarkClosed();
 }
 
 ChainReader::ChainReader(Chain src)
@@ -89,10 +89,10 @@ ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
   return *this;
 }
 
-ChainReader::~ChainReader() { Cancel(); }
+ChainReader::~ChainReader() = default;
 
 void ChainReader::Done() {
-  owned_src_.Clear();
+  owned_src_ = Chain();
   src_ = &owned_src_;
   iter_ = src_->blocks().cbegin();
   Reader::Done();

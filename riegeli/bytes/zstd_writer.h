@@ -81,7 +81,7 @@ class ZstdWriter final : public BufferedWriter {
  public:
   using Options = ZstdWriterOptions;
 
-  // Creates a cancelled ZstdWriter.
+  // Creates a closed ZstdWriter.
   ZstdWriter();
 
   // Will write Zstd-compressed stream to the byte Writer which is owned by this
@@ -91,7 +91,8 @@ class ZstdWriter final : public BufferedWriter {
 
   // Will write Zstd-compressed stream to the byte Writer which is not owned by
   // this ZstdWriter and must be kept alive but not accessed until closing the
-  // ZstdWriter.
+  // ZstdWriter, except that it is allowed to read its destination directly
+  // after Flush().
   explicit ZstdWriter(Writer* dest, Options options = Options());
 
   ZstdWriter(ZstdWriter&& src) noexcept;
@@ -106,12 +107,17 @@ class ZstdWriter final : public BufferedWriter {
   bool WriteInternal(string_view src) override;
 
  private:
+  struct ZSTD_CStreamDeleter {
+    void operator()(ZSTD_CStream* ptr) const;
+  };
+
   template <typename Function>
   bool FlushInternal(Function function, const char* function_name);
 
-  Writer* dest_;
   std::unique_ptr<Writer> owned_dest_;
-  ZSTD_CStream* compressor_;
+  // Invariant: if healthy() then dest_ != nullptr
+  Writer* dest_;
+  std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
 };
 
 }  // namespace riegeli

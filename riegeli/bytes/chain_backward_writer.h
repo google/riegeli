@@ -51,7 +51,7 @@ class ChainBackwardWriter final : public BackwardWriter {
  public:
   using Options = ChainBackwardWriterOptions;
 
-  // Creates a cancelled ChainBackwardWriter.
+  // Creates a closed ChainBackwardWriter.
   ChainBackwardWriter();
 
   // Will write to the Chain which is not owned by this ChainBackwardWriter and

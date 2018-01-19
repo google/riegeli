@@ -27,7 +27,7 @@
 
 namespace riegeli {
 
-ChainWriter::ChainWriter() : dest_(nullptr), size_hint_(0) { MarkCancelled(); }
+ChainWriter::ChainWriter() : dest_(nullptr), size_hint_(0) { MarkClosed(); }
 
 ChainWriter::ChainWriter(Chain* dest, Options options)
     : dest_(RIEGELI_ASSERT_NOTNULL(dest)),
@@ -50,14 +50,10 @@ ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
   return *this;
 }
 
-ChainWriter::~ChainWriter() { Cancel(); }
+ChainWriter::~ChainWriter() = default;
 
 void ChainWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
-    DiscardBuffer();
-  } else {
-    dest_->Clear();
-  }
+  if (RIEGELI_LIKELY(healthy())) DiscardBuffer();
   dest_ = nullptr;
   Writer::Done();
 }

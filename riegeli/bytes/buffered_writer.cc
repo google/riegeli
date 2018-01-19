@@ -30,6 +30,9 @@ BufferedWriter::BufferedWriter(BufferedWriter&& src) noexcept
 
 void BufferedWriter::operator=(BufferedWriter&& src) noexcept {
   RIEGELI_ASSERT(&src != this);
+  if (start_ != nullptr) {
+    std::allocator<char>().deallocate(start_, buffer_size_);
+  }
   Writer::operator=(std::move(src));
   buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
 }

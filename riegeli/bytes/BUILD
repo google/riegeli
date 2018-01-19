@@ -171,7 +171,10 @@ cc_library(
 
 cc_library(
     name = "fd_writer",
-    srcs = ["fd_writer.cc"],
+    srcs = [
+        "fd_holder.h",
+        "fd_writer.cc",
+    ],
     hdrs = ["fd_writer.h"],
     deps = [
         ":buffered_writer",
@@ -182,7 +185,10 @@ cc_library(
 
 cc_library(
     name = "fd_reader",
-    srcs = ["fd_reader.cc"],
+    srcs = [
+        "fd_holder.h",
+        "fd_reader.cc",
+    ],
     hdrs = ["fd_reader.h"],
     deps = [
         ":buffered_reader",

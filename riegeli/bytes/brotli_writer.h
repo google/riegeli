@@ -79,7 +79,7 @@ class BrotliWriter final : public BufferedWriter {
  public:
   using Options = BrotliWriterOptions;
 
-  // Creates a cancelled BrotliWriter.
+  // Creates a closed BrotliWriter.
   BrotliWriter();
 
   // Will write Brotli-compressed stream to the byte Writer which is owned by
@@ -90,7 +90,8 @@ class BrotliWriter final : public BufferedWriter {
 
   // Will write Brotli-compressed stream to the byte Writer which is not owned
   // by this BrotliWriter and must be kept alive but not accessed until closing
-  // the BrotliWriter.
+  // the BrotliWriter, except that it is allowed to read its destination
+  // directly after Flush().
   explicit BrotliWriter(Writer* dest, Options options = Options());
 
   BrotliWriter(BrotliWriter&& src) noexcept;
@@ -105,11 +106,16 @@ class BrotliWriter final : public BufferedWriter {
   bool WriteInternal(string_view src) override;
 
  private:
+  struct BrotliEncoderStateDeleter {
+    void operator()(BrotliEncoderState* ptr) const;
+  };
+
   bool WriteInternal(string_view src, BrotliEncoderOperation op);
 
-  Writer* dest_;
   std::unique_ptr<Writer> owned_dest_;
-  BrotliEncoderState* compressor_;
+  // Invariant: if healthy() then dest_ != nullptr
+  Writer* dest_;
+  std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
 
 }  // namespace riegeli

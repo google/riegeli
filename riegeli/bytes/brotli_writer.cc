@@ -29,9 +29,12 @@
 
 namespace riegeli {
 
-BrotliWriter::BrotliWriter() : dest_(nullptr), compressor_(nullptr) {
-  MarkCancelled();
+inline void BrotliWriter::BrotliEncoderStateDeleter::operator()(
+    BrotliEncoderState* ptr) const {
+  BrotliEncoderDestroyInstance(ptr);
 }
+
+BrotliWriter::BrotliWriter() : dest_(nullptr) { MarkClosed(); }
 
 BrotliWriter::BrotliWriter(std::unique_ptr<Writer> dest, Options options)
     : BrotliWriter(dest.get(), options) {
@@ -46,53 +49,51 @@ BrotliWriter::BrotliWriter(Writer* dest, Options options)
     Fail("BrotliEncoderCreateInstance() failed");
     return;
   }
-  if (RIEGELI_UNLIKELY(!BrotliEncoderSetParameter(
-          compressor_, BROTLI_PARAM_QUALITY, options.compression_level_))) {
+  if (RIEGELI_UNLIKELY(
+          !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_QUALITY,
+                                     options.compression_level_))) {
     Fail("BrotliEncoderSetParameter() failed");
     return;
   }
   if (options.size_hint_ > 0) {
     // Ignore errors from tuning.
     BrotliEncoderSetParameter(
-        compressor_, BROTLI_PARAM_SIZE_HINT,
+        compressor_.get(), BROTLI_PARAM_SIZE_HINT,
         UnsignedMin(options.size_hint_, std::numeric_limits<uint32_t>::max()));
   }
 }
 
 BrotliWriter::BrotliWriter(BrotliWriter&& src) noexcept
     : BufferedWriter(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
       owned_dest_(std::move(src.owned_dest_)),
-      compressor_(riegeli::exchange(src.compressor_, nullptr)) {}
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      compressor_(std::move(src.compressor_)) {}
 
 BrotliWriter& BrotliWriter::operator=(BrotliWriter&& src) noexcept {
   if (&src != this) {
     BufferedWriter::operator=(std::move(src));
-    dest_ = riegeli::exchange(src.dest_, nullptr);
     owned_dest_ = std::move(src.owned_dest_);
-    compressor_ = riegeli::exchange(src.compressor_, nullptr);
+    dest_ = riegeli::exchange(src.dest_, nullptr);
+    compressor_ = std::move(src.compressor_);
   }
   return *this;
 }
 
-BrotliWriter::~BrotliWriter() { Cancel(); }
+BrotliWriter::~BrotliWriter() = default;
 
 void BrotliWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {
     WriteInternal(string_view(start_, written_to_buffer()),
                   BROTLI_OPERATION_FINISH);
   }
-  if (RIEGELI_LIKELY(healthy())) {
-    if (owned_dest_ != nullptr) {
+  if (owned_dest_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_dest_->Close())) Fail(owned_dest_->Message());
     }
-  } else {
-    dest_->Cancel();
+    owned_dest_.reset();
   }
   dest_ = nullptr;
-  owned_dest_.reset();
-  BrotliEncoderDestroyInstance(compressor_);
-  compressor_ = nullptr;
+  compressor_.reset();
   BufferedWriter::Done();
 }
 
@@ -125,13 +126,13 @@ inline bool BrotliWriter::WriteInternal(string_view src,
   size_t available_out = 0;
   for (;;) {
     if (RIEGELI_UNLIKELY(!BrotliEncoderCompressStream(
-            compressor_, op, &available_in, &next_in, &available_out, nullptr,
-            nullptr))) {
+            compressor_.get(), op, &available_in, &next_in, &available_out,
+            nullptr, nullptr))) {
       return Fail("BrotliEncoderCompressStream() failed");
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(
-        BrotliEncoderTakeOutput(compressor_, &length));
+        BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
       if (RIEGELI_UNLIKELY(!dest_->Write(string_view(data, length)))) {
         RIEGELI_ASSERT(!dest_->healthy());

@@ -52,6 +52,7 @@ class BackwardWriter : public Object {
   // Invariants:
   //   start() >= cursor() >= limit() (possibly all nullptr)
   //   if !healthy() then start() == cursor() == limit()
+  //   if closed() then start() == cursor() == limit() == nullptr
   char* start() const { return start_; }
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
@@ -89,7 +90,7 @@ class BackwardWriter : public Object {
   // This may decrease when the BackwardWriter becomes unhealthy (due to
   // buffering, previously written but unflushed data may be lost).
   //
-  // This is always 0 when the BackwardWriter is closed.
+  // Invariant: if closed() then pos() == 0
   Position pos() const { return start_pos_ + written_to_buffer(); }
 
  protected:

@@ -51,7 +51,7 @@ class ChainWriter final : public Writer {
  public:
   using Options = ChainWriterOptions;
 
-  // Creates a cancelled ChainWriter.
+  // Creates a closed ChainWriter.
   ChainWriter();
 
   // Will write to the Chain which is not owned by this ChainWriter and must be

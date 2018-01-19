@@ -44,7 +44,6 @@ SimpleChunkEncoder::Compressor::Compressor(
 
 inline void SimpleChunkEncoder::Compressor::Reset(
     internal::CompressionType compression_type, int compression_level) {
-  writer_.reset();
   data_.Clear();
   std::unique_ptr<Writer> data_writer =
       riegeli::make_unique<ChainWriter>(&data_);

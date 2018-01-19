@@ -15,11 +15,14 @@
 #ifndef RIEGELI_BASE_OBJECT_H_
 #define RIEGELI_BASE_OBJECT_H_
 
+#include <stddef.h>
+#include <atomic>
 #include <string>
 #include <utility>
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/memory.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
@@ -45,58 +48,62 @@ class TypeId {
 // Object is an abstract base class for data readers and writers, managing their
 // state: whether they are closed, and whether they failed (with an associated
 // human-readable message). An Object is healthy when it is not closed nor
-// failed. When an object is cancelled, it is both failed with message
-// "Cancelled" and closed.
+// failed.
 //
-// An Object becomes closed after calling Close() or Cancel(), when constructed
-// as cancelled (with no parameters), or when moved from.
+// An Object becomes closed when Close() finishes, when constructed as closed
+// (usually with no parameters), or when moved from.
 //
-// An Object becomes failed when it could not perform an operation due to an
-// unexpected reason, after calling Cancel() (if it was not already closed),
-// when constructed as cancelled (with no parameters), or when moved from.
+// An Object fails when it could not perform an operation due to an unexpected
+// reason.
 //
-// Derived Object classes can be movable but not copyable. Assignment operator
-// cancels the target Object before the move. The source Object is left
-// cancelled.
+// Derived Object classes can be movable but not copyable. The source Object is
+// left closed.
+//
+// Derived Object classes should be thread-compatible: const member functions
+// may be called concurrently with const member functions, but non-const member
+// functions may not be called concurrently with any member functions unless
+// specified otherwise.
+//
+// A derived class may use background threads which may cause the Object to
+// fail asynchronously. See comments in the protected section for rules
+// regarding background threads and asynchronous Fail() calls.
 class Object {
  public:
   Object(const Object&) = delete;
   Object& operator=(const Object&) = delete;
 
-  // Cancels the Object.
-  //
-  // This is implemented by derived classes.
-  virtual ~Object() = default;
+  // If a derived class uses background threads, its destructor must cause
+  // background threads to stop interacting with the Object.
+  virtual ~Object();
 
   // Indicates that the Object is no longer needed, but in the case of a writer
   // that its destination is needed.
+  //
+  // If closed(), does nothing. Otherwise:
   //
   // In the case of a writer, pushes buffered data to the destination. In the
   // case of a reader, verifies that the source is not truncated at the current
   // position, i.e. that it either has more data or ends cleanly (for sources
   // where truncation can be distinguished from a clean end).
   //
-  // If the Object is healthy, closes its destination or source if it is
-  // owned by the Object. In the case of a writer, if the writer is unhealthy,
-  // cancels its destination, no matter whether it is owned.
+  // If the Object is healthy and owns a resource which is itself an Object,
+  // closes the resource.
   //
-  // Returns true on success, or if the Object was successfully closed
-  // beforehand.
+  // Frees all owned resources.
+  //
+  // Returns true if the Object did not fail, i.e. if it was healthy just before
+  // becoming closed.
   bool Close();
 
-  // Indicates that the Object is no longer needed, and in the case of a writer
-  // that its destination is not needed either.
-  //
-  // This is equivalent to marking the Object as unhealthy and then calling
-  // Close(), ignoring its result.
-  void Cancel();
-
   // Returns true if the Object is healthy, i.e. not closed nor failed.
-  bool healthy() const { return state_ == State::kHealthy; }
+  bool healthy() const;
+
+  // Returns true if the Object is closed.
+  bool closed() const;
 
   // Returns a human-readable message describing the Object health.
   //
-  // This is "Healthy", "Closed", "Cancelled", or a failure message.
+  // This is "Healthy", "Closed", or a failure message.
   const std::string& Message() const;
 
   // Returns a token which allows to detect the class of the Object at runtime.
@@ -110,9 +117,20 @@ class Object {
   virtual TypeId GetTypeId() const;
 
  protected:
+  // Creates the Object as healthy.
+  //
+  // To create the Object as closed, see MarkClosed().
   Object() = default;
 
   // Moves the part of the object defined in the Object class.
+  //
+  // If a derived class uses background threads, its assignment operator, if
+  // defined, should cause background threads of the target Object to stop
+  // interacting with the Object before Object::Object(Object&&) is called.
+  // Also, its move constructor and move assignment operator, if defined, should
+  // cause background threads of the source Object to pause interacting with the
+  // Object while Object::operator=(Object&&) is called, and then continue
+  // interacting with the target Object instead.
   //
   // Precondition: &src != this
   Object(Object&& src) noexcept;
@@ -120,44 +138,61 @@ class Object {
 
   // Marks the Object as healthy. This can be used if the Object supports
   // resetting to a clean state after a failure (apart from assignment).
+  //
+  // If a derived class uses background threads, its methods which call
+  // MarkHealthy() should cause background threads to stop interacting with the
+  // Object before MarkHealthy() is called.
   void MarkHealthy();
 
-  // Marks the Object as cancelled. This is used for constructing an already
-  // cancelled Object.
+  // Marks the Object as closed.
+  //
+  // This is intended for default constructors of derived classes to create a
+  // closed Object. If a derived class uses background threads, they should not
+  // be running yet when MarkClosed() is called.
   //
   // Precondition: healthy()
-  void MarkCancelled();
+  void MarkClosed();
 
-  // Implementation of Close() and Cancel(), called when the Object is not
-  // closed yet.
+  // Implementation of Close(), called if the Object is not closed yet.
   //
-  // Close() returns early if the Object was already closed, otherwise calls
-  // Done(), and marks the Object as closed.
+  // Close() returns early if closed(), otherwise calls Done() and marks the
+  // Object as closed. See Close() for details of the responsibility of Done().
   //
-  // Cancel() returns early if the Object was already closed, otherwise marks
-  // the Object as failed, calls Done(), and marks the Object as closed.
+  // If a derived class uses background threads, Done() should cause background
+  // threads to stop interacting with the Object.
+  //
+  // Precondition: !closed()
   virtual void Done() = 0;
 
-  // Marks the Object as failed with the specified message. Always returns
-  // false.
+  // Marks the Object as failed with the specified message.
   //
-  // Precondition: healthy()
+  // Fail() always returns false, for convenience of reporting the failure as a
+  // false result of a failing function.
+  //
+  // Even though Fail() is not const, it may be called concurrently with public
+  // member functions, with const member functions, and with other Fail() calls.
+  // If Fail() is called multiple times, the first message wins.
+  //
+  // Precondition: !closed()
   RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message);
 
  private:
-  enum class State : int {
-    kHealthy = 0,
-    kClosed = 1,
-    // Cancellation is a case of failure. In State cancellation is treated
-    // separately to avoid setting message_ on cancellation.
-    kCancelling = 2,
-    kCancelled = 3,        // kCancelling | kClosed
-    kFailed = 6,           // 4 | kCancelling
-    kFailedAndClosed = 7,  // kFailed | kClosed
+  struct Failed {
+    // The closed flag may be changed from false to true by Close(). This
+    // happens after Done() finishes, and thus any background threads should
+    // have stopped interacting with the Object.
+    bool closed;
+    const std::string message;
   };
 
-  State state_ = State::kHealthy;
-  std::string message_;
+  static constexpr uintptr_t kHealthy() { return 0; }
+  static constexpr uintptr_t kClosedSuccessfully() { return 1; }
+
+  static void DeleteStatus(uintptr_t status);
+
+  // status_ is either kHealthy(), or kClosedSuccessfully(), or Failed*
+  // reinterpret_cast to uintptr_t.
+  std::atomic<uintptr_t> status_{kHealthy()};
 };
 
 // Implementation details follow.
@@ -168,47 +203,55 @@ TypeId TypeId::For() {
   return TypeId(&token);
 }
 
-inline void Object::MarkHealthy() {
-  state_ = State::kHealthy;
-  message_.clear();
+inline void Object::DeleteStatus(uintptr_t status) {
+  switch (status) {
+    case kHealthy():
+    case kClosedSuccessfully():
+      break;
+    default:
+      delete reinterpret_cast<Failed*>(status);
+      break;
+  }
 }
 
-inline void Object::MarkCancelled() {
+inline bool Object::healthy() const {
+  return status_.load(std::memory_order_acquire) == kHealthy();
+}
+
+inline bool Object::closed() const {
+  const uintptr_t status = status_.load(std::memory_order_acquire);
+  switch (status) {
+    case kHealthy():
+      return false;
+    case kClosedSuccessfully():
+      return true;
+    default:
+      return reinterpret_cast<Failed*>(status)->closed;
+  }
+}
+
+inline void Object::MarkHealthy() {
+  DeleteStatus(status_.exchange(kHealthy(), std::memory_order_relaxed));
+}
+
+inline void Object::MarkClosed() {
   RIEGELI_ASSERT(healthy());
-  state_ = State::kCancelled;
+  status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
 }
 
 inline Object::Object(Object&& src) noexcept
-    : state_(riegeli::exchange(src.state_, State::kCancelled)),
-      message_(std::move(src.message_)) {
-  src.message_.clear();
-}
+    : status_(src.status_.exchange(kClosedSuccessfully(),
+                                   std::memory_order_relaxed)) {}
 
 inline void Object::operator=(Object&& src) noexcept {
   RIEGELI_ASSERT(&src != this);
-  Cancel();
-  state_ = riegeli::exchange(src.state_, State::kCancelled);
-  message_ = std::move(src.message_);
-  src.message_.clear();
+  DeleteStatus(status_.exchange(
+      src.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
+      std::memory_order_relaxed));
 }
 
-inline bool Object::Close() {
-  if ((static_cast<int>(state_) & static_cast<int>(State::kClosed)) == 0) {
-    Done();
-    state_ = static_cast<State>(static_cast<int>(state_) |
-                                static_cast<int>(State::kClosed));
-  }
-  return state_ == State::kClosed;  // Returns true if not failed.
-}
-
-inline void Object::Cancel() {
-  if ((static_cast<int>(state_) & static_cast<int>(State::kClosed)) == 0) {
-    state_ = static_cast<State>(static_cast<int>(state_) |
-                                static_cast<int>(State::kCancelling));
-    Done();
-    state_ = static_cast<State>(static_cast<int>(state_) |
-                                static_cast<int>(State::kClosed));
-  }
+inline Object::~Object() {
+  DeleteStatus(status_.load(std::memory_order_relaxed));
 }
 
 }  // namespace riegeli

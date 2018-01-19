@@ -33,9 +33,12 @@
 
 namespace riegeli {
 
-ZstdWriter::ZstdWriter() : dest_(nullptr), compressor_(nullptr) {
-  MarkCancelled();
+inline void ZstdWriter::ZSTD_CStreamDeleter::operator()(
+    ZSTD_CStream* ptr) const {
+  ZSTD_freeCStream(ptr);
 }
+
+ZstdWriter::ZstdWriter() : dest_(nullptr) { MarkClosed(); }
 
 ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
     : ZstdWriter(dest.get(), options) {
@@ -55,8 +58,8 @@ ZstdWriter::ZstdWriter(Writer* dest, Options options)
   ZSTD_parameters params =
       ZSTD_getParams(options.compression_level_, size_hint, 0);
   params.fParams.contentSizeFlag = options.size_hint_ > 0 ? 1 : 0;
-  const size_t result =
-      ZSTD_initCStream_advanced(compressor_, nullptr, 0, params, size_hint);
+  const size_t result = ZSTD_initCStream_advanced(compressor_.get(), nullptr, 0,
+                                                  params, size_hint);
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
     Fail(std::string("ZSTD_initCStream_advanced() failed: ") +
          ZSTD_getErrorName(result));
@@ -65,38 +68,35 @@ ZstdWriter::ZstdWriter(Writer* dest, Options options)
 
 ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
     : BufferedWriter(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
       owned_dest_(std::move(src.owned_dest_)),
-      compressor_(riegeli::exchange(src.compressor_, nullptr)) {}
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      compressor_(std::move(src.compressor_)) {}
 
 ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
   if (&src != this) {
     BufferedWriter::operator=(std::move(src));
-    dest_ = riegeli::exchange(src.dest_, nullptr);
     owned_dest_ = std::move(src.owned_dest_);
-    compressor_ = riegeli::exchange(src.compressor_, nullptr);
+    dest_ = riegeli::exchange(src.dest_, nullptr);
+    compressor_ = std::move(src.compressor_);
   }
   return *this;
 }
 
-ZstdWriter::~ZstdWriter() { Cancel(); }
+ZstdWriter::~ZstdWriter() = default;
 
 void ZstdWriter::Done() {
   PushInternal();
   if (RIEGELI_LIKELY(healthy())) {
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()");
   }
-  if (RIEGELI_LIKELY(healthy())) {
-    if (owned_dest_ != nullptr) {
+  if (owned_dest_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_dest_->Close())) Fail(owned_dest_->Message());
     }
-  } else {
-    dest_->Cancel();
+    owned_dest_.reset();
   }
   dest_ = nullptr;
-  owned_dest_.reset();
-  ZSTD_freeCStream(compressor_);
-  compressor_ = nullptr;
+  compressor_.reset();
   BufferedWriter::Done();
 }
 
@@ -119,7 +119,8 @@ bool ZstdWriter::WriteInternal(string_view src) {
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
-    const size_t result = ZSTD_compressStream(compressor_, &output, &input);
+    const size_t result =
+        ZSTD_compressStream(compressor_.get(), &output, &input);
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
       return Fail(std::string("ZSTD_compressStream() failed: ") +
@@ -142,7 +143,7 @@ bool ZstdWriter::FlushInternal(Function function, const char* function_name) {
   RIEGELI_ASSERT(healthy());
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
-    const size_t result = function(compressor_, &output);
+    const size_t result = function(compressor_.get(), &output);
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) return true;
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {

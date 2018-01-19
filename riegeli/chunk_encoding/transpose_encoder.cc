@@ -125,12 +125,9 @@ void TransposeEncoder::Reset() {
   tags_list_.clear();
   encoded_tags_.clear();
   encoded_tag_pos_.clear();
-  // Clear message_nodes_ before data_ because writers in message_nodes_ point
-  // to data_.
-  message_nodes_.clear();
   for (auto& buffers : data_) buffers.clear();
   group_stack_.clear();
-  nonproto_lengths_writer_.Cancel();
+  message_nodes_.clear();
   nonproto_lengths_->Clear();
   nonproto_lengths_writer_ = ChainBackwardWriter(nonproto_lengths_.get());
   next_message_id_ = internal::MessageId::kRoot + 1;
@@ -349,8 +346,8 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedEndOfSubmessage)));
+          if (!value.Close()) RIEGELI_UNREACHABLE();
         } else {
-          value.Cancel();
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedString)));

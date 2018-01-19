@@ -29,11 +29,11 @@ namespace riegeli {
 // A Reader which reads from another Reader up to the specified size limit,
 // then pretends that the source ends.
 //
-// When a LimitingReader is closed or cancelled, its position is synchronized
-// back to its source.
+// When a LimitingReader is closed, its position is synchronized back to its
+// source.
 class LimitingReader final : public Reader {
  public:
-  // Creates a cancelled LimitingReader.
+  // Creates a closed LimitingReader.
   LimitingReader();
 
   // Will read from the Reader which is not owned by this LimitingReader and

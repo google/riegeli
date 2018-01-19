@@ -34,7 +34,7 @@
 namespace riegeli {
 
 RecordReader::RecordReader() : skip_corruption_(false), chunk_begin_(0) {
-  MarkCancelled();
+  MarkClosed();
 }
 
 RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
@@ -86,7 +86,7 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   return *this;
 }
 
-RecordReader::~RecordReader() { Cancel(); }
+RecordReader::~RecordReader() = default;
 
 void RecordReader::Done() {
   if (RIEGELI_LIKELY(healthy())) {

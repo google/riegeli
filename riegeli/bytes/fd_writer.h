@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -49,13 +50,15 @@ class FdWriterBase : public BufferedWriter {
   FdWriterBase(FdWriterBase&& src) noexcept;
   void operator=(FdWriterBase&& src) noexcept;
 
+  ~FdWriterBase();
+
   void Done() override;
   RIEGELI_ATTRIBUTE_COLD bool FailOperation(const char* operation,
                                             int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
+  FdHolder owned_fd_;
   int fd_;
-  bool owns_fd_;
   std::string filename_;
   // errno value from a failed operation, or 0 if none.
   //
@@ -135,7 +138,7 @@ class FdWriter final : public internal::FdWriterBase {
  public:
   using Options = FdWriterOptions;
 
-  // Creates a cancelled FdWriter.
+  // Creates a closed FdWriter.
   FdWriter();
 
   // Will write to the fd, starting at the end of file, or at the current fd
@@ -154,8 +157,6 @@ class FdWriter final : public internal::FdWriterBase {
 
   FdWriter(FdWriter&& src) noexcept;
   FdWriter& operator=(FdWriter&& src) noexcept;
-
-  ~FdWriter();
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) const override;
@@ -245,7 +246,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
  public:
   using Options = FdStreamWriterOptions;
 
-  // Creates a cancelled FdStreamWriter.
+  // Creates a closed FdStreamWriter.
   FdStreamWriter();
 
   // Will write to the fd, starting at its current position.
@@ -265,8 +266,6 @@ class FdStreamWriter final : public internal::FdWriterBase {
 
   FdStreamWriter(FdStreamWriter&& src) noexcept;
   FdStreamWriter& operator=(FdStreamWriter&& src) noexcept;
-
-  ~FdStreamWriter();
 
  protected:
   bool WriteInternal(string_view src) override;

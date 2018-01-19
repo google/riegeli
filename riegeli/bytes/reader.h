@@ -67,7 +67,9 @@ class Reader : public Object {
   // Buffer pointers. Data between start() and limit() are available for
   // reading, with cursor() pointing to the current position.
   //
-  // Invariant: start() <= cursor() <= limit() (possibly all nullptr)
+  // Invariants:
+  //   start() <= cursor() <= limit() (possibly all nullptr)
+  //   if closed() then start() == cursor() == limit() == nullptr
   const char* start() const { return start_; }
   const char* cursor() const { return cursor_; }
   const char* limit() const { return limit_; }
@@ -79,6 +81,8 @@ class Reader : public Object {
   void set_cursor(const char* cursor);
 
   // Returns the amount of data available between cursor() and limit().
+  //
+  // Invariant: if closed() then available() == 0
   size_t available() const { return limit_ - cursor_; }
 
   // Reads a fixed number of bytes from the buffer to dest, pulling data from
@@ -125,7 +129,7 @@ class Reader : public Object {
   // This is often 0 after creating the Reader, but not necessarily if the
   // Reader wraps another reader or input stream propagating its position.
   //
-  // This is always 0 when the Reader is closed.
+  // Invariant: if closed() then pos() == 0
   Position pos() const { return limit_pos_ - available(); }
 
   // Returns true if this Reader supports Seek() backwards (Seek() forwards is

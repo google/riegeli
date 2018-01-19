@@ -37,18 +37,19 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 namespace internal {
 
-FdWriterBase::FdWriterBase() : fd_(-1), owns_fd_(false) { MarkCancelled(); }
+FdWriterBase::FdWriterBase() : fd_(-1) { MarkClosed(); }
 
 FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedWriter(buffer_size),
+      owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
-      owns_fd_(owns_fd),
       filename_(fd == 1 ? "/dev/stdout"
                         : fd == 2 ? "/dev/stderr"
                                   : "/proc/self/fd/" + std::to_string(fd)) {
@@ -57,9 +58,7 @@ FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
 
 FdWriterBase::FdWriterBase(std::string filename, int flags, mode_t permissions,
                            size_t buffer_size)
-    : BufferedWriter(buffer_size),
-      owns_fd_(true),
-      filename_(std::move(filename)) {
+    : BufferedWriter(buffer_size), filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
                  (flags & O_ACCMODE) == O_RDWR);
 again:
@@ -70,12 +69,13 @@ again:
     FailOperation("open()", error_code);
     return;
   }
+  owned_fd_ = FdHolder(fd_);
 }
 
 FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
     : BufferedWriter(std::move(src)),
+      owned_fd_(std::move(src.owned_fd_)),
       fd_(riegeli::exchange(src.fd_, -1)),
-      owns_fd_(riegeli::exchange(src.owns_fd_, false)),
       filename_(std::move(src.filename_)),
       error_code_(riegeli::exchange(src.error_code_, 0)) {
   src.filename_.clear();
@@ -84,42 +84,21 @@ FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
 void FdWriterBase::operator=(FdWriterBase&& src) noexcept {
   RIEGELI_ASSERT(&src != this);
   BufferedWriter::operator=(std::move(src));
+  owned_fd_ = std::move(src.owned_fd_);
   fd_ = riegeli::exchange(src.fd_, -1);
-  owns_fd_ = riegeli::exchange(src.owns_fd_, false);
   filename_ = std::move(src.filename_);
   error_code_ = riegeli::exchange(src.error_code_, 0);
   src.filename_.clear();
 }
 
+FdWriterBase::~FdWriterBase() = default;
+
 void FdWriterBase::Done() {
   if (RIEGELI_LIKELY(PushInternal())) MaybeSyncPos();
-  if (RIEGELI_UNLIKELY(!healthy()) && fd_ >= 0) {
-  again:
-    if (RIEGELI_UNLIKELY(ftruncate(fd_, 0) < 0) && errno == EINTR) goto again;
+  const int error_code = owned_fd_.Close();
+  if (RIEGELI_UNLIKELY(error_code != 0) && RIEGELI_LIKELY(healthy())) {
+    FailOperation(FdHolder::CloseFunctionName(), error_code);
   }
-  if (owns_fd_) {
-// http://austingroupbugs.net/view.php?id=529 explains this mess.
-#ifdef POSIX_CLOSE_RESTART
-    // Avoid EINTR by using posix_close(_, 0) if available.
-    if (RIEGELI_UNLIKELY(posix_close(fd_, 0) < 0)) {
-      const int error_code = errno;
-      if (error_code != EINPROGRESS && healthy()) {
-        FailOperation("posix_close()", error_code);
-      }
-    }
-#else
-    if (RIEGELI_UNLIKELY(close(fd_) < 0)) {
-      const int error_code = errno;
-      // After EINTR it is unspecified whether fd has been closed or not.
-      // Assume that it is closed, which is the case e.g. on Linux.
-      if (error_code != EINPROGRESS && error_code != EINTR && healthy()) {
-        FailOperation("close()", error_code);
-      }
-    }
-#endif
-  }
-  fd_ = -1;
-  owns_fd_ = false;
   // filename_ and error_code_ are not cleared.
   BufferedWriter::Done();
 }
@@ -179,8 +158,6 @@ FdWriter& FdWriter::operator=(FdWriter&& src) noexcept {
   }
   return *this;
 }
-
-FdWriter::~FdWriter() { Cancel(); }
 
 void FdWriter::Done() {
   internal::FdWriterBase::Done();
@@ -311,8 +288,6 @@ FdStreamWriter& FdStreamWriter::operator=(FdStreamWriter&& src) noexcept {
   if (&src != this) internal::FdWriterBase::operator=(std::move(src));
   return *this;
 }
-
-FdStreamWriter::~FdStreamWriter() { Cancel(); }
 
 bool FdStreamWriter::WriteInternal(string_view src) {
   RIEGELI_ASSERT(!src.empty());

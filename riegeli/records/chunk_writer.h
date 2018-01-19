@@ -87,7 +87,7 @@ class DefaultChunkWriter final : public ChunkWriter {
   // and must be kept alive but not accessed until closing the ChunkWriter.
   explicit DefaultChunkWriter(Writer* byte_writer);
 
-  ~DefaultChunkWriter() { Cancel(); }
+  ~DefaultChunkWriter();
 
   bool WriteChunk(const Chunk& chunk) override;
   bool Flush(FlushType flush_type) override;
@@ -100,8 +100,9 @@ class DefaultChunkWriter final : public ChunkWriter {
   bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end);
   bool WritePadding(Position chunk_begin, Position chunk_end);
 
-  Writer* byte_writer_;
   std::unique_ptr<Writer> owned_byte_writer_;
+  // Invariant: if healthy() then byte_writer_ != nullptr
+  Writer* byte_writer_;
 };
 
 }  // namespace riegeli

@@ -27,9 +27,12 @@
 
 namespace riegeli {
 
-BrotliReader::BrotliReader() : src_(nullptr), decompressor_(nullptr) {
-  MarkCancelled();
+inline void BrotliReader::BrotliDecoderStateDeleter::operator()(
+    BrotliDecoderState* ptr) const {
+  BrotliDecoderDestroyInstance(ptr);
 }
+
+BrotliReader::BrotliReader() : src_(nullptr) { MarkClosed(); }
 
 BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
     : BrotliReader(src.get(), options) {
@@ -46,32 +49,34 @@ BrotliReader::BrotliReader(Reader* src, Options options)
 
 BrotliReader::BrotliReader(BrotliReader&& src) noexcept
     : Reader(std::move(src)),
-      src_(riegeli::exchange(src.src_, nullptr)),
       owned_src_(std::move(src.owned_src_)),
-      decompressor_(riegeli::exchange(src.decompressor_, nullptr)) {}
+      src_(riegeli::exchange(src.src_, nullptr)),
+      decompressor_(std::move(src.decompressor_)) {}
 
 BrotliReader& BrotliReader::operator=(BrotliReader&& src) noexcept {
   if (&src != this) {
     Reader::operator=(std::move(src));
-    src_ = riegeli::exchange(src.src_, nullptr);
     owned_src_ = std::move(src.owned_src_);
-    decompressor_ = riegeli::exchange(src.decompressor_, nullptr);
+    src_ = riegeli::exchange(src.src_, nullptr);
+    decompressor_ = std::move(src.decompressor_);
   }
   return *this;
 }
 
-BrotliReader::~BrotliReader() { Cancel(); }
+BrotliReader::~BrotliReader() = default;
 
 void BrotliReader::Done() {
-  if (RIEGELI_UNLIKELY(!Pull() && healthy() && decompressor_ != nullptr)) {
+  if (RIEGELI_UNLIKELY(!Pull() && decompressor_ != nullptr)) {
     Fail("Truncated Brotli-compressed stream");
-  } else if (RIEGELI_LIKELY(healthy()) && owned_src_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+  }
+  if (owned_src_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
+      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+    }
+    owned_src_.reset();
   }
   src_ = nullptr;
-  owned_src_.reset();
-  BrotliDecoderDestroyInstance(decompressor_);
-  decompressor_ = nullptr;
+  decompressor_.reset();
   Reader::Done();
 }
 
@@ -83,13 +88,14 @@ bool BrotliReader::PullSlow() {
   for (;;) {
     size_t available_in = src_->available();
     const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src_->cursor());
-    const BrotliDecoderResult result =
-        BrotliDecoderDecompressStream(decompressor_, &available_in, &next_in,
-                                      &available_out, nullptr, nullptr);
+    const BrotliDecoderResult result = BrotliDecoderDecompressStream(
+        decompressor_.get(), &available_in, &next_in, &available_out, nullptr,
+        nullptr);
     src_->set_cursor(reinterpret_cast<const char*>(next_in));
     if (RIEGELI_UNLIKELY(result == BROTLI_DECODER_RESULT_ERROR)) {
       Fail(std::string("BrotliDecoderDecompressStream() failed: ") +
-           BrotliDecoderErrorString(BrotliDecoderGetErrorCode(decompressor_)));
+           BrotliDecoderErrorString(
+               BrotliDecoderGetErrorCode(decompressor_.get())));
     }
     // Take the output first even if BrotliDecoderDecompressStream() returned
     // BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT, in order to be able to read data
@@ -97,7 +103,7 @@ bool BrotliReader::PullSlow() {
     // written after the Flush().
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(
-        BrotliDecoderTakeOutput(decompressor_, &length));
+        BrotliDecoderTakeOutput(decompressor_.get(), &length));
     if (length > 0) {
       start_ = data;
       cursor_ = data;
@@ -108,8 +114,7 @@ bool BrotliReader::PullSlow() {
       case BROTLI_DECODER_RESULT_ERROR:
         return length > 0;
       case BROTLI_DECODER_RESULT_SUCCESS:
-        BrotliDecoderDestroyInstance(decompressor_);
-        decompressor_ = nullptr;
+        decompressor_.reset();
         return length > 0;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
@@ -125,7 +130,7 @@ bool BrotliReader::PullSlow() {
         RIEGELI_ASSERT_GT(length, 0u)
             << "BrotliDecoderDecompressStream() returned "
                "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
-               "BrotliDecoderTakeOutput returned no data";
+               "BrotliDecoderTakeOutput() returned no data";
         return true;
     }
     RIEGELI_UNREACHABLE() << "Unknown BrotliDecoderResult: "

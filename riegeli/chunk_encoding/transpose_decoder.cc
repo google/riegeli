@@ -67,8 +67,8 @@ class Decompressor {
 
  private:
   ChainReader src_;
-  Reader* reader_;
   std::unique_ptr<Reader> owned_reader_;
+  Reader* reader_;
 };
 
 bool Decompressor::Initialize(ChainReader src,
@@ -637,8 +637,8 @@ inline ChainReader* TransposeDecoder::Context::GetBuffer(
     }
     if (!decompressor.VerifyEndAndClose()) return nullptr;
     // Clear buffer_sizes which are no longer needed.
-    bucket.buffer_sizes.clear();
-    bucket.buffer_sizes.shrink_to_fit();
+    bucket.buffer_sizes = std::vector<size_t>();
+    bucket.compressed_data = Chain();
     bucket.decompressed = true;
   }
   return &bucket.buffers[index_within_bucket];

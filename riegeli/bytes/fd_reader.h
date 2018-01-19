@@ -23,6 +23,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_reader.h"
+#include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -45,13 +46,15 @@ class FdReaderBase : public BufferedReader {
   FdReaderBase(FdReaderBase&& src) noexcept;
   void operator=(FdReaderBase&& src) noexcept;
 
+  ~FdReaderBase();
+
   void Done() override;
   RIEGELI_ATTRIBUTE_COLD bool FailOperation(const char* operation,
                                             int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
+  FdHolder owned_fd_;
   int fd_;
-  bool owns_fd_;
   std::string filename_;
   // errno value from a failed operation, or 0 if none.
   //
@@ -119,7 +122,7 @@ class FdReader final : public internal::FdReaderBase {
  public:
   using Options = FdReaderOptions;
 
-  // Creates a cancelled FdReader.
+  // Creates a closed FdReader.
   FdReader();
 
   // Will read from the fd, starting at its beginning (or current file position
@@ -136,8 +139,6 @@ class FdReader final : public internal::FdReaderBase {
 
   FdReader(FdReader&& src) noexcept;
   FdReader& operator=(FdReader&& src) noexcept;
-
-  ~FdReader();
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) const override;
@@ -201,7 +202,7 @@ class FdStreamReader final : public internal::FdReaderBase {
  public:
   using Options = FdStreamReaderOptions;
 
-  // Creates a cancelled FdStreamReader.
+  // Creates a closed FdStreamReader.
   FdStreamReader();
 
   // Will read from the fd, starting at its current position.
@@ -218,8 +219,6 @@ class FdStreamReader final : public internal::FdReaderBase {
 
   FdStreamReader(FdStreamReader&& src) noexcept;
   FdStreamReader& operator=(FdStreamReader&& src) noexcept;
-
-  ~FdStreamReader();
 
  protected:
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;

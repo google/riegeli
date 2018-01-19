@@ -28,7 +28,7 @@
 namespace riegeli {
 
 LimitingReader::LimitingReader() : src_(nullptr), size_limit_(0) {
-  MarkCancelled();
+  MarkClosed();
 }
 
 LimitingReader::LimitingReader(Reader* src, Position size_limit)
@@ -63,14 +63,16 @@ LimitingReader& LimitingReader::operator=(LimitingReader&& src) noexcept {
   return *this;
 }
 
-LimitingReader::~LimitingReader() { Cancel(); }
+LimitingReader::~LimitingReader() = default;
 
 void LimitingReader::Done() {
-  src_->set_cursor(cursor_);
-  if (wrapped_ != nullptr) wrapped_->SyncBuffer();
+  if (RIEGELI_LIKELY(healthy())) src_->set_cursor(cursor_);
+  if (wrapped_ != nullptr) {
+    wrapped_->SyncBuffer();
+    wrapped_ = nullptr;
+  }
   src_ = nullptr;
   size_limit_ = 0;
-  wrapped_ = nullptr;
   Reader::Done();
 }
 

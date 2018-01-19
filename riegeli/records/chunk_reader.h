@@ -73,7 +73,6 @@ class ChunkReader final : public Object {
   ChunkReader(const ChunkReader&) = delete;
   ChunkReader& operator=(const ChunkReader&) = delete;
 
-  // Cancels the ChunkReader.
   ~ChunkReader();
 
   // Reads the next chunk.
@@ -197,8 +196,9 @@ class ChunkReader final : public Object {
   // SeekToChunkAfter() (containing = false).
   bool SeekToChunk(Position new_pos, bool containing);
 
-  Reader* byte_reader_;
   std::unique_ptr<Reader> owned_byte_reader_;
+  // Invariant: if healthy() then byte_reader_ != nullptr
+  Reader* byte_reader_;
   bool skip_corruption_;
 
   // Current position, excluding data buffered in reading_ or implied by

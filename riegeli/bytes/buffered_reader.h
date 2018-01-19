@@ -94,7 +94,7 @@ class BufferedReader : public Reader {
 
 inline void BufferedReader::Done() {
   buffer_size_ = 0;
-  buffer_.Clear();
+  buffer_ = Chain();
   Reader::Done();
 }
 

@@ -53,7 +53,7 @@ class StringWriter final : public Writer {
  public:
   using Options = StringWriterOptions;
 
-  // Creates a cancelled StringWriter.
+  // Creates a closed StringWriter.
   StringWriter();
 
   // Will write to the string which is not owned by this StringWriter and must

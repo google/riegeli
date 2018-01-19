@@ -27,9 +27,12 @@
 
 namespace riegeli {
 
-ZstdReader::ZstdReader() : src_(nullptr), decompressor_(nullptr) {
-  MarkCancelled();
+inline void ZstdReader::ZSTD_DStreamDeleter::operator()(
+    ZSTD_DStream* ptr) const {
+  ZSTD_freeDStream(ptr);
 }
+
+ZstdReader::ZstdReader() : src_(nullptr) { MarkClosed(); }
 
 ZstdReader::ZstdReader(std::unique_ptr<Reader> src, Options options)
     : ZstdReader(src.get(), options) {
@@ -44,7 +47,7 @@ ZstdReader::ZstdReader(Reader* src, Options options)
     Fail("ZSTD_createDStream() failed");
     return;
   }
-  const size_t result = ZSTD_initDStream(decompressor_);
+  const size_t result = ZSTD_initDStream(decompressor_.get());
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
     Fail(std::string("ZSTD_initDStream() failed: ") + ZSTD_getErrorName(result));
   }
@@ -52,32 +55,34 @@ ZstdReader::ZstdReader(Reader* src, Options options)
 
 ZstdReader::ZstdReader(ZstdReader&& src) noexcept
     : BufferedReader(std::move(src)),
-      src_(riegeli::exchange(src.src_, nullptr)),
       owned_src_(std::move(src.owned_src_)),
-      decompressor_(riegeli::exchange(src.decompressor_, nullptr)) {}
+      src_(riegeli::exchange(src.src_, nullptr)),
+      decompressor_(std::move(src.decompressor_)) {}
 
 ZstdReader& ZstdReader::operator=(ZstdReader&& src) noexcept {
   if (&src != this) {
     BufferedReader::operator=(std::move(src));
-    src_ = riegeli::exchange(src.src_, nullptr);
     owned_src_ = std::move(src.owned_src_);
-    decompressor_ = riegeli::exchange(src.decompressor_, nullptr);
+    src_ = riegeli::exchange(src.src_, nullptr);
+    decompressor_ = std::move(src.decompressor_);
   }
   return *this;
 }
 
-ZstdReader::~ZstdReader() { Cancel(); }
+ZstdReader::~ZstdReader() = default;
 
 void ZstdReader::Done() {
-  if (RIEGELI_UNLIKELY(!Pull() && healthy() && decompressor_ != nullptr)) {
+  if (RIEGELI_UNLIKELY(!Pull() && decompressor_ != nullptr)) {
     Fail("Truncated Zstd-compressed stream");
-  } else if (RIEGELI_LIKELY(healthy()) && owned_src_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+  }
+  if (owned_src_ != nullptr) {
+    if (RIEGELI_LIKELY(healthy())) {
+      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+    }
+    owned_src_.reset();
   }
   src_ = nullptr;
-  owned_src_.reset();
-  ZSTD_freeDStream(decompressor_);
-  decompressor_ = nullptr;
+  decompressor_.reset();
   BufferedReader::Done();
 }
 
@@ -98,11 +103,11 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
     ZSTD_inBuffer input = {src_->cursor(), src_->available(), 0};
-    const size_t result = ZSTD_decompressStream(decompressor_, &output, &input);
+    const size_t result =
+        ZSTD_decompressStream(decompressor_.get(), &output, &input);
     src_->set_cursor(static_cast<const char*>(input.src) + input.pos);
     if (RIEGELI_UNLIKELY(result == 0)) {
-      ZSTD_freeDStream(decompressor_);
-      decompressor_ = nullptr;
+      decompressor_.reset();
       limit_pos_ += output.pos;
       return output.pos >= min_length;
     }

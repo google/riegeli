@@ -28,7 +28,7 @@ namespace riegeli {
 // A Reader which reads from a Chain. It supports random access.
 class ChainReader final : public Reader {
  public:
-  // Creates a cancelled ChainReader.
+  // Creates a closed ChainReader.
   ChainReader();
 
   // Will read from the Chain which is owned by this ChainReader.

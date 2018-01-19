@@ -24,7 +24,7 @@
 
 namespace riegeli {
 
-StringWriter::StringWriter() : dest_(nullptr) { MarkCancelled(); }
+StringWriter::StringWriter() : dest_(nullptr) { MarkClosed(); }
 
 StringWriter::StringWriter(std::string* dest, Options options)
     : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
@@ -49,14 +49,10 @@ StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
   return *this;
 }
 
-StringWriter::~StringWriter() { Cancel(); }
+StringWriter::~StringWriter() = default;
 
 void StringWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
-    DiscardBuffer();
-  } else {
-    dest_->clear();
-  }
+  if (RIEGELI_LIKELY(healthy())) DiscardBuffer();
   dest_ = nullptr;
   Writer::Done();
 }

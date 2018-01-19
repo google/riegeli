@@ -79,6 +79,15 @@ namespace riegeli {
 #define RIEGELI_ATTRIBUTE_NOINLINE
 #endif
 
+// Annotates implicit fallthrough between case labels which is intended.
+#if RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(fallthrough)
+#define RIEGELI_FALLTHROUGH [[fallthrough]]
+#elif RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(clang::fallthrough)
+#define RIEGELI_FALLTHROUGH [[clang::fallthrough]]
+#else
+#define RIEGELI_FALLTHROUGH
+#endif
+
 // riegeli::exchange() is the same as std::exchange() from C++14, but is
 // available since C++11.
 

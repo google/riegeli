@@ -53,8 +53,8 @@ class Decompressor {
 
  private:
   ChainReader* src_;
-  Reader* reader_;
   std::unique_ptr<Reader> owned_reader_;
+  Reader* reader_;
 };
 
 bool Decompressor::Initialize(ChainReader* src,
@@ -117,7 +117,7 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   return *this;
 }
 
-ChunkDecoder::~ChunkDecoder() { Cancel(); }
+ChunkDecoder::~ChunkDecoder() = default;
 
 void ChunkDecoder::Clear() {
   MarkHealthy();
@@ -261,7 +261,6 @@ again:
   LimitingReader message_reader(&values_reader_,
                                 boundaries_[index_] - boundaries_[0]);
   if (RIEGELI_UNLIKELY(!ParseFromReader(record, &message_reader))) {
-    message_reader.Cancel();
     if (!values_reader_.Seek(boundaries_[index_] - boundaries_[0])) {
       RIEGELI_UNREACHABLE();
     }
@@ -269,7 +268,7 @@ again:
     index_ = num_records();
     return Fail("Failed to parse message as type " + record->GetTypeName());
   }
-  message_reader.Close();
+  if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_UNREACHABLE();
   return true;
 }
 
