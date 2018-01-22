@@ -81,7 +81,9 @@ BrotliWriter::~BrotliWriter() = default;
 
 void BrotliWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {
-    WriteInternal(string_view(start_, written_to_buffer()),
+    const size_t buffered_length = written_to_buffer();
+    cursor_ = start_;
+    WriteInternal(string_view(start_, buffered_length),
                   BROTLI_OPERATION_FINISH);
   }
   if (owned_dest_ != nullptr) {
@@ -105,6 +107,7 @@ bool BrotliWriter::Flush(FlushType flush_type) {
   }
   if (RIEGELI_UNLIKELY(!dest_->Flush(flush_type))) {
     if (dest_->healthy()) return false;
+    limit_ = start_;
     return Fail(dest_->Message());
   }
   return true;
@@ -113,12 +116,14 @@ bool BrotliWriter::Flush(FlushType flush_type) {
 bool BrotliWriter::WriteInternal(string_view src) {
   RIEGELI_ASSERT(!src.empty());
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   return WriteInternal(src, BROTLI_OPERATION_PROCESS);
 }
 
 inline bool BrotliWriter::WriteInternal(string_view src,
                                         BrotliEncoderOperation op) {
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   size_t available_in = src.size();
   const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src.data());
   size_t available_out = 0;
@@ -126,6 +131,7 @@ inline bool BrotliWriter::WriteInternal(string_view src,
     if (RIEGELI_UNLIKELY(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
+      limit_ = start_;
       return Fail("BrotliEncoderCompressStream() failed");
     }
     size_t length = 0;
@@ -133,6 +139,7 @@ inline bool BrotliWriter::WriteInternal(string_view src,
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
       if (RIEGELI_UNLIKELY(!dest_->Write(string_view(data, length)))) {
+        limit_ = start_;
         RIEGELI_ASSERT(!dest_->healthy());
         return Fail(dest_->Message());
       }

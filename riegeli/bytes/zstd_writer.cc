@@ -84,6 +84,7 @@ ZstdWriter::~ZstdWriter() = default;
 
 void ZstdWriter::Done() {
   PushInternal();
+  RIEGELI_ASSERT(cursor_ == start_);
   if (RIEGELI_LIKELY(healthy())) {
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()");
   }
@@ -100,12 +101,14 @@ void ZstdWriter::Done() {
 
 bool ZstdWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+  RIEGELI_ASSERT(cursor_ == start_);
   if (RIEGELI_UNLIKELY(
           !FlushInternal(ZSTD_flushStream, "ZSTD_flushStream()"))) {
     return false;
   }
   if (RIEGELI_UNLIKELY(!dest_->Flush(flush_type))) {
     if (dest_->healthy()) return false;
+    limit_ = start_;
     return Fail(dest_->Message());
   }
   return true;
@@ -114,6 +117,7 @@ bool ZstdWriter::Flush(FlushType flush_type) {
 bool ZstdWriter::WriteInternal(string_view src) {
   RIEGELI_ASSERT(!src.empty());
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
@@ -121,6 +125,7 @@ bool ZstdWriter::WriteInternal(string_view src) {
         ZSTD_compressStream(compressor_.get(), &output, &input);
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
+      limit_ = start_;
       return Fail(std::string("ZSTD_compressStream() failed: ") +
                   ZSTD_getErrorName(result));
     }
@@ -130,6 +135,7 @@ bool ZstdWriter::WriteInternal(string_view src) {
       return true;
     }
     if (RIEGELI_UNLIKELY(!dest_->Push())) {
+      limit_ = start_;
       RIEGELI_ASSERT(!dest_->healthy());
       return Fail(dest_->Message());
     }
@@ -139,17 +145,20 @@ bool ZstdWriter::WriteInternal(string_view src) {
 template <typename Function>
 bool ZstdWriter::FlushInternal(Function function, const char* function_name) {
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
     const size_t result = function(compressor_.get(), &output);
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) return true;
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
+      limit_ = start_;
       return Fail(std::string(function_name) +
                   " failed: " + ZSTD_getErrorName(result));
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size);
     if (RIEGELI_UNLIKELY(!dest_->Push())) {
+      limit_ = start_;
       RIEGELI_ASSERT(!dest_->healthy());
       return Fail(dest_->Message());
     }

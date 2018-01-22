@@ -182,8 +182,10 @@ inline void FdWriter::InitializePos(int flags) {
 
 bool FdWriter::MaybeSyncPos() {
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   if (sync_pos_) {
     if (RIEGELI_UNLIKELY(lseek(fd_, pos(), SEEK_SET) < 0)) {
+      limit_ = start_;
       return FailOperation("lseek()", errno);
     }
   }
@@ -193,12 +195,14 @@ bool FdWriter::MaybeSyncPos() {
 bool FdWriter::WriteInternal(string_view src) {
   RIEGELI_ASSERT(!src.empty());
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   do {
   again:
     const ssize_t result = pwrite(fd_, src.data(), src.size(), start_pos_);
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
+      limit_ = start_;
       return FailOperation("pwrite()", error_code);
     }
     RIEGELI_ASSERT_GT(result, 0);
@@ -211,10 +215,12 @@ bool FdWriter::WriteInternal(string_view src) {
 bool FdWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos());
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+  RIEGELI_ASSERT(cursor_ == start_);
   if (new_pos >= start_pos_) {
     struct stat stat_info;
     if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
+      limit_ = start_;
       return FailOperation("fstat()", error_code);
     }
     RIEGELI_ASSERT_GE(stat_info.st_size, 0);
@@ -238,13 +244,13 @@ bool FdWriter::Size(Position* size) const {
 }
 
 bool FdWriter::Truncate() {
-  // ftruncate() extends the file if needed so there is no need to
-  // PushInternal().
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+  RIEGELI_ASSERT(cursor_ == start_);
 again:
-  if (RIEGELI_UNLIKELY(ftruncate(fd_, pos()) < 0)) {
+  if (RIEGELI_UNLIKELY(ftruncate(fd_, start_pos_) < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
+    limit_ = start_;
     return FailOperation("ftruncate()", error_code);
   }
   return true;
@@ -287,12 +293,14 @@ FdStreamWriter& FdStreamWriter::operator=(FdStreamWriter&& src) noexcept {
 bool FdStreamWriter::WriteInternal(string_view src) {
   RIEGELI_ASSERT(!src.empty());
   RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT(cursor_ == start_);
   do {
   again:
     const ssize_t result = write(fd_, src.data(), src.size());
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
+      limit_ = start_;
       return FailOperation("write()", error_code);
     }
     RIEGELI_ASSERT_GT(result, 0);

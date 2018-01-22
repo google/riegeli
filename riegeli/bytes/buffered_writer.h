@@ -52,6 +52,8 @@ class BufferedWriter : public Writer {
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not
   // ensure that a buffer is allocated.
+  //
+  // Postcondition: cursor_ == start_
   bool PushInternal();
 
   // Writes data to the destination, to the physical destination position which
@@ -62,6 +64,7 @@ class BufferedWriter : public Writer {
   // Preconditions:
   //   !src.empty()
   //   healthy()
+  //   cursor_ == start_
   virtual bool WriteInternal(string_view src) = 0;
 
   // The size of the buffer that start_ points to, once it is allocated.

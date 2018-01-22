@@ -108,12 +108,6 @@ class BackwardWriter : public Object {
   // BackwardWriter::Done().
   virtual void Done() override = 0;
 
-  // Resets cursor_ and limit_ to start_. Marks the BackwardWriter as failed
-  // with the specified message. Always returns false.
-  //
-  // Precondition: healthy()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message);
-
   // Implementation of the slow part of Push().
   //
   // Precondition: available() == 0

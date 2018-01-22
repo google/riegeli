@@ -27,12 +27,6 @@
 
 namespace riegeli {
 
-bool BackwardWriter::Fail(string_view message) {
-  cursor_ = start_;
-  limit_ = start_;
-  return Object::Fail(message);
-}
-
 bool BackwardWriter::WriteSlow(string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available());
   if (available() == 0) goto skip_copy;  // memcpy(nullptr, _, 0) is undefined.
