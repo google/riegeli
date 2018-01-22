@@ -83,11 +83,7 @@ cc_library(
 
 cc_library(
     name = "transpose_encoder",
-    srcs = [
-        "canonical_varint.cc",
-        "canonical_varint.h",
-        "transpose_encoder.cc",
-    ],
+    srcs = ["transpose_encoder.cc"],
     hdrs = ["transpose_encoder.h"],
     visibility = [
         "//visibility:private",

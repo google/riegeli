@@ -24,14 +24,6 @@
 namespace riegeli {
 namespace internal {
 
-char* ContinueWritingVarint64Backwards(char* dest, uint64_t data) {
-  RIEGELI_ASSERT_GE(data, uint64_t{0x80});
-  RIEGELI_ASSERT_LT(data, uint64_t{1} << (64 - 7 * (kMaxLengthVarint32() - 1)));
-  dest = WriteVarintBackwards(dest, static_cast<uint32_t>(data >> 7));
-  *--dest = static_cast<char>(data | 0x80);
-  return dest;
-}
-
 bool WriteVarint32Slow(BackwardWriter* dest, uint32_t data) {
   char buffer[kMaxLengthVarint32()];
   char* const end = WriteVarint32(buffer, data);

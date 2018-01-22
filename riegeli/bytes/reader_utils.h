@@ -30,6 +30,14 @@ namespace riegeli {
 
 bool ReadByte(Reader* src, uint8_t* data);
 
+// Functions reading or copying a varint treat only canonical representations
+// (i.e. without a trailing zero byte, except for 0 itself) as valid.
+//
+// Warning: the proto library writes values of type int32 (not sint32) by
+// casting them to uint64, not uint32 (negative values take 10 bytes, not 5),
+// hence they must be read with ReadVarint64(), not ReadVarint32(), if negative
+// values are possible.
+
 // At least kMaxLengthVarint32() bytes of data at *src must be available.
 bool ReadVarint32(const char** src, uint32_t* data);
 // At least kMaxLengthVarint64() bytes of data at *src must be available.
@@ -37,6 +45,13 @@ bool ReadVarint64(const char** src, uint64_t* data);
 
 bool ReadVarint32(Reader* src, uint32_t* data);
 bool ReadVarint64(Reader* src, uint64_t* data);
+
+// Returns the updated dest after the copied value, or nullptr on failure.
+// At least kMaxLengthVarint32() bytes of space at *dest must be available.
+char* CopyVarint32(Reader* src, char* dest);
+// Returns the updated dest after the copied value, or nullptr on failure.
+// At least kMaxLengthVarint64() bytes of space at *dest must be available.
+char* CopyVarint64(Reader* src, char* dest);
 
 bool ReadAll(Reader* src, string_view* dest, std::string* scratch);
 bool ReadAll(Reader* src, std::string* dest);
@@ -48,57 +63,11 @@ bool CopyAll(Reader* src, BackwardWriter* dest);
 
 namespace internal {
 
-bool ContinueReadingVarint64(const char** src, uint64_t acc, uint64_t* data);
-
-// General case of compile time recursion.
-template <typename Data, size_t min_length = 1>
-bool ReadVarint(const char** src, Data* acc, Data* data) {
-  const Data byte = static_cast<uint8_t>(*(*src)++);
-  *acc += (byte - 1) << (7 * (min_length - 1));
-  if (byte < 0x80) {
-    *data = *acc;
-    return true;
-  }
-  return ReadVarint<Data, min_length + 1>(src, acc, data);
-}
-
-// Base case of compile time recursion for 32 bits.
-template <>
-inline bool ReadVarint<uint32_t, kMaxLengthVarint32()>(const char** src,
-                                                       uint32_t* acc,
-                                                       uint32_t* data) {
-  const uint32_t byte = static_cast<uint8_t>(*(*src)++);
-  if (RIEGELI_UNLIKELY(byte >= 0x10)) return false;
-  *acc += (byte - 1) << (7 * (kMaxLengthVarint32() - 1));
-  *data = *acc;
-  return true;
-}
-
-// Base case of compile time recursion for 64 bits: continue with longer numbers
-// in a separately compiled function.
-template <>
-inline bool ReadVarint<uint64_t, kMaxLengthVarint32() + 1>(const char** src,
-                                                           uint64_t* acc,
-                                                           uint64_t* data) {
-  return ContinueReadingVarint64(src, *acc, data);
-}
-
-// Another base case of compile time recursion for 64 bits, for the case when
-// ReadVarint() is called from ContinueReadingVarint64() with a larger template
-// argument.
-template <>
-inline bool ReadVarint<uint64_t, kMaxLengthVarint64()>(const char** src,
-                                                       uint64_t* acc,
-                                                       uint64_t* data) {
-  const uint64_t byte = static_cast<uint8_t>(*(*src)++);
-  if (RIEGELI_UNLIKELY(byte >= 0x02)) return false;
-  *acc += (byte - 1) << (7 * (kMaxLengthVarint64() - 1));
-  *data = *acc;
-  return true;
-}
-
 bool ReadVarint32Slow(Reader* src, uint32_t* data);
 bool ReadVarint64Slow(Reader* src, uint64_t* data);
+
+char* CopyVarint32Slow(Reader* src, char* dest);
+char* CopyVarint64Slow(Reader* src, char* dest);
 
 }  // namespace internal
 
@@ -112,18 +81,68 @@ inline bool ReadByte(Reader* src, uint8_t* data) {
 
 inline bool ReadVarint32(const char** src, uint32_t* data) {
   const char* cursor = *src;
-  uint32_t acc = 1;
-  bool ok = internal::ReadVarint(&cursor, &acc, data);
+  uint32_t acc = static_cast<uint8_t>(*cursor++);
+  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+    // More than a single byte.
+    uint32_t byte;
+    int shift = 0;
+    do {
+      byte = static_cast<uint8_t>(*cursor++);
+      shift += 7;
+      acc += (byte - 1) << shift;
+      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint32() - 1) * 7)) {
+        // Last possible byte.
+        if (RIEGELI_UNLIKELY(
+                byte >= uint32_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
+          // Some bits are set outside of the range of possible values.
+          *src = cursor;
+          return false;
+        }
+        break;
+      }
+    } while (byte >= 0x80);
+    if (RIEGELI_UNLIKELY(byte == 0)) {
+      // Overlong representation.
+      *src = cursor;
+      return false;
+    }
+  }
   *src = cursor;
-  return ok;
+  *data = acc;
+  return true;
 }
 
 inline bool ReadVarint64(const char** src, uint64_t* data) {
   const char* cursor = *src;
-  uint64_t acc = 1;
-  bool ok = internal::ReadVarint(&cursor, &acc, data);
+  uint64_t acc = static_cast<uint8_t>(*cursor++);
+  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+    // More than a single byte.
+    uint64_t byte;
+    int shift = 0;
+    do {
+      byte = static_cast<uint8_t>(*cursor++);
+      shift += 7;
+      acc += (byte - 1) << shift;
+      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint64() - 1) * 7)) {
+        // Last possible byte.
+        if (RIEGELI_UNLIKELY(
+                byte >= uint64_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
+          // Some bits are set outside of the range of possible values.
+          *src = cursor;
+          return false;
+        }
+        break;
+      }
+    } while (byte >= 0x80);
+    if (RIEGELI_UNLIKELY(byte == 0)) {
+      // Overlong representation.
+      *src = cursor;
+      return false;
+    }
+  }
   *src = cursor;
-  return ok;
+  *data = acc;
+  return true;
 }
 
 inline bool ReadVarint32(Reader* src, uint32_t* data) {
@@ -144,6 +163,76 @@ inline bool ReadVarint64(Reader* src, uint64_t* data) {
     return ok;
   }
   return internal::ReadVarint64Slow(src, data);
+}
+
+inline char* CopyVarint32(Reader* src, char* dest) {
+  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint32())) {
+    const char* cursor = src->cursor();
+    uint8_t byte = static_cast<uint8_t>(*cursor++);
+    *dest++ = static_cast<char>(byte);
+    if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+      // More than a single byte.
+      int remaining = kMaxLengthVarint32() - 1;
+      do {
+        byte = static_cast<uint8_t>(*cursor++);
+        *dest++ = static_cast<char>(byte);
+        if (RIEGELI_UNLIKELY(--remaining == 0)) {
+          // Last possible byte.
+          if (RIEGELI_UNLIKELY(byte >=
+                               uint32_t{1}
+                                   << (32 - (kMaxLengthVarint32() - 1) * 7))) {
+            // Some bits are set outside of the range of possible values.
+            src->set_cursor(cursor);
+            return nullptr;
+          }
+          break;
+        }
+      } while (byte >= 0x80);
+      if (RIEGELI_UNLIKELY(byte == 0)) {
+        // Overlong representation.
+        src->set_cursor(cursor);
+        return nullptr;
+      }
+    }
+    src->set_cursor(cursor);
+    return dest;
+  }
+  return internal::CopyVarint32Slow(src, dest);
+}
+
+inline char* CopyVarint64(Reader* src, char* dest) {
+  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint64())) {
+    const char* cursor = src->cursor();
+    uint8_t byte = static_cast<uint8_t>(*cursor++);
+    *dest++ = static_cast<char>(byte);
+    if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+      // More than a single byte.
+      int remaining = kMaxLengthVarint64() - 1;
+      do {
+        byte = static_cast<uint8_t>(*cursor++);
+        *dest++ = static_cast<char>(byte);
+        if (RIEGELI_UNLIKELY(--remaining == 0)) {
+          // Last possible byte.
+          if (RIEGELI_UNLIKELY(byte >=
+                               uint8_t{1}
+                                   << (64 - (kMaxLengthVarint64() - 1) * 7))) {
+            // Some bits are set outside of the range of possible values.
+            src->set_cursor(cursor);
+            return nullptr;
+          }
+          break;
+        }
+      } while (byte >= 0x80);
+      if (RIEGELI_UNLIKELY(byte == 0)) {
+        // Overlong representation.
+        src->set_cursor(cursor);
+        return nullptr;
+      }
+    }
+    src->set_cursor(cursor);
+    return dest;
+  }
+  return internal::CopyVarint64Slow(src, dest);
 }
 
 }  // namespace riegeli

@@ -41,7 +41,6 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/bytes/zstd_writer.h"
-#include "riegeli/chunk_encoding/canonical_varint.h"
 #include "riegeli/chunk_encoding/internal_types.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 
@@ -153,13 +152,14 @@ bool IsProtoMessage(Reader* message) {
   std::vector<uint32_t> started_groups;
   while (message->Pull()) {
     uint32_t tag;
-    RETURN_FALSE_IF(!ReadCanonicalVarint32(message, &tag));
+    RETURN_FALSE_IF(!ReadVarint32(message, &tag));
     const uint32_t field = tag >> 3;
     RETURN_FALSE_IF(field == 0);
     switch (static_cast<internal::WireType>(tag & 7)) {
-      case internal::WireType::kVarint:
-        RETURN_FALSE_IF(!VerifyCanonicalVarint64(message));
-        break;
+      case internal::WireType::kVarint: {
+        uint64_t value;
+        RETURN_FALSE_IF(!ReadVarint64(message, &value));
+      } break;
       case internal::WireType::kFixed32:
         RETURN_FALSE_IF(!message->Skip(sizeof(uint32_t)));
         break;
@@ -168,7 +168,7 @@ bool IsProtoMessage(Reader* message) {
         break;
       case internal::WireType::kLengthDelimited: {
         uint32_t length;
-        RETURN_FALSE_IF(!ReadCanonicalVarint32(message, &length));
+        RETURN_FALSE_IF(!ReadVarint32(message, &length));
         RETURN_FALSE_IF(!message->Skip(length));
       } break;
       case internal::WireType::kStartGroup:
@@ -284,7 +284,7 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
         char value[kMaxLengthVarint64()];
-        char* const value_end = CopyCanonicalVarint64(message, value);
+        char* const value_end = CopyVarint64(message, value);
         if (value_end == nullptr) RIEGELI_UNREACHABLE();
         const size_t value_length = value_end - value;
         RIEGELI_ASSERT_GT(value_length, 0u);

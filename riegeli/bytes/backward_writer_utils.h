@@ -21,6 +21,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/varint.h"
+#include "riegeli/bytes/writer_utils.h"
 
 namespace riegeli {
 
@@ -31,41 +32,6 @@ bool WriteVarint64(BackwardWriter* dest, uint64_t data);
 
 namespace internal {
 
-char* ContinueWritingVarint64Backwards(char* dest, uint64_t data);
-
-// General case of compile time recursion.
-template <typename Data, size_t min_length = 1>
-char* WriteVarintBackwards(char* dest, Data data) {
-  if (data < 0x80) {
-    *--dest = static_cast<char>(data);
-  } else {
-    dest = WriteVarintBackwards<Data, min_length + 1>(dest, data >> 7);
-    *--dest = static_cast<char>(data | 0x80);
-  }
-  return dest;
-}
-
-// Base case of compile time recursion for 32 bits.
-template <>
-inline char* WriteVarintBackwards<uint32_t, kMaxLengthVarint32()>(
-    char* dest, uint32_t data) {
-  *--dest = static_cast<char>(data);
-  return dest;
-}
-
-// Base case of compile time recursion for 64 bits: continue with longer numbers
-// in a separately compiled function.
-template <>
-inline char* WriteVarintBackwards<uint64_t, kMaxLengthVarint32()>(
-    char* dest, uint64_t data) {
-  if (data < 0x80) {
-    *--dest = static_cast<char>(data);
-  } else {
-    dest = ContinueWritingVarint64Backwards(dest, data);
-  }
-  return dest;
-}
-
 bool WriteVarint32Slow(BackwardWriter* dest, uint32_t data);
 bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data);
 
@@ -73,7 +39,9 @@ bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data);
 
 inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
   if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint32())) {
-    dest->set_cursor(internal::WriteVarintBackwards(dest->cursor(), data));
+    char* start = dest->cursor() - LengthVarint32(data);
+    dest->set_cursor(start);
+    WriteVarint32(start, data);
     return true;
   }
   return internal::WriteVarint32Slow(dest, data);
@@ -81,7 +49,9 @@ inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
 
 inline bool WriteVarint64(BackwardWriter* dest, uint64_t data) {
   if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint64())) {
-    dest->set_cursor(internal::WriteVarintBackwards(dest->cursor(), data));
+    char* start = dest->cursor() - LengthVarint64(data);
+    dest->set_cursor(start);
+    WriteVarint64(start, data);
     return true;
   }
   return internal::WriteVarint64Slow(dest, data);

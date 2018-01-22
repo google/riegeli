@@ -26,19 +26,6 @@
 namespace riegeli {
 namespace internal {
 
-size_t LengthBigVarint64(uint64_t data) {
-  RIEGELI_ASSERT_GE(data, uint64_t{1} << (7 * kMaxLengthVarint32()));
-  return kMaxLengthVarint32() + LengthVarint(static_cast<uint32_t>(
-                                    data >> (7 * kMaxLengthVarint32())));
-}
-
-char* ContinueWritingVarint64(char* dest, uint64_t data) {
-  RIEGELI_ASSERT_GE(data, uint64_t{0x80});
-  RIEGELI_ASSERT_LT(data, uint64_t{1} << (64 - 7 * (kMaxLengthVarint32() - 1)));
-  *dest++ = static_cast<char>(data | 0x80);
-  return WriteVarint(dest, static_cast<uint32_t>(data >> 7));
-}
-
 bool WriteVarint32Slow(Writer* dest, uint32_t data) {
   char buffer[kMaxLengthVarint32()];
   char* const end = WriteVarint32(buffer, data);
