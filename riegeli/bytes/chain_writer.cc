@@ -42,11 +42,9 @@ ChainWriter::ChainWriter(ChainWriter&& src) noexcept
       size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
 
 ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
-  if (&src != this) {
-    Writer::operator=(std::move(src));
-    dest_ = riegeli::exchange(src.dest_, nullptr);
-    size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  }
+  Writer::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
   return *this;
 }
 

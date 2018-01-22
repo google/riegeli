@@ -45,11 +45,9 @@ ChainBackwardWriter::ChainBackwardWriter(ChainBackwardWriter&& src) noexcept
 
 ChainBackwardWriter& ChainBackwardWriter::operator=(
     ChainBackwardWriter&& src) noexcept {
-  if (&src != this) {
-    BackwardWriter::operator=(std::move(src));
-    dest_ = riegeli::exchange(src.dest_, nullptr);
-    size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  }
+  BackwardWriter::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
   return *this;
 }
 

@@ -96,24 +96,20 @@ ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
     : Object(std::move(src)),
       skip_corruption_(src.skip_corruption_),
       field_filter_(std::move(src.field_filter_)),
-      boundaries_(std::move(src.boundaries_)),
-      values_reader_(std::move(src.values_reader_)),
-      num_records_(src.num_records_),
-      index_(src.index_) {
-  src.Clear();
-}
+      boundaries_(riegeli::exchange(src.boundaries_, std::vector<size_t>{0})),
+      values_reader_(
+          riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
+      num_records_(riegeli::exchange(src.num_records_, 0)),
+      index_(riegeli::exchange(src.index_, 0)) {}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
-  if (this != &src) {
-    Object::operator=(std::move(src));
-    skip_corruption_ = src.skip_corruption_;
-    field_filter_ = std::move(src.field_filter_);
-    boundaries_ = std::move(src.boundaries_);
-    values_reader_ = std::move(src.values_reader_);
-    num_records_ = src.num_records_;
-    index_ = src.index_;
-    src.Clear();
-  }
+  Object::operator=(std::move(src));
+  skip_corruption_ = src.skip_corruption_;
+  field_filter_ = std::move(src.field_filter_);
+  boundaries_ = riegeli::exchange(src.boundaries_, std::vector<size_t>{0});
+  values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
+  num_records_ = riegeli::exchange(src.num_records_, 0);
+  index_ = riegeli::exchange(src.index_, 0);
   return *this;
 }
 

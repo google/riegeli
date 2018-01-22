@@ -39,7 +39,7 @@ StringReader::StringReader(StringReader&& src) noexcept
     : Reader(std::move(src)) {}
 
 StringReader& StringReader::operator=(StringReader&& src) noexcept {
-  if (&src != this) Reader::operator=(std::move(src));
+  Reader::operator=(std::move(src));
   return *this;
 }
 

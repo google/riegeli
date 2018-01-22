@@ -44,7 +44,7 @@ class FdReaderBase : public BufferedReader {
   FdReaderBase(std::string filename, int flags, size_t buffer_size);
 
   FdReaderBase(FdReaderBase&& src) noexcept;
-  void operator=(FdReaderBase&& src) noexcept;
+  FdReaderBase& operator=(FdReaderBase&& src) noexcept;
 
   ~FdReaderBase();
 

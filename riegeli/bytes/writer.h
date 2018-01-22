@@ -160,9 +160,10 @@ class Writer : public Object {
 
   // Moves the part of the object defined in this class.
   //
-  // Precondition: &src != this
+  // Buffer pointers do not need to satisfy their invariants during this part of
+  // the move, here they are merely exchanged with nullptr and copied.
   Writer(Writer&& src) noexcept;
-  void operator=(Writer&& src) noexcept;
+  Writer& operator=(Writer&& src) noexcept;
 
   // Writer provides a partial override of Object::Done(). Derived classes must
   // override it further and include a call to Writer::Done().
@@ -225,13 +226,13 @@ inline Writer::Writer(Writer&& src) noexcept
       limit_(riegeli::exchange(src.limit_, nullptr)),
       start_pos_(riegeli::exchange(src.start_pos_, 0)) {}
 
-inline void Writer::operator=(Writer&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
+inline Writer& Writer::operator=(Writer&& src) noexcept {
   Object::operator=(std::move(src));
   start_ = riegeli::exchange(src.start_, nullptr);
   cursor_ = riegeli::exchange(src.cursor_, nullptr);
   limit_ = riegeli::exchange(src.limit_, nullptr);
   start_pos_ = riegeli::exchange(src.start_pos_, 0);
+  return *this;
 }
 
 inline void Writer::Done() {

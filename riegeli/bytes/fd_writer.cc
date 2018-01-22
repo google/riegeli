@@ -76,19 +76,16 @@ FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
     : BufferedWriter(std::move(src)),
       owned_fd_(std::move(src.owned_fd_)),
       fd_(riegeli::exchange(src.fd_, -1)),
-      filename_(std::move(src.filename_)),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {
-  src.filename_.clear();
-}
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)) {}
 
-void FdWriterBase::operator=(FdWriterBase&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
+FdWriterBase& FdWriterBase::operator=(FdWriterBase&& src) noexcept {
   BufferedWriter::operator=(std::move(src));
   owned_fd_ = std::move(src.owned_fd_);
   fd_ = riegeli::exchange(src.fd_, -1);
-  filename_ = std::move(src.filename_);
+  filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
-  src.filename_.clear();
+  return *this;
 }
 
 FdWriterBase::~FdWriterBase() = default;
@@ -152,10 +149,8 @@ FdWriter::FdWriter(FdWriter&& src) noexcept
       sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
 
 FdWriter& FdWriter::operator=(FdWriter&& src) noexcept {
-  if (&src != this) {
-    internal::FdWriterBase::operator=(std::move(src));
-    sync_pos_ = riegeli::exchange(src.sync_pos_, false);
-  }
+  internal::FdWriterBase::operator=(std::move(src));
+  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
   return *this;
 }
 
@@ -285,7 +280,7 @@ FdStreamWriter::FdStreamWriter(FdStreamWriter&& src) noexcept
     : internal::FdWriterBase(std::move(src)) {}
 
 FdStreamWriter& FdStreamWriter::operator=(FdStreamWriter&& src) noexcept {
-  if (&src != this) internal::FdWriterBase::operator=(std::move(src));
+  internal::FdWriterBase::operator=(std::move(src));
   return *this;
 }
 

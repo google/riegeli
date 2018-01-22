@@ -14,7 +14,7 @@
 
 #include "riegeli/base/memory_estimator.h"
 
-#include <utility>
+#include <unordered_set>
 
 #include "riegeli/base/base.h"
 
@@ -26,16 +26,13 @@ MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator&) = default;
 
 MemoryEstimator::MemoryEstimator(MemoryEstimator&& src) noexcept
     : total_memory_(riegeli::exchange(src.total_memory_, 0)),
-      objects_seen_(std::move(src.objects_seen_)) {
-  src.objects_seen_.clear();
-}
+      objects_seen_(riegeli::exchange(src.objects_seen_,
+                                      std::unordered_set<const void*>())) {}
 
 MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& src) noexcept {
-  if (&src != this) {
-    total_memory_ = riegeli::exchange(src.total_memory_, 0);
-    objects_seen_ = std::move(src.objects_seen_);
-    src.objects_seen_.clear();
-  }
+  total_memory_ = riegeli::exchange(src.total_memory_, 0);
+  objects_seen_ =
+      riegeli::exchange(src.objects_seen_, std::unordered_set<const void*>());
   return *this;
 }
 

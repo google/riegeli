@@ -15,7 +15,6 @@
 #include "riegeli/bytes/buffered_writer.h"
 
 #include <memory>
-#include <utility>
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
@@ -23,19 +22,6 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-BufferedWriter::BufferedWriter(BufferedWriter&& src) noexcept
-    : Writer(std::move(src)),
-      buffer_size_(riegeli::exchange(src.buffer_size_, 0)) {}
-
-void BufferedWriter::operator=(BufferedWriter&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
-  if (start_ != nullptr) {
-    std::allocator<char>().deallocate(start_, buffer_size_);
-  }
-  Writer::operator=(std::move(src));
-  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
-}
 
 bool BufferedWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u);

@@ -253,10 +253,10 @@ inline Chain::BlockRef::BlockRef(BlockRef&& src) noexcept
     : block_(riegeli::exchange(src.block_, nullptr)) {}
 
 inline Chain::BlockRef& Chain::BlockRef::operator=(BlockRef&& src) noexcept {
-  if (&src != this) {
-    if (block_ != nullptr) block_->Unref();
-    block_ = riegeli::exchange(src.block_, nullptr);
-  }
+  // Exchange src.block_ early to support self-assignment.
+  Block* const block = riegeli::exchange(src.block_, nullptr);
+  if (block_ != nullptr) block_->Unref();
+  block_ = block;
   return *this;
 }
 

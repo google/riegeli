@@ -72,20 +72,19 @@ ChainReader::ChainReader(ChainReader&& src, size_t block_index)
 }
 
 ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
-  if (&src != this) {
-    // block_index is computed early because if src.src_ == &src.owned_src_ then
-    // *src.src_ is moved, which invalidates src.iter_, and block_index depends
-    // on src.iter_.
-    const size_t block_index =
-        static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin());
-    Reader::operator=(std::move(src));
-    owned_src_ = std::move(src.owned_src_);
-    src_ = src.src_ == &src.owned_src_
-               ? &owned_src_
-               : riegeli::exchange(src.src_, &src.owned_src_);
-    iter_ = src_->blocks().cbegin() + block_index;
-    src.iter_ = src.src_->blocks().cbegin();
-  }
+  // block_index is computed early because if src.src_ == &src.owned_src_ then
+  // *src.src_ is moved, which invalidates src.iter_, and block_index depends
+  // on src.iter_.
+  const size_t block_index =
+      static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin());
+  Reader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = src.src_ == &src.owned_src_
+             ? &owned_src_
+             : riegeli::exchange(src.src_, &src.owned_src_);
+  // Set src.iter_ before iter_ to support self-assignment.
+  src.iter_ = src.src_->blocks().cbegin();
+  iter_ = src_->blocks().cbegin() + block_index;
   return *this;
 }
 

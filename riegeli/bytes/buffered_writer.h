@@ -17,7 +17,9 @@
 
 #include <stddef.h>
 #include <memory>
+#include <utility>
 
+#include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
@@ -36,7 +38,7 @@ class BufferedWriter : public Writer {
   explicit BufferedWriter(size_t buffer_size) : buffer_size_(buffer_size) {}
 
   BufferedWriter(BufferedWriter&& src) noexcept;
-  void operator=(BufferedWriter&& src) noexcept;
+  BufferedWriter& operator=(BufferedWriter&& src) noexcept;
 
   ~BufferedWriter();
 
@@ -72,6 +74,23 @@ class BufferedWriter : public Writer {
 };
 
 // Implementation details follow.
+
+inline BufferedWriter::BufferedWriter(BufferedWriter&& src) noexcept
+    : Writer(std::move(src)),
+      buffer_size_(riegeli::exchange(src.buffer_size_, 0)) {}
+
+inline BufferedWriter& BufferedWriter::operator=(
+    BufferedWriter&& src) noexcept {
+  // Exchange src.start_ early to support self-assignment.
+  char* const start = riegeli::exchange(src.start_, nullptr);
+  if (start_ != nullptr) {
+    std::allocator<char>().deallocate(start_, buffer_size_);
+  }
+  Writer::operator=(std::move(src));
+  start_ = start;
+  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
+  return *this;
+}
 
 inline BufferedWriter::~BufferedWriter() {
   if (start_ != nullptr) {

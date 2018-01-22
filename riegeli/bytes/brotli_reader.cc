@@ -54,12 +54,10 @@ BrotliReader::BrotliReader(BrotliReader&& src) noexcept
       decompressor_(std::move(src.decompressor_)) {}
 
 BrotliReader& BrotliReader::operator=(BrotliReader&& src) noexcept {
-  if (&src != this) {
-    Reader::operator=(std::move(src));
-    owned_src_ = std::move(src.owned_src_);
-    src_ = riegeli::exchange(src.src_, nullptr);
-    decompressor_ = std::move(src.decompressor_);
-  }
+  Reader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = riegeli::exchange(src.src_, nullptr);
+  decompressor_ = std::move(src.decompressor_);
   return *this;
 }
 

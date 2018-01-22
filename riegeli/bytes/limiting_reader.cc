@@ -54,12 +54,10 @@ LimitingReader::LimitingReader(LimitingReader&& src) noexcept
       wrapped_(riegeli::exchange(src.wrapped_, nullptr)) {}
 
 LimitingReader& LimitingReader::operator=(LimitingReader&& src) noexcept {
-  if (&src != this) {
-    Reader::operator=(std::move(src));
-    src_ = riegeli::exchange(src.src_, nullptr);
-    size_limit_ = riegeli::exchange(src.size_limit_, 0);
-    wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
-  }
+  Reader::operator=(std::move(src));
+  src_ = riegeli::exchange(src.src_, nullptr);
+  size_limit_ = riegeli::exchange(src.size_limit_, 0);
+  wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
   return *this;
 }
 

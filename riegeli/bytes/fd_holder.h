@@ -19,7 +19,7 @@ class FdHolder {
   explicit FdHolder(int fd);
 
   FdHolder(FdHolder&& src) noexcept;
-  void operator=(FdHolder&& src) noexcept;
+  FdHolder& operator=(FdHolder&& src) noexcept;
 
   ~FdHolder();
 
@@ -41,10 +41,12 @@ inline FdHolder::FdHolder(int fd) : fd_(fd) {}
 inline FdHolder::FdHolder(FdHolder&& src) noexcept
     : fd_(riegeli::exchange(src.fd_, -1)) {}
 
-inline void FdHolder::operator=(FdHolder&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
+inline FdHolder& FdHolder::operator=(FdHolder&& src) noexcept {
+  // Exchange src.fd_ early to support self-assignment.
+  const int fd = riegeli::exchange(src.fd_, -1);
   Close();
-  fd_ = riegeli::exchange(src.fd_, -1);
+  fd_ = fd;
+  return *this;
 }
 
 inline FdHolder::~FdHolder() { Close(); }

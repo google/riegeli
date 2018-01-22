@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_BUFFERED_READER_H_
 
 #include <stddef.h>
+#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -38,7 +39,7 @@ class BufferedReader : public Reader {
   explicit BufferedReader(size_t buffer_size) : buffer_size_(buffer_size) {}
 
   BufferedReader(BufferedReader&& src) noexcept;
-  void operator=(BufferedReader&& src) noexcept;
+  BufferedReader& operator=(BufferedReader&& src) noexcept;
 
   // BufferedReader provides a partial override of Reader::Done().
   // Derived classes must override it further and include a call to
@@ -91,6 +92,19 @@ class BufferedReader : public Reader {
 };
 
 // Implementation details follow.
+
+inline BufferedReader::BufferedReader(BufferedReader&& src) noexcept
+    : Reader(std::move(src)),
+      buffer_size_(riegeli::exchange(src.buffer_size_, 0)),
+      buffer_(riegeli::exchange(src.buffer_, Chain())) {}
+
+inline BufferedReader& BufferedReader::operator=(
+    BufferedReader&& src) noexcept {
+  Reader::operator=(std::move(src));
+  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
+  buffer_ = riegeli::exchange(src.buffer_, Chain());
+  return *this;
+}
 
 inline void BufferedReader::Done() {
   buffer_size_ = 0;

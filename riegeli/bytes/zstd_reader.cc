@@ -60,12 +60,10 @@ ZstdReader::ZstdReader(ZstdReader&& src) noexcept
       decompressor_(std::move(src.decompressor_)) {}
 
 ZstdReader& ZstdReader::operator=(ZstdReader&& src) noexcept {
-  if (&src != this) {
-    BufferedReader::operator=(std::move(src));
-    owned_src_ = std::move(src.owned_src_);
-    src_ = riegeli::exchange(src.src_, nullptr);
-    decompressor_ = std::move(src.decompressor_);
-  }
+  BufferedReader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = riegeli::exchange(src.src_, nullptr);
+  decompressor_ = std::move(src.decompressor_);
   return *this;
 }
 

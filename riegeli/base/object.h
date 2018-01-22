@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <atomic>
 #include <string>
-#include <utility>
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
@@ -131,10 +130,8 @@ class Object {
   // cause background threads of the source Object to pause interacting with the
   // Object while Object::operator=(Object&&) is called, and then continue
   // interacting with the target Object instead.
-  //
-  // Precondition: &src != this
   Object(Object&& src) noexcept;
-  void operator=(Object&& src) noexcept;
+  Object& operator=(Object&& src) noexcept;
 
   // Marks the Object as healthy. This can be used if the Object supports
   // resetting to a clean state after a failure (apart from assignment).
@@ -243,11 +240,11 @@ inline Object::Object(Object&& src) noexcept
     : status_(src.status_.exchange(kClosedSuccessfully(),
                                    std::memory_order_relaxed)) {}
 
-inline void Object::operator=(Object&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
+inline Object& Object::operator=(Object&& src) noexcept {
   DeleteStatus(status_.exchange(
       src.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
       std::memory_order_relaxed));
+  return *this;
 }
 
 inline Object::~Object() {

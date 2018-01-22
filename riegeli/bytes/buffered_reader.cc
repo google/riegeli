@@ -28,21 +28,6 @@
 
 namespace riegeli {
 
-BufferedReader::BufferedReader(BufferedReader&& src) noexcept
-    : Reader(std::move(src)),
-      buffer_size_(riegeli::exchange(src.buffer_size_, 0)),
-      buffer_(std::move(src.buffer_)) {
-  src.buffer_.Clear();
-}
-
-void BufferedReader::operator=(BufferedReader&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
-  Reader::operator=(std::move(src));
-  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
-  buffer_ = std::move(src.buffer_);
-  src.buffer_.Clear();
-}
-
 inline bool BufferedReader::TooSmall(Chain::Buffer flat_buffer) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
   RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size_);

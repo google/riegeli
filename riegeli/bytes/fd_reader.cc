@@ -73,19 +73,16 @@ FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
     : BufferedReader(std::move(src)),
       owned_fd_(std::move(src.owned_fd_)),
       fd_(riegeli::exchange(src.fd_, -1)),
-      filename_(std::move(src.filename_)),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {
-  src.filename_.clear();
-}
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)) {}
 
-void FdReaderBase::operator=(FdReaderBase&& src) noexcept {
-  RIEGELI_ASSERT(&src != this);
+FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
   BufferedReader::operator=(std::move(src));
   owned_fd_ = std::move(src.owned_fd_);
   fd_ = riegeli::exchange(src.fd_, -1);
-  filename_ = std::move(src.filename_);
+  filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
-  src.filename_.clear();
+  return *this;
 }
 
 FdReaderBase::~FdReaderBase() = default;
@@ -132,10 +129,8 @@ FdReader::FdReader(FdReader&& src) noexcept
       sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
 
 FdReader& FdReader::operator=(FdReader&& src) noexcept {
-  if (&src != this) {
-    internal::FdReaderBase::operator=(std::move(src));
-    sync_pos_ = riegeli::exchange(src.sync_pos_, false);
-  }
+  internal::FdReaderBase::operator=(std::move(src));
+  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
   return *this;
 }
 
@@ -238,7 +233,7 @@ FdStreamReader::FdStreamReader(FdStreamReader&& src) noexcept
     : internal::FdReaderBase(std::move(src)) {}
 
 FdStreamReader& FdStreamReader::operator=(FdStreamReader&& src) noexcept {
-  if (&src != this) internal::FdReaderBase::operator=(std::move(src));
+  internal::FdReaderBase::operator=(std::move(src));
   return *this;
 }
 

@@ -70,12 +70,10 @@ BrotliWriter::BrotliWriter(BrotliWriter&& src) noexcept
       compressor_(std::move(src.compressor_)) {}
 
 BrotliWriter& BrotliWriter::operator=(BrotliWriter&& src) noexcept {
-  if (&src != this) {
-    BufferedWriter::operator=(std::move(src));
-    owned_dest_ = std::move(src.owned_dest_);
-    dest_ = riegeli::exchange(src.dest_, nullptr);
-    compressor_ = std::move(src.compressor_);
-  }
+  BufferedWriter::operator=(std::move(src));
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  compressor_ = std::move(src.compressor_);
   return *this;
 }
 

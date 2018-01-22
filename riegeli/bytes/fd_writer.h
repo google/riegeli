@@ -48,7 +48,7 @@ class FdWriterBase : public BufferedWriter {
                size_t buffer_size);
 
   FdWriterBase(FdWriterBase&& src) noexcept;
-  void operator=(FdWriterBase&& src) noexcept;
+  FdWriterBase& operator=(FdWriterBase&& src) noexcept;
 
   ~FdWriterBase();
 

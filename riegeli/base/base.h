@@ -99,7 +99,7 @@ using std::exchange;
 
 template <typename T, typename U = T>
 T exchange(T& obj, U&& new_value) {
-  const T old_value = std::move(obj);
+  T old_value = std::move(obj);
   obj = std::forward<U>(new_value);
   return old_value;
 }

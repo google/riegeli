@@ -76,13 +76,11 @@ RecordReader::RecordReader(RecordReader&& src) noexcept
       chunk_decoder_(std::move(src.chunk_decoder_)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
-  if (&src != this) {
-    Object::operator=(std::move(src));
-    chunk_reader_ = std::move(src.chunk_reader_);
-    skip_corruption_ = riegeli::exchange(src.skip_corruption_, false);
-    chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
-    chunk_decoder_ = std::move(src.chunk_decoder_);
-  }
+  Object::operator=(std::move(src));
+  chunk_reader_ = std::move(src.chunk_reader_);
+  skip_corruption_ = riegeli::exchange(src.skip_corruption_, false);
+  chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
+  chunk_decoder_ = std::move(src.chunk_decoder_);
   return *this;
 }
 

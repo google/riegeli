@@ -430,15 +430,13 @@ RecordWriter::RecordWriter(RecordWriter&& src) noexcept
       impl_(std::move(src.impl_)) {}
 
 RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
-  if (&src != this) {
-    Object::operator=(std::move(src));
-    desired_chunk_size_ = riegeli::exchange(src.desired_chunk_size_, 0);
-    chunk_size_ = riegeli::exchange(src.chunk_size_, 0);
-    // impl_ must be assigned before owned_chunk_writer_ because background work
-    // of impl_ may need owned_chunk_writer_.
-    impl_ = std::move(src.impl_);
-    owned_chunk_writer_ = std::move(src.owned_chunk_writer_);
-  }
+  Object::operator=(std::move(src));
+  desired_chunk_size_ = riegeli::exchange(src.desired_chunk_size_, 0);
+  chunk_size_ = riegeli::exchange(src.chunk_size_, 0);
+  // impl_ must be assigned before owned_chunk_writer_ because background work
+  // of impl_ may need owned_chunk_writer_.
+  impl_ = std::move(src.impl_);
+  owned_chunk_writer_ = std::move(src.owned_chunk_writer_);
   return *this;
 }
 

@@ -42,10 +42,8 @@ StringWriter::StringWriter(StringWriter&& src) noexcept
     : Writer(std::move(src)), dest_(riegeli::exchange(src.dest_, nullptr)) {}
 
 StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
-  if (&src != this) {
-    Writer::operator=(std::move(src));
-    dest_ = riegeli::exchange(src.dest_, nullptr);
-  }
+  Writer::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
   return *this;
 }
 
