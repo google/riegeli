@@ -112,6 +112,13 @@ class Object {
   //
   //   TypeId A::GetTypeId() const override { return TypeId::For<A>(); }
   //
+  // Then, to actually cast:
+  //
+  //   if (object->GetTypeId() == TypeId::For<A>()) {
+  //     A* a = static_cast<A*>(object);
+  //     ...
+  //   }
+  //
   // This solution is more limited but faster than typeid or dynamic_cast.
   virtual TypeId GetTypeId() const;
 
