@@ -35,10 +35,10 @@ namespace riegeli {
 namespace {
 
 void WritePadding(std::ostream& out, size_t pad) {
-  char buf[32];
+  char buf[64];
   std::memset(buf, out.fill(), sizeof(buf));
   while (pad > 0) {
-    size_t length = UnsignedMin(pad, sizeof(buf));
+    const size_t length = UnsignedMin(pad, sizeof(buf));
     out.write(buf, length);
     pad -= length;
   }

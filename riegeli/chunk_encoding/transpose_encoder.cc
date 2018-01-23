@@ -297,7 +297,7 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kVarint1 + (value_length - 1))));
-          // TODO: Consider processing the whole sizeof value instead.
+          // TODO: Consider processing the whole sizeof(value) instead.
           for (size_t i = 0; i < value_length - 1; ++i) value[i] &= ~0x80;
           GetBuffer(parent_message_id, field, BufferType::kVarint)
               ->Write(string_view(value, value_length));
