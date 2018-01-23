@@ -330,8 +330,6 @@ void Chain::BlockIterator::AppendSubstrTo(string_view substr, Chain* dest,
   dest->AppendExternal(BlockRef(block, true), substr, size_hint);
 }
 
-const NoDestructor<Chain> Chain::kStaticEmpty;
-
 Chain::Chain(string_view src) {
   if (src.empty()) return;
   Block* const block = Block::NewInternal(src.size());

@@ -50,8 +50,6 @@ class Chain {
   class BlockIterator;
   class Buffer;
 
-  static constexpr const Chain& kEmpty();
-
   // Not defaulted as a workaround for a bug in Clang < 3.2: a defaulted default
   // constructor of Chain is not constexpr, but an explicitly defined one can be
   // constexpr.
@@ -180,8 +178,6 @@ class Chain {
   static constexpr size_t kMinBufferSize() { return 128; }
   static constexpr size_t kMaxBufferSize() { return size_t{64} << 10; }
   static constexpr size_t kAllocationCost() { return 256; }
-
-  RIEGELI_CONST_INIT static const NoDestructor<Chain> kStaticEmpty;
 
   static Block** NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();
@@ -826,8 +822,6 @@ inline Chain::Blocks::const_reference Chain::Blocks::front() const {
 inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   return end_[-1]->data();
 }
-
-inline constexpr const Chain& Chain::kEmpty() { return *kStaticEmpty; }
 
 inline Chain::Blocks Chain::blocks() const { return Blocks(begin_, end_); }
 
