@@ -33,7 +33,7 @@ namespace riegeli {
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
  protected:
-  BufferedWriter() : buffer_size_(0) {}
+  BufferedWriter() noexcept = default;
 
   explicit BufferedWriter(size_t buffer_size) : buffer_size_(buffer_size) {}
 
@@ -73,7 +73,7 @@ class BufferedWriter : public Writer {
   //
   // Invariant:
   //   limit_ == start_ + (start_ == nullptr || !healthy() ? 0 : buffer_size_)
-  size_t buffer_size_;
+  size_t buffer_size_ = 0;
 };
 
 // Implementation details follow.

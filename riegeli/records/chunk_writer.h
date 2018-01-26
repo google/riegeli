@@ -39,7 +39,7 @@ class Reader;
 // writes.
 class ChunkWriter : public Object {
  public:
-  ChunkWriter() = default;
+  ChunkWriter() noexcept = default;
 
   ChunkWriter(const ChunkWriter&) = delete;
   ChunkWriter& operator=(const ChunkWriter&) = delete;

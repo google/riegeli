@@ -40,7 +40,7 @@ class FdWriterBase : public BufferedWriter {
   bool Flush(FlushType flush_type) override;
 
  protected:
-  FdWriterBase();
+  FdWriterBase() noexcept;
 
   FdWriterBase(int fd, bool owns_fd, size_t buffer_size);
 
@@ -58,7 +58,7 @@ class FdWriterBase : public BufferedWriter {
   virtual bool MaybeSyncPos() { return true; }
 
   FdHolder owned_fd_;
-  int fd_;
+  int fd_ = -1;
   std::string filename_;
   // errno value from a failed operation, or 0 if none.
   //
@@ -68,66 +68,6 @@ class FdWriterBase : public BufferedWriter {
 
 }  // namespace internal
 
-// FdWriter::Options.
-class FdWriterOptions {
- public:
-  // If true, the fd will be owned by the FdWriter and will be closed when the
-  // FdWriter is closed.
-  //
-  // If false, the fd must be alive until closing the FdWriter.
-  //
-  // Default: true.
-  FdWriterOptions& set_owns_fd(bool owns_fd) & {
-    owns_fd_ = owns_fd;
-    return *this;
-  }
-  FdWriterOptions&& set_owns_fd(bool owns_fd) && {
-    return std::move(set_owns_fd(owns_fd));
-  }
-
-  // Permissions to use in case a new file is created (9 bits). The effective
-  // permissions are modified by the process's umask.
-  FdWriterOptions& set_permissions(mode_t permissions) & {
-    permissions_ = permissions;
-    return *this;
-  }
-  FdWriterOptions&& set_permissions(mode_t permissions) && {
-    return std::move(set_permissions(permissions));
-  }
-
-  FdWriterOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  FdWriterOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // If true, FdWriter will initially get the current file position, and will
-  // set the final file position on Close() and Flush().
-  //
-  // If false, file position is irrelevant for FdWriter, and writing will start
-  // at the end of file.
-  //
-  // Default: false.
-  FdWriterOptions& set_sync_pos(bool sync_pos) & {
-    sync_pos_ = sync_pos;
-    return *this;
-  }
-  FdWriterOptions&& set_sync_pos(bool sync_pos) && {
-    return std::move(set_sync_pos(sync_pos));
-  }
-
- private:
-  friend class FdWriter;
-
-  bool owns_fd_ = true;
-  mode_t permissions_ = 0666;
-  size_t buffer_size_ = kDefaultBufferSize();
-  bool sync_pos_ = false;
-};
-
 // A Writer which writes to a file descriptor. It supports random access; the
 // file descriptor must support pwrite(), lseek(), fstat(), and ftruncate().
 //
@@ -136,10 +76,71 @@ class FdWriterOptions {
 // occur at the position managed by the FdWriter (using pwrite()).
 class FdWriter final : public internal::FdWriterBase {
  public:
-  using Options = FdWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // If true, the fd will be owned by the FdWriter and will be closed when the
+    // FdWriter is closed.
+    //
+    // If false, the fd must be alive until closing the FdWriter.
+    //
+    // Default: true.
+    Options& set_owns_fd(bool owns_fd) & {
+      owns_fd_ = owns_fd;
+      return *this;
+    }
+    Options&& set_owns_fd(bool owns_fd) && {
+      return std::move(set_owns_fd(owns_fd));
+    }
+
+    // Permissions to use in case a new file is created (9 bits). The effective
+    // permissions are modified by the process's umask.
+    Options& set_permissions(mode_t permissions) & {
+      permissions_ = permissions;
+      return *this;
+    }
+    Options&& set_permissions(mode_t permissions) && {
+      return std::move(set_permissions(permissions));
+    }
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // If true, FdWriter will initially get the current file position, and will
+    // set the final file position on Close() and Flush().
+    //
+    // If false, file position is irrelevant for FdWriter, and writing will
+    // start at the end of file.
+    //
+    // Default: false.
+    Options& set_sync_pos(bool sync_pos) & {
+      sync_pos_ = sync_pos;
+      return *this;
+    }
+    Options&& set_sync_pos(bool sync_pos) && {
+      return std::move(set_sync_pos(sync_pos));
+    }
+
+   private:
+    friend class FdWriter;
+
+    bool owns_fd_ = true;
+    mode_t permissions_ = 0666;
+    size_t buffer_size_ = kDefaultBufferSize();
+    bool sync_pos_ = false;
+  };
 
   // Creates a closed FdWriter.
-  FdWriter();
+  FdWriter() noexcept;
 
   // Will write to the fd, starting at the end of file, or at the current fd
   // position if options.set_sync_pos(true) is used.
@@ -171,68 +172,7 @@ class FdWriter final : public internal::FdWriterBase {
  private:
   void InitializePos(int flags);
 
-  bool sync_pos_;
-};
-
-// FdStreamWriter::Options.
-class FdStreamWriterOptions {
- public:
-  // If true, the fd will be owned by the FdStreamWriter and will be closed when
-  // the FdStreamWriter is closed.
-  //
-  // If false, the fd must be alive until closing the FdStreamWriter.
-  //
-  // Default: true.
-  FdStreamWriterOptions& set_owns_fd(bool owns_fd) & {
-    owns_fd_ = owns_fd;
-    return *this;
-  }
-  FdStreamWriterOptions&& set_owns_fd(bool owns_fd) && {
-    return std::move(set_owns_fd(owns_fd));
-  }
-
-  // Permissions to use in case a new file is created (9 bits). The effective
-  // permissions are modified by the process's umask.
-  FdStreamWriterOptions& set_permissions(mode_t permissions) & {
-    permissions_ = permissions;
-    return *this;
-  }
-  FdStreamWriterOptions&& set_permissions(mode_t permissions) && {
-    return std::move(set_permissions(permissions));
-  }
-
-  FdStreamWriterOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  FdStreamWriterOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // Sets the file position assumed initially, used for reporting by pos().
-  //
-  // Default for constructor from fd: none, must be provided explicitly.
-  //
-  // Default for constructor from filename: 0 when opening for writing, or file
-  // size when opening for appending.
-  FdStreamWriterOptions& set_assumed_pos(Position assumed_pos) & {
-    has_assumed_pos_ = true;
-    assumed_pos_ = assumed_pos;
-    return *this;
-  }
-  FdStreamWriterOptions&& set_assumed_pos(Position assumed_pos) && {
-    return std::move(set_assumed_pos(assumed_pos));
-  }
-
- private:
-  friend class FdStreamWriter;
-
-  bool owns_fd_ = true;
-  mode_t permissions_ = 0666;
-  size_t buffer_size_ = kDefaultBufferSize();
-  bool has_assumed_pos_ = false;
-  Position assumed_pos_ = 0;
+  bool sync_pos_ = false;
 };
 
 // A Writer which writes to a file descriptor which does not have to support
@@ -244,10 +184,72 @@ class FdStreamWriterOptions {
 // current file position (using write()).
 class FdStreamWriter final : public internal::FdWriterBase {
  public:
-  using Options = FdStreamWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // If true, the fd will be owned by the FdStreamWriter and will be closed
+    // when the FdStreamWriter is closed.
+    //
+    // If false, the fd must be alive until closing the FdStreamWriter.
+    //
+    // Default: true.
+    Options& set_owns_fd(bool owns_fd) & {
+      owns_fd_ = owns_fd;
+      return *this;
+    }
+    Options&& set_owns_fd(bool owns_fd) && {
+      return std::move(set_owns_fd(owns_fd));
+    }
+
+    // Permissions to use in case a new file is created (9 bits). The effective
+    // permissions are modified by the process's umask.
+    Options& set_permissions(mode_t permissions) & {
+      permissions_ = permissions;
+      return *this;
+    }
+    Options&& set_permissions(mode_t permissions) && {
+      return std::move(set_permissions(permissions));
+    }
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // Sets the file position assumed initially, used for reporting by pos().
+    //
+    // Default for constructor from fd: none, must be provided explicitly.
+    //
+    // Default for constructor from filename: 0 when opening for writing, or
+    // file size when opening for appending.
+    Options& set_assumed_pos(Position assumed_pos) & {
+      has_assumed_pos_ = true;
+      assumed_pos_ = assumed_pos;
+      return *this;
+    }
+    Options&& set_assumed_pos(Position assumed_pos) && {
+      return std::move(set_assumed_pos(assumed_pos));
+    }
+
+   private:
+    friend class FdStreamWriter;
+
+    bool owns_fd_ = true;
+    mode_t permissions_ = 0666;
+    size_t buffer_size_ = kDefaultBufferSize();
+    bool has_assumed_pos_ = false;
+    Position assumed_pos_ = 0;
+  };
 
   // Creates a closed FdStreamWriter.
-  FdStreamWriter();
+  FdStreamWriter() noexcept;
 
   // Will write to the fd, starting at its current position.
   //

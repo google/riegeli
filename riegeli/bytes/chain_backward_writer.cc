@@ -27,9 +27,7 @@
 
 namespace riegeli {
 
-ChainBackwardWriter::ChainBackwardWriter() : dest_(nullptr), size_hint_(0) {
-  MarkClosed();
-}
+ChainBackwardWriter::ChainBackwardWriter() noexcept { MarkClosed(); }
 
 ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
     : dest_(RIEGELI_ASSERT_NOTNULL(dest)),

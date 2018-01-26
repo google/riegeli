@@ -44,7 +44,7 @@ namespace riegeli {
 
 namespace internal {
 
-FdWriterBase::FdWriterBase() : fd_(-1) { MarkClosed(); }
+FdWriterBase::FdWriterBase() noexcept { MarkClosed(); }
 
 FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedWriter(buffer_size),
@@ -128,7 +128,7 @@ bool FdWriterBase::Flush(FlushType flush_type) {
 
 }  // namespace internal
 
-FdWriter::FdWriter() : sync_pos_(false) {}
+FdWriter::FdWriter() noexcept = default;
 
 FdWriter::FdWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_),
@@ -256,7 +256,7 @@ again:
   return true;
 }
 
-FdStreamWriter::FdStreamWriter() = default;
+FdStreamWriter::FdStreamWriter() noexcept = default;
 
 FdStreamWriter::FdStreamWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_) {

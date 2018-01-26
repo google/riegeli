@@ -27,27 +27,6 @@
 
 namespace riegeli {
 
-// ChunkReader::Options.
-class ChunkReaderOptions {
- public:
-  // If true, corrupted regions will be skipped. if false, corrupted regions
-  // will cause reading to fail.
-  //
-  // Default: false
-  ChunkReaderOptions& set_skip_corruption(bool skip_corruption) & {
-    skip_corruption_ = std::move(skip_corruption);
-    return *this;
-  }
-  ChunkReaderOptions&& set_skip_corruption(bool skip_corruption) && {
-    return std::move(set_skip_corruption(skip_corruption));
-  }
-
- private:
-  friend class ChunkReader;
-
-  bool skip_corruption_ = false;
-};
-
 // A ChunkReader reads chunks of a Riegeli/records file (rather than individual
 // records, as RecordReader does).
 //
@@ -58,7 +37,29 @@ class ChunkReaderOptions {
 // together with a default implementation, analogously to ChunkWriter.
 class ChunkReader final : public Object {
  public:
-  using Options = ChunkReaderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // If true, corrupted regions will be skipped. if false, corrupted regions
+    // will cause reading to fail.
+    //
+    // Default: false
+    Options& set_skip_corruption(bool skip_corruption) & {
+      skip_corruption_ = std::move(skip_corruption);
+      return *this;
+    }
+    Options&& set_skip_corruption(bool skip_corruption) && {
+      return std::move(set_skip_corruption(skip_corruption));
+    }
+
+   private:
+    friend class ChunkReader;
+
+    bool skip_corruption_ = false;
+  };
 
   // Will read chunks from the byte Reader which is owned by this ChunkReader
   // and will be closed and deleted when the ChunkReader is closed.

@@ -383,7 +383,7 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-RecordWriter::RecordWriter() : desired_chunk_size_(0) { MarkClosed(); }
+RecordWriter::RecordWriter() noexcept { MarkClosed(); }
 
 RecordWriter::RecordWriter(std::unique_ptr<Writer> chunk_writer,
                            Options options)

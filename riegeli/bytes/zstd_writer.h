@@ -28,61 +28,62 @@
 
 namespace riegeli {
 
-// ZstdWriter::Options.
-class ZstdWriterOptions {
- public:
-  // Tune compression level vs. compression speed tradeoff.
-  //
-  // Level must be between 1 and 22. Default: 9.
-  ZstdWriterOptions& set_compression_level(int level) & {
-    RIEGELI_ASSERT_GE(level, 1);
-    RIEGELI_ASSERT_LE(level, 22);
-    compression_level_ = level;
-    return *this;
-  }
-  ZstdWriterOptions&& set_compression_level(int level) && {
-    return std::move(set_compression_level(level));
-  }
-
-  ZstdWriterOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  ZstdWriterOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // Announce in advance the destination size. This may improve compression
-  // density, and this causes the size to be stored in the compressed stream
-  // header.
-  //
-  // If the size hint turns out to not match reality, nothing breaks, except
-  // that ZSTD_getDecompressedSize() will report a wrong size, which may be
-  // confusing (zstd.h explicitly states that this value cannot be trusted).
-  ZstdWriterOptions& set_size_hint(Position size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  ZstdWriterOptions&& set_size_hint(Position size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-
- private:
-  friend class ZstdWriter;
-
-  int compression_level_ = 9;
-  size_t buffer_size_ = kDefaultBufferSize();
-  Position size_hint_ = 0;
-};
-
 // A Writer which compresses data with Zstd before passing it to another Writer.
 class ZstdWriter final : public BufferedWriter {
  public:
-  using Options = ZstdWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // Tune compression level vs. compression speed tradeoff.
+    //
+    // Level must be between 1 and 22. Default: 9.
+    Options& set_compression_level(int level) & {
+      RIEGELI_ASSERT_GE(level, 1);
+      RIEGELI_ASSERT_LE(level, 22);
+      compression_level_ = level;
+      return *this;
+    }
+    Options&& set_compression_level(int level) && {
+      return std::move(set_compression_level(level));
+    }
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // Announce in advance the destination size. This may improve compression
+    // density, and this causes the size to be stored in the compressed stream
+    // header.
+    //
+    // If the size hint turns out to not match reality, nothing breaks, except
+    // that ZSTD_getDecompressedSize() will report a wrong size, which may be
+    // confusing (zstd.h explicitly states that this value cannot be trusted).
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class ZstdWriter;
+
+    int compression_level_ = 9;
+    size_t buffer_size_ = kDefaultBufferSize();
+    Position size_hint_ = 0;
+  };
 
   // Creates a closed ZstdWriter.
-  ZstdWriter();
+  ZstdWriter() noexcept;
 
   // Will write Zstd-compressed stream to the byte Writer which is owned by this
   // ZstdWriter and will be closed and deleted when the ZstdWriter is closed.
@@ -116,7 +117,7 @@ class ZstdWriter final : public BufferedWriter {
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr
-  Writer* dest_;
+  Writer* dest_ = nullptr;
   std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
 };
 

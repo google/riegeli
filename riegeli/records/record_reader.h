@@ -38,39 +38,6 @@ class MessageLite;
 
 namespace riegeli {
 
-// RecordReader::Options.
-class RecordReaderOptions {
- public:
-  // If true, corrupted regions will be skipped. if false, corrupted regions
-  // will cause reading to fail.
-  //
-  // Default: false
-  RecordReaderOptions& set_skip_corruption(bool skip_corruption) & {
-    skip_corruption_ = std::move(skip_corruption);
-    return *this;
-  }
-  RecordReaderOptions&& set_skip_corruption(bool skip_corruption) && {
-    return std::move(set_skip_corruption(skip_corruption));
-  }
-
-  // Specifies the set of fields to be included in returned records, allowing to
-  // exclude the remaining fields (but does not guarantee exclusion). Excluding
-  // data makes reading faster.
-  RecordReaderOptions& set_field_filter(FieldFilter field_filter) & {
-    field_filter_ = std::move(field_filter);
-    return *this;
-  }
-  RecordReaderOptions&& set_field_filter(FieldFilter field_filter) && {
-    return std::move(set_field_filter(std::move(field_filter)));
-  }
-
- private:
-  friend class RecordReader;
-
-  bool skip_corruption_ = false;
-  FieldFilter field_filter_ = FieldFilter::All();
-};
-
 // RecordReader reads records of a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
 //
@@ -96,10 +63,44 @@ class RecordReaderOptions {
 //   }
 class RecordReader final : public Object {
  public:
-  using Options = RecordReaderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    Options() noexcept {}
+
+    // If true, corrupted regions will be skipped. if false, corrupted regions
+    // will cause reading to fail.
+    //
+    // Default: false
+    Options& set_skip_corruption(bool skip_corruption) & {
+      skip_corruption_ = std::move(skip_corruption);
+      return *this;
+    }
+    Options&& set_skip_corruption(bool skip_corruption) && {
+      return std::move(set_skip_corruption(skip_corruption));
+    }
+
+    // Specifies the set of fields to be included in returned records, allowing
+    // to exclude the remaining fields (but does not guarantee exclusion).
+    // Excluding data makes reading faster.
+    Options& set_field_filter(FieldFilter field_filter) & {
+      field_filter_ = std::move(field_filter);
+      return *this;
+    }
+    Options&& set_field_filter(FieldFilter field_filter) && {
+      return std::move(set_field_filter(std::move(field_filter)));
+    }
+
+   private:
+    friend class RecordReader;
+
+    bool skip_corruption_ = false;
+    FieldFilter field_filter_ = FieldFilter::All();
+  };
 
   // Creates a closed RecordReader.
-  RecordReader();
+  RecordReader() noexcept;
 
   // Will read records from the byte Reader which is owned by this RecordReader
   // and will be closed and deleted when the RecordReader is closed.
@@ -200,11 +201,11 @@ class RecordReader final : public Object {
 
   // Invariant: if healthy() then chunk_reader_ != nullptr
   std::unique_ptr<ChunkReader> chunk_reader_;
-  bool skip_corruption_;
+  bool skip_corruption_ = false;
   // Position of the beginning of the current chunk or end of file, except when
   // Seek(Position) failed to locate the chunk containing the position, in which
   // case this is that position.
-  Position chunk_begin_;
+  Position chunk_begin_ = 0;
   // Current chunk if a chunk has been pulled, empty otherwise.
   //
   // Invariant:

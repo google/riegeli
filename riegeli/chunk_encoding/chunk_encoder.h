@@ -32,7 +32,7 @@ namespace riegeli {
 
 class ChunkEncoder {
  public:
-  ChunkEncoder() = default;
+  ChunkEncoder() noexcept = default;
 
   ChunkEncoder(const ChunkEncoder&) = delete;
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;

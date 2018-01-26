@@ -32,7 +32,7 @@ inline void BrotliReader::BrotliDecoderStateDeleter::operator()(
   BrotliDecoderDestroyInstance(ptr);
 }
 
-BrotliReader::BrotliReader() : src_(nullptr) { MarkClosed(); }
+BrotliReader::BrotliReader() noexcept { MarkClosed(); }
 
 BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
     : BrotliReader(src.get(), options) {

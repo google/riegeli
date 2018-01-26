@@ -156,7 +156,7 @@ class Writer : public Object {
   virtual bool Truncate() { return false; }
 
  protected:
-  Writer() = default;
+  Writer() noexcept = default;
 
   // Moves the part of the object defined in this class.
   //

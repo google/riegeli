@@ -33,9 +33,7 @@
 
 namespace riegeli {
 
-RecordReader::RecordReader() : skip_corruption_(false), chunk_begin_(0) {
-  MarkClosed();
-}
+RecordReader::RecordReader() noexcept { MarkClosed(); }
 
 RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
     : RecordReader(riegeli::make_unique<ChunkReader>(

@@ -37,7 +37,7 @@ class FdReaderBase : public BufferedReader {
   int error_code() const { return error_code_; }
 
  protected:
-  FdReaderBase();
+  FdReaderBase() noexcept;
 
   FdReaderBase(int fd, bool owns_fd, size_t buffer_size);
 
@@ -54,7 +54,7 @@ class FdReaderBase : public BufferedReader {
   virtual bool MaybeSyncPos() { return true; }
 
   FdHolder owned_fd_;
-  int fd_;
+  int fd_ = -1;
   std::string filename_;
   // errno value from a failed operation, or 0 if none.
   //
@@ -64,55 +64,6 @@ class FdReaderBase : public BufferedReader {
 
 }  // namespace internal
 
-// FdReader::Options.
-class FdReaderOptions {
- public:
-  // If true, the fd will be owned by the FdReader and will be closed when the
-  // FdReader is closed.
-  //
-  // If false, the fd must be kept alive until closing the FdReader.
-  //
-  // Default: true.
-  FdReaderOptions& set_owns_fd(bool owns_fd) & {
-    owns_fd_ = owns_fd;
-    return *this;
-  }
-  FdReaderOptions&& set_owns_fd(bool owns_fd) && {
-    return std::move(set_owns_fd(owns_fd));
-  }
-
-  FdReaderOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  FdReaderOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // If true, FdReader will initially get the current file position, and will
-  // set the final file position on Close().
-  //
-  // If false, file position is irrelevant for FdReader, and reading will start
-  // at the beginning of file.
-  //
-  // Default: false.
-  FdReaderOptions& set_sync_pos(bool sync_pos) & {
-    sync_pos_ = sync_pos;
-    return *this;
-  }
-  FdReaderOptions&& set_sync_pos(bool sync_pos) && {
-    return std::move(set_sync_pos(sync_pos));
-  }
-
- private:
-  friend class FdReader;
-
-  bool owns_fd_ = true;
-  size_t buffer_size_ = kDefaultBufferSize();
-  bool sync_pos_ = false;
-};
-
 // A Reader which reads from a file descriptor. It supports random access; the
 // file descriptor must support pread(), lseek(), and fstat().
 //
@@ -120,10 +71,60 @@ class FdReaderOptions {
 // position managed by the FdReader (using pread()).
 class FdReader final : public internal::FdReaderBase {
  public:
-  using Options = FdReaderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // If true, the fd will be owned by the FdReader and will be closed when the
+    // FdReader is closed.
+    //
+    // If false, the fd must be kept alive until closing the FdReader.
+    //
+    // Default: true.
+    Options& set_owns_fd(bool owns_fd) & {
+      owns_fd_ = owns_fd;
+      return *this;
+    }
+    Options&& set_owns_fd(bool owns_fd) && {
+      return std::move(set_owns_fd(owns_fd));
+    }
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // If true, FdReader will initially get the current file position, and will
+    // set the final file position on Close().
+    //
+    // If false, file position is irrelevant for FdReader, and reading will
+    // start at the beginning of file.
+    //
+    // Default: false.
+    Options& set_sync_pos(bool sync_pos) & {
+      sync_pos_ = sync_pos;
+      return *this;
+    }
+    Options&& set_sync_pos(bool sync_pos) && {
+      return std::move(set_sync_pos(sync_pos));
+    }
+
+   private:
+    friend class FdReader;
+
+    bool owns_fd_ = true;
+    size_t buffer_size_ = kDefaultBufferSize();
+    bool sync_pos_ = false;
+  };
 
   // Creates a closed FdReader.
-  FdReader();
+  FdReader() noexcept;
 
   // Will read from the fd, starting at its beginning (or current file position
   // if options.set_sync_pos(true) is used).
@@ -152,45 +153,7 @@ class FdReader final : public internal::FdReaderBase {
  private:
   void InitializePos();
 
-  bool sync_pos_;
-};
-
-// FdStreamReader::Options.
-class FdStreamReaderOptions {
- public:
-  // There is no FdStreamReaderOptions::set_owns_fd() because it is impossible
-  // to unread what has been buffered, so a non-owned fd would be left having an
-  // unpredictable amount of extra data consumed, which would not be useful.
-
-  FdStreamReaderOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  FdStreamReaderOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // Sets the file position assumed initially, used for reporting by pos().
-  //
-  // Default for constructor from fd: none, must be provided explicitly.
-  //
-  // Default for constructor from filename: 0.
-  FdStreamReaderOptions& set_assumed_pos(Position assumed_pos) & {
-    has_assumed_pos_ = true;
-    assumed_pos_ = assumed_pos;
-    return *this;
-  }
-  FdStreamReaderOptions&& set_assumed_pos(Position assumed_pos) && {
-    return std::move(set_assumed_pos(assumed_pos));
-  }
-
- private:
-  friend class FdStreamReader;
-
-  size_t buffer_size_ = kDefaultBufferSize();
-  bool has_assumed_pos_ = false;
-  Position assumed_pos_ = 0;
+  bool sync_pos_ = false;
 };
 
 // A Reader which reads from a file descriptor which does not have to support
@@ -200,10 +163,49 @@ class FdStreamReaderOptions {
 // Reads occur at the current file position (using read()).
 class FdStreamReader final : public internal::FdReaderBase {
  public:
-  using Options = FdStreamReaderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // There is no set_owns_fd() because it is impossible to unread what has
+    // been buffered, so a non-owned fd would be left having an unpredictable
+    // amount of extra data consumed, which would not be useful.
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // Sets the file position assumed initially, used for reporting by pos().
+    //
+    // Default for constructor from fd: none, must be provided explicitly.
+    //
+    // Default for constructor from filename: 0.
+    Options& set_assumed_pos(Position assumed_pos) & {
+      has_assumed_pos_ = true;
+      assumed_pos_ = assumed_pos;
+      return *this;
+    }
+    Options&& set_assumed_pos(Position assumed_pos) && {
+      return std::move(set_assumed_pos(assumed_pos));
+    }
+
+   private:
+    friend class FdStreamReader;
+
+    size_t buffer_size_ = kDefaultBufferSize();
+    bool has_assumed_pos_ = false;
+    Position assumed_pos_ = 0;
+  };
 
   // Creates a closed FdStreamReader.
-  FdStreamReader();
+  FdStreamReader() noexcept;
 
   // Will read from the fd, starting at its current position.
   //

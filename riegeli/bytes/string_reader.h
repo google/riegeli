@@ -29,7 +29,7 @@ namespace riegeli {
 class StringReader final : public Reader {
  public:
   // Creates a closed StringReader.
-  StringReader();
+  StringReader() noexcept;
 
   // Will read from the array which is not owned by this StringReader and must
   // be kept alive but not changed until the StringReader is closed.

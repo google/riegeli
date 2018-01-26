@@ -23,7 +23,7 @@
 
 namespace riegeli {
 
-StringReader::StringReader() { MarkClosed(); }
+StringReader::StringReader() noexcept { MarkClosed(); }
 
 StringReader::StringReader(const char* src, size_t size) {
   start_ = src;

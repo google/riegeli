@@ -22,17 +22,14 @@
 
 namespace riegeli {
 
-// BrotliReader::Options.
-class BrotliReaderOptions {};
-
 // A Reader which decompresses data with Brotli after getting it from another
 // Reader.
 class BrotliReader final : public Reader {
  public:
-  using Options = BrotliReaderOptions;
+  class Options {};
 
   // Creates a closed BrotliReader.
-  BrotliReader();
+  BrotliReader() noexcept;
 
   // Will read Brotli-compressed stream from the byte Reader which is owned by
   // this BrotliReader and will be closed and deleted when the BrotliReader is
@@ -62,7 +59,7 @@ class BrotliReader final : public Reader {
 
   std::unique_ptr<Reader> owned_src_;
   // Invariant: if healthy() then src_ != nullptr
-  Reader* src_;
+  Reader* src_ = nullptr;
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;

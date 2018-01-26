@@ -75,6 +75,7 @@ class Chain {
 
   // A container of string_view blocks comprising data of the Chain.
   Blocks blocks() const;
+
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
 
@@ -167,7 +168,7 @@ class Chain {
     // or defaulted default constructor of BlockPtrs is not constexpr, but
     // an explicitly defined one can be constexpr. Also, in GCC < 4.9 the member
     // initializer must be in the constructor if the constructor is constexpr.
-    constexpr BlockPtrs() : here{nullptr, nullptr} {}
+    constexpr BlockPtrs() noexcept : here{nullptr, nullptr} {}
 
     // If is_here(), array of between 0 and 2 block pointers.
     Block* here[2];
@@ -277,7 +278,7 @@ class Chain::Blocks {
   using size_type = size_t;
   using difference_type = ptrdiff_t;
 
-  Blocks() = default;
+  Blocks() noexcept = default;
 
   Blocks(const Blocks&) noexcept = default;
   Blocks& operator=(const Blocks&) noexcept = default;
@@ -314,7 +315,7 @@ class Chain::BlockIterator {
   using reference = const value_type&;
   using difference_type = ptrdiff_t;
 
-  BlockIterator() = default;
+  BlockIterator() noexcept = default;
 
   BlockIterator(const BlockIterator&) noexcept = default;
   BlockIterator& operator=(const BlockIterator&) noexcept = default;
@@ -366,12 +367,12 @@ class Chain::BlockIterator {
 
   explicit BlockIterator(Block* const* iter) : iter_(iter) {}
 
-  Block* const* iter_;
+  Block* const* iter_ = nullptr;
 };
 
 class Chain::Buffer {
  public:
-  Buffer() : data_(nullptr), size_(0) {}
+  Buffer() noexcept = default;
 
   Buffer(char* data, size_t size) : data_(data), size_(size) {}
 
@@ -383,8 +384,8 @@ class Chain::Buffer {
   bool empty() const { return size_ == 0; }
 
  private:
-  char* data_;
-  size_t size_;
+  char* data_ = nullptr;
+  size_t size_ = 0;
 };
 
 // Implementation details follow.
@@ -490,7 +491,7 @@ class Chain::Block {
   // Constructs an external block containing the moved object and sets block
   // data to moved_object.data().
   template <typename T>
-  Block(T* object);
+  explicit Block(T* object);
 
   // Constructs an external block containing the moved object and sets block
   // data to the data parameter, which must remain valid after the object is

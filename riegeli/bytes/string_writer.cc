@@ -24,7 +24,7 @@
 
 namespace riegeli {
 
-StringWriter::StringWriter() : dest_(nullptr) { MarkClosed(); }
+StringWriter::StringWriter() noexcept { MarkClosed(); }
 
 StringWriter::StringWriter(std::string* dest, Options options)
     : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {

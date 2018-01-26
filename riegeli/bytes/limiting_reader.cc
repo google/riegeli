@@ -27,9 +27,7 @@
 
 namespace riegeli {
 
-LimitingReader::LimitingReader() : src_(nullptr), size_limit_(0) {
-  MarkClosed();
-}
+LimitingReader::LimitingReader() noexcept { MarkClosed(); }
 
 LimitingReader::LimitingReader(Reader* src, Position size_limit)
     : src_(RIEGELI_ASSERT_NOTNULL(src)), size_limit_(size_limit) {

@@ -25,7 +25,7 @@ namespace riegeli {
 class RecordPosition {
  public:
   // Creates a RecordPosition corresponding to the first record.
-  RecordPosition() = default;
+  RecordPosition() noexcept = default;
 
   // Creates a RecordPosition corresponding to the given record of the chunk
   // at the given file position.

@@ -29,7 +29,7 @@ class FieldFilter {
   using Field = std::vector<uint32_t>;
 
   // Includes all fields, do not filter anything out.
-  static FieldFilter All();
+  static FieldFilter All() noexcept;
 
   // Includes only the specified fields.
   template <typename Iterator>
@@ -71,7 +71,7 @@ class FieldFilter {
 
 // Implementation details follow.
 
-inline FieldFilter FieldFilter::All() {
+inline FieldFilter FieldFilter::All() noexcept {
   FieldFilter filter;
   filter.include_all_ = true;
   return filter;

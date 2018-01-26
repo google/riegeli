@@ -13,10 +13,10 @@ namespace internal {
 class FdHolder {
  public:
   // Creates a FdHolder which does not own a fd.
-  FdHolder();
+  FdHolder() noexcept = default;
 
   // Creates a FdHolder which owns fd if fd >= 0.
-  explicit FdHolder(int fd);
+  explicit FdHolder(int fd) : fd_(fd) {}
 
   FdHolder(FdHolder&& src) noexcept;
   FdHolder& operator=(FdHolder&& src) noexcept;
@@ -31,12 +31,8 @@ class FdHolder {
   static const char* CloseFunctionName();
 
  private:
-  int fd_;
+  int fd_ = -1;
 };
-
-inline FdHolder::FdHolder() : fd_(-1) {}
-
-inline FdHolder::FdHolder(int fd) : fd_(fd) {}
 
 inline FdHolder::FdHolder(FdHolder&& src) noexcept
     : fd_(riegeli::exchange(src.fd_, -1)) {}

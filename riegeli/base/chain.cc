@@ -370,32 +370,41 @@ Chain& Chain::operator=(const Chain& src) {
 Chain::Chain(Chain&& src) noexcept
     : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
   if (src.is_here()) {
+    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
     begin_ = block_ptrs_.here;
-    end_ = block_ptrs_.here + (src.end_ - src.block_ptrs_.here);
+    end_ =
+        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
+                            src.block_ptrs_.here);
   } else {
-    begin_ = src.begin_;
-    end_ = src.end_;
+    begin_ = riegeli::exchange(src.begin_, src.block_ptrs_.here);
+    end_ = riegeli::exchange(src.end_, src.block_ptrs_.here);
   }
-  src.begin_ = src.block_ptrs_.here;
-  src.end_ = src.block_ptrs_.here;
+  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
+  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
 }
 
 Chain& Chain::operator=(Chain&& src) noexcept {
-  if (&src != this) {
-    UnrefBlocks();
-    DeleteBlockPtrs();
-    block_ptrs_ = src.block_ptrs_;
-    if (src.is_here()) {
-      begin_ = block_ptrs_.here;
-      end_ = block_ptrs_.here + (src.end_ - src.block_ptrs_.here);
-    } else {
-      begin_ = src.begin_;
-      end_ = src.end_;
-    }
-    size_ = riegeli::exchange(src.size_, 0);
-    src.begin_ = src.block_ptrs_.here;
-    src.end_ = src.block_ptrs_.here;
+  // Exchange src.begin_ and src.end_ early to support self-assignment.
+  Block** begin;
+  Block** end;
+  if (src.is_here()) {
+    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
+    begin = block_ptrs_.here;
+    end =
+        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
+                            src.block_ptrs_.here);
+  } else {
+    begin = riegeli::exchange(src.begin_, src.block_ptrs_.here);
+    end = riegeli::exchange(src.end_, src.block_ptrs_.here);
   }
+  UnrefBlocks();
+  DeleteBlockPtrs();
+  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
+  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
+  block_ptrs_ = src.block_ptrs_;
+  begin_ = begin;
+  end_ = end;
+  size_ = riegeli::exchange(src.size_, 0);
   return *this;
 }
 

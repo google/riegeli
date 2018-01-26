@@ -27,14 +27,9 @@
 
 namespace riegeli {
 
-ChainReader::ChainReader() : src_(&owned_src_), iter_(src_->blocks().cbegin()) {
-  MarkClosed();
-}
+ChainReader::ChainReader() noexcept { MarkClosed(); }
 
-ChainReader::ChainReader(Chain src)
-    : owned_src_(std::move(src)),
-      src_(&owned_src_),
-      iter_(src_->blocks().cbegin()) {
+ChainReader::ChainReader(Chain src) : owned_src_(std::move(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
     cursor_ = iter_->data();
@@ -43,8 +38,7 @@ ChainReader::ChainReader(Chain src)
   }
 }
 
-ChainReader::ChainReader(const Chain* src)
-    : src_(src), iter_(src_->blocks().cbegin()) {
+ChainReader::ChainReader(const Chain* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
     cursor_ = iter_->data();

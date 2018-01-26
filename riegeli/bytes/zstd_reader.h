@@ -27,32 +27,33 @@
 
 namespace riegeli {
 
-// ZstdReader::Options.
-class ZstdReaderOptions {
- public:
-  ZstdReaderOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  ZstdReaderOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
- private:
-  friend class ZstdReader;
-
-  size_t buffer_size_ = kDefaultBufferSize();
-};
-
 // A Reader which decompresses data with Zstd after getting it from another
 // Reader.
 class ZstdReader final : public BufferedReader {
  public:
-  using Options = ZstdReaderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+   private:
+    friend class ZstdReader;
+
+    size_t buffer_size_ = kDefaultBufferSize();
+  };
 
   // Creates a closed ZstdReader.
-  ZstdReader();
+  ZstdReader() noexcept;
 
   // Will read Zstd-compressed stream from the byte Reader which is owned by
   // this ZstdReader and will be closed and deleted when the ZstdReader is
@@ -82,7 +83,7 @@ class ZstdReader final : public BufferedReader {
 
   std::unique_ptr<Reader> owned_src_;
   // Invariant: if healthy() then src_ != nullptr
-  Reader* src_;
+  Reader* src_ = nullptr;
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed. In this case ZSTD_decompressStream() must not be called
   // again.

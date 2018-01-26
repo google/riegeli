@@ -44,42 +44,43 @@ namespace riegeli {
 class Chunk;
 class ChunkHeader;
 
-// ChunkDecoder::Options.
-class ChunkDecoderOptions {
- public:
-  // If true, corrupted records will be skipped. if false, corrupted records
-  // will cause reading to fail.
-  //
-  // Default: false
-  ChunkDecoderOptions& set_skip_corruption(bool skip_corruption) & {
-    skip_corruption_ = std::move(skip_corruption);
-    return *this;
-  }
-  ChunkDecoderOptions&& set_skip_corruption(bool skip_corruption) && {
-    return std::move(set_skip_corruption(skip_corruption));
-  }
-
-  // Specifies the set of fields to be included in returned records, allowing to
-  // exclude the remaining fields (but does not guarantee exclusion). Excluding
-  // data makes reading faster.
-  ChunkDecoderOptions& set_field_filter(FieldFilter field_filter) & {
-    field_filter_ = std::move(field_filter);
-    return *this;
-  }
-  ChunkDecoderOptions&& set_field_filter(FieldFilter field_filter) && {
-    return std::move(set_field_filter(std::move(field_filter)));
-  }
-
- private:
-  friend class ChunkDecoder;
-
-  bool skip_corruption_ = false;
-  FieldFilter field_filter_ = FieldFilter::All();
-};
-
 class ChunkDecoder : public Object {
  public:
-  using Options = ChunkDecoderOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    Options() noexcept {}
+
+    // If true, corrupted records will be skipped. if false, corrupted records
+    // will cause reading to fail.
+    //
+    // Default: false
+    Options& set_skip_corruption(bool skip_corruption) & {
+      skip_corruption_ = std::move(skip_corruption);
+      return *this;
+    }
+    Options&& set_skip_corruption(bool skip_corruption) && {
+      return std::move(set_skip_corruption(skip_corruption));
+    }
+
+    // Specifies the set of fields to be included in returned records, allowing
+    // to exclude the remaining fields (but does not guarantee exclusion).
+    // Excluding data makes reading faster.
+    Options& set_field_filter(FieldFilter field_filter) & {
+      field_filter_ = std::move(field_filter);
+      return *this;
+    }
+    Options&& set_field_filter(FieldFilter field_filter) && {
+      return std::move(set_field_filter(std::move(field_filter)));
+    }
+
+   private:
+    friend class ChunkDecoder;
+
+    bool skip_corruption_ = false;
+    FieldFilter field_filter_ = FieldFilter::All();
+  };
 
   explicit ChunkDecoder(Options options = Options());
 

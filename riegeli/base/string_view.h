@@ -69,7 +69,7 @@ class string_view {
 
   static constexpr size_type npos = static_cast<size_type>(-1);
 
-  constexpr string_view() noexcept : data_(nullptr), size_(0) {}
+  constexpr string_view() noexcept = default;
   string_view(const char* src) noexcept
       : data_(src), size_(traits_type::length(src)) {}
   constexpr string_view(const char* data, size_type size) noexcept
@@ -191,8 +191,8 @@ class string_view {
   }
 
  private:
-  const_pointer data_;
-  size_type size_;
+  const_pointer data_ = nullptr;
+  size_type size_ = 0;
 };
 
 inline bool operator==(string_view a, string_view b) noexcept {

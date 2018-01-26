@@ -34,7 +34,7 @@ namespace riegeli {
 class LimitingReader final : public Reader {
  public:
   // Creates a closed LimitingReader.
-  LimitingReader();
+  LimitingReader() noexcept;
 
   // Will read from the Reader which is not owned by this LimitingReader and
   // must be kept alive but not accessed until closing the LimitingReader.
@@ -67,9 +67,9 @@ class LimitingReader final : public Reader {
   void SyncBuffer();
 
   // Invariant: if healthy() then src_ != nullptr
-  Reader* src_;
+  Reader* src_ = nullptr;
   // Invariant: if src_ == nullptr then size_limit_ == 0
-  Position size_limit_;
+  Position size_limit_ = 0;
   // If not nullptr, the original constructor argument (in this case src_ is
   // wrapped_->src_), remembered here to synchronize the position in Done().
   LimitingReader* wrapped_ = nullptr;

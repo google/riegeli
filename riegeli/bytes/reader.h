@@ -169,7 +169,7 @@ class Reader : public Object {
   virtual bool Size(Position* size) const { return false; }
 
  protected:
-  Reader() = default;
+  Reader() noexcept = default;
 
   // Moves the part of the object defined in this class.
   //

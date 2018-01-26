@@ -27,7 +27,7 @@ namespace riegeli {
 
 class ChunkHeader {
  public:
-  ChunkHeader() = default;
+  ChunkHeader() noexcept = default;
 
   ChunkHeader(const Chain& data, uint64_t num_records,
               uint64_t decoded_data_size);

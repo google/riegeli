@@ -43,7 +43,7 @@ namespace riegeli {
 
 namespace internal {
 
-FdReaderBase::FdReaderBase() : fd_(-1) { MarkClosed(); }
+FdReaderBase::FdReaderBase() noexcept { MarkClosed(); }
 
 FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedReader(buffer_size),
@@ -109,7 +109,7 @@ bool FdReaderBase::FailOperation(const char* operation, int error_code) {
 
 }  // namespace internal
 
-FdReader::FdReader() : sync_pos_(false) {}
+FdReader::FdReader() noexcept = default;
 
 FdReader::FdReader(int fd, Options options)
     : FdReaderBase(fd, options.owns_fd_, options.buffer_size_),
@@ -215,7 +215,7 @@ bool FdReader::Size(Position* size) const {
   return true;
 }
 
-FdStreamReader::FdStreamReader() = default;
+FdStreamReader::FdStreamReader() noexcept = default;
 
 FdStreamReader::FdStreamReader(int fd, Options options)
     : FdReaderBase(fd, true, options.buffer_size_) {

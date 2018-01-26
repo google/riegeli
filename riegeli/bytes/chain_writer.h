@@ -26,33 +26,34 @@
 
 namespace riegeli {
 
-// ChainWriter::Options.
-class ChainWriterOptions {
- public:
-  // Announce in advance the destination size. This may reduce Chain memory
-  // usage.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  ChainWriterOptions& set_size_hint(Position size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  ChainWriterOptions&& set_size_hint(Position size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-
- private:
-  friend class ChainWriter;
-
-  Position size_hint_ = 0;
-};
-
 class ChainWriter final : public Writer {
  public:
-  using Options = ChainWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // Announce in advance the destination size. This may reduce Chain memory
+    // usage.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class ChainWriter;
+
+    Position size_hint_ = 0;
+  };
 
   // Creates a closed ChainWriter.
-  ChainWriter();
+  ChainWriter() noexcept;
 
   // Will write to the Chain which is not owned by this ChainWriter and must be
   // kept alive but not accessed until closing the ChainWriter, except that it
@@ -89,8 +90,8 @@ class ChainWriter final : public Writer {
   // can be nullptr if the uninitialized space is empty.
   //
   // Invariant: if healthy() then dest_ != nullptr
-  Chain* dest_;
-  size_t size_hint_;
+  Chain* dest_ = nullptr;
+  size_t size_hint_ = 0;
 
   // Invariants if healthy():
   //   limit_ == nullptr || limit_ == dest_->blocks().back().data() +

@@ -30,7 +30,7 @@ namespace internal {
 
 class BlockHeader {
  public:
-  BlockHeader() = default;
+  BlockHeader() noexcept = default;
 
   BlockHeader(uint64_t previous_chunk, uint64_t next_chunk) {
     set_previous_chunk(previous_chunk);

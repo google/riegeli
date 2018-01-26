@@ -29,7 +29,7 @@ namespace riegeli {
 class ChainReader final : public Reader {
  public:
   // Creates a closed ChainReader.
-  ChainReader();
+  ChainReader() noexcept;
 
   // Will read from the Chain which is owned by this ChainReader.
   explicit ChainReader(Chain src);
@@ -62,10 +62,10 @@ class ChainReader final : public Reader {
   Chain owned_src_;
   // Invariants:
   //   src_ != nullptr
-  //   if !healthy() then src_ == &owned_src
-  const Chain* src_;
+  //   if !healthy() then src_ == &owned_src_
+  const Chain* src_ = &owned_src_;
   // Invariant: iter_ is an iterator into src_->blocks()
-  Chain::BlockIterator iter_;
+  Chain::BlockIterator iter_ = src_->blocks().cbegin();
 
   // Invariants:
   //   start_ == (iter_ == src_->blocks().cend() ? nullptr : iter_->data())

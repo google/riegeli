@@ -25,36 +25,37 @@
 
 namespace riegeli {
 
-// StringWriter::Options.
-class StringWriterOptions {
- public:
-  // Announce in advance the destination size. This may improve performance and
-  // reduce memory usage.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  StringWriterOptions& set_size_hint(Position size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  StringWriterOptions&& set_size_hint(Position size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-
- private:
-  friend class StringWriter;
-
-  Position size_hint_ = 0;
-};
-
 // A Writer which appends to a string, resizing it as necessary.
 //
 // Functions of this Writer fail only when it is closed.
 class StringWriter final : public Writer {
  public:
-  using Options = StringWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // Announce in advance the destination size. This may improve performance
+    // and reduce memory usage.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class StringWriter;
+
+    Position size_hint_ = 0;
+  };
 
   // Creates a closed StringWriter.
-  StringWriter();
+  StringWriter() noexcept;
 
   // Will write to the string which is not owned by this StringWriter and must
   // be kept alive but not accessed until closing the StringWriter, except that
@@ -87,7 +88,7 @@ class StringWriter final : public Writer {
   // appended (possibly empty); cursor_ points to the uninitialized space.
   //
   // Invariant: if healthy() then dest_ != nullptr
-  std::string* dest_;
+  std::string* dest_ = nullptr;
 
   // Invariants if healthy():
   //   start_ == &(*dest_)[0]

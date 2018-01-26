@@ -34,7 +34,7 @@ namespace riegeli {
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
  protected:
-  BufferedReader() : buffer_size_(0) {}
+  BufferedReader() noexcept = default;
 
   explicit BufferedReader(size_t buffer_size) : buffer_size_(buffer_size) {}
 
@@ -69,7 +69,7 @@ class BufferedReader : public Reader {
   void ClearBuffer();
 
   // The capacity of buffer_ once it is allocated.
-  size_t buffer_size_;
+  size_t buffer_size_ = 0;
 
  private:
   // Returns true if flat_buffer is considered too small to continue reading

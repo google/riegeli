@@ -27,7 +27,7 @@
 
 namespace riegeli {
 
-ChainWriter::ChainWriter() : dest_(nullptr), size_hint_(0) { MarkClosed(); }
+ChainWriter::ChainWriter() noexcept { MarkClosed(); }
 
 ChainWriter::ChainWriter(Chain* dest, Options options)
     : dest_(RIEGELI_ASSERT_NOTNULL(dest)),

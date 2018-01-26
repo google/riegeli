@@ -38,7 +38,7 @@ inline void ZstdWriter::ZSTD_CStreamDeleter::operator()(
   ZSTD_freeCStream(ptr);
 }
 
-ZstdWriter::ZstdWriter() : dest_(nullptr) { MarkClosed(); }
+ZstdWriter::ZstdWriter() noexcept { MarkClosed(); }
 
 ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
     : ZstdWriter(dest.get(), options) {

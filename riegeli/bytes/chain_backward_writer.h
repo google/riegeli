@@ -26,33 +26,34 @@
 
 namespace riegeli {
 
-// ChainBackwardWriter::Options.
-class ChainBackwardWriterOptions {
- public:
-  // Announce in advance the destination size. This may reduce Chain memory
-  // usage.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  ChainBackwardWriterOptions& set_size_hint(Position size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  ChainBackwardWriterOptions&& set_size_hint(Position size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-
- private:
-  friend class ChainBackwardWriter;
-
-  Position size_hint_ = 0;
-};
-
 class ChainBackwardWriter final : public BackwardWriter {
  public:
-  using Options = ChainBackwardWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // Announce in advance the destination size. This may reduce Chain memory
+    // usage.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class ChainBackwardWriter;
+
+    Position size_hint_ = 0;
+  };
 
   // Creates a closed ChainBackwardWriter.
-  ChainBackwardWriter();
+  ChainBackwardWriter() noexcept;
 
   // Will write to the Chain which is not owned by this ChainBackwardWriter and
   // must be kept alive but not accessed until closing the ChainBackwardWriter.
@@ -87,8 +88,8 @@ class ChainBackwardWriter final : public BackwardWriter {
   // space, except that it can be nullptr if the uninitialized space is empty.
   //
   // Invariant: if healthy() then dest_ != nullptr
-  Chain* dest_;
-  size_t size_hint_;
+  Chain* dest_ = nullptr;
+  size_t size_hint_ = 0;
 
   // Invariants if healthy():
   //   limit_ == nullptr || limit_ == dest_->blocks().front().data()

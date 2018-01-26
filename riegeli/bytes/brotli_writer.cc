@@ -34,7 +34,7 @@ inline void BrotliWriter::BrotliEncoderStateDeleter::operator()(
   BrotliEncoderDestroyInstance(ptr);
 }
 
-BrotliWriter::BrotliWriter() : dest_(nullptr) { MarkClosed(); }
+BrotliWriter::BrotliWriter() noexcept { MarkClosed(); }
 
 BrotliWriter::BrotliWriter(std::unique_ptr<Writer> dest, Options options)
     : BrotliWriter(dest.get(), options) {

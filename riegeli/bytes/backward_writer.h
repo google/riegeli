@@ -94,7 +94,7 @@ class BackwardWriter : public Object {
   Position pos() const { return start_pos_ + written_to_buffer(); }
 
  protected:
-  BackwardWriter() = default;
+  BackwardWriter() noexcept = default;
 
   // Moves the part of the object defined in this class.
   //

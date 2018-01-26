@@ -126,7 +126,7 @@ class Object {
   // Creates the Object as healthy.
   //
   // To create the Object as closed, see MarkClosed().
-  Object() = default;
+  Object() noexcept = default;
 
   // Moves the part of the object defined in the Object class.
   //

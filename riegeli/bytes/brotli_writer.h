@@ -28,59 +28,60 @@
 
 namespace riegeli {
 
-// BrotliWriter::Options.
-class BrotliWriterOptions {
- public:
-  // Tune compression level vs. compression speed tradeoff.
-  //
-  // Level must be between 0 and 11. Default: 9.
-  BrotliWriterOptions& set_compression_level(int level) & {
-    RIEGELI_ASSERT_GE(level, 0);
-    RIEGELI_ASSERT_LE(level, 11);
-    compression_level_ = level;
-    return *this;
-  }
-  BrotliWriterOptions&& set_compression_level(int level) && {
-    return std::move(set_compression_level(level));
-  }
-
-  BrotliWriterOptions& set_buffer_size(size_t buffer_size) & {
-    RIEGELI_ASSERT_GT(buffer_size, 0u);
-    buffer_size_ = buffer_size;
-    return *this;
-  }
-  BrotliWriterOptions&& set_buffer_size(size_t buffer_size) && {
-    return std::move(set_buffer_size(buffer_size));
-  }
-
-  // Announce in advance the destination size. This may improve compression
-  // density.
-  //
-  // If the size hint turns out to not match reality, nothing breaks.
-  BrotliWriterOptions& set_size_hint(Position size_hint) & {
-    size_hint_ = size_hint;
-    return *this;
-  }
-  BrotliWriterOptions&& set_size_hint(Position size_hint) && {
-    return std::move(set_size_hint(size_hint));
-  }
-
- private:
-  friend class BrotliWriter;
-
-  int compression_level_ = 9;
-  size_t buffer_size_ = kDefaultBufferSize();
-  Position size_hint_ = 0;
-};
-
 // A Writer which compresses data with Brotli before passing it to another
 // Writer.
 class BrotliWriter final : public BufferedWriter {
  public:
-  using Options = BrotliWriterOptions;
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // Tune compression level vs. compression speed tradeoff.
+    //
+    // Level must be between 0 and 11. Default: 9.
+    Options& set_compression_level(int level) & {
+      RIEGELI_ASSERT_GE(level, 0);
+      RIEGELI_ASSERT_LE(level, 11);
+      compression_level_ = level;
+      return *this;
+    }
+    Options&& set_compression_level(int level) && {
+      return std::move(set_compression_level(level));
+    }
+
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
+    // Announce in advance the destination size. This may improve compression
+    // density.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class BrotliWriter;
+
+    int compression_level_ = 9;
+    size_t buffer_size_ = kDefaultBufferSize();
+    Position size_hint_ = 0;
+  };
 
   // Creates a closed BrotliWriter.
-  BrotliWriter();
+  BrotliWriter() noexcept;
 
   // Will write Brotli-compressed stream to the byte Writer which is owned by
   // this BrotliWriter and will be closed and deleted when the BrotliWriter is
@@ -114,7 +115,7 @@ class BrotliWriter final : public BufferedWriter {
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr
-  Writer* dest_;
+  Writer* dest_ = nullptr;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
 
