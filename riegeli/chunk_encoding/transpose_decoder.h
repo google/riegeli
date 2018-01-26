@@ -45,6 +45,9 @@ class TransposeDecoder {
   // the destination of writer between positions (*boundaries)[i] and
   // (*boundaries)[i + 1], boundaries->front() == 0, and boundaries->back() is
   // the total size written to writer.
+  //
+  // The *reader from the corresponding Initialize() call must be still alive.
+  // TODO: Merge Initialize() and Decode() into a single call.
   bool Decode(BackwardWriter* writer, std::vector<size_t>* boundaries);
 
  private:

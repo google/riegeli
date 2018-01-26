@@ -47,7 +47,6 @@
 //      - Array of subtypes (for all tags where applicable)
 //      - Array of data buffer indices (for all tags/subtypes where applicable)
 //    - Initial state index
-//    - Transitions length (compressed length if applicable)
 //  -- END OF HEADER --
 //  - "num_buckets" buckets:
 //    - Bucket data (possibly compressed):

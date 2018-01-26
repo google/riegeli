@@ -643,10 +643,8 @@ void TransposeEncoder::WriteStatesAndData(
   ChainWriter transitions_writer(&transitions_buffer);
   WriteTransitions(max_transition, state_machine, &transitions_writer);
   if (!transitions_writer.Close()) RIEGELI_UNREACHABLE();
-  const Position pos_before = data_writer->pos();
   AppendCompressedBuffer(/*prepend_compressed_size=*/false, transitions_buffer,
                          data_writer);
-  WriteVarint64(header_writer, data_writer->pos() - pos_before);
 }
 
 void TransposeEncoder::WriteTransitions(

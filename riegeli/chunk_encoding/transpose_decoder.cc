@@ -60,13 +60,19 @@ class Decompressor {
  public:
   bool Initialize(ChainReader src, internal::CompressionType compression_type,
                   std::string* error_message);
+  bool Initialize(Reader* src, internal::CompressionType compression_type,
+                  std::string* error_message);
 
   Reader* reader() const { return reader_; }
 
   bool VerifyEndAndClose();
 
  private:
-  ChainReader src_;
+  bool Initialize(internal::CompressionType compression_type,
+                  std::string* error_message);
+
+  ChainReader owned_src_;
+  Reader* src_;
   std::unique_ptr<Reader> owned_reader_;
   Reader* reader_;
 };
@@ -74,22 +80,36 @@ class Decompressor {
 bool Decompressor::Initialize(ChainReader src,
                               internal::CompressionType compression_type,
                               std::string* error_message) {
-  src_ = std::move(src);
+  owned_src_ = std::move(src);
+  src_ = &owned_src_;
+  return Initialize(compression_type, error_message);
+}
+
+bool Decompressor::Initialize(Reader* src,
+                              internal::CompressionType compression_type,
+                              std::string* error_message) {
+  owned_src_ = ChainReader();
+  src_ = RIEGELI_ASSERT_NOTNULL(src);
+  return Initialize(compression_type, error_message);
+}
+
+bool Decompressor::Initialize(internal::CompressionType compression_type,
+                              std::string* error_message) {
   if (compression_type == internal::CompressionType::kNone) {
-    reader_ = &src_;
+    reader_ = src_;
     return true;
   }
   uint64_t uncompressed_size;
-  RETURN_FALSE_IF(!ReadVarint64(&src_, &uncompressed_size));
+  RETURN_FALSE_IF(!ReadVarint64(src_, &uncompressed_size));
   switch (compression_type) {
     case internal::CompressionType::kNone:
       RIEGELI_UNREACHABLE();
     case internal::CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(&src_);
+      owned_reader_ = riegeli::make_unique<BrotliReader>(src_);
       reader_ = owned_reader_.get();
       return true;
     case internal::CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(&src_);
+      owned_reader_ = riegeli::make_unique<ZstdReader>(src_);
       reader_ = owned_reader_.get();
       return true;
   }
@@ -100,10 +120,15 @@ bool Decompressor::Initialize(ChainReader src,
 
 bool Decompressor::VerifyEndAndClose() {
   // Verify that decompression succeeded, there are no extra compressed data,
-  // and in case the compression type was not NONE that there are no extra data
+  // and in case the compression type was not kNone that there are no extra data
   // after the compressed stream.
-  if (!reader_->VerifyEndAndClose()) return false;
-  return &src_ == reader_ || src_.VerifyEndAndClose();
+  if (owned_reader_ != nullptr) {
+    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) return false;
+  }
+  if (src_ == &owned_src_) {
+    if (RIEGELI_UNLIKELY(!owned_src_.VerifyEndAndClose())) return false;
+  }
+  return true;
 }
 
 // Returns decompressed size of data in "compressed_data" in "size".
@@ -955,15 +980,8 @@ bool TransposeDecoder::Initialize(Reader* reader,
 
   RETURN_FALSE_IF(ContainsImplicitLoop(&state_machine_nodes));
 
-  uint64_t transitions_size;
-  RETURN_FALSE_IF(
-      !ReadVarint64(header_decompressor.reader(), &transitions_size));
-
-  Chain compressed_transitions;
-  RETURN_FALSE_IF(!reader->Read(&compressed_transitions, transitions_size));
   RETURN_FALSE_IF(!context_->transitions.Initialize(
-      ChainReader(std::move(compressed_transitions)),
-      context_->compression_type, &context_->message));
+      reader, context_->compression_type, &context_->message));
 
   RETURN_FALSE_IF(!header_decompressor.VerifyEndAndClose());
   return true;
