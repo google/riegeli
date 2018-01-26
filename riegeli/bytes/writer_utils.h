@@ -31,9 +31,9 @@ bool WriteByte(Writer* dest, uint8_t data);
 size_t LengthVarint32(uint32_t data);  // At most kMaxLengthVarint32().
 size_t LengthVarint64(uint64_t data);  // At most kMaxLengthVarint64().
 
-// At least LengthVarint32(data) bytes of space at *dest must be available.
+// At least LengthVarint32(data) bytes of space at dest[] must be available.
 char* WriteVarint32(char* dest, uint32_t data);
-// At least LengthVarint64(data) bytes of space at *dest must be available.
+// At least LengthVarint64(data) bytes of space at dest[] must be available.
 char* WriteVarint64(char* dest, uint64_t data);
 
 bool WriteVarint32(Writer* dest, uint32_t data);

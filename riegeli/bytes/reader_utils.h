@@ -38,19 +38,19 @@ bool ReadByte(Reader* src, uint8_t* data);
 // hence they must be read with ReadVarint64(), not ReadVarint32(), if negative
 // values are possible.
 
-// At least kMaxLengthVarint32() bytes of data at *src must be available.
+// At least kMaxLengthVarint32() bytes of data at src[] must be available.
 bool ReadVarint32(const char** src, uint32_t* data);
-// At least kMaxLengthVarint64() bytes of data at *src must be available.
+// At least kMaxLengthVarint64() bytes of data at src[] must be available.
 bool ReadVarint64(const char** src, uint64_t* data);
 
 bool ReadVarint32(Reader* src, uint32_t* data);
 bool ReadVarint64(Reader* src, uint64_t* data);
 
 // Returns the updated dest after the copied value, or nullptr on failure.
-// At least kMaxLengthVarint32() bytes of space at *dest must be available.
+// At least kMaxLengthVarint32() bytes of space at dest[] must be available.
 char* CopyVarint32(Reader* src, char* dest);
 // Returns the updated dest after the copied value, or nullptr on failure.
-// At least kMaxLengthVarint64() bytes of space at *dest must be available.
+// At least kMaxLengthVarint64() bytes of space at dest[] must be available.
 char* CopyVarint64(Reader* src, char* dest);
 
 bool ReadAll(Reader* src, string_view* dest, std::string* scratch);
