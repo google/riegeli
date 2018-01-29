@@ -158,6 +158,8 @@ class Chain {
   class BlockRef;
   class StringRef;
 
+  struct Empty {};
+
   struct Allocated {
     Block** begin;
     Block** end;
@@ -168,8 +170,11 @@ class Chain {
     // or defaulted default constructor of BlockPtrs is not constexpr, but
     // an explicitly defined one can be constexpr. Also, in GCC < 4.9 the member
     // initializer must be in the constructor if the constructor is constexpr.
-    constexpr BlockPtrs() noexcept : here{nullptr, nullptr} {}
+    constexpr BlockPtrs() noexcept : empty() {}
 
+    // If the Chain is empty, no block pointers are needed. Some union member is
+    // needed though for the default constructor to be constexpr.
+    Empty empty;
     // If is_here(), array of between 0 and 2 block pointers.
     Block* here[2];
     // If is_allocated(), pointers to a heap-allocated array of block pointers.
