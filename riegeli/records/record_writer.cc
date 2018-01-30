@@ -337,7 +337,7 @@ void RecordWriter::ParallelImpl::Done() {
   std::promise<void> done_promise;
   std::future<void> done_future = done_promise.get_future();
   {
-    internal::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
     has_chunk_writer_request_.notify_one();
   }
@@ -375,7 +375,7 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
   {
-    internal::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     chunk_writer_requests_.emplace_back(
         FlushRequest{flush_type, std::move(done_promise)});
     has_chunk_writer_request_.notify_one();
