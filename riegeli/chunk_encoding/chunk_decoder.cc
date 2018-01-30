@@ -254,17 +254,23 @@ again:
   if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
   ++index_;
-  LimitingReader message_reader(&values_reader_,
-                                boundaries_[index_] - boundaries_[0]);
-  if (RIEGELI_UNLIKELY(!ParseFromReader(record, &message_reader))) {
-    if (!values_reader_.Seek(boundaries_[index_] - boundaries_[0])) {
+  LimitingReader message_reader(&values_reader_, boundaries_[index_]);
+  if (RIEGELI_UNLIKELY(!ParsePartialFromReader(record, &message_reader))) {
+    if (!values_reader_.Seek(boundaries_[index_])) {
       RIEGELI_UNREACHABLE();
     }
     if (skip_corruption_) goto again;
     index_ = num_records();
-    return Fail("Failed to parse message as type " + record->GetTypeName());
+    return Fail("Failed to parse message of type " + record->GetTypeName());
   }
   if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_UNREACHABLE();
+  if (RIEGELI_UNLIKELY(!record->IsInitialized())) {
+    if (skip_corruption_) goto again;
+    index_ = num_records();
+    return Fail("Failed to parse message of type " + record->GetTypeName() +
+                " because it is missing required fields: " +
+                record->InitializationErrorString());
+  }
   return true;
 }
 

@@ -87,9 +87,16 @@ void SimpleChunkEncoder::Reset() {
 }
 
 void SimpleChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
+  // TODO: Propagate the failure from record.IsInitialized() when
+  // SimpleChunkEncoder is changed to derive from Object:
+  // return Fail("Failed to serialize message of type " +
+  //             record.GetTypeName() +
+  //             " because it is missing required fields: " +
+  //             record.InitializationErrorString());
+  RIEGELI_ASSERT(record.IsInitialized());
   ++num_records_;
   WriteVarint64(sizes_compressor_.writer(), record.ByteSizeLong());
-  SerializeToWriter(record, values_compressor_.writer());
+  SerializePartialToWriter(record, values_compressor_.writer());
 }
 
 void SimpleChunkEncoder::AddRecord(string_view record) {
@@ -166,9 +173,16 @@ void EagerTransposedChunkEncoder::Reset() {
 }
 
 void EagerTransposedChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
+  // TODO: Propagate the failure from record.IsInitialized() when
+  // EagerTransposedChunkEncoder is changed to derive from Object:
+  // return Fail("Failed to serialize message of type " +
+  //             record.GetTypeName() +
+  //             " because it is missing required fields: " +
+  //             record.InitializationErrorString());
+  RIEGELI_ASSERT(record.IsInitialized());
   ++num_records_;
   decoded_data_size_ += record.ByteSizeLong();
-  transpose_encoder_.AddMessage(SerializeAsChain(record));
+  transpose_encoder_.AddMessage(SerializePartialAsChain(record));
 }
 
 void EagerTransposedChunkEncoder::AddRecord(string_view record) {
@@ -219,8 +233,15 @@ void DeferredTransposedChunkEncoder::Reset() { records_.clear(); }
 
 void DeferredTransposedChunkEncoder::AddRecord(
     const google::protobuf::MessageLite& record) {
+  // TODO: Propagate the failure from record.IsInitialized() when
+  // DeferredTransposedChunkEncoder is changed to derive from Object:
+  // return Fail("Failed to serialize message of type " +
+  //             record.GetTypeName() +
+  //             " because it is missing required fields: " +
+  //             record.InitializationErrorString());
+  RIEGELI_ASSERT(record.IsInitialized());
   records_.emplace_back();
-  AppendToChain(record, &records_.back());
+  AppendPartialToChain(record, &records_.back());
 }
 
 void DeferredTransposedChunkEncoder::AddRecord(string_view record) {
