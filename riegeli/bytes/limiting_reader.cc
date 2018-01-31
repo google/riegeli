@@ -154,7 +154,7 @@ inline void LimitingReader::SyncBuffer() {
     limit_ -= limit_pos_ - size_limit_;
     limit_pos_ = size_limit_;
   }
-  if (RIEGELI_UNLIKELY(!src_->healthy())) Fail(src_->Message());
+  if (RIEGELI_UNLIKELY(!src_->healthy())) Fail(*src_);
 }
 
 }  // namespace riegeli

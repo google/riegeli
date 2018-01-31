@@ -87,7 +87,7 @@ RecordReader::~RecordReader() = default;
 void RecordReader::Done() {
   if (RIEGELI_LIKELY(healthy())) {
     if (RIEGELI_UNLIKELY(!chunk_reader_->Close())) {
-      Fail(chunk_reader_->Message());
+      Fail(*chunk_reader_);
     }
   }
   chunk_reader_.reset();
@@ -106,7 +106,7 @@ bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
       return true;
     }
     if (RIEGELI_UNLIKELY(!chunk_decoder_.healthy())) {
-      return Fail(chunk_decoder_.Message());
+      return Fail(chunk_decoder_);
     }
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
   }
@@ -148,7 +148,7 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Clear();
       if (chunk_reader_->healthy()) return false;
-      return Fail(chunk_reader_->Message());
+      return Fail(*chunk_reader_);
     }
     if (new_pos.record_index() == 0) {
       // Seeking to the beginning of a chunk does not need pulling the chunk nor
@@ -176,7 +176,7 @@ bool RecordReader::Seek(Position new_pos) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Clear();
       if (chunk_reader_->healthy()) return false;
-      return Fail(chunk_reader_->Message());
+      return Fail(*chunk_reader_);
     }
     if (chunk_reader_->pos() >= new_pos) {
       // Seeking to the beginning of a chunk does not need pulling the chunk,
@@ -200,7 +200,7 @@ again:
     chunk_begin_ = chunk_reader_->pos();
     chunk_decoder_.Clear();
     if (chunk_reader_->healthy()) return false;
-    return Fail(chunk_reader_->Message());
+    return Fail(*chunk_reader_);
   }
   if (chunk_begin_ == 0) {
     // Verify file signature.

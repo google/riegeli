@@ -88,7 +88,7 @@ void BrotliWriter::Done() {
   }
   if (owned_dest_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_dest_->Close())) Fail(owned_dest_->Message());
+      if (RIEGELI_UNLIKELY(!owned_dest_->Close())) Fail(*owned_dest_);
     }
     owned_dest_.reset();
   }
@@ -108,7 +108,7 @@ bool BrotliWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!dest_->Flush(flush_type))) {
     if (dest_->healthy()) return false;
     limit_ = start_;
-    return Fail(dest_->Message());
+    return Fail(*dest_);
   }
   return true;
 }
@@ -140,8 +140,7 @@ inline bool BrotliWriter::WriteInternal(string_view src,
     if (length > 0) {
       if (RIEGELI_UNLIKELY(!dest_->Write(string_view(data, length)))) {
         limit_ = start_;
-        RIEGELI_ASSERT(!dest_->healthy());
-        return Fail(dest_->Message());
+        return Fail(*dest_);
       }
     } else if (available_in == 0) {
       start_pos_ += src.size();

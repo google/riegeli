@@ -69,7 +69,7 @@ void BrotliReader::Done() {
   }
   if (owned_src_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(*owned_src_);
     }
     owned_src_.reset();
   }
@@ -121,7 +121,7 @@ bool BrotliReader::PullSlow() {
           if (src_->healthy()) {
             return Fail("Truncated Brotli-compressed stream");
           }
-          return Fail(src_->Message());
+          return Fail(*src_);
         }
         continue;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:

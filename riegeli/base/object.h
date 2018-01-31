@@ -180,6 +180,19 @@ class Object {
   // Precondition: !closed()
   RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message);
 
+  // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
+  // Fail(string(message) + ": " + src.Message()).
+  //
+  // Precondition: !closed()
+  RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message, const Object& src);
+
+  // Equivalent to Fail(src.Message()).
+  //
+  // Preconditions:
+  //   !src.healthy()
+  //   !closed()
+  RIEGELI_ATTRIBUTE_COLD bool Fail(const Object& src);
+
  private:
   struct Failed {
     // The closed flag may be changed from false to true by Close(). This

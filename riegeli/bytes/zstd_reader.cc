@@ -75,7 +75,7 @@ void ZstdReader::Done() {
   }
   if (owned_src_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(owned_src_->Message());
+      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(*owned_src_);
     }
     owned_src_.reset();
   }
@@ -124,7 +124,7 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
       limit_pos_ += output.pos;
       if (RIEGELI_LIKELY(src_->HopeForMore())) return false;
       if (src_->healthy()) return Fail("Truncated Zstd-compressed stream");
-      return Fail(src_->Message());
+      return Fail(*src_);
     }
   }
 }

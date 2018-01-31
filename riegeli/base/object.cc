@@ -63,6 +63,15 @@ bool Object::Fail(string_view message) {
   return false;
 }
 
+bool Object::Fail(string_view message, const Object& src) {
+  return Fail(src.healthy() ? message : std::string(message) + ": " + src.Message());
+}
+
+bool Object::Fail(const Object& src) {
+  RIEGELI_ASSERT(!src.healthy());
+  return Fail(src.Message());
+}
+
 const std::string& Object::Message() const {
   const uintptr_t status = status_.load(std::memory_order_acquire);
   switch (status) {

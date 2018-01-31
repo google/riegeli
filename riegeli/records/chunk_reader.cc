@@ -75,7 +75,7 @@ void ChunkReader::Done() {
   if (owned_byte_reader_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_byte_reader_->Close())) {
-        Fail(owned_byte_reader_->Message());
+        Fail(*owned_byte_reader_);
       }
     }
     owned_byte_reader_.reset();
@@ -91,7 +91,7 @@ inline bool ChunkReader::ReadingFailed() {
     if (skip_corruption_) return false;
     return Fail("Truncated Riegeli/records file");
   }
-  return Fail(byte_reader_->Message());
+  return Fail(*byte_reader_);
 }
 
 bool ChunkReader::ReadChunk(Chunk* chunk, Position* chunk_begin) {
@@ -155,7 +155,7 @@ inline bool ChunkReader::ReadChunkHeader() {
     // byte_reader_ ends between chunks. Any other place implies that the data
     // are truncated.
     if (byte_reader_->healthy()) return false;
-    return Fail(byte_reader_->Message());
+    return Fail(*byte_reader_);
   }
 
   do {
@@ -238,7 +238,7 @@ inline bool ChunkReader::Recover() {
   if (byte_reader_->pos() < pos_) {
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(pos_))) {
       if (byte_reader_->healthy()) return false;
-      return Fail(byte_reader_->Message());
+      return Fail(*byte_reader_);
     }
   }
 
@@ -265,7 +265,7 @@ inline bool ChunkReader::Recover() {
 
   if (RIEGELI_UNLIKELY(!byte_reader_->Seek(recovering_.chunk_begin))) {
     if (byte_reader_->healthy()) return false;
-    return Fail(byte_reader_->Message());
+    return Fail(*byte_reader_);
   }
   pos_ = recovering_.chunk_begin;
   PrepareForReading();
@@ -280,7 +280,7 @@ bool ChunkReader::Seek(Position new_pos) {
       PrepareForRecovering();
       return false;
     }
-    return Fail(byte_reader_->Message());
+    return Fail(*byte_reader_);
   }
   pos_ = new_pos;
   if (internal::IsBlockBoundary(pos_)) {
@@ -344,7 +344,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
     PrepareForFindingChunk();
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(block_begin))) {
       if (byte_reader_->healthy()) return false;
-      return Fail(byte_reader_->Message());
+      return Fail(*byte_reader_);
     }
     if (RIEGELI_UNLIKELY(!ReadBlockHeader())) {
       if (!recovering_.in_progress) {
@@ -378,7 +378,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
   for (;;) {
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(chunk_begin))) {
       if (byte_reader_->healthy()) return false;
-      return Fail(byte_reader_->Message());
+      return Fail(*byte_reader_);
     }
     pos_ = chunk_begin;
   check_current_chunk:

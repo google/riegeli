@@ -141,7 +141,7 @@ bool RecordWriter::SerialImpl::CloseChunk() {
   }
   if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
     RIEGELI_ASSERT(!chunk_writer_->healthy());
-    return Fail(chunk_writer_->Message());
+    return Fail(*chunk_writer_);
   }
   return true;
 }
@@ -150,7 +150,7 @@ bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(!chunk_writer_->Flush(flush_type))) {
     if (chunk_writer_->healthy()) return false;
-    return Fail(chunk_writer_->Message());
+    return Fail(*chunk_writer_);
   }
   return true;
 }
@@ -296,7 +296,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           if (RIEGELI_UNLIKELY(!healthy())) continue;
           if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
             RIEGELI_ASSERT(!chunk_writer_->healthy());
-            Fail(chunk_writer_->Message());
+            Fail(*chunk_writer_);
           }
           continue;
         }
@@ -307,7 +307,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           }
           if (RIEGELI_UNLIKELY(
                   !chunk_writer_->Flush(request.flush_request.flush_type))) {
-            if (!chunk_writer_->healthy()) Fail(chunk_writer_->Message());
+            if (!chunk_writer_->healthy()) Fail(*chunk_writer_);
             request.flush_request.done.set_value(false);
             continue;
           }
@@ -410,7 +410,7 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
     signature.header = ChunkHeader(signature.data, 0, 0);
     if (RIEGELI_UNLIKELY(!chunk_writer->WriteChunk(signature))) {
       RIEGELI_ASSERT(!chunk_writer->healthy());
-      Fail(chunk_writer->Message());
+      Fail(*chunk_writer);
       return;
     }
   }
@@ -444,18 +444,18 @@ RecordWriter::~RecordWriter() = default;
 
 void RecordWriter::Done() {
   if (RIEGELI_LIKELY(healthy()) && chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) Fail(impl_->Message());
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) Fail(*impl_);
   }
   if (RIEGELI_LIKELY(impl_ != nullptr)) {
     if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!impl_->Close())) Fail(impl_->Message());
+      if (RIEGELI_UNLIKELY(!impl_->Close())) Fail(*impl_);
     }
     impl_.reset();
   }
   if (owned_chunk_writer_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_chunk_writer_->Close())) {
-        Fail(owned_chunk_writer_->Message());
+        Fail(*owned_chunk_writer_);
       }
     }
     owned_chunk_writer_.reset();
@@ -514,7 +514,7 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
   const size_t kAssumedPointerSize = 8;
   if (chunk_size_ + record_size + kAssumedPointerSize > desired_chunk_size_ &&
       chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(impl_->Message());
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
     chunk_size_ = 0;
   }
@@ -525,11 +525,11 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
 bool RecordWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (chunk_size_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(impl_->Message());
+    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
   }
   if (RIEGELI_UNLIKELY(!impl_->Flush(flush_type))) {
     if (impl_->healthy()) return false;
-    return Fail(impl_->Message());
+    return Fail(*impl_);
   }
   if (chunk_size_ != 0) {
     impl_->OpenChunk();

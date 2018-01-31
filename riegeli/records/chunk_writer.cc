@@ -47,7 +47,7 @@ void DefaultChunkWriter::Done() {
   if (owned_byte_writer_ != nullptr) {
     if (RIEGELI_LIKELY(healthy())) {
       if (RIEGELI_UNLIKELY(!owned_byte_writer_->Close())) {
-        Fail(owned_byte_writer_->Message());
+        Fail(*owned_byte_writer_);
       }
     }
     owned_byte_writer_.reset();
@@ -82,14 +82,13 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
                                          chunk_end - byte_writer_->pos());
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
               string_view(block_header.bytes(), block_header.size())))) {
-        RIEGELI_ASSERT(!byte_writer_->healthy());
-        return Fail(byte_writer_->Message());
+        return Fail(*byte_writer_);
       }
     }
     if (!src->CopyTo(byte_writer_,
                      internal::RemainingInBlock(byte_writer_->pos()))) {
       if (RIEGELI_LIKELY(byte_writer_->healthy())) break;
-      return Fail(byte_writer_->Message());
+      return Fail(*byte_writer_);
     }
   }
   return src->Close();
@@ -103,16 +102,14 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
                                          chunk_end - byte_writer_->pos());
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
               string_view(block_header.bytes(), block_header.size())))) {
-        RIEGELI_ASSERT(!byte_writer_->healthy());
-        return Fail(byte_writer_->Message());
+        return Fail(*byte_writer_);
       }
     }
     const Position slice_size =
         UnsignedMin(chunk_end - byte_writer_->pos(),
                     internal::RemainingInBlock(byte_writer_->pos()));
     if (RIEGELI_UNLIKELY(!WriteZeros(byte_writer_, slice_size))) {
-      RIEGELI_ASSERT(!byte_writer_->healthy());
-      return Fail(byte_writer_->Message());
+      return Fail(*byte_writer_);
     }
   }
   return true;
