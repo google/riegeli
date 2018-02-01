@@ -126,10 +126,16 @@ class Chain {
   // T must also support:
   //
   //   // Registers this object with MemoryEstimator.
-  //   void AddUniqueTo(MemoryEstimator* memory_estimator) const;
+  //   void AddUniqueTo(string_view data,
+  //                    MemoryEstimator* memory_estimator) const;
   //   // Shows internal structure in a human-readable way, for debugging
   //   // (a type name is enough).
   //   void DumpStructure(string_view data, std::ostream& out) const;
+  //
+  // where the data parameter of AddUniqueTo() and DumpStructure() will get the
+  // original value of the data parameter of AppendExternal()/PrependExternal()
+  // (if given) or data() (otherwise). Having data available in these functions
+  // might avoid storing it in the external object.
   //
   // AppendExternal()/PrependExternal() can decide to copy data instead. This is
   // always the case if data.size() <= kMaxBytesToCopy().
@@ -588,7 +594,8 @@ template <typename T>
 void Chain::ExternalMethodsFor<T>::AddUniqueTo(
     const Block* block, MemoryEstimator* memory_estimator) {
   memory_estimator->AddMemory(Block::kExternalObjectOffset<T>());
-  block->unchecked_external_object<T>()->AddUniqueTo(memory_estimator);
+  block->unchecked_external_object<T>()->AddUniqueTo(block->data(),
+                                                     memory_estimator);
 }
 
 template <typename T>

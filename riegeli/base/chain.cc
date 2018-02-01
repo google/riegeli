@@ -227,7 +227,7 @@ class Chain::BlockRef {
 
   ~BlockRef();
 
-  void AddUniqueTo(MemoryEstimator* memory_estimator) const;
+  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
   void DumpStructure(string_view data, std::ostream& out) const;
 
  private:
@@ -265,7 +265,7 @@ inline Chain::BlockRef::~BlockRef() {
 }
 
 inline void Chain::BlockRef::AddUniqueTo(
-    MemoryEstimator* memory_estimator) const {
+    string_view data, MemoryEstimator* memory_estimator) const {
   memory_estimator->AddMemory(sizeof(*this));
   block_->AddSharedTo(memory_estimator);
 }
@@ -286,7 +286,7 @@ class Chain::StringRef {
       std::is_nothrow_move_assignable<std::string>::value) = default;
 
   string_view data() const { return src_; }
-  void AddUniqueTo(MemoryEstimator* memory_estimator) const;
+  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
   void DumpStructure(string_view data, std::ostream& out) const;
 
  private:
@@ -296,7 +296,7 @@ class Chain::StringRef {
 };
 
 inline void Chain::StringRef::AddUniqueTo(
-    MemoryEstimator* memory_estimator) const {
+    string_view data, MemoryEstimator* memory_estimator) const {
   memory_estimator->AddMemory(sizeof(*this) + src_.capacity());
 }
 
