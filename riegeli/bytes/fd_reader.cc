@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -35,11 +36,64 @@
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+namespace {
+
+class MMapRef {
+ public:
+  MMapRef(void* data, size_t size) : data_(data), size_(size) {}
+
+  MMapRef(MMapRef&& src) noexcept;
+  MMapRef& operator=(MMapRef&& src) noexcept;
+
+  ~MMapRef();
+
+  string_view data() const {
+    return string_view(static_cast<const char*>(data_), size_);
+  }
+  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
+  void DumpStructure(string_view data, std::ostream& out) const;
+
+ private:
+  void* data_;
+  size_t size_;
+};
+
+inline MMapRef::MMapRef(MMapRef&& src) noexcept
+    : data_(riegeli::exchange(src.data_, nullptr)),
+      size_(riegeli::exchange(src.size_, 0)) {}
+
+inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
+  data_ = riegeli::exchange(src.data_, nullptr);
+  size_ = riegeli::exchange(src.size_, 0);
+  return *this;
+}
+
+inline MMapRef::~MMapRef() {
+  if (data_ != nullptr) {
+    const int result = munmap(data_, size_);
+    RIEGELI_ASSERT_EQ(result, 0);
+  }
+}
+
+void MMapRef::AddUniqueTo(string_view data,
+                          MemoryEstimator* memory_estimator) const {
+  memory_estimator->AddMemory(sizeof(*this));
+}
+
+void MMapRef::DumpStructure(string_view data, std::ostream& out) const {
+  out << "mmap";
+}
+
+}  // namespace
 
 namespace internal {
 
@@ -257,6 +311,174 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
     min_length -= result;
     max_length -= result;
   }
+}
+
+FdMMapReader::FdMMapReader() noexcept { MarkClosed(); }
+
+FdMMapReader::FdMMapReader(int fd, Options options)
+    : filename_(fd == 0 ? "/dev/stdin"
+                        : "/proc/self/fd/" + std::to_string(fd)) {
+  RIEGELI_ASSERT_GE(fd, 0);
+  Initialize(fd, options);
+}
+
+FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
+    : filename_(std::move(filename)) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR);
+  RIEGELI_ASSERT(options.owns_fd_);
+again:
+  const int fd = open(filename_.c_str(), flags, 0666);
+  if (RIEGELI_UNLIKELY(fd < 0)) {
+    const int error_code = errno;
+    if (error_code == EINTR) goto again;
+    FailOperation("open()", error_code);
+    return;
+  }
+  Initialize(fd, options);
+}
+
+FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
+    : Reader(std::move(src)),
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)),
+      contents_(riegeli::exchange(src.contents_, Chain())) {}
+
+FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
+  Reader::operator=(std::move(src)),
+  filename_ = riegeli::exchange(src.filename_, std::string());
+  error_code_ = riegeli::exchange(src.error_code_, 0);
+  contents_ = riegeli::exchange(src.contents_, Chain());
+  return *this;
+}
+
+void FdMMapReader::Done() {
+  contents_ = Chain();
+  // filename_ and error_code_ are not cleared.
+  Reader::Done();
+}
+
+inline void FdMMapReader::Initialize(int fd, Options options) {
+  RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT_EQ(limit_pos_, 0u);
+  internal::FdHolder owned_fd(options.owns_fd_ ? fd : -1);
+  struct stat stat_info;
+  if (RIEGELI_UNLIKELY(fstat(fd, &stat_info) < 0)) {
+    const int error_code = errno;
+    FailOperation("fstat()", error_code);
+    return;
+  }
+  RIEGELI_ASSERT_GE(stat_info.st_size, 0);
+  if (RIEGELI_UNLIKELY(static_cast<Position>(stat_info.st_size) >
+                       std::numeric_limits<size_t>::max())) {
+    Fail("File is too large for mmap()");
+    return;
+  }
+  if (stat_info.st_size != 0) {
+    void* const data = mmap(nullptr, static_cast<size_t>(stat_info.st_size),
+                            PROT_READ, MAP_SHARED, fd, 0);
+    if (RIEGELI_UNLIKELY(data == MAP_FAILED)) {
+      const int error_code = errno;
+      FailOperation("mmap()", error_code);
+      return;
+    }
+    contents_.AppendExternal(
+        MMapRef(data, static_cast<size_t>(stat_info.st_size)));
+    start_ = iter()->data();
+    cursor_ = iter()->data();
+    limit_ = iter()->data() + iter()->size();
+    limit_pos_ = iter()->size();
+  }
+  const int error_code = owned_fd.Close();
+  if (RIEGELI_UNLIKELY(error_code != 0)) {
+    FailOperation(internal::FdHolder::CloseFunctionName(), error_code);
+  }
+}
+
+inline bool FdMMapReader::FailOperation(const char* operation, int error_code) {
+  RIEGELI_ASSERT(healthy());
+  error_code_ = error_code;
+  char message[256];
+  strerror_r(error_code, message, sizeof(message));
+  message[sizeof(message) - 1] = '\0';
+  return Fail(std::string(operation) + " failed: " + message + ", reading " +
+              filename_);
+}
+
+inline Chain::BlockIterator FdMMapReader::iter() const {
+  RIEGELI_ASSERT_EQ(contents_.blocks().size(), 1u);
+  return contents_.blocks().begin();
+}
+
+bool FdMMapReader::PullSlow() {
+  RIEGELI_ASSERT_EQ(available(), 0u);
+  return false;
+}
+
+bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  const size_t length_to_read = UnsignedMin(length, available());
+  if (length_to_read > 0) {  // iter() is undefined
+                             // if contents_.blocks().size() != 1.
+    const size_t size_hint = dest->size() + length_to_read;
+    iter().AppendSubstrTo(string_view(cursor_, length_to_read), dest,
+                          size_hint);
+    cursor_ += length_to_read;
+  }
+  return length_to_read == length;
+}
+
+bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  const size_t length_to_copy = UnsignedMin(length, available());
+  bool ok = true;
+  if (length_to_copy == contents_.size()) {
+    cursor_ = limit_;
+    ok = dest->Write(contents_);
+  } else if (length_to_copy > 0) {  // iter() is undefined
+                                    // if contents_.blocks().size() != 1.
+    Chain data;
+    iter().AppendSubstrTo(string_view(cursor_, length_to_copy), &data,
+                          length_to_copy);
+    cursor_ += length_to_copy;
+    ok = dest->Write(std::move(data));
+  }
+  return ok && length_to_copy == length;
+}
+
+bool FdMMapReader::CopyToSlow(BackwardWriter* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  if (RIEGELI_UNLIKELY(length > available())) {
+    cursor_ = limit_;
+    return false;
+  }
+  if (length == contents_.size()) {
+    cursor_ = limit_;
+    return dest->Write(contents_);
+  }
+  Chain data;
+  iter().AppendSubstrTo(string_view(cursor_, length), &data, length);
+  cursor_ += length;
+  return dest->Write(std::move(data));
+}
+
+bool FdMMapReader::Size(Position* size) const {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  *size = contents_.size();
+  return true;
+}
+
+bool FdMMapReader::HopeForMoreSlow() const {
+  RIEGELI_ASSERT_EQ(available(), 0u);
+  return false;
+}
+
+bool FdMMapReader::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_EQ(start_pos(), 0u);
+  RIEGELI_ASSERT(new_pos > limit_pos_);
+  // Seeking forwards. Source ends.
+  cursor_ = limit_;
+  return false;
 }
 
 }  // namespace riegeli

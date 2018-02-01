@@ -191,9 +191,12 @@ cc_library(
     ],
     hdrs = ["fd_reader.h"],
     deps = [
+        ":backward_writer",
         ":buffered_reader",
         ":reader",
+        ":writer",
         "//riegeli/base",
+        "//riegeli/base:chain",
     ],
 )
 

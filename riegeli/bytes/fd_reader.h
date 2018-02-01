@@ -22,9 +22,12 @@
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
@@ -224,6 +227,99 @@ class FdStreamReader final : public internal::FdReaderBase {
 
  protected:
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+};
+
+// A Reader which reads from a file descriptor by mapping the whole file to
+// memory. It supports random access; the file descriptor must support mmap()
+// and fstat(). The file must not be changed while data read from the file is
+// accessed.
+//
+// Multiple FdMMapReaders can read concurrently from the same fd.
+class FdMMapReader final : public Reader {
+ public:
+  class Options {
+   public:
+    // Not defaulted because of a C++ defect:
+    // https://stackoverflow.com/questions/17430377
+    constexpr Options() noexcept {}
+
+    // If true, the fd will be owned by the FdMMapReader and will be closed
+    // after construction.
+    //
+    // If false, the fd will not be closed by the FdMMapReader.
+    //
+    // In any case, the memory mapped region is usable even after the fd is
+    // closed.
+    //
+    // Default: true.
+    Options& set_owns_fd(bool owns_fd) & {
+      owns_fd_ = owns_fd;
+      return *this;
+    }
+    Options&& set_owns_fd(bool owns_fd) && {
+      return std::move(set_owns_fd(owns_fd));
+    }
+
+   private:
+    friend class FdMMapReader;
+
+    bool owns_fd_ = true;
+  };
+
+  // Creates a closed FdMMapReader.
+  FdMMapReader() noexcept;
+
+  // Will read from the fd, starting at its beginning.
+  explicit FdMMapReader(int fd, Options options = Options());
+
+  // Opens a file for reading.
+  //
+  // flags is the second argument of open, typically O_RDONLY.
+  //
+  // flags must include O_RDONLY or O_RDWR.
+  // options.set_owns_fd(false) must not be used.
+  FdMMapReader(std::string filename, int flags, Options options = Options());
+
+  FdMMapReader(FdMMapReader&& src) noexcept;
+  FdMMapReader& operator=(FdMMapReader&& src) noexcept;
+
+  const std::string& filename() const { return filename_; }
+  int error_code() const { return error_code_; }
+
+  bool SupportsRandomAccess() const override { return true; }
+  bool Size(Position* size) const override;
+
+ protected:
+  void Done() override;
+  bool PullSlow() override;
+  bool ReadSlow(Chain* dest, size_t length) override;
+  bool CopyToSlow(Writer* dest, Position length) override;
+  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool HopeForMoreSlow() const override;
+  bool SeekSlow(Position new_pos) override;
+
+ private:
+  void Initialize(int fd, Options options);
+
+  RIEGELI_ATTRIBUTE_COLD bool FailOperation(const char* operation,
+                                            int error_code);
+
+  // Iterator pointing to the block of contents_ which holds the actual data.
+  //
+  // Precondition: contents_.blocks().size() == 1
+  Chain::BlockIterator iter() const;
+
+  std::string filename_;
+  // errno value from a failed operation, or 0 if none.
+  //
+  // Invariant: if healthy() then error_code_ == 0
+  int error_code_ = 0;
+  Chain contents_;
+
+  // Invariants:
+  //   start_ == (contents_.blocks().empty() ? nullptr : iter()->data())
+  //   limit_ == (contents_.blocks().empty() ? nullptr
+  //                                         : iter()->data() + iter()->size())
 };
 
 }  // namespace riegeli
