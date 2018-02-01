@@ -72,7 +72,13 @@ inline MMapRef::MMapRef(MMapRef&& src) noexcept
       size_(riegeli::exchange(src.size_, 0)) {}
 
 inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
-  data_ = riegeli::exchange(src.data_, nullptr);
+  // Exchange data_ early to support self-assignment.
+  void* const data = riegeli::exchange(src.data_, nullptr);
+  if (data_ != nullptr) {
+    const int result = munmap(data_, size_);
+    RIEGELI_ASSERT_EQ(result, 0);
+  }
+  data_ = data;
   size_ = riegeli::exchange(src.size_, 0);
   return *this;
 }
