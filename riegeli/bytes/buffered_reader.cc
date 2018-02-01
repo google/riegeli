@@ -85,6 +85,7 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
 bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
   if (RIEGELI_UNLIKELY(!healthy())) return false;
+  const size_t size_hint = dest->size() + length;
   if (length >= available() && length - available() >= buffer_size_) {
     // If reading through buffer_ would need multiple ReadInternal() calls, it
     // is faster to append current contents of buffer_ and read the remaining
@@ -97,11 +98,12 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     const size_t available_length = available();
     if (available_length > 0) {  // iter() is undefined if
                                  // buffer_.blocks().empty().
-      iter().AppendSubstrTo(string_view(cursor_, available_length), dest);
+      iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
+                            size_hint);
       length -= available_length;
     }
     ClearBuffer();
-    const Chain::Buffer flat_buffer = dest->MakeAppendBuffer(length);
+    const Chain::Buffer flat_buffer = dest->MakeAppendBuffer(length, size_hint);
     const Position pos_before = limit_pos_;
     const bool ok = ReadInternal(flat_buffer.data(), length, length);
     RIEGELI_ASSERT_GE(limit_pos_, pos_before);
@@ -119,7 +121,8 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       const size_t available_length = available();
       if (available_length > 0) {  // iter() is undefined if
                                    // buffer_.blocks().empty().
-        iter().AppendSubstrTo(string_view(cursor_, available_length), dest);
+        iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
+                              size_hint);
         length -= available_length;
       }
       buffer_.Clear();
@@ -148,7 +151,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   }
   RIEGELI_ASSERT_LE(length, available());
   if (length > 0) {  // iter() is undefined if buffer_.blocks().empty().
-    iter().AppendSubstrTo(string_view(cursor_, length), dest);
+    iter().AppendSubstrTo(string_view(cursor_, length), dest, size_hint);
     cursor_ += length;
   }
   return ok;
