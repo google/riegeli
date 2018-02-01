@@ -22,15 +22,18 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
 
-ChainBackwardWriter::ChainBackwardWriter() noexcept { MarkClosed(); }
+ChainBackwardWriter::ChainBackwardWriter() noexcept
+    : BackwardWriter(State::kClosed) {}
 
 ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
-    : dest_(RIEGELI_ASSERT_NOTNULL(dest)),
+    : BackwardWriter(State::kOpen),
+      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
       size_hint_(
           UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
   start_pos_ = dest->size();

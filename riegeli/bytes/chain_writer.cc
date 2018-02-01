@@ -22,15 +22,17 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-ChainWriter::ChainWriter() noexcept { MarkClosed(); }
+ChainWriter::ChainWriter() noexcept : Writer(State::kClosed) {}
 
 ChainWriter::ChainWriter(Chain* dest, Options options)
-    : dest_(RIEGELI_ASSERT_NOTNULL(dest)),
+    : Writer(State::kOpen),
+      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
       size_hint_(
           UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
   start_pos_ = dest->size();

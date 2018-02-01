@@ -37,6 +37,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -102,8 +103,6 @@ void MMapRef::DumpStructure(string_view data, std::ostream& out) const {
 }  // namespace
 
 namespace internal {
-
-FdReaderBase::FdReaderBase() noexcept { MarkClosed(); }
 
 FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedReader(buffer_size),
@@ -319,17 +318,18 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
   }
 }
 
-FdMMapReader::FdMMapReader() noexcept { MarkClosed(); }
+FdMMapReader::FdMMapReader() noexcept : Reader(State::kClosed) {}
 
 FdMMapReader::FdMMapReader(int fd, Options options)
-    : filename_(fd == 0 ? "/dev/stdin"
+    : Reader(State::kOpen),
+      filename_(fd == 0 ? "/dev/stdin"
                         : "/proc/self/fd/" + std::to_string(fd)) {
   RIEGELI_ASSERT_GE(fd, 0);
   Initialize(fd, options);
 }
 
 FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
-    : filename_(std::move(filename)) {
+    : Reader(State::kOpen), filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR);
   RIEGELI_ASSERT(options.owns_fd_);

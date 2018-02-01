@@ -21,6 +21,7 @@
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
@@ -45,7 +46,8 @@ ChunkReader::ChunkReader(std::unique_ptr<Reader> byte_reader, Options options)
 }
 
 ChunkReader::ChunkReader(Reader* byte_reader, Options options)
-    : byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)),
+    : Object(State::kOpen),
+      byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)),
       skip_corruption_(options.skip_corruption_),
       pos_(byte_reader_->pos()),
       is_recovering_(internal::IsBlockBoundary(pos_)) {

@@ -94,7 +94,8 @@ class BackwardWriter : public Object {
   Position pos() const { return start_pos_ + written_to_buffer(); }
 
  protected:
-  BackwardWriter() noexcept = default;
+  // Creates a BackwardWriter with the given initial state.
+  explicit BackwardWriter(State state) noexcept : Object(state) {}
 
   // Moves the part of the object defined in this class.
   //
@@ -149,7 +150,8 @@ class BackwardWriter : public Object {
 // Implementation details follow.
 
 inline BackwardWriter::BackwardWriter(BackwardWriter&& src) noexcept
-    : start_(riegeli::exchange(src.start_, nullptr)),
+    : Object(std::move(src)),
+      start_(riegeli::exchange(src.start_, nullptr)),
       cursor_(riegeli::exchange(src.cursor_, nullptr)),
       limit_(riegeli::exchange(src.limit_, nullptr)),
       start_pos_(riegeli::exchange(src.start_pos_, 0)) {}

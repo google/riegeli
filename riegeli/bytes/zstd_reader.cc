@@ -32,7 +32,7 @@ inline void ZstdReader::ZSTD_DStreamDeleter::operator()(
   ZSTD_freeDStream(ptr);
 }
 
-ZstdReader::ZstdReader() noexcept { MarkClosed(); }
+ZstdReader::ZstdReader() noexcept = default;
 
 ZstdReader::ZstdReader(std::unique_ptr<Reader> src, Options options)
     : ZstdReader(src.get(), options) {

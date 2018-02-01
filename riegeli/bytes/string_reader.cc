@@ -19,13 +19,15 @@
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
-StringReader::StringReader() noexcept { MarkClosed(); }
+StringReader::StringReader() noexcept : Reader(State::kClosed) {}
 
-StringReader::StringReader(const char* src, size_t size) {
+StringReader::StringReader(const char* src, size_t size)
+    : Reader(State::kOpen) {
   start_ = src;
   cursor_ = src;
   limit_ = src + size;

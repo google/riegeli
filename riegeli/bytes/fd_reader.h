@@ -40,10 +40,13 @@ class FdReaderBase : public BufferedReader {
   int error_code() const { return error_code_; }
 
  protected:
-  FdReaderBase() noexcept;
+  // Creates a closed FdReaderBase.
+  FdReaderBase() noexcept = default;
 
+  // Will read from fd.
   FdReaderBase(int fd, bool owns_fd, size_t buffer_size);
 
+  // Opens a file for reading.
   FdReaderBase(std::string filename, int flags, size_t buffer_size);
 
   FdReaderBase(FdReaderBase&& src) noexcept;
@@ -129,8 +132,8 @@ class FdReader final : public internal::FdReaderBase {
   // Creates a closed FdReader.
   FdReader() noexcept;
 
-  // Will read from the fd, starting at its beginning (or current file position
-  // if options.set_sync_pos(true) is used).
+  // Will read from fd, starting at its beginning (or current file position if
+  // options.set_sync_pos(true) is used).
   explicit FdReader(int fd, Options options = Options());
 
   // Opens a file for reading.
@@ -210,7 +213,7 @@ class FdStreamReader final : public internal::FdReaderBase {
   // Creates a closed FdStreamReader.
   FdStreamReader() noexcept;
 
-  // Will read from the fd, starting at its current position.
+  // Will read from fd, starting at its current position.
   //
   // options.set_assumed_pos() must be used.
   FdStreamReader(int fd, Options options);
@@ -269,7 +272,7 @@ class FdMMapReader final : public Reader {
   // Creates a closed FdMMapReader.
   FdMMapReader() noexcept;
 
-  // Will read from the fd, starting at its beginning.
+  // Will read from fd, starting at its beginning.
   explicit FdMMapReader(int fd, Options options = Options());
 
   // Opens a file for reading.

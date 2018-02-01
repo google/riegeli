@@ -20,6 +20,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -27,9 +28,10 @@
 
 namespace riegeli {
 
-ChainReader::ChainReader() noexcept { MarkClosed(); }
+ChainReader::ChainReader() noexcept : Reader(State::kClosed) {}
 
-ChainReader::ChainReader(Chain src) : owned_src_(std::move(src)) {
+ChainReader::ChainReader(Chain src)
+    : Reader(State::kOpen), owned_src_(std::move(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
     cursor_ = iter_->data();
@@ -38,7 +40,8 @@ ChainReader::ChainReader(Chain src) : owned_src_(std::move(src)) {
   }
 }
 
-ChainReader::ChainReader(const Chain* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {
+ChainReader::ChainReader(const Chain* src)
+    : Reader(State::kOpen), src_(RIEGELI_ASSERT_NOTNULL(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
     cursor_ = iter_->data();

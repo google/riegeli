@@ -20,6 +20,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -34,9 +35,12 @@ namespace riegeli {
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
  protected:
-  BufferedReader() noexcept = default;
+  // Creates a closed BufferedReader.
+  BufferedReader() noexcept : Reader(State::kClosed) {}
 
-  explicit BufferedReader(size_t buffer_size) : buffer_size_(buffer_size) {}
+  // Creates a BufferedReader with the given buffer size.
+  explicit BufferedReader(size_t buffer_size) noexcept
+      : Reader(State::kOpen), buffer_size_(buffer_size) {}
 
   BufferedReader(BufferedReader&& src) noexcept;
   BufferedReader& operator=(BufferedReader&& src) noexcept;

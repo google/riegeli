@@ -19,6 +19,7 @@
 
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -39,7 +40,8 @@ DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
 }
 
 DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
-    : byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {}
+    : ChunkWriter(State::kOpen),
+      byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {}
 
 DefaultChunkWriter::~DefaultChunkWriter() = default;
 

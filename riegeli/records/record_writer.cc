@@ -70,10 +70,10 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
 
 class RecordWriter::Impl : public Object {
  public:
-  Impl() = default;
+  Impl() : Object(State::kOpen) {}
 
   explicit Impl(std::unique_ptr<ChunkEncoder> chunk_encoder)
-      : chunk_encoder_(std::move(chunk_encoder)) {}
+      : Object(State::kOpen), chunk_encoder_(std::move(chunk_encoder)) {}
 
   ~Impl();
 
@@ -383,7 +383,7 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-RecordWriter::RecordWriter() noexcept { MarkClosed(); }
+RecordWriter::RecordWriter() noexcept : Object(State::kClosed) {}
 
 RecordWriter::RecordWriter(std::unique_ptr<Writer> chunk_writer,
                            Options options)
@@ -402,7 +402,7 @@ RecordWriter::RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
 }
 
 RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
-    : desired_chunk_size_(options.desired_chunk_size_) {
+    : Object(State::kOpen), desired_chunk_size_(options.desired_chunk_size_) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (chunk_writer->pos() == 0) {
     // Write file signature.

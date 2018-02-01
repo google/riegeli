@@ -23,6 +23,7 @@
 #include "brotli/decode.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -32,7 +33,7 @@ inline void BrotliReader::BrotliDecoderStateDeleter::operator()(
   BrotliDecoderDestroyInstance(ptr);
 }
 
-BrotliReader::BrotliReader() noexcept { MarkClosed(); }
+BrotliReader::BrotliReader() noexcept : Reader(State::kClosed) {}
 
 BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
     : BrotliReader(src.get(), options) {
@@ -40,7 +41,8 @@ BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
 }
 
 BrotliReader::BrotliReader(Reader* src, Options options)
-    : src_(RIEGELI_ASSERT_NOTNULL(src)),
+    : Reader(State::kOpen),
+      src_(RIEGELI_ASSERT_NOTNULL(src)),
       decompressor_(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr)) {
   if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");

@@ -40,10 +40,13 @@ class FdWriterBase : public BufferedWriter {
   bool Flush(FlushType flush_type) override;
 
  protected:
-  FdWriterBase() noexcept;
+  // Creates a closed FdWriterBase.
+  FdWriterBase() noexcept = default;
 
+  // Will write to fd.
   FdWriterBase(int fd, bool owns_fd, size_t buffer_size);
 
+  // Opens a file for writing.
   FdWriterBase(std::string filename, int flags, mode_t permissions,
                size_t buffer_size);
 
@@ -142,7 +145,7 @@ class FdWriter final : public internal::FdWriterBase {
   // Creates a closed FdWriter.
   FdWriter() noexcept;
 
-  // Will write to the fd, starting at the end of file, or at the current fd
+  // Will write to fd, starting at the end of file, or at the current fd
   // position if options.set_sync_pos(true) is used.
   explicit FdWriter(int fd, Options options = Options());
 
@@ -251,7 +254,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
   // Creates a closed FdStreamWriter.
   FdStreamWriter() noexcept;
 
-  // Will write to the fd, starting at its current position.
+  // Will write to fd, starting at its current position.
   //
   // options.set_assumed_pos() must be used.
   FdStreamWriter(int fd, Options options);

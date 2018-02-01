@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
@@ -33,9 +34,12 @@ namespace riegeli {
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
  protected:
-  BufferedWriter() noexcept = default;
+  // Creates a closed BufferedWriter.
+  BufferedWriter() noexcept : Writer(State::kClosed) {}
 
-  explicit BufferedWriter(size_t buffer_size) : buffer_size_(buffer_size) {}
+  // Creates a BufferedWriter with the given buffer size.
+  explicit BufferedWriter(size_t buffer_size) noexcept
+      : Writer(State::kOpen), buffer_size_(buffer_size) {}
 
   BufferedWriter(BufferedWriter&& src) noexcept;
   BufferedWriter& operator=(BufferedWriter&& src) noexcept;

@@ -123,10 +123,14 @@ class Object {
   virtual TypeId GetTypeId() const;
 
  protected:
-  // Creates the Object as healthy.
-  //
-  // To create the Object as closed, see MarkClosed().
-  Object() noexcept = default;
+  // Initial state of the Object.
+  enum class State : uintptr_t {
+    kOpen = 0,
+    kClosed = 1,
+  };
+
+  // Creates an Object with the given initial state.
+  explicit Object(State state) noexcept;
 
   // Moves the part of the object defined in the Object class.
   //
@@ -147,15 +151,6 @@ class Object {
   // MarkHealthy() should cause background threads to stop interacting with the
   // Object before MarkHealthy() is called.
   void MarkHealthy();
-
-  // Marks the Object as closed.
-  //
-  // This is intended for default constructors of derived classes to create a
-  // closed Object. If a derived class uses background threads, they should not
-  // be running yet when MarkClosed() is called.
-  //
-  // Precondition: healthy()
-  void MarkClosed();
 
   // Implementation of Close(), called if the Object is not closed yet.
   //
@@ -202,14 +197,19 @@ class Object {
     const std::string message;
   };
 
-  static constexpr uintptr_t kHealthy() { return 0; }
-  static constexpr uintptr_t kClosedSuccessfully() { return 1; }
+  static constexpr uintptr_t kHealthy() {
+    return static_cast<uintptr_t>(State::kOpen);
+  }
+
+  static constexpr uintptr_t kClosedSuccessfully() {
+    return static_cast<uintptr_t>(State::kClosed);
+  }
 
   static void DeleteStatus(uintptr_t status);
 
   // status_ is either kHealthy(), or kClosedSuccessfully(), or Failed*
   // reinterpret_cast to uintptr_t.
-  std::atomic<uintptr_t> status_{kHealthy()};
+  std::atomic<uintptr_t> status_;
 };
 
 // Implementation details follow.
@@ -218,6 +218,26 @@ template <typename T>
 TypeId TypeId::For() {
   static char token;
   return TypeId(&token);
+}
+
+inline Object::Object(State state) noexcept
+    : status_(static_cast<uintptr_t>(state)) {
+  RIEGELI_ASSERT(state == State::kOpen || state == State::kClosed);
+}
+
+inline Object::Object(Object&& src) noexcept
+    : status_(src.status_.exchange(kClosedSuccessfully(),
+                                   std::memory_order_relaxed)) {}
+
+inline Object& Object::operator=(Object&& src) noexcept {
+  DeleteStatus(status_.exchange(
+      src.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
+      std::memory_order_relaxed));
+  return *this;
+}
+
+inline Object::~Object() {
+  DeleteStatus(status_.load(std::memory_order_relaxed));
 }
 
 inline void Object::DeleteStatus(uintptr_t status) {
@@ -249,26 +269,6 @@ inline bool Object::closed() const {
 
 inline void Object::MarkHealthy() {
   DeleteStatus(status_.exchange(kHealthy(), std::memory_order_relaxed));
-}
-
-inline void Object::MarkClosed() {
-  RIEGELI_ASSERT(healthy());
-  status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
-}
-
-inline Object::Object(Object&& src) noexcept
-    : status_(src.status_.exchange(kClosedSuccessfully(),
-                                   std::memory_order_relaxed)) {}
-
-inline Object& Object::operator=(Object&& src) noexcept {
-  DeleteStatus(status_.exchange(
-      src.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
-      std::memory_order_relaxed));
-  return *this;
-}
-
-inline Object::~Object() {
-  DeleteStatus(status_.load(std::memory_order_relaxed));
 }
 
 }  // namespace riegeli

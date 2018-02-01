@@ -156,7 +156,8 @@ class Writer : public Object {
   virtual bool Truncate() { return false; }
 
  protected:
-  Writer() noexcept = default;
+  // Creates a Writer with the given initial state.
+  explicit Writer(State state) noexcept : Object(state) {}
 
   // Moves the part of the object defined in this class.
   //
@@ -215,7 +216,8 @@ class Writer : public Object {
 // Implementation details follow.
 
 inline Writer::Writer(Writer&& src) noexcept
-    : start_(riegeli::exchange(src.start_, nullptr)),
+    : Object(std::move(src)),
+      start_(riegeli::exchange(src.start_, nullptr)),
       cursor_(riegeli::exchange(src.cursor_, nullptr)),
       limit_(riegeli::exchange(src.limit_, nullptr)),
       start_pos_(riegeli::exchange(src.start_pos_, 0)) {}

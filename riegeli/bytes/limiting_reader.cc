@@ -27,10 +27,12 @@
 
 namespace riegeli {
 
-LimitingReader::LimitingReader() noexcept { MarkClosed(); }
+LimitingReader::LimitingReader() noexcept : Reader(State::kClosed) {}
 
 LimitingReader::LimitingReader(Reader* src, Position size_limit)
-    : src_(RIEGELI_ASSERT_NOTNULL(src)), size_limit_(size_limit) {
+    : Reader(State::kOpen),
+      src_(RIEGELI_ASSERT_NOTNULL(src)),
+      size_limit_(size_limit) {
   RIEGELI_ASSERT_GE(size_limit, src_->pos());
   if (src_->GetTypeId() == TypeId::For<LimitingReader>() &&
       RIEGELI_LIKELY(src_->healthy())) {

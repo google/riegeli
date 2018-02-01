@@ -20,14 +20,15 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
-StringWriter::StringWriter() noexcept { MarkClosed(); }
+StringWriter::StringWriter() noexcept : Writer(State::kClosed) {}
 
 StringWriter::StringWriter(std::string* dest, Options options)
-    : dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
+    : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
   if (options.size_hint_ > 0 &&
       RIEGELI_LIKELY(options.size_hint_ <=
                      std::numeric_limits<size_t>::max())) {

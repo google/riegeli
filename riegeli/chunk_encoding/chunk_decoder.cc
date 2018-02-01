@@ -87,7 +87,8 @@ bool Decompressor::VerifyEndAndClose() {
 }  // namespace
 
 ChunkDecoder::ChunkDecoder(Options options)
-    : skip_corruption_(options.skip_corruption_),
+    : Object(State::kOpen),
+      skip_corruption_(options.skip_corruption_),
       field_filter_(std::move(options.field_filter_)) {
   Clear();
 }

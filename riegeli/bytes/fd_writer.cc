@@ -44,8 +44,6 @@ namespace riegeli {
 
 namespace internal {
 
-FdWriterBase::FdWriterBase() noexcept { MarkClosed(); }
-
 FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedWriter(buffer_size),
       owned_fd_(owns_fd ? fd : -1),

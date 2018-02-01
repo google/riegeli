@@ -169,7 +169,8 @@ class Reader : public Object {
   virtual bool Size(Position* size) const { return false; }
 
  protected:
-  Reader() noexcept = default;
+  // Creates a Reader with the given initial state.
+  explicit Reader(State state) noexcept : Object(state) {}
 
   // Moves the part of the object defined in this class.
   //

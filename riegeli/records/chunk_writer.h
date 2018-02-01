@@ -39,7 +39,7 @@ class Reader;
 // writes.
 class ChunkWriter : public Object {
  public:
-  ChunkWriter() noexcept = default;
+  explicit ChunkWriter(State state) noexcept : Object(state) {}
 
   ChunkWriter(const ChunkWriter&) = delete;
   ChunkWriter& operator=(const ChunkWriter&) = delete;
