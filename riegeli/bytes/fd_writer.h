@@ -41,7 +41,9 @@ class FdWriterBase : public BufferedWriter {
 
  protected:
   // Creates a closed FdWriterBase.
-  FdWriterBase() noexcept = default;
+  //
+  // Not defaulted because string::string() is not noexcept before C++17.
+  FdWriterBase() noexcept {}
 
   // Will write to fd.
   FdWriterBase(int fd, bool owns_fd, size_t buffer_size);

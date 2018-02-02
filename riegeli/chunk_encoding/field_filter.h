@@ -17,9 +17,10 @@
 
 #include <stdint.h>
 #include <initializer_list>
-#include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "riegeli/base/base.h"
 
 namespace riegeli {
 
@@ -41,15 +42,13 @@ class FieldFilter {
   // Starts with an empty set. Fields can be added with AddField().
   FieldFilter() = default;
 
-  // vector::vector(vector&&) and vector::operator=(vector&&) are noexcept since
-  // C++17.
-  FieldFilter(FieldFilter&&) noexcept(
-      std::is_nothrow_move_constructible<std::vector<Field>>::value) = default;
-  FieldFilter& operator=(FieldFilter&&) noexcept(
-      std::is_nothrow_move_assignable<std::vector<Field>>::value) = default;
+  // Not defaulted because vector::vector(vector&&) and
+  // vector::operator=(vector&&) are not noexcept before C++17.
+  FieldFilter(FieldFilter&&) noexcept;
+  FieldFilter& operator=(FieldFilter&&) noexcept;
 
-  FieldFilter(const FieldFilter&) = default;
-  FieldFilter& operator=(const FieldFilter&) = default;
+  FieldFilter(const FieldFilter&);
+  FieldFilter& operator=(const FieldFilter&);
 
   // Adds a field to the set.
   FieldFilter& AddField(Field field) & {
@@ -75,6 +74,25 @@ inline FieldFilter FieldFilter::All() noexcept {
   FieldFilter filter;
   filter.include_all_ = true;
   return filter;
+}
+
+inline FieldFilter::FieldFilter(FieldFilter&& src) noexcept
+    : include_all_(riegeli::exchange(src.include_all_, false)),
+      fields_(std::move(src.fields_)) {}
+
+inline FieldFilter& FieldFilter::operator=(FieldFilter&& src) noexcept {
+  include_all_ = riegeli::exchange(src.include_all_, false);
+  fields_ = std::move(src.fields_);
+  return *this;
+}
+
+inline FieldFilter::FieldFilter(const FieldFilter& src)
+    : include_all_(src.include_all_), fields_(src.fields_) {}
+
+inline FieldFilter& FieldFilter::operator=(const FieldFilter& src) {
+  include_all_ = src.include_all_;
+  fields_ = src.fields_;
+  return *this;
 }
 
 }  // namespace riegeli

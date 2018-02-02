@@ -41,7 +41,9 @@ class FdReaderBase : public BufferedReader {
 
  protected:
   // Creates a closed FdReaderBase.
-  FdReaderBase() noexcept = default;
+  //
+  // Not defaulted because string::string() is not noexcept before C++17.
+  FdReaderBase() noexcept {}
 
   // Will read from fd.
   FdReaderBase(int fd, bool owns_fd, size_t buffer_size);

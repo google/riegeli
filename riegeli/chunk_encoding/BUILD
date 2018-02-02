@@ -148,4 +148,5 @@ cc_library(
 cc_library(
     name = "field_filter",
     hdrs = ["field_filter.h"],
+    deps = ["//riegeli/base"],
 )
