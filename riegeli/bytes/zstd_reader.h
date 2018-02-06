@@ -19,7 +19,6 @@
 #include <memory>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -38,7 +37,9 @@ class ZstdReader final : public BufferedReader {
     constexpr Options() noexcept {}
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of ZstdReader::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }

@@ -12,29 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/bytes/backward_writer_utils.h"
-
-#include <stddef.h>
-#include <stdint.h>
-
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
-#include "riegeli/bytes/backward_writer.h"
-#include "riegeli/bytes/writer_utils.h"
+
+#include <exception>
+#include <iostream>
+#include <sstream>
 
 namespace riegeli {
 namespace internal {
 
-bool WriteVarint32Slow(BackwardWriter* dest, uint32_t data) {
-  char buffer[kMaxLengthVarint32()];
-  char* const end = WriteVarint32(buffer, data);
-  return dest->Write(string_view(buffer, PtrDistance(buffer, end)));
+CheckFailed::CheckFailed(const char* file, int line, const char* function,
+                         const char* message) {
+  stream_ << "Check failed at " << file << ":" << line << " in " << function
+          << ": " << message << " ";
 }
 
-bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data) {
-  char buffer[kMaxLengthVarint64()];
-  char* const end = WriteVarint64(buffer, data);
-  return dest->Write(string_view(buffer, PtrDistance(buffer, end)));
+CheckFailed::~CheckFailed() {
+  std::cerr << stream_.str() << std::endl;
+  std::terminate();
 }
 
 }  // namespace internal

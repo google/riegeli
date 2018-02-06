@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <string>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
@@ -56,15 +55,12 @@ class StringReader final : public Reader {
   bool HopeForMoreSlow() const override;
   bool SeekSlow(Position new_pos) override;
 
-  // Invariant: start_pos() == 0
+  // Invariants:
+  //   if !healthy() then start_ == nullptr
+  //   start_pos() == 0
 };
 
 // Implementation details follow.
-
-inline bool StringReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
-  return false;
-}
 
 inline bool StringReader::Size(Position* size) const {
   if (RIEGELI_UNLIKELY(!healthy())) return false;

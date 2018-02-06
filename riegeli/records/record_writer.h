@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"

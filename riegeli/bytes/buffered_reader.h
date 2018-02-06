@@ -40,7 +40,10 @@ class BufferedReader : public Reader {
 
   // Creates a BufferedReader with the given buffer size.
   explicit BufferedReader(size_t buffer_size) noexcept
-      : Reader(State::kOpen), buffer_size_(buffer_size) {}
+      : Reader(State::kOpen), buffer_size_(buffer_size) {
+    RIEGELI_ASSERT_GT(buffer_size, 0u)
+        << "Failed precondition of BufferedReader::BufferedReader(size_t)";
+  }
 
   BufferedReader(BufferedReader&& src) noexcept;
   BufferedReader& operator=(BufferedReader&& src) noexcept;
@@ -73,6 +76,8 @@ class BufferedReader : public Reader {
   void ClearBuffer();
 
   // The capacity of buffer_ once it is allocated.
+  //
+  // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;
 
  private:
@@ -82,17 +87,16 @@ class BufferedReader : public Reader {
 
   // Iterator pointing to the block of buffer_ which holds the actual data.
   //
-  // Precondition: !buffer_.blocks().empty()
+  // Precondition: buffer_.blocks().size() == 1
   Chain::BlockIterator iter() const;
 
   // Buffered data, read directly before the physical source position which is
   // limit_pos_.
   Chain buffer_;
 
-  // Invariants if healthy():
+  // Invariants:
   //   start_ == (buffer_.blocks().empty() ? nullptr : iter()->data())
-  //   limit_ == (buffer_.blocks().empty() ? nullptr
-  //                                       : iter()->data() + iter()->size())
+  //   buffer_size() == (buffer_.blocks().empty() ? 0 : iter()->size())
 };
 
 // Implementation details follow.

@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <cstring>
+#include <limits>
 #include <string>
 
 #include "riegeli/base/base.h"
@@ -34,8 +35,14 @@ bool RecordPosition::Parse(string_view serialized) {
   uint64_t words[2];
   if (RIEGELI_UNLIKELY(serialized.size() != sizeof(words))) return false;
   std::memcpy(words, serialized.data(), sizeof(words));
-  chunk_begin_ = ReadBigEndian64(words[0]);
-  record_index_ = ReadBigEndian64(words[1]);
+  const uint64_t chunk_begin = ReadBigEndian64(words[0]);
+  const uint64_t record_index = ReadBigEndian64(words[1]);
+  if (RIEGELI_UNLIKELY(record_index >
+                       std::numeric_limits<uint64_t>::max() - chunk_begin)) {
+    return false;
+  }
+  chunk_begin_ = chunk_begin;
+  record_index_ = record_index;
   return true;
 }
 

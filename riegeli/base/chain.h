@@ -19,11 +19,11 @@
 #include <atomic>
 #include <iosfwd>
 #include <iterator>
+#include <limits>
 #include <new>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
@@ -240,13 +240,13 @@ class Chain {
   //
   // Invariants:
   //   begin_ <= end_
-  //   If is_here() then begin_ == block_ptrs_.here
+  //   if is_here() then begin_ == block_ptrs_.here
   //                 and end_ <= block_ptrs_.here + 2
-  //   If is_allocated() then begin_ >= block_ptrs_.allocated.begin
+  //   if is_allocated() then begin_ >= block_ptrs_.allocated.begin
   //                      and end_ <= block_ptrs_.allocated.end
   Block** begin_ = block_ptrs_.here;
   Block** end_ = block_ptrs_.here;
-  // Invariant: if end_ == begin_ then size_ == 0
+  // Invariant: size_ is the sum of sizes of blocks in [begin_, end)
   size_t size_ = 0;
 };
 
@@ -306,13 +306,14 @@ class Chain::Blocks {
   size_type size() const;
   bool empty() const;
   const_reference operator[](size_type n) const;
+  const_reference at(size_type n) const;
   const_reference front() const;
   const_reference back() const;
 
  private:
   friend class Chain;
 
-  Blocks(Block* const* begin, Block* const* end) : begin_(begin), end_(end) {}
+  Blocks(Block* const* begin, Block* const* end);
 
   Block* const* begin_ = nullptr;
   Block* const* end_ = nullptr;
@@ -420,6 +421,8 @@ class Chain::Buffer {
 //  - Tiny blocks must not be adjacent.
 class Chain::Block {
  public:
+  static constexpr size_t kMaxCapacity();
+
   // Creates an internal block for appending.
   static Block* NewInternal(size_t capacity);
 
@@ -473,8 +476,8 @@ class Chain::Block {
   bool can_prepend(size_t size) const;
   size_t max_can_append() const;
   size_t max_can_prepend() const;
-  Buffer MakeAppendBuffer();
-  Buffer MakePrependBuffer();
+  Buffer MakeAppendBuffer(size_t max_size);
+  Buffer MakePrependBuffer(size_t max_size);
   void Append(string_view src);
   void Prepend(string_view src);
   bool TryRemoveSuffix(size_t length);
@@ -530,6 +533,9 @@ class Chain::Block {
     // If is_external(), the remaining fields.
     External external_;
   };
+
+  // Invariant: if is_external(), data() is the same as external_object.data()
+  // where external_object is the stored external object.
 };
 
 struct Chain::ExternalMethods {
@@ -610,14 +616,16 @@ Chain::Block::Block(T* object) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
   data_ = unchecked_external_object<T>()->data();
-  RIEGELI_ASSERT(is_external());
+  RIEGELI_ASSERT(is_external())
+      << "A Block with allocated_end_ == nullptr should be considered external";
 }
 
 template <typename T>
 Chain::Block::Block(T* object, string_view data) : data_(data) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
-  RIEGELI_ASSERT(is_external());
+  RIEGELI_ASSERT(is_external())
+      << "A Block with allocated_end_ == nullptr should be considered external";
 }
 
 constexpr size_t Chain::Block::kInternalAllocatedOffset() {
@@ -628,6 +636,10 @@ template <typename T>
 constexpr size_t Chain::Block::kExternalObjectOffset() {
   return RoundUp<alignof(T)>(offsetof(Block, external_) +
                              offsetof(External, object_lower_bound));
+}
+
+constexpr size_t Chain::Block::kMaxCapacity() {
+  return std::numeric_limits<size_t>::max() - kInternalAllocatedOffset();
 }
 
 inline Chain::Block* Chain::Block::Ref() {
@@ -641,14 +653,18 @@ inline bool Chain::Block::has_unique_owner() const {
 
 template <typename T>
 T* Chain::Block::unchecked_external_object() {
-  RIEGELI_ASSERT(is_external());
+  RIEGELI_ASSERT(is_external())
+      << "Failed precondition of Chain::Block::unchecked_external_object(): "
+      << "block not external";
   return reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
                               kExternalObjectOffset<T>());
 }
 
 template <typename T>
 const T* Chain::Block::unchecked_external_object() const {
-  RIEGELI_ASSERT(is_external());
+  RIEGELI_ASSERT(is_external())
+      << "Failed precondition of Chain::Block::unchecked_external_object(): "
+      << "block not external";
   return reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
                                     kExternalObjectOffset<T>());
 }
@@ -670,7 +686,9 @@ T* Chain::Block::checked_external_object_with_unique_owner() {
 }
 
 inline bool Chain::Block::TryRemoveSuffix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size());
+  RIEGELI_ASSERT_LE(length, size())
+      << "Failed precondition of Chain::Block::TryRemoveSuffix(): "
+      << "length to remove greater than current size";
   if (is_internal() && has_unique_owner()) {
     data_.remove_suffix(length);
     return true;
@@ -679,7 +697,9 @@ inline bool Chain::Block::TryRemoveSuffix(size_t length) {
 }
 
 inline bool Chain::Block::TryRemovePrefix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size());
+  RIEGELI_ASSERT_LE(length, size())
+      << "Failed precondition of Chain::Block::TryRemovePrefix(): "
+      << "length to remove greater than current size";
   if (is_internal() && has_unique_owner()) {
     data_.remove_prefix(length);
     return true;
@@ -785,6 +805,9 @@ const T* Chain::BlockIterator::external_object() const {
   return (*iter_)->checked_external_object<T>();
 }
 
+inline Chain::Blocks::Blocks(Block* const* begin, Block* const* end)
+    : begin_(begin), end_(end) {}
+
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
   return const_iterator(begin_);
 }
@@ -818,21 +841,34 @@ inline Chain::Blocks::const_reverse_iterator Chain::Blocks::crend() const {
 }
 
 inline Chain::Blocks::size_type Chain::Blocks::size() const {
-  return end_ - begin_;
+  return PtrDistance(begin_, end_);
 }
 
-inline bool Chain::Blocks::empty() const { return end_ == begin_; }
+inline bool Chain::Blocks::empty() const { return begin_ == end_; }
 
 inline Chain::Blocks::const_reference Chain::Blocks::operator[](
     size_type n) const {
+  RIEGELI_ASSERT_LT(n, size())
+      << "Failed precondition of Chain::Blocks::operator[](): "
+         "block index out of range";
+  return begin_[n]->data();
+}
+
+inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
+  RIEGELI_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
+                                 "block index out of range";
   return begin_[n]->data();
 }
 
 inline Chain::Blocks::const_reference Chain::Blocks::front() const {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of Chain::Blocks::front(): no blocks";
   return begin_[0]->data();
 }
 
 inline Chain::Blocks::const_reference Chain::Blocks::back() const {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of Chain::Blocks::back(): no blocks";
   return end_[-1]->data();
 }
 
@@ -871,9 +907,12 @@ void Chain::PrependExternal(T object, string_view data, size_t size_hint) {
 }
 
 inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
-  RIEGELI_ASSERT_LE(length, size());
   if (length == 0) return;
-  RIEGELI_ASSERT(end_ != begin_);
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of Chain::RemoveSuffix(): "
+      << "length to remove greater than current size";
+  RIEGELI_ASSERT(begin_ != end_)
+      << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
   if (RIEGELI_LIKELY(length <= back()->size() &&
                      back()->TryRemoveSuffix(length))) {
@@ -883,9 +922,12 @@ inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
 }
 
 inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
-  RIEGELI_ASSERT_LE(length, size());
   if (length == 0) return;
-  RIEGELI_ASSERT(end_ != begin_);
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of Chain::RemovePrefix(): "
+      << "length to remove greater than current size";
+  RIEGELI_ASSERT(begin_ != end_)
+      << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
   if (RIEGELI_LIKELY(length <= front()->size() &&
                      front()->TryRemovePrefix(length))) {

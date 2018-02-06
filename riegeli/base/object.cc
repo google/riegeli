@@ -18,7 +18,7 @@
 #include <atomic>
 #include <string>
 
-#include "riegeli/base/assert.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/string_view.h"
 
@@ -38,9 +38,11 @@ bool Object::Close() {
           status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
           return true;
         case kClosedSuccessfully():
-          RIEGELI_UNREACHABLE();
+          RIEGELI_ASSERT_UNREACHABLE()
+              << "Object marked as closed during Done()";
         default:
-          RIEGELI_ASSERT(!reinterpret_cast<Failed*>(status_after)->closed);
+          RIEGELI_ASSERT(!reinterpret_cast<Failed*>(status_after)->closed)
+              << "Object marked as closed during Done()";
           reinterpret_cast<Failed*>(status_after)->closed = true;
           return false;
       }
@@ -51,7 +53,8 @@ bool Object::Close() {
 }
 
 bool Object::Fail(string_view message) {
-  RIEGELI_ASSERT(!closed());
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
   const uintptr_t new_status =
       reinterpret_cast<uintptr_t>(new Failed{false, std::string(message)});
   uintptr_t old_status = kHealthy();
@@ -68,7 +71,9 @@ bool Object::Fail(string_view message, const Object& src) {
 }
 
 bool Object::Fail(const Object& src) {
-  RIEGELI_ASSERT(!src.healthy());
+  RIEGELI_ASSERT(!src.healthy())
+      << "Failed precondition of Object::Fail(Object): "
+         "source Object is healthy";
   return Fail(src.Message());
 }
 

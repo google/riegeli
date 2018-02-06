@@ -26,8 +26,6 @@
 namespace riegeli {
 
 // A Writer which appends to a string, resizing it as necessary.
-//
-// Functions of this Writer fail only when it is closed.
 class StringWriter final : public Writer {
  public:
   class Options {
@@ -92,7 +90,7 @@ class StringWriter final : public Writer {
 
   // Invariants if healthy():
   //   start_ == &(*dest_)[0]
-  //   limit_ == &(*dest_)[dest_->size()]
+  //   buffer_size() == dest_->size()
   //   start_pos_ == 0
 };
 

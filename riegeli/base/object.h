@@ -15,11 +15,10 @@
 #ifndef RIEGELI_BASE_OBJECT_H_
 #define RIEGELI_BASE_OBJECT_H_
 
-#include <stddef.h>
+#include <stdint.h>
 #include <atomic>
 #include <string>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/string_view.h"
@@ -222,7 +221,8 @@ TypeId TypeId::For() {
 
 inline Object::Object(State state) noexcept
     : status_(static_cast<uintptr_t>(state)) {
-  RIEGELI_ASSERT(state == State::kOpen || state == State::kClosed);
+  RIEGELI_ASSERT(state == State::kOpen || state == State::kClosed)
+      << "Unknown state: " << static_cast<uintptr_t>(state);
 }
 
 inline Object::Object(Object&& src) noexcept

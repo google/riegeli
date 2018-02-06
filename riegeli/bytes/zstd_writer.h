@@ -19,7 +19,6 @@
 #include <memory>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -35,14 +34,19 @@ class ZstdWriter final : public BufferedWriter {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
-
-    // Tune compression level vs. compression speed tradeoff.
+    constexpr Options() noexcept {
+    }  // Tune compression level vs. compression speed tradeoff.
     //
     // Level must be between 1 and 22. Default: 9.
     Options& set_compression_level(int level) & {
-      RIEGELI_ASSERT_GE(level, 1);
-      RIEGELI_ASSERT_LE(level, 22);
+      RIEGELI_ASSERT_GE(level, 1)
+          << "Failed precondition of "
+             "ZstdWriter::Options::set_compression_level(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(level, 22)
+          << "Failed precondition of "
+             "ZstdWriter::Options::set_compression_level()"
+             "compression level out of range";
       compression_level_ = level;
       return *this;
     }
@@ -51,7 +55,9 @@ class ZstdWriter final : public BufferedWriter {
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of ZstdWriter::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }

@@ -17,11 +17,11 @@
 
 #include <stddef.h>
 #include <ios>
+#include <limits>
 #include <memory>
 #include <new>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
 
@@ -170,6 +170,10 @@ T* AllocateAlignedBytes(size_t num_bytes) {
   if (alignment <= kDefaultNewAlignment) {
     return static_cast<T*>(operator new(num_bytes));
   } else {
+    RIEGELI_CHECK_LE(num_bytes, std::numeric_limits<size_t>::max() -
+                                    sizeof(void*) - alignment +
+                                    kDefaultNewAlignment)
+        << "Out of memory";
     void* const allocated = operator new(sizeof(void*) + num_bytes + alignment -
                                          kDefaultNewAlignment);
     void* const aligned =
@@ -213,7 +217,10 @@ void FreeAlignedBytes(T* ptr, size_t num_bytes) {
     RIEGELI_ASSERT(
         ptr ==
         reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
-            static_cast<char*>(allocated) + sizeof(void*)))));
+            static_cast<char*>(allocated) + sizeof(void*)))))
+        << "Failed precondition of FreeAlignedBytes(): the pointer was not "
+           "obtained from AllocateAlignedBytes(), or alignment does not match, "
+           "or memory before the allocated block got corrupted";
     operator delete(allocated, sizeof(void*) + num_bytes + alignment -
                                    kDefaultNewAlignment);
   }

@@ -39,7 +39,10 @@ class BufferedWriter : public Writer {
 
   // Creates a BufferedWriter with the given buffer size.
   explicit BufferedWriter(size_t buffer_size) noexcept
-      : Writer(State::kOpen), buffer_size_(buffer_size) {}
+      : Writer(State::kOpen), buffer_size_(buffer_size) {
+    RIEGELI_ASSERT_GT(buffer_size, 0u)
+        << "Failed precondition of BufferedWriter::BufferedWriter(size_t)";
+  }
 
   BufferedWriter(BufferedWriter&& src) noexcept;
   BufferedWriter& operator=(BufferedWriter&& src) noexcept;
@@ -57,7 +60,7 @@ class BufferedWriter : public Writer {
   // Writes buffered data to the destination, but unlike PushSlow(), does not
   // ensure that a buffer is allocated.
   //
-  // Postcondition: cursor_ == start_
+  // Postcondition: written_to_buffer() == 0
   bool PushInternal();
 
   // Writes data to the destination, to the physical destination position which
@@ -68,16 +71,18 @@ class BufferedWriter : public Writer {
   // Preconditions:
   //   !src.empty()
   //   healthy()
-  //   cursor_ == start_
+  //   written_to_buffer() == 0
   virtual bool WriteInternal(string_view src) = 0;
 
   // The size of the buffer that start_ points to, once it is allocated.
   //
   // The buffer is allocated with std::allocator<char>().
   //
-  // Invariant:
-  //   limit_ == start_ + (start_ == nullptr || !healthy() ? 0 : buffer_size_)
+  // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;
+
+  // Invariant if healthy():
+  //   buffer_size() == (start_ == nullptr ? 0 : buffer_size_)
 };
 
 // Implementation details follow.

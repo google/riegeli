@@ -76,6 +76,7 @@ class LimitingReader final : public Reader {
 
   // Invariants if healthy():
   //   limit_pos_ == UnsignedMin(src_->limit_pos_, size_limit_)
+  //   start_ == src_->start_
   //   limit_ == src_->limit_ - (src_->limit_pos_ - limit_pos_)
 };
 

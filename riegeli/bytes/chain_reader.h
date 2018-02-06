@@ -69,8 +69,7 @@ class ChainReader final : public Reader {
 
   // Invariants:
   //   start_ == (iter_ == src_->blocks().cend() ? nullptr : iter_->data())
-  //   limit_ == (iter_ == src_->blocks().cend() ? nullptr : iter_->data() +
-  //                                                         iter_->size())
+  //   buffer_size() == (iter_ == src_->blocks().cend() ? 0 : iter_->size())
   //   start_pos() is the position of iter_ in *src_
 };
 

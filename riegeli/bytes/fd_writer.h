@@ -21,7 +21,6 @@
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -69,6 +68,10 @@ class FdWriterBase : public BufferedWriter {
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
+
+  // Invariants:
+  //   start_pos_ <= numeric_limits<off_t>::max()
+  //   buffer_size_ <= numeric_limits<off_t>::max()
 };
 
 }  // namespace internal
@@ -112,7 +115,9 @@ class FdWriter final : public internal::FdWriterBase {
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of FdWriter::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }
@@ -220,7 +225,10 @@ class FdStreamWriter final : public internal::FdWriterBase {
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of "
+             "FdStreamWriter::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }

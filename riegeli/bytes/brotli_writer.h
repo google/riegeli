@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "brotli/encode.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -42,8 +41,14 @@ class BrotliWriter final : public BufferedWriter {
     //
     // Level must be between 0 and 11. Default: 9.
     Options& set_compression_level(int level) & {
-      RIEGELI_ASSERT_GE(level, 0);
-      RIEGELI_ASSERT_LE(level, 11);
+      RIEGELI_ASSERT_GE(level, 0)
+          << "Failed precondition of "
+             "BrotliWriter::Options::set_compression_level(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(level, 11)
+          << "Failed precondition of "
+             "BrotliWriter::Options::set_compression_level(): "
+             "compression level out of range";
       compression_level_ = level;
       return *this;
     }
@@ -52,7 +57,9 @@ class BrotliWriter final : public BufferedWriter {
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of BrotliWriter::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }

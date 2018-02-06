@@ -19,7 +19,6 @@
 #include <new>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -116,7 +115,7 @@ again:
     }
     if (RIEGELI_UNLIKELY(!byte_reader_->Read(
             &reading_.chunk.data,
-            static_cast<size_t>(UnsignedMin(
+            IntCast<size_t>(UnsignedMin(
                 reading_.chunk.header.data_size() - reading_.chunk.data.size(),
                 internal::RemainingInBlock(byte_reader_->pos())))))) {
       return ReadingFailed();
@@ -153,10 +152,10 @@ inline bool ChunkReader::ReadChunkHeader() {
     PrepareForRecovering();
     return false;
   }
-  if (byte_reader_->pos() == pos_ && !byte_reader_->Pull()) {
+  if (byte_reader_->pos() == pos_ && RIEGELI_UNLIKELY(!byte_reader_->Pull())) {
     // byte_reader_ ends between chunks. Any other place implies that the data
     // are truncated.
-    if (byte_reader_->healthy()) return false;
+    if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
     return Fail(*byte_reader_);
   }
 
@@ -169,7 +168,10 @@ inline bool ChunkReader::ReadChunkHeader() {
     if (RIEGELI_UNLIKELY(!byte_reader_->Read(
             reading_.chunk.header.bytes() + reading_.chunk_header_read,
             length))) {
-      reading_.chunk_header_read += byte_reader_->pos() - pos_before;
+      RIEGELI_ASSERT_GE(byte_reader_->pos(), pos_before);
+      const Position length_read = byte_reader_->pos() - pos_before;
+      RIEGELI_ASSERT_LE(length_read, length);
+      reading_.chunk_header_read += IntCast<size_t>(length_read);
       return ReadingFailed();
     }
     reading_.chunk_header_read += length;
@@ -239,7 +241,7 @@ inline bool ChunkReader::Recover() {
 
   if (byte_reader_->pos() < pos_) {
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(pos_))) {
-      if (byte_reader_->healthy()) return false;
+      if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
       return Fail(*byte_reader_);
     }
   }
@@ -266,7 +268,7 @@ inline bool ChunkReader::Recover() {
   }
 
   if (RIEGELI_UNLIKELY(!byte_reader_->Seek(recovering_.chunk_begin))) {
-    if (byte_reader_->healthy()) return false;
+    if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
     return Fail(*byte_reader_);
   }
   pos_ = recovering_.chunk_begin;
@@ -277,7 +279,7 @@ inline bool ChunkReader::Recover() {
 bool ChunkReader::Seek(Position new_pos) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(!byte_reader_->Seek(new_pos))) {
-    if (byte_reader_->healthy()) {
+    if (RIEGELI_LIKELY(byte_reader_->healthy())) {
       pos_ = byte_reader_->pos();
       PrepareForRecovering();
       return false;
@@ -345,7 +347,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
     pos_ = block_begin;
     PrepareForFindingChunk();
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(block_begin))) {
-      if (byte_reader_->healthy()) return false;
+      if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
       return Fail(*byte_reader_);
     }
     if (RIEGELI_UNLIKELY(!ReadBlockHeader())) {
@@ -379,7 +381,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
 
   for (;;) {
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(chunk_begin))) {
-      if (byte_reader_->healthy()) return false;
+      if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
       return Fail(*byte_reader_);
     }
     pos_ = chunk_begin;

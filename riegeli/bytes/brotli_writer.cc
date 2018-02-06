@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "brotli/encode.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -49,9 +48,9 @@ BrotliWriter::BrotliWriter(Writer* dest, Options options)
     Fail("BrotliEncoderCreateInstance() failed");
     return;
   }
-  if (RIEGELI_UNLIKELY(
-          !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_QUALITY,
-                                     options.compression_level_))) {
+  if (RIEGELI_UNLIKELY(!BrotliEncoderSetParameter(
+          compressor_.get(), BROTLI_PARAM_QUALITY,
+          IntCast<uint32_t>(options.compression_level_)))) {
     Fail("BrotliEncoderSetParameter() failed");
     return;
   }
@@ -114,16 +113,31 @@ bool BrotliWriter::Flush(FlushType flush_type) {
 }
 
 bool BrotliWriter::WriteInternal(string_view src) {
-  RIEGELI_ASSERT(!src.empty());
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(!src.empty())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "nothing to write";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "buffer not cleared";
   return WriteInternal(src, BROTLI_OPERATION_PROCESS);
 }
 
 inline bool BrotliWriter::WriteInternal(string_view src,
                                         BrotliEncoderOperation op) {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BrotliWriter::WriteInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of BrotliWriter::WriteInternal(): "
+         "buffer not cleared";
+  if (RIEGELI_UNLIKELY(src.size() >
+                       std::numeric_limits<Position>::max() - limit_pos())) {
+    limit_ = start_;
+    return FailOverflow();
+  }
   size_t available_in = src.size();
   const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src.data());
   size_t available_out = 0;

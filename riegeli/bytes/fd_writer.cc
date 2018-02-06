@@ -30,10 +30,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -45,20 +45,27 @@ namespace riegeli {
 namespace internal {
 
 FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
-    : BufferedWriter(buffer_size),
+    : BufferedWriter(UnsignedMin(buffer_size,
+                                 Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
       filename_(fd == 1 ? "/dev/stdout"
                         : fd == 2 ? "/dev/stderr"
                                   : "/proc/self/fd/" + std::to_string(fd)) {
-  RIEGELI_ASSERT_GE(fd, 0);
+  RIEGELI_ASSERT_GE(fd, 0)
+      << "Failed precondition of FdWriterBase::FdWriterBase(int): "
+         "negative file descriptor";
 }
 
 FdWriterBase::FdWriterBase(std::string filename, int flags, mode_t permissions,
                            size_t buffer_size)
-    : BufferedWriter(buffer_size), filename_(std::move(filename)) {
+    : BufferedWriter(UnsignedMin(buffer_size,
+                                 Position{std::numeric_limits<off_t>::max()})),
+      filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR);
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdWriterBase::FdWriterBase(string): "
+         "flags must include O_WRONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, permissions);
   if (RIEGELI_UNLIKELY(fd_ < 0)) {
@@ -99,7 +106,6 @@ void FdWriterBase::Done() {
 }
 
 bool FdWriterBase::FailOperation(const char* operation, int error_code) {
-  RIEGELI_ASSERT(healthy());
   error_code_ = error_code;
   char message[256];
   strerror_r(error_code, message, sizeof(message));
@@ -120,8 +126,8 @@ bool FdWriterBase::Flush(FlushType flush_type) {
       return result == 0;
     }
   }
-  RIEGELI_ASSERT(false) << "Unknown flush type: "
-                        << static_cast<int>(flush_type);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
 }  // namespace internal
@@ -138,7 +144,9 @@ FdWriter::FdWriter(std::string filename, int flags, Options options)
     : FdWriterBase(std::move(filename), flags, options.permissions_,
                    options.buffer_size_),
       sync_pos_(options.sync_pos_) {
-  RIEGELI_ASSERT(options.owns_fd_);
+  RIEGELI_ASSERT(options.owns_fd_)
+      << "Failed precondition of FdWriter::FdWriter(string): "
+         "file must be owned if FdWriter opens it";
   if (RIEGELI_LIKELY(healthy())) InitializePos(flags);
 }
 
@@ -158,15 +166,13 @@ void FdWriter::Done() {
 }
 
 inline void FdWriter::InitializePos(int flags) {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT_EQ(start_pos_, 0u);
   if (sync_pos_) {
     const off_t result = lseek(fd_, 0, SEEK_CUR);
     if (RIEGELI_UNLIKELY(result < 0)) {
       FailOperation("lseek()", errno);
       return;
     }
-    start_pos_ = static_cast<Position>(result);
+    start_pos_ = IntCast<Position>(result);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
@@ -174,15 +180,17 @@ inline void FdWriter::InitializePos(int flags) {
       FailOperation("fstat()", error_code);
       return;
     }
-    start_pos_ = static_cast<Position>(stat_info.st_size);
+    start_pos_ = IntCast<Position>(stat_info.st_size);
   }
 }
 
 bool FdWriter::MaybeSyncPos() {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of FdWriterBase::MaybeSyncPos(): "
+         "buffer not cleared";
   if (sync_pos_) {
-    if (RIEGELI_UNLIKELY(lseek(fd_, pos(), SEEK_SET) < 0)) {
+    if (RIEGELI_UNLIKELY(lseek(fd_, IntCast<off_t>(start_pos_), SEEK_SET) <
+                         0)) {
       limit_ = start_;
       return FailOperation("lseek()", errno);
     }
@@ -191,40 +199,60 @@ bool FdWriter::MaybeSyncPos() {
 }
 
 bool FdWriter::WriteInternal(string_view src) {
-  RIEGELI_ASSERT(!src.empty());
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(!src.empty())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "nothing to write";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "buffer not cleared";
+  if (RIEGELI_UNLIKELY(src.size() >
+                       Position{std::numeric_limits<off_t>::max()} -
+                           start_pos_)) {
+    limit_ = start_;
+    return FailOverflow();
+  }
   do {
   again:
-    const ssize_t result = pwrite(fd_, src.data(), src.size(), start_pos_);
+    const ssize_t result = pwrite(
+        fd_, src.data(),
+        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
+        IntCast<off_t>(start_pos_));
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       limit_ = start_;
       return FailOperation("pwrite()", error_code);
     }
-    RIEGELI_ASSERT_GT(result, 0);
-    start_pos_ += result;
-    src.remove_prefix(result);
+    RIEGELI_ASSERT_GT(result, 0) << "pwrite() returned 0";
+    RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
+        << "pwrite() wrote more than requested";
+    start_pos_ += IntCast<size_t>(result);
+    src.remove_prefix(IntCast<size_t>(result));
   } while (!src.empty());
   return true;
 }
 
 bool FdWriter::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos());
+  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "BufferedWriter::PushInternal() did not empty the buffer";
   if (new_pos >= start_pos_) {
+    // Seeking forwards.
     struct stat stat_info;
     if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
       limit_ = start_;
       return FailOperation("fstat()", error_code);
     }
-    RIEGELI_ASSERT_GE(stat_info.st_size, 0);
-    if (RIEGELI_UNLIKELY(new_pos > static_cast<Position>(stat_info.st_size))) {
+    if (RIEGELI_UNLIKELY(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      start_pos_ = static_cast<Position>(stat_info.st_size);
+      start_pos_ = IntCast<Position>(stat_info.st_size);
       return false;
     }
   }
@@ -237,15 +265,16 @@ bool FdWriter::Size(Position* size) const {
   struct stat stat_info;
   const int result = fstat(fd_, &stat_info);
   if (RIEGELI_UNLIKELY(result < 0)) return false;
-  *size = UnsignedMax(static_cast<Position>(stat_info.st_size), pos());
+  *size = UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
   return true;
 }
 
 bool FdWriter::Truncate() {
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "BufferedWriter::PushInternal() did not empty the buffer";
 again:
-  if (RIEGELI_UNLIKELY(ftruncate(fd_, start_pos_) < 0)) {
+  if (RIEGELI_UNLIKELY(ftruncate(fd_, IntCast<off_t>(start_pos_)) < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     limit_ = start_;
@@ -258,14 +287,19 @@ FdStreamWriter::FdStreamWriter() noexcept = default;
 
 FdStreamWriter::FdStreamWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_) {
-  RIEGELI_ASSERT(options.has_assumed_pos_);
+  RIEGELI_ASSERT(options.has_assumed_pos_)
+      << "Failed precondition of FdStreamWriter::FdStreamWriter(int): "
+         "assumed file position must be specified "
+         "if FdStreamWriter does not open the file";
   start_pos_ = options.assumed_pos_;
 }
 
 FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
     : FdWriterBase(std::move(filename), flags, options.permissions_,
                    options.buffer_size_) {
-  RIEGELI_ASSERT(options.owns_fd_);
+  RIEGELI_ASSERT(options.owns_fd_)
+      << "Failed precondition of FdStreamWriter::FdStreamWriter(string): "
+         "file must be owned if FdStreamWriter opens it";
   if (RIEGELI_UNLIKELY(!healthy())) return;
   if (options.has_assumed_pos_) {
     start_pos_ = options.assumed_pos_;
@@ -276,7 +310,7 @@ FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
       FailOperation("fstat()", error_code);
       return;
     }
-    start_pos_ = static_cast<Position>(stat_info.st_size);
+    start_pos_ = IntCast<Position>(stat_info.st_size);
   }
 }
 
@@ -289,21 +323,37 @@ FdStreamWriter& FdStreamWriter::operator=(FdStreamWriter&& src) noexcept {
 }
 
 bool FdStreamWriter::WriteInternal(string_view src) {
-  RIEGELI_ASSERT(!src.empty());
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(!src.empty())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "nothing to write";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "buffer not cleared";
+  if (RIEGELI_UNLIKELY(src.size() >
+                       Position{std::numeric_limits<off_t>::max()} -
+                           start_pos_)) {
+    limit_ = start_;
+    return FailOverflow();
+  }
   do {
   again:
-    const ssize_t result = write(fd_, src.data(), src.size());
+    const ssize_t result = write(
+        fd_, src.data(),
+        UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}));
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       limit_ = start_;
       return FailOperation("write()", error_code);
     }
-    RIEGELI_ASSERT_GT(result, 0);
-    start_pos_ += result;
-    src.remove_prefix(result);
+    RIEGELI_ASSERT_GT(result, 0) << "write() returned 0";
+    RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
+        << "write() wrote more than requested";
+    start_pos_ += IntCast<size_t>(result);
+    src.remove_prefix(IntCast<size_t>(result));
   } while (!src.empty());
   return true;
 }

@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -62,8 +61,8 @@ inline void SimpleChunkEncoder::Compressor::Reset(
           ZstdWriter::Options().set_compression_level(compression_level));
       return;
   }
-  RIEGELI_UNREACHABLE() << "Unknown compression type: "
-                        << static_cast<int>(compression_type);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown compression type: " << static_cast<int>(compression_type);
 }
 
 Chain* SimpleChunkEncoder::Compressor::Encode() {
@@ -93,7 +92,7 @@ void SimpleChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) 
   //             record.GetTypeName() +
   //             " because it is missing required fields: " +
   //             record.InitializationErrorString());
-  RIEGELI_ASSERT(record.IsInitialized());
+  RIEGELI_CHECK(record.IsInitialized());
   ++num_records_;
   WriteVarint64(sizes_compressor_.writer(), record.ByteSizeLong());
   SerializePartialToWriter(record, values_compressor_.writer());
@@ -139,7 +138,8 @@ bool SimpleChunkEncoder::Encode(Chunk* chunk) {
   if (RIEGELI_UNLIKELY(compressed_values == nullptr)) return false;
   data_writer.Write(std::move(*compressed_values));
   if (RIEGELI_UNLIKELY(!data_writer.Close())) return false;
-  chunk->header = ChunkHeader(chunk->data, num_records_, decoded_data_size);
+  chunk->header = ChunkHeader(chunk->data, num_records_,
+                              IntCast<uint64_t>(decoded_data_size));
   return true;
 }
 
@@ -162,8 +162,8 @@ inline void EagerTransposedChunkEncoder::SetCompression(
       transpose_encoder_.EnableZstdCompression(compression_level);
       return;
   }
-  RIEGELI_UNREACHABLE() << "Unknown compression type: "
-                        << static_cast<int>(compression_type);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown compression type: " << static_cast<int>(compression_type);
 }
 
 void EagerTransposedChunkEncoder::Reset() {
@@ -179,7 +179,7 @@ void EagerTransposedChunkEncoder::AddRecord(const google::protobuf::MessageLite&
   //             record.GetTypeName() +
   //             " because it is missing required fields: " +
   //             record.InitializationErrorString());
-  RIEGELI_ASSERT(record.IsInitialized());
+  RIEGELI_CHECK(record.IsInitialized());
   ++num_records_;
   decoded_data_size_ += record.ByteSizeLong();
   transpose_encoder_.AddMessage(SerializePartialAsChain(record));
@@ -206,8 +206,8 @@ void EagerTransposedChunkEncoder::AddRecord(const Chain& record) {
 void EagerTransposedChunkEncoder::AddRecord(Chain&& record) {
   ++num_records_;
   decoded_data_size_ += record.size();
-  // No std::move(): TransposeEncoder::AddMessage() does not have a Chain&&
-  // overload.
+  // Not std::move(record): TransposeEncoder::AddMessage() does not have a
+  // Chain&& overload.
   transpose_encoder_.AddMessage(record);
 }
 
@@ -239,7 +239,7 @@ void DeferredTransposedChunkEncoder::AddRecord(
   //             record.GetTypeName() +
   //             " because it is missing required fields: " +
   //             record.InitializationErrorString());
-  RIEGELI_ASSERT(record.IsInitialized());
+  RIEGELI_CHECK(record.IsInitialized());
   records_.emplace_back();
   AppendPartialToChain(record, &records_.back());
 }

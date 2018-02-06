@@ -41,7 +41,6 @@ using std::string_view;
 #include <iterator>
 #include <string>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -50,8 +49,8 @@ namespace riegeli {
 //
 // constexpr is skipped where it would be impractical to achieve before C++14.
 //
-// Skipped functions: at, find_first_of, find_last_of, find_first_not_of,
-// find_last_not_of.
+// Skipped functions: find_first_of(), find_last_of(), find_first_not_of(),
+// find_last_not_of().
 class string_view {
  public:
   using traits_type = std::char_traits<char>;
@@ -104,26 +103,39 @@ class string_view {
   constexpr bool empty() const noexcept { return size_ == 0; }
 
   const_reference operator[](size_type pos) const {
-    RIEGELI_ASSERT_LT(pos, size_);
+    RIEGELI_ASSERT_LT(pos, size_)
+        << "Failed precondition of string_view::operator[](): "
+           "index out of range";
+    return data_[pos];
+  }
+  const_reference at(size_type pos) const {
+    RIEGELI_CHECK_LT(pos, size_)
+        << "Failed precondition of string_view::at(): index out of range";
     return data_[pos];
   }
   const_reference front() const {
-    RIEGELI_ASSERT(!empty());
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of string_view::front(): empty string_view";
     return data_[0];
   }
   const_reference back() const {
-    RIEGELI_ASSERT(!empty());
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of string_view::back(): empty string_view";
     return data_[size_ - 1];
   }
   constexpr const_pointer data() const noexcept { return data_; }
 
   void remove_prefix(size_type length) {
-    RIEGELI_ASSERT_LE(length, size_);
+    RIEGELI_ASSERT_LE(length, size_)
+        << "Failed precondition of string_view::remove_prefix(): "
+           "length to remove greater than current size";
     data_ += length;
     size_ -= length;
   }
   void remove_suffix(size_type length) {
-    RIEGELI_ASSERT_LE(length, size_);
+    RIEGELI_ASSERT_LE(length, size_)
+        << "Failed precondition of string_view::remove_suffix(): "
+           "length to remove greater than current size";
     size_ -= length;
   }
   void swap(string_view& that) noexcept {
@@ -133,16 +145,19 @@ class string_view {
   }
 
   size_type copy(char* dest, size_type length, size_type pos = 0) const {
-    // Assert instead of throwing an exception.
-    RIEGELI_ASSERT_LE(pos, size_);
+    // Terminate the program instead of throwing an exception.
+    RIEGELI_CHECK_LE(pos, size_)
+        << "Failed precondition of string_view::copy(): position out of range";
     length = UnsignedMin(length, size_ - pos);
     if (length != 0) std::memcpy(dest, data_ + pos, length);
     return length;
   }
 
   string_view substr(size_type pos = 0, size_type length = npos) const {
-    // Assert instead of throwing an exception.
-    RIEGELI_ASSERT_LE(pos, size_);
+    // Terminate the program instead of throwing an exception.
+    RIEGELI_CHECK_LE(pos, size_)
+        << "Failed precondition of string_view::substr(): "
+           "position out of range";
     return string_view(data_ + pos, UnsignedMin(length, size_ - pos));
   }
 

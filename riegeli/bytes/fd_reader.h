@@ -20,7 +20,6 @@
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -68,6 +67,10 @@ class FdReaderBase : public BufferedReader {
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
+
+  // Invariants:
+  //   limit_pos_ <= numeric_limits<off_t>::max()
+  //   buffer_size_ <= numeric_limits<off_t>::max()
 };
 
 }  // namespace internal
@@ -100,7 +103,8 @@ class FdReader final : public internal::FdReaderBase {
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of FdReader::Options::set_buffer_size()";
       buffer_size_ = buffer_size;
       return *this;
     }
@@ -182,7 +186,9 @@ class FdStreamReader final : public internal::FdReaderBase {
     // amount of extra data consumed, which would not be useful.
 
     Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u);
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of "
+             "FdStreamReader::Options::set_buffer_size()";
       buffer_size_ = buffer_size;
       return *this;
     }
@@ -323,8 +329,8 @@ class FdMMapReader final : public Reader {
 
   // Invariants:
   //   start_ == (contents_.blocks().empty() ? nullptr : iter()->data())
-  //   limit_ == (contents_.blocks().empty() ? nullptr
-  //                                         : iter()->data() + iter()->size())
+  //   buffer_size() == (contents_.blocks().empty() ? 0 : iter()->size())
+  //   start_pos() == 0
 };
 
 }  // namespace riegeli

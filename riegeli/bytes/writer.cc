@@ -17,9 +17,7 @@
 #include <stddef.h>
 #include <cstring>
 #include <string>
-#include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -27,8 +25,12 @@
 
 namespace riegeli {
 
+bool Writer::FailOverflow() { return Fail("Writer position overflows"); }
+
 bool Writer::WriteSlow(string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available());
+  RIEGELI_ASSERT_GT(src.size(), available())
+      << "Failed precondition of Writer::WriteSlow(string_view): "
+         "length too small, use Write(string_view) instead";
   if (available() == 0) goto skip_copy;  // memcpy(nullptr, _, 0) is undefined.
   do {
     {
@@ -46,13 +48,17 @@ bool Writer::WriteSlow(string_view src) {
 }
 
 bool Writer::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
-  // No std::move(): forward to Write(string_view).
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Writer::WriteSlow(string&&): "
+         "length too small, use Write(string&&) instead";
+  // Not std::move(src): forward to Write(string_view).
   return Write(src);
 }
 
 bool Writer::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Writer::WriteSlow(Chain): "
+         "length too small, use Write(Chain) instead";
   for (string_view fragment : src.blocks()) {
     if (RIEGELI_UNLIKELY(!Write(fragment))) return false;
   }
@@ -60,8 +66,10 @@ bool Writer::WriteSlow(const Chain& src) {
 }
 
 bool Writer::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
-  // No std::move(): forward to WriteSlow(const Chain&).
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Writer::WriteSlow(Chain&&): "
+         "length too small, use Write(Chain&&) instead";
+  // Not std::move(src): forward to WriteSlow(const Chain&).
   return WriteSlow(src);
 }
 

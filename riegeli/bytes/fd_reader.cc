@@ -31,10 +31,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -77,7 +77,7 @@ inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
   void* const data = riegeli::exchange(src.data_, nullptr);
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
-    RIEGELI_ASSERT_EQ(result, 0);
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed";
   }
   data_ = data;
   size_ = riegeli::exchange(src.size_, 0);
@@ -87,7 +87,7 @@ inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
 inline MMapRef::~MMapRef() {
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
-    RIEGELI_ASSERT_EQ(result, 0);
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed";
   }
 }
 
@@ -105,18 +105,25 @@ void MMapRef::DumpStructure(string_view data, std::ostream& out) const {
 namespace internal {
 
 FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
-    : BufferedReader(buffer_size),
+    : BufferedReader(UnsignedMin(buffer_size,
+                                 Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
       filename_(fd == 0 ? "/dev/stdin"
                         : "/proc/self/fd/" + std::to_string(fd)) {
-  RIEGELI_ASSERT_GE(fd, 0);
+  RIEGELI_ASSERT_GE(fd, 0)
+      << "Failed precondition of FdReaderBase::FdReaderBase(int): "
+         "negative file descriptor";
 }
 
 FdReaderBase::FdReaderBase(std::string filename, int flags, size_t buffer_size)
-    : BufferedReader(buffer_size), filename_(std::move(filename)) {
+    : BufferedReader(UnsignedMin(buffer_size,
+                                 Position{std::numeric_limits<off_t>::max()})),
+      filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR);
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdReaderBase::FdReaderBase(string): "
+         "flags must include O_RDONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, 0666);
   if (RIEGELI_UNLIKELY(fd_ < 0)) {
@@ -157,7 +164,6 @@ void FdReaderBase::Done() {
 }
 
 bool FdReaderBase::FailOperation(const char* operation, int error_code) {
-  RIEGELI_ASSERT(healthy());
   error_code_ = error_code;
   char message[256];
   strerror_r(error_code, message, sizeof(message));
@@ -179,7 +185,9 @@ FdReader::FdReader(int fd, Options options)
 FdReader::FdReader(std::string filename, int flags, Options options)
     : FdReaderBase(std::move(filename), flags, options.buffer_size_),
       sync_pos_(options.sync_pos_) {
-  RIEGELI_ASSERT(options.owns_fd_);
+  RIEGELI_ASSERT(options.owns_fd_)
+      << "Failed precondition of FdReader::FdReader(string): "
+         "file must be owned if FdReader opens it";
   if (RIEGELI_LIKELY(healthy())) InitializePos();
 }
 
@@ -199,22 +207,19 @@ void FdReader::Done() {
 }
 
 inline void FdReader::InitializePos() {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT_EQ(limit_pos_, 0u);
   if (sync_pos_) {
     const off_t result = lseek(fd_, 0, SEEK_CUR);
     if (RIEGELI_UNLIKELY(result < 0)) {
       FailOperation("lseek()", errno);
       return;
     }
-    limit_pos_ = static_cast<Position>(result);
+    limit_pos_ = IntCast<Position>(result);
   }
 }
 
 bool FdReader::MaybeSyncPos() {
-  RIEGELI_ASSERT(healthy());
   if (sync_pos_) {
-    if (RIEGELI_UNLIKELY(lseek(fd_, pos(), SEEK_SET) < 0)) {
+    if (RIEGELI_UNLIKELY(lseek(fd_, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()", errno);
     }
   }
@@ -222,40 +227,58 @@ bool FdReader::MaybeSyncPos() {
 }
 
 bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
-  RIEGELI_ASSERT_GT(min_length, 0u);
-  RIEGELI_ASSERT_GE(max_length, min_length);
-  RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "nothing to read";
+  RIEGELI_ASSERT_GE(max_length, min_length)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "max_length < min_length";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "Reader unhealthy";
+  if (RIEGELI_UNLIKELY(max_length >
+                       Position{std::numeric_limits<off_t>::max()} -
+                           limit_pos_)) {
+    return FailOverflow();
+  }
   for (;;) {
   again:
-    const ssize_t result = pread(fd_, dest, max_length, limit_pos_);
+    const ssize_t result = pread(
+        fd_, dest,
+        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
+        IntCast<off_t>(limit_pos_));
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       return FailOperation("pread()", error_code);
     }
     if (RIEGELI_UNLIKELY(result == 0)) return false;
-    limit_pos_ += result;
-    if (static_cast<size_t>(result) >= min_length) return true;
+    RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
+        << "pread() read more than requested";
+    limit_pos_ += IntCast<size_t>(result);
+    if (IntCast<size_t>(result) >= min_length) return true;
     dest += result;
-    min_length -= result;
-    max_length -= result;
+    min_length -= IntCast<size_t>(result);
+    max_length -= IntCast<size_t>(result);
   }
 }
 
 bool FdReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_);
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (new_pos > limit_pos_) {
+    // Seeking forwards.
     struct stat stat_info;
     if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
       return FailOperation("fstat()", error_code);
     }
-    RIEGELI_ASSERT_GE(stat_info.st_size, 0);
-    if (RIEGELI_UNLIKELY(new_pos > static_cast<Position>(stat_info.st_size))) {
+    if (RIEGELI_UNLIKELY(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
       ClearBuffer();
-      limit_pos_ = static_cast<Position>(stat_info.st_size);
+      limit_pos_ = IntCast<Position>(stat_info.st_size);
       return false;
     }
   }
@@ -270,7 +293,7 @@ bool FdReader::Size(Position* size) const {
   struct stat stat_info;
   const int result = fstat(fd_, &stat_info);
   if (RIEGELI_UNLIKELY(result < 0)) return false;
-  *size = static_cast<Position>(stat_info.st_size);
+  *size = IntCast<Position>(stat_info.st_size);
   return true;
 }
 
@@ -278,7 +301,10 @@ FdStreamReader::FdStreamReader() noexcept = default;
 
 FdStreamReader::FdStreamReader(int fd, Options options)
     : FdReaderBase(fd, true, options.buffer_size_) {
-  RIEGELI_ASSERT(options.has_assumed_pos_);
+  RIEGELI_ASSERT(options.has_assumed_pos_)
+      << "Failed precondition of FdStreamReader::FdStreamReader(int): "
+         "assumed file position must be specified "
+         "if FdStreamReader does not open the file";
   limit_pos_ = options.assumed_pos_;
 }
 
@@ -298,23 +324,38 @@ FdStreamReader& FdStreamReader::operator=(FdStreamReader&& src) noexcept {
 
 bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
                                   size_t max_length) {
-  RIEGELI_ASSERT_GT(min_length, 0u);
-  RIEGELI_ASSERT_GE(max_length, min_length);
-  RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "nothing to read";
+  RIEGELI_ASSERT_GE(max_length, min_length)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "max_length < min_length";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "Reader unhealthy";
+  if (RIEGELI_UNLIKELY(max_length >
+                       Position{std::numeric_limits<off_t>::max()} -
+                           limit_pos_)) {
+    return FailOverflow();
+  }
   for (;;) {
   again:
-    const ssize_t result = read(fd_, dest, max_length);
+    const ssize_t result = read(
+        fd_, dest,
+        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}));
     if (RIEGELI_UNLIKELY(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       return FailOperation("read()", error_code);
     }
     if (RIEGELI_UNLIKELY(result == 0)) return false;
-    limit_pos_ += result;
-    if (static_cast<size_t>(result) >= min_length) return true;
+    RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
+        << "read() read more than requested";
+    limit_pos_ += IntCast<size_t>(result);
+    if (IntCast<size_t>(result) >= min_length) return true;
     dest += result;
-    min_length -= result;
-    max_length -= result;
+    min_length -= IntCast<size_t>(result);
+    max_length -= IntCast<size_t>(result);
   }
 }
 
@@ -324,15 +365,21 @@ FdMMapReader::FdMMapReader(int fd, Options options)
     : Reader(State::kOpen),
       filename_(fd == 0 ? "/dev/stdin"
                         : "/proc/self/fd/" + std::to_string(fd)) {
-  RIEGELI_ASSERT_GE(fd, 0);
+  RIEGELI_ASSERT_GE(fd, 0)
+      << "Failed precondition of FdMMapReader::FdMMapReader(int): "
+         "negative file descriptor";
   Initialize(fd, options);
 }
 
 FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
     : Reader(State::kOpen), filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR);
-  RIEGELI_ASSERT(options.owns_fd_);
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdMMapReader::FdMMapReader(string): "
+         "flags must include O_RDONLY or O_RDWR";
+  RIEGELI_ASSERT(options.owns_fd_)
+      << "Failed precondition of FdMMapReader::FdMMapReader(string): "
+         "file must be owned if FdMMapReader opens it";
 again:
   const int fd = open(filename_.c_str(), flags, 0666);
   if (RIEGELI_UNLIKELY(fd < 0)) {
@@ -365,8 +412,6 @@ void FdMMapReader::Done() {
 }
 
 inline void FdMMapReader::Initialize(int fd, Options options) {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT_EQ(limit_pos_, 0u);
   internal::FdHolder owned_fd(options.owns_fd_ ? fd : -1);
   struct stat stat_info;
   if (RIEGELI_UNLIKELY(fstat(fd, &stat_info) < 0)) {
@@ -374,22 +419,20 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
     FailOperation("fstat()", error_code);
     return;
   }
-  RIEGELI_ASSERT_GE(stat_info.st_size, 0);
-  if (RIEGELI_UNLIKELY(static_cast<Position>(stat_info.st_size) >
+  if (RIEGELI_UNLIKELY(IntCast<Position>(stat_info.st_size) >
                        std::numeric_limits<size_t>::max())) {
     Fail("File is too large for mmap()");
     return;
   }
   if (stat_info.st_size != 0) {
-    void* const data = mmap(nullptr, static_cast<size_t>(stat_info.st_size),
+    void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
                             PROT_READ, MAP_SHARED, fd, 0);
     if (RIEGELI_UNLIKELY(data == MAP_FAILED)) {
       const int error_code = errno;
       FailOperation("mmap()", error_code);
       return;
     }
-    contents_.AppendExternal(
-        MMapRef(data, static_cast<size_t>(stat_info.st_size)));
+    contents_.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
     start_ = iter()->data();
     cursor_ = iter()->data();
     limit_ = iter()->data() + iter()->size();
@@ -402,7 +445,6 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
 }
 
 inline bool FdMMapReader::FailOperation(const char* operation, int error_code) {
-  RIEGELI_ASSERT(healthy());
   error_code_ = error_code;
   char message[256];
   strerror_r(error_code, message, sizeof(message));
@@ -412,17 +454,22 @@ inline bool FdMMapReader::FailOperation(const char* operation, int error_code) {
 }
 
 inline Chain::BlockIterator FdMMapReader::iter() const {
-  RIEGELI_ASSERT_EQ(contents_.blocks().size(), 1u);
+  RIEGELI_ASSERT_EQ(contents_.blocks().size(), 1u)
+      << "Failed precondition of FdMMapReader::iter(): single block expected";
   return contents_.blocks().begin();
 }
 
 bool FdMMapReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
   return false;
 }
 
 bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "length too small, use Read(Chain*) instead";
   const size_t length_to_read = UnsignedMin(length, available());
   if (length_to_read > 0) {  // iter() is undefined
                              // if contents_.blocks().size() != 1.
@@ -435,7 +482,9 @@ bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
 }
 
 bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(Writer*): "
+         "length too small, use CopyTo(Writer*) instead";
   const size_t length_to_copy = UnsignedMin(length, available());
   bool ok = true;
   if (length_to_copy == contents_.size()) {
@@ -453,7 +502,9 @@ bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool FdMMapReader::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
+         "length too small, use CopyTo(BackwardWriter*) instead";
   if (RIEGELI_UNLIKELY(length > available())) {
     cursor_ = limit_;
     return false;
@@ -475,13 +526,18 @@ bool FdMMapReader::Size(Position* size) const {
 }
 
 bool FdMMapReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   return false;
 }
 
 bool FdMMapReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_EQ(start_pos(), 0u);
-  RIEGELI_ASSERT(new_pos > limit_pos_);
+  RIEGELI_ASSERT_EQ(start_pos(), 0u)
+      << "Failed invariant of FdMMapReader: non-zero position of buffer start";
+  RIEGELI_ASSERT(new_pos > limit_pos_)
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
   // Seeking forwards. Source ends.
   cursor_ = limit_;
   return false;

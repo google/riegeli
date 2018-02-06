@@ -15,9 +15,9 @@
 #include "riegeli/bytes/limiting_reader.h"
 
 #include <stddef.h>
+#include <limits>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -33,7 +33,9 @@ LimitingReader::LimitingReader(Reader* src, Position size_limit)
     : Reader(State::kOpen),
       src_(RIEGELI_ASSERT_NOTNULL(src)),
       size_limit_(size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, src_->pos());
+  RIEGELI_ASSERT_GE(size_limit, src_->pos())
+      << "Failed precondition of LimitingReader::LimitingReader(): "
+         "size limit smaller than current position";
   if (src_->GetTypeId() == TypeId::For<LimitingReader>() &&
       RIEGELI_LIKELY(src_->healthy())) {
     wrapped_ = static_cast<LimitingReader*>(src_);
@@ -79,7 +81,9 @@ TypeId LimitingReader::GetTypeId() const {
 }
 
 bool LimitingReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
   if (RIEGELI_UNLIKELY(limit_pos_ == size_limit_)) return false;
@@ -89,12 +93,19 @@ bool LimitingReader::PullSlow() {
 }
 
 bool LimitingReader::ReadSlow(char* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, available());
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Reader::ReadSlow(char*): "
+         "length too small, use Read(char*) instead";
   return ReadInternal(dest, length);
 }
 
 bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "length too small, use Read(Chain*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "Chain size overflows";
   return ReadInternal(dest, length);
 }
 
@@ -102,6 +113,7 @@ template <typename Dest>
 bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
+  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->Read(dest, length_to_read);
   SyncBuffer();
@@ -109,9 +121,12 @@ bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
 }
 
 bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(Writer*): "
+         "length too small, use CopyTo(Writer*) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
+  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->CopyTo(dest, length_to_copy);
   SyncBuffer();
@@ -119,9 +134,12 @@ bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
+         "length too small, use CopyTo(BackwardWriter*) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
+  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
   if (RIEGELI_UNLIKELY(length > size_limit_ - pos())) {
     src_->Seek(size_limit_);
     SyncBuffer();
@@ -133,12 +151,16 @@ bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
 }
 
 bool LimitingReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   return pos() < size_limit_ && src_->HopeForMore();
 }
 
 bool LimitingReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_);
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
@@ -153,7 +175,7 @@ inline void LimitingReader::SyncBuffer() {
   limit_ = src_->limit();
   limit_pos_ = src_->pos() + src_->available();  // src_->limit_pos_
   if (RIEGELI_UNLIKELY(limit_pos_ > size_limit_)) {
-    limit_ -= limit_pos_ - size_limit_;
+    limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
     limit_pos_ = size_limit_;
   }
   if (RIEGELI_UNLIKELY(!src_->healthy())) Fail(*src_);

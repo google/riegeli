@@ -21,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -128,7 +127,9 @@ class ChunkDecoder : public Object {
 
   bool skip_corruption_;
   FieldFilter field_filter_;
-  // Invariant: if healthy() then boundaries_[0] == 0
+  // Invariants:
+  //   if healthy() then boundaries_[0] == 0
+  //   for each i, boundaries_[i + 1] >= boundaries_[i]
   std::vector<size_t> boundaries_;
   ChainReader values_reader_;
   // Invariant: if healthy() then num_records_ == boundaries_.size() - 1
@@ -143,9 +144,10 @@ inline bool ChunkDecoder::ReadRecord(string_view* record, uint64_t* key) {
   if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
   ++index_;
+  RIEGELI_ASSERT_GE(boundaries_[index_], boundaries_[index_ - 1]);
   if (!values_reader_.Read(record, &record_scratch_,
                            boundaries_[index_] - boundaries_[index_ - 1])) {
-    RIEGELI_UNREACHABLE();
+    RIEGELI_ASSERT_UNREACHABLE();
   }
   return true;
 }
@@ -155,9 +157,10 @@ inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
   if (key != nullptr) *key = index_;
   ++index_;
   record->clear();
+  RIEGELI_ASSERT_GE(boundaries_[index_], boundaries_[index_ - 1]);
   if (!values_reader_.Read(record,
                            boundaries_[index_] - boundaries_[index_ - 1])) {
-    RIEGELI_UNREACHABLE();
+    RIEGELI_ASSERT_UNREACHABLE();
   }
   return true;
 }
@@ -167,18 +170,17 @@ inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
   if (key != nullptr) *key = index_;
   ++index_;
   record->Clear();
+  RIEGELI_ASSERT_GE(boundaries_[index_], boundaries_[index_ - 1]);
   if (!values_reader_.Read(record,
                            boundaries_[index_] - boundaries_[index_ - 1])) {
-    RIEGELI_UNREACHABLE();
+    RIEGELI_ASSERT_UNREACHABLE();
   }
   return true;
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
   index_ = UnsignedMin(index, num_records());
-  if (!values_reader_.Seek(boundaries_[index_])) {
-    RIEGELI_UNREACHABLE();
-  }
+  if (!values_reader_.Seek(boundaries_[index_])) RIEGELI_ASSERT_UNREACHABLE();
 }
 
 }  // namespace riegeli

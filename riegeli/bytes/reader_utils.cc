@@ -16,10 +16,15 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string>
+#include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/base/string_view.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
@@ -164,7 +169,8 @@ char* CopyVarint64Slow(Reader* src, char* dest) {
 bool ReadAll(Reader* src, string_view* dest, std::string* scratch) {
   Position size;
   if (src->Size(&size)) {
-    RIEGELI_ASSERT_GE(size, src->pos());
+    RIEGELI_ASSERT_LE(src->pos(), size)
+        << "Current position is greater than the source size";
     return src->Read(dest, scratch, size - src->pos());
   }
   scratch->clear();
@@ -176,7 +182,8 @@ bool ReadAll(Reader* src, string_view* dest, std::string* scratch) {
 bool ReadAll(Reader* src, std::string* dest) {
   Position size;
   if (src->Size(&size)) {
-    RIEGELI_ASSERT_GE(size, src->pos());
+    RIEGELI_ASSERT_LE(src->pos(), size)
+        << "Current position is greater than the source size";
     return src->Read(dest, size - src->pos());
   }
   do {
@@ -190,7 +197,8 @@ bool ReadAll(Reader* src, std::string* dest) {
 bool ReadAll(Reader* src, Chain* dest) {
   Position size;
   if (src->Size(&size)) {
-    RIEGELI_ASSERT_GE(size, src->pos());
+    RIEGELI_ASSERT_LE(src->pos(), size)
+        << "Current position is greater than the source size";
     return src->Read(dest, size - src->pos());
   }
   do {
@@ -202,7 +210,8 @@ bool ReadAll(Reader* src, Chain* dest) {
 bool CopyAll(Reader* src, Writer* dest) {
   Position size;
   if (src->Size(&size)) {
-    RIEGELI_ASSERT_GE(size, src->pos());
+    RIEGELI_ASSERT_LE(src->pos(), size)
+        << "Current position is greater than the source size";
     return src->CopyTo(dest, size - src->pos());
   }
   do {
@@ -214,7 +223,8 @@ bool CopyAll(Reader* src, Writer* dest) {
 bool CopyAll(Reader* src, BackwardWriter* dest) {
   Position size;
   if (src->Size(&size)) {
-    RIEGELI_ASSERT_GE(size, src->pos());
+    RIEGELI_ASSERT_LE(src->pos(), size)
+        << "Current position is greater than the source size";
     return src->CopyTo(dest, size - src->pos());
   }
   Chain data;

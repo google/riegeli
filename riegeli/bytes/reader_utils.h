@@ -15,8 +15,8 @@
 #ifndef RIEGELI_BYTES_READER_UTILS_H_
 #define RIEGELI_BYTES_READER_UTILS_H_
 
-#include <stddef.h>
 #include <stdint.h>
+#include <string>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"

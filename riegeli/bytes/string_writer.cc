@@ -15,9 +15,9 @@
 #include "riegeli/bytes/string_writer.h"
 
 #include <stddef.h>
-#include <limits>
+#include <string>
+#include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -29,10 +29,8 @@ StringWriter::StringWriter() noexcept : Writer(State::kClosed) {}
 
 StringWriter::StringWriter(std::string* dest, Options options)
     : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
-  if (options.size_hint_ > 0 &&
-      RIEGELI_LIKELY(options.size_hint_ <=
-                     std::numeric_limits<size_t>::max())) {
-    dest_->reserve(options.size_hint_);
+  if (options.size_hint_ > 0) {
+    dest_->reserve(UnsignedMin(options.size_hint_, dest->max_size()));
   }
   start_ = &(*dest_)[0];
   cursor_ = &(*dest_)[dest_->size()];
@@ -51,23 +49,44 @@ StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
 StringWriter::~StringWriter() = default;
 
 void StringWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) DiscardBuffer();
+  if (RIEGELI_LIKELY(healthy())) {
+    RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+        << "StringWriter destination changed unexpectedly";
+    DiscardBuffer();
+  }
   dest_ = nullptr;
   Writer::Done();
 }
 
 bool StringWriter::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Writer::PushSlow(): "
+         "space available, use Push() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(pos(), dest_->size());
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
+  if (RIEGELI_UNLIKELY(dest_->size() == dest_->max_size())) {
+    cursor_ = start_;
+    limit_ = start_;
+    return FailOverflow();
+  }
   if (dest_->capacity() == dest_->size()) dest_->reserve(dest_->size() + 1);
   MakeBuffer();
   return true;
 }
 
 bool StringWriter::WriteSlow(string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available());
+  RIEGELI_ASSERT_GT(src.size(), available())
+      << "Failed precondition of Writer::WriteSlow(string_view): "
+         "length too small, use Write(string_view) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
+  if (RIEGELI_UNLIKELY(src.size() > dest_->max_size() - written_to_buffer())) {
+    cursor_ = start_;
+    limit_ = start_;
+    return FailOverflow();
+  }
   DiscardBuffer();
   dest_->append(src.data(), src.size());
   MakeBuffer();
@@ -75,8 +94,17 @@ bool StringWriter::WriteSlow(string_view src) {
 }
 
 bool StringWriter::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Writer::WriteSlow(Chain): "
+         "length too small, use Write(Chain) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
+  if (RIEGELI_UNLIKELY(src.size() > dest_->max_size() - written_to_buffer())) {
+    cursor_ = start_;
+    limit_ = start_;
+    return FailOverflow();
+  }
   DiscardBuffer();
   src.AppendTo(dest_);
   MakeBuffer();
@@ -85,6 +113,8 @@ bool StringWriter::WriteSlow(const Chain& src) {
 
 bool StringWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
   DiscardBuffer();
   start_ = &(*dest_)[0];
   cursor_ = &(*dest_)[dest_->size()];
@@ -93,16 +123,12 @@ bool StringWriter::Flush(FlushType flush_type) {
 }
 
 inline void StringWriter::DiscardBuffer() {
-  RIEGELI_ASSERT_LE(pos(), dest_->size());
-  dest_->resize(pos());
+  dest_->resize(written_to_buffer());
 }
 
 inline void StringWriter::MakeBuffer() {
   const size_t size_before = dest_->size();
-  // Do not resize by too much because the work of filling the space could be
-  // wasted by Flush().
-  dest_->resize(
-      UnsignedMin(dest_->capacity(), size_before + kDefaultBufferSize()));
+  dest_->resize(dest_->capacity());
   start_ = &(*dest_)[0];
   cursor_ = &(*dest_)[size_before];
   limit_ = &(*dest_)[dest_->size()];

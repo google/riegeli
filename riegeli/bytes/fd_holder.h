@@ -1,9 +1,9 @@
 #ifndef RIEGELI_BYTES_FD_HOLDER_H_
 #define RIEGELI_BYTES_FD_HOLDER_H_
 
+#include <errno.h>
 #include <unistd.h>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -16,7 +16,7 @@ class FdHolder {
   FdHolder() noexcept = default;
 
   // Creates a FdHolder which owns fd if fd >= 0.
-  explicit FdHolder(int fd) : fd_(fd) {}
+  explicit FdHolder(int fd) noexcept : fd_(fd) {}
 
   FdHolder(FdHolder&& src) noexcept;
   FdHolder& operator=(FdHolder&& src) noexcept;

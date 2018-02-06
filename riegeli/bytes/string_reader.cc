@@ -14,10 +14,10 @@
 
 #include "riegeli/bytes/string_reader.h"
 
+#include <stddef.h>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -49,14 +49,26 @@ StringReader::~StringReader() = default;
 
 void StringReader::Done() { Reader::Done(); }
 
+bool StringReader::PullSlow() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
+  return false;
+}
+
 bool StringReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   return false;
 }
 
 bool StringReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_EQ(start_pos(), 0u);
-  RIEGELI_ASSERT(new_pos > limit_pos_);
+  RIEGELI_ASSERT_EQ(start_pos(), 0u)
+      << "Failed invariant of StringReader: non-zero position of buffer start";
+  RIEGELI_ASSERT_GT(new_pos, limit_pos_)
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
   // Seeking forwards. Source ends.
   cursor_ = limit_;
   return false;

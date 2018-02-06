@@ -19,9 +19,10 @@
 #include <stddef.h>
 #include <algorithm>
 #include <cstring>
+#include <ios>
+#include <limits>
 #include <ostream>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -48,14 +49,14 @@ string_view::size_type string_view::find(string_view needle,
   if (needle.empty()) return 0;
   const iterator found =
       std::search(begin() + pos, end(), needle.begin(), needle.end());
-  return found == end() ? npos : found - begin();
+  return found == end() ? npos : IntCast<size_type>(found - begin());
 }
 
 string_view::size_type string_view::find(char needle, size_type pos) const
     noexcept {
   if (pos >= size()) return npos;
   const iterator found = std::find(begin() + pos, end(), needle);
-  return found == end() ? npos : found - begin();
+  return found == end() ? npos : IntCast<size_type>(found - begin());
 }
 
 string_view::size_type string_view::rfind(string_view needle,
@@ -66,7 +67,7 @@ string_view::size_type string_view::rfind(string_view needle,
       begin() + UnsignedMin(pos, size() - needle.size()) + needle.size();
   const iterator found =
       std::find_end(begin(), limit, needle.begin(), needle.end());
-  return found == limit ? npos : found - begin();
+  return found == limit ? npos : IntCast<size_type>(found - begin());
 }
 
 string_view::size_type string_view::rfind(char needle, size_type pos) const
@@ -74,17 +75,21 @@ string_view::size_type string_view::rfind(char needle, size_type pos) const
   if (empty()) return npos;
   const reverse_iterator found =
       std::find(rend() - UnsignedMin(pos, size() - 1) - 1, rend(), needle);
-  return found == rend() ? npos : rend() - found - 1;
+  return found == rend() ? npos : IntCast<size_type>(rend() - found - 1);
 }
 
 std::ostream& operator<<(std::ostream& out, string_view str) {
   std::ostream::sentry sentry(out);
   if (sentry) {
+    if (RIEGELI_UNLIKELY(str.size() >
+                         size_t{std::numeric_limits<std::streamsize>::max()})) {
+      out.setstate(std::ios::badbit);
+      return out;
+    }
     size_t lpad = 0;
     size_t rpad = 0;
-    RIEGELI_ASSERT_GE(out.width(), 0);
-    if (static_cast<size_t>(out.width()) > str.size()) {
-      size_t pad = out.width() - str.size();
+    if (IntCast<size_t>(out.width()) > str.size()) {
+      const size_t pad = IntCast<size_t>(out.width()) - str.size();
       if ((out.flags() & out.adjustfield) == out.left) {
         rpad = pad;
       } else {
@@ -92,7 +97,9 @@ std::ostream& operator<<(std::ostream& out, string_view str) {
       }
     }
     if (lpad > 0) WritePadding(out, lpad);
-    if (!str.empty()) out.write(str.data(), str.size());
+    if (!str.empty()) {
+      out.write(str.data(), IntCast<std::streamsize>(str.size()));
+    }
     if (rpad > 0) WritePadding(out, rpad);
     out.width(0);
   }

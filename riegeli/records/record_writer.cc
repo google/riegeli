@@ -14,6 +14,7 @@
 
 #include "riegeli/records/record_writer.h"
 
+#include <stddef.h>
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -26,7 +27,6 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -241,8 +241,8 @@ inline RecordWriter::ParallelImpl::ChunkWriterRequest::~ChunkWriterRequest() {
       done_request.~DoneRequest();
       return;
   }
-  RIEGELI_UNREACHABLE() << "Unknown request type: "
-                        << static_cast<int>(request_type);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown request type: " << static_cast<int>(request_type);
 }
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
@@ -260,8 +260,8 @@ inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
       new (&done_request) DoneRequest(std::move(src.done_request));
       return;
   }
-  RIEGELI_UNREACHABLE() << "Unknown request type: "
-                        << static_cast<int>(request_type);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown request type: " << static_cast<int>(request_type);
 }
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest&
@@ -319,7 +319,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           return;
         }
       }
-      RIEGELI_UNREACHABLE()
+      RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown request type: " << static_cast<int>(request.request_type);
     }
   });
@@ -352,7 +352,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   {
     std::unique_lock<std::mutex> lock(mutex_);
     while (chunk_writer_requests_.size() >=
-           static_cast<size_t>(options_.parallelism_)) {
+           IntCast<size_t>(options_.parallelism_)) {
       has_space_for_chunk_.wait(lock);
     }
     chunk_writer_requests_.emplace_back(

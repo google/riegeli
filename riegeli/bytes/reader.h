@@ -17,10 +17,10 @@
 
 #include <stddef.h>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -54,7 +54,7 @@ class Reader : public Object {
   //                     or the Reader was not healthy before closing)
   bool VerifyEndAndClose();
 
-  // Ensures that some data are available for reading: pulls more data from the
+  // Ensures that some data available for reading: pulls more data from the
   // source, and points cursor() and limit() to non-empty data. If some data
   // were already buffered, does nothing.
   //
@@ -80,10 +80,18 @@ class Reader : public Object {
   // Precondition: start() <= cursor <= limit()
   void set_cursor(const char* cursor);
 
-  // Returns the amount of data available between cursor() and limit().
+  // Returns the amount of data available in the buffer, between cursor() and
+  // limit().
   //
   // Invariant: if closed() then available() == 0
-  size_t available() const { return limit_ - cursor_; }
+  size_t available() const { return PtrDistance(cursor_, limit_); }
+
+  // Returns the buffer size, between start() and limit().
+  size_t buffer_size() const { return PtrDistance(start_, limit_); }
+
+  // Returns the amount of data read from the buffer, between start() and
+  // cursor().
+  size_t read_from_buffer() const { return PtrDistance(start_, cursor_); }
 
   // Reads a fixed number of bytes from the buffer to dest, pulling data from
   // the source as needed.
@@ -101,6 +109,15 @@ class Reader : public Object {
   //
   // CopyTo(BackwardWriter*) writes nothing if reading failed, and reads the
   // full requested length even if writing failed.
+  //
+  // Precondition for Read(string*):
+  //   length <= dest->max_size() - dest->size()
+  //
+  // Precondition for Read(string_view*):
+  //   length <= scratch->max_size()
+  //
+  // Precondition for Read(Chain*):
+  //   length <= numeric_limits<size_t>::max() - dest->size()
   //
   // Return values:
   //  * true                    - success (length bytes read)
@@ -130,7 +147,7 @@ class Reader : public Object {
   // Reader wraps another reader or input stream propagating its position.
   //
   // Invariant: if closed() then pos() == 0
-  Position pos() const { return limit_pos_ - available(); }
+  Position pos() const;
 
   // Returns true if this Reader supports Seek() backwards (Seek() forwards is
   // always supported) and Size().
@@ -138,10 +155,10 @@ class Reader : public Object {
 
   // Sets the current position for subsequent operations.
   //
-  // Seeking to new_pos >= pos() - (cursor() - start()) is always supported,
+  // Seeking to new_pos >= pos() - read_from_buffer() is always supported,
   // although if SupportsRandomAccess() is false then it is not expected
   // to be more efficient than reading and discarding the intervening data.
-  // Seeking to new_pos < pos() - (cursor() - start()) is supported only when
+  // Seeking to new_pos < pos() - read_from_buffer() is supported only when
   // SupportsRandomAccess() is true.
   //
   // Return values:
@@ -183,14 +200,18 @@ class Reader : public Object {
   // override it further and include a call to Reader::Done().
   virtual void Done() override = 0;
 
+  // Marks the Reader as failed with message "Reader position overflows".
+  // Always returns false.
+  //
+  // This can be called if limit_pos_ would overflow.
+  //
+  // Precondition: healthy()
+  RIEGELI_ATTRIBUTE_COLD bool FailOverflow();
+
   // Implementation of the slow part of Pull().
   //
   // Precondition: available() == 0
   virtual bool PullSlow() = 0;
-
-  // Returns the amount of data read from the buffer, between start() and
-  // cursor().
-  size_t read_from_buffer() const { return cursor_ - start_; }
 
   // Implementations of the slow part of Read() and CopyTo().
   //
@@ -205,6 +226,15 @@ class Reader : public Object {
   //
   // Precondition for ReadSlow(Chain*) and CopyToSlow():
   //   length > UnsignedMin(available(), kMaxBytesToCopy())
+  //
+  // Precondition for ReadSlow(string*):
+  //   length <= dest->max_size() - dest->size()
+  //
+  // Precondition for ReadSlow(string_view*):
+  //   length <= scratch->max_size()
+  //
+  // Precondition for ReadSlow(Chain*):
+  //   length <= numeric_limits<size_t>::max() - dest->size()
   virtual bool ReadSlow(char* dest, size_t length);
   bool ReadSlow(std::string* dest, size_t length);
   bool ReadSlow(string_view* dest, std::string* scratch, size_t length);
@@ -223,13 +253,15 @@ class Reader : public Object {
   virtual bool SeekSlow(Position new_pos);
 
   // Source position corresponding to start_.
-  Position start_pos() const { return limit_pos_ - (limit_ - start_); }
+  Position start_pos() const;
 
   const char* start_ = nullptr;
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
 
   // Source position corresponding to limit_.
+  //
+  // Invariant: limit_pos_ >= buffer_size()
   Position limit_pos_ = 0;
 };
 
@@ -264,8 +296,10 @@ inline bool Reader::Pull() {
 }
 
 inline void Reader::set_cursor(const char* cursor) {
-  RIEGELI_ASSERT(cursor >= start());
-  RIEGELI_ASSERT(cursor <= limit());
+  RIEGELI_ASSERT(cursor >= start())
+      << "Failed precondition of Reader::set_cursor(): pointer out of range";
+  RIEGELI_ASSERT(cursor <= limit())
+      << "Failed precondition of Reader::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }
 
@@ -282,6 +316,8 @@ inline bool Reader::Read(char* dest, size_t length) {
 }
 
 inline bool Reader::Read(std::string* dest, size_t length) {
+  RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
+      << "Failed precondition of Reader::Read(string*): string size overflows";
   if (RIEGELI_LIKELY(length <= available())) {
     if (length > 0) {  // Avoid std::string::append(nullptr, 0) just in case.
       dest->append(cursor_, length);
@@ -293,6 +329,9 @@ inline bool Reader::Read(std::string* dest, size_t length) {
 }
 
 inline bool Reader::Read(string_view* dest, std::string* scratch, size_t length) {
+  RIEGELI_CHECK_LE(length, scratch->max_size())
+      << "Failed precondition of Reader::Read(string_view*): "
+         "string size overflows";
   if (RIEGELI_LIKELY(length <= available())) {
     *dest = string_view(cursor_, length);
     cursor_ += length;
@@ -302,6 +341,8 @@ inline bool Reader::Read(string_view* dest, std::string* scratch, size_t length)
 }
 
 inline bool Reader::Read(Chain* dest, size_t length) {
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::Read(Chain*): Chain size overflows";
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
     dest->Append(string_view(cursor_, length), dest->size() + length);
     cursor_ += length;
@@ -332,6 +373,18 @@ inline bool Reader::HopeForMore() const {
   return available() > 0 || HopeForMoreSlow();
 }
 
+inline Position Reader::pos() const {
+  RIEGELI_ASSERT_GE(limit_pos_, buffer_size())
+      << "Failed invariant of Reader: negative position of buffer start";
+  return limit_pos_ - available();
+}
+
+inline Position Reader::start_pos() const {
+  RIEGELI_ASSERT_GE(limit_pos_, buffer_size())
+      << "Failed invariant of Reader: negative position of buffer start";
+  return limit_pos_ - buffer_size();
+}
+
 inline bool Reader::Seek(Position new_pos) {
   if (RIEGELI_LIKELY(new_pos >= start_pos() && new_pos <= limit_pos_)) {
     cursor_ = limit_ - (limit_pos_ - new_pos);
@@ -344,6 +397,9 @@ inline bool Reader::Skip(Position length) {
   if (RIEGELI_LIKELY(length <= available())) {
     cursor_ += length;
     return true;
+  }
+  if (RIEGELI_UNLIKELY(length > std::numeric_limits<Position>::max() - pos())) {
+    return FailOverflow();
   }
   return SeekSlow(pos() + length);
 }

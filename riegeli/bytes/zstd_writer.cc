@@ -24,7 +24,6 @@
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -84,7 +83,8 @@ ZstdWriter::~ZstdWriter() = default;
 
 void ZstdWriter::Done() {
   PushInternal();
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "BufferedWriter::PushInternal() did not empty the buffer";
   if (RIEGELI_LIKELY(healthy())) {
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()");
   }
@@ -101,7 +101,8 @@ void ZstdWriter::Done() {
 
 bool ZstdWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "BufferedWriter::PushInternal() did not empty the buffer";
   if (RIEGELI_UNLIKELY(
           !FlushInternal(ZSTD_flushStream, "ZSTD_flushStream()"))) {
     return false;
@@ -115,9 +116,20 @@ bool ZstdWriter::Flush(FlushType flush_type) {
 }
 
 bool ZstdWriter::WriteInternal(string_view src) {
-  RIEGELI_ASSERT(!src.empty());
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(!src.empty())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "nothing to write";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+         "buffer not cleared";
+  if (RIEGELI_UNLIKELY(src.size() >
+                       std::numeric_limits<Position>::max() - limit_pos())) {
+    limit_ = start_;
+    return FailOverflow();
+  }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
@@ -130,7 +142,9 @@ bool ZstdWriter::WriteInternal(string_view src) {
                   ZSTD_getErrorName(result));
     }
     if (output.pos < output.size) {
-      RIEGELI_ASSERT_EQ(input.pos, input.size);
+      RIEGELI_ASSERT_EQ(input.pos, input.size)
+          << "ZSTD_compressStream() returned but there are still input data "
+             "and output space";
       start_pos_ += input.pos;
       return true;
     }
@@ -143,8 +157,12 @@ bool ZstdWriter::WriteInternal(string_view src) {
 
 template <typename Function>
 bool ZstdWriter::FlushInternal(Function function, const char* function_name) {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(cursor_ == start_);
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of ZstdWriter::FlushInternal(): "
+         "Writer unhealthy";
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of ZstdWriter::FlushInternal(): "
+         "buffer not cleared";
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
     const size_t result = function(compressor_.get(), &output);
@@ -155,7 +173,8 @@ bool ZstdWriter::FlushInternal(Function function, const char* function_name) {
       return Fail(std::string(function_name) +
                   " failed: " + ZSTD_getErrorName(result));
     }
-    RIEGELI_ASSERT_EQ(output.pos, output.size);
+    RIEGELI_ASSERT_EQ(output.pos, output.size)
+        << function_name << " returned but there is still output space";
     if (RIEGELI_UNLIKELY(!dest_->Push())) {
       limit_ = start_;
       return Fail(*dest_);

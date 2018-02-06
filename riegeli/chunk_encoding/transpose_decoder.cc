@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -103,7 +102,7 @@ bool Decompressor::Initialize(internal::CompressionType compression_type,
   RETURN_FALSE_IF(!ReadVarint64(src_, &uncompressed_size));
   switch (compression_type) {
     case internal::CompressionType::kNone:
-      RIEGELI_UNREACHABLE();
+      RIEGELI_ASSERT_UNREACHABLE();
     case internal::CompressionType::kBrotli:
       owned_reader_ = riegeli::make_unique<BrotliReader>(src_);
       reader_ = owned_reader_.get();
@@ -233,9 +232,13 @@ inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
 
 // Note: If we need more callback types in the future, is_implicit can be made
 // a separate state machine node member.
-static_assert(static_cast<uint32_t>(CallbackType::kUnknown) <
-                  static_cast<uint32_t>(CallbackType::kImplicit),
+static_assert(static_cast<uint8_t>(CallbackType::kUnknown) <
+                  static_cast<uint8_t>(CallbackType::kImplicit),
               "The total number of types overflows CallbackType.");
+
+static_assert(CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1 ==
+                  CallbackType::kCopyTag_6 - CallbackType::kCopyTag_5,
+              "Bad ordering of CallbackType");
 
 // Node template that can be used to resolve the CallbackType of the node in
 // decoding phase.
@@ -365,27 +368,31 @@ bool ValidTag(uint32_t tag) {
   } while (0)
 
 // Decode string from decoder to writer.
-#define STRING_CALLBACK(tag_length)                                          \
-  do {                                                                       \
-    uint32_t total_length;                                                   \
-    if (RIEGELI_LIKELY(node->buffer->available() >= kMaxLengthVarint32())) { \
-      uint32_t length;                                                       \
-      const char* cursor = node->buffer->cursor();                           \
-      if (RIEGELI_UNLIKELY(!ReadVarint32(&cursor, &length))) {               \
-        node->buffer->set_cursor(cursor);                                    \
-        return false;                                                        \
-      }                                                                      \
-      total_length = cursor - node->buffer->cursor() + length;               \
-    } else {                                                                 \
-      const Position pos_before = node->buffer->pos();                       \
-      uint32_t length;                                                       \
-      RETURN_FALSE_IF(!ReadVarint32(node->buffer, &length));                 \
-      total_length = node->buffer->pos() - pos_before + length;              \
-      if (!node->buffer->Seek(pos_before)) RIEGELI_UNREACHABLE();            \
-    }                                                                        \
-    RETURN_FALSE_IF(!node->buffer->CopyTo(writer, total_length));            \
-    RETURN_FALSE_IF(                                                         \
-        !writer->Write(string_view(node->tag_data.data, tag_length)));       \
+#define STRING_CALLBACK(tag_length)                                            \
+  do {                                                                         \
+    size_t total_length;                                                       \
+    if (RIEGELI_LIKELY(node->buffer->available() >= kMaxLengthVarint32())) {   \
+      uint32_t length;                                                         \
+      const char* cursor = node->buffer->cursor();                             \
+      if (RIEGELI_UNLIKELY(!ReadVarint32(&cursor, &length))) {                 \
+        node->buffer->set_cursor(cursor);                                      \
+        return false;                                                          \
+      }                                                                        \
+      const size_t length_length =                                             \
+          PtrDistance(node->buffer->cursor(), cursor);                         \
+      total_length = length_length + IntCast<size_t>(length);                  \
+    } else {                                                                   \
+      const Position pos_before = node->buffer->pos();                         \
+      uint32_t length;                                                         \
+      RETURN_FALSE_IF(!ReadVarint32(node->buffer, &length));                   \
+      RIEGELI_ASSERT_GT(node->buffer->pos(), pos_before);                      \
+      const Position length_length = node->buffer->pos() - pos_before;         \
+      total_length = IntCast<size_t>(length_length) + IntCast<size_t>(length); \
+      if (!node->buffer->Seek(pos_before)) RIEGELI_ASSERT_UNREACHABLE();       \
+    }                                                                          \
+    RETURN_FALSE_IF(!node->buffer->CopyTo(writer, total_length));              \
+    RETURN_FALSE_IF(                                                           \
+        !writer->Write(string_view(node->tag_data.data, tag_length)));         \
   } while (0)
 
 // Should the data content of the field be decoded?
@@ -396,23 +403,20 @@ enum class FieldIncluded {
 };
 
 // Returns copy_tag callback type for "tag_length".
-constexpr CallbackType GetCopyTagCallbackType(uint32_t tag_length) {
+CallbackType GetCopyTagCallbackType(size_t tag_length) {
   return CallbackType::kCopyTag_1 +
-         (tag_length - 1) *
-             (CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1);
+         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kCopyTag_2 -
+                                              CallbackType::kCopyTag_1));
 }
-
-static_assert(GetCopyTagCallbackType(6) == CallbackType::kCopyTag_6,
-              "Bad ordering of CallbackType");
 
 // Returns string callback type for "subtype" and "tag_length".
 CallbackType GetStringCallbackType(internal::Subtype subtype,
-                                   uint32_t tag_length) {
+                                   size_t tag_length) {
   switch (subtype) {
     case internal::Subtype::kLengthDelimitedString:
       return CallbackType::kString_1 +
-             (tag_length - 1) *
-                 (CallbackType::kString_2 - CallbackType::kString_1);
+             IntCast<uint8_t>((tag_length - 1) * (CallbackType::kString_2 -
+                                                  CallbackType::kString_1));
     case internal::Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
@@ -425,7 +429,7 @@ CallbackType GetStringCallbackType(internal::Subtype subtype,
 
 // Returns string callback type for "subtype" and "tag_length" to exclude field.
 CallbackType GetStringExcludeCallbackType(internal::Subtype subtype,
-                                          uint32_t tag_length) {
+                                          size_t tag_length) {
   switch (subtype) {
     case internal::Subtype::kLengthDelimitedString:
       return CallbackType::kNoOp;
@@ -439,7 +443,7 @@ CallbackType GetStringExcludeCallbackType(internal::Subtype subtype,
 // Returns string callback type for "subtype" and "tag_length" for existence
 // only.
 CallbackType GetStringExistenceCallbackType(internal::Subtype subtype,
-                                            uint32_t tag_length) {
+                                            size_t tag_length) {
   switch (subtype) {
     case internal::Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
@@ -455,22 +459,22 @@ CallbackType GetStringExistenceCallbackType(internal::Subtype subtype,
 }
 
 // Returns FLOAT binary callback type for "tag_length".
-CallbackType GetBinaryCallbackType32(uint32_t tag_length) {
+CallbackType GetBinaryCallbackType32(size_t tag_length) {
   return CallbackType::kFixed32_1 +
-         (tag_length - 1) *
-             (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
+         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kFixed32_2 -
+                                              CallbackType::kFixed32_1));
 }
 
 // Returns DOUBLE binary callback type for "tag_length".
-CallbackType GetBinaryCallbackType64(uint32_t tag_length) {
+CallbackType GetBinaryCallbackType64(size_t tag_length) {
   return CallbackType::kFixed64_1 +
-         (tag_length - 1) *
-             (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
+         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kFixed64_2 -
+                                              CallbackType::kFixed64_1));
 }
 
 // Returns numeric callback type for "subtype" and "tag_length".
 CallbackType GetNumericCallbackType(internal::Subtype subtype,
-                                    uint32_t tag_length) {
+                                    size_t tag_length) {
   if (subtype > internal::Subtype::kVarintInlineMax) {
     return CallbackType::kUnknown;
   }
@@ -478,27 +482,29 @@ CallbackType GetNumericCallbackType(internal::Subtype subtype,
     return GetCopyTagCallbackType(tag_length + 1);
   }
   return CallbackType::kVarint_1_1 +
-         (subtype - internal::Subtype::kVarint1) *
-             (CallbackType::kVarint_2_1 - CallbackType::kVarint_1_1) +
-         (tag_length - 1) *
-             (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1);
+         IntCast<uint8_t>(
+             (subtype - internal::Subtype::kVarint1) *
+                 (CallbackType::kVarint_2_1 - CallbackType::kVarint_1_1) +
+             (tag_length - 1) *
+                 (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1));
 }
 
-CallbackType GetStartFilterGroupCallbackType(uint32_t tag_length) {
+CallbackType GetStartFilterGroupCallbackType(size_t tag_length) {
   return CallbackType::kStartFilterGroup_1 +
-         (tag_length - 1) * (CallbackType::kStartFilterGroup_2 -
-                             CallbackType::kStartFilterGroup_1);
+         IntCast<uint8_t>((tag_length - 1) *
+                          (CallbackType::kStartFilterGroup_2 -
+                           CallbackType::kStartFilterGroup_1));
 }
 
-CallbackType GetEndFilterGroupCallbackType(uint32_t tag_length) {
+CallbackType GetEndFilterGroupCallbackType(size_t tag_length) {
   return CallbackType::kEndFilterGroup_1 +
-         (tag_length - 1) * (CallbackType::kEndFilterGroup_2 -
-                             CallbackType::kEndFilterGroup_1);
+         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kEndFilterGroup_2 -
+                                              CallbackType::kEndFilterGroup_1));
 }
 
 // Get callback for node.
 CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
-                             internal::Subtype subtype, uint32_t tag_length,
+                             internal::Subtype subtype, size_t tag_length,
                              bool filtering_enabled) {
   if (tag_length < 1 || tag_length > kMaxLengthVarint32()) {
     return CallbackType::kUnknown;
@@ -555,8 +561,8 @@ CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           return CallbackType::kUnknown;
       }
   }
-  RIEGELI_UNREACHABLE() << "Unknown FieldIncluded: "
-                        << static_cast<int>(field_included);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
 bool IsImplicit(CallbackType callback_type) {
@@ -693,7 +699,7 @@ TransposeDecoder::Context::SetCallbackType(
       for (const SubmessageStackElement& elem : submessage_stack) {
         uint32_t tag;
         const char* cursor = elem.tag_data.data;
-        if (!ReadVarint32(&cursor, &tag)) RIEGELI_UNREACHABLE();
+        if (!ReadVarint32(&cursor, &tag)) RIEGELI_ASSERT_UNREACHABLE();
         auto it = include_fields.find(std::make_pair(index, tag >> 3));
         if (it == include_fields.end()) {
           field_included = FieldIncluded::kNo;
@@ -719,7 +725,7 @@ TransposeDecoder::Context::SetCallbackType(
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
       const char* cursor = node->tag_data.data;
-      if (!ReadVarint32(&cursor, &tag)) RIEGELI_UNREACHABLE();
+      if (!ReadVarint32(&cursor, &tag)) RIEGELI_ASSERT_UNREACHABLE();
       auto it = include_fields.find(std::make_pair(index, tag >> 3));
       if (it == include_fields.end()) {
         field_included = FieldIncluded::kNo;
@@ -772,7 +778,7 @@ bool TransposeDecoder::Initialize(Reader* reader,
       RETURN_FALSE_IF(n == 0);
       auto insert_result = context_->include_fields.emplace(
           std::make_pair(kInvalidPos, n),
-          static_cast<uint32_t>(context_->existence_only.size()));
+          IntCast<uint32_t>(context_->existence_only.size()));
       if (insert_result.second) context_->existence_only.push_back(true);
       for (size_t i = 1; i < include_field.size(); ++i) {
         n = include_field[i];
@@ -780,7 +786,7 @@ bool TransposeDecoder::Initialize(Reader* reader,
         const uint32_t current_index = insert_result.first->second;
         insert_result = context_->include_fields.emplace(
             std::make_pair(current_index, n),
-            static_cast<uint32_t>(context_->existence_only.size()));
+            IntCast<uint32_t>(context_->existence_only.size()));
         if (insert_result.second) context_->existence_only.push_back(true);
       }
       context_->existence_only[insert_result.first->second] = false;
@@ -800,16 +806,16 @@ bool TransposeDecoder::Initialize(Reader* reader,
   RETURN_FALSE_IF(!header_decompressor.Initialize(
       ChainReader(&header), context_->compression_type, &context_->message));
 
-  size_t num_buffers;
+  uint32_t num_buffers;
   std::vector<uint32_t> bucket_start;
   std::vector<uint32_t> bucket_indices;
   if (filtering_enabled) {
     RETURN_FALSE_IF(!ParseBuffersForFitering(
         header_decompressor.reader(), reader, &bucket_start, &bucket_indices));
-    num_buffers = bucket_indices.size();
+    num_buffers = IntCast<uint32_t>(bucket_indices.size());
   } else {
     RETURN_FALSE_IF(!ParseBuffers(header_decompressor.reader(), reader));
-    num_buffers = context_->buffers.size();
+    num_buffers = IntCast<uint32_t>(context_->buffers.size());
   }
 
   uint32_t state_machine_size;
@@ -893,9 +899,10 @@ bool TransposeDecoder::Initialize(Reader* reader,
           subtype = internal::Subtype::kLengthDelimitedEndOfSubmessage;
         }
         RETURN_FALSE_IF(!ValidTag(tag));
+        char* const tag_end =
+            WriteVarint32(state_machine_node.tag_data.data, tag);
         const size_t tag_length =
-            WriteVarint32(state_machine_node.tag_data.data, tag) -
-            state_machine_node.tag_data.data;
+            PtrDistance(state_machine_node.tag_data.data, tag_end);
         if (internal::HasSubtype(tag)) {
           subtype = static_cast<internal::Subtype>(subtypes[subtype_index++]);
         }
@@ -914,8 +921,7 @@ bool TransposeDecoder::Initialize(Reader* reader,
           }
           context_->node_templates[i].tag = tag;
           context_->node_templates[i].subtype = subtype;
-          context_->node_templates[i].tag_length =
-              static_cast<uint8_t>(tag_length);
+          context_->node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
           state_machine_node.node_template = &context_->node_templates[i];
           state_machine_node.callback_type = CallbackType::kSelectCallback;
         } else {
@@ -940,7 +946,7 @@ bool TransposeDecoder::Initialize(Reader* reader,
         } else {
           state_machine_node.tag_data.data[tag_length] = 0;
         }
-        state_machine_node.tag_data.size = tag_length;
+        state_machine_node.tag_data.size = IntCast<uint8_t>(tag_length);
       }
     }
     uint32_t next_node_id = next_node_indices[i];
@@ -1093,7 +1099,7 @@ bool TransposeDecoder::Decode(BackwardWriter* writer,
   // At the end boundaries will be reversed and normalized such that
   // boundaries->front() == 0.
   boundaries->clear();
-  boundaries->push_back(static_cast<size_t>(writer->pos()));
+  boundaries->push_back(IntCast<size_t>(writer->pos()));
   // The depth of the current field relative to the parent submessage that was
   // excluded in filtering.
   int skipped_submessage_level = 0;
@@ -1172,8 +1178,10 @@ failure:
 submessage_start : {
   RETURN_FALSE_IF(submessage_stack.empty());
   SubmessageStackElement elem = submessage_stack.back();
-  RETURN_FALSE_IF(
-      !WriteVarint32(writer, writer->pos() - elem.end_of_submessage));
+  RIEGELI_ASSERT_GE(writer->pos(), elem.end_of_submessage);
+  const Position length = writer->pos() - elem.end_of_submessage;
+  RETURN_FALSE_IF(length > std::numeric_limits<uint32_t>::max());
+  RETURN_FALSE_IF(!WriteVarint32(writer, IntCast<uint32_t>(length)));
   RETURN_FALSE_IF(
       !writer->Write(string_view(elem.tag_data.data, elem.tag_data.size)));
   submessage_stack.pop_back();
@@ -1238,7 +1246,7 @@ non_proto : {
 
 message_start:
   RETURN_FALSE_IF(!submessage_stack.empty());
-  boundaries->push_back(static_cast<size_t>(writer->pos()));
+  boundaries->push_back(IntCast<size_t>(writer->pos()));
   // Fall through to do_transition.
 
 do_transition:

@@ -16,9 +16,9 @@
 
 #include <stddef.h>
 #include <cstring>
+#include <limits>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/string_view.h"
@@ -30,41 +30,54 @@ namespace riegeli {
 
 inline bool BufferedReader::TooSmall(Chain::Buffer flat_buffer) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
-  RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size_);
+  RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size_)
+      << "Failed precondition of BufferedReader::TooSmall(): "
+         "flat buffer larger than buffer size";
   return buffer_size_ - flat_buffer.size() > flat_buffer.size();
 }
 
 inline Chain::BlockIterator BufferedReader::iter() const {
-  RIEGELI_ASSERT(!buffer_.blocks().empty());
-  return buffer_.blocks().end() - 1;
+  RIEGELI_ASSERT_EQ(buffer_.blocks().size(), 1u)
+      << "Failed precondition of BufferedReader::iter(): single block expected";
+  return buffer_.blocks().begin();
 }
 
 bool BufferedReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
   if (TooSmall(flat_buffer)) {
     // Make a new buffer.
+    RIEGELI_ASSERT_GT(buffer_size_, 0u)
+        << "Failed invariant of BufferedReader: no buffer size specified";
     buffer_.Clear();
     flat_buffer = buffer_.MakeAppendBuffer(buffer_size_, buffer_size_);
     start_ = flat_buffer.data();
     cursor_ = flat_buffer.data();
   }
-  RIEGELI_ASSERT(start_ == iter()->data());
+  RIEGELI_ASSERT(start_ == iter()->data())
+      << "Failed invariant of BufferedReader: "
+         "buffer pointer does not point to buffer block";
   limit_ = flat_buffer.data();
   // Read more data into buffer_.
   const Position pos_before = limit_pos_;
   const bool ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
-  RIEGELI_ASSERT_GE(limit_pos_, pos_before);
+  RIEGELI_ASSERT_GE(limit_pos_, pos_before)
+      << "BufferedReader::ReadInternal() decreased limit_pos_";
   const Position length_read = limit_pos_ - pos_before;
-  RIEGELI_ASSERT_LE(length_read, flat_buffer.size());
-  buffer_.RemoveSuffix(flat_buffer.size() - length_read);
+  RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
+      << "BufferedReader::ReadInternal() read more than requested";
+  buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
   limit_ += length_read;
   return ok;
 }
 
 bool BufferedReader::ReadSlow(char* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, available());
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Reader::ReadSlow(char*): "
+         "length too small, use Read(char*) instead";
   if (length - available() >= buffer_size_) {
     // If reading through buffer_ would need multiple ReadInternal() calls, it
     // is faster to copy current contents of buffer_ and read the remaining data
@@ -83,7 +96,12 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
 }
 
 bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "length too small, use Read(Chain*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "Chain size overflows";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   const size_t size_hint = dest->size() + length;
   if (length >= available() && length - available() >= buffer_size_) {
@@ -97,7 +115,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     // calls.
     const size_t available_length = available();
     if (available_length > 0) {  // iter() is undefined if
-                                 // buffer_.blocks().empty().
+                                 // buffer_.blocks().size() != 1.
       iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
                             size_hint);
       length -= available_length;
@@ -106,10 +124,12 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     const Chain::Buffer flat_buffer = dest->MakeAppendBuffer(length, size_hint);
     const Position pos_before = limit_pos_;
     const bool ok = ReadInternal(flat_buffer.data(), length, length);
-    RIEGELI_ASSERT_GE(limit_pos_, pos_before);
+    RIEGELI_ASSERT_GE(limit_pos_, pos_before)
+        << "BufferedReader::ReadInternal() decreased limit_pos_";
     const Position length_read = limit_pos_ - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length);
-    dest->RemoveSuffix(flat_buffer.size() - length_read);
+    RIEGELI_ASSERT_LE(length_read, length)
+        << "BufferedReader::ReadInternal() read more than requested";
+    dest->RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     return ok;
   }
 
@@ -118,9 +138,11 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Append a part of buffer_ to dest and make a new buffer.
+      RIEGELI_ASSERT_GT(buffer_size_, 0u)
+          << "Failed invariant of BufferedReader: no buffer size specified";
       const size_t available_length = available();
       if (available_length > 0) {  // iter() is undefined if
-                                   // buffer_.blocks().empty().
+                                   // buffer_.blocks().size() != 1.
         iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
                               size_hint);
         length -= available_length;
@@ -130,15 +152,19 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       start_ = flat_buffer.data();
       cursor_ = flat_buffer.data();
     }
-    RIEGELI_ASSERT(start_ == iter()->data());
+    RIEGELI_ASSERT(start_ == iter()->data())
+        << "Failed invariant of BufferedReader: "
+           "buffer pointer does not point to buffer block";
     limit_ = flat_buffer.data();
     // Read more data into buffer_.
     const Position pos_before = limit_pos_;
     ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
-    RIEGELI_ASSERT_GE(limit_pos_, pos_before);
+    RIEGELI_ASSERT_GE(limit_pos_, pos_before)
+        << "BufferedReader::ReadInternal() decreased limit_pos_";
     const Position length_read = limit_pos_ - pos_before;
-    RIEGELI_ASSERT_LE(length_read, flat_buffer.size());
-    buffer_.RemoveSuffix(flat_buffer.size() - length_read);
+    RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
+        << "BufferedReader::ReadInternal() read more than requested";
+    buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
     if (RIEGELI_UNLIKELY(!ok)) {
       if (length > available()) {
@@ -149,8 +175,10 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       break;
     }
   }
-  RIEGELI_ASSERT_LE(length, available());
-  if (length > 0) {  // iter() is undefined if buffer_.blocks().empty().
+  RIEGELI_ASSERT_LE(length, available())
+      << "Bug in BufferedReader::ReadSlow(Chain*): "
+         "remaining length larger than available data";
+  if (length > 0) {  // iter() is undefined if buffer_.blocks().size() != 1.
     iter().AppendSubstrTo(string_view(cursor_, length), dest, size_hint);
     cursor_ += length;
   }
@@ -158,16 +186,20 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
 }
 
 bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(Writer*): "
+         "length too small, use CopyTo(Writer*) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   bool read_ok = true;
   while (length > available()) {
     Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Write a part of buffer_ to dest and make a new buffer.
+      RIEGELI_ASSERT_GT(buffer_size_, 0u)
+          << "Failed invariant of BufferedReader: no buffer size specified";
       const size_t available_length = available();
       if (available_length > 0) {  // iter() is undefined if
-                                   // buffer_.blocks().empty().
+                                   // buffer_.blocks().size() != 1.
         bool write_ok;
         if (available_length == buffer_.size()) {
           write_ok = dest->Write(buffer_);
@@ -188,15 +220,19 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       start_ = flat_buffer.data();
       cursor_ = flat_buffer.data();
     }
-    RIEGELI_ASSERT(start_ == iter()->data());
+    RIEGELI_ASSERT(start_ == iter()->data())
+        << "Failed invariant of BufferedReader: "
+           "buffer pointer does not point to buffer block";
     limit_ = flat_buffer.data();
     // Read more data into buffer_.
     const Position pos_before = limit_pos_;
     read_ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
-    RIEGELI_ASSERT_GE(limit_pos_, pos_before);
+    RIEGELI_ASSERT_GE(limit_pos_, pos_before)
+        << "BufferedReader::ReadInternal() decreased limit_pos_";
     const Position length_read = limit_pos_ - pos_before;
-    RIEGELI_ASSERT_LE(length_read, flat_buffer.size());
-    buffer_.RemoveSuffix(flat_buffer.size() - length_read);
+    RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
+        << "BufferedReader::ReadInternal() read more than requested";
+    buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
     if (RIEGELI_UNLIKELY(!read_ok)) {
       if (length > available()) {
@@ -207,9 +243,11 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       break;
     }
   }
-  RIEGELI_ASSERT_LE(length, available());
+  RIEGELI_ASSERT_LE(length, available())
+      << "Bug in BufferedReader::CopyToSlow(Writer*): "
+         "remaining length larger than available data";
   bool write_ok = true;
-  if (length > 0) {  // iter() is undefined if buffer_.blocks().empty().
+  if (length > 0) {  // iter() is undefined if buffer_.blocks().size() != 1.
     if (length == buffer_.size()) {
       write_ok = dest->Write(buffer_);
     } else {
@@ -223,7 +261,9 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()));
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Reader::CopyToSlow(Writer*): "
+         "length too small, use CopyTo(Writer*) instead";
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
     if (RIEGELI_UNLIKELY(!ReadSlow(buffer, length))) return false;

@@ -17,10 +17,10 @@
 
 #include <stddef.h>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -82,10 +82,22 @@ class Writer : public Object {
   // Preconditions: start() <= cursor <= limit()
   void set_cursor(char* cursor);
 
-  // Returns the amount of space available between cursor() and limit().
+  // Returns the amount of space available in the buffer, between cursor() and
+  // limit().
   //
   // Invariant: if !healthy() then available() == 0
-  size_t available() const { return limit_ - cursor_; }
+  size_t available() const { return PtrDistance(cursor_, limit_); }
+
+  // Returns the buffer size, between start() and limit().
+  //
+  // Invariant: if !healthy() then buffer_size() == 0
+  size_t buffer_size() const { return PtrDistance(start_, limit_); }
+
+  // Returns the amount of data written to the buffer, between start() and
+  // cursor().
+  //
+  // Invariant: if !healthy() then written_to_buffer() == 0
+  size_t written_to_buffer() const { return PtrDistance(start_, cursor_); }
 
   // Writes a fixed number of bytes from src to the buffer, pushing data to the
   // destination as needed.
@@ -127,7 +139,7 @@ class Writer : public Object {
   // previously written but unflushed data may be lost).
   //
   // Invariant: if closed() then pos() == 0
-  Position pos() const { return start_pos_ + written_to_buffer(); }
+  Position pos() const;
 
   // Returns true if this Writer supports Seek(), Size(), and Truncate().
   virtual bool SupportsRandomAccess() const { return false; }
@@ -170,14 +182,19 @@ class Writer : public Object {
   // override it further and include a call to Writer::Done().
   virtual void Done() override = 0;
 
+  // Marks the Writer as failed with message "Writer position overflows".
+  // Always returns false.
+  //
+  // This can be called if the destination would exceed its maximum possible
+  // size or if start_pos_ would overflow.
+  //
+  // Precondition: healthy()
+  RIEGELI_ATTRIBUTE_COLD bool FailOverflow();
+
   // Implementation of the slow part of Push().
   //
   // Precondition: available() == 0
   virtual bool PushSlow() = 0;
-
-  // Returns the amount of data written to the buffer, between start() and
-  // cursor().
-  size_t written_to_buffer() const { return cursor_ - start_; }
 
   // Implementation of the slow part of Write().
   //
@@ -203,13 +220,15 @@ class Writer : public Object {
   virtual bool SeekSlow(Position new_pos) { return false; }
 
   // Destination position corresponding to limit_.
-  Position limit_pos() const { return start_pos_ + (limit_ - start_); }
+  Position limit_pos() const;
 
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
 
   // Destination position corresponding to start_.
+  //
+  // Invariant: start_pos_ <= numeric_limits<Position>::max() - buffer_size()
   Position start_pos_ = 0;
 };
 
@@ -244,8 +263,10 @@ inline bool Writer::Push() {
 }
 
 inline void Writer::set_cursor(char* cursor) {
-  RIEGELI_ASSERT(cursor >= start());
-  RIEGELI_ASSERT(cursor <= limit());
+  RIEGELI_ASSERT(cursor >= start())
+      << "Failed precondition of Writer::set_cursor(): pointer out of range";
+  RIEGELI_ASSERT(cursor <= limit())
+      << "Failed precondition of Writer::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }
 
@@ -293,6 +314,20 @@ inline bool Writer::Write(Chain&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
+}
+
+inline Position Writer::pos() const {
+  RIEGELI_ASSERT_LE(start_pos_,
+                    std::numeric_limits<Position>::max() - buffer_size())
+      << "Failed invariant of Writer: position of buffer limit overflows";
+  return start_pos_ + written_to_buffer();
+}
+
+inline Position Writer::limit_pos() const {
+  RIEGELI_ASSERT_LE(start_pos_,
+                    std::numeric_limits<Position>::max() - buffer_size())
+      << "Failed invariant of Writer: position of buffer limit overflows";
+  return start_pos_ + buffer_size();
 }
 
 inline bool Writer::Seek(Position new_pos) {

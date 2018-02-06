@@ -21,7 +21,7 @@
 #include <thread>
 #include <utility>
 
-#include "riegeli/base/assert.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 
 namespace riegeli {
@@ -37,7 +37,9 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::Schedule(std::function<void()> task) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    RIEGELI_ASSERT(!exiting_);
+    RIEGELI_ASSERT(!exiting_)
+        << "Failed precondition of ThreadPool::Schedule(): no new threads may "
+           "be scheduled while the thread pool is exiting";
     tasks_.push_back(std::move(task));
     if (num_idle_threads_ >= tasks_.size()) {
       has_work_.notify_one();

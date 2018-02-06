@@ -14,9 +14,11 @@
 
 #include "riegeli/bytes/message_serialize.h"
 
+#include <stddef.h>
+#include <limits>
+
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -32,22 +34,57 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
   explicit WriterOutputStream(Writer* dest)
       : dest_(RIEGELI_ASSERT_NOTNULL(dest)), initial_pos_(dest_->pos()) {}
 
-  bool Next(void** data, int* size) override {
-    if (RIEGELI_UNLIKELY(!dest_->Push())) return false;
-    *data = dest_->cursor();
-    *size = dest_->available();
-    dest_->set_cursor(dest_->limit());
-    return true;
-  }
-  void BackUp(int count) override {
-    dest_->set_cursor(dest_->cursor() - count);
-  }
-  google::protobuf::int64 ByteCount() const override { return dest_->pos() - initial_pos_; }
+  bool Next(void** data, int* size) override;
+  void BackUp(int length) override;
+  google::protobuf::int64 ByteCount() const override;
 
  private:
+  Position relative_pos() const;
+
   Writer* dest_;
+  // Invariants:
+  //   dest_->pos() >= initial_pos_
+  //   dest_->pos() - initial_pos_ <= numeric_limits<google::protobuf::int64>::max()
   Position initial_pos_;
 };
+
+inline Position WriterOutputStream::relative_pos() const {
+  RIEGELI_ASSERT_GE(dest_->pos(), initial_pos_)
+      << "Failed invariant of WriterOutputStream: "
+         "current position smaller than initial position";
+  const Position pos = dest_->pos() - initial_pos_;
+  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+      << "Failed invariant of WriterOutputStream: relative position overflows";
+  return pos;
+}
+
+bool WriterOutputStream::Next(void** data, int* size) {
+  const Position pos = relative_pos();
+  if (RIEGELI_UNLIKELY(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+    return false;
+  }
+  if (RIEGELI_UNLIKELY(!dest_->Push())) return false;
+  *data = dest_->cursor();
+  *size = IntCast<int>(
+      UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
+                  Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  dest_->set_cursor(dest_->cursor() + *size);
+  return true;
+}
+
+void WriterOutputStream::BackUp(int length) {
+  RIEGELI_ASSERT_GE(length, 0)
+      << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
+         "negative length";
+  RIEGELI_ASSERT_LE(IntCast<size_t>(length), dest_->written_to_buffer())
+      << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
+         "length larger than the amount of buffered data";
+  dest_->set_cursor(dest_->cursor() - length);
+}
+
+google::protobuf::int64 WriterOutputStream::ByteCount() const {
+  return IntCast<google::protobuf::int64>(relative_pos());
+}
 
 }  // namespace
 
@@ -86,6 +123,9 @@ Chain SerializePartialAsChain(const google::protobuf::MessageLite& message) {
 }
 
 bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output) {
+  RIEGELI_CHECK_LE(message.ByteSizeLong(),
+                   std::numeric_limits<size_t>::max() - output->size())
+      << "Failed precondition of AppendToChain(): Chain size overflows";
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));
@@ -96,6 +136,9 @@ bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output) 
 }
 
 bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output) {
+  RIEGELI_CHECK_LE(message.ByteSizeLong(),
+                   std::numeric_limits<size_t>::max() - output->size())
+      << "Failed precondition of AppendPartialToChain(): Chain size overflows";
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));

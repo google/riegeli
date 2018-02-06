@@ -16,12 +16,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "brotli/decode.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -66,7 +66,7 @@ BrotliReader& BrotliReader::operator=(BrotliReader&& src) noexcept {
 BrotliReader::~BrotliReader() = default;
 
 void BrotliReader::Done() {
-  if (RIEGELI_UNLIKELY(!Pull() && decompressor_ != nullptr)) {
+  if (!Pull() && RIEGELI_UNLIKELY(decompressor_ != nullptr)) {
     Fail("Truncated Brotli-compressed stream");
   }
   if (owned_src_ != nullptr) {
@@ -81,7 +81,9 @@ void BrotliReader::Done() {
 }
 
 bool BrotliReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) return false;
   size_t available_out = 0;
@@ -107,6 +109,11 @@ bool BrotliReader::PullSlow() {
     if (length > 0) {
       start_ = data;
       cursor_ = data;
+      if (RIEGELI_UNLIKELY(length >
+                           std::numeric_limits<Position>::max() - limit_pos_)) {
+        limit_ = data;
+        return FailOverflow();
+      }
       limit_ = data + length;
       limit_pos_ += length;
     }
@@ -133,13 +140,15 @@ bool BrotliReader::PullSlow() {
                "BrotliDecoderTakeOutput() returned no data";
         return true;
     }
-    RIEGELI_UNREACHABLE() << "Unknown BrotliDecoderResult: "
-                          << static_cast<int>(result);
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
   }
 }
 
 bool BrotliReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   return decompressor_ != nullptr;
 }

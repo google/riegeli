@@ -16,8 +16,10 @@
 #define RIEGELI_RECORDS_RECORD_POSITION_H_
 
 #include <stdint.h>
+#include <limits>
 #include <string>
 
+#include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
@@ -30,7 +32,10 @@ class RecordPosition {
   // Creates a RecordPosition corresponding to the given record of the chunk
   // at the given file position.
   RecordPosition(uint64_t chunk_begin, uint64_t record_index)
-      : chunk_begin_(chunk_begin), record_index_(record_index) {}
+      : chunk_begin_(chunk_begin), record_index_(record_index) {
+    RIEGELI_ASSERT_LE(record_index,
+                      std::numeric_limits<uint64_t>::max() - chunk_begin);
+  }
 
   RecordPosition(const RecordPosition&) noexcept = default;
   RecordPosition& operator=(const RecordPosition&) noexcept = default;
@@ -55,6 +60,7 @@ class RecordPosition {
   friend bool operator>=(RecordPosition a, RecordPosition b);
 
  private:
+  // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_
   uint64_t chunk_begin_ = 0;
   uint64_t record_index_ = 0;
 };

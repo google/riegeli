@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -246,7 +245,7 @@ inline bool ChunkDecoder::InitializeTransposed(const ChunkHeader& header,
           !transpose_decoder.Decode(&values_writer, &boundaries_))) {
     return Fail("Invalid transposed chunk");
   }
-  if (!values_writer.Close()) RIEGELI_UNREACHABLE();
+  if (!values_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
   return data_reader->VerifyEndAndClose();
 }
 
@@ -258,13 +257,13 @@ again:
   LimitingReader message_reader(&values_reader_, boundaries_[index_]);
   if (RIEGELI_UNLIKELY(!ParsePartialFromReader(record, &message_reader))) {
     if (!values_reader_.Seek(boundaries_[index_])) {
-      RIEGELI_UNREACHABLE();
+      RIEGELI_ASSERT_UNREACHABLE();
     }
     if (skip_corruption_) goto again;
     index_ = num_records();
     return Fail("Failed to parse message of type " + record->GetTypeName());
   }
-  if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_UNREACHABLE();
+  if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_ASSERT_UNREACHABLE();
   if (RIEGELI_UNLIKELY(!record->IsInitialized())) {
     if (skip_corruption_) goto again;
     index_ = num_records();

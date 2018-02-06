@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include "riegeli/base/assert.h"
+#include "riegeli/base/base.h"
 #include "riegeli/bytes/writer_utils.h"
 
 namespace riegeli {
@@ -107,7 +107,7 @@ inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_UNREACHABLE() << "Unknown wire type in " << tag;
+      RIEGELI_ASSERT_UNREACHABLE() << "Unknown wire type in " << tag;
   }
 }
 
@@ -129,7 +129,7 @@ inline bool HasSubtype(uint32_t tag) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_UNREACHABLE() << "Unknown wire type in " << tag;
+      RIEGELI_ASSERT_UNREACHABLE() << "Unknown wire type in " << tag;
   }
 }
 

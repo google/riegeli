@@ -17,7 +17,6 @@
 #include <memory>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
@@ -62,7 +61,8 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   StringReader header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader data_reader(&chunk.data);
   const Position chunk_begin = byte_writer_->pos();
-  const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
+  const Position chunk_end =
+      internal::ChunkEnd(chunk.header, IntCast<uint64_t>(chunk_begin));
   if (RIEGELI_UNLIKELY(!WriteSection(&header_reader, chunk_begin, chunk_end))) {
     return false;
   }
@@ -79,16 +79,17 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
 inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
                                              Position chunk_end) {
   while (src->Pull()) {
-    if (internal::IsBlockBoundary(byte_writer_->pos())) {
-      internal::BlockHeader block_header(byte_writer_->pos() - chunk_begin,
-                                         chunk_end - byte_writer_->pos());
+    if (internal::IsBlockBoundary(IntCast<uint64_t>(byte_writer_->pos()))) {
+      internal::BlockHeader block_header(
+          IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
+          IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
               string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
     }
-    if (!src->CopyTo(byte_writer_,
-                     internal::RemainingInBlock(byte_writer_->pos()))) {
+    if (!src->CopyTo(byte_writer_, internal::RemainingInBlock(IntCast<uint64_t>(
+                                       byte_writer_->pos())))) {
       if (RIEGELI_LIKELY(byte_writer_->healthy())) break;
       return Fail(*byte_writer_);
     }
@@ -99,17 +100,18 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
 inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
                                              Position chunk_end) {
   while (byte_writer_->pos() < chunk_end) {
-    if (internal::IsBlockBoundary(byte_writer_->pos())) {
-      internal::BlockHeader block_header(byte_writer_->pos() - chunk_begin,
-                                         chunk_end - byte_writer_->pos());
+    if (internal::IsBlockBoundary(IntCast<uint64_t>(byte_writer_->pos()))) {
+      internal::BlockHeader block_header(
+          IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
+          IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
               string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
     }
-    const Position slice_size =
-        UnsignedMin(chunk_end - byte_writer_->pos(),
-                    internal::RemainingInBlock(byte_writer_->pos()));
+    const Position slice_size = UnsignedMin(
+        chunk_end - byte_writer_->pos(),
+        internal::RemainingInBlock(IntCast<uint64_t>(byte_writer_->pos())));
     if (RIEGELI_UNLIKELY(!WriteZeros(byte_writer_, slice_size))) {
       return Fail(*byte_writer_);
     }

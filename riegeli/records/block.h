@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/base/string_view.h"
@@ -76,7 +75,7 @@ constexpr Position kUsableBlockSize() {
 // Subtraction of unsigned values, or 0 if that would underflow.
 template <typename T>
 T SaturatingSub(T a, T b) {
-  return a > b ? a - b : 0;
+  return a > b ? a - b : T{0};
 }
 
 // Whether pos is a block boundary (immediately before a block header).
@@ -101,7 +100,7 @@ inline Position RoundToPossibleChunkBoundary(Position pos) {
 // until the end of the block header, otherwise 0.
 inline size_t RemainingInBlockHeader(Position pos) {
   return SaturatingSub(BlockHeader::size(),
-                       static_cast<size_t>(pos % kBlockSize()));
+                       IntCast<size_t>(pos % kBlockSize()));
 }
 
 // For a given data size beginning at the given position, the position after

@@ -18,7 +18,6 @@
 #include <stdint.h>
 #include <cstring>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
@@ -29,17 +28,19 @@ namespace internal {
 bool WriteVarint32Slow(Writer* dest, uint32_t data) {
   char buffer[kMaxLengthVarint32()];
   char* const end = WriteVarint32(buffer, data);
-  return dest->Write(string_view(buffer, end - buffer));
+  return dest->Write(string_view(buffer, PtrDistance(buffer, end)));
 }
 
 bool WriteVarint64Slow(Writer* dest, uint64_t data) {
   char buffer[kMaxLengthVarint64()];
   char* const end = WriteVarint64(buffer, data);
-  return dest->Write(string_view(buffer, end - buffer));
+  return dest->Write(string_view(buffer, PtrDistance(buffer, end)));
 }
 
 bool WriteZerosSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, dest->available());
+  RIEGELI_ASSERT_GT(length, dest->available())
+      << "Failed precondition of WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
   if (dest->available() == 0) {  // memset(nullptr, _, 0) is undefined.
     goto skip_copy;
   }

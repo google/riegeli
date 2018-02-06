@@ -14,9 +14,10 @@
 
 #include "riegeli/bytes/buffered_writer.h"
 
+#include <stddef.h>
+#include <limits>
 #include <memory>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
@@ -24,10 +25,17 @@
 namespace riegeli {
 
 bool BufferedWriter::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Writer::PushSlow(): "
+         "space available, use Push() instead";
   if (RIEGELI_UNLIKELY(!PushInternal())) return false;
   if (RIEGELI_UNLIKELY(start_ == nullptr)) {
-    RIEGELI_ASSERT_GT(buffer_size_, 0u);
+    RIEGELI_ASSERT_GT(buffer_size_, 0u)
+        << "Failed invariant of BufferedWriter: no buffer size specified";
+    if (RIEGELI_UNLIKELY(buffer_size_ >
+                         std::numeric_limits<Position>::max() - start_pos_)) {
+      return FailOverflow();
+    }
     start_ = std::allocator<char>().allocate(buffer_size_);
     cursor_ = start_;
     limit_ = start_ + buffer_size_;
@@ -44,12 +52,14 @@ bool BufferedWriter::PushInternal() {
 }
 
 bool BufferedWriter::WriteSlow(string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available());
+  RIEGELI_ASSERT_GT(src.size(), available())
+      << "Failed precondition of Writer::WriteSlow(string_view): "
+         "length too small, use Write(string_view) instead";
   if (written_to_buffer() == 0 ? src.size() >= buffer_size_
                                : src.size() - available() >= buffer_size_) {
-    // If writing through buffer_ would need multiple WriteInternal() calls, it
-    // is faster to push current contents of buffer_ and write the remaining
-    // data directly from src.
+    // If writing through the buffer would need multiple WriteInternal() calls,
+    // it is faster to push current contents of the buffer and write the
+    // remaining data directly from src.
     if (RIEGELI_UNLIKELY(!PushInternal())) return false;
     return WriteInternal(src);
   }

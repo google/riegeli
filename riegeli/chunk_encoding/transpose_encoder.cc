@@ -19,11 +19,11 @@
 #include <algorithm>
 #include <limits>
 #include <queue>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -225,9 +225,9 @@ void TransposeEncoder::AddMessage(const Chain& message) {
 void TransposeEncoder::AddMessageInternal(Reader* message) {
   RIEGELI_ASSERT_EQ(message->pos(), 0u);
   Position size;
-  if (!message->Size(&size)) RIEGELI_UNREACHABLE();
+  if (!message->Size(&size)) RIEGELI_ASSERT_UNREACHABLE();
   const bool is_proto = IsProtoMessage(message);
-  if (!message->Seek(0)) RIEGELI_UNREACHABLE();
+  if (!message->Seek(0)) RIEGELI_ASSERT_UNREACHABLE();
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kStartOfMessage, 0, internal::Subtype::kTrivial)));
@@ -237,10 +237,10 @@ void TransposeEncoder::AddMessageInternal(Reader* message) {
         internal::MessageId::kNonProto, 0, internal::Subtype::kTrivial)));
     if (!message->CopyTo(
             GetBuffer(internal::MessageId::kNonProto, 0, BufferType::kNonProto),
-            size)) {
-      RIEGELI_UNREACHABLE();
+            IntCast<size_t>(size))) {
+      RIEGELI_ASSERT_UNREACHABLE();
     }
-    WriteVarint64(&nonproto_lengths_writer_, size);
+    WriteVarint64(&nonproto_lengths_writer_, IntCast<uint64_t>(size));
   }
 }
 
@@ -279,14 +279,14 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
                                           int depth) {
   while (message->Pull()) {
     uint32_t tag;
-    if (!ReadVarint32(message, &tag)) RIEGELI_UNREACHABLE();
+    if (!ReadVarint32(message, &tag)) RIEGELI_ASSERT_UNREACHABLE();
     const uint32_t field = tag >> 3;
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
         char value[kMaxLengthVarint64()];
         char* const value_end = CopyVarint64(message, value);
-        if (value_end == nullptr) RIEGELI_UNREACHABLE();
-        const size_t value_length = value_end - value;
+        if (value_end == nullptr) RIEGELI_ASSERT_UNREACHABLE();
+        const size_t value_length = PtrDistance(value, value_end);
         RIEGELI_ASSERT_GT(value_length, 0u);
         if (static_cast<uint8_t>(value[0]) <= kMaxVarintInline) {
           encoded_tags_.push_back(
@@ -296,7 +296,8 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
         } else {
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
-                         internal::Subtype::kVarint1 + (value_length - 1))));
+                         internal::Subtype::kVarint1 +
+                             IntCast<uint8_t>(value_length - 1))));
           // TODO: Consider processing the whole sizeof(value) instead.
           for (size_t i = 0; i < value_length - 1; ++i) value[i] &= ~0x80;
           GetBuffer(parent_message_id, field, BufferType::kVarint)
@@ -309,7 +310,7 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
         if (!message->CopyTo(
                 GetBuffer(parent_message_id, field, BufferType::kFixed32),
                 sizeof(uint32_t))) {
-          RIEGELI_UNREACHABLE();
+          RIEGELI_ASSERT_UNREACHABLE();
         }
         break;
       case internal::WireType::kFixed64:
@@ -318,13 +319,13 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
         if (!message->CopyTo(
                 GetBuffer(parent_message_id, field, BufferType::kFixed64),
                 sizeof(uint64_t))) {
-          RIEGELI_UNREACHABLE();
+          RIEGELI_ASSERT_UNREACHABLE();
         }
         break;
       case internal::WireType::kLengthDelimited: {
         uint32_t length;
         const Position length_pos = message->pos();
-        if (!ReadVarint32(message, &length)) RIEGELI_UNREACHABLE();
+        if (!ReadVarint32(message, &length)) RIEGELI_ASSERT_UNREACHABLE();
         const Position value_pos = message->pos();
         LimitingReader value(message, value_pos + length);
         // Non-toplevel empty strings are treated as strings, not messages.
@@ -340,22 +341,22 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
             // New node was added.
             ++next_message_id_;
           }
-          if (!value.Seek(value_pos)) RIEGELI_UNREACHABLE();
+          if (!value.Seek(value_pos)) RIEGELI_ASSERT_UNREACHABLE();
           AddMessageInternal(&value, insert_result.first->second.message_id,
                              depth + 1);
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedEndOfSubmessage)));
-          if (!value.Close()) RIEGELI_UNREACHABLE();
+          if (!value.Close()) RIEGELI_ASSERT_UNREACHABLE();
         } else {
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedString)));
-          if (!message->Seek(length_pos)) RIEGELI_UNREACHABLE();
+          if (!message->Seek(length_pos)) RIEGELI_ASSERT_UNREACHABLE();
           if (!message->CopyTo(
                   GetBuffer(parent_message_id, field, BufferType::kString),
-                  value_pos - length_pos + length)) {
-            RIEGELI_UNREACHABLE();
+                  IntCast<size_t>(value_pos - length_pos) + length)) {
+            RIEGELI_ASSERT_UNREACHABLE();
           }
         }
       } break;
@@ -380,7 +381,7 @@ void TransposeEncoder::AddMessageInternal(Reader* message,
             EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
         break;
       default:
-        RIEGELI_UNREACHABLE() << "Bug in IsProtoMessage()?";
+        RIEGELI_ASSERT_UNREACHABLE() << "Bug in IsProtoMessage()?";
     }
   }
   RIEGELI_ASSERT(message->healthy());
@@ -420,8 +421,8 @@ void TransposeEncoder::AppendCompressedBuffer(bool prepend_compressed_size,
                                   .set_size_hint(input.size()));
       compressor.Write(input);
       // TODO: Expose compressor failures by TransposeEncoder.
-      if (!compressor.Close()) RIEGELI_UNREACHABLE();
-      if (!compressed_writer.Close()) RIEGELI_UNREACHABLE();
+      if (!compressor.Close()) RIEGELI_ASSERT_UNREACHABLE();
+      if (!compressed_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
       if (prepend_compressed_size) {
         WriteVarint64(dest, LengthVarint64(input.size()) + compressed.size());
       }
@@ -438,8 +439,8 @@ void TransposeEncoder::AppendCompressedBuffer(bool prepend_compressed_size,
                                 .set_size_hint(input.size()));
       compressor.Write(input);
       // TODO: Expose compressor failures by TransposeEncoder.
-      if (!compressor.Close()) RIEGELI_UNREACHABLE();
-      if (!compressed_writer.Close()) RIEGELI_UNREACHABLE();
+      if (!compressor.Close()) RIEGELI_ASSERT_UNREACHABLE();
+      if (!compressed_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
       if (prepend_compressed_size) {
         WriteVarint64(dest, LengthVarint64(input.size()) + compressed.size());
       }
@@ -448,8 +449,8 @@ void TransposeEncoder::AppendCompressedBuffer(bool prepend_compressed_size,
       return;
     }
   }
-  RIEGELI_UNREACHABLE() << "Unknown compression type: "
-                        << static_cast<int>(compression_type_);
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown compression type: " << static_cast<int>(compression_type_);
 }
 
 void TransposeEncoder::AddBuffer(bool force_new_bucket, const Chain& next_chunk,
@@ -462,14 +463,16 @@ void TransposeEncoder::AddBuffer(bool force_new_bucket, const Chain& next_chunk,
   if (compression_type_ != internal::CompressionType::kNone &&
       bucket_writer->pos() > 0 &&
       (force_new_bucket ||
-       bucket_writer->pos() + next_chunk.size() > desired_bucket_size_)) {
-    if (!bucket_writer->Close()) RIEGELI_UNREACHABLE();
-    const size_t pos_before = data_writer->pos();
+       IntCast<size_t>(bucket_writer->pos()) + next_chunk.size() >
+           desired_bucket_size_)) {
+    if (!bucket_writer->Close()) RIEGELI_ASSERT_UNREACHABLE();
+    const Position pos_before = data_writer->pos();
     AppendCompressedBuffer(/*prepend_compressed_size=*/false, *bucket_buffer,
                            data_writer);
+    RIEGELI_ASSERT_GE(data_writer->pos(), pos_before);
+    bucket_lengths->push_back(IntCast<size_t>(data_writer->pos() - pos_before));
     bucket_buffer->Clear();
     *bucket_writer = ChainWriter(bucket_buffer);
-    bucket_lengths->push_back(data_writer->pos() - pos_before);
   }
   bucket_writer->Write(next_chunk);
 }
@@ -500,7 +503,7 @@ TransposeEncoder::WriteBuffers(ChainWriter* header_writer,
       const auto& x = data_[i][j];
       AddBuffer(j == 0, *x.buffer, &bucket_buffer, &bucket_writer, data_writer,
                 &bucket_lengths, &buffer_lengths);
-      const uint32_t pos = buffer_pos.size();
+      const uint32_t pos = IntCast<uint32_t>(buffer_pos.size());
       buffer_pos[NodeId(x.message_id, x.field)] = pos;
     }
   }
@@ -513,16 +516,16 @@ TransposeEncoder::WriteBuffers(ChainWriter* header_writer,
 
   if (bucket_writer.pos() > 0) {
     // Last bucket.
-    if (!bucket_writer.Close()) RIEGELI_UNREACHABLE();
+    if (!bucket_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
     const Position pos_before = data_writer->pos();
     AppendCompressedBuffer(/*prepend_compressed_size=*/false, bucket_buffer,
                            data_writer);
-    bucket_lengths.push_back(data_writer->pos() - pos_before);
+    bucket_lengths.push_back(IntCast<size_t>(data_writer->pos() - pos_before));
   }
 
   RIEGELI_ASSERT_EQ(num_buffers, buffer_lengths.size());
   WriteVarint64(header_writer, num_buffers);
-  WriteVarint32(header_writer, bucket_lengths.size());
+  WriteVarint32(header_writer, IntCast<uint32_t>(bucket_lengths.size()));
   for (size_t length : bucket_lengths) {
     WriteVarint64(header_writer, length);
   }
@@ -556,7 +559,7 @@ void TransposeEncoder::WriteStatesAndData(
 
   base_to_write.reserve(state_machine.size());
 
-  WriteVarint32(header_writer, state_machine.size());
+  WriteVarint32(header_writer, IntCast<uint32_t>(state_machine.size()));
   for (auto state_info : state_machine) {
     if (state_info.etag_index == kInvalidPos) {
       // NoOp state.
@@ -613,8 +616,8 @@ void TransposeEncoder::WriteStatesAndData(
       base_to_write.push_back(
           tags_list_[state_info.etag_index].base +
           (tags_list_[state_info.etag_index].dest_info.size() == 1
-               ? state_machine.size()
-               : 0));
+               ? IntCast<uint32_t>(state_machine.size())
+               : uint32_t{0}));
     } else {
       // If there is no outgoing transition from this state, just output zero.
       base_to_write.push_back(0);
@@ -642,7 +645,7 @@ void TransposeEncoder::WriteStatesAndData(
   Chain transitions_buffer;
   ChainWriter transitions_writer(&transitions_buffer);
   WriteTransitions(max_transition, state_machine, &transitions_writer);
-  if (!transitions_writer.Close()) RIEGELI_UNREACHABLE();
+  if (!transitions_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
   AppendCompressedBuffer(/*prepend_compressed_size=*/false, transitions_buffer,
                          data_writer);
 }
@@ -665,7 +668,7 @@ void TransposeEncoder::WriteTransitions(
   bool have_last_transition = false;
   uint8_t last_transition;
   // Go through all transitions and encode them.
-  for (uint32_t i = encoded_tags_.size() - 1; i > 0; --i) {
+  for (uint32_t i = IntCast<uint32_t>(encoded_tags_.size() - 1); i > 0; --i) {
     // There are multiple options how transition may be encoded:
     // 1. Transition is common and it's in the private list for the previous
     //    node.
@@ -689,7 +692,7 @@ void TransposeEncoder::WriteTransitions(
         if (pos != kInvalidPos) {
           // Option 2b.
           const uint32_t orig_pos = pos;
-          uint32_t write_start = kWriteBufSize;
+          size_t write_start = kWriteBufSize;
           // Encode transition from "current_base" to "public_list_noop_pos"
           // which is a NoOp that would lead us to the public list.
           while (pos - current_base > max_transition) {
@@ -700,14 +703,15 @@ void TransposeEncoder::WriteTransitions(
             RIEGELI_ASSERT_LE(state_machine[cs].base, pos);
             RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition);
             RIEGELI_ASSERT_NE(write_start, 0u);
-            write[--write_start] = pos - state_machine[cs].base;
+            write[--write_start] =
+                IntCast<uint8_t>(pos - state_machine[cs].base);
             pos = cs;
           }
           RIEGELI_ASSERT_NE(write_start, 0u);
-          write[--write_start] = pos - current_base;
+          write[--write_start] = IntCast<uint8_t>(pos - current_base);
 
-          for (uint32_t i = write_start; i < kWriteBufSize; ++i) {
-            if (write[i] == 0 && have_last_transition &&
+          for (size_t j = write_start; j < kWriteBufSize; ++j) {
+            if (write[j] == 0 && have_last_transition &&
                 (last_transition & 3) < 3) {
               ++last_transition;
             } else {
@@ -715,7 +719,7 @@ void TransposeEncoder::WriteTransitions(
                 WriteByte(transitions_writer, last_transition);
               }
               have_last_transition = true;
-              last_transition = write[i] << 2;
+              last_transition = IntCast<uint8_t>(write[j] << 2);
             }
           }
           // "current_base" is the base of the NoOp that we reached using the
@@ -727,7 +731,7 @@ void TransposeEncoder::WriteTransitions(
       }
       RIEGELI_ASSERT(current_base != kInvalidPos);
       RIEGELI_ASSERT_LT(pos, state_machine.size());
-      uint32_t write_start = kWriteBufSize;
+      size_t write_start = kWriteBufSize;
       // Encode transition from "current_base" to "pos".
       while (pos - current_base > max_transition) {
         // While desired pos is not reachable using one transition, move to
@@ -737,13 +741,13 @@ void TransposeEncoder::WriteTransitions(
         RIEGELI_ASSERT_LE(state_machine[cs].base, pos);
         RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition);
         RIEGELI_ASSERT_NE(write_start, 0u);
-        write[--write_start] = pos - state_machine[cs].base;
+        write[--write_start] = IntCast<uint8_t>(pos - state_machine[cs].base);
         pos = cs;
       }
       RIEGELI_ASSERT_NE(write_start, 0u);
-      write[--write_start] = pos - current_base;
-      for (uint32_t i = write_start; i < kWriteBufSize; ++i) {
-        if (write[i] == 0 && have_last_transition &&
+      write[--write_start] = IntCast<uint8_t>(pos - current_base);
+      for (size_t j = write_start; j < kWriteBufSize; ++j) {
+        if (write[j] == 0 && have_last_transition &&
             (last_transition & 3) < 3) {
           ++last_transition;
         } else {
@@ -751,7 +755,7 @@ void TransposeEncoder::WriteTransitions(
             WriteByte(transitions_writer, last_transition);
           }
           have_last_transition = true;
-          last_transition = write[i] << 2;
+          last_transition = IntCast<uint8_t>(write[j] << 2);
         }
       }
     } else {
@@ -994,7 +998,7 @@ std::vector<TransposeEncoder::StateInfo> TransposeEncoder::CreateStateMachine(
   //    public list.
   for (uint32_t tag_id = 0; tag_id < tags_list_.size(); ++tag_id) {
     EncodedTagInfo& tag_info = tags_list_[tag_id];
-    const uint32_t sz = tag_info.dest_info.size();
+    const uint32_t sz = IntCast<uint32_t>(tag_info.dest_info.size());
     // If we exclude just one state we add it instead of creating the NoOp
     // state.
     PriorityQueueEntry excluded_state;
@@ -1019,7 +1023,7 @@ std::vector<TransposeEncoder::StateInfo> TransposeEncoder::CreateStateMachine(
                                             dest_info.second.num_transitions);
       }
     }
-    uint32_t num_states = tag_priority.size();
+    uint32_t num_states = IntCast<uint32_t>(tag_priority.size());
     if (num_states == 0) {
       // No private list for this tag.
       continue;
@@ -1038,16 +1042,16 @@ std::vector<TransposeEncoder::StateInfo> TransposeEncoder::CreateStateMachine(
       ++num_states;
     }
     // update "base" for this tag.
-    tag_info.base = state_machine.size();
+    tag_info.base = IntCast<uint32_t>(state_machine.size());
     // Number of NoOp nodes for transitions that can't be encoded using one
     // byte.
     const uint32_t noop_nodes = num_states <= max_transition + 1
-                                    ? 0
+                                    ? uint32_t{0}
                                     : (num_states - 2) / max_transition;
     num_states += noop_nodes;
     // We create states back to front. After loop below there will be
     // "state_machine.size() + num_states" states.
-    uint32_t prev_state = state_machine.size() + num_states;
+    uint32_t prev_state = IntCast<uint32_t>(state_machine.size()) + num_states;
     state_machine.resize(prev_state);
     // States are created in blocks. All blocks except the last one have
     // "max_transition + 1" states. "block_size" is initialized to the size of
@@ -1101,7 +1105,7 @@ std::vector<TransposeEncoder::StateInfo> TransposeEncoder::CreateStateMachine(
   }
 
   // Base index of the public state list.
-  const uint32_t public_list_base = state_machine.size();
+  const uint32_t public_list_base = IntCast<uint32_t>(state_machine.size());
 
   // Add all tags with non-zero incoming transition count to the priority queue.
   for (uint32_t i = 0; i < tags_list_.size(); ++i) {
@@ -1116,16 +1120,16 @@ std::vector<TransposeEncoder::StateInfo> TransposeEncoder::CreateStateMachine(
   //  - All states in the state machine are created.
   //  - All tags that have an state in the public list have "state_machine_pos"
   //    set.
-  uint32_t num_states = tag_priority.size();
+  uint32_t num_states = IntCast<uint32_t>(tag_priority.size());
   if (num_states > 0) {
     const uint32_t noop_nodes = num_states <= max_transition + 1
-                                    ? 0
+                                    ? uint32_t{0}
                                     : (num_states - 2) / max_transition;
     num_states += noop_nodes;
     // Note: The code that assigns "base" indices to states assumes that all
     // NoOp transitions to the child block increase the state index. This is
     // ensured by creating the blocks in reverse order.
-    uint32_t prev_node = state_machine.size() + num_states;
+    uint32_t prev_node = IntCast<uint32_t>(state_machine.size()) + num_states;
     state_machine.resize(prev_node);
     uint32_t block_size = ((num_states - 1) % (max_transition + 1)) + 1;
     noop_base.clear();
@@ -1175,10 +1179,10 @@ bool TransposeEncoder::EncodeInternal(uint32_t max_transition,
                                       Writer* writer) {
   for (const auto& entry : message_nodes_) {
     if (entry.second.writer != nullptr && !entry.second.writer->Close()) {
-      RIEGELI_UNREACHABLE();
+      RIEGELI_ASSERT_UNREACHABLE();
     }
   }
-  if (!nonproto_lengths_writer_.Close()) RIEGELI_UNREACHABLE();
+  if (!nonproto_lengths_writer_.Close()) RIEGELI_ASSERT_UNREACHABLE();
 
   RIEGELI_ASSERT_LE(max_transition, 63u);
   WriteByte(writer, static_cast<uint8_t>(compression_type_));
@@ -1192,9 +1196,9 @@ bool TransposeEncoder::EncodeInternal(uint32_t max_transition,
   ChainWriter data_writer(&data);
   WriteStatesAndData(max_transition, state_machine, &header_writer,
                      &data_writer);
-  if (!header_writer.Close()) RIEGELI_UNREACHABLE();
+  if (!header_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
   AppendCompressedBuffer(/*prepend_compressed_size=*/true, header, writer);
-  if (!data_writer.Close()) RIEGELI_UNREACHABLE();
+  if (!data_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
   return writer->Write(std::move(data));
 }
 

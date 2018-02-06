@@ -19,7 +19,6 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -190,7 +189,7 @@ bool RecordReader::Seek(Position new_pos) {
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
   }
   RIEGELI_ASSERT_GE(new_pos, chunk_begin_);
-  chunk_decoder_.SetIndex(new_pos - chunk_begin_);
+  chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
   return true;
 }
 

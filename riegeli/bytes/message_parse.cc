@@ -14,9 +14,11 @@
 
 #include "riegeli/bytes/message_parse.h"
 
+#include <stddef.h>
+#include <limits>
+
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/string_view.h"
@@ -33,21 +35,71 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   explicit ReaderInputStream(Reader* src)
       : src_(RIEGELI_ASSERT_NOTNULL(src)), initial_pos_(src_->pos()) {}
 
-  bool Next(const void** data, int* size) override {
-    if (RIEGELI_UNLIKELY(!src_->Pull())) return false;
-    *data = src_->cursor();
-    *size = src_->available();
-    src_->set_cursor(src_->limit());
-    return true;
-  }
-  void BackUp(int count) override { src_->set_cursor(src_->cursor() - count); }
-  bool Skip(int count) override { return src_->Skip(count); }
-  google::protobuf::int64 ByteCount() const override { return src_->pos() - initial_pos_; }
+  bool Next(const void** data, int* size) override;
+  void BackUp(int length) override;
+  bool Skip(int length) override;
+  google::protobuf::int64 ByteCount() const override;
 
  private:
+  Position relative_pos() const;
+
   Reader* src_;
+  // Invariants:
+  //   src_->pos() >= initial_pos_
+  //   src_->pos() - initial_pos_ <= numeric_limits<google::protobuf::int64>::max()
   Position initial_pos_;
 };
+
+inline Position ReaderInputStream::relative_pos() const {
+  RIEGELI_ASSERT_GE(src_->pos(), initial_pos_)
+      << "Failed invariant of ReaderInputStream: "
+         "current position smaller than initial position";
+  const Position pos = src_->pos() - initial_pos_;
+  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+      << "Failed invariant of ReaderInputStream: "
+         "relative position overflows";
+  return pos;
+}
+
+bool ReaderInputStream::Next(const void** data, int* size) {
+  const Position pos = relative_pos();
+  if (RIEGELI_UNLIKELY(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+    return false;
+  }
+  if (RIEGELI_UNLIKELY(!src_->Pull())) return false;
+  *data = src_->cursor();
+  *size = IntCast<int>(
+      UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
+                  Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  src_->set_cursor(src_->cursor() + *size);
+  return true;
+}
+
+void ReaderInputStream::BackUp(int length) {
+  RIEGELI_ASSERT_GE(length, 0)
+      << "Failed precondition of ZeroCopyInputStream::BackUp(): "
+         "negative length";
+  RIEGELI_ASSERT_LE(IntCast<size_t>(length), src_->read_from_buffer())
+      << "Failed precondition of ZeroCopyInputStream::BackUp(): "
+         "length larger than the amount of buffered data";
+  src_->set_cursor(src_->cursor() - length);
+}
+
+bool ReaderInputStream::Skip(int length) {
+  RIEGELI_ASSERT_GE(length, 0)
+      << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
+  const Position max_length =
+      Position{std::numeric_limits<google::protobuf::int64>::max()} - relative_pos();
+  if (RIEGELI_UNLIKELY(IntCast<size_t>(length) > max_length)) {
+    src_->Skip(max_length);
+    return false;
+  }
+  return src_->Skip(IntCast<size_t>(length));
+}
+
+google::protobuf::int64 ReaderInputStream::ByteCount() const {
+  return IntCast<google::protobuf::int64>(relative_pos());
+}
 
 }  // namespace
 
@@ -62,12 +114,18 @@ bool ParsePartialFromReader(google::protobuf::MessageLite* message, Reader* inpu
 }
 
 bool ParseFromStringView(google::protobuf::MessageLite* message, string_view data) {
-  return message->ParseFromArray(data.data(), data.size());
+  if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
+    return false;
+  }
+  return message->ParseFromArray(data.data(), IntCast<int>(data.size()));
 }
 
 bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
                                 string_view data) {
-  return message->ParsePartialFromArray(data.data(), data.size());
+  if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
+    return false;
+  }
+  return message->ParsePartialFromArray(data.data(), IntCast<int>(data.size()));
 }
 
 bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data) {

@@ -5,12 +5,11 @@ licenses(["notice"])  # Apache 2.0
 cc_library(
     name = "base",
     srcs = [
-        "assert.cc",
+        "base.cc",
         "object.cc",
         "string_view.cc",
     ],
     hdrs = [
-        "assert.h",
         "base.h",
         "memory.h",
         "object.h",

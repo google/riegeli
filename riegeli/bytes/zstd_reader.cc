@@ -15,11 +15,11 @@
 #include "riegeli/bytes/zstd_reader.h"
 
 #include <stddef.h>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 
-#include "riegeli/base/assert.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -70,7 +70,7 @@ ZstdReader& ZstdReader::operator=(ZstdReader&& src) noexcept {
 ZstdReader::~ZstdReader() = default;
 
 void ZstdReader::Done() {
-  if (RIEGELI_UNLIKELY(!Pull() && decompressor_ != nullptr)) {
+  if (!Pull() && RIEGELI_UNLIKELY(decompressor_ != nullptr)) {
     Fail("Truncated Zstd-compressed stream");
   }
   if (owned_src_ != nullptr) {
@@ -85,7 +85,9 @@ void ZstdReader::Done() {
 }
 
 bool ZstdReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::PullSlow(): "
+         "data available, use Pull() instead";
   // After all data have been decompressed, skip BufferedReader::PullSlow()
   // to avoid allocating the buffer in case it was not allocated yet.
   if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) return false;
@@ -94,9 +96,19 @@ bool ZstdReader::PullSlow() {
 
 bool ZstdReader::ReadInternal(char* dest, size_t min_length,
                               size_t max_length) {
-  RIEGELI_ASSERT_GT(min_length, 0u);
-  RIEGELI_ASSERT_GE(max_length, min_length);
-  RIEGELI_ASSERT(healthy());
+  RIEGELI_ASSERT_GT(min_length, 0u)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "nothing to read";
+  RIEGELI_ASSERT_GE(max_length, min_length)
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "max_length < min_length";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of BufferedReader::ReadInternal(): "
+         "Reader unhealthy";
+  if (RIEGELI_UNLIKELY(max_length >
+                       std::numeric_limits<Position>::max() - limit_pos_)) {
+    return FailOverflow();
+  }
   if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) return false;
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
@@ -119,7 +131,9 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
       limit_pos_ += output.pos;
       return true;
     }
-    RIEGELI_ASSERT_EQ(input.pos, input.size);
+    RIEGELI_ASSERT_EQ(input.pos, input.size)
+        << "ZSTD_decompressStream() returned but there are still input data "
+           "and output space";
     if (RIEGELI_UNLIKELY(!src_->Pull())) {
       limit_pos_ += output.pos;
       if (RIEGELI_LIKELY(src_->HopeForMore())) return false;
@@ -130,7 +144,9 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
 }
 
 bool ZstdReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   return decompressor_ != nullptr;
 }
