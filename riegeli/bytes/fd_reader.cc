@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make strerror_r() and pread() available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
+// Make pread() available.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE 500
 #endif
 
 // Make file offsets 64-bit even on 32-bit systems.
@@ -38,6 +38,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_error.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -77,7 +78,7 @@ inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
   void* const data = riegeli::exchange(src.data_, nullptr);
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
-    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed";
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
   data_ = data;
   size_ = riegeli::exchange(src.size_, 0);
@@ -87,7 +88,7 @@ inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
 inline MMapRef::~MMapRef() {
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
-    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed";
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
 }
 
@@ -165,11 +166,8 @@ void FdReaderBase::Done() {
 
 bool FdReaderBase::FailOperation(const char* operation, int error_code) {
   error_code_ = error_code;
-  char message[256];
-  strerror_r(error_code, message, sizeof(message));
-  message[sizeof(message) - 1] = '\0';
-  return Fail(std::string(operation) + " failed: " + message + ", reading " +
-              filename_);
+  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
+              ", reading " + filename_);
 }
 
 }  // namespace internal
@@ -446,11 +444,8 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
 
 inline bool FdMMapReader::FailOperation(const char* operation, int error_code) {
   error_code_ = error_code;
-  char message[256];
-  strerror_r(error_code, message, sizeof(message));
-  message[sizeof(message) - 1] = '\0';
-  return Fail(std::string(operation) + " failed: " + message + ", reading " +
-              filename_);
+  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
+              ", reading " + filename_);
 }
 
 inline Chain::BlockIterator FdMMapReader::iter() const {

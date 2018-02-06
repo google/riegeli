@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make strerror_r(), pwrite(), and ftruncate() available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
+// Make pwrite() and ftruncate() available.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE 500
 #endif
 
 // Make file offsets 64-bit even on 32-bit systems.
@@ -35,6 +35,7 @@
 #include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_error.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -107,11 +108,8 @@ void FdWriterBase::Done() {
 
 bool FdWriterBase::FailOperation(const char* operation, int error_code) {
   error_code_ = error_code;
-  char message[256];
-  strerror_r(error_code, message, sizeof(message));
-  message[sizeof(message) - 1] = '\0';
-  return Fail(std::string(operation) + " failed: " + message + ", writing " +
-              filename_);
+  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
+              ", writing " + filename_);
 }
 
 bool FdWriterBase::Flush(FlushType flush_type) {

@@ -47,3 +47,10 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [":base"],
 )
+
+cc_library(
+    name = "str_error",
+    srcs = ["str_error.cc"],
+    hdrs = ["str_error.h"],
+    deps = [":base"],
+)

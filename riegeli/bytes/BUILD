@@ -180,6 +180,7 @@ cc_library(
         ":buffered_writer",
         ":writer",
         "//riegeli/base",
+        "//riegeli/base:str_error",
     ],
 )
 
@@ -197,6 +198,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/base:str_error",
     ],
 )
 
