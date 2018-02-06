@@ -39,6 +39,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/str_error.h"
+#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -164,7 +165,7 @@ void FdReaderBase::Done() {
   BufferedReader::Done();
 }
 
-bool FdReaderBase::FailOperation(const char* operation, int error_code) {
+bool FdReaderBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
   return Fail(std::string(operation) + " failed: " + StrError(error_code) +
               ", reading " + filename_);
@@ -442,7 +443,7 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
   }
 }
 
-inline bool FdMMapReader::FailOperation(const char* operation, int error_code) {
+inline bool FdMMapReader::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
   return Fail(std::string(operation) + " failed: " + StrError(error_code) +
               ", reading " + filename_);

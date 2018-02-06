@@ -106,7 +106,7 @@ void FdWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-bool FdWriterBase::FailOperation(const char* operation, int error_code) {
+bool FdWriterBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
   return Fail(std::string(operation) + " failed: " + StrError(error_code) +
               ", writing " + filename_);

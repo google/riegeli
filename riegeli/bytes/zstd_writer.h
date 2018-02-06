@@ -119,7 +119,7 @@ class ZstdWriter final : public BufferedWriter {
   };
 
   template <typename Function>
-  bool FlushInternal(Function function, const char* function_name);
+  bool FlushInternal(Function function, string_view function_name);
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr

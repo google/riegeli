@@ -156,7 +156,7 @@ bool ZstdWriter::WriteInternal(string_view src) {
 }
 
 template <typename Function>
-bool ZstdWriter::FlushInternal(Function function, const char* function_name) {
+bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of ZstdWriter::FlushInternal(): "
          "Writer unhealthy";

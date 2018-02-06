@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 namespace internal {
@@ -28,7 +29,7 @@ class FdHolder {
   //  * errno - failure (fd is closed anyway)
   int Close();
 
-  static const char* CloseFunctionName();
+  static string_view CloseFunctionName();
 
  private:
   int fd_ = -1;
@@ -70,7 +71,7 @@ inline int FdHolder::Close() {
   return error_code;
 }
 
-inline const char* FdHolder::CloseFunctionName() {
+inline string_view FdHolder::CloseFunctionName() {
 #ifdef POSIX_CLOSE_RESTART
   return "posix_close()";
 #else

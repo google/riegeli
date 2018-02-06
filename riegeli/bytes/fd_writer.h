@@ -57,7 +57,7 @@ class FdWriterBase : public BufferedWriter {
   ~FdWriterBase();
 
   void Done() override;
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(const char* operation,
+  RIEGELI_ATTRIBUTE_COLD bool FailOperation(string_view operation,
                                             int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
