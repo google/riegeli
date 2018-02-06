@@ -330,7 +330,7 @@ namespace internal {
 template <typename A, typename B>
 typename std::enable_if<
     std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>::type
-IntCast(B value) {
+IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Value out of range";
   return static_cast<A>(value);
@@ -339,7 +339,7 @@ IntCast(B value) {
 template <typename A, typename B>
 typename std::enable_if<std::is_unsigned<A>::value && std::is_signed<B>::value,
                         A>::type
-IntCast(B value) {
+IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, 0) << "Value out of range";
   RIEGELI_ASSERT_LE(static_cast<typename std::make_unsigned<B>::type>(value),
                     std::numeric_limits<A>::max())
@@ -350,7 +350,7 @@ IntCast(B value) {
 template <typename A, typename B>
 typename std::enable_if<std::is_signed<A>::value && std::is_unsigned<B>::value,
                         A>::type
-IntCast(B value) {
+IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(
       value,
       typename std::make_unsigned<A>::type{std::numeric_limits<A>::max()})
@@ -361,7 +361,7 @@ IntCast(B value) {
 template <typename A, typename B>
 typename std::enable_if<std::is_signed<A>::value && std::is_signed<B>::value,
                         A>::type
-IntCast(B value) {
+IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Value out of range";
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
@@ -377,7 +377,7 @@ A IntCast(B value) {
                 "IntCast() requires integral types");
   static_assert(std::is_integral<B>::value,
                 "IntCast() requires integral types");
-  return internal::IntCast<A>(value);
+  return internal::IntCastImpl<A>(value);
 }
 
 // PtrDistance(first, last) returns last - first as size_t, asserting that
