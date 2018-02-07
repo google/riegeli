@@ -18,7 +18,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
         "//riegeli/bytes:zstd_writer",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )
 
@@ -41,7 +41,7 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:zstd_reader",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )
 

@@ -15,7 +15,7 @@ cc_library(
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_encoder",
         "//riegeli/chunk_encoding:internal_types",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )
 
@@ -32,7 +32,7 @@ cc_library(
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_decoder",
         "//riegeli/chunk_encoding:field_filter",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )
 

@@ -31,11 +31,13 @@ new_http_archive(
     urls = ["https://github.com/facebook/zstd/archive/v1.3.3.zip"],
 )
 
-# Import Protobuf (2018-01-05).
-http_archive(
-    name = "com_google_protobuf",
-    strip_prefix = "protobuf-3.5.1.1",
-    urls = ["https://github.com/google/protobuf/archive/v3.5.1.1.zip"],
+# Import zlib (2017-01-15).
+new_http_archive(
+    name = "zlib_archive",
+    build_file = "zlib.BUILD",
+    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
+    strip_prefix = "zlib-1.2.11",
+    urls = ["http://zlib.net/fossils/zlib-1.2.11.tar.gz"],
 )
 
 # Import HighwayHash (2018-01-03).
@@ -45,3 +47,14 @@ new_http_archive(
     strip_prefix = "highwayhash-eeea4463df1639c7ce271a1d0fdfa8ae5e81a49f",
     urls = ["https://github.com/google/highwayhash/archive/eeea4463df1639c7ce271a1d0fdfa8ae5e81a49f.zip"],
 )
+
+# Import Tensorflow (2018-02-04) and Protobuf (2017-12-15).
+http_archive(
+    name = "org_tensorflow",
+    strip_prefix = "tensorflow-1.6.0-rc0",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/v1.6.0-rc0.zip"],
+)
+
+load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
+
+tf_workspace("", "@org_tensorflow")

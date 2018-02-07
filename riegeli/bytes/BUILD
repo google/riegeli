@@ -250,6 +250,18 @@ cc_library(
 )
 
 cc_library(
+    name = "zlib_reader",
+    srcs = ["zlib_reader.cc"],
+    hdrs = ["zlib_reader.h"],
+    deps = [
+        ":buffered_reader",
+        ":reader",
+        "//riegeli/base",
+        "@zlib_archive//:zlib",
+    ],
+)
+
+cc_library(
     name = "message_serialize",
     srcs = ["message_serialize.cc"],
     hdrs = ["message_serialize.h"],
@@ -258,7 +270,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )
 
@@ -271,6 +283,6 @@ cc_library(
         ":reader",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "@com_google_protobuf//:protobuf_lite",
+        "@protobuf_archive//:protobuf_lite",
     ],
 )

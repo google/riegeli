@@ -76,6 +76,17 @@ class ChunkReader final : public Object {
 
   ~ChunkReader();
 
+  // Ensures that the file looks like a valid Riegeli/Records file.
+  //
+  // options.set_skip_corruption(true) should not be used, otherwise the whole
+  // file will be scanned for a valid chunk.
+  //
+  // Return values:
+  //  * true                    - success
+  //  * false (when healthy())  - source ends
+  //  * false (when !healthy()) - failure
+  bool CheckFileFormat();
+
   // Reads the next chunk.
   //
   // If chunk_begin != nullptr, *chunk_begin is set to the chunk beginning
@@ -166,7 +177,7 @@ class ChunkReader final : public Object {
 
   // Interprets a false result from a byte_reader_ reading function. Always
   // returns false.
-  RIEGELI_ATTRIBUTE_COLD bool ReadingFailed();
+  bool ReadingFailed();
 
   // Reads or continues reading a chunk header into state_.
   //
@@ -209,6 +220,10 @@ class ChunkReader final : public Object {
   //
   // If is_recovering_, this is a block boundary.
   Position pos_;
+
+  // If true, the source is truncated, but truncation was not reported yet
+  // because byte_reader_->HopeForMore().
+  bool is_truncated_ = false;
 
   // If true, recovery is needed (a chunk must be located using block headers),
   // either because corruption was detected and skip_corruption_ is true, or

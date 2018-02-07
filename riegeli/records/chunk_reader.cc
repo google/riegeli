@@ -70,7 +70,7 @@ ChunkReader::~ChunkReader() {
 }
 
 void ChunkReader::Done() {
-  if (!skip_corruption_ && RIEGELI_UNLIKELY(byte_reader_->pos() > pos_)) {
+  if (RIEGELI_LIKELY(healthy()) && !skip_corruption_ && is_truncated_) {
     Fail("Truncated Riegeli/records file");
   }
   if (owned_byte_reader_ != nullptr) {
@@ -84,15 +84,43 @@ void ChunkReader::Done() {
   byte_reader_ = nullptr;
   skip_corruption_ = false;
   pos_ = 0;
+  is_truncated_ = false;
 }
 
 inline bool ChunkReader::ReadingFailed() {
-  if (RIEGELI_LIKELY(byte_reader_->HopeForMore())) return false;
+  if (RIEGELI_LIKELY(byte_reader_->HopeForMore())) {
+    is_truncated_ = true;
+    return false;
+  }
   if (byte_reader_->healthy()) {
     if (skip_corruption_) return false;
     return Fail("Truncated Riegeli/records file");
   }
   return Fail(*byte_reader_);
+}
+
+bool ChunkReader::CheckFileFormat() {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (is_recovering_ && !Recover()) return false;
+again:
+  RIEGELI_ASSERT(!is_recovering_);
+
+  if (reading_.chunk_header_read < reading_.chunk.header.size()) {
+    if (RIEGELI_UNLIKELY(!ReadChunkHeader())) {
+      if (is_recovering_ && Recover()) goto again;
+      return false;
+    }
+  }
+
+  if (pos_ == 0) {
+    // Verify file signature.
+    if (RIEGELI_UNLIKELY(reading_.chunk.header.data_size() != 0 ||
+                         reading_.chunk.header.num_records() != 0 ||
+                         reading_.chunk.header.decoded_data_size() != 0)) {
+      return Fail("Invalid Riegeli/records file: missing file signature");
+    }
+  }
+  return true;
 }
 
 bool ChunkReader::ReadChunk(Chunk* chunk, Position* chunk_begin) {
@@ -128,6 +156,7 @@ again:
   if (RIEGELI_UNLIKELY(internal::Hash(reading_.chunk.data) !=
                        reading_.chunk.header.data_hash())) {
     pos_ = chunk_end;
+    is_truncated_ = false;
     // Reading, not Recovering, because only chunk data were corrupted; chunk
     // header had a correct hash and thus the next chunk is believed to be
     // present after this chunk.
@@ -139,6 +168,7 @@ again:
   if (chunk_begin != nullptr) *chunk_begin = pos_;
   *chunk = std::move(reading_.chunk);
   pos_ = chunk_end;
+  is_truncated_ = false;
   PrepareForReading();
   return true;
 }
@@ -197,6 +227,7 @@ inline bool ChunkReader::ReadBlockHeader() {
   if (RIEGELI_UNLIKELY(block_header_.computed_header_hash() !=
                        block_header_.stored_header_hash())) {
     pos_ = byte_reader_->pos();
+    is_truncated_ = false;
     PrepareForRecovering();
     return false;
   }
@@ -272,6 +303,7 @@ inline bool ChunkReader::Recover() {
     return Fail(*byte_reader_);
   }
   pos_ = recovering_.chunk_begin;
+  is_truncated_ = false;
   PrepareForReading();
   return true;
 }
@@ -281,12 +313,14 @@ bool ChunkReader::Seek(Position new_pos) {
   if (RIEGELI_UNLIKELY(!byte_reader_->Seek(new_pos))) {
     if (RIEGELI_LIKELY(byte_reader_->healthy())) {
       pos_ = byte_reader_->pos();
+      is_truncated_ = false;
       PrepareForRecovering();
       return false;
     }
     return Fail(*byte_reader_);
   }
   pos_ = new_pos;
+  is_truncated_ = false;
   if (internal::IsBlockBoundary(pos_)) {
     // pos_ is a block boundary and we will find the next chunk using this block
     // header (this can be a chunk whose boundary coincides with the block
@@ -345,6 +379,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
   } else {
   read_block_header:
     pos_ = block_begin;
+    is_truncated_ = false;
     PrepareForFindingChunk();
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(block_begin))) {
       if (RIEGELI_LIKELY(byte_reader_->healthy())) return false;
@@ -385,6 +420,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
       return Fail(*byte_reader_);
     }
     pos_ = chunk_begin;
+    is_truncated_ = false;
   check_current_chunk:
     PrepareForReading();
     if (pos_ >= new_pos) return true;
