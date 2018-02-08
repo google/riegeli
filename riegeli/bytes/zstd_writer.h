@@ -34,8 +34,9 @@ class ZstdWriter final : public BufferedWriter {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {
-    }  // Tune compression level vs. compression speed tradeoff.
+    Options() noexcept {}
+
+    // Tune compression level vs. compression speed tradeoff.
     //
     // Level must be between 1 and 22. Default: 9.
     Options& set_compression_level(int level) & {
@@ -84,7 +85,7 @@ class ZstdWriter final : public BufferedWriter {
     friend class ZstdWriter;
 
     int compression_level_ = 9;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = ZSTD_CStreamInSize();
     Position size_hint_ = 0;
   };
 

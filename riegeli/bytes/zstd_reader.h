@@ -34,7 +34,7 @@ class ZstdReader final : public BufferedReader {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
@@ -50,7 +50,7 @@ class ZstdReader final : public BufferedReader {
    private:
     friend class ZstdReader;
 
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = ZSTD_DStreamOutSize();
   };
 
   // Creates a closed ZstdReader.
