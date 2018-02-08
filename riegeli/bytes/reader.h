@@ -200,7 +200,7 @@ class Reader : public Object {
   // override it further and include a call to Reader::Done().
   virtual void Done() override = 0;
 
-  // Marks the Reader as failed with message "Reader position overflows".
+  // Marks the Reader as failed with message "Reader position overflow".
   // Always returns false.
   //
   // This can be called if limit_pos_ would overflow.
@@ -317,7 +317,7 @@ inline bool Reader::Read(char* dest, size_t length) {
 
 inline bool Reader::Read(std::string* dest, size_t length) {
   RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
-      << "Failed precondition of Reader::Read(string*): string size overflows";
+      << "Failed precondition of Reader::Read(string*): string size overflow";
   if (RIEGELI_LIKELY(length <= available())) {
     if (length > 0) {  // Avoid std::string::append(nullptr, 0) just in case.
       dest->append(cursor_, length);
@@ -331,7 +331,7 @@ inline bool Reader::Read(std::string* dest, size_t length) {
 inline bool Reader::Read(string_view* dest, std::string* scratch, size_t length) {
   RIEGELI_CHECK_LE(length, scratch->max_size())
       << "Failed precondition of Reader::Read(string_view*): "
-         "string size overflows";
+         "string size overflow";
   if (RIEGELI_LIKELY(length <= available())) {
     *dest = string_view(cursor_, length);
     cursor_ += length;
@@ -342,7 +342,7 @@ inline bool Reader::Read(string_view* dest, std::string* scratch, size_t length)
 
 inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::Read(Chain*): Chain size overflows";
+      << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
     dest->Append(string_view(cursor_, length), dest->size() + length);
     cursor_ += length;

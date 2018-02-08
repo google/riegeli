@@ -33,7 +33,7 @@ bool Reader::VerifyEndAndClose() {
   return Close();
 }
 
-bool Reader::FailOverflow() { return Fail("Reader position overflows"); }
+bool Reader::FailOverflow() { return Fail("Reader position overflow"); }
 
 bool Reader::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
@@ -62,7 +62,7 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
          "length too small, use Read(string*) instead";
   RIEGELI_ASSERT_LE(length, dest->max_size() - dest->size())
       << "Failed precondition of Reader::ReadSlow(string*): "
-         "string size overflows";
+         "string size overflow";
   const size_t dest_pos = dest->size();
   dest->resize(dest_pos + length);
   const Position pos_before = pos();
@@ -84,7 +84,7 @@ bool Reader::ReadSlow(string_view* dest, std::string* scratch, size_t length) {
          "length too small, use Read(string_view*) instead";
   RIEGELI_ASSERT_LE(length, scratch->max_size())
       << "Failed precondition of Reader::ReadSlow(string_view*): "
-         "string size overflows";
+         "string size overflow";
   if (available() == 0) {
     if (RIEGELI_UNLIKELY(!PullSlow())) return false;
     if (length <= available()) {
@@ -105,7 +105,7 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "Chain size overflows";
+         "Chain size overflow";
   const Chain::Buffer buffer = dest->MakeAppendBuffer(length);
   const Position pos_before = pos();
   const bool ok = Read(buffer.data(), length);

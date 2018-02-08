@@ -124,7 +124,7 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "Chain size overflows";
+         "Chain size overflow";
   RIEGELI_ASSERT_LE(limit_pos_, src_->size())
       << "ChainReader source changed unexpectedly";
   const size_t size_hint = dest->size() + length;
@@ -243,9 +243,8 @@ bool ChainReader::SeekSlow(Position new_pos) {
       limit_pos_ = src_->size();
       return false;
     }
-    RIEGELI_ASSERT(healthy())
-        << "Failed invariant of ChainReader: "
-           "Reader unhealthy but has non-zero source size";
+    RIEGELI_ASSERT(healthy()) << "Failed invariant of ChainReader: "
+                                 "unhealthy but has non-zero source size";
     if (src_->size() - new_pos < new_pos - limit_pos_) {
       // Iterate backwards from the end, it is closer.
       iter_ = src_->blocks().cend();
@@ -275,7 +274,7 @@ bool ChainReader::SeekSlow(Position new_pos) {
   } else {
     // Seeking backwards.
     RIEGELI_ASSERT(healthy()) << "Failed invariant of ChainReader: "
-                                 "Reader unhealthy but has non-zero position";
+                                 "unhealthy but has non-zero position";
     Position block_begin = start_pos();
     if (new_pos < block_begin - new_pos) {
       // Iterate forwards from the beginning, it is closer.

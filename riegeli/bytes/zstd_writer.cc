@@ -121,7 +121,7 @@ bool ZstdWriter::WriteInternal(string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "Writer unhealthy";
+         "Object unhealthy";
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
@@ -159,7 +159,7 @@ template <typename Function>
 bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of ZstdWriter::FlushInternal(): "
-         "Writer unhealthy";
+         "Object unhealthy";
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriter::FlushInternal(): "
          "buffer not cleared";

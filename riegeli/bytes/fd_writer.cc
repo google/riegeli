@@ -202,7 +202,7 @@ bool FdWriter::WriteInternal(string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "Writer unhealthy";
+         "Object unhealthy";
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
@@ -326,7 +326,7 @@ bool FdStreamWriter::WriteInternal(string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "Writer unhealthy";
+         "Object unhealthy";
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";

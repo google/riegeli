@@ -106,7 +106,8 @@ inline size_t RemainingInBlockHeader(Position pos) {
 // For a given data size beginning at the given position, the position after
 // the data which includes intervening block headers.
 inline Position AddWithOverhead(Position pos, Position size) {
-  RIEGELI_ASSERT_LT(RemainingInBlock(pos), kUsableBlockSize());
+  RIEGELI_ASSERT_LT(RemainingInBlock(pos), kUsableBlockSize())
+      << "Failed precondition of AddWithOverhead(): invalid chunk boundary";
   const Position num_overhead_blocks =
       (size + (pos + kUsableBlockSize() - 1) % kBlockSize()) /
       kUsableBlockSize();

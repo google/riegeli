@@ -125,7 +125,7 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Reader unhealthy";
+         "Object unhealthy";
   if (RIEGELI_UNLIKELY(!decompressor_present_)) return false;
   decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
@@ -172,7 +172,9 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
 }
 
 bool ZLibReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u);
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::HopeForMoreSlow(): "
+         "data available, use HopeForMore() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   return decompressor_present_;
 }

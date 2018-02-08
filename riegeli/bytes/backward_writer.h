@@ -122,7 +122,7 @@ class BackwardWriter : public Object {
   virtual void Done() override = 0;
 
   // Marks the BackwardWriter as failed with message "BackwardWriter position
-  // overflows". Always returns false.
+  // overflow". Always returns false.
   //
   // This can be called if the destination would exceed its maximum possible
   // size or if start_pos_ would overflow.
@@ -259,7 +259,7 @@ inline Position BackwardWriter::pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
                     std::numeric_limits<Position>::max() - buffer_size())
       << "Failed invariant of BackwardWriter: "
-         "position of buffer limit overflows";
+         "position of buffer limit overflow";
   return start_pos_ + written_to_buffer();
 }
 
@@ -267,7 +267,7 @@ inline Position BackwardWriter::limit_pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
                     std::numeric_limits<Position>::max() - buffer_size())
       << "Failed invariant of BackwardWriter: "
-         "position of buffer limit overflows";
+         "position of buffer limit overflow";
   return start_pos_ + buffer_size();
 }
 

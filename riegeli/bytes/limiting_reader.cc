@@ -105,7 +105,7 @@ bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "Chain size overflows";
+         "Chain size overflow";
   return ReadInternal(dest, length);
 }
 

@@ -234,7 +234,7 @@ bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Reader unhealthy";
+         "Object unhealthy";
   if (RIEGELI_UNLIKELY(max_length >
                        Position{std::numeric_limits<off_t>::max()} -
                            limit_pos_)) {
@@ -331,7 +331,7 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Reader unhealthy";
+         "Object unhealthy";
   if (RIEGELI_UNLIKELY(max_length >
                        Position{std::numeric_limits<off_t>::max()} -
                            limit_pos_)) {

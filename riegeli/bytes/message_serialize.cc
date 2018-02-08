@@ -54,7 +54,7 @@ inline Position WriterOutputStream::relative_pos() const {
          "current position smaller than initial position";
   const Position pos = dest_->pos() - initial_pos_;
   RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
-      << "Failed invariant of WriterOutputStream: relative position overflows";
+      << "Failed invariant of WriterOutputStream: relative position overflow";
   return pos;
 }
 
@@ -125,7 +125,7 @@ Chain SerializePartialAsChain(const google::protobuf::MessageLite& message) {
 bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output) {
   RIEGELI_CHECK_LE(message.ByteSizeLong(),
                    std::numeric_limits<size_t>::max() - output->size())
-      << "Failed precondition of AppendToChain(): Chain size overflows";
+      << "Failed precondition of AppendToChain(): Chain size overflow";
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));
@@ -138,7 +138,7 @@ bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output) 
 bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output) {
   RIEGELI_CHECK_LE(message.ByteSizeLong(),
                    std::numeric_limits<size_t>::max() - output->size())
-      << "Failed precondition of AppendPartialToChain(): Chain size overflows";
+      << "Failed precondition of AppendPartialToChain(): Chain size overflow";
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));

@@ -104,7 +104,7 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Reader unhealthy";
+         "Object unhealthy";
   if (RIEGELI_UNLIKELY(max_length >
                        std::numeric_limits<Position>::max() - limit_pos_)) {
     return FailOverflow();

@@ -26,7 +26,7 @@
 namespace riegeli {
 
 bool BackwardWriter::FailOverflow() {
-  return Fail("BackwardWriter position overflows");
+  return Fail("BackwardWriter position overflow");
 }
 
 bool BackwardWriter::WriteSlow(string_view src) {

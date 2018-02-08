@@ -45,7 +45,7 @@ bool TFRecordDetector::CheckFileFormat(
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(pos_before))) {
-      if (byte_reader_->healthy()) return Fail("Reader is not seekable");
+      if (byte_reader_->healthy()) return Fail("Seeking failed");
       return Fail(*byte_reader_);
     }
     record_reader_options->compression_type =

@@ -57,7 +57,9 @@ void DefaultChunkWriter::Done() {
 }
 
 bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
-  RIEGELI_ASSERT_EQ(chunk.header.data_hash(), internal::Hash(chunk.data));
+  RIEGELI_ASSERT_EQ(chunk.header.data_hash(), internal::Hash(chunk.data))
+      << "Failed precondition of ChunkWriter::WriteChunk(): "
+         "Wrong chunk data hash";
   StringReader header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader data_reader(&chunk.data);
   const Position chunk_begin = byte_writer_->pos();
@@ -72,7 +74,8 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   if (RIEGELI_UNLIKELY(!WritePadding(chunk_begin, chunk_end))) {
     return false;
   }
-  RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_end);
+  RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_end)
+      << "Unexpected position after writing chunk";
   return true;
 }
 
@@ -94,7 +97,11 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
       return Fail(*byte_writer_);
     }
   }
-  return src->Close();
+  if (!src->Close()) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Closing section reader failed: " << src->Message();
+  }
+  return true;
 }
 
 inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
@@ -120,7 +127,11 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
 }
 
 bool DefaultChunkWriter::Flush(FlushType flush_type) {
-  return byte_writer_->Flush(flush_type);
+  if (RIEGELI_UNLIKELY(!byte_writer_->Flush(flush_type))) {
+    if (byte_writer_->healthy()) return false;
+    return Fail(*byte_writer_);
+  }
+  return true;
 }
 
 Position DefaultChunkWriter::pos() const { return byte_writer_->pos(); }

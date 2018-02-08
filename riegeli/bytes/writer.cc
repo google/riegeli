@@ -25,7 +25,7 @@
 
 namespace riegeli {
 
-bool Writer::FailOverflow() { return Fail("Writer position overflows"); }
+bool Writer::FailOverflow() { return Fail("Writer position overflow"); }
 
 bool Writer::WriteSlow(string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())

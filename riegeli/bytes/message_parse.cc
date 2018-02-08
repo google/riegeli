@@ -57,7 +57,7 @@ inline Position ReaderInputStream::relative_pos() const {
   const Position pos = src_->pos() - initial_pos_;
   RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
       << "Failed invariant of ReaderInputStream: "
-         "relative position overflows";
+         "relative position overflow";
   return pos;
 }
 

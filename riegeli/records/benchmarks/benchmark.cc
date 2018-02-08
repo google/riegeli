@@ -63,15 +63,15 @@ uint64_t FileSize(const std::string& filename) {
 uint64_t CpuTimeNow_ns() {
   struct timespec time_info;
   RIEGELI_CHECK_EQ(clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_info), 0);
-  return static_cast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
-         static_cast<uint64_t>(time_info.tv_nsec);
+  return riegeli::IntCast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
+         riegeli::IntCast<uint64_t>(time_info.tv_nsec);
 }
 
 uint64_t RealTimeNow_ns() {
   struct timespec time_info;
   RIEGELI_CHECK_EQ(clock_gettime(CLOCK_MONOTONIC, &time_info), 0);
-  return static_cast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
-         static_cast<uint64_t>(time_info.tv_nsec);
+  return riegeli::IntCast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
+         riegeli::IntCast<uint64_t>(time_info.tv_nsec);
 }
 
 class Stats {

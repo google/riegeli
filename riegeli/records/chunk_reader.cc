@@ -103,7 +103,8 @@ bool ChunkReader::CheckFileFormat() {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (is_recovering_ && !Recover()) return false;
 again:
-  RIEGELI_ASSERT(!is_recovering_);
+  RIEGELI_ASSERT(!is_recovering_)
+      << "ChunkReader::Recover() did not complete recovering";
 
   if (reading_.chunk_header_read < reading_.chunk.header.size()) {
     if (RIEGELI_UNLIKELY(!ReadChunkHeader())) {
@@ -127,7 +128,8 @@ bool ChunkReader::ReadChunk(Chunk* chunk, Position* chunk_begin) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (is_recovering_ && !Recover()) return false;
 again:
-  RIEGELI_ASSERT(!is_recovering_);
+  RIEGELI_ASSERT(!is_recovering_)
+      << "ChunkReader::Recover() did not complete recovering";
 
   if (reading_.chunk_header_read < reading_.chunk.header.size()) {
     if (RIEGELI_UNLIKELY(!ReadChunkHeader())) {
@@ -174,9 +176,14 @@ again:
 }
 
 inline bool ChunkReader::ReadChunkHeader() {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(!is_recovering_);
-  RIEGELI_ASSERT_LT(reading_.chunk_header_read, reading_.chunk.header.size());
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondigion of ChunkReader::ReadChunkReader(): "
+         "object unhealthy";
+  RIEGELI_ASSERT(!is_recovering_)
+      << "Failed precondition of ChunkReader::ReadChunkHeader(): recovering";
+  RIEGELI_ASSERT_LT(reading_.chunk_header_read, reading_.chunk.header.size())
+      << "Failed precondition of ChunkReader::ReadChunkHeader(): "
+         "chunk header already read";
 
   if (RIEGELI_UNLIKELY(!internal::IsPossibleChunkBoundary(pos_))) {
     PrepareForRecovering();
@@ -198,9 +205,11 @@ inline bool ChunkReader::ReadChunkHeader() {
     if (RIEGELI_UNLIKELY(!byte_reader_->Read(
             reading_.chunk.header.bytes() + reading_.chunk_header_read,
             length))) {
-      RIEGELI_ASSERT_GE(byte_reader_->pos(), pos_before);
+      RIEGELI_ASSERT_GE(byte_reader_->pos(), pos_before)
+          << "Reader::Read(char*) decreased pos()";
       const Position length_read = byte_reader_->pos() - pos_before;
-      RIEGELI_ASSERT_LE(length_read, length);
+      RIEGELI_ASSERT_LE(length_read, length)
+          << "Reader::Read(char*) read more than requested";
       reading_.chunk_header_read += IntCast<size_t>(length_read);
       return ReadingFailed();
     }
@@ -260,15 +269,18 @@ inline void ChunkReader::PrepareForRecovering() {
 }
 
 inline bool ChunkReader::Recover() {
-  RIEGELI_ASSERT(healthy());
-  RIEGELI_ASSERT(is_recovering_);
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of ChunkReader::Recover(): Object unhealthy";
+  RIEGELI_ASSERT(is_recovering_)
+      << "Failed precondition of ChunkReader::Recover(): not recovering";
   if (!recovering_.in_progress) {
   again:
     pos_ += internal::RemainingInBlock(pos_);
     if (!skip_corruption_) return Fail("Corrupted Riegeli/records file");
     recovering_.in_progress = true;
   }
-  RIEGELI_ASSERT(internal::IsBlockBoundary(pos_));
+  RIEGELI_ASSERT(internal::IsBlockBoundary(pos_))
+      << "Recovery position not at block boundary";
 
   if (byte_reader_->pos() < pos_) {
     if (RIEGELI_UNLIKELY(!byte_reader_->Seek(pos_))) {

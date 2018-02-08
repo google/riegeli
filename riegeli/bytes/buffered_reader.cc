@@ -101,7 +101,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "Chain size overflows";
+         "Chain size overflow";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   const size_t size_hint = dest->size() + length;
   if (length >= available() && length - available() >= buffer_size_) {

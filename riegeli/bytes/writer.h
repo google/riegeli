@@ -182,7 +182,7 @@ class Writer : public Object {
   // override it further and include a call to Writer::Done().
   virtual void Done() override = 0;
 
-  // Marks the Writer as failed with message "Writer position overflows".
+  // Marks the Writer as failed with message "Writer position overflow".
   // Always returns false.
   //
   // This can be called if the destination would exceed its maximum possible
@@ -319,14 +319,14 @@ inline bool Writer::Write(Chain&& src) {
 inline Position Writer::pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
                     std::numeric_limits<Position>::max() - buffer_size())
-      << "Failed invariant of Writer: position of buffer limit overflows";
+      << "Failed invariant of Writer: position of buffer limit overflow";
   return start_pos_ + written_to_buffer();
 }
 
 inline Position Writer::limit_pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
                     std::numeric_limits<Position>::max() - buffer_size())
-      << "Failed invariant of Writer: position of buffer limit overflows";
+      << "Failed invariant of Writer: position of buffer limit overflow";
   return start_pos_ + buffer_size();
 }
 
