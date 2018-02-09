@@ -288,47 +288,51 @@ void Benchmarks::RunOne(
     std::function<void(const std::string&, std::vector<std::string>*)> read_records) {
   const std::string filename = output_dir_ + "/record_benchmark_" + name;
 
-  // Warm-up: run once without measurement.
-  {
-    std::vector<std::string> decoded_records;
-    write_records(filename, records_);
-    read_records(filename, &decoded_records);
-    RIEGELI_CHECK(decoded_records == records_)
-        << "Decoded records do not match for " << name;
-  }
-
   Stats compression;
   Stats writing_cpu_speed;
   Stats writing_real_speed;
   Stats reading_cpu_speed;
   Stats reading_real_speed;
-  for (int i = 0; i < repetitions_; ++i) {
-    std::vector<std::string> decoded_records;
+  for (int i = 0; i < repetitions_ + 1; ++i) {
     const uint64_t cpu_time_before_ns = CpuTimeNow_ns();
     const uint64_t real_time_before_ns = RealTimeNow_ns();
     write_records(filename, records_);
-    const uint64_t cpu_time_middle_ns = CpuTimeNow_ns();
-    const uint64_t real_time_middle_ns = RealTimeNow_ns();
+    const uint64_t cpu_time_after_ns = CpuTimeNow_ns();
+    const uint64_t real_time_after_ns = RealTimeNow_ns();
+    if (i == 0) {
+      // Warm-up.
+    } else {
+      compression.Add(static_cast<double>(FileSize(filename)) /
+                      static_cast<double>(original_size_) * 100.0);
+      writing_cpu_speed.Add(
+          static_cast<double>(original_size_) /
+          static_cast<double>(cpu_time_after_ns - cpu_time_before_ns) * 1000.0);
+      writing_real_speed.Add(
+          static_cast<double>(original_size_) /
+          static_cast<double>(real_time_after_ns - real_time_before_ns) *
+          1000.0);
+    }
+  }
+  for (int i = 0; i < repetitions_ + 1; ++i) {
+    std::vector<std::string> decoded_records;
+    const uint64_t cpu_time_before_ns = CpuTimeNow_ns();
+    const uint64_t real_time_before_ns = RealTimeNow_ns();
     read_records(filename, &decoded_records);
     const uint64_t cpu_time_after_ns = CpuTimeNow_ns();
     const uint64_t real_time_after_ns = RealTimeNow_ns();
-    RIEGELI_CHECK(decoded_records == records_)
-        << "Decoded records do not match for " << name;
-    compression.Add(static_cast<double>(FileSize(filename)) /
-                    static_cast<double>(original_size_) * 100.0);
-    writing_cpu_speed.Add(
-        static_cast<double>(original_size_) /
-        static_cast<double>(cpu_time_middle_ns - cpu_time_before_ns) * 1000.0);
-    writing_real_speed.Add(
-        static_cast<double>(original_size_) /
-        static_cast<double>(real_time_middle_ns - real_time_before_ns) *
-        1000.0);
-    reading_cpu_speed.Add(
-        static_cast<double>(original_size_) /
-        static_cast<double>(cpu_time_after_ns - cpu_time_middle_ns) * 1000.0);
-    reading_real_speed.Add(
-        static_cast<double>(original_size_) /
-        static_cast<double>(real_time_after_ns - real_time_middle_ns) * 1000.0);
+    if (i == 0) {
+      // Warm-up and correctness check.
+      RIEGELI_CHECK(decoded_records == records_)
+          << "Decoded records do not match for " << name;
+    } else {
+      reading_cpu_speed.Add(
+          static_cast<double>(original_size_) /
+          static_cast<double>(cpu_time_after_ns - cpu_time_before_ns) * 1000.0);
+      reading_real_speed.Add(
+          static_cast<double>(original_size_) /
+          static_cast<double>(real_time_after_ns - real_time_before_ns) *
+          1000.0);
+    }
   }
 
   std::cout << std::left << std::setw(MaxNameWidth()) << name << ' '
