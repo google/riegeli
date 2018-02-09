@@ -335,7 +335,7 @@ class Chain::StringRef {
 
 inline void Chain::StringRef::AddUniqueTo(
     string_view data, MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof(*this) + src_.capacity());
+  memory_estimator->AddMemory(sizeof(*this) + src_.capacity() + 1);
 }
 
 inline void Chain::StringRef::DumpStructure(string_view data,
