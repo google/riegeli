@@ -429,6 +429,20 @@ class Chain::Block {
   // Creates an internal block for prepending.
   static Block* NewInternalForPrepend(size_t capacity);
 
+  // Constructs an internal block. This constructor is public for NewAligned().
+  Block(size_t capacity, size_t space_before);
+
+  // Constructs an external block containing the moved object and sets block
+  // data to moved_object.data(). This constructor is public for NewAligned().
+  template <typename T>
+  explicit Block(T* object);
+
+  // Constructs an external block containing the moved object and sets block
+  // data to the data parameter, which must remain valid after the object is
+  // moved. This constructor is public for NewAligned().
+  template <typename T>
+  Block(T* object, string_view data);
+
   Block* Ref();
   void Unref();
 
@@ -499,20 +513,6 @@ class Chain::Block {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
-  // Constructs an internal block.
-  Block(size_t capacity, size_t space_before);
-
-  // Constructs an external block containing the moved object and sets block
-  // data to moved_object.data().
-  template <typename T>
-  explicit Block(T* object);
-
-  // Constructs an external block containing the moved object and sets block
-  // data to the data parameter, which must remain valid after the object is
-  // moved.
-  template <typename T>
-  Block(T* object, string_view data);
-
   bool has_unique_owner() const;
 
   bool is_internal() const { return allocated_end_ != nullptr; }
@@ -567,21 +567,16 @@ struct Chain::ExternalMethodsFor {
 template <typename T>
 Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
     void* object, string_view unused) {
-  Block* block =
-      AllocateAlignedBytes<Block, UnsignedMax(alignof(Block), alignof(T))>(
-          Block::kExternalObjectOffset<T>() + sizeof(T));
-  new (block) Block(static_cast<T*>(object));
-  return block;
+  return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
+      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object));
 }
 
 template <typename T>
 Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
     void* object, string_view data) {
-  Block* block =
-      AllocateAlignedBytes<Block, UnsignedMax(alignof(Block), alignof(T))>(
-          Block::kExternalObjectOffset<T>() + sizeof(T));
-  new (block) Block(static_cast<T*>(object), data);
-  return block;
+  return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
+      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
+      data);
 }
 
 template <typename T>
@@ -591,8 +586,7 @@ const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(Block* block) {
   block->unchecked_external_object<T>()->~T();
-  block->~Block();
-  FreeAlignedBytes<Block, UnsignedMax(alignof(Block), alignof(T))>(
+  DeleteAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       block, Block::kExternalObjectOffset<T>() + sizeof(T));
 }
 

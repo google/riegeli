@@ -16,7 +16,6 @@
 #define RIEGELI_BASE_MEMORY_H_
 
 #include <stddef.h>
-#include <ios>
 #include <limits>
 #include <memory>
 #include <new>
@@ -135,12 +134,13 @@ typename internal::MakeUniqueResult<T>::ArrayWithBound make_unique(Args&&...) =
 
 #endif  // !__cpp_lib_make_unique
 
-// {Allocate,Free}AlignedBytes() provide memory allocation with the specified
-// alignment known at compile time, with the size specified in bytes, and which
-// allow deallocation to be faster by knowing the size.
+// {New,Delete}Aligned() provide memory allocation with the specified alignment
+// known at compile time, with the size specified in bytes, and which allow
+// deallocation to be faster by knowing the size.
 //
-// The alignment and size passed to FreeAlignedBytes() must be the same as in
-// the corresponding AllocateAlignedBytes().
+// The alignment and size passed to DeleteAligned() must be the same as in the
+// corresponding NewAligned(). Pointer types must be compatible as with new and
+// delete expressions.
 //
 // If the allocated size is given in terms of objects rather than bytes
 // and the type is not over-aligned (i.e. its alignment is not larger than
@@ -150,16 +150,16 @@ typename internal::MakeUniqueResult<T>::ArrayWithBound make_unique(Args&&...) =
 
 // TODO: Test this with overaligned types.
 
-template <typename T, size_t alignment = alignof(T)>
-T* AllocateAlignedBytes(size_t num_bytes) {
+template <typename T, size_t alignment = alignof(T), typename... Args>
+T* NewAligned(size_t num_bytes, Args&&... args) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
+  T* ptr;
 #if __cpp_aligned_new
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-    return static_cast<T*>(operator new(num_bytes));
+    ptr = static_cast<T*>(operator new(num_bytes));
   } else {
-    return static_cast<T*>(operator new(num_bytes,
-                                        std::align_val_t(alignment)));
+    ptr = static_cast<T*>(operator new(num_bytes, std::align_val_t(alignment)));
   }
 #else
 #ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
@@ -168,7 +168,7 @@ T* AllocateAlignedBytes(size_t num_bytes) {
   constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
 #endif
   if (alignment <= kDefaultNewAlignment) {
-    return static_cast<T*>(operator new(num_bytes));
+    ptr = static_cast<T*>(operator new(num_bytes));
   } else {
     RIEGELI_CHECK_LE(num_bytes, std::numeric_limits<size_t>::max() -
                                     sizeof(void*) - alignment +
@@ -180,15 +180,18 @@ T* AllocateAlignedBytes(size_t num_bytes) {
         reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
             static_cast<char*>(allocated) + sizeof(void*))));
     reinterpret_cast<void**>(aligned)[-1] = allocated;
-    return static_cast<T*>(aligned);
+    ptr = static_cast<T*>(aligned);
   }
 #endif
+  new (ptr) T(std::forward<Args>(args)...);
+  return ptr;
 }
 
 template <typename T, size_t alignment = alignof(T)>
-void FreeAlignedBytes(T* ptr, size_t num_bytes) {
+void DeleteAligned(T* ptr, size_t num_bytes) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
+  ptr->~T();
 #if __cpp_aligned_new
 #if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
@@ -218,8 +221,9 @@ void FreeAlignedBytes(T* ptr, size_t num_bytes) {
         ptr ==
         reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
             static_cast<char*>(allocated) + sizeof(void*)))))
-        << "Failed precondition of FreeAlignedBytes(): the pointer was not "
-           "obtained from AllocateAlignedBytes(), or alignment does not match, "
+        << "Failed precondition of DeleteAligned(): "
+           "the pointer was not obtained from NewAligned(), "
+           "or alignment does not match, "
            "or memory before the allocated block got corrupted";
     operator delete(allocated, sizeof(void*) + num_bytes + alignment -
                                    kDefaultNewAlignment);

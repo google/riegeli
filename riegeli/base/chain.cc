@@ -19,7 +19,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <new>
 #include <ostream>
 #include <string>
 #include <type_traits>
@@ -50,10 +49,7 @@ inline Chain::Block* Chain::Block::NewInternal(size_t capacity) {
   RIEGELI_ASSERT_GT(capacity, 0u)
       << "Failed precondition of Chain::Block::NewInternal(): zero capacity";
   RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity()) << "Out of memory";
-  Block* const block =
-      AllocateAlignedBytes<Block>(kInternalAllocatedOffset() + capacity);
-  new (block) Block(capacity, 0);
-  return block;
+  return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity, 0);
 }
 
 inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
@@ -61,10 +57,8 @@ inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
       << "Failed precondition of Chain::Block::NewInternalForPrepend(): zero "
          "capacity";
   RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity()) << "Out of memory";
-  Block* const block =
-      AllocateAlignedBytes<Block>(kInternalAllocatedOffset() + capacity);
-  new (block) Block(capacity, capacity);
-  return block;
+  return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity,
+                           capacity);
 }
 
 inline Chain::Block::Block(size_t capacity, size_t space_before)
@@ -81,9 +75,7 @@ inline void Chain::Block::Unref() {
   if (has_unique_owner() ||
       ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
     if (is_internal()) {
-      const size_t num_bytes = kInternalAllocatedOffset() + capacity();
-      this->~Block();
-      FreeAlignedBytes<Block>(this, num_bytes);
+      DeleteAligned<Block>(this, kInternalAllocatedOffset() + capacity());
     } else {
       external_.methods->delete_block(this);
     }
