@@ -15,9 +15,9 @@
 #ifndef RIEGELI_BASE_OBJECT_H_
 #define RIEGELI_BASE_OBJECT_H_
 
+#include <stddef.h>
 #include <stdint.h>
 #include <atomic>
-#include <string>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
@@ -102,7 +102,7 @@ class Object {
   // Returns a human-readable message describing the Object health.
   //
   // This is "Healthy", "Closed", or a failure message.
-  const std::string& Message() const;
+  string_view Message() const;
 
   // Returns a token which allows to detect the class of the Object at runtime.
   //
@@ -188,12 +188,16 @@ class Object {
   RIEGELI_ATTRIBUTE_COLD bool Fail(const Object& src);
 
  private:
-  struct Failed {
+  struct FailedStatus {
+    explicit FailedStatus(string_view message);
+
+    size_t message_size;
     // The closed flag may be changed from false to true by Close(). This
     // happens after Done() finishes, and thus any background threads should
     // have stopped interacting with the Object.
-    bool closed;
-    const std::string message;
+    bool closed = false;
+    // Beginning of message (actual message has size message_size).
+    char message_data[1];
   };
 
   static constexpr uintptr_t kHealthy() {
@@ -206,7 +210,7 @@ class Object {
 
   static void DeleteStatus(uintptr_t status);
 
-  // status_ is either kHealthy(), or kClosedSuccessfully(), or Failed*
+  // status_ is either kHealthy(), or kClosedSuccessfully(), or FailedStatus*
   // reinterpret_cast to uintptr_t.
   std::atomic<uintptr_t> status_;
 };
@@ -246,7 +250,10 @@ inline void Object::DeleteStatus(uintptr_t status) {
     case kClosedSuccessfully():
       break;
     default:
-      delete reinterpret_cast<Failed*>(status);
+      DeleteAligned(
+          reinterpret_cast<FailedStatus*>(status),
+          offsetof(FailedStatus, message_data) +
+              reinterpret_cast<const FailedStatus*>(status)->message_size);
       break;
   }
 }
@@ -263,7 +270,7 @@ inline bool Object::closed() const {
     case kClosedSuccessfully():
       return true;
     default:
-      return reinterpret_cast<Failed*>(status)->closed;
+      return reinterpret_cast<const FailedStatus*>(status)->closed;
   }
 }
 

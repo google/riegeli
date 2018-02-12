@@ -16,7 +16,7 @@
 
 #include <stddef.h>
 #include <atomic>
-#include <string>
+#include <cstring>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
@@ -25,11 +25,18 @@
 
 namespace riegeli {
 
+inline Object::FailedStatus::FailedStatus(string_view message)
+    : message_size(message.size()) {
+  std::memcpy(message_data, message.data(), message.size());
+}
+
 bool Object::Close() {
   const uintptr_t status_before = status_.load(std::memory_order_acquire);
   switch (status_before) {
     default:
-      if (reinterpret_cast<Failed*>(status_before)->closed) return false;
+      if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
+        return false;
+      }
       RIEGELI_FALLTHROUGH;
     case kHealthy(): {
       Done();
@@ -42,9 +49,10 @@ bool Object::Close() {
           RIEGELI_ASSERT_UNREACHABLE()
               << "Object marked as closed during Done()";
         default:
-          RIEGELI_ASSERT(!reinterpret_cast<Failed*>(status_after)->closed)
+          RIEGELI_ASSERT(
+              !reinterpret_cast<const FailedStatus*>(status_after)->closed)
               << "Object marked as closed during Done()";
-          reinterpret_cast<Failed*>(status_after)->closed = true;
+          reinterpret_cast<FailedStatus*>(status_after)->closed = true;
           return false;
       }
     }
@@ -57,7 +65,8 @@ bool Object::Fail(string_view message) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of Object::Fail(): Object closed";
   const uintptr_t new_status =
-      reinterpret_cast<uintptr_t>(new Failed{false, std::string(message)});
+      reinterpret_cast<uintptr_t>(NewAligned<FailedStatus>(
+          offsetof(FailedStatus, message_data) + message.size(), message));
   uintptr_t old_status = kHealthy();
   if (RIEGELI_UNLIKELY(!status_.compare_exchange_strong(
           old_status, new_status, std::memory_order_release))) {
@@ -78,19 +87,17 @@ bool Object::Fail(const Object& src) {
   return Fail(src.Message());
 }
 
-const std::string& Object::Message() const {
+string_view Object::Message() const {
   const uintptr_t status = status_.load(std::memory_order_acquire);
   switch (status) {
-    case kHealthy(): {
-      static const NoDestructor<std::string> kStaticHealthy("Healthy");
-      return *kStaticHealthy;
-    }
-    case kClosedSuccessfully(): {
-      static const NoDestructor<std::string> kStaticClosed("Closed");
-      return *kStaticClosed;
-    }
+    case kHealthy():
+      return "Healthy";
+    case kClosedSuccessfully():
+      return "Closed";
     default:
-      return reinterpret_cast<Failed*>(status)->message;
+      return string_view(
+          reinterpret_cast<const FailedStatus*>(status)->message_data,
+          reinterpret_cast<const FailedStatus*>(status)->message_size);
   }
 }
 

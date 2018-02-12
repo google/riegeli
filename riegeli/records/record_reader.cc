@@ -218,7 +218,7 @@ again:
       chunk_decoder_.Clear();
       goto again;
     }
-    const std::string message = chunk_decoder_.Message();
+    const std::string message(chunk_decoder_.Message());
     chunk_decoder_.Clear();
     return Fail(message);
   }
