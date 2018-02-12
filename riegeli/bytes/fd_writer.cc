@@ -35,6 +35,7 @@
 #include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -50,9 +51,9 @@ FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
-      filename_(fd == 1 ? "/dev/stdout"
-                        : fd == 2 ? "/dev/stderr"
-                                  : "/proc/self/fd/" + std::to_string(fd)) {
+      filename_(fd == 1
+                    ? "/dev/stdout"
+                    : fd == 2 ? "/dev/stderr" : StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdWriterBase::FdWriterBase(int): "
          "negative file descriptor";
@@ -108,8 +109,8 @@ void FdWriterBase::Done() {
 
 bool FdWriterBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
-  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
-              ", writing " + filename_);
+  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", writing ",
+                     filename_));
 }
 
 bool FdWriterBase::Flush(FlushType flush_type) {

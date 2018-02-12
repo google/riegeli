@@ -20,6 +20,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
@@ -67,7 +68,7 @@ bool Object::Fail(string_view message) {
 }
 
 bool Object::Fail(string_view message, const Object& src) {
-  return Fail(src.healthy() ? message : std::string(message) + ": " + src.Message());
+  return Fail(src.healthy() ? message : StrCat(message, ": ", src.Message()));
 }
 
 bool Object::Fail(const Object& src) {

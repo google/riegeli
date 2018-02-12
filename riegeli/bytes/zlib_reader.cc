@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -100,8 +101,10 @@ void ZLibReader::Done() {
 }
 
 inline bool ZLibReader::FailOperation(string_view operation) {
-  std::string message = std::string(operation) + " failed";
-  if (decompressor_.msg != nullptr) message += std::string(": ") + decompressor_.msg;
+  std::string message = StrCat(operation, " failed");
+  if (decompressor_.msg != nullptr) {
+    StrAppend(&message, ": ", decompressor_.msg);
+  }
   return Fail(message);
 }
 

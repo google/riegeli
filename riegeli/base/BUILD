@@ -7,6 +7,7 @@ cc_library(
     srcs = [
         "base.cc",
         "object.cc",
+        "str_cat.cc",
         "string_view.cc",
     ],
     hdrs = [
@@ -14,6 +15,7 @@ cc_library(
         "memory.h",
         "object.h",
         "port.h",
+        "str_cat.h",
         "string_view.h",
     ],
 )

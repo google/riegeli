@@ -21,10 +21,10 @@
 #include <stddef.h>
 #include <limits>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -60,8 +60,8 @@ ZstdWriter::ZstdWriter(Writer* dest, Options options)
   const size_t result = ZSTD_initCStream_advanced(compressor_.get(), nullptr, 0,
                                                   params, size_hint);
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-    Fail(std::string("ZSTD_initCStream_advanced() failed: ") +
-         ZSTD_getErrorName(result));
+    Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
+                ZSTD_getErrorName(result)));
   }
 }
 
@@ -138,8 +138,8 @@ bool ZstdWriter::WriteInternal(string_view src) {
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
       limit_ = start_;
-      return Fail(std::string("ZSTD_compressStream() failed: ") +
-                  ZSTD_getErrorName(result));
+      return Fail(
+          StrCat("ZSTD_compressStream() failed: ", ZSTD_getErrorName(result)));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
@@ -170,8 +170,8 @@ bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
     if (result == 0) return true;
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
       limit_ = start_;
-      return Fail(std::string(function_name) +
-                  " failed: " + ZSTD_getErrorName(result));
+      return Fail(
+          StrCat(function_name, " failed: ", ZSTD_getErrorName(result)));
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size)
         << function_name << " returned but there is still output space";

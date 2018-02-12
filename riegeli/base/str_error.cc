@@ -24,6 +24,7 @@
 #include <string>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_cat.h"
 
 namespace riegeli {
 
@@ -33,7 +34,7 @@ namespace {
 template <size_t buffer_size>
 std::string StrErrorResult(int result, char (&buffer)[buffer_size], int error_code) {
   if (RIEGELI_UNLIKELY(result != 0)) {
-    return "Unknown error " + std::to_string(error_code);
+    return StrCat("Unknown error ", error_code);
   }
   return buffer;
 }

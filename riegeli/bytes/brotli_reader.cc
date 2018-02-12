@@ -18,12 +18,12 @@
 #include <stdint.h>
 #include <limits>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -95,9 +95,9 @@ bool BrotliReader::PullSlow() {
         nullptr);
     src_->set_cursor(reinterpret_cast<const char*>(next_in));
     if (RIEGELI_UNLIKELY(result == BROTLI_DECODER_RESULT_ERROR)) {
-      Fail(std::string("BrotliDecoderDecompressStream() failed: ") +
-           BrotliDecoderErrorString(
-               BrotliDecoderGetErrorCode(decompressor_.get())));
+      Fail(StrCat("BrotliDecoderDecompressStream() failed: ",
+                  BrotliDecoderErrorString(
+                      BrotliDecoderGetErrorCode(decompressor_.get()))));
     }
     // Take the output first even if BrotliDecoderDecompressStream() returned
     // BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT, in order to be able to read data

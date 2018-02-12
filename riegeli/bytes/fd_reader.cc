@@ -38,6 +38,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -111,8 +112,7 @@ FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
-      filename_(fd == 0 ? "/dev/stdin"
-                        : "/proc/self/fd/" + std::to_string(fd)) {
+      filename_(fd == 0 ? "/dev/stdin" : StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdReaderBase::FdReaderBase(int): "
          "negative file descriptor";
@@ -167,8 +167,8 @@ void FdReaderBase::Done() {
 
 bool FdReaderBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
-  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
-              ", reading " + filename_);
+  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", reading ",
+                     filename_));
 }
 
 }  // namespace internal
@@ -362,8 +362,7 @@ FdMMapReader::FdMMapReader() noexcept : Reader(State::kClosed) {}
 
 FdMMapReader::FdMMapReader(int fd, Options options)
     : Reader(State::kOpen),
-      filename_(fd == 0 ? "/dev/stdin"
-                        : "/proc/self/fd/" + std::to_string(fd)) {
+      filename_(fd == 0 ? "/dev/stdin" : StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdMMapReader::FdMMapReader(int): "
          "negative file descriptor";
@@ -445,8 +444,8 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
 
 inline bool FdMMapReader::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
-  return Fail(std::string(operation) + " failed: " + StrError(error_code) +
-              ", reading " + filename_);
+  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", reading ",
+                     filename_));
 }
 
 inline Chain::BlockIterator FdMMapReader::iter() const {

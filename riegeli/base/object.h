@@ -175,7 +175,7 @@ class Object {
   RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message);
 
   // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
-  // Fail(string(message) + ": " + src.Message()).
+  // Fail(StrCat(message, ": ", src.Message())).
   //
   // Precondition: !closed()
   RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message, const Object& src);

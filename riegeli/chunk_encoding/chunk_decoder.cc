@@ -25,6 +25,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -73,8 +74,8 @@ bool Decompressor::Initialize(ChainReader* src,
       reader_ = owned_reader_.get();
       return true;
   }
-  *message = "Unknown compression type: " +
-             std::to_string(static_cast<int>(compression_type));
+  *message = StrCat("Unknown compression type: ",
+                    static_cast<unsigned>(compression_type));
   return false;
 }
 
@@ -162,7 +163,8 @@ bool ChunkDecoder::Initialize(uint8_t chunk_type, const ChunkHeader& header,
     case internal::ChunkType::kTransposed:
       return InitializeTransposed(header, data_reader, values);
   }
-  return Fail("Unknown chunk type: " + std::to_string(chunk_type));
+  return Fail(
+      StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
 }
 
 inline bool ChunkDecoder::InitializeSimple(const ChunkHeader& header,
@@ -261,15 +263,17 @@ again:
     }
     if (skip_corruption_) goto again;
     index_ = num_records();
-    return Fail("Failed to parse message of type " + record->GetTypeName());
+    return Fail(
+        StrCat("Failed to parse message of type ", record->GetTypeName()));
   }
   if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_ASSERT_UNREACHABLE();
   if (RIEGELI_UNLIKELY(!record->IsInitialized())) {
     if (skip_corruption_) goto again;
     index_ = num_records();
-    return Fail("Failed to parse message of type " + record->GetTypeName() +
-                " because it is missing required fields: " +
-                record->InitializationErrorString());
+    return Fail(StrCat("Failed to parse message of type ",
+                       record->GetTypeName(),
+                       " because it is missing required fields: ",
+                       record->InitializationErrorString()));
   }
   return true;
 }

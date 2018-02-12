@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -286,7 +287,8 @@ void Benchmarks::RunOne(
     std::function<void(const std::string&, const std::vector<std::string>&)>
         write_records,
     std::function<void(const std::string&, std::vector<std::string>*)> read_records) {
-  const std::string filename = output_dir_ + "/record_benchmark_" + name;
+  const std::string filename =
+      riegeli::StrCat(output_dir_, "/record_benchmark_", name);
 
   Stats compression;
   Stats writing_cpu_speed;

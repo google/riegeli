@@ -32,6 +32,7 @@
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/parallelism.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -467,9 +468,9 @@ void RecordWriter::Done() {
 bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
   const size_t size = record.ByteSizeLong();
   if (RIEGELI_UNLIKELY(size > std::numeric_limits<int>::max())) {
-    return Fail("Failed to serialize message of type " + record.GetTypeName() +
-                " (exceeded maximum protobuf size of 2GB: " +
-                std::to_string(size) + ")");
+    return Fail(StrCat("Failed to serialize message of type ",
+                       record.GetTypeName(),
+                       " (exceeded maximum protobuf size of 2GB: ", size, ")"));
   }
   // The only remaining possibility for SerializeToZeroCopyStream() to fail is
   // when the stream itself reports failure, which should not happen because

@@ -28,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
@@ -112,8 +113,8 @@ bool Decompressor::Initialize(internal::CompressionType compression_type,
       reader_ = owned_reader_.get();
       return true;
   }
-  *error_message = "Unknown compression type: " +
-                   std::to_string(static_cast<int>(compression_type));
+  *error_message = StrCat("Unknown compression type: ",
+                          static_cast<unsigned>(compression_type));
   return false;
 }
 
