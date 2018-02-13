@@ -33,7 +33,7 @@ class ZLibReader : public BufferedReader {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Parameter interpreted by inflateInit2() which specifies the acceptable
     // base two logarithm of the maximum window size, and which kinds of a
@@ -76,7 +76,7 @@ class ZLibReader : public BufferedReader {
   };
 
   // Creates a closed ZLibReader.
-  ZLibReader() noexcept;
+  ZLibReader() noexcept {}
 
   // Will read zlib-compressed stream from the byte Reader which is owned by
   // this ZLibReader and will be closed and deleted when the ZLibReader is
@@ -108,6 +108,44 @@ class ZLibReader : public BufferedReader {
   bool decompressor_present_ = false;
   z_stream decompressor_;
 };
+
+// Implementation details follow.
+
+inline ZLibReader::ZLibReader(std::unique_ptr<Reader> src, Options options)
+    : ZLibReader(src.get(), options) {
+  owned_src_ = std::move(src);
+}
+
+inline ZLibReader::ZLibReader(ZLibReader&& src) noexcept
+    : BufferedReader(std::move(src)),
+      owned_src_(std::move(src.owned_src_)),
+      src_(riegeli::exchange(src.src_, nullptr)),
+      decompressor_present_(
+          riegeli::exchange(src.decompressor_present_, false)),
+      decompressor_(src.decompressor_) {}
+
+inline ZLibReader& ZLibReader::operator=(ZLibReader&& src) noexcept {
+  // Exchange decompressor_present_ early to support self-assignment.
+  const bool decompressor_present =
+      riegeli::exchange(src.decompressor_present_, false);
+  if (decompressor_present_) {
+    const int result = inflateEnd(&decompressor_);
+    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
+  }
+  BufferedReader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = riegeli::exchange(src.src_, nullptr);
+  decompressor_present_ = decompressor_present;
+  decompressor_ = src.decompressor_;
+  return *this;
+}
+
+inline ZLibReader::~ZLibReader() {
+  if (decompressor_present_) {
+    const int result = inflateEnd(&decompressor_);
+    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
+  }
+}
 
 }  // namespace riegeli
 

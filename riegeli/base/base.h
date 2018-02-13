@@ -134,7 +134,7 @@ class CheckFailed {
 class CheckResult {
  public:
   // Stores no message pointer.
-  CheckResult() = default;
+  CheckResult() noexcept {}
 
   // Stores a message pointer.
   explicit CheckResult(const char* message)

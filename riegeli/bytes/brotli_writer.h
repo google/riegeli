@@ -35,7 +35,7 @@ class BrotliWriter final : public BufferedWriter {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Tune compression level vs. compression speed tradeoff.
     //
@@ -88,7 +88,7 @@ class BrotliWriter final : public BufferedWriter {
   };
 
   // Creates a closed BrotliWriter.
-  BrotliWriter() noexcept;
+  BrotliWriter() noexcept {}
 
   // Will write Brotli-compressed stream to the byte Writer which is owned by
   // this BrotliWriter and will be closed and deleted when the BrotliWriter is
@@ -105,8 +105,6 @@ class BrotliWriter final : public BufferedWriter {
   BrotliWriter(BrotliWriter&& src) noexcept;
   BrotliWriter& operator=(BrotliWriter&& src) noexcept;
 
-  ~BrotliWriter();
-
   bool Flush(FlushType flush_type) override;
 
  protected:
@@ -115,7 +113,9 @@ class BrotliWriter final : public BufferedWriter {
 
  private:
   struct BrotliEncoderStateDeleter {
-    void operator()(BrotliEncoderState* ptr) const;
+    void operator()(BrotliEncoderState* ptr) const {
+      BrotliEncoderDestroyInstance(ptr);
+    }
   };
 
   bool WriteInternal(string_view src, BrotliEncoderOperation op);
@@ -125,6 +125,27 @@ class BrotliWriter final : public BufferedWriter {
   Writer* dest_ = nullptr;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
+
+// Implementation details follow.
+
+inline BrotliWriter::BrotliWriter(std::unique_ptr<Writer> dest, Options options)
+    : BrotliWriter(dest.get(), options) {
+  owned_dest_ = std::move(dest);
+}
+
+inline BrotliWriter::BrotliWriter(BrotliWriter&& src) noexcept
+    : BufferedWriter(std::move(src)),
+      owned_dest_(std::move(src.owned_dest_)),
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      compressor_(std::move(src.compressor_)) {}
+
+inline BrotliWriter& BrotliWriter::operator=(BrotliWriter&& src) noexcept {
+  BufferedWriter::operator=(std::move(src));
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  compressor_ = std::move(src.compressor_);
+  return *this;
+}
 
 }  // namespace riegeli
 

@@ -38,11 +38,7 @@ class BufferedWriter : public Writer {
   BufferedWriter() noexcept : Writer(State::kClosed) {}
 
   // Creates a BufferedWriter with the given buffer size.
-  explicit BufferedWriter(size_t buffer_size) noexcept
-      : Writer(State::kOpen), buffer_size_(buffer_size) {
-    RIEGELI_ASSERT_GT(buffer_size, 0u)
-        << "Failed precondition of BufferedWriter::BufferedWriter(size_t)";
-  }
+  explicit BufferedWriter(size_t buffer_size) noexcept;
 
   BufferedWriter(BufferedWriter&& src) noexcept;
   BufferedWriter& operator=(BufferedWriter&& src) noexcept;
@@ -86,6 +82,12 @@ class BufferedWriter : public Writer {
 };
 
 // Implementation details follow.
+
+inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
+    : Writer(State::kOpen), buffer_size_(buffer_size) {
+  RIEGELI_ASSERT_GT(buffer_size, 0u)
+      << "Failed precondition of BufferedWriter::BufferedWriter(size_t)";
+}
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& src) noexcept
     : Writer(std::move(src)),

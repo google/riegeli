@@ -20,8 +20,6 @@
 
 #include <stddef.h>
 #include <limits>
-#include <memory>
-#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/str_cat.h"
@@ -31,18 +29,6 @@
 #include "zstd.h"
 
 namespace riegeli {
-
-inline void ZstdWriter::ZSTD_CStreamDeleter::operator()(
-    ZSTD_CStream* ptr) const {
-  ZSTD_freeCStream(ptr);
-}
-
-ZstdWriter::ZstdWriter() noexcept = default;
-
-ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
-    : ZstdWriter(dest.get(), options) {
-  owned_dest_ = std::move(dest);
-}
 
 ZstdWriter::ZstdWriter(Writer* dest, Options options)
     : BufferedWriter(options.buffer_size_),
@@ -64,22 +50,6 @@ ZstdWriter::ZstdWriter(Writer* dest, Options options)
                 ZSTD_getErrorName(result)));
   }
 }
-
-ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      compressor_(std::move(src.compressor_)) {}
-
-ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  compressor_ = std::move(src.compressor_);
-  return *this;
-}
-
-ZstdWriter::~ZstdWriter() = default;
 
 void ZstdWriter::Done() {
   PushInternal();

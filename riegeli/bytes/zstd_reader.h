@@ -54,7 +54,7 @@ class ZstdReader final : public BufferedReader {
   };
 
   // Creates a closed ZstdReader.
-  ZstdReader() noexcept;
+  ZstdReader() noexcept {}
 
   // Will read Zstd-compressed stream from the byte Reader which is owned by
   // this ZstdReader and will be closed and deleted when the ZstdReader is
@@ -69,8 +69,6 @@ class ZstdReader final : public BufferedReader {
   ZstdReader(ZstdReader&& src) noexcept;
   ZstdReader& operator=(ZstdReader&& src) noexcept;
 
-  ~ZstdReader();
-
  protected:
   void Done() override;
   bool PullSlow() override;
@@ -79,7 +77,7 @@ class ZstdReader final : public BufferedReader {
 
  private:
   struct ZSTD_DStreamDeleter {
-    void operator()(ZSTD_DStream* ptr) const;
+    void operator()(ZSTD_DStream* ptr) const { ZSTD_freeDStream(ptr); }
   };
 
   std::unique_ptr<Reader> owned_src_;
@@ -90,6 +88,27 @@ class ZstdReader final : public BufferedReader {
   // again.
   std::unique_ptr<ZSTD_DStream, ZSTD_DStreamDeleter> decompressor_;
 };
+
+// Implementation details follow.
+
+inline ZstdReader::ZstdReader(std::unique_ptr<Reader> src, Options options)
+    : ZstdReader(src.get(), options) {
+  owned_src_ = std::move(src);
+}
+
+inline ZstdReader::ZstdReader(ZstdReader&& src) noexcept
+    : BufferedReader(std::move(src)),
+      owned_src_(std::move(src.owned_src_)),
+      src_(riegeli::exchange(src.src_, nullptr)),
+      decompressor_(std::move(src.decompressor_)) {}
+
+inline ZstdReader& ZstdReader::operator=(ZstdReader&& src) noexcept {
+  BufferedReader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = riegeli::exchange(src.src_, nullptr);
+  decompressor_ = std::move(src.decompressor_);
+  return *this;
+}
 
 }  // namespace riegeli
 

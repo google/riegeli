@@ -16,37 +16,12 @@
 
 #include <stddef.h>
 #include <string>
-#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
-
-StringWriter::StringWriter() noexcept : Writer(State::kClosed) {}
-
-StringWriter::StringWriter(std::string* dest, Options options)
-    : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
-  if (options.size_hint_ > 0) {
-    dest_->reserve(UnsignedMin(options.size_hint_, dest->max_size()));
-  }
-  start_ = &(*dest_)[0];
-  cursor_ = &(*dest_)[dest_->size()];
-  limit_ = cursor_;
-}
-
-StringWriter::StringWriter(StringWriter&& src) noexcept
-    : Writer(std::move(src)), dest_(riegeli::exchange(src.dest_, nullptr)) {}
-
-StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
-  Writer::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  return *this;
-}
-
-StringWriter::~StringWriter() = default;
 
 void StringWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {

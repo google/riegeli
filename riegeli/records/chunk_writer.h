@@ -87,8 +87,6 @@ class DefaultChunkWriter final : public ChunkWriter {
   // and must be kept alive but not accessed until closing the ChunkWriter.
   explicit DefaultChunkWriter(Writer* byte_writer);
 
-  ~DefaultChunkWriter();
-
   bool WriteChunk(const Chunk& chunk) override;
   bool Flush(FlushType flush_type) override;
   Position pos() const override;

@@ -17,8 +17,10 @@
 
 #include <stddef.h>
 #include <string>
+#include <utility>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 
@@ -28,7 +30,7 @@ namespace riegeli {
 class StringReader final : public Reader {
  public:
   // Creates a closed StringReader.
-  StringReader() noexcept;
+  StringReader() noexcept : Reader(State::kClosed) {}
 
   // Will read from the array which is not owned by this StringReader and must
   // be kept alive but not changed until the StringReader is closed.
@@ -43,8 +45,6 @@ class StringReader final : public Reader {
 
   StringReader(StringReader&& src) noexcept;
   StringReader& operator=(StringReader&& src) noexcept;
-
-  ~StringReader();
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) const override;
@@ -61,6 +61,25 @@ class StringReader final : public Reader {
 };
 
 // Implementation details follow.
+
+inline StringReader::StringReader(const char* src, size_t size)
+    : Reader(State::kOpen) {
+  start_ = src;
+  cursor_ = src;
+  limit_ = src + size;
+  limit_pos_ = size;
+}
+
+inline StringReader::StringReader(const std::string* src)
+    : StringReader(src->data(), src->size()) {}
+
+inline StringReader::StringReader(StringReader&& src) noexcept
+    : Reader(std::move(src)) {}
+
+inline StringReader& StringReader::operator=(StringReader&& src) noexcept {
+  Reader::operator=(std::move(src));
+  return *this;
+}
 
 inline bool StringReader::Size(Position* size) const {
   if (RIEGELI_UNLIKELY(!healthy())) return false;

@@ -30,37 +30,6 @@ inline Object::FailedStatus::FailedStatus(string_view message)
   std::memcpy(message_data, message.data(), message.size());
 }
 
-bool Object::Close() {
-  const uintptr_t status_before = status_.load(std::memory_order_acquire);
-  switch (status_before) {
-    default:
-      if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
-        return false;
-      }
-      RIEGELI_FALLTHROUGH;
-    case kHealthy(): {
-      Done();
-      const uintptr_t status_after = status_.load(std::memory_order_relaxed);
-      switch (status_after) {
-        case kHealthy():
-          status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
-          return true;
-        case kClosedSuccessfully():
-          RIEGELI_ASSERT_UNREACHABLE()
-              << "Object marked as closed during Done()";
-        default:
-          RIEGELI_ASSERT(
-              !reinterpret_cast<const FailedStatus*>(status_after)->closed)
-              << "Object marked as closed during Done()";
-          reinterpret_cast<FailedStatus*>(status_after)->closed = true;
-          return false;
-      }
-    }
-    case kClosedSuccessfully():
-      return true;
-  }
-}
-
 bool Object::Fail(string_view message) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of Object::Fail(): Object closed";

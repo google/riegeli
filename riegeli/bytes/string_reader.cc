@@ -14,38 +14,10 @@
 
 #include "riegeli/bytes/string_reader.h"
 
-#include <stddef.h>
-#include <string>
-#include <utility>
-
 #include "riegeli/base/base.h"
-#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
-
-StringReader::StringReader() noexcept : Reader(State::kClosed) {}
-
-StringReader::StringReader(const char* src, size_t size)
-    : Reader(State::kOpen) {
-  start_ = src;
-  cursor_ = src;
-  limit_ = src + size;
-  limit_pos_ = size;
-}
-
-StringReader::StringReader(const std::string* src)
-    : StringReader(src->data(), src->size()) {}
-
-StringReader::StringReader(StringReader&& src) noexcept
-    : Reader(std::move(src)) {}
-
-StringReader& StringReader::operator=(StringReader&& src) noexcept {
-  Reader::operator=(std::move(src));
-  return *this;
-}
-
-StringReader::~StringReader() = default;
 
 void StringReader::Done() { Reader::Done(); }
 

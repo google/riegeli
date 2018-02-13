@@ -14,7 +14,7 @@ namespace internal {
 class FdHolder {
  public:
   // Creates a FdHolder which does not own a fd.
-  FdHolder() noexcept = default;
+  FdHolder() noexcept {}
 
   // Creates a FdHolder which owns fd if fd >= 0.
   explicit FdHolder(int fd) noexcept : fd_(fd) {}

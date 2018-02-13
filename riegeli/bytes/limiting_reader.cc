@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 #include <limits>
-#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -26,8 +25,6 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-LimitingReader::LimitingReader() noexcept : Reader(State::kClosed) {}
 
 LimitingReader::LimitingReader(Reader* src, Position size_limit)
     : Reader(State::kOpen),
@@ -48,22 +45,6 @@ LimitingReader::LimitingReader(Reader* src, Position size_limit)
   }
   SyncBuffer();
 }
-
-LimitingReader::LimitingReader(LimitingReader&& src) noexcept
-    : Reader(std::move(src)),
-      src_(riegeli::exchange(src.src_, nullptr)),
-      size_limit_(riegeli::exchange(src.size_limit_, 0)),
-      wrapped_(riegeli::exchange(src.wrapped_, nullptr)) {}
-
-LimitingReader& LimitingReader::operator=(LimitingReader&& src) noexcept {
-  Reader::operator=(std::move(src));
-  src_ = riegeli::exchange(src.src_, nullptr);
-  size_limit_ = riegeli::exchange(src.size_limit_, 0);
-  wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
-  return *this;
-}
-
-LimitingReader::~LimitingReader() = default;
 
 void LimitingReader::Done() {
   if (RIEGELI_LIKELY(healthy())) src_->set_cursor(cursor_);

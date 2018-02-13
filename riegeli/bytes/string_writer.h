@@ -20,6 +20,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
@@ -32,7 +33,7 @@ class StringWriter final : public Writer {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Announce in advance the destination size. This may improve performance
     // and reduce memory usage.
@@ -53,7 +54,7 @@ class StringWriter final : public Writer {
   };
 
   // Creates a closed StringWriter.
-  StringWriter() noexcept;
+  StringWriter() noexcept : Writer(State::kClosed) {}
 
   // Will write to the string which is not owned by this StringWriter and must
   // be kept alive but not accessed until closing the StringWriter, except that
@@ -62,8 +63,6 @@ class StringWriter final : public Writer {
 
   StringWriter(StringWriter&& src) noexcept;
   StringWriter& operator=(StringWriter&& src) noexcept;
-
-  ~StringWriter();
 
   bool Flush(FlushType flush_type) override;
 
@@ -93,6 +92,27 @@ class StringWriter final : public Writer {
   //   buffer_size() == dest_->size()
   //   start_pos_ == 0
 };
+
+// Implementation details follow.
+
+inline StringWriter::StringWriter(std::string* dest, Options options)
+    : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
+  if (options.size_hint_ > 0) {
+    dest_->reserve(UnsignedMin(options.size_hint_, dest->max_size()));
+  }
+  start_ = &(*dest_)[0];
+  cursor_ = &(*dest_)[dest_->size()];
+  limit_ = cursor_;
+}
+
+inline StringWriter::StringWriter(StringWriter&& src) noexcept
+    : Writer(std::move(src)), dest_(riegeli::exchange(src.dest_, nullptr)) {}
+
+inline StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
+  Writer::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  return *this;
+}
 
 }  // namespace riegeli
 

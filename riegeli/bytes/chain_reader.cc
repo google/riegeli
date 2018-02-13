@@ -20,72 +20,12 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-ChainReader::ChainReader() noexcept : Reader(State::kClosed) {}
-
-ChainReader::ChainReader(Chain src)
-    : Reader(State::kOpen), owned_src_(std::move(src)) {
-  if (iter_ != src_->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = iter_->data();
-    limit_ = iter_->data() + iter_->size();
-    limit_pos_ = iter_->size();
-  }
-}
-
-ChainReader::ChainReader(const Chain* src)
-    : Reader(State::kOpen), src_(RIEGELI_ASSERT_NOTNULL(src)) {
-  if (iter_ != src_->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = iter_->data();
-    limit_ = iter_->data() + iter_->size();
-    limit_pos_ = iter_->size();
-  }
-}
-
-ChainReader::ChainReader(ChainReader&& src) noexcept
-    : ChainReader(
-          std::move(src),
-          static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin())) {}
-
-// block_index is computed early because if src.src_ == &src.owned_src_ then
-// *src.src_ is moved, which invalidates src.iter_, and block_index depends on
-// src.iter_.
-ChainReader::ChainReader(ChainReader&& src, size_t block_index)
-    : Reader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(src.src_ == &src.owned_src_
-               ? &owned_src_
-               : riegeli::exchange(src.src_, &src.owned_src_)),
-      iter_(src_->blocks().cbegin() + block_index) {
-  src.iter_ = src.src_->blocks().cbegin();
-}
-
-ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
-  // block_index is computed early because if src.src_ == &src.owned_src_ then
-  // *src.src_ is moved, which invalidates src.iter_, and block_index depends
-  // on src.iter_.
-  const size_t block_index =
-      static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin());
-  Reader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = src.src_ == &src.owned_src_
-             ? &owned_src_
-             : riegeli::exchange(src.src_, &src.owned_src_);
-  // Set src.iter_ before iter_ to support self-assignment.
-  src.iter_ = src.src_->blocks().cbegin();
-  iter_ = src_->blocks().cbegin() + block_index;
-  return *this;
-}
-
-ChainReader::~ChainReader() = default;
 
 void ChainReader::Done() {
   owned_src_ = Chain();

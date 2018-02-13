@@ -16,11 +16,13 @@
 #define RIEGELI_BYTES_CHAIN_WRITER_H_
 
 #include <stddef.h>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
@@ -33,7 +35,7 @@ class ChainWriter final : public Writer {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Announce in advance the destination size. This may reduce Chain memory
     // usage.
@@ -54,7 +56,7 @@ class ChainWriter final : public Writer {
   };
 
   // Creates a closed ChainWriter.
-  ChainWriter() noexcept;
+  ChainWriter() noexcept : Writer(State::kClosed) {}
 
   // Will write to the Chain which is not owned by this ChainWriter and must be
   // kept alive but not accessed until closing the ChainWriter, except that it
@@ -63,8 +65,6 @@ class ChainWriter final : public Writer {
 
   ChainWriter(ChainWriter&& src) noexcept;
   ChainWriter& operator=(ChainWriter&& src) noexcept;
-
-  ~ChainWriter();
 
   bool Flush(FlushType flush_type) override;
 
@@ -99,6 +99,28 @@ class ChainWriter final : public Writer {
   //                                  dest_->blocks().back().size()
   //   limit_pos() == dest_->size()
 };
+
+// Implementation details follow.
+
+inline ChainWriter::ChainWriter(Chain* dest, Options options)
+    : Writer(State::kOpen),
+      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
+      size_hint_(
+          UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
+  start_pos_ = dest->size();
+}
+
+inline ChainWriter::ChainWriter(ChainWriter&& src) noexcept
+    : Writer(std::move(src)),
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+
+inline ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
+  Writer::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  return *this;
+}
 
 }  // namespace riegeli
 

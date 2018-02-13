@@ -27,7 +27,7 @@ namespace riegeli {
 class RecordPosition {
  public:
   // Creates a RecordPosition corresponding to the first record.
-  RecordPosition() noexcept = default;
+  constexpr RecordPosition() noexcept {}
 
   // Creates a RecordPosition corresponding to the given record of the chunk
   // at the given file position.
@@ -37,8 +37,14 @@ class RecordPosition {
                       std::numeric_limits<uint64_t>::max() - chunk_begin);
   }
 
-  RecordPosition(const RecordPosition&) noexcept = default;
-  RecordPosition& operator=(const RecordPosition&) noexcept = default;
+  RecordPosition(const RecordPosition& src) noexcept
+      : chunk_begin_(src.chunk_begin_), record_index_(src.record_index_) {}
+
+  RecordPosition& operator=(const RecordPosition& src) noexcept {
+    chunk_begin_ = src.chunk_begin_;
+    record_index_ = src.record_index_;
+    return *this;
+  }
 
   uint64_t chunk_begin() const { return chunk_begin_; }
   uint64_t record_index() const { return record_index_; }

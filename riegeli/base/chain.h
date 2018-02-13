@@ -20,6 +20,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <new>
 #include <string>
 #include <utility>
@@ -50,9 +51,6 @@ class Chain {
   class BlockIterator;
   class Buffer;
 
-  // Not defaulted as a workaround for a bug in Clang < 3.2: a defaulted default
-  // constructor of Chain is not constexpr, but an explicitly defined one can be
-  // constexpr.
   constexpr Chain() noexcept {}
 
   explicit Chain(string_view src);
@@ -172,10 +170,6 @@ class Chain {
   };
 
   union BlockPtrs {
-    // Workaround for a bug in Clang < 3.2 and GCC: an implicitly generated
-    // or defaulted default constructor of BlockPtrs is not constexpr, but
-    // an explicitly defined one can be constexpr. Also, in GCC < 4.9 the member
-    // initializer must be in the constructor if the constructor is constexpr.
     constexpr BlockPtrs() noexcept : empty() {}
 
     // If the Chain is empty, no block pointers are needed. Some union member is
@@ -196,6 +190,7 @@ class Chain {
 
   void UnrefBlocks();
   static void UnrefBlocks(Block* const* begin, Block* const* end);
+  static void UnrefBlocksSlow(Block* const* begin, Block* const* end);
 
   bool is_here() const { return begin_ == block_ptrs_.here; }
   bool is_allocated() const { return begin_ != block_ptrs_.here; }
@@ -289,10 +284,10 @@ class Chain::Blocks {
   using size_type = size_t;
   using difference_type = ptrdiff_t;
 
-  Blocks() noexcept = default;
+  Blocks() noexcept {}
 
-  Blocks(const Blocks&) noexcept = default;
-  Blocks& operator=(const Blocks&) noexcept = default;
+  Blocks(const Blocks& src) noexcept;
+  Blocks& operator=(const Blocks& src) noexcept;
 
   const_iterator begin() const;
   const_iterator end() const;
@@ -313,7 +308,7 @@ class Chain::Blocks {
  private:
   friend class Chain;
 
-  Blocks(Block* const* begin, Block* const* end);
+  Blocks(Block* const* begin, Block* const* end) noexcept;
 
   Block* const* begin_ = nullptr;
   Block* const* end_ = nullptr;
@@ -327,10 +322,10 @@ class Chain::BlockIterator {
   using reference = const value_type&;
   using difference_type = ptrdiff_t;
 
-  BlockIterator() noexcept = default;
+  BlockIterator() noexcept {}
 
-  BlockIterator(const BlockIterator&) noexcept = default;
-  BlockIterator& operator=(const BlockIterator&) noexcept = default;
+  BlockIterator(const BlockIterator& src) noexcept;
+  BlockIterator& operator=(const BlockIterator& src) noexcept;
 
   reference operator*() const;
   pointer operator->() const;
@@ -377,19 +372,19 @@ class Chain::BlockIterator {
  private:
   friend class Chain;
 
-  explicit BlockIterator(Block* const* iter) : iter_(iter) {}
+  explicit BlockIterator(Block* const* iter) noexcept : iter_(iter) {}
 
   Block* const* iter_ = nullptr;
 };
 
 class Chain::Buffer {
  public:
-  Buffer() noexcept = default;
+  Buffer() noexcept {}
 
-  Buffer(char* data, size_t size) : data_(data), size_(size) {}
+  Buffer(char* data, size_t size) noexcept : data_(data), size_(size) {}
 
-  Buffer(const Buffer&) noexcept = default;
-  Buffer& operator=(const Buffer&) noexcept = default;
+  Buffer(const Buffer& src) noexcept;
+  Buffer& operator=(const Buffer& src) noexcept;
 
   char* data() const { return data_; }
   size_t size() const { return size_; }
@@ -701,6 +696,15 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
   return false;
 }
 
+inline Chain::BlockIterator::BlockIterator(const BlockIterator& src) noexcept
+    : iter_(src.iter_) {}
+
+inline Chain::BlockIterator& Chain::BlockIterator::operator=(
+    const BlockIterator& src) noexcept {
+  iter_ = src.iter_;
+  return *this;
+}
+
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
   return (*iter_)->data();
 }
@@ -799,8 +803,17 @@ const T* Chain::BlockIterator::external_object() const {
   return (*iter_)->checked_external_object<T>();
 }
 
-inline Chain::Blocks::Blocks(Block* const* begin, Block* const* end)
+inline Chain::Blocks::Blocks(Block* const* begin, Block* const* end) noexcept
     : begin_(begin), end_(end) {}
+
+inline Chain::Blocks::Blocks(const Blocks& src) noexcept
+    : begin_(src.begin_), end_(src.end_) {}
+
+inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& src) noexcept {
+  begin_ = src.begin_;
+  end_ = src.end_;
+  return *this;
+}
 
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
   return const_iterator(begin_);
@@ -864,6 +877,75 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::back(): no blocks";
   return end_[-1]->data();
+}
+
+inline Chain::Buffer::Buffer(const Buffer& src) noexcept
+    : data_(src.data_), size_(src.size_) {}
+
+inline Chain::Buffer& Chain::Buffer::operator=(const Buffer& src) noexcept {
+  data_ = src.data_;
+  size_ = src.size_;
+  return *this;
+}
+
+inline Chain::Chain(Chain&& src) noexcept
+    : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
+  if (src.is_here()) {
+    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
+    begin_ = block_ptrs_.here;
+    end_ =
+        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
+                            src.block_ptrs_.here);
+  } else {
+    begin_ = riegeli::exchange(src.begin_, src.block_ptrs_.here);
+    end_ = riegeli::exchange(src.end_, src.block_ptrs_.here);
+  }
+  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
+  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
+}
+
+inline Chain& Chain::operator=(Chain&& src) noexcept {
+  // Exchange src.begin_ and src.end_ early to support self-assignment.
+  Block** begin;
+  Block** end;
+  if (src.is_here()) {
+    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
+    begin = block_ptrs_.here;
+    end =
+        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
+                            src.block_ptrs_.here);
+  } else {
+    begin = riegeli::exchange(src.begin_, src.block_ptrs_.here);
+    end = riegeli::exchange(src.end_, src.block_ptrs_.here);
+  }
+  UnrefBlocks();
+  DeleteBlockPtrs();
+  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
+  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
+  block_ptrs_ = src.block_ptrs_;
+  begin_ = begin;
+  end_ = end;
+  size_ = riegeli::exchange(src.size_, 0);
+  return *this;
+}
+
+inline Chain::~Chain() {
+  UnrefBlocks();
+  DeleteBlockPtrs();
+}
+
+inline void Chain::DeleteBlockPtrs() {
+  if (is_allocated()) {
+    std::allocator<Block*>().deallocate(
+        block_ptrs_.allocated.begin,
+        block_ptrs_.allocated.end - block_ptrs_.allocated.begin);
+  }
+}
+
+inline void Chain::UnrefBlocks() { UnrefBlocks(begin_, end_); }
+
+inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
+  if (begin != end) UnrefBlocksSlow(begin, end);
 }
 
 inline Chain::Blocks Chain::blocks() const { return Blocks(begin_, end_); }

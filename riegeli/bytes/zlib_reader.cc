@@ -16,25 +16,17 @@
 
 #include <stddef.h>
 #include <limits>
-#include <memory>
 #include <string>
-#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
-
-ZLibReader::ZLibReader() noexcept = default;
-
-ZLibReader::ZLibReader(std::unique_ptr<Reader> src, Options options)
-    : ZLibReader(src.get(), options) {
-  owned_src_ = std::move(src);
-}
 
 ZLibReader::ZLibReader(Reader* src, Options options)
     : BufferedReader(options.buffer_size_), src_(RIEGELI_ASSERT_NOTNULL(src)) {
@@ -47,37 +39,6 @@ ZLibReader::ZLibReader(Reader* src, Options options)
   if (RIEGELI_UNLIKELY(inflateInit2(&decompressor_, options.window_bits_) !=
                        Z_OK)) {
     FailOperation("inflateInit2()");
-  }
-}
-
-ZLibReader::ZLibReader(ZLibReader&& src) noexcept
-    : BufferedReader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(riegeli::exchange(src.src_, nullptr)),
-      decompressor_present_(
-          riegeli::exchange(src.decompressor_present_, false)),
-      decompressor_(src.decompressor_) {}
-
-ZLibReader& ZLibReader::operator=(ZLibReader&& src) noexcept {
-  // Exchange decompressor_present_ early to support self-assignment.
-  const bool decompressor_present =
-      riegeli::exchange(src.decompressor_present_, false);
-  if (decompressor_present_) {
-    const int result = inflateEnd(&decompressor_);
-    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
-  }
-  BufferedReader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = riegeli::exchange(src.src_, nullptr);
-  decompressor_present_ = decompressor_present;
-  decompressor_ = src.decompressor_;
-  return *this;
-}
-
-ZLibReader::~ZLibReader() {
-  if (decompressor_present_) {
-    const int result = inflateEnd(&decompressor_);
-    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
   }
 }
 

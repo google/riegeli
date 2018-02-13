@@ -37,6 +37,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
@@ -71,11 +72,11 @@ class MMapRef {
   size_t size_;
 };
 
-inline MMapRef::MMapRef(MMapRef&& src) noexcept
+MMapRef::MMapRef(MMapRef&& src) noexcept
     : data_(riegeli::exchange(src.data_, nullptr)),
       size_(riegeli::exchange(src.size_, 0)) {}
 
-inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
+MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
   // Exchange data_ early to support self-assignment.
   void* const data = riegeli::exchange(src.data_, nullptr);
   if (data_ != nullptr) {
@@ -87,7 +88,7 @@ inline MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
   return *this;
 }
 
-inline MMapRef::~MMapRef() {
+MMapRef::~MMapRef() {
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
     RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
@@ -107,7 +108,7 @@ void MMapRef::DumpStructure(string_view data, std::ostream& out) const {
 
 namespace internal {
 
-FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
+inline FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedReader(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
@@ -118,7 +119,8 @@ FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
          "negative file descriptor";
 }
 
-FdReaderBase::FdReaderBase(std::string filename, int flags, size_t buffer_size)
+inline FdReaderBase::FdReaderBase(std::string filename, int flags,
+                                  size_t buffer_size)
     : BufferedReader(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
       filename_(std::move(filename)) {
@@ -137,24 +139,6 @@ again:
   owned_fd_ = FdHolder(fd_);
 }
 
-FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
-    : BufferedReader(std::move(src)),
-      owned_fd_(std::move(src.owned_fd_)),
-      fd_(riegeli::exchange(src.fd_, -1)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {}
-
-FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
-  BufferedReader::operator=(std::move(src));
-  owned_fd_ = std::move(src.owned_fd_);
-  fd_ = riegeli::exchange(src.fd_, -1);
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
-  return *this;
-}
-
-FdReaderBase::~FdReaderBase() = default;
-
 void FdReaderBase::Done() {
   if (RIEGELI_LIKELY(healthy())) MaybeSyncPos();
   const int error_code = owned_fd_.Close();
@@ -165,15 +149,13 @@ void FdReaderBase::Done() {
   BufferedReader::Done();
 }
 
-bool FdReaderBase::FailOperation(string_view operation, int error_code) {
+inline bool FdReaderBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
   return Fail(StrCat(operation, " failed: ", StrError(error_code), ", reading ",
                      filename_));
 }
 
 }  // namespace internal
-
-FdReader::FdReader() noexcept = default;
 
 FdReader::FdReader(int fd, Options options)
     : FdReaderBase(fd, options.owns_fd_, options.buffer_size_),
@@ -188,16 +170,6 @@ FdReader::FdReader(std::string filename, int flags, Options options)
       << "Failed precondition of FdReader::FdReader(string): "
          "file must be owned if FdReader opens it";
   if (RIEGELI_LIKELY(healthy())) InitializePos();
-}
-
-FdReader::FdReader(FdReader&& src) noexcept
-    : internal::FdReaderBase(std::move(src)),
-      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
-
-FdReader& FdReader::operator=(FdReader&& src) noexcept {
-  internal::FdReaderBase::operator=(std::move(src));
-  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
-  return *this;
 }
 
 void FdReader::Done() {
@@ -296,8 +268,6 @@ bool FdReader::Size(Position* size) const {
   return true;
 }
 
-FdStreamReader::FdStreamReader() noexcept = default;
-
 FdStreamReader::FdStreamReader(int fd, Options options)
     : FdReaderBase(fd, true, options.buffer_size_) {
   RIEGELI_ASSERT(options.has_assumed_pos_)
@@ -311,14 +281,6 @@ FdStreamReader::FdStreamReader(std::string filename, int flags, Options options)
     : FdReaderBase(std::move(filename), flags, options.buffer_size_) {
   if (RIEGELI_UNLIKELY(!healthy())) return;
   limit_pos_ = options.assumed_pos_;
-}
-
-FdStreamReader::FdStreamReader(FdStreamReader&& src) noexcept
-    : internal::FdReaderBase(std::move(src)) {}
-
-FdStreamReader& FdStreamReader::operator=(FdStreamReader&& src) noexcept {
-  internal::FdReaderBase::operator=(std::move(src));
-  return *this;
 }
 
 bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
@@ -358,8 +320,6 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
   }
 }
 
-FdMMapReader::FdMMapReader() noexcept : Reader(State::kClosed) {}
-
 FdMMapReader::FdMMapReader(int fd, Options options)
     : Reader(State::kOpen),
       filename_(fd == 0 ? "/dev/stdin" : StrCat("/proc/self/fd/", fd)) {
@@ -387,20 +347,6 @@ again:
     return;
   }
   Initialize(fd, options);
-}
-
-FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
-    : Reader(std::move(src)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)),
-      contents_(riegeli::exchange(src.contents_, Chain())) {}
-
-FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
-  Reader::operator=(std::move(src)),
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
-  contents_ = riegeli::exchange(src.contents_, Chain());
-  return *this;
 }
 
 void FdMMapReader::Done() {

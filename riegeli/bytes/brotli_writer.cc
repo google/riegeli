@@ -17,8 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits>
-#include <memory>
-#include <utility>
 
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
@@ -27,18 +25,6 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-inline void BrotliWriter::BrotliEncoderStateDeleter::operator()(
-    BrotliEncoderState* ptr) const {
-  BrotliEncoderDestroyInstance(ptr);
-}
-
-BrotliWriter::BrotliWriter() noexcept = default;
-
-BrotliWriter::BrotliWriter(std::unique_ptr<Writer> dest, Options options)
-    : BrotliWriter(dest.get(), options) {
-  owned_dest_ = std::move(dest);
-}
 
 BrotliWriter::BrotliWriter(Writer* dest, Options options)
     : BufferedWriter(options.buffer_size_),
@@ -61,22 +47,6 @@ BrotliWriter::BrotliWriter(Writer* dest, Options options)
         UnsignedMin(options.size_hint_, std::numeric_limits<uint32_t>::max()));
   }
 }
-
-BrotliWriter::BrotliWriter(BrotliWriter&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      compressor_(std::move(src.compressor_)) {}
-
-BrotliWriter& BrotliWriter::operator=(BrotliWriter&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  compressor_ = std::move(src.compressor_);
-  return *this;
-}
-
-BrotliWriter::~BrotliWriter() = default;
 
 void BrotliWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {

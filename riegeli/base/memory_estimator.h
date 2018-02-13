@@ -48,7 +48,7 @@ namespace riegeli {
 // support this convention, these calls should be approximated externally.
 class MemoryEstimator {
  public:
-  MemoryEstimator() = default;
+  MemoryEstimator() {}
 
   MemoryEstimator(const MemoryEstimator&);
   MemoryEstimator& operator=(const MemoryEstimator&);

@@ -14,7 +14,6 @@
 
 #include "riegeli/bytes/backward_writer_utils.h"
 
-#include <stddef.h>
 #include <stdint.h>
 
 #include "riegeli/base/base.h"

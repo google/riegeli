@@ -14,6 +14,7 @@
 
 #include "riegeli/records/chunk_writer.h"
 
+#include <stdint.h>
 #include <memory>
 #include <utility>
 
@@ -31,7 +32,7 @@
 
 namespace riegeli {
 
-ChunkWriter::~ChunkWriter() = default;
+ChunkWriter::~ChunkWriter() {}
 
 DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
     : DefaultChunkWriter(byte_writer.get()) {
@@ -41,8 +42,6 @@ DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
 DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
     : ChunkWriter(State::kOpen),
       byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {}
-
-DefaultChunkWriter::~DefaultChunkWriter() = default;
 
 void DefaultChunkWriter::Done() {
   if (owned_byte_writer_ != nullptr) {

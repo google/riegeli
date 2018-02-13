@@ -16,8 +16,11 @@
 #define RIEGELI_BYTES_BROTLI_READER_H_
 
 #include <memory>
+#include <utility>
 
 #include "brotli/decode.h"
+#include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -29,7 +32,7 @@ class BrotliReader final : public Reader {
   class Options {};
 
   // Creates a closed BrotliReader.
-  BrotliReader() noexcept;
+  BrotliReader() noexcept : Reader(State::kClosed) {}
 
   // Will read Brotli-compressed stream from the byte Reader which is owned by
   // this BrotliReader and will be closed and deleted when the BrotliReader is
@@ -45,8 +48,6 @@ class BrotliReader final : public Reader {
   BrotliReader(BrotliReader&& src) noexcept;
   BrotliReader& operator=(BrotliReader&& src) noexcept;
 
-  ~BrotliReader();
-
  protected:
   void Done() override;
   bool PullSlow() override;
@@ -54,7 +55,9 @@ class BrotliReader final : public Reader {
 
  private:
   struct BrotliDecoderStateDeleter {
-    void operator()(BrotliDecoderState* ptr) const;
+    void operator()(BrotliDecoderState* ptr) const {
+      BrotliDecoderDestroyInstance(ptr);
+    }
   };
 
   std::unique_ptr<Reader> owned_src_;
@@ -68,6 +71,27 @@ class BrotliReader final : public Reader {
   //   cursor_ and limit_ point inside the buffer returned by
   //   BrotliDecoderTakeOutput() or are both nullptr
 };
+
+// Implementation details follow.
+
+inline BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
+    : BrotliReader(src.get(), options) {
+  owned_src_ = std::move(src);
+}
+
+inline BrotliReader::BrotliReader(BrotliReader&& src) noexcept
+    : Reader(std::move(src)),
+      owned_src_(std::move(src.owned_src_)),
+      src_(riegeli::exchange(src.src_, nullptr)),
+      decompressor_(std::move(src.decompressor_)) {}
+
+inline BrotliReader& BrotliReader::operator=(BrotliReader&& src) noexcept {
+  Reader::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  src_ = riegeli::exchange(src.src_, nullptr);
+  decompressor_ = std::move(src.decompressor_);
+  return *this;
+}
 
 }  // namespace riegeli
 

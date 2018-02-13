@@ -28,7 +28,7 @@ namespace internal {
 // limit. Worker threads exit after being idle for one minute.
 class ThreadPool {
  public:
-  ThreadPool() = default;
+  ThreadPool() {}
 
   ThreadPool(const ThreadPool&) = delete;
   ThreadPool& operator=(const ThreadPool&) = delete;

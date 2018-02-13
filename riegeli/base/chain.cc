@@ -310,10 +310,8 @@ class Chain::StringRef {
  public:
   explicit StringRef(std::string src) : src_(std::move(src)) {}
 
-  StringRef(StringRef&&) noexcept = default;
-  // string::operator=(string&&) is not noexcept in GCC < 6.1.
-  StringRef& operator=(StringRef&&) noexcept(
-      std::is_nothrow_move_assignable<std::string>::value) = default;
+  StringRef(StringRef&& src) noexcept;
+  StringRef& operator=(StringRef&& src) noexcept;
 
   string_view data() const { return src_; }
   void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
@@ -324,6 +322,14 @@ class Chain::StringRef {
 
   std::string src_;
 };
+
+inline Chain::StringRef::StringRef(StringRef&& src) noexcept
+    : src_(std::move(src.src_)) {}
+
+inline Chain::StringRef& Chain::StringRef::operator=(StringRef&& src) noexcept {
+  src_ = std::move(src.src_);
+  return *this;
+}
 
 inline void Chain::StringRef::AddUniqueTo(
     string_view data, MemoryEstimator* memory_estimator) const {
@@ -410,52 +416,6 @@ Chain& Chain::operator=(const Chain& src) {
   return *this;
 }
 
-Chain::Chain(Chain&& src) noexcept
-    : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
-  if (src.is_here()) {
-    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
-    begin_ = block_ptrs_.here;
-    end_ =
-        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
-                            src.block_ptrs_.here);
-  } else {
-    begin_ = riegeli::exchange(src.begin_, src.block_ptrs_.here);
-    end_ = riegeli::exchange(src.end_, src.block_ptrs_.here);
-  }
-  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
-  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
-}
-
-Chain& Chain::operator=(Chain&& src) noexcept {
-  // Exchange src.begin_ and src.end_ early to support self-assignment.
-  Block** begin;
-  Block** end;
-  if (src.is_here()) {
-    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
-    begin = block_ptrs_.here;
-    end =
-        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
-                            src.block_ptrs_.here);
-  } else {
-    begin = riegeli::exchange(src.begin_, src.block_ptrs_.here);
-    end = riegeli::exchange(src.end_, src.block_ptrs_.here);
-  }
-  UnrefBlocks();
-  DeleteBlockPtrs();
-  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
-  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
-  block_ptrs_ = src.block_ptrs_;
-  begin_ = begin;
-  end_ = end;
-  size_ = riegeli::exchange(src.size_, 0);
-  return *this;
-}
-
-Chain::~Chain() {
-  UnrefBlocks();
-  DeleteBlockPtrs();
-}
-
 void Chain::Clear() {
   if (begin_ == end_) return;
   Block** const new_end = begin_ + ((*begin_)->TryClear() ? 1 : 0);
@@ -468,18 +428,13 @@ inline Chain::Block** Chain::NewBlockPtrs(size_t capacity) {
   return std::allocator<Block*>().allocate(capacity);
 }
 
-inline void Chain::DeleteBlockPtrs() {
-  if (is_allocated()) {
-    std::allocator<Block*>().deallocate(
-        block_ptrs_.allocated.begin,
-        block_ptrs_.allocated.end - block_ptrs_.allocated.begin);
-  }
-}
-
-inline void Chain::UnrefBlocks() { UnrefBlocks(begin_, end_); }
-
-inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
-  for (Block* const* iter = begin; iter != end; ++iter) (*iter)->Unref();
+void Chain::UnrefBlocksSlow(Block* const* begin, Block* const* end) {
+  RIEGELI_ASSERT(begin < end)
+      << "Failed invariant of Chain::UnrefBlocksSlow(): "
+         "no blocks, use UnrefBlocks() instead";
+  do {
+    (*begin++)->Unref();
+  } while (begin != end);
 }
 
 void Chain::CopyTo(char* dest) const {

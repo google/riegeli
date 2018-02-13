@@ -68,7 +68,7 @@ class string_view {
 
   static constexpr size_type npos = static_cast<size_type>(-1);
 
-  constexpr string_view() noexcept = default;
+  constexpr string_view() noexcept {}
   string_view(const char* src) noexcept
       : data_(src), size_(traits_type::length(src)) {}
   constexpr string_view(const char* data, size_type size) noexcept
@@ -76,8 +76,14 @@ class string_view {
   string_view(const std::string& src) noexcept
       : data_(src.data()), size_(src.size()) {}
 
-  constexpr string_view(const string_view& src) noexcept = default;
-  string_view& operator=(const string_view& src) noexcept = default;
+  constexpr string_view(const string_view& src) noexcept
+      : data_(src.data_), size_(src.size_) {}
+
+  string_view& operator=(const string_view& src) noexcept {
+    data_ = src.data_;
+    size_ = src.size_;
+    return *this;
+  }
 
   explicit operator std::string() const {
     if (empty()) return std::string();  // std::string(nullptr, 0) is undefined.

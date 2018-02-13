@@ -21,35 +21,10 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
-ChainWriter::ChainWriter() noexcept : Writer(State::kClosed) {}
-
-ChainWriter::ChainWriter(Chain* dest, Options options)
-    : Writer(State::kOpen),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      size_hint_(
-          UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
-  start_pos_ = dest->size();
-}
-
-ChainWriter::ChainWriter(ChainWriter&& src) noexcept
-    : Writer(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
-
-ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
-  Writer::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  return *this;
-}
-
-ChainWriter::~ChainWriter() = default;
 
 void ChainWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {

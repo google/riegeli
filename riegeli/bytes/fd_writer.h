@@ -40,8 +40,6 @@ class FdWriterBase : public BufferedWriter {
 
  protected:
   // Creates a closed FdWriterBase.
-  //
-  // Not defaulted because string::string() is not noexcept before C++17.
   FdWriterBase() noexcept {}
 
   // Will write to fd.
@@ -53,8 +51,6 @@ class FdWriterBase : public BufferedWriter {
 
   FdWriterBase(FdWriterBase&& src) noexcept;
   FdWriterBase& operator=(FdWriterBase&& src) noexcept;
-
-  ~FdWriterBase();
 
   void Done() override;
   RIEGELI_ATTRIBUTE_COLD bool FailOperation(string_view operation,
@@ -88,7 +84,7 @@ class FdWriter final : public internal::FdWriterBase {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // If true, the fd will be owned by the FdWriter and will be closed when the
     // FdWriter is closed.
@@ -150,7 +146,7 @@ class FdWriter final : public internal::FdWriterBase {
   };
 
   // Creates a closed FdWriter.
-  FdWriter() noexcept;
+  FdWriter() noexcept {}
 
   // Will write to fd, starting at the end of file, or at the current fd
   // position if options.set_sync_pos(true) is used.
@@ -198,7 +194,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // If true, the fd will be owned by the FdStreamWriter and will be closed
     // when the FdStreamWriter is closed.
@@ -262,7 +258,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
   };
 
   // Creates a closed FdStreamWriter.
-  FdStreamWriter() noexcept;
+  FdStreamWriter() noexcept {}
 
   // Will write to fd, starting at its current position.
   //
@@ -285,6 +281,47 @@ class FdStreamWriter final : public internal::FdWriterBase {
  protected:
   bool WriteInternal(string_view src) override;
 };
+
+// Implementation details follow.
+
+namespace internal {
+
+inline FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
+    : BufferedWriter(std::move(src)),
+      owned_fd_(std::move(src.owned_fd_)),
+      fd_(riegeli::exchange(src.fd_, -1)),
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)) {}
+
+inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& src) noexcept {
+  BufferedWriter::operator=(std::move(src));
+  owned_fd_ = std::move(src.owned_fd_);
+  fd_ = riegeli::exchange(src.fd_, -1);
+  filename_ = riegeli::exchange(src.filename_, std::string());
+  error_code_ = riegeli::exchange(src.error_code_, 0);
+  return *this;
+}
+
+}  // namespace internal
+
+inline FdWriter::FdWriter(FdWriter&& src) noexcept
+    : internal::FdWriterBase(std::move(src)),
+      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
+
+inline FdWriter& FdWriter::operator=(FdWriter&& src) noexcept {
+  internal::FdWriterBase::operator=(std::move(src));
+  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
+  return *this;
+}
+
+inline FdStreamWriter::FdStreamWriter(FdStreamWriter&& src) noexcept
+    : internal::FdWriterBase(std::move(src)) {}
+
+inline FdStreamWriter& FdStreamWriter::operator=(
+    FdStreamWriter&& src) noexcept {
+  internal::FdWriterBase::operator=(std::move(src));
+  return *this;
+}
 
 }  // namespace riegeli
 

@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_LIMITING_READER_H_
 
 #include <stddef.h>
+#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -34,7 +35,7 @@ namespace riegeli {
 class LimitingReader final : public Reader {
  public:
   // Creates a closed LimitingReader.
-  LimitingReader() noexcept;
+  LimitingReader() noexcept : Reader(State::kClosed) {}
 
   // Will read from the Reader which is not owned by this LimitingReader and
   // must be kept alive but not accessed until closing the LimitingReader.
@@ -44,8 +45,6 @@ class LimitingReader final : public Reader {
 
   LimitingReader(LimitingReader&& src) noexcept;
   LimitingReader& operator=(LimitingReader&& src) noexcept;
-
-  ~LimitingReader();
 
   TypeId GetTypeId() const override;
   bool SupportsRandomAccess() const override;
@@ -81,6 +80,21 @@ class LimitingReader final : public Reader {
 };
 
 // Implementation details follow.
+
+inline LimitingReader::LimitingReader(LimitingReader&& src) noexcept
+    : Reader(std::move(src)),
+      src_(riegeli::exchange(src.src_, nullptr)),
+      size_limit_(riegeli::exchange(src.size_limit_, 0)),
+      wrapped_(riegeli::exchange(src.wrapped_, nullptr)) {}
+
+inline LimitingReader& LimitingReader::operator=(
+    LimitingReader&& src) noexcept {
+  Reader::operator=(std::move(src));
+  src_ = riegeli::exchange(src.src_, nullptr);
+  size_limit_ = riegeli::exchange(src.size_limit_, 0);
+  wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
+  return *this;
+}
 
 inline bool LimitingReader::SupportsRandomAccess() const {
   return src_ != nullptr && src_->SupportsRandomAccess();

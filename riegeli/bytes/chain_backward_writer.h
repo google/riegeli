@@ -16,11 +16,13 @@
 #define RIEGELI_BYTES_CHAIN_BACKWARD_WRITER_H_
 
 #include <stddef.h>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 
@@ -33,7 +35,7 @@ class ChainBackwardWriter final : public BackwardWriter {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Announce in advance the destination size. This may reduce Chain memory
     // usage.
@@ -54,7 +56,7 @@ class ChainBackwardWriter final : public BackwardWriter {
   };
 
   // Creates a closed ChainBackwardWriter.
-  ChainBackwardWriter() noexcept;
+  ChainBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}
 
   // Will write to the Chain which is not owned by this ChainBackwardWriter and
   // must be kept alive but not accessed until closing the ChainBackwardWriter.
@@ -62,8 +64,6 @@ class ChainBackwardWriter final : public BackwardWriter {
 
   ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
   ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
-
-  ~ChainBackwardWriter();
 
  protected:
   void Done() override;
@@ -96,6 +96,30 @@ class ChainBackwardWriter final : public BackwardWriter {
   //   limit_ == nullptr || limit_ == dest_->blocks().front().data()
   //   limit_pos() == dest_->size()
 };
+
+// Implementation details follow.
+
+inline ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
+    : BackwardWriter(State::kOpen),
+      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
+      size_hint_(
+          UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
+  start_pos_ = dest->size();
+}
+
+inline ChainBackwardWriter::ChainBackwardWriter(
+    ChainBackwardWriter&& src) noexcept
+    : BackwardWriter(std::move(src)),
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+
+inline ChainBackwardWriter& ChainBackwardWriter::operator=(
+    ChainBackwardWriter&& src) noexcept {
+  BackwardWriter::operator=(std::move(src));
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  return *this;
+}
 
 }  // namespace riegeli
 

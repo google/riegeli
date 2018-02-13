@@ -17,8 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits>
-#include <memory>
-#include <utility>
 
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
@@ -28,18 +26,6 @@
 
 namespace riegeli {
 
-inline void BrotliReader::BrotliDecoderStateDeleter::operator()(
-    BrotliDecoderState* ptr) const {
-  BrotliDecoderDestroyInstance(ptr);
-}
-
-BrotliReader::BrotliReader() noexcept : Reader(State::kClosed) {}
-
-BrotliReader::BrotliReader(std::unique_ptr<Reader> src, Options options)
-    : BrotliReader(src.get(), options) {
-  owned_src_ = std::move(src);
-}
-
 BrotliReader::BrotliReader(Reader* src, Options options)
     : Reader(State::kOpen),
       src_(RIEGELI_ASSERT_NOTNULL(src)),
@@ -48,22 +34,6 @@ BrotliReader::BrotliReader(Reader* src, Options options)
     Fail("BrotliDecoderCreateInstance() failed");
   }
 }
-
-BrotliReader::BrotliReader(BrotliReader&& src) noexcept
-    : Reader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(riegeli::exchange(src.src_, nullptr)),
-      decompressor_(std::move(src.decompressor_)) {}
-
-BrotliReader& BrotliReader::operator=(BrotliReader&& src) noexcept {
-  Reader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = riegeli::exchange(src.src_, nullptr);
-  decompressor_ = std::move(src.decompressor_);
-  return *this;
-}
-
-BrotliReader::~BrotliReader() = default;
 
 void BrotliReader::Done() {
   if (!Pull() && RIEGELI_UNLIKELY(decompressor_ != nullptr)) {

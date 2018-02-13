@@ -20,9 +20,14 @@
 
 namespace riegeli {
 
-MemoryEstimator::MemoryEstimator(const MemoryEstimator&) = default;
+MemoryEstimator::MemoryEstimator(const MemoryEstimator& src)
+    : total_memory_(src.total_memory_), objects_seen_(src.objects_seen_) {}
 
-MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator&) = default;
+MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& src) {
+  total_memory_ = src.total_memory_;
+  objects_seen_ = src.objects_seen_;
+  return *this;
+}
 
 MemoryEstimator::MemoryEstimator(MemoryEstimator&& src) noexcept
     : total_memory_(riegeli::exchange(src.total_memory_, 0)),

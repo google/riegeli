@@ -16,8 +16,6 @@
 
 #include <stddef.h>
 #include <limits>
-#include <memory>
-#include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/str_cat.h"
@@ -26,18 +24,6 @@
 #include "zstd.h"
 
 namespace riegeli {
-
-inline void ZstdReader::ZSTD_DStreamDeleter::operator()(
-    ZSTD_DStream* ptr) const {
-  ZSTD_freeDStream(ptr);
-}
-
-ZstdReader::ZstdReader() noexcept = default;
-
-ZstdReader::ZstdReader(std::unique_ptr<Reader> src, Options options)
-    : ZstdReader(src.get(), options) {
-  owned_src_ = std::move(src);
-}
 
 ZstdReader::ZstdReader(Reader* src, Options options)
     : BufferedReader(options.buffer_size_),
@@ -52,22 +38,6 @@ ZstdReader::ZstdReader(Reader* src, Options options)
     Fail(StrCat("ZSTD_initDStream() failed: ", ZSTD_getErrorName(result)));
   }
 }
-
-ZstdReader::ZstdReader(ZstdReader&& src) noexcept
-    : BufferedReader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(riegeli::exchange(src.src_, nullptr)),
-      decompressor_(std::move(src.decompressor_)) {}
-
-ZstdReader& ZstdReader::operator=(ZstdReader&& src) noexcept {
-  BufferedReader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = riegeli::exchange(src.src_, nullptr);
-  decompressor_ = std::move(src.decompressor_);
-  return *this;
-}
-
-ZstdReader::~ZstdReader() = default;
 
 void ZstdReader::Done() {
   if (!Pull() && RIEGELI_UNLIKELY(decompressor_ != nullptr)) {

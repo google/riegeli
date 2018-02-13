@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <cstring>
 
 #include "riegeli/base/chain.h"
 #include "riegeli/base/endian.h"
@@ -27,13 +28,19 @@ namespace riegeli {
 
 class ChunkHeader {
  public:
-  ChunkHeader() noexcept = default;
+  ChunkHeader() noexcept {}
 
   ChunkHeader(const Chain& data, uint64_t num_records,
               uint64_t decoded_data_size);
 
-  ChunkHeader(const ChunkHeader&) noexcept = default;
-  ChunkHeader& operator=(const ChunkHeader&) noexcept = default;
+  ChunkHeader(const ChunkHeader& src) noexcept {
+    std::memcpy(words_, src.words_, sizeof(words_));
+  }
+
+  ChunkHeader& operator=(const ChunkHeader& src) noexcept {
+    std::memcpy(words_, src.words_, sizeof(words_));
+    return *this;
+  }
 
   char* bytes() { return reinterpret_cast<char*>(words_); }
   const char* bytes() const { return reinterpret_cast<const char*>(words_); }

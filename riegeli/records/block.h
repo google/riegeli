@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <cstring>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
@@ -29,7 +30,7 @@ namespace internal {
 
 class BlockHeader {
  public:
-  BlockHeader() noexcept = default;
+  BlockHeader() noexcept {}
 
   BlockHeader(uint64_t previous_chunk, uint64_t next_chunk) {
     set_previous_chunk(previous_chunk);
@@ -37,8 +38,14 @@ class BlockHeader {
     set_header_hash(computed_header_hash());
   }
 
-  BlockHeader(const BlockHeader&) noexcept = default;
-  BlockHeader& operator=(const BlockHeader&) noexcept = default;
+  BlockHeader(const BlockHeader& src) noexcept {
+    std::memcpy(words_, src.words_, sizeof(words_));
+  }
+
+  BlockHeader& operator=(const BlockHeader& src) noexcept {
+    std::memcpy(words_, src.words_, sizeof(words_));
+    return *this;
+  }
 
   char* bytes() { return reinterpret_cast<char*>(words_); }
   const char* bytes() const { return reinterpret_cast<const char*>(words_); }

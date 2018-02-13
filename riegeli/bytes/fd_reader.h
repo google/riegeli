@@ -22,6 +22,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -41,8 +42,6 @@ class FdReaderBase : public BufferedReader {
 
  protected:
   // Creates a closed FdReaderBase.
-  //
-  // Not defaulted because string::string() is not noexcept before C++17.
   FdReaderBase() noexcept {}
 
   // Will read from fd.
@@ -53,8 +52,6 @@ class FdReaderBase : public BufferedReader {
 
   FdReaderBase(FdReaderBase&& src) noexcept;
   FdReaderBase& operator=(FdReaderBase&& src) noexcept;
-
-  ~FdReaderBase();
 
   void Done() override;
   RIEGELI_ATTRIBUTE_COLD bool FailOperation(string_view operation,
@@ -87,7 +84,7 @@ class FdReader final : public internal::FdReaderBase {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // If true, the fd will be owned by the FdReader and will be closed when the
     // FdReader is closed.
@@ -137,7 +134,7 @@ class FdReader final : public internal::FdReaderBase {
   };
 
   // Creates a closed FdReader.
-  FdReader() noexcept;
+  FdReader() noexcept {}
 
   // Will read from fd, starting at its beginning (or current file position if
   // options.set_sync_pos(true) is used).
@@ -180,7 +177,7 @@ class FdStreamReader final : public internal::FdReaderBase {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // There is no set_owns_fd() because it is impossible to unread what has
     // been buffered, so a non-owned fd would be left having an unpredictable
@@ -220,7 +217,7 @@ class FdStreamReader final : public internal::FdReaderBase {
   };
 
   // Creates a closed FdStreamReader.
-  FdStreamReader() noexcept;
+  FdStreamReader() noexcept {}
 
   // Will read from fd, starting at its current position.
   //
@@ -253,7 +250,7 @@ class FdMMapReader final : public Reader {
    public:
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // If true, the fd will be owned by the FdMMapReader and will be closed
     // after construction.
@@ -279,7 +276,7 @@ class FdMMapReader final : public Reader {
   };
 
   // Creates a closed FdMMapReader.
-  FdMMapReader() noexcept;
+  FdMMapReader() noexcept : Reader(State::kClosed) {}
 
   // Will read from fd, starting at its beginning.
   explicit FdMMapReader(int fd, Options options = Options());
@@ -333,6 +330,61 @@ class FdMMapReader final : public Reader {
   //   buffer_size() == (contents_.blocks().empty() ? 0 : iter()->size())
   //   start_pos() == 0
 };
+
+// Implementation details follow.
+
+namespace internal {
+
+inline FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
+    : BufferedReader(std::move(src)),
+      owned_fd_(std::move(src.owned_fd_)),
+      fd_(riegeli::exchange(src.fd_, -1)),
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)) {}
+
+inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
+  BufferedReader::operator=(std::move(src));
+  owned_fd_ = std::move(src.owned_fd_);
+  fd_ = riegeli::exchange(src.fd_, -1);
+  filename_ = riegeli::exchange(src.filename_, std::string());
+  error_code_ = riegeli::exchange(src.error_code_, 0);
+  return *this;
+}
+
+}  // namespace internal
+
+inline FdReader::FdReader(FdReader&& src) noexcept
+    : internal::FdReaderBase(std::move(src)),
+      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
+
+inline FdReader& FdReader::operator=(FdReader&& src) noexcept {
+  internal::FdReaderBase::operator=(std::move(src));
+  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
+  return *this;
+}
+
+inline FdStreamReader::FdStreamReader(FdStreamReader&& src) noexcept
+    : internal::FdReaderBase(std::move(src)) {}
+
+inline FdStreamReader& FdStreamReader::operator=(
+    FdStreamReader&& src) noexcept {
+  internal::FdReaderBase::operator=(std::move(src));
+  return *this;
+}
+
+inline FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
+    : Reader(std::move(src)),
+      filename_(riegeli::exchange(src.filename_, std::string())),
+      error_code_(riegeli::exchange(src.error_code_, 0)),
+      contents_(riegeli::exchange(src.contents_, Chain())) {}
+
+inline FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
+  Reader::operator=(std::move(src)),
+  filename_ = riegeli::exchange(src.filename_, std::string());
+  error_code_ = riegeli::exchange(src.error_code_, 0);
+  contents_ = riegeli::exchange(src.contents_, Chain());
+  return *this;
+}
 
 }  // namespace riegeli
 

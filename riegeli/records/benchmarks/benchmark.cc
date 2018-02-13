@@ -31,6 +31,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -51,6 +52,7 @@
 #include "tensorflow/core/lib/io/record_reader.h"
 #include "tensorflow/core/lib/io/record_writer.h"
 #include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/file_system.h"
 
 namespace {
 

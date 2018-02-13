@@ -46,7 +46,7 @@ namespace riegeli {
 
 namespace internal {
 
-FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
+inline FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
     : BufferedWriter(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
@@ -59,8 +59,8 @@ FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
          "negative file descriptor";
 }
 
-FdWriterBase::FdWriterBase(std::string filename, int flags, mode_t permissions,
-                           size_t buffer_size)
+inline FdWriterBase::FdWriterBase(std::string filename, int flags,
+                                  mode_t permissions, size_t buffer_size)
     : BufferedWriter(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
       filename_(std::move(filename)) {
@@ -79,24 +79,6 @@ again:
   owned_fd_ = FdHolder(fd_);
 }
 
-FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      owned_fd_(std::move(src.owned_fd_)),
-      fd_(riegeli::exchange(src.fd_, -1)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {}
-
-FdWriterBase& FdWriterBase::operator=(FdWriterBase&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  owned_fd_ = std::move(src.owned_fd_);
-  fd_ = riegeli::exchange(src.fd_, -1);
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
-  return *this;
-}
-
-FdWriterBase::~FdWriterBase() = default;
-
 void FdWriterBase::Done() {
   if (RIEGELI_LIKELY(PushInternal())) MaybeSyncPos();
   const int error_code = owned_fd_.Close();
@@ -107,7 +89,7 @@ void FdWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-bool FdWriterBase::FailOperation(string_view operation, int error_code) {
+inline bool FdWriterBase::FailOperation(string_view operation, int error_code) {
   error_code_ = error_code;
   return Fail(StrCat(operation, " failed: ", StrError(error_code), ", writing ",
                      filename_));
@@ -131,8 +113,6 @@ bool FdWriterBase::Flush(FlushType flush_type) {
 
 }  // namespace internal
 
-FdWriter::FdWriter() noexcept = default;
-
 FdWriter::FdWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_),
       sync_pos_(options.sync_pos_) {
@@ -147,16 +127,6 @@ FdWriter::FdWriter(std::string filename, int flags, Options options)
       << "Failed precondition of FdWriter::FdWriter(string): "
          "file must be owned if FdWriter opens it";
   if (RIEGELI_LIKELY(healthy())) InitializePos(flags);
-}
-
-FdWriter::FdWriter(FdWriter&& src) noexcept
-    : internal::FdWriterBase(std::move(src)),
-      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
-
-FdWriter& FdWriter::operator=(FdWriter&& src) noexcept {
-  internal::FdWriterBase::operator=(std::move(src));
-  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
-  return *this;
 }
 
 void FdWriter::Done() {
@@ -282,8 +252,6 @@ again:
   return true;
 }
 
-FdStreamWriter::FdStreamWriter() noexcept = default;
-
 FdStreamWriter::FdStreamWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_) {
   RIEGELI_ASSERT(options.has_assumed_pos_)
@@ -311,14 +279,6 @@ FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
     }
     start_pos_ = IntCast<Position>(stat_info.st_size);
   }
-}
-
-FdStreamWriter::FdStreamWriter(FdStreamWriter&& src) noexcept
-    : internal::FdWriterBase(std::move(src)) {}
-
-FdStreamWriter& FdStreamWriter::operator=(FdStreamWriter&& src) noexcept {
-  internal::FdWriterBase::operator=(std::move(src));
-  return *this;
 }
 
 bool FdStreamWriter::WriteInternal(string_view src) {

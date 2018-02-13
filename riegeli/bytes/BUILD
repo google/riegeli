@@ -198,6 +198,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/base:memory_estimator",
         "//riegeli/base:str_error",
     ],
 )

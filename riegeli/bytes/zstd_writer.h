@@ -90,7 +90,7 @@ class ZstdWriter final : public BufferedWriter {
   };
 
   // Creates a closed ZstdWriter.
-  ZstdWriter() noexcept;
+  ZstdWriter() noexcept {}
 
   // Will write Zstd-compressed stream to the byte Writer which is owned by this
   // ZstdWriter and will be closed and deleted when the ZstdWriter is closed.
@@ -106,8 +106,6 @@ class ZstdWriter final : public BufferedWriter {
   ZstdWriter(ZstdWriter&& src) noexcept;
   ZstdWriter& operator=(ZstdWriter&& src) noexcept;
 
-  ~ZstdWriter();
-
   bool Flush(FlushType flush_type) override;
 
  protected:
@@ -116,7 +114,7 @@ class ZstdWriter final : public BufferedWriter {
 
  private:
   struct ZSTD_CStreamDeleter {
-    void operator()(ZSTD_CStream* ptr) const;
+    void operator()(ZSTD_CStream* ptr) const { ZSTD_freeCStream(ptr); }
   };
 
   template <typename Function>
@@ -127,6 +125,27 @@ class ZstdWriter final : public BufferedWriter {
   Writer* dest_ = nullptr;
   std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
 };
+
+// Implementation details follow.
+
+inline ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
+    : ZstdWriter(dest.get(), options) {
+  owned_dest_ = std::move(dest);
+}
+
+inline ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
+    : BufferedWriter(std::move(src)),
+      owned_dest_(std::move(src.owned_dest_)),
+      dest_(riegeli::exchange(src.dest_, nullptr)),
+      compressor_(std::move(src.compressor_)) {}
+
+inline ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
+  BufferedWriter::operator=(std::move(src));
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  compressor_ = std::move(src.compressor_);
+  return *this;
+}
 
 }  // namespace riegeli
 

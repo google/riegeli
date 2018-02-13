@@ -29,7 +29,7 @@ namespace riegeli {
 // A and B are the same type. TypeId() is another value not equal to any other.
 class TypeId {
  public:
-  TypeId() : ptr_(nullptr) {}
+  TypeId() noexcept {}
 
   template <typename T>
   static TypeId For();
@@ -40,7 +40,7 @@ class TypeId {
  private:
   explicit TypeId(void* ptr) : ptr_(ptr) {}
 
-  void* ptr_;
+  void* ptr_ = nullptr;
 };
 
 // Object is an abstract base class for data readers and writers, managing their
@@ -242,6 +242,37 @@ inline Object& Object::operator=(Object&& src) noexcept {
 
 inline Object::~Object() {
   DeleteStatus(status_.load(std::memory_order_relaxed));
+}
+
+inline bool Object::Close() {
+  const uintptr_t status_before = status_.load(std::memory_order_acquire);
+  switch (status_before) {
+    default:
+      if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
+        return false;
+      }
+      RIEGELI_FALLTHROUGH;
+    case kHealthy(): {
+      Done();
+      const uintptr_t status_after = status_.load(std::memory_order_relaxed);
+      switch (status_after) {
+        case kHealthy():
+          status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
+          return true;
+        case kClosedSuccessfully():
+          RIEGELI_ASSERT_UNREACHABLE()
+              << "Object marked as closed during Done()";
+        default:
+          RIEGELI_ASSERT(
+              !reinterpret_cast<const FailedStatus*>(status_after)->closed)
+              << "Object marked as closed during Done()";
+          reinterpret_cast<FailedStatus*>(status_after)->closed = true;
+          return false;
+      }
+    }
+    case kClosedSuccessfully():
+      return true;
+  }
 }
 
 inline void Object::DeleteStatus(uintptr_t status) {
