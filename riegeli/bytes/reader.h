@@ -353,7 +353,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 
 inline bool Reader::CopyTo(Writer* dest, Position length) {
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
-    const string_view data(cursor_, length);
+    const string_view data(cursor_, IntCast<size_t>(length));
     cursor_ += length;
     return dest->Write(data);
   }
