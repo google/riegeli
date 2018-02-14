@@ -24,11 +24,13 @@
 #include <vector>
 
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/chunk_encoding/internal_types.h"
+#include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
+#include "riegeli/chunk_encoding/types.h"
 
 // The layout of the format looks is as follows (values are varint encoded
 // unless indicated otherwise):
@@ -59,64 +61,49 @@ namespace riegeli {
 class ChainWriter;
 class Reader;
 
-class TransposeEncoder {
+class TransposeEncoder : public ChunkEncoder {
  public:
-  TransposeEncoder();
-  // Not noexcept because unordered_map::unordered_map(unordered_map&&) is not
-  // noexcept, and unordered_map::operator=(unordered_map&&) is noexcept since
-  // C++17.
-  //
-  // Also, vector::vector(vector&&) and vector::operator=(vector&&) are noexcept
-  // since C++17.
-  TransposeEncoder(TransposeEncoder&&) = default;
-  TransposeEncoder& operator=(TransposeEncoder&&) = default;
+  // Creates an empty TransposeEncoder.
+  TransposeEncoder(CompressionType compression_type, int compression_level,
+                   uint64_t desired_bucket_size);
 
-  void EnableBrotliCompression(int level) {
-    compression_type_ = internal::CompressionType::kBrotli;
-    compression_level_ = level;
-  }
+  ~TransposeEncoder();
 
-  void EnableZstdCompression(int level) {
-    compression_type_ = internal::CompressionType::kZstd;
-    compression_level_ = level;
-  }
+  // Resets the object, to reuse it for the next batch of records.
+  void Reset() override;
 
-  // Set the compression bucket size hint. Lower values help filtering
-  // performance, higher values optimize for compression ratio. Default: 1MB
-  void SetDesiredBucketSize(size_t desired_bucket_size) {
-    desired_bucket_size_ = desired_bucket_size;
-  }
-
-  // Resets the object, to reuse it for the next batch of messages.
-  // Compression and bucketing settings are kept unchanged.
-  void Reset();
-
-  // "message" should be a protocol message in binary format. Transpose works
-  // just fine even if "message" is a corrupted protocol message or an arbitrary
-  // string. Such "messages" are internally stored separately -- these are not
+  // "record" should be a protocol message in binary format. Transpose works
+  // just fine even if "record" is a corrupted protocol message or an arbitrary
+  // string. Such records are internally stored separately -- these are not
   // broken down into columns.
-  void AddMessage(string_view message);
-  void AddMessage(std::string&& message);
-  void AddMessage(const char* message) { AddMessage(string_view(message)); }
-  void AddMessage(const Chain& message);
+  bool AddRecord(string_view record) override;
+  bool AddRecord(std::string&& record) override;
+  bool AddRecord(const Chain& record) override;
 
-  // Encode messages added with AddMessage() calls. No messages should be added
+  // Encode records added with AddRecord() calls. No records should be added
   // after calling this method.
-  bool Encode(Writer* writer);
+  bool Encode(Writer* dest, uint64_t* num_records,
+              uint64_t* decoded_data_size) override;
+
+ protected:
+  void Done() override;
+
+  ChunkType GetChunkType() const override { return ChunkType::kTransposed; }
 
  private:
-  void AddMessageInternal(Reader* message);
+  bool AddRecordInternal(Reader* record);
 
   // Compress "input" according to "compression_type_" and append to "output".
   // If "prepend_compressed_size" is true, compressed size is written to output
   // in the varint format.
-  void AppendCompressedBuffer(bool prepend_compressed_size, const Chain& input,
-                              Writer* dest) const;
+  bool AppendCompressedBuffer(bool prepend_compressed_size, const Chain& input,
+                              Writer* dest);
 
-  // Encode messages added with AddMessage() calls and write the result to
+  // Encode messages added with AddRecord() calls and write the result to
   // "buffer". No messages should be added after calling this method.
   bool EncodeInternal(uint32_t max_transition, uint32_t min_count_for_state,
-                      Writer* writer);
+                      Writer* dest, uint64_t* num_records,
+                      uint64_t* decoded_data_size);
 
   // Types of data buffers protocol buffer fields are split into.
   // The buffer type information is not used in any way except to group similar
@@ -136,8 +123,8 @@ class TransposeEncoder {
     kNumBufferTypes,
   };
 
-  static constexpr int kNumBufferTypes =
-      static_cast<int>(BufferType::kNumBufferTypes);
+  static constexpr size_t kNumBufferTypes =
+      static_cast<size_t>(BufferType::kNumBufferTypes);
 
   // Struct that contains information about a field with unique proto path.
   struct MessageNode {
@@ -175,14 +162,16 @@ class TransposeEncoder {
   // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
   // this message returns true.
   // "depth" is the recursion depth.
-  void AddMessageInternal(Reader* message,
-                          internal::MessageId parent_message_id, int depth);
+  bool AddRecordInternal(Reader* record, internal::MessageId parent_message_id,
+                         int depth);
 
   // Write all data buffers in "data_" to "data_buffer" (possibly compressed)
   // and buffer lengths into "header_buffer".
-  // Return map with the sequential position of each buffer written.
-  std::unordered_map<NodeId, uint32_t, NodeIdHasher> WriteBuffers(
-      ChainWriter* header_writer, ChainWriter* data_writer);
+  // Fill map with the sequential position of each buffer written.
+  bool WriteBuffers(
+      ChainWriter* header_writer, ChainWriter* data_writer,
+      std::unordered_map<TransposeEncoder::NodeId, uint32_t,
+                         TransposeEncoder::NodeIdHasher>* buffer_pos);
 
   // One state of the state machine created in encoder.
   struct StateInfo {
@@ -204,7 +193,7 @@ class TransposeEncoder {
   // Add "next_chunk" to "bucket_buffer". If compression is enabled and either
   // the current bucket would become too large or "force_new_bucket" is true,
   // flush the bucket to "data_buffer" first and create a new bucket.
-  void AddBuffer(bool force_new_bucket, const Chain& next_chunk,
+  bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
                  Chain* bucket_buffer, ChainWriter* bucket_writer,
                  ChainWriter* data_writer, std::vector<size_t>* bucket_lengths,
                  std::vector<size_t>* buffer_lengths);
@@ -228,7 +217,7 @@ class TransposeEncoder {
 
   // Write state machine states into "header_buffer" and all data buffers into
   // "data_buffer".
-  void WriteStatesAndData(uint32_t max_transition,
+  bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
                           ChainWriter* header_writer, ChainWriter* data_writer);
 
@@ -309,9 +298,15 @@ class TransposeEncoder {
     uint32_t field;
   };
 
-  // Functor for sorting BufferWithMetadata by size.
-  struct BufferWithMetadataSizeComparator;
+  CompressionType compression_type_;
+  int compression_level_;
+  // The default approximate bucket size, used if compression is enabled.
+  // Finer bucket granularity (i.e. smaller size) worsens compression density
+  // but makes field filtering more effective.
+  uint64_t desired_bucket_size_;
 
+  uint64_t num_records_;
+  uint64_t decoded_data_size_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
   // Sequence of tags on input as indices into "tags_list_".
@@ -325,19 +320,40 @@ class TransposeEncoder {
   std::vector<internal::MessageId> group_stack_;
   // Tree of message nodes.
   std::unordered_map<NodeId, MessageNode, NodeIdHasher> message_nodes_;
-  // Lengths of non-proto messages, wrapped in unique_ptr so that its address
-  // remains constant when TransposeEncoder is moved.
-  std::unique_ptr<Chain> nonproto_lengths_;
+  Chain nonproto_lengths_;
   ChainBackwardWriter nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
-  internal::MessageId next_message_id_ = internal::MessageId::kRoot + 1;
-  internal::CompressionType compression_type_ =
-      internal::CompressionType::kNone;
-  int compression_level_ = 0;
-  // The default approximate bucket size, used if compression is enabled.
-  // Finer bucket granularity (i.e. smaller size) worsens compression density
-  // but makes field filtering more effective.
-  size_t desired_bucket_size_ = 1 << 20;  // 1MB
+  internal::MessageId next_message_id_;
+};
+
+// DeferredTransposeEncoder is similar to TransposeEncoder but it performs a
+// minimal amount of the encoding work in AddRecord(), deferring as much as
+// possible to Encode(). It does more memory copying than TransposeEncoder.
+class DeferredTransposeEncoder final : public ChunkEncoder {
+ public:
+  DeferredTransposeEncoder(CompressionType compression_type,
+                           int compression_level, size_t desired_bucket_size);
+
+  void Reset() override;
+
+  bool AddRecord(string_view record) override;
+  bool AddRecord(std::string&& record) override;
+  bool AddRecord(const Chain& record) override;
+  bool AddRecord(Chain&& record) override;
+
+  bool Encode(Writer* dest, uint64_t* num_records,
+              uint64_t* decoded_data_size) override;
+
+ protected:
+  void Done() override;
+
+  ChunkType GetChunkType() const override { return ChunkType::kTransposed; }
+
+ private:
+  CompressionType compression_type_;
+  int compression_level_;
+  size_t desired_bucket_size_;
+  std::vector<Chain> records_;
 };
 
 }  // namespace riegeli

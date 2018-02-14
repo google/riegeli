@@ -82,18 +82,14 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   return *this;
 }
 
-RecordReader::~RecordReader() = default;
-
 void RecordReader::Done() {
   if (RIEGELI_LIKELY(healthy())) {
-    if (RIEGELI_UNLIKELY(!chunk_reader_->Close())) {
-      Fail(*chunk_reader_);
-    }
+    if (RIEGELI_UNLIKELY(!chunk_reader_->Close())) Fail(*chunk_reader_);
   }
   chunk_reader_.reset();
   skip_corruption_ = false;
   chunk_begin_ = 0;
-  chunk_decoder_.Clear();
+  chunk_decoder_ = ChunkDecoder();
 }
 
 bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
@@ -114,9 +110,13 @@ bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
 
 template <typename String>
 bool RecordReader::ReadRecordSlow(String* record, RecordPosition* key) {
-  RIEGELI_ASSERT_GE(chunk_decoder_.index(), chunk_decoder_.num_records());
+  RIEGELI_ASSERT_GE(chunk_decoder_.index(), chunk_decoder_.num_records())
+      << "Failed precondition of RecordReader::ReadRecordSlow(): "
+         "records available, use ReadRecord() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  RIEGELI_ASSERT(chunk_decoder_.healthy());
+  RIEGELI_ASSERT(chunk_decoder_.healthy())
+      << "Failed invariant of RecordReader: "
+         "RecordReader healthy but ChunkDecoder unhealthy";
   for (;;) {
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
     uint64_t index;
@@ -124,7 +124,9 @@ bool RecordReader::ReadRecordSlow(String* record, RecordPosition* key) {
       if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
       return true;
     }
-    RIEGELI_ASSERT(chunk_decoder_.healthy());
+    if (RIEGELI_UNLIKELY(!chunk_decoder_.healthy())) {
+      return Fail(chunk_decoder_);
+    }
   }
 }
 
@@ -146,8 +148,8 @@ bool RecordReader::Seek(RecordPosition new_pos) {
   } else {
     if (RIEGELI_UNLIKELY(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
       chunk_begin_ = chunk_reader_->pos();
-      chunk_decoder_.Clear();
-      if (chunk_reader_->healthy()) return false;
+      chunk_decoder_.Reset();
+      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
     if (new_pos.record_index() == 0) {
@@ -155,12 +157,13 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       // checking its size, which is important because it may be non-existent at
       // end of file, corrupted, or empty.
       chunk_begin_ = chunk_reader_->pos();
-      chunk_decoder_.Clear();
+      chunk_decoder_.Reset();
       return true;
     }
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
   }
-  RIEGELI_ASSERT_EQ(new_pos.chunk_begin(), chunk_begin_);
+  RIEGELI_ASSERT_EQ(chunk_begin_, new_pos.chunk_begin())
+      << "Unexpected chunk position after seeking";
   chunk_decoder_.SetIndex(new_pos.record_index());
   return true;
 }
@@ -174,8 +177,8 @@ bool RecordReader::Seek(Position new_pos) {
   } else {
     if (RIEGELI_UNLIKELY(!chunk_reader_->SeekToChunkContaining(new_pos))) {
       chunk_begin_ = chunk_reader_->pos();
-      chunk_decoder_.Clear();
-      if (chunk_reader_->healthy()) return false;
+      chunk_decoder_.Reset();
+      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
     if (chunk_reader_->pos() >= new_pos) {
@@ -183,12 +186,13 @@ bool RecordReader::Seek(Position new_pos) {
       // which is important because it may be non-existent at end of file or
       // corrupted.
       chunk_begin_ = chunk_reader_->pos();
-      chunk_decoder_.Clear();
+      chunk_decoder_.Reset();
       return true;
     }
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
   }
-  RIEGELI_ASSERT_GE(new_pos, chunk_begin_);
+  RIEGELI_ASSERT_GE(chunk_begin_, new_pos)
+      << "Unexpected chunk position after seeking";
   chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
   return true;
 }
@@ -198,8 +202,8 @@ again:
   Chunk chunk;
   if (RIEGELI_UNLIKELY(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
     chunk_begin_ = chunk_reader_->pos();
-    chunk_decoder_.Clear();
-    if (chunk_reader_->healthy()) return false;
+    chunk_decoder_.Reset();
+    if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
     return Fail(*chunk_reader_);
   }
   if (chunk_begin_ == 0) {
@@ -207,7 +211,7 @@ again:
     if (RIEGELI_UNLIKELY(chunk.header.data_size() != 0 ||
                          chunk.header.num_records() != 0 ||
                          chunk.header.decoded_data_size() != 0)) {
-      chunk_decoder_.Clear();
+      chunk_decoder_.Reset();
       return Fail("Invalid Riegeli/records file: missing file signature");
     }
     // Decoding this chunk will yield no records and ReadChunk() will be called
@@ -215,11 +219,11 @@ again:
   }
   if (RIEGELI_UNLIKELY(!chunk_decoder_.Reset(chunk))) {
     if (skip_corruption_) {
-      chunk_decoder_.Clear();
+      chunk_decoder_.Reset();
       goto again;
     }
     const std::string message(chunk_decoder_.Message());
-    chunk_decoder_.Clear();
+    chunk_decoder_.Reset();
     return Fail(message);
   }
   return true;

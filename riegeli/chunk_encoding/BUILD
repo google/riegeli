@@ -8,16 +8,13 @@ cc_library(
     hdrs = ["chunk_encoder.h"],
     deps = [
         ":chunk",
-        ":internal_types",
-        ":transpose_encoder",
+        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/bytes:brotli_writer",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
-        "//riegeli/bytes:zstd_writer",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -29,18 +26,16 @@ cc_library(
     deps = [
         ":chunk",
         ":field_filter",
-        ":internal_types",
+        ":simple_decoder",
         ":transpose_decoder",
+        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/bytes:brotli_reader",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:message_parse",
-        "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
-        "//riegeli/bytes:zstd_reader",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -60,18 +55,14 @@ cc_library(
 )
 
 cc_library(
-    name = "internal_types",
-    hdrs = ["internal_types.h"],
-    visibility = [
-        "//riegeli/records:__pkg__",
-    ],
+    name = "types",
+    hdrs = ["types.h"],
 )
 
 cc_library(
     name = "hash",
     srcs = ["hash.cc"],
     hdrs = ["hash.h"],
-    visibility = ["//riegeli/records:__pkg__"],
     deps = [
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -82,15 +73,47 @@ cc_library(
 )
 
 cc_library(
+    name = "simple_encoder",
+    srcs = ["simple_encoder.cc"],
+    hdrs = ["simple_encoder.h"],
+    deps = [
+        ":chunk_encoder",
+        ":types",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:brotli_writer",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:message_serialize",
+        "//riegeli/bytes:writer",
+        "//riegeli/bytes:writer_utils",
+        "//riegeli/bytes:zstd_writer",
+        "@protobuf_archive//:protobuf_lite",
+    ],
+)
+
+cc_library(
+    name = "simple_decoder",
+    srcs = ["simple_decoder.cc"],
+    hdrs = ["simple_decoder.h"],
+    deps = [
+        ":types",
+        "//riegeli/base",
+        "//riegeli/bytes:brotli_reader",
+        "//riegeli/bytes:limiting_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/bytes:reader_utils",
+        "//riegeli/bytes:zstd_reader",
+    ],
+)
+
+cc_library(
     name = "transpose_encoder",
     srcs = ["transpose_encoder.cc"],
     hdrs = ["transpose_encoder.h"],
-    visibility = [
-        "//visibility:private",
-    ],
     deps = [
-        ":internal_types",
+        ":chunk_encoder",
         ":transpose_internal",
+        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",
@@ -113,13 +136,10 @@ cc_library(
     name = "transpose_decoder",
     srcs = ["transpose_decoder.cc"],
     hdrs = ["transpose_decoder.h"],
-    visibility = [
-        "//visibility:private",
-    ],
     deps = [
         ":field_filter",
-        ":internal_types",
         ":transpose_internal",
+        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",

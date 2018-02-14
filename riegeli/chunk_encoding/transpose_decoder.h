@@ -17,58 +17,153 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <memory>
 #include <vector>
 
+#include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/field_filter.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 
 namespace riegeli {
 
-class TransposeDecoder {
+namespace internal {
+enum class CallbackType : uint8_t;
+}  // namespace internal
+
+class TransposeDecoder final : public Object {
  public:
-  TransposeDecoder();
-  TransposeDecoder(TransposeDecoder&&) noexcept;
-  TransposeDecoder& operator=(TransposeDecoder&&) noexcept;
-  ~TransposeDecoder();
+  TransposeDecoder() noexcept;
 
-  // Initialize using "reader" (this should be the byte-by-byte output of an
-  // earlier call to TransposeEncoder::Encode()).
-  bool Initialize(Reader* reader,
-                  const FieldFilter& field_filter = FieldFilter::All());
+  TransposeDecoder(TransposeDecoder&& src) noexcept;
+  TransposeDecoder& operator=(TransposeDecoder&& src) noexcept;
 
-  // Writes concatenated messages (back to front so that they end up in their
-  // natural order). Sets *boundaries to positions between messages, such that
-  // boundaries->size() is the number of messages plus one, message[i] is in
-  // the destination of writer between positions (*boundaries)[i] and
-  // (*boundaries)[i + 1], boundaries->front() == 0, and boundaries->back() is
-  // the total size written to writer.
+  // Resets the TransposeDecoder and parses the chunk.
   //
-  // The *reader from the corresponding Initialize() call must be still alive.
-  // TODO: Merge Initialize() and Decode() into a single call.
-  bool Decode(BackwardWriter* writer, std::vector<size_t>* boundaries);
+  // Writes concatenated messages to *dest. Sets *boundaries to positions
+  // between messages: boundaries->size() == num_records + 1, message[i] is
+  // in *dest between positions (*boundaries)[i] and (*boundaries)[i + 1],
+  // boundaries->front() == 0, and boundaries->back() == decoded_data_size.
+  //
+  // Precondition: dest->pos() == 0
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy());
+  //            if !dest->healthy() then the problem was at dest
+  bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
+             const FieldFilter& field_filter, BackwardWriter* dest,
+             std::vector<size_t>* boundaries);
+
+ protected:
+  void Done() override;
 
  private:
-  class Context;
+  // Information about one proto tag.
+  struct TagData {
+    // "data" contains varint encoded tag (1 to 5 bytes) followed by inline
+    // numeric (if any) or zero otherwise.
+    char data[kMaxLengthVarint32() + 1];
+    // Length of the varint encoded tag.
+    uint8_t size;
+  };
+
+  // SubmessageStackElement is used to keep information about started nested
+  // submessages. Decoding works in non-recursive loop and this class keeps the
+  // information needed to finalize one submessage.
+  struct SubmessageStackElement {
+    SubmessageStackElement(Position end_of_submessage, TagData tag_data)
+        : end_of_submessage(end_of_submessage), tag_data(tag_data) {}
+    // The position of the end of submessage.
+    Position end_of_submessage;
+    // Tag of this submessage.
+    TagData tag_data;
+  };
+
+  // Node template that can be used to resolve the CallbackType of the node in
+  // decoding phase.
+  struct StateMachineNodeTemplate {
+    // "bucket_index" and "buffer_within_bucket_index" identify the decoder
+    // to read data from.
+    uint32_t bucket_index;
+    uint32_t buffer_within_bucket_index;
+    // Proto tag of the node.
+    uint32_t tag;
+    // Tag subtype.
+    internal::Subtype subtype;
+    // Length of the varint encoded tag.
+    uint8_t tag_length;
+  };
+
+  // Node of the state machine read from input.
+  struct StateMachineNode {
+    union {
+      // Every state has callback assigned to it that performs the state action.
+      // This is an address of a label in DecodeToBuffer method which is filled
+      // when DecodeToBuffer is called.
+      void* callback;
+      // Used to verify there are no implicit loops in the state machine.
+      size_t implicit_loop_id;
+    };
+    // Tag for the field decoded by this node.
+    TagData tag_data;
+    // Note: callback_type is after tag_data which is 7 bytes and may benefit
+    // from being aligned.
+    internal::CallbackType callback_type;
+    union {
+      // Buffer to read data from.
+      ChainReader* buffer;
+      // In filtering mode, the node is updated in decoding phase based on the
+      // current submessage stack and this template.
+      StateMachineNodeTemplate* node_template;
+    };
+    // Node to move to after finishing the callback for this node.
+    StateMachineNode* next_node;
+  };
+
+  // Note: If more bytes is needed in StateMachineNode, callback_type can be
+  // moved to a separate vector with some refactoring.
+  static_assert(sizeof(StateMachineNode) == 3 * sizeof(void*) + 8,
+                "Unexpected padding in StateMachineNode.");
+
+  struct Context;
+
+  bool Parse(Context* context, Reader* src, const FieldFilter& field_filter);
 
   // Parse data buffers in "header_reader" and "reader" into
   // "context_->buffers". This method is used when filtering is disabled and all
   // filters are initially decompressed.
-  bool ParseBuffers(Reader* header_reader, Reader* reader);
+  bool ParseBuffers(Context* context, Reader* header_reader, Reader* src);
 
   // Parse data buffers in "header_reader" and "reader" into
   // "context_->data_buckets". When filtering is enabled, buckets are
   // decompressed on demand. "bucket_indices" contains bucket index for each
-  // buffer. "bucket_start" contains the index of first buffer for each bucket.
-  bool ParseBuffersForFitering(Reader* header_reader, Reader* reader,
-                               std::vector<uint32_t>* bucket_start,
+  // buffer. "first_buffer_indices" contains the index of first buffer for each
+  // bucket.
+  bool ParseBuffersForFitering(Context* context, Reader* header_reader,
+                               Reader* src,
+                               std::vector<uint32_t>* first_buffer_indices,
                                std::vector<uint32_t>* bucket_indices);
 
-  // Decode context containing decode information preprocessed by one of the
-  // "Initialize" calls.
-  std::unique_ptr<Context> context_;
+  // Precondition: filtering_enabled == true.
+  ChainReader* GetBuffer(Context* context, uint32_t bucket_index,
+                         uint32_t index_within_bucket);
+
+  static bool ContainsImplicitLoop(
+      std::vector<StateMachineNode>* state_machine_nodes);
+
+  bool Decode(Context* context, size_t num_boundaries, BackwardWriter* dest,
+              std::vector<size_t>* boundaries);
+
+  // Set callback_type in "node" based on "skipped_submessage_level",
+  // "submessage_stack" and "node->node_template".
+  bool SetCallbackType(
+      Context* context, int skipped_submessage_level,
+      const std::vector<SubmessageStackElement>& submessage_stack,
+      StateMachineNode* node);
 };
 
 }  // namespace riegeli

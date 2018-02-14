@@ -16,82 +16,35 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <memory>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/str_cat.h"
-#include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/message_parse.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
-#include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
-#include "riegeli/chunk_encoding/internal_types.h"
+#include "riegeli/chunk_encoding/simple_decoder.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
+#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
-
-namespace {
-
-class Decompressor {
- public:
-  bool Initialize(ChainReader* src, internal::CompressionType compression_type,
-                  std::string* message);
-
-  Reader* reader() const { return reader_; }
-
-  bool VerifyEndAndClose();
-
- private:
-  ChainReader* src_;
-  std::unique_ptr<Reader> owned_reader_;
-  Reader* reader_;
-};
-
-bool Decompressor::Initialize(ChainReader* src,
-                              internal::CompressionType compression_type,
-                              std::string* message) {
-  src_ = src;
-  switch (compression_type) {
-    case internal::CompressionType::kNone:
-      reader_ = src;
-      return true;
-    case internal::CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(src);
-      reader_ = owned_reader_.get();
-      return true;
-    case internal::CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(src);
-      reader_ = owned_reader_.get();
-      return true;
-  }
-  *message = StrCat("Unknown compression type: ",
-                    static_cast<unsigned>(compression_type));
-  return false;
-}
-
-bool Decompressor::VerifyEndAndClose() {
-  if (RIEGELI_UNLIKELY(!reader_->VerifyEndAndClose())) return false;
-  return src_ == reader_ || src_->VerifyEndAndClose();
-}
-
-}  // namespace
 
 ChunkDecoder::ChunkDecoder(Options options)
     : Object(State::kOpen),
       skip_corruption_(options.skip_corruption_),
-      field_filter_(std::move(options.field_filter_)) {
-  Clear();
-}
+      field_filter_(std::move(options.field_filter_)),
+      boundaries_{0},
+      values_reader_(Chain()),
+      num_records_(0),
+      index_(0) {}
 
 ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
     : Object(std::move(src)),
@@ -101,7 +54,9 @@ ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
       values_reader_(
           riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
       num_records_(riegeli::exchange(src.num_records_, 0)),
-      index_(riegeli::exchange(src.index_, 0)) {}
+      index_(riegeli::exchange(src.index_, 0)) {
+  src.record_scratch_ = std::string();
+}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
@@ -111,165 +66,137 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
   num_records_ = riegeli::exchange(src.num_records_, 0);
   index_ = riegeli::exchange(src.index_, 0);
+  src.record_scratch_ = std::string();
   return *this;
 }
 
-ChunkDecoder::~ChunkDecoder() = default;
+void ChunkDecoder::Done() {
+  boundaries_ = std::vector<size_t>();
+  values_reader_ = ChainReader();
+  num_records_ = 0;
+  index_ = 0;
+  record_scratch_ = std::string();
+}
 
-void ChunkDecoder::Clear() {
-  MarkHealthy();
-  boundaries_.clear();
-  boundaries_.push_back(0);
+void ChunkDecoder::Reset() {
+  boundaries_ = {0};
   values_reader_ = ChainReader(Chain());
   num_records_ = 0;
   index_ = 0;
+  MarkHealthy();
 }
 
 bool ChunkDecoder::Reset(const Chunk& chunk) {
-  Clear();
+  Reset();
   ChainReader data_reader(&chunk.data);
-  uint8_t chunk_type;
-  if (!ReadByte(&data_reader, &chunk_type)) {
-    chunk_type = static_cast<uint8_t>(internal::ChunkType::kPadding);
+  uint8_t chunk_type_byte;
+  const ChunkType chunk_type = ReadByte(&data_reader, &chunk_type_byte)
+                                   ? static_cast<ChunkType>(chunk_type_byte)
+                                   : ChunkType::kPadding;
+  if (RIEGELI_UNLIKELY(chunk.header.num_records() >
+                       boundaries_.max_size() - 1)) {
+    return Fail("Too many records");
   }
-  boundaries_.reserve(chunk.header.num_records() + 1);
+  if (RIEGELI_UNLIKELY(chunk.header.decoded_data_size() >
+                       record_scratch_.max_size())) {
+    return Fail("Too large chunk");
+  }
+  boundaries_.reserve(IntCast<size_t>(chunk.header.num_records()) + 1);
   Chain values;
   if (RIEGELI_UNLIKELY(
-          !Initialize(chunk_type, chunk.header, &data_reader, &values))) {
+          !Parse(chunk_type, chunk.header, &data_reader, &values))) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(boundaries_.size() != chunk.header.num_records() + 1)) {
-    return Fail("Invalid chunk (number of records)");
+  RIEGELI_ASSERT_EQ(boundaries_.size(), chunk.header.num_records() + 1)
+      << "Wrong number of boundaries";
+  RIEGELI_ASSERT_EQ(boundaries_.front(), 0u) << "Non-zero first boundary";
+  RIEGELI_ASSERT_EQ(boundaries_.back(), values.size()) << "Wrong last boundary";
+  if (field_filter_.include_all()) {
+    RIEGELI_ASSERT_EQ(boundaries_.back(), chunk.header.decoded_data_size())
+        << "Wrong decoded data size";
+  } else {
+    RIEGELI_ASSERT_LE(boundaries_.back(), chunk.header.decoded_data_size())
+        << "Wrong decoded data size";
   }
-  if (field_filter_.include_all() &&
-      RIEGELI_UNLIKELY(values.size() != chunk.header.decoded_data_size())) {
-    return Fail("Invalid chunk (total size)");
-  }
-  RIEGELI_ASSERT(!boundaries_.empty());
-  RIEGELI_ASSERT_EQ(boundaries_.front(), 0u);
-  RIEGELI_ASSERT_EQ(boundaries_.back(), values.size());
   values_reader_ = ChainReader(std::move(values));
-  num_records_ = boundaries_.size() - 1;
+  num_records_ = IntCast<uint64_t>(boundaries_.size() - 1);
   return true;
 }
 
-bool ChunkDecoder::Initialize(uint8_t chunk_type, const ChunkHeader& header,
-                              ChainReader* data_reader, Chain* values) {
-  switch (static_cast<internal::ChunkType>(chunk_type)) {
-    case internal::ChunkType::kPadding:
+bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
+                         ChainReader* src, Chain* dest) {
+  switch (chunk_type) {
+    case ChunkType::kPadding:
       return true;
-    case internal::ChunkType::kSimple:
-      return InitializeSimple(header, data_reader, values);
-    case internal::ChunkType::kTransposed:
-      return InitializeTransposed(header, data_reader, values);
+    case ChunkType::kSimple: {
+      SimpleDecoder simple_decoder;
+      if (RIEGELI_UNLIKELY(!simple_decoder.Reset(src, header.num_records(),
+                                                 header.decoded_data_size(),
+                                                 &boundaries_))) {
+        return Fail("Invalid simple chunk", simple_decoder);
+      }
+      dest->Clear();
+      if (RIEGELI_UNLIKELY(!simple_decoder.reader()->Read(
+              dest, IntCast<size_t>(header.decoded_data_size())))) {
+        return Fail("Reading record values failed", *simple_decoder.reader());
+      }
+      if (RIEGELI_UNLIKELY(!simple_decoder.VerifyEndAndClose())) {
+        return Fail(simple_decoder);
+      }
+      if (RIEGELI_UNLIKELY(!src->VerifyEndAndClose())) {
+        return Fail("Invalid simple chunk", *src);
+      }
+      return true;
+    }
+    case ChunkType::kTransposed: {
+      TransposeDecoder transpose_decoder;
+      dest->Clear();
+      ChainBackwardWriter dest_writer(
+          dest,
+          ChainBackwardWriter::Options().set_size_hint(
+              field_filter_.include_all() ? header.decoded_data_size() : 0u));
+      const bool ok = transpose_decoder.Reset(
+          src, header.num_records(), header.decoded_data_size(), field_filter_,
+          &dest_writer, &boundaries_);
+      if (RIEGELI_UNLIKELY(!dest_writer.Close())) return Fail(dest_writer);
+      if (RIEGELI_UNLIKELY(!ok)) {
+        return Fail("Invalid transposed chunk", transpose_decoder);
+      }
+      if (RIEGELI_UNLIKELY(!src->VerifyEndAndClose())) {
+        return Fail("Invalid transposed chunk", *src);
+      }
+      return true;
+    }
   }
   return Fail(
       StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
 }
 
-inline bool ChunkDecoder::InitializeSimple(const ChunkHeader& header,
-                                           ChainReader* data_reader,
-                                           Chain* values) {
-  uint8_t compression_type_byte;
-  if (RIEGELI_UNLIKELY(!ReadByte(data_reader, &compression_type_byte))) {
-    return Fail("Invalid simple chunk (compression type)");
-  }
-  const internal::CompressionType compression_type =
-      static_cast<internal::CompressionType>(compression_type_byte);
-
-  uint64_t sizes_size;
-  if (RIEGELI_UNLIKELY(!ReadVarint64(data_reader, &sizes_size))) {
-    return Fail("Invalid simple chunk (sizes size)");
-  }
-
-  Chain compressed_sizes;
-  if (RIEGELI_UNLIKELY(!data_reader->Read(&compressed_sizes, sizes_size))) {
-    return Fail("Invalid simple chunk (compressed sizes)");
-  }
-
-  ChainReader compressed_sizes_reader(&compressed_sizes);
-  Decompressor sizes_decompressor;
-  std::string message;
-  if (RIEGELI_UNLIKELY(!sizes_decompressor.Initialize(
-          &compressed_sizes_reader, compression_type, &message))) {
-    return Fail(message);
-  }
-
-  Decompressor values_decompressor;
-  if (RIEGELI_UNLIKELY(!values_decompressor.Initialize(
-          data_reader, compression_type, &message))) {
-    return Fail(message);
-  }
-
-  const uint64_t decoded_data_size = header.decoded_data_size();
-  if (RIEGELI_UNLIKELY(
-          !values_decompressor.reader()->Read(values, decoded_data_size))) {
-    return Fail("Invalid simple chunk (values)");
-  }
-  if (RIEGELI_UNLIKELY(!values_decompressor.VerifyEndAndClose())) {
-    return Fail("Invalid simple chunk (closing values)");
-  }
-
-  const size_t num_boundaries = header.num_records() + 1;
-  uint64_t boundary = 0;
-  RIEGELI_ASSERT_EQ(boundaries_.size(), 1u);
-  boundaries_[0] = boundary;
-  while (boundaries_.size() < num_boundaries) {
-    uint64_t size;
-    if (RIEGELI_UNLIKELY(!ReadVarint64(sizes_decompressor.reader(), &size))) {
-      return Fail("Invalid simple chunk (record size)");
-    }
-    if (RIEGELI_UNLIKELY(size > decoded_data_size - boundary)) {
-      return Fail("Invalid simple chunk (overflow)");
-    }
-    boundary += size;
-    boundaries_.push_back(boundary);
-  }
-  if (RIEGELI_UNLIKELY(!sizes_decompressor.VerifyEndAndClose())) {
-    return Fail("Invalid simple chunk (closing sizes)");
-  }
-  return true;
-}
-
-inline bool ChunkDecoder::InitializeTransposed(const ChunkHeader& header,
-                                               ChainReader* data_reader,
-                                               Chain* values) {
-  TransposeDecoder transpose_decoder;
-  if (RIEGELI_UNLIKELY(
-          !transpose_decoder.Initialize(data_reader, field_filter_))) {
-    return Fail("Invalid transposed chunk");
-  }
-
-  ChainBackwardWriter values_writer(
-      values,
-      ChainBackwardWriter::Options().set_size_hint(header.decoded_data_size()));
-  if (RIEGELI_UNLIKELY(
-          !transpose_decoder.Decode(&values_writer, &boundaries_))) {
-    return Fail("Invalid transposed chunk");
-  }
-  if (!values_writer.Close()) RIEGELI_ASSERT_UNREACHABLE();
-  return data_reader->VerifyEndAndClose();
-}
-
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* key) {
 again:
-  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
+  if (RIEGELI_UNLIKELY(index_ == num_records_)) return false;
   if (key != nullptr) *key = index_;
   ++index_;
-  LimitingReader message_reader(&values_reader_, boundaries_[index_]);
+  const size_t record_end = boundaries_[IntCast<size_t>(index_)];
+  LimitingReader message_reader(&values_reader_, record_end);
   if (RIEGELI_UNLIKELY(!ParsePartialFromReader(record, &message_reader))) {
-    if (!values_reader_.Seek(boundaries_[index_])) {
-      RIEGELI_ASSERT_UNREACHABLE();
+    message_reader.Close();
+    if (!values_reader_.Seek(record_end)) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Seeking record values failed: " << values_reader_.Message();
     }
     if (skip_corruption_) goto again;
-    index_ = num_records();
+    index_ = num_records_;
     return Fail(
         StrCat("Failed to parse message of type ", record->GetTypeName()));
   }
-  if (RIEGELI_UNLIKELY(!message_reader.Close())) RIEGELI_ASSERT_UNREACHABLE();
+  if (!message_reader.Close()) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Closing message reader failed: " << message_reader.Message();
+  }
   if (RIEGELI_UNLIKELY(!record->IsInitialized())) {
     if (skip_corruption_) goto again;
-    index_ = num_records();
+    index_ = num_records_;
     return Fail(StrCat("Failed to parse message of type ",
                        record->GetTypeName(),
                        " because it is missing required fields: ",

@@ -37,17 +37,12 @@
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/bytes/zstd_reader.h"
-#include "riegeli/chunk_encoding/internal_types.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
+#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 
 namespace {
-
-#define RETURN_FALSE_IF(x)                 \
-  do {                                     \
-    if (RIEGELI_UNLIKELY(x)) return false; \
-  } while (false)
 
 ChainReader* kEmptyChainReader() {
   static NoDestructor<ChainReader> kStaticEmptyChainReader((Chain()));
@@ -56,236 +51,125 @@ ChainReader* kEmptyChainReader() {
   return kStaticEmptyChainReader.get();
 }
 
-class Decompressor {
+class Decompressor final : public Object {
  public:
-  bool Initialize(ChainReader src, internal::CompressionType compression_type,
-                  std::string* error_message);
-  bool Initialize(Reader* src, internal::CompressionType compression_type,
-                  std::string* error_message);
+  // Creates a closed Decompressor.
+  Decompressor() noexcept;
+
+  Decompressor(ChainReader src, CompressionType compression_type);
+  Decompressor(Reader* src, CompressionType compression_type);
+
+  Decompressor(Decompressor&& src) noexcept;
+  Decompressor& operator=(Decompressor&& src) noexcept;
 
   Reader* reader() const { return reader_; }
 
   bool VerifyEndAndClose();
 
+ protected:
+  void Done() override;
+
  private:
-  bool Initialize(internal::CompressionType compression_type,
-                  std::string* error_message);
+  void Initialize(Reader* src, CompressionType compression_type);
 
   ChainReader owned_src_;
-  Reader* src_;
   std::unique_ptr<Reader> owned_reader_;
-  Reader* reader_;
+  Reader* reader_ = nullptr;
 };
 
-bool Decompressor::Initialize(ChainReader src,
-                              internal::CompressionType compression_type,
-                              std::string* error_message) {
-  owned_src_ = std::move(src);
-  src_ = &owned_src_;
-  return Initialize(compression_type, error_message);
+Decompressor::Decompressor() noexcept : Object(State::kClosed) {}
+
+Decompressor::Decompressor(ChainReader src, CompressionType compression_type)
+    : Object(State::kOpen), owned_src_(std::move(src)) {
+  Initialize(&owned_src_, compression_type);
 }
 
-bool Decompressor::Initialize(Reader* src,
-                              internal::CompressionType compression_type,
-                              std::string* error_message) {
+Decompressor::Decompressor(Reader* src, CompressionType compression_type)
+    : Object(State::kOpen) {
+  Initialize(RIEGELI_ASSERT_NOTNULL(src), compression_type);
+}
+
+Decompressor::Decompressor(Decompressor&& src) noexcept
+    : Object(std::move(src)),
+      owned_src_(std::move(src.owned_src_)),
+      owned_reader_(std::move(src.owned_reader_)),
+      reader_(src.reader_ == &src.owned_src_ ? &owned_src_ : src.reader_) {
+  src.reader_ = nullptr;
+}
+
+Decompressor& Decompressor::operator=(Decompressor&& src) noexcept {
+  Object::operator=(std::move(src));
+  owned_src_ = std::move(src.owned_src_);
+  owned_reader_ = std::move(src.owned_reader_);
+  // Set src.reader_ before reader_ to support self-assignment.
+  Reader* const reader =
+      src.reader_ == &src.owned_src_ ? &owned_src_ : src.reader_;
+  src.reader_ = nullptr;
+  reader_ = reader;
+  return *this;
+}
+
+void Decompressor::Done() {
   owned_src_ = ChainReader();
-  src_ = RIEGELI_ASSERT_NOTNULL(src);
-  return Initialize(compression_type, error_message);
+  owned_reader_.reset();
+  reader_ = nullptr;
 }
 
-bool Decompressor::Initialize(internal::CompressionType compression_type,
-                              std::string* error_message) {
-  if (compression_type == internal::CompressionType::kNone) {
-    reader_ = src_;
-    return true;
+void Decompressor::Initialize(Reader* src, CompressionType compression_type) {
+  if (compression_type == CompressionType::kNone) {
+    reader_ = src;
+    return;
   }
-  uint64_t uncompressed_size;
-  RETURN_FALSE_IF(!ReadVarint64(src_, &uncompressed_size));
+  uint64_t decompressed_size;
+  if (RIEGELI_UNLIKELY(!ReadVarint64(src, &decompressed_size))) {
+    Fail("Reading decompressed size failed");
+    return;
+  }
   switch (compression_type) {
-    case internal::CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE();
-    case internal::CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(src_);
+    case CompressionType::kNone:
+      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
+    case CompressionType::kBrotli:
+      owned_reader_ = riegeli::make_unique<BrotliReader>(src);
       reader_ = owned_reader_.get();
-      return true;
-    case internal::CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(src_);
+      return;
+    case CompressionType::kZstd:
+      owned_reader_ = riegeli::make_unique<ZstdReader>(src);
       reader_ = owned_reader_.get();
-      return true;
+      return;
   }
-  *error_message = StrCat("Unknown compression type: ",
-                          static_cast<unsigned>(compression_type));
-  return false;
+  Fail(StrCat("Unknown compression type: ",
+              static_cast<unsigned>(compression_type)));
 }
 
 bool Decompressor::VerifyEndAndClose() {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
   // Verify that decompression succeeded, there are no extra compressed data,
   // and in case the compression type was not kNone that there are no extra data
   // after the compressed stream.
   if (owned_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) return false;
+    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) {
+      return Fail(*owned_reader_);
+    }
   }
-  if (src_ == &owned_src_) {
-    if (RIEGELI_UNLIKELY(!owned_src_.VerifyEndAndClose())) return false;
+  if (RIEGELI_UNLIKELY(!owned_src_.VerifyEndAndClose())) {
+    return Fail(owned_src_);
   }
   return true;
 }
 
 // Returns decompressed size of data in "compressed_data" in "size".
-bool DecompressedSize(internal::CompressionType compression_type,
+bool DecompressedSize(CompressionType compression_type,
                       const Chain& compressed_data,
-                      uint64_t* uncompressed_size) {
-  if (compression_type == internal::CompressionType::kNone) {
-    *uncompressed_size = compressed_data.size();
+                      uint64_t* decompressed_size) {
+  if (compression_type == CompressionType::kNone) {
+    *decompressed_size = compressed_data.size();
     return true;
   }
   ChainReader compressed_data_reader(&compressed_data);
-  return ReadVarint64(&compressed_data_reader, uncompressed_size);
+  return ReadVarint64(&compressed_data_reader, decompressed_size);
 }
 
 constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();
-
-// Information about one proto tag.
-struct TagData {
-  // "data" contains varint encoded tag (1 to 5 bytes) followed by inline
-  // numeric (if any) or zero otherwise.
-  char data[kMaxLengthVarint32() + 1];
-  // Length of the varint encoded tag.
-  uint8_t size;
-};
-
-// SubmessageStackElement is used to keep information about started nested
-// submessages. Decoding works in non-recursive loop and this class keeps the
-// information needed to finalize one submessage.
-struct SubmessageStackElement {
-  SubmessageStackElement(Position end_of_submessage, TagData other_tag_data)
-      : end_of_submessage(end_of_submessage), tag_data(other_tag_data) {}
-  // The position of the end of submessage.
-  Position end_of_submessage;
-  // Tag of this submessage.
-  TagData tag_data;
-};
-
-// The types of callbacks in state machine states.
-// NOTE: CallbackType is used to index labels array in DecodeToBuffer method so
-// the ordering of CallbackType must not change without a corresponding change
-// in DecodeToBuffer.
-enum class CallbackType : uint8_t {
-  kNoOp,
-  kMessageStart,
-  kSubmessageStart,
-  kSubmessageEnd,
-  kSelectCallback,
-  kSkippedSubmessageStart,
-  kSkippedSubmessageEnd,
-  kNonProto,
-  kFailure,
-
-// CopyTag_ has to be the first CallbackType in TYPES_FOR_TAG_LEN for
-// GetCopyTagCallbackType to work.
-#define TYPES_FOR_TAG_LEN(tag_length)                                         \
-  kCopyTag_##tag_length, kVarint_1_##tag_length, kVarint_2_##tag_length,      \
-      kVarint_3_##tag_length, kVarint_4_##tag_length, kVarint_5_##tag_length, \
-      kVarint_6_##tag_length, kVarint_7_##tag_length, kVarint_8_##tag_length, \
-      kVarint_9_##tag_length, kVarint_10_##tag_length, kFixed32_##tag_length, \
-      kFixed64_##tag_length, kString_##tag_length,                            \
-      kStartFilterGroup_##tag_length, kEndFilterGroup_##tag_length
-
-  TYPES_FOR_TAG_LEN(1),
-  TYPES_FOR_TAG_LEN(2),
-  TYPES_FOR_TAG_LEN(3),
-  TYPES_FOR_TAG_LEN(4),
-  TYPES_FOR_TAG_LEN(5),
-#undef TYPES_FOR_TAG_LEN
-
-  // We need kCopyTag callback for length 6 as well because of inline numerics.
-  // kCopyTag_6 has to be the first CallbackType after TYPES_FOR_TAG_LEN for
-  // GetCopyTagCallbackType to work.
-  kCopyTag_6,
-  kUnknown,
-  // Implicit callback type is added to any of the above types if the transition
-  // from the node should go to "node->next_node" without reading the transition
-  // byte.
-  kImplicit = 0x80,
-};
-
-constexpr inline CallbackType operator+(CallbackType a, uint8_t b) {
-  return static_cast<CallbackType>(static_cast<uint8_t>(a) + b);
-}
-
-constexpr inline uint8_t operator-(CallbackType a, CallbackType b) {
-  return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
-}
-
-constexpr inline CallbackType operator|(CallbackType a, CallbackType b) {
-  return static_cast<CallbackType>(static_cast<uint8_t>(a) |
-                                   static_cast<uint8_t>(b));
-}
-
-constexpr inline CallbackType operator&(CallbackType a, CallbackType b) {
-  return static_cast<CallbackType>(static_cast<uint8_t>(a) &
-                                   static_cast<uint8_t>(b));
-}
-
-inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
-  return a = a | b;
-}
-
-// Note: If we need more callback types in the future, is_implicit can be made
-// a separate state machine node member.
-static_assert(static_cast<uint8_t>(CallbackType::kUnknown) <
-                  static_cast<uint8_t>(CallbackType::kImplicit),
-              "The total number of types overflows CallbackType.");
-
-static_assert(CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1 ==
-                  CallbackType::kCopyTag_6 - CallbackType::kCopyTag_5,
-              "Bad ordering of CallbackType");
-
-// Node template that can be used to resolve the CallbackType of the node in
-// decoding phase.
-struct StateMachineNodeTemplate {
-  // "bucket_index" and "buffer_within_bucket_index" identify the decoder
-  // to read data from.
-  uint32_t bucket_index;
-  uint32_t buffer_within_bucket_index;
-  // Proto tag of the node.
-  uint32_t tag;
-  // Tag subtype.
-  internal::Subtype subtype;
-  // Length of the varint encoded tag.
-  uint8_t tag_length;
-};
-
-// Node of the state machine read from input.
-struct StateMachineNode {
-  union {
-    // Every state has callback assigned to it that performs the state action.
-    // This is an address of a label in DecodeToBuffer method which is filled
-    // when DecodeToBuffer is called.
-    void* callback;
-    // Used to verify there are no implicit loops in the state machine.
-    size_t implicit_loop_id;
-  };
-  // Tag for the field decoded by this node.
-  TagData tag_data;
-  // Note: callback_type is after tag_data which is 7 bytes and may benefit from
-  // being aligned.
-  CallbackType callback_type;
-  union {
-    // Buffer to read data from.
-    ChainReader* buffer;
-    // In filtering mode, the node is updated in decoding phase based on the
-    // current submessage stack and this template.
-    StateMachineNodeTemplate* node_template;
-  };
-  // Node to move to after finishing the callback for this node.
-  StateMachineNode* next_node;
-};
-
-// Note: If more bytes is needed in StateMachineNode, callback_type can be moved
-// to a separate vector with some refactoring.
-static_assert(sizeof(StateMachineNode) == 3 * sizeof(void*) + 8,
-              "Unexpected padding in StateMachineNode.");
 
 // Hash pair of uint32_ts.
 struct PairHasher {
@@ -306,6 +190,13 @@ struct DataBucket {
   bool decompressed = false;
 };
 
+// Should the data content of the field be decoded?
+enum class FieldIncluded {
+  kYes,
+  kNo,
+  kExistenceOnly,
+};
+
 // Return true if "tag" is a valid protocol buffer tag.
 bool ValidTag(uint32_t tag) {
   switch (static_cast<internal::WireType>(tag & 7)) {
@@ -321,104 +212,130 @@ bool ValidTag(uint32_t tag) {
   }
 }
 
-// Copy tag from tag_data to writer.
-#define COPY_TAG_CALLBACK(tag_length)                                  \
-  do {                                                                 \
-    RETURN_FALSE_IF(                                                   \
-        !writer->Write(string_view(node->tag_data.data, tag_length))); \
-  } while (0)
+}  // namespace
 
-// Decode one varint value from reader to writer.
-#define VARINT_CALLBACK(tag_length, data_length)                              \
-  do {                                                                        \
-    if (RIEGELI_LIKELY(writer->available() >= tag_length + data_length)) {    \
-      writer->set_cursor(writer->cursor() - (tag_length + data_length));      \
-      char* const buffer = writer->cursor();                                  \
-      RETURN_FALSE_IF(!node->buffer->Read(buffer + tag_length, data_length)); \
-      for (size_t i = 0; i < data_length - 1; ++i) {                          \
-        buffer[tag_length + i] |= 0x80;                                       \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-    } else {                                                                  \
-      char buffer[tag_length + data_length];                                  \
-      RETURN_FALSE_IF(!node->buffer->Read(buffer + tag_length, data_length)); \
-      for (size_t i = 0; i < data_length - 1; ++i) {                          \
-        buffer[tag_length + i] |= 0x80;                                       \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-      RETURN_FALSE_IF(                                                        \
-          !writer->Write(string_view(buffer, tag_length + data_length)));     \
-    }                                                                         \
-  } while (0)
+namespace internal {
 
-// Decode one fixed32 or fixed64 value from reader to writer.
-#define FIXED_CALLBACK(tag_length, data_length)                               \
-  do {                                                                        \
-    if (RIEGELI_LIKELY(writer->available() >= tag_length + data_length)) {    \
-      writer->set_cursor(writer->cursor() - (tag_length + data_length));      \
-      char* const buffer = writer->cursor();                                  \
-      RETURN_FALSE_IF(!node->buffer->Read(buffer + tag_length, data_length)); \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-    } else {                                                                  \
-      char buffer[tag_length + data_length];                                  \
-      RETURN_FALSE_IF(!node->buffer->Read(buffer + tag_length, data_length)); \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-      RETURN_FALSE_IF(                                                        \
-          !writer->Write(string_view(buffer, tag_length + data_length)));     \
-    }                                                                         \
-  } while (0)
+// The types of callbacks in state machine states.
+// NOTE: CallbackType is used to index labels array in DecodeToBuffer method so
+// the ordering of CallbackType must not change without a corresponding change
+// in DecodeToBuffer.
+enum class CallbackType : uint8_t {
+  kNoOp,
+  kMessageStart,
+  kSubmessageStart,
+  kSubmessageEnd,
+  kSelectCallback,
+  kSkippedSubmessageStart,
+  kSkippedSubmessageEnd,
+  kNonProto,
+  kFailure,
 
-// Decode string from decoder to writer.
-#define STRING_CALLBACK(tag_length)                                            \
-  do {                                                                         \
-    size_t total_length;                                                       \
-    if (RIEGELI_LIKELY(node->buffer->available() >= kMaxLengthVarint32())) {   \
-      uint32_t length;                                                         \
-      const char* cursor = node->buffer->cursor();                             \
-      if (RIEGELI_UNLIKELY(!ReadVarint32(&cursor, &length))) {                 \
-        node->buffer->set_cursor(cursor);                                      \
-        return false;                                                          \
-      }                                                                        \
-      const size_t length_length =                                             \
-          PtrDistance(node->buffer->cursor(), cursor);                         \
-      total_length = length_length + IntCast<size_t>(length);                  \
-    } else {                                                                   \
-      const Position pos_before = node->buffer->pos();                         \
-      uint32_t length;                                                         \
-      RETURN_FALSE_IF(!ReadVarint32(node->buffer, &length));                   \
-      RIEGELI_ASSERT_GT(node->buffer->pos(), pos_before);                      \
-      const Position length_length = node->buffer->pos() - pos_before;         \
-      total_length = IntCast<size_t>(length_length) + IntCast<size_t>(length); \
-      if (!node->buffer->Seek(pos_before)) RIEGELI_ASSERT_UNREACHABLE();       \
-    }                                                                          \
-    RETURN_FALSE_IF(!node->buffer->CopyTo(writer, total_length));              \
-    RETURN_FALSE_IF(                                                           \
-        !writer->Write(string_view(node->tag_data.data, tag_length)));         \
-  } while (0)
+// CopyTag_ has to be the first CallbackType in TYPES_FOR_TAG_LEN for
+// GetCopyTagCallbackType() to work.
+#define TYPES_FOR_TAG_LEN(tag_length)                                         \
+  kCopyTag_##tag_length, kVarint_1_##tag_length, kVarint_2_##tag_length,      \
+      kVarint_3_##tag_length, kVarint_4_##tag_length, kVarint_5_##tag_length, \
+      kVarint_6_##tag_length, kVarint_7_##tag_length, kVarint_8_##tag_length, \
+      kVarint_9_##tag_length, kVarint_10_##tag_length, kFixed32_##tag_length, \
+      kFixed64_##tag_length, kString_##tag_length,                            \
+      kStartFilterGroup_##tag_length, kEndFilterGroup_##tag_length
 
-// Should the data content of the field be decoded?
-enum class FieldIncluded {
-  kYes,
-  kNo,
-  kExistenceOnly,
+  TYPES_FOR_TAG_LEN(1),
+  TYPES_FOR_TAG_LEN(2),
+  TYPES_FOR_TAG_LEN(3),
+  TYPES_FOR_TAG_LEN(4),
+  TYPES_FOR_TAG_LEN(5),
+#undef TYPES_FOR_TAG_LEN
+
+  // We need kCopyTag callback for length 6 as well because of inline numerics.
+  // kCopyTag_6 has to be the first CallbackType after TYPES_FOR_TAG_LEN for
+  // GetCopyTagCallbackType() to work.
+  kCopyTag_6,
+  kUnknown,
+  // Implicit callback type is added to any of the above types if the transition
+  // from the node should go to "node->next_node" without reading the transition
+  // byte.
+  kImplicit = 0x80,
 };
 
+constexpr CallbackType operator+(CallbackType a, uint8_t b) {
+  return static_cast<CallbackType>(static_cast<uint8_t>(a) + b);
+}
+
+constexpr uint8_t operator-(CallbackType a, CallbackType b) {
+  return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
+}
+
+constexpr CallbackType operator|(CallbackType a, CallbackType b) {
+  return static_cast<CallbackType>(static_cast<uint8_t>(a) |
+                                   static_cast<uint8_t>(b));
+}
+
+constexpr CallbackType operator&(CallbackType a, CallbackType b) {
+  return static_cast<CallbackType>(static_cast<uint8_t>(a) &
+                                   static_cast<uint8_t>(b));
+}
+
+inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
+  return a = a | b;
+}
+
 // Returns copy_tag callback type for "tag_length".
-CallbackType GetCopyTagCallbackType(size_t tag_length) {
+inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32() + 1)
+      << "Tag length too large";
   return CallbackType::kCopyTag_1 +
-         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kCopyTag_2 -
-                                              CallbackType::kCopyTag_1));
+         (tag_length - 1) *
+             (CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1);
+}
+
+// Returns numeric callback type for "subtype" and "tag_length".
+inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  if (subtype > Subtype::kVarintInlineMax) {
+    return CallbackType::kUnknown;
+  }
+  if (subtype >= Subtype::kVarintInline0) {
+    return GetCopyTagCallbackType(tag_length + 1);
+  }
+  return CallbackType::kVarint_1_1 +
+         (subtype - Subtype::kVarint1) *
+             (CallbackType::kVarint_2_1 - CallbackType::kVarint_1_1) +
+         (tag_length - 1) *
+             (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1);
+}
+
+// Returns FLOAT binary callback type for "tag_length".
+inline CallbackType GetFixed32CallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  return CallbackType::kFixed32_1 +
+         (tag_length - 1) *
+             (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
+}
+
+// Returns DOUBLE binary callback type for "tag_length".
+inline CallbackType GetFixed64CallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  return CallbackType::kFixed64_1 +
+         (tag_length - 1) *
+             (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
 }
 
 // Returns string callback type for "subtype" and "tag_length".
-CallbackType GetStringCallbackType(internal::Subtype subtype,
-                                   size_t tag_length) {
+inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   switch (subtype) {
-    case internal::Subtype::kLengthDelimitedString:
+    case Subtype::kLengthDelimitedString:
       return CallbackType::kString_1 +
-             IntCast<uint8_t>((tag_length - 1) * (CallbackType::kString_2 -
-                                                  CallbackType::kString_1));
-    case internal::Subtype::kLengthDelimitedEndOfSubmessage:
+             (tag_length - 1) *
+                 (CallbackType::kString_2 - CallbackType::kString_1);
+    case Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
       // Note: Nodes with kLengthDelimitedStartOfSubmessage are not created.
@@ -429,12 +346,14 @@ CallbackType GetStringCallbackType(internal::Subtype subtype,
 }
 
 // Returns string callback type for "subtype" and "tag_length" to exclude field.
-CallbackType GetStringExcludeCallbackType(internal::Subtype subtype,
-                                          size_t tag_length) {
+inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
+                                                 size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   switch (subtype) {
-    case internal::Subtype::kLengthDelimitedString:
+    case Subtype::kLengthDelimitedString:
       return CallbackType::kNoOp;
-    case internal::Subtype::kLengthDelimitedEndOfSubmessage:
+    case Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSkippedSubmessageEnd;
     default:
       return CallbackType::kUnknown;
@@ -443,120 +362,93 @@ CallbackType GetStringExcludeCallbackType(internal::Subtype subtype,
 
 // Returns string callback type for "subtype" and "tag_length" for existence
 // only.
-CallbackType GetStringExistenceCallbackType(internal::Subtype subtype,
-                                            size_t tag_length) {
+inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
+                                                   size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   switch (subtype) {
-    case internal::Subtype::kLengthDelimitedString:
+    case Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
       // an empty string in proto decoder.
       // Note: Only submessages can be "existence only" filtered, but we encode
       // empty submessages as strings so we need to handle this callback type.
       return GetCopyTagCallbackType(tag_length + 1);
-    case internal::Subtype::kLengthDelimitedEndOfSubmessage:
+    case Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
       return CallbackType::kUnknown;
   }
 }
 
-// Returns FLOAT binary callback type for "tag_length".
-CallbackType GetBinaryCallbackType32(size_t tag_length) {
-  return CallbackType::kFixed32_1 +
-         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kFixed32_2 -
-                                              CallbackType::kFixed32_1));
-}
-
-// Returns DOUBLE binary callback type for "tag_length".
-CallbackType GetBinaryCallbackType64(size_t tag_length) {
-  return CallbackType::kFixed64_1 +
-         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kFixed64_2 -
-                                              CallbackType::kFixed64_1));
-}
-
-// Returns numeric callback type for "subtype" and "tag_length".
-CallbackType GetNumericCallbackType(internal::Subtype subtype,
-                                    size_t tag_length) {
-  if (subtype > internal::Subtype::kVarintInlineMax) {
-    return CallbackType::kUnknown;
-  }
-  if (subtype >= internal::Subtype::kVarintInline0) {
-    return GetCopyTagCallbackType(tag_length + 1);
-  }
-  return CallbackType::kVarint_1_1 +
-         IntCast<uint8_t>(
-             (subtype - internal::Subtype::kVarint1) *
-                 (CallbackType::kVarint_2_1 - CallbackType::kVarint_1_1) +
-             (tag_length - 1) *
-                 (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1));
-}
-
-CallbackType GetStartFilterGroupCallbackType(size_t tag_length) {
+inline CallbackType GetStartFilterGroupCallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   return CallbackType::kStartFilterGroup_1 +
-         IntCast<uint8_t>((tag_length - 1) *
-                          (CallbackType::kStartFilterGroup_2 -
-                           CallbackType::kStartFilterGroup_1));
+         (tag_length - 1) * (CallbackType::kStartFilterGroup_2 -
+                             CallbackType::kStartFilterGroup_1);
 }
 
-CallbackType GetEndFilterGroupCallbackType(size_t tag_length) {
+inline CallbackType GetEndFilterGroupCallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   return CallbackType::kEndFilterGroup_1 +
-         IntCast<uint8_t>((tag_length - 1) * (CallbackType::kEndFilterGroup_2 -
-                                              CallbackType::kEndFilterGroup_1));
+         (tag_length - 1) * (CallbackType::kEndFilterGroup_2 -
+                             CallbackType::kEndFilterGroup_1);
 }
 
 // Get callback for node.
-CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
-                             internal::Subtype subtype, size_t tag_length,
-                             bool filtering_enabled) {
-  if (tag_length < 1 || tag_length > kMaxLengthVarint32()) {
-    return CallbackType::kUnknown;
-  }
+inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
+                                    Subtype subtype, size_t tag_length,
+                                    bool filtering_enabled) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   switch (field_included) {
     case FieldIncluded::kYes:
-      switch (static_cast<internal::WireType>(tag & 7)) {
-        case internal::WireType::kVarint:
-          return GetNumericCallbackType(subtype, tag_length);
-        case internal::WireType::kFixed32:
-          return GetBinaryCallbackType32(tag_length);
-        case internal::WireType::kFixed64:
-          return GetBinaryCallbackType64(tag_length);
-        case internal::WireType::kLengthDelimited:
+      switch (static_cast<WireType>(tag & 7)) {
+        case WireType::kVarint:
+          return GetVarintCallbackType(subtype, tag_length);
+        case WireType::kFixed32:
+          return GetFixed32CallbackType(tag_length);
+        case WireType::kFixed64:
+          return GetFixed64CallbackType(tag_length);
+        case WireType::kLengthDelimited:
           return GetStringCallbackType(subtype, tag_length);
-        case internal::WireType::kStartGroup:
+        case WireType::kStartGroup:
           return filtering_enabled ? GetStartFilterGroupCallbackType(tag_length)
                                    : GetCopyTagCallbackType(tag_length);
-        case internal::WireType::kEndGroup:
+        case WireType::kEndGroup:
           return filtering_enabled ? GetEndFilterGroupCallbackType(tag_length)
                                    : GetCopyTagCallbackType(tag_length);
         default:
           return CallbackType::kUnknown;
       }
     case FieldIncluded::kNo:
-      switch (static_cast<internal::WireType>(tag & 7)) {
-        case internal::WireType::kVarint:
-        case internal::WireType::kFixed32:
-        case internal::WireType::kFixed64:
+      switch (static_cast<WireType>(tag & 7)) {
+        case WireType::kVarint:
+        case WireType::kFixed32:
+        case WireType::kFixed64:
           return CallbackType::kNoOp;
-        case internal::WireType::kLengthDelimited:
+        case WireType::kLengthDelimited:
           return GetStringExcludeCallbackType(subtype, tag_length);
-        case internal::WireType::kStartGroup:
+        case WireType::kStartGroup:
           return CallbackType::kSkippedSubmessageStart;
-        case internal::WireType::kEndGroup:
+        case WireType::kEndGroup:
           return CallbackType::kSkippedSubmessageEnd;
         default:
           return CallbackType::kUnknown;
       }
     case FieldIncluded::kExistenceOnly:
-      switch (static_cast<internal::WireType>(tag & 7)) {
-        case internal::WireType::kVarint:
-        case internal::WireType::kFixed32:
-        case internal::WireType::kFixed64:
+      switch (static_cast<WireType>(tag & 7)) {
+        case WireType::kVarint:
+        case WireType::kFixed32:
+        case WireType::kFixed64:
           return CallbackType::kUnknown;
-        case internal::WireType::kLengthDelimited:
+        case WireType::kLengthDelimited:
           // Only submessage fields should be allowed to be "existence only".
           return GetStringExistenceCallbackType(subtype, tag_length);
-        case internal::WireType::kStartGroup:
+        case WireType::kStartGroup:
           return GetStartFilterGroupCallbackType(tag_length);
-        case internal::WireType::kEndGroup:
+        case WireType::kEndGroup:
           return GetEndFilterGroupCallbackType(tag_length);
         default:
           return CallbackType::kUnknown;
@@ -566,71 +458,26 @@ CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
-bool IsImplicit(CallbackType callback_type) {
-  static_assert(static_cast<uint8_t>(CallbackType::kImplicit) == 0x80,
-                "Implicit is not the highest bit in uint8_t enum.");
+inline bool IsImplicit(CallbackType callback_type) {
   return (callback_type & CallbackType::kImplicit) == CallbackType::kImplicit;
 }
 
-bool ContainsImplicitLoop(std::vector<StateMachineNode>* state_machine_nodes) {
-  for (auto& node : *state_machine_nodes) {
-    node.implicit_loop_id = 0;
-  }
-  size_t next_loop_id = 1;
-  for (auto& node : *state_machine_nodes) {
-    if (node.implicit_loop_id != 0) {
-      continue;
-    }
-    StateMachineNode* node_ptr = &node;
-    node_ptr->implicit_loop_id = next_loop_id;
-    while (IsImplicit(node_ptr->callback_type)) {
-      node_ptr = node_ptr->next_node;
-      if (node_ptr->implicit_loop_id == next_loop_id) {
-        return true;
-      }
-      if (node_ptr->implicit_loop_id != 0) {
-        break;
-      }
-      node_ptr->implicit_loop_id = next_loop_id;
-    }
-    ++next_loop_id;
-  }
-  return false;
-}
-
-}  // namespace
+}  // namespace internal
 
 struct TransposeDecoder::Context {
-  // Precondition filtering_enabled == true.
-  ChainReader* GetBuffer(uint32_t bucket_index, uint32_t index_within_bucket);
-
-  // Set callback_type in "node" based on "skipped_submessage_level",
-  // "submessage_stack" and "node->node_template".
-  bool SetCallbackType(
-      int skipped_submessage_level,
-      const std::vector<SubmessageStackElement>& submessage_stack,
-      StateMachineNode* node);
-
-  // TODO: Expose message, probably by making TransposeDecoder an Object
-  // and possibly moving Context contents to TransposeDecoder.
-  std::string message;
-
-  // --- Fields used by state machine nodes. ---
-  // Buffer for lengths of nonproto messages.
-  ChainReader* nonproto_lengths;
-  // Node to start decoding from.
-  uint32_t first_node;
-
-  // --- Fields used by TransposeDecoder. ---
-  // State machine read from the input.
-  std::vector<StateMachineNode> state_machine_nodes;
+  // Compression type of the input.
+  CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
   // Note: Used only when filtering is disabled.
   std::vector<ChainReader> buffers;
+  // Buffer for lengths of nonproto messages.
+  ChainReader* nonproto_lengths = nullptr;
+  // State machine read from the input.
+  std::vector<StateMachineNode> state_machine_nodes;
+  // Node to start decoding from.
+  uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
   Decompressor transitions;
-  // Compression type of the input.
-  internal::CompressionType compression_type;
 
   // --- Fields used in filtering. ---
   // We number used fields with indices into "existence_only" vector below.
@@ -642,200 +489,129 @@ struct TransposeDecoder::Context {
       include_fields;
   // Are we interested in the existence of the field only?
   std::vector<bool> existence_only;
-  // Template that can later be used later to finalize StateMachineNode.
-  std::vector<StateMachineNodeTemplate> node_templates;
   // Data buckets.
   std::vector<DataBucket> buckets;
+  // Template that can later be used later to finalize StateMachineNode.
+  std::vector<StateMachineNodeTemplate> node_templates;
 };
 
-inline ChainReader* TransposeDecoder::Context::GetBuffer(
-    uint32_t bucket_index, uint32_t index_within_bucket) {
-  RIEGELI_ASSERT_LT(bucket_index, buckets.size());
-  DataBucket& bucket = buckets[bucket_index];
-  if (bucket.decompressed) {
-    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffers.size());
-  } else {
-    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffer_sizes.size());
-    Decompressor decompressor;
-    if (!decompressor.Initialize(ChainReader(&bucket.compressed_data),
-                                 compression_type, &message)) {
-      return nullptr;
-    }
-    bucket.buffers.reserve(bucket.buffer_sizes.size());
-    for (auto buffer_size : bucket.buffer_sizes) {
-      Chain buffer;
-      if (!decompressor.reader()->Read(&buffer, buffer_size)) return nullptr;
-      bucket.buffers.emplace_back(std::move(buffer));
-    }
-    if (!decompressor.VerifyEndAndClose()) return nullptr;
-    // Clear buffer_sizes which are no longer needed.
-    bucket.buffer_sizes = std::vector<size_t>();
-    bucket.compressed_data = Chain();
-    bucket.decompressed = true;
-  }
-  return &bucket.buffers[index_within_bucket];
+TransposeDecoder::TransposeDecoder() noexcept : Object(State::kOpen) {}
+
+TransposeDecoder::TransposeDecoder(TransposeDecoder&& src) noexcept
+    : Object(std::move(src)) {}
+
+TransposeDecoder& TransposeDecoder::operator=(TransposeDecoder&& src) noexcept {
+  Object::operator=(std::move(src));
+  return *this;
 }
 
-// Do not inline this function. This helps Clang to generate better code for
-// the main loop in Decode().
-RIEGELI_ATTRIBUTE_NOINLINE inline bool
-TransposeDecoder::Context::SetCallbackType(
-    int skipped_submessage_level,
-    const std::vector<SubmessageStackElement>& submessage_stack,
-    StateMachineNode* node) {
-  const bool is_implicit = IsImplicit(node->callback_type);
-  StateMachineNodeTemplate* node_template = node->node_template;
-  if (node_template->tag ==
-      static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage)) {
-    if (skipped_submessage_level > 0) {
-      node->callback_type = CallbackType::kSkippedSubmessageStart;
-    } else {
-      node->callback_type = CallbackType::kSubmessageStart;
-    }
-  } else {
-    FieldIncluded field_included = FieldIncluded::kNo;
-    uint32_t index = kInvalidPos;
-    if (skipped_submessage_level == 0) {
-      field_included = FieldIncluded::kExistenceOnly;
-      for (const SubmessageStackElement& elem : submessage_stack) {
-        uint32_t tag;
-        const char* cursor = elem.tag_data.data;
-        if (!ReadVarint32(&cursor, &tag)) RIEGELI_ASSERT_UNREACHABLE();
-        auto it = include_fields.find(std::make_pair(index, tag >> 3));
-        if (it == include_fields.end()) {
-          field_included = FieldIncluded::kNo;
-          break;
-        }
-        index = it->second;
-        if (!existence_only[index]) {
-          field_included = FieldIncluded::kYes;
-          break;
-        }
-      }
-    }
-    // If tag is a STARTGROUP, there are two options:
-    // 1. Either related ENDGROUP was skipped and
-    //    "skipped_submessage_level > 0".
-    //    In this case field_included is already set to kNo.
-    // 2. If ENDGROUP was not skipped, then its tag is on the top of the
-    //    "submessage_stack" and in that case we already checked its tag in
-    //    "include_fields" in the loop above.
-    const bool start_group_tag =
-        static_cast<internal::WireType>(node_template->tag & 7) ==
-        internal::WireType::kStartGroup;
-    if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
-      uint32_t tag;
-      const char* cursor = node->tag_data.data;
-      if (!ReadVarint32(&cursor, &tag)) RIEGELI_ASSERT_UNREACHABLE();
-      auto it = include_fields.find(std::make_pair(index, tag >> 3));
-      if (it == include_fields.end()) {
-        field_included = FieldIncluded::kNo;
-      } else {
-        index = it->second;
-        if (!existence_only[index]) {
-          field_included = FieldIncluded::kYes;
-        }
-      }
-    }
-    if (node_template->bucket_index != kInvalidPos) {
-      switch (field_included) {
-        case FieldIncluded::kYes:
-          node->buffer = GetBuffer(node_template->bucket_index,
-                                   node_template->buffer_within_bucket_index);
-          RETURN_FALSE_IF(node->buffer == nullptr);
-          break;
-        case FieldIncluded::kNo:
-          node->buffer = kEmptyChainReader();
-          break;
-        case FieldIncluded::kExistenceOnly:
-          node->buffer = kEmptyChainReader();
-          break;
-      }
-    } else {
-      node->buffer = kEmptyChainReader();
-    }
-    node->callback_type = GetCallbackType(field_included, node_template->tag,
-                                          node_template->subtype,
-                                          node_template->tag_length, true);
+void TransposeDecoder::Done() {}
+
+bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
+                             uint64_t decoded_data_size,
+                             const FieldFilter& field_filter,
+                             BackwardWriter* dest,
+                             std::vector<size_t>* boundaries) {
+  if (RIEGELI_UNLIKELY(dest->pos() != 0)) {
+    return Fail(
+        "Failed precondition of TransposeDecoder::Reset(): "
+        "non-zero destination position");
   }
-  if (is_implicit) node->callback_type |= CallbackType::kImplicit;
+  MarkHealthy();
+  Context context;
+  if (RIEGELI_UNLIKELY(!Parse(&context, src, field_filter))) return false;
+  if (RIEGELI_UNLIKELY(!Decode(&context, IntCast<size_t>(num_records) + 1, dest,
+                               boundaries))) {
+    return false;
+  }
+  // TODO: Implement and use LimitingBackwardWriter to stop early when
+  // decoded_data_size would be exceeded instead of checking after the fact.
+  if (field_filter.include_all() &&
+      RIEGELI_UNLIKELY(boundaries->back() != decoded_data_size)) {
+    return Fail("Wrong decoded data size");
+  }
   return true;
 }
 
-TransposeDecoder::TransposeDecoder() = default;
-TransposeDecoder::TransposeDecoder(TransposeDecoder&&) noexcept = default;
-TransposeDecoder& TransposeDecoder::operator=(TransposeDecoder&&) noexcept =
-    default;
-TransposeDecoder::~TransposeDecoder() = default;
-
-bool TransposeDecoder::Initialize(Reader* reader,
-                                  const FieldFilter& field_filter) {
-  context_ = riegeli::make_unique<Context>();
+inline bool TransposeDecoder::Parse(Context* context, Reader* src,
+                                    const FieldFilter& field_filter) {
   const bool filtering_enabled = !field_filter.include_all();
   if (filtering_enabled) {
     for (const auto& include_field : field_filter.fields()) {
-      RETURN_FALSE_IF(include_field.empty());
-      uint32_t n = include_field[0];
-      RETURN_FALSE_IF(n == 0);
-      auto insert_result = context_->include_fields.emplace(
-          std::make_pair(kInvalidPos, n),
-          IntCast<uint32_t>(context_->existence_only.size()));
-      if (insert_result.second) context_->existence_only.push_back(true);
-      for (size_t i = 1; i < include_field.size(); ++i) {
-        n = include_field[i];
-        RETURN_FALSE_IF(n == 0);
-        const uint32_t current_index = insert_result.first->second;
-        insert_result = context_->include_fields.emplace(
-            std::make_pair(current_index, n),
-            IntCast<uint32_t>(context_->existence_only.size()));
-        if (insert_result.second) context_->existence_only.push_back(true);
+      uint32_t current_index = kInvalidPos;
+      for (size_t i = 0; i < include_field.size(); ++i) {
+        const auto insert_result = context->include_fields.emplace(
+            std::make_pair(current_index, include_field[i]),
+            IntCast<uint32_t>(context->existence_only.size()));
+        if (insert_result.second) context->existence_only.push_back(true);
+        current_index = insert_result.first->second;
       }
-      context_->existence_only[insert_result.first->second] = false;
+      context->existence_only[current_index] = false;
     }
   }
 
   uint8_t compression_type_byte;
-  RETURN_FALSE_IF(!ReadByte(reader, &compression_type_byte));
-  context_->compression_type =
-      static_cast<internal::CompressionType>(compression_type_byte);
+  if (RIEGELI_UNLIKELY(!ReadByte(src, &compression_type_byte))) {
+    return Fail("Reading compression type failed", *src);
+  }
+  context->compression_type =
+      static_cast<CompressionType>(compression_type_byte);
 
   uint64_t header_size;
-  RETURN_FALSE_IF(!ReadVarint64(reader, &header_size));
+  if (RIEGELI_UNLIKELY(!ReadVarint64(src, &header_size))) {
+    return Fail("Reading header size failed", *src);
+  }
   Chain header;
-  RETURN_FALSE_IF(!reader->Read(&header, header_size));
-  Decompressor header_decompressor;
-  RETURN_FALSE_IF(!header_decompressor.Initialize(
-      ChainReader(&header), context_->compression_type, &context_->message));
+  if (RIEGELI_UNLIKELY(!src->Read(&header, header_size))) {
+    return Fail("Reading header failed", *src);
+  }
+  Decompressor header_decompressor((ChainReader(&header)),
+                                   context->compression_type);
+  if (RIEGELI_UNLIKELY(!header_decompressor.healthy())) {
+    return Fail(header_decompressor);
+  }
 
   uint32_t num_buffers;
-  std::vector<uint32_t> bucket_start;
+  std::vector<uint32_t> first_buffer_indices;
   std::vector<uint32_t> bucket_indices;
   if (filtering_enabled) {
-    RETURN_FALSE_IF(!ParseBuffersForFitering(
-        header_decompressor.reader(), reader, &bucket_start, &bucket_indices));
+    if (RIEGELI_UNLIKELY(
+            !ParseBuffersForFitering(context, header_decompressor.reader(), src,
+                                     &first_buffer_indices, &bucket_indices))) {
+      return false;
+    }
     num_buffers = IntCast<uint32_t>(bucket_indices.size());
   } else {
-    RETURN_FALSE_IF(!ParseBuffers(header_decompressor.reader(), reader));
-    num_buffers = IntCast<uint32_t>(context_->buffers.size());
+    if (RIEGELI_UNLIKELY(
+            !ParseBuffers(context, header_decompressor.reader(), src))) {
+      return false;
+    }
+    num_buffers = IntCast<uint32_t>(context->buffers.size());
   }
 
   uint32_t state_machine_size;
-  RETURN_FALSE_IF(
-      !ReadVarint32(header_decompressor.reader(), &state_machine_size));
+  if (RIEGELI_UNLIKELY(
+          !ReadVarint32(header_decompressor.reader(), &state_machine_size))) {
+    return Fail("Reading state machine size failed",
+                *header_decompressor.reader());
+  }
   // Additional 0xff nodes to correctly handle invalid/malicious inputs.
-  context_->state_machine_nodes.resize(state_machine_size + 0xff);
+  // TODO: Handle overflow.
+  context->state_machine_nodes.resize(state_machine_size + 0xff);
   if (filtering_enabled) {
-    context_->node_templates.resize(state_machine_size);
+    context->node_templates.resize(state_machine_size);
   }
   std::vector<StateMachineNode>& state_machine_nodes =
-      context_->state_machine_nodes;
+      context->state_machine_nodes;
   bool has_nonproto_op = false;
   size_t num_subtypes = 0;
   std::vector<uint32_t> tags;
   tags.reserve(state_machine_size);
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag;
-    RETURN_FALSE_IF(!ReadVarint32(header_decompressor.reader(), &tag));
+    if (RIEGELI_UNLIKELY(!ReadVarint32(header_decompressor.reader(), &tag))) {
+      return Fail("Reading field tag failed", *header_decompressor.reader());
+    }
     tags.push_back(tag);
     if (ValidTag(tag) && internal::HasSubtype(tag)) ++num_subtypes;
   }
@@ -843,11 +619,18 @@ bool TransposeDecoder::Initialize(Reader* reader,
   next_node_indices.reserve(state_machine_size);
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t next_node;
-    RETURN_FALSE_IF(!ReadVarint32(header_decompressor.reader(), &next_node));
+    if (RIEGELI_UNLIKELY(
+            !ReadVarint32(header_decompressor.reader(), &next_node))) {
+      return Fail("Reading next node index failed",
+                  *header_decompressor.reader());
+    }
     next_node_indices.push_back(next_node);
   }
   std::string subtypes;
-  RETURN_FALSE_IF(!header_decompressor.reader()->Read(&subtypes, num_subtypes));
+  if (RIEGELI_UNLIKELY(
+          !header_decompressor.reader()->Read(&subtypes, num_subtypes))) {
+    return Fail("Reading subtypes failed", *header_decompressor.reader());
+  }
   size_t subtype_index = 0;
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag = tags[i];
@@ -855,35 +638,45 @@ bool TransposeDecoder::Initialize(Reader* reader,
     state_machine_node.buffer = nullptr;
     switch (static_cast<internal::MessageId>(tag)) {
       case internal::MessageId::kNoOp:
-        state_machine_node.callback_type = CallbackType::kNoOp;
+        state_machine_node.callback_type = internal::CallbackType::kNoOp;
         break;
       case internal::MessageId::kNonProto: {
-        state_machine_node.callback_type = CallbackType::kNonProto;
-        uint32_t decoder_index;
-        RETURN_FALSE_IF(
-            !ReadVarint32(header_decompressor.reader(), &decoder_index));
-        RETURN_FALSE_IF(decoder_index >= num_buffers);
+        state_machine_node.callback_type = internal::CallbackType::kNonProto;
+        uint32_t buffer_index;
+        if (RIEGELI_UNLIKELY(
+                !ReadVarint32(header_decompressor.reader(), &buffer_index))) {
+          return Fail("Reading buffer index failed",
+                      *header_decompressor.reader());
+        }
+        if (RIEGELI_UNLIKELY(buffer_index >= num_buffers)) {
+          return Fail("Buffer index too large");
+        }
         if (filtering_enabled) {
-          const uint32_t bucket = bucket_indices[decoder_index];
-          state_machine_node.buffer =
-              context_->GetBuffer(bucket, decoder_index - bucket_start[bucket]);
-          RETURN_FALSE_IF(state_machine_node.buffer == nullptr);
+          const uint32_t bucket = bucket_indices[buffer_index];
+          state_machine_node.buffer = GetBuffer(
+              context, bucket, buffer_index - first_buffer_indices[bucket]);
+          if (RIEGELI_UNLIKELY(state_machine_node.buffer == nullptr)) {
+            return false;
+          }
         } else {
-          state_machine_node.buffer = &context_->buffers[decoder_index];
+          state_machine_node.buffer = &context->buffers[buffer_index];
         }
         has_nonproto_op = true;
       } break;
       case internal::MessageId::kStartOfMessage:
-        state_machine_node.callback_type = CallbackType::kMessageStart;
+        state_machine_node.callback_type =
+            internal::CallbackType::kMessageStart;
         break;
       case internal::MessageId::kStartOfSubmessage:
         if (filtering_enabled) {
-          context_->node_templates[i].tag =
+          context->node_templates[i].tag =
               static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage);
-          state_machine_node.node_template = &context_->node_templates[i];
-          state_machine_node.callback_type = CallbackType::kSelectCallback;
+          state_machine_node.node_template = &context->node_templates[i];
+          state_machine_node.callback_type =
+              internal::CallbackType::kSelectCallback;
         } else {
-          state_machine_node.callback_type = CallbackType::kSubmessageStart;
+          state_machine_node.callback_type =
+              internal::CallbackType::kSubmessageStart;
         }
         break;
       default: {
@@ -899,7 +692,7 @@ bool TransposeDecoder::Initialize(Reader* reader,
                  internal::WireType::kLengthDelimited;
           subtype = internal::Subtype::kLengthDelimitedEndOfSubmessage;
         }
-        RETURN_FALSE_IF(!ValidTag(tag));
+        if (RIEGELI_UNLIKELY((!ValidTag(tag)))) return Fail("Invalid tag");
         char* const tag_end =
             WriteVarint32(state_machine_node.tag_data.data, tag);
         const size_t tag_length =
@@ -910,33 +703,46 @@ bool TransposeDecoder::Initialize(Reader* reader,
         if (filtering_enabled) {
           if (internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
-            RETURN_FALSE_IF(
-                !ReadVarint32(header_decompressor.reader(), &buffer_index));
-            RETURN_FALSE_IF(buffer_index >= num_buffers);
+            if (RIEGELI_UNLIKELY(!ReadVarint32(header_decompressor.reader(),
+                                               &buffer_index))) {
+              return Fail("Reading buffer index failed",
+                          *header_decompressor.reader());
+            }
+            if (RIEGELI_UNLIKELY(buffer_index >= num_buffers)) {
+              return Fail("Buffer index too large");
+            }
             const uint32_t bucket = bucket_indices[buffer_index];
-            context_->node_templates[i].bucket_index = bucket;
-            context_->node_templates[i].buffer_within_bucket_index =
-                buffer_index - bucket_start[bucket];
+            context->node_templates[i].bucket_index = bucket;
+            context->node_templates[i].buffer_within_bucket_index =
+                buffer_index - first_buffer_indices[bucket];
           } else {
-            context_->node_templates[i].bucket_index = kInvalidPos;
+            context->node_templates[i].bucket_index = kInvalidPos;
           }
-          context_->node_templates[i].tag = tag;
-          context_->node_templates[i].subtype = subtype;
-          context_->node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
-          state_machine_node.node_template = &context_->node_templates[i];
-          state_machine_node.callback_type = CallbackType::kSelectCallback;
+          context->node_templates[i].tag = tag;
+          context->node_templates[i].subtype = subtype;
+          context->node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
+          state_machine_node.node_template = &context->node_templates[i];
+          state_machine_node.callback_type =
+              internal::CallbackType::kSelectCallback;
         } else {
           if (internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
-            RETURN_FALSE_IF(
-                !ReadVarint32(header_decompressor.reader(), &buffer_index));
-            RETURN_FALSE_IF(buffer_index >= num_buffers);
-            state_machine_node.buffer = &context_->buffers[buffer_index];
+            if (RIEGELI_UNLIKELY(!ReadVarint32(header_decompressor.reader(),
+                                               &buffer_index))) {
+              return Fail("Reading buffer index failed",
+                          *header_decompressor.reader());
+            }
+            if (RIEGELI_UNLIKELY(buffer_index >= num_buffers)) {
+              return Fail("Buffer index too large");
+            }
+            state_machine_node.buffer = &context->buffers[buffer_index];
           }
-          state_machine_node.callback_type = GetCallbackType(
+          state_machine_node.callback_type = internal::GetCallbackType(
               FieldIncluded::kYes, tag, subtype, tag_length, filtering_enabled);
-          RETURN_FALSE_IF(state_machine_node.callback_type ==
-                          CallbackType::kUnknown);
+          if (RIEGELI_UNLIKELY(state_machine_node.callback_type ==
+                               internal::CallbackType::kUnknown)) {
+            return Fail("Invalid node");
+          }
         }
         // Store subtype right past tag in case this is inline numeric.
         if (static_cast<internal::WireType>(tag & 7) ==
@@ -955,9 +761,11 @@ bool TransposeDecoder::Initialize(Reader* reader,
       // Callback is implicit.
       next_node_id -= state_machine_size;
       state_machine_node.callback_type =
-          state_machine_node.callback_type | CallbackType::kImplicit;
+          state_machine_node.callback_type | internal::CallbackType::kImplicit;
     }
-    RETURN_FALSE_IF(next_node_id >= state_machine_size);
+    if (RIEGELI_UNLIKELY(next_node_id >= state_machine_size)) {
+      return Fail("Node index too large");
+    }
 
     state_machine_node.next_node = &state_machine_nodes[next_node_id];
   }
@@ -965,147 +773,396 @@ bool TransposeDecoder::Initialize(Reader* reader,
   if (has_nonproto_op) {
     // If non-proto state exists then the last buffer is the
     // nonproto_lengths buffer.
-    RETURN_FALSE_IF(num_buffers == 0);
+    if (RIEGELI_UNLIKELY(num_buffers == 0)) {
+      return Fail("Missing buffer for non-proto records");
+    }
     if (filtering_enabled) {
       const uint32_t bucket = bucket_indices[num_buffers - 1];
-      context_->nonproto_lengths =
-          context_->GetBuffer(bucket, num_buffers - 1 - bucket_start[bucket]);
-      RETURN_FALSE_IF(context_->nonproto_lengths == nullptr);
+      context->nonproto_lengths = GetBuffer(
+          context, bucket, num_buffers - 1 - first_buffer_indices[bucket]);
+      if (RIEGELI_UNLIKELY(context->nonproto_lengths == nullptr)) {
+        return false;
+      }
     } else {
-      context_->nonproto_lengths = &context_->buffers.back();
+      context->nonproto_lengths = &context->buffers.back();
     }
   }
 
-  RETURN_FALSE_IF(
-      !ReadVarint32(header_decompressor.reader(), &context_->first_node));
-  RETURN_FALSE_IF(context_->first_node >= state_machine_size);
+  if (RIEGELI_UNLIKELY(
+          !ReadVarint32(header_decompressor.reader(), &context->first_node))) {
+    return Fail("Reading first node index failed",
+                *header_decompressor.reader());
+  }
+  if (RIEGELI_UNLIKELY(context->first_node >= state_machine_size)) {
+    return Fail("First node index too large");
+  }
 
   // Add 0xff failure nodes so we never overflow this array.
   for (uint64_t i = state_machine_size; i < state_machine_size + 0xff; ++i) {
-    state_machine_nodes[i].callback_type = CallbackType::kFailure;
+    state_machine_nodes[i].callback_type = internal::CallbackType::kFailure;
   }
 
-  RETURN_FALSE_IF(ContainsImplicitLoop(&state_machine_nodes));
+  if (RIEGELI_UNLIKELY(ContainsImplicitLoop(&state_machine_nodes))) {
+    return Fail("Nodes contain an implicit loop");
+  }
 
-  RETURN_FALSE_IF(!context_->transitions.Initialize(
-      reader, context_->compression_type, &context_->message));
-
-  RETURN_FALSE_IF(!header_decompressor.VerifyEndAndClose());
+  if (RIEGELI_UNLIKELY(!header_decompressor.VerifyEndAndClose())) {
+    return Fail(header_decompressor);
+  }
+  context->transitions = Decompressor(src, context->compression_type);
+  if (RIEGELI_UNLIKELY(!context->transitions.healthy())) {
+    return Fail(context->transitions);
+  }
   return true;
 }
 
-bool TransposeDecoder::ParseBuffers(Reader* header_reader, Reader* reader) {
+inline bool TransposeDecoder::ParseBuffers(Context* context,
+                                           Reader* header_reader, Reader* src) {
   uint32_t num_buffers;
-  RETURN_FALSE_IF(!ReadVarint32(header_reader, &num_buffers));
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buffers))) {
+    return Fail("Reading number of buffers failed");
+  }
+  if (RIEGELI_UNLIKELY(num_buffers > context->buffers.max_size())) {
+    return Fail("Too many buffers");
+  }
   uint32_t num_buckets;
-  RETURN_FALSE_IF(!ReadVarint32(header_reader, &num_buckets));
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buckets))) {
+    return Fail("Reading number of buckets failed");
+  }
   if (num_buckets == 0) {
-    RETURN_FALSE_IF(num_buffers != 0);
+    if (RIEGELI_UNLIKELY(num_buffers != 0)) return Fail("Too few buckets");
     return true;
   }
-  context_->buffers.reserve(num_buffers);
-  std::vector<Chain> buckets;
-  buckets.resize(num_buckets);
+  context->buffers.reserve(num_buffers);
   std::vector<Decompressor> bucket_decompressors;
+  if (RIEGELI_UNLIKELY(num_buckets > bucket_decompressors.max_size())) {
+    return Fail("Too many buckets");
+  }
   bucket_decompressors.reserve(num_buckets);
   for (uint32_t i = 0; i < num_buckets; ++i) {
     uint64_t bucket_length;
-    RETURN_FALSE_IF(!ReadVarint64(header_reader, &bucket_length));
-    RETURN_FALSE_IF(!reader->Read(&buckets[i], bucket_length));
-    bucket_decompressors.emplace_back();
-    RETURN_FALSE_IF(!bucket_decompressors.back().Initialize(
-        ChainReader(&buckets[i]), context_->compression_type,
-        &context_->message));
+    if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &bucket_length))) {
+      return Fail("Reading bucket length failed");
+    }
+    if (RIEGELI_UNLIKELY(bucket_length > std::numeric_limits<size_t>::max())) {
+      return Fail("Bucket too large");
+    }
+    Chain bucket;
+    if (RIEGELI_UNLIKELY(!src->Read(&bucket, IntCast<size_t>(bucket_length)))) {
+      return Fail("Reading bucket failed", *src);
+    }
+    bucket_decompressors.emplace_back(ChainReader(std::move(bucket)),
+                                      context->compression_type);
+    if (RIEGELI_UNLIKELY(!bucket_decompressors.back().healthy())) {
+      return Fail(bucket_decompressors.back());
+    }
   }
 
   uint32_t bucket_index = 0;
   for (size_t i = 0; i < num_buffers; ++i) {
     uint64_t buffer_length;
-    RETURN_FALSE_IF(!ReadVarint64(header_reader, &buffer_length));
+    if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &buffer_length))) {
+      return Fail("Reading buffer length failed");
+    }
+    if (RIEGELI_UNLIKELY(buffer_length > std::numeric_limits<size_t>::max())) {
+      return Fail("Buffer too large");
+    }
     Chain buffer;
-    RETURN_FALSE_IF(!bucket_decompressors[bucket_index].reader()->Read(
-        &buffer, buffer_length));
-    context_->buffers.emplace_back(std::move(buffer));
+    if (RIEGELI_UNLIKELY(!bucket_decompressors[bucket_index].reader()->Read(
+            &buffer, IntCast<size_t>(buffer_length)))) {
+      return Fail("Reading buffer failed",
+                  *bucket_decompressors[bucket_index].reader());
+    }
+    context->buffers.emplace_back(std::move(buffer));
     while (!bucket_decompressors[bucket_index].reader()->Pull() &&
            bucket_index + 1 < num_buckets) {
-      RETURN_FALSE_IF(!bucket_decompressors[bucket_index].VerifyEndAndClose());
+      if (RIEGELI_UNLIKELY(
+              !bucket_decompressors[bucket_index].VerifyEndAndClose())) {
+        return Fail(bucket_decompressors[bucket_index]);
+      }
       ++bucket_index;
     }
   }
-  RETURN_FALSE_IF(bucket_index + 1 != num_buckets);
-  RETURN_FALSE_IF(!bucket_decompressors[bucket_index].VerifyEndAndClose());
+  if (RIEGELI_UNLIKELY(bucket_index + 1 < num_buckets)) {
+    return Fail("Too few buckets");
+  }
+  if (RIEGELI_UNLIKELY(
+          !bucket_decompressors[bucket_index].VerifyEndAndClose())) {
+    return Fail(bucket_decompressors[bucket_index]);
+  }
   return true;
 }
 
-bool TransposeDecoder::ParseBuffersForFitering(
-    Reader* header_reader, Reader* reader, std::vector<uint32_t>* bucket_start,
+inline bool TransposeDecoder::ParseBuffersForFitering(
+    Context* context, Reader* header_reader, Reader* src,
+    std::vector<uint32_t>* first_buffer_indices,
     std::vector<uint32_t>* bucket_indices) {
   uint32_t num_buffers;
-  RETURN_FALSE_IF(!ReadVarint32(header_reader, &num_buffers));
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buffers))) {
+    return Fail("Reading number of buffers failed", *header_reader);
+  }
+  if (RIEGELI_UNLIKELY(num_buffers > bucket_indices->max_size())) {
+    return Fail("Too many buffers");
+  }
   uint32_t num_buckets;
-  RETURN_FALSE_IF(!ReadVarint32(header_reader, &num_buckets));
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buckets))) {
+    return Fail("Reading number of buckets failed", *header_reader);
+  }
+  if (RIEGELI_UNLIKELY(num_buckets > context->buckets.max_size())) {
+    return Fail("Too many buckets");
+  }
   if (num_buckets == 0) {
-    RETURN_FALSE_IF(num_buffers != 0);
+    if (RIEGELI_UNLIKELY(num_buffers != 0)) {
+      return Fail("Too few buckets");
+    }
     return true;
   }
-  bucket_start->reserve(num_buckets);
+  first_buffer_indices->reserve(num_buckets);
   bucket_indices->reserve(num_buffers);
-  context_->buckets.reserve(num_buckets);
+  context->buckets.reserve(num_buckets);
   for (uint32_t i = 0; i < num_buckets; ++i) {
     uint64_t bucket_length;
-    RETURN_FALSE_IF(!ReadVarint64(header_reader, &bucket_length));
-    context_->buckets.emplace_back();
-    RETURN_FALSE_IF(!reader->Read(&context_->buckets.back().compressed_data,
-                                  bucket_length));
+    if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &bucket_length))) {
+      return Fail("Reading bucket length failed");
+    }
+    if (RIEGELI_UNLIKELY(bucket_length > std::numeric_limits<size_t>::max())) {
+      return Fail("Bucket too large");
+    }
+    context->buckets.emplace_back();
+    if (RIEGELI_UNLIKELY(!src->Read(&context->buckets.back().compressed_data,
+                                    IntCast<size_t>(bucket_length)))) {
+      return Fail("Reading bucket failed", *src);
+    }
   }
 
   uint32_t bucket_index = 0;
   uint64_t remaining_bucket_size = 0;
-  if (num_buckets > 0) {
-    bucket_start->push_back(0);
-    RETURN_FALSE_IF(!DecompressedSize(context_->compression_type,
-                                      context_->buckets[0].compressed_data,
-                                      &remaining_bucket_size));
+  first_buffer_indices->push_back(0);
+  if (RIEGELI_UNLIKELY(!DecompressedSize(context->compression_type,
+                                         context->buckets[0].compressed_data,
+                                         &remaining_bucket_size))) {
+    return Fail("Reading decompressed size failed");
   }
   for (uint32_t i = 0; i < num_buffers; ++i) {
     uint64_t buffer_length;
-    RETURN_FALSE_IF(!ReadVarint64(header_reader, &buffer_length));
-    context_->buckets[bucket_index].buffer_sizes.push_back(buffer_length);
-    RETURN_FALSE_IF(buffer_length > remaining_bucket_size);
+    if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &buffer_length))) {
+      return Fail("Reading buffer length failed", *header_reader);
+    }
+    if (RIEGELI_UNLIKELY(buffer_length > std::numeric_limits<size_t>::max())) {
+      return Fail("Buffer too large");
+    }
+    context->buckets[bucket_index].buffer_sizes.push_back(
+        IntCast<size_t>(buffer_length));
+    if (RIEGELI_UNLIKELY(buffer_length > remaining_bucket_size)) {
+      return Fail("Buffer does not fit in bucket");
+    }
     remaining_bucket_size -= buffer_length;
     bucket_indices->push_back(bucket_index);
     while (remaining_bucket_size == 0 && bucket_index + 1 < num_buckets) {
       ++bucket_index;
-      bucket_start->push_back(i + 1);
-      RETURN_FALSE_IF(
-          !DecompressedSize(context_->compression_type,
-                            context_->buckets[bucket_index].compressed_data,
-                            &remaining_bucket_size));
+      first_buffer_indices->push_back(i + 1);
+      if (RIEGELI_UNLIKELY(
+              !DecompressedSize(context->compression_type,
+                                context->buckets[bucket_index].compressed_data,
+                                &remaining_bucket_size))) {
+        return Fail("Reading decompressed size failed");
+      }
     }
   }
-  RETURN_FALSE_IF(bucket_index + 1 != num_buckets);
-  RETURN_FALSE_IF(remaining_bucket_size != 0);
+  if (RIEGELI_UNLIKELY(bucket_index + 1 < num_buckets)) {
+    return Fail("Too few buckets");
+  }
+  if (RIEGELI_UNLIKELY(remaining_bucket_size > 0)) {
+    return Fail("End of data expected");
+  }
   return true;
 }
 
-bool TransposeDecoder::Decode(BackwardWriter* writer,
-                              std::vector<size_t>* boundaries) {
-  Context* context = context_.get();
+inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
+                                                uint32_t bucket_index,
+                                                uint32_t index_within_bucket) {
+  RIEGELI_ASSERT_LT(bucket_index, context->buckets.size())
+      << "Bucket index out of range";
+  DataBucket& bucket = context->buckets[bucket_index];
+  if (bucket.decompressed) {
+    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffers.size())
+        << "Index within bucket out of range";
+  } else {
+    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffer_sizes.size())
+        << "Index within bucket out of range";
+    Decompressor decompressor((ChainReader(&bucket.compressed_data)),
+                              context->compression_type);
+    if (RIEGELI_UNLIKELY(!decompressor.healthy())) {
+      Fail(decompressor);
+      return nullptr;
+    }
+    bucket.buffers.reserve(bucket.buffer_sizes.size());
+    for (auto buffer_size : bucket.buffer_sizes) {
+      Chain buffer;
+      if (RIEGELI_UNLIKELY(
+              !decompressor.reader()->Read(&buffer, buffer_size))) {
+        Fail("Reading buffer failed", *decompressor.reader());
+        return nullptr;
+      }
+      bucket.buffers.emplace_back(std::move(buffer));
+    }
+    if (RIEGELI_UNLIKELY(!decompressor.VerifyEndAndClose())) {
+      Fail(decompressor);
+      return nullptr;
+    }
+    // Free memory of fields which are no longer needed.
+    bucket.buffer_sizes = std::vector<size_t>();
+    bucket.compressed_data = Chain();
+    bucket.decompressed = true;
+  }
+  return &bucket.buffers[index_within_bucket];
+}
+
+inline bool TransposeDecoder::ContainsImplicitLoop(
+    std::vector<StateMachineNode>* state_machine_nodes) {
+  for (auto& node : *state_machine_nodes) {
+    node.implicit_loop_id = 0;
+  }
+  size_t next_loop_id = 1;
+  for (auto& node : *state_machine_nodes) {
+    if (node.implicit_loop_id != 0) {
+      continue;
+    }
+    StateMachineNode* node_ptr = &node;
+    node_ptr->implicit_loop_id = next_loop_id;
+    while (internal::IsImplicit(node_ptr->callback_type)) {
+      node_ptr = node_ptr->next_node;
+      if (node_ptr->implicit_loop_id == next_loop_id) {
+        return true;
+      }
+      if (node_ptr->implicit_loop_id != 0) {
+        break;
+      }
+      node_ptr->implicit_loop_id = next_loop_id;
+    }
+    ++next_loop_id;
+  }
+  return false;
+}
+
+// Copy tag from *node to *dest.
+#define COPY_TAG_CALLBACK(tag_length)                                      \
+  do {                                                                     \
+    if (RIEGELI_UNLIKELY(                                                  \
+            !dest->Write(string_view(node->tag_data.data, tag_length)))) { \
+      return Fail(*dest);                                                  \
+    }                                                                      \
+  } while (false)
+
+// Decode varint value from *node to *dest.
+#define VARINT_CALLBACK(tag_length, data_length)                              \
+  do {                                                                        \
+    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) {      \
+      dest->set_cursor(dest->cursor() - (tag_length + data_length));          \
+      char* const buffer = dest->cursor();                                    \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !node->buffer->Read(buffer + tag_length, data_length))) {       \
+        return Fail("Reading varint field failed", *node->buffer);            \
+      }                                                                       \
+      for (size_t i = 0; i < data_length - 1; ++i) {                          \
+        buffer[tag_length + i] |= 0x80;                                       \
+      }                                                                       \
+      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
+    } else {                                                                  \
+      char buffer[tag_length + data_length];                                  \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !node->buffer->Read(buffer + tag_length, data_length))) {       \
+        return Fail("Reading varint field failed", *node->buffer);            \
+      }                                                                       \
+      for (size_t i = 0; i < data_length - 1; ++i) {                          \
+        buffer[tag_length + i] |= 0x80;                                       \
+      }                                                                       \
+      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !dest->Write(string_view(buffer, tag_length + data_length)))) { \
+        return Fail(*dest);                                                   \
+      }                                                                       \
+    }                                                                         \
+  } while (false)
+
+// Decode fixed32 or fixed64 value from *node to *dest.
+#define FIXED_CALLBACK(tag_length, data_length)                               \
+  do {                                                                        \
+    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) {      \
+      dest->set_cursor(dest->cursor() - (tag_length + data_length));          \
+      char* const buffer = dest->cursor();                                    \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !node->buffer->Read(buffer + tag_length, data_length))) {       \
+        return Fail("Reading fixed field failed", *node->buffer);             \
+      }                                                                       \
+      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
+    } else {                                                                  \
+      char buffer[tag_length + data_length];                                  \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !node->buffer->Read(buffer + tag_length, data_length))) {       \
+        return Fail("Reading fixed field failed", *node->buffer);             \
+      }                                                                       \
+      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
+      if (RIEGELI_UNLIKELY(                                                   \
+              !dest->Write(string_view(buffer, tag_length + data_length)))) { \
+        return Fail(*dest);                                                   \
+      }                                                                       \
+    }                                                                         \
+  } while (false)
+
+// Decode string value from *node to *dest.
+#define STRING_CALLBACK(tag_length)                                          \
+  do {                                                                       \
+    uint32_t length;                                                         \
+    size_t length_length;                                                    \
+    if (RIEGELI_LIKELY(node->buffer->available() >= kMaxLengthVarint32())) { \
+      const char* cursor = node->buffer->cursor();                           \
+      if (RIEGELI_UNLIKELY(!ReadVarint32(&cursor, &length))) {               \
+        node->buffer->set_cursor(cursor);                                    \
+        return Fail("Reading string length failed");                         \
+      }                                                                      \
+      length_length = PtrDistance(node->buffer->cursor(), cursor);           \
+    } else {                                                                 \
+      const Position pos_before = node->buffer->pos();                       \
+      if (RIEGELI_UNLIKELY(!ReadVarint32(node->buffer, &length))) {          \
+        return Fail("Reading string length failed", *node->buffer);          \
+      }                                                                      \
+      length_length = IntCast<size_t>(node->buffer->pos() - pos_before);     \
+      if (!node->buffer->Seek(pos_before)) {                                 \
+        RIEGELI_ASSERT_UNREACHABLE()                                         \
+            << "Seeking buffer failed: " << node->buffer->Message();         \
+      }                                                                      \
+    }                                                                        \
+    if (RIEGELI_UNLIKELY(length > std::numeric_limits<uint32_t>::max() -     \
+                                      length_length)) {                      \
+      return Fail("String length overflow");                                 \
+    }                                                                        \
+    if (RIEGELI_UNLIKELY(                                                    \
+            !node->buffer->CopyTo(dest, length_length + size_t{length}))) {  \
+      if (!dest->healthy()) return Fail(*dest);                              \
+      return Fail("Reading string field failed", *node->buffer);             \
+    }                                                                        \
+    if (RIEGELI_UNLIKELY(                                                    \
+            !dest->Write(string_view(node->tag_data.data, tag_length)))) {   \
+      return Fail(*dest);                                                    \
+    }                                                                        \
+  } while (false)
+
+inline bool TransposeDecoder::Decode(Context* context, size_t num_boundaries,
+                                     BackwardWriter* dest,
+                                     std::vector<size_t>* boundaries) {
+  // For now positions reported by *dest are pushed to boundaries directly.
+  // At the end boundaries will be reversed and complemented such that
+  // boundaries->front() == 0.
+  *boundaries = {0};
 
   // Set current node to the initial node.
-  StateMachineNode* node =
-      context->state_machine_nodes.data() + context->first_node;
-
-  // For now positions reported by writer are pushed to boundaries directly.
-  // At the end boundaries will be reversed and normalized such that
-  // boundaries->front() == 0.
-  boundaries->clear();
-  boundaries->push_back(IntCast<size_t>(writer->pos()));
+  StateMachineNode* node = &context->state_machine_nodes[context->first_node];
   // The depth of the current field relative to the parent submessage that was
   // excluded in filtering.
   int skipped_submessage_level = 0;
 
-  Reader* const transitions_reader = context_->transitions.reader();
+  Reader* const transitions_reader = context->transitions.reader();
   // Stack of all open sub-messages.
   std::vector<SubmessageStackElement> submessage_stack;
   // Number of following iteration that go directly to node->next_node without
@@ -1146,18 +1203,22 @@ bool TransposeDecoder::Decode(BackwardWriter* writer,
   };
 
   for (auto& state : context->state_machine_nodes) {
-    state.callback = labels[static_cast<uint8_t>(state.callback_type) &
-                            ~static_cast<uint8_t>(CallbackType::kImplicit)];
+    state.callback =
+        labels[static_cast<uint8_t>(state.callback_type) &
+               ~static_cast<uint8_t>(internal::CallbackType::kImplicit)];
   }
 
-  if (IsImplicit(node->callback_type)) ++num_iters;
+  if (internal::IsImplicit(node->callback_type)) ++num_iters;
   goto * node->callback;
 
 select_callback:
-  RETURN_FALSE_IF(!context_->SetCallbackType(skipped_submessage_level,
-                                             submessage_stack, node));
-  node->callback = labels[static_cast<uint8_t>(node->callback_type) &
-                          ~static_cast<uint8_t>(CallbackType::kImplicit)];
+  if (RIEGELI_UNLIKELY(!SetCallbackType(context, skipped_submessage_level,
+                                        submessage_stack, node))) {
+    return false;
+  }
+  node->callback =
+      labels[static_cast<uint8_t>(node->callback_type) &
+             ~static_cast<uint8_t>(internal::CallbackType::kImplicit)];
   goto * node->callback;
 
 skipped_submessage_end:
@@ -1165,66 +1226,80 @@ skipped_submessage_end:
   goto do_transition;
 
 skipped_submessage_start:
-  RETURN_FALSE_IF(skipped_submessage_level == 0);
+  if (RIEGELI_UNLIKELY(skipped_submessage_level == 0)) {
+    return Fail("Skipped submessage stack underflow");
+  }
   --skipped_submessage_level;
   goto do_transition;
 
 submessage_end:
-  submessage_stack.emplace_back(writer->pos(), node->tag_data);
+  submessage_stack.emplace_back(dest->pos(), node->tag_data);
   goto do_transition;
 
 failure:
   return false;
 
 submessage_start : {
-  RETURN_FALSE_IF(submessage_stack.empty());
-  SubmessageStackElement elem = submessage_stack.back();
-  RIEGELI_ASSERT_GE(writer->pos(), elem.end_of_submessage);
-  const Position length = writer->pos() - elem.end_of_submessage;
-  RETURN_FALSE_IF(length > std::numeric_limits<uint32_t>::max());
-  RETURN_FALSE_IF(!WriteVarint32(writer, IntCast<uint32_t>(length)));
-  RETURN_FALSE_IF(
-      !writer->Write(string_view(elem.tag_data.data, elem.tag_data.size)));
+  if (RIEGELI_UNLIKELY(submessage_stack.empty())) {
+    return Fail("Submessage stack underflow");
+  }
+  const SubmessageStackElement& elem = submessage_stack.back();
+  RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
+      << "Destination position decreased";
+  const Position length = dest->pos() - elem.end_of_submessage;
+  if (RIEGELI_UNLIKELY(length > std::numeric_limits<uint32_t>::max())) {
+    return Fail("Message too large");
+  }
+  if (RIEGELI_UNLIKELY(!WriteVarint32(dest, IntCast<uint32_t>(length)))) {
+    return Fail(*dest);
+  }
+  if (RIEGELI_UNLIKELY(
+          !dest->Write(string_view(elem.tag_data.data, elem.tag_data.size)))) {
+    return Fail(*dest);
+  }
   submessage_stack.pop_back();
 }
   goto do_transition;
 
-#define ACTIONS_FOR_TAG_LEN(tag_length)                                        \
-  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);                       \
-  goto do_transition;                                                          \
-  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);                      \
-  goto do_transition;                                                          \
-  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);                      \
-  goto do_transition;                                                          \
-  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);                      \
-  goto do_transition;                                                          \
-  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);                      \
-  goto do_transition;                                                          \
-  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);                      \
-  goto do_transition;                                                          \
-  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);                      \
-  goto do_transition;                                                          \
-  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);                      \
-  goto do_transition;                                                          \
-  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);                      \
-  goto do_transition;                                                          \
-  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);                      \
-  goto do_transition;                                                          \
-  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);                    \
-  goto do_transition;                                                          \
-  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);                        \
-  goto do_transition;                                                          \
-  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);                        \
-  goto do_transition;                                                          \
-  string_##tag_length : STRING_CALLBACK(tag_length);                           \
-  goto do_transition;                                                          \
-  start_filter_group_##tag_length : RETURN_FALSE_IF(submessage_stack.empty()); \
-  submessage_stack.pop_back();                                                 \
-  COPY_TAG_CALLBACK(tag_length);                                               \
-  goto do_transition;                                                          \
-  end_filter_group_##tag_length                                                \
-      : submessage_stack.emplace_back(writer->pos(), node->tag_data);          \
-  COPY_TAG_CALLBACK(tag_length);                                               \
+#define ACTIONS_FOR_TAG_LEN(tag_length)                             \
+  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);            \
+  goto do_transition;                                               \
+  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);           \
+  goto do_transition;                                               \
+  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);           \
+  goto do_transition;                                               \
+  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);           \
+  goto do_transition;                                               \
+  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);           \
+  goto do_transition;                                               \
+  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);           \
+  goto do_transition;                                               \
+  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);           \
+  goto do_transition;                                               \
+  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);           \
+  goto do_transition;                                               \
+  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);           \
+  goto do_transition;                                               \
+  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);           \
+  goto do_transition;                                               \
+  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);         \
+  goto do_transition;                                               \
+  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);             \
+  goto do_transition;                                               \
+  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);             \
+  goto do_transition;                                               \
+  string_##tag_length : STRING_CALLBACK(tag_length);                \
+  goto do_transition;                                               \
+  start_filter_group_##tag_length                                   \
+      : if (RIEGELI_UNLIKELY(submessage_stack.empty())) {           \
+    return Fail("Submessage stack underflow");                      \
+  }                                                                 \
+  submessage_stack.pop_back();                                      \
+  COPY_TAG_CALLBACK(tag_length);                                    \
+  goto do_transition;                                               \
+  end_filter_group_##tag_length                                     \
+      : submessage_stack.emplace_back(dest->pos(), node->tag_data); \
+  COPY_TAG_CALLBACK(tag_length);                                    \
   goto do_transition
 
   ACTIONS_FOR_TAG_LEN(1);
@@ -1240,14 +1315,25 @@ copy_tag_6:
 
 non_proto : {
   uint32_t length;
-  RETURN_FALSE_IF(!ReadVarint32(context_->nonproto_lengths, &length));
-  RETURN_FALSE_IF(!node->buffer->CopyTo(writer, length));
+  if (RIEGELI_UNLIKELY(!ReadVarint32(context->nonproto_lengths, &length))) {
+    return Fail("Reading non-proto record length failed",
+                *context->nonproto_lengths);
+  }
+  if (RIEGELI_UNLIKELY(!node->buffer->CopyTo(dest, length))) {
+    if (!dest->healthy()) return Fail(*dest);
+    return Fail("Reading non-proto record failed", *node->buffer);
+  }
 }
   // Fall through to message_start.
 
 message_start:
-  RETURN_FALSE_IF(!submessage_stack.empty());
-  boundaries->push_back(IntCast<size_t>(writer->pos()));
+  if (RIEGELI_UNLIKELY(!submessage_stack.empty())) {
+    return Fail("Submessages still open");
+  }
+  if (RIEGELI_UNLIKELY(boundaries->size() == num_boundaries)) {
+    return Fail("Too many records");
+  }
+  boundaries->push_back(IntCast<size_t>(dest->pos()));
   // Fall through to do_transition.
 
 do_transition:
@@ -1259,19 +1345,32 @@ do_transition:
     }
     node += (transition_byte >> 2);
     num_iters = transition_byte & 3;
-    if (IsImplicit(node->callback_type)) ++num_iters;
+    if (internal::IsImplicit(node->callback_type)) ++num_iters;
     goto * node->callback;
   } else {
-    if (!IsImplicit(node->callback_type)) --num_iters;
+    if (!internal::IsImplicit(node->callback_type)) --num_iters;
     goto * node->callback;
   }
 
 done:
-  RETURN_FALSE_IF(!submessage_stack.empty());
-  RETURN_FALSE_IF(skipped_submessage_level != 0);
-
-  // Reverse boundaries and normalize them such that boundaries->front() == 0.
+  if (RIEGELI_UNLIKELY(!context->transitions.VerifyEndAndClose())) {
+    return Fail(context->transitions);
+  }
+  if (RIEGELI_UNLIKELY(!submessage_stack.empty())) {
+    return Fail("Submessages still open");
+  }
+  if (RIEGELI_UNLIKELY(skipped_submessage_level != 0)) {
+    return Fail("Skipped submessages still open");
+  }
+  if (RIEGELI_UNLIKELY(boundaries->size() != num_boundaries)) {
+    return Fail("Too few records");
+  }
   const size_t size = boundaries->back();
+  if (RIEGELI_UNLIKELY(dest->pos() != size)) {
+    return Fail("Unfinished message");
+  }
+
+  // Reverse boundaries and complement them such that boundaries->front() == 0.
   std::vector<size_t>::iterator first = boundaries->begin();
   std::vector<size_t>::iterator last = boundaries->end();
   while (last - first > 1) {
@@ -1285,6 +1384,93 @@ done:
   return true;
 }
 
-#undef RETURN_FALSE_IF
+// Do not inline this function. This helps Clang to generate better code for
+// the main loop in Decode().
+RIEGELI_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
+    Context* context, int skipped_submessage_level,
+    const std::vector<SubmessageStackElement>& submessage_stack,
+    StateMachineNode* node) {
+  const bool is_implicit = internal::IsImplicit(node->callback_type);
+  StateMachineNodeTemplate* node_template = node->node_template;
+  if (node_template->tag ==
+      static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage)) {
+    if (skipped_submessage_level > 0) {
+      node->callback_type = internal::CallbackType::kSkippedSubmessageStart;
+    } else {
+      node->callback_type = internal::CallbackType::kSubmessageStart;
+    }
+  } else {
+    FieldIncluded field_included = FieldIncluded::kNo;
+    uint32_t index = kInvalidPos;
+    if (skipped_submessage_level == 0) {
+      field_included = FieldIncluded::kExistenceOnly;
+      for (const SubmessageStackElement& elem : submessage_stack) {
+        uint32_t tag;
+        const char* cursor = elem.tag_data.data;
+        if (!ReadVarint32(&cursor, &tag)) {
+          RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
+        }
+        auto it = context->include_fields.find(std::make_pair(index, tag >> 3));
+        if (it == context->include_fields.end()) {
+          field_included = FieldIncluded::kNo;
+          break;
+        }
+        index = it->second;
+        if (!context->existence_only[index]) {
+          field_included = FieldIncluded::kYes;
+          break;
+        }
+      }
+    }
+    // If tag is a STARTGROUP, there are two options:
+    // 1. Either related ENDGROUP was skipped and
+    //    "skipped_submessage_level > 0".
+    //    In this case field_included is already set to kNo.
+    // 2. If ENDGROUP was not skipped, then its tag is on the top of the
+    //    "submessage_stack" and in that case we already checked its tag in
+    //    "include_fields" in the loop above.
+    const bool start_group_tag =
+        static_cast<internal::WireType>(node_template->tag & 7) ==
+        internal::WireType::kStartGroup;
+    if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
+      uint32_t tag;
+      const char* cursor = node->tag_data.data;
+      if (!ReadVarint32(&cursor, &tag)) {
+        RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
+      }
+      auto it = context->include_fields.find(std::make_pair(index, tag >> 3));
+      if (it == context->include_fields.end()) {
+        field_included = FieldIncluded::kNo;
+      } else {
+        index = it->second;
+        if (!context->existence_only[index]) {
+          field_included = FieldIncluded::kYes;
+        }
+      }
+    }
+    if (node_template->bucket_index != kInvalidPos) {
+      switch (field_included) {
+        case FieldIncluded::kYes:
+          node->buffer = GetBuffer(context, node_template->bucket_index,
+                                   node_template->buffer_within_bucket_index);
+          if (RIEGELI_UNLIKELY(node->buffer == nullptr)) return false;
+          break;
+        case FieldIncluded::kNo:
+          node->buffer = kEmptyChainReader();
+          break;
+        case FieldIncluded::kExistenceOnly:
+          node->buffer = kEmptyChainReader();
+          break;
+      }
+    } else {
+      node->buffer = kEmptyChainReader();
+    }
+    node->callback_type = GetCallbackType(field_included, node_template->tag,
+                                          node_template->subtype,
+                                          node_template->tag_length, true);
+  }
+  if (is_implicit) node->callback_type |= internal::CallbackType::kImplicit;
+  return true;
+}
 
 }  // namespace riegeli

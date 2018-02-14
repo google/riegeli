@@ -16,6 +16,7 @@
 #define RIEGELI_RECORDS_RECORD_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 #include <memory>
 #include <string>
 #include <utility>
@@ -25,7 +26,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/chunk_encoding/internal_types.h"
+#include "riegeli/chunk_encoding/types.h"
 
 namespace google {
 namespace protobuf {
@@ -85,7 +86,7 @@ class RecordWriter final : public Object {
     // the data compress better.
     Options& DisableCompression() & {
       transpose_ = false;
-      compression_type_ = internal::CompressionType::kNone;
+      compression_type_ = CompressionType::kNone;
       compression_level_ = 0;
       return *this;
     }
@@ -97,9 +98,15 @@ class RecordWriter final : public Object {
     //
     // This is the default. Level must be between 0 and 11.
     Options& EnableBrotliCompression(int level = 9) & {
-      RIEGELI_ASSERT_GE(level, 0);
-      RIEGELI_ASSERT_LE(level, 11);
-      compression_type_ = internal::CompressionType::kBrotli;
+      RIEGELI_ASSERT_GE(level, 0)
+          << "Failed precondition of "
+             "RecordWriter::Options::EnableBrotliCompression(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(level, 11)
+          << "Failed precondition of "
+             "RecordWriter::Options::EnableBrotliCompression(): "
+             "compression level out of range";
+      compression_type_ = CompressionType::kBrotli;
       compression_level_ = level;
       return *this;
     }
@@ -111,9 +118,15 @@ class RecordWriter final : public Object {
     //
     // Level must be between 1 and 22.
     Options& EnableZstdCompression(int level = 9) & {
-      RIEGELI_ASSERT_GE(level, 1);
-      RIEGELI_ASSERT_LE(level, 22);
-      compression_type_ = internal::CompressionType::kZstd;
+      RIEGELI_ASSERT_GE(level, 1)
+          << "Failed precondition of "
+             "RecordWriter::Options::EnableZstdCompression(): "
+             "compression level out of range";
+      RIEGELI_ASSERT_LE(level, 22)
+          << "Failed precondition of "
+             "RecordWriter::Options::EnableZstdCompression(): "
+             "compression level out of range";
+      compression_type_ = CompressionType::kZstd;
       compression_level_ = level;
       return *this;
     }
@@ -129,12 +142,15 @@ class RecordWriter final : public Object {
     // and reduces memory usage of both writer and reader.
     //
     // Default: 1 << 20
-    Options& set_desired_chunk_size(size_t size) & {
-      RIEGELI_ASSERT_GT(size, 0u);
+    Options& set_desired_chunk_size(uint64_t size) & {
+      RIEGELI_ASSERT_GT(size, 0u)
+          << "Failed precondition of "
+             "RecordWriter::Options::set_desired_chunk_size(): "
+             "zero chunk size";
       desired_chunk_size_ = size;
       return *this;
     }
-    Options&& set_desired_chunk_size(size_t size) && {
+    Options&& set_desired_chunk_size(uint64_t size) && {
       return std::move(set_desired_chunk_size(size));
     }
 
@@ -151,7 +167,10 @@ class RecordWriter final : public Object {
     //
     // Default: 1.0f
     Options& set_desired_bucket_fraction(float fraction) & {
-      RIEGELI_ASSERT_GE(fraction, 0.0f);
+      RIEGELI_ASSERT_GE(fraction, 0.0f)
+          << "Failed precondition of "
+             "RecordWriter::Options::set_desired_bucket_fraction(): "
+             "negative bucket size";
       desired_bucket_fraction_ = fraction;
       return *this;
     }
@@ -168,7 +187,9 @@ class RecordWriter final : public Object {
     //
     // Default: 0
     Options& set_parallelism(int parallelism) & {
-      RIEGELI_ASSERT_GE(parallelism, 0);
+      RIEGELI_ASSERT_GE(parallelism, 0)
+          << "Failed precondition of RecordWriter::Options::set_parallelism(): "
+             "negative parallelism";
       parallelism_ = parallelism;
       return *this;
     }
@@ -180,10 +201,9 @@ class RecordWriter final : public Object {
     friend class RecordWriter;
 
     bool transpose_ = true;
-    internal::CompressionType compression_type_ =
-        internal::CompressionType::kBrotli;
+    CompressionType compression_type_ = CompressionType::kBrotli;
     int compression_level_ = 9;
-    size_t desired_chunk_size_ = size_t{1} << 20;
+    uint64_t desired_chunk_size_ = uint64_t{1} << 20;
     float desired_bucket_fraction_ = 1.0f;
     int parallelism_ = 0;
   };
@@ -269,8 +289,8 @@ class RecordWriter final : public Object {
 
   bool EnsureRoomForRecord(size_t record_size);
 
-  size_t desired_chunk_size_ = 0;
-  size_t chunk_size_ = 0;
+  uint64_t desired_chunk_size_ = 0;
+  uint64_t chunk_size_ = 0;
   std::unique_ptr<ChunkWriter> owned_chunk_writer_;
   // impl_ must be defined after owned_chunk_writer_ so that it is destroyed
   // before owned_chunk_writer_, because background work of impl_ may need

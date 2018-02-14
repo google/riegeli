@@ -15,7 +15,6 @@
 #include "riegeli/records/record_writer.h"
 
 #include <stddef.h>
-#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <future>
@@ -32,11 +31,12 @@
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/parallelism.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/simple_encoder.h"
+#include "riegeli/chunk_encoding/transpose_encoder.h"
 #include "riegeli/records/chunk_writer.h"
 
 namespace riegeli {
@@ -47,25 +47,25 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
     const float desired_bucket_size_as_float =
         static_cast<float>(options.desired_chunk_size_) *
         options.desired_bucket_fraction_;
-    const size_t desired_bucket_size =
+    const uint64_t desired_bucket_size =
         desired_bucket_size_as_float >=
-                static_cast<float>(std::numeric_limits<size_t>::max())
-            ? std::numeric_limits<size_t>::max()
+                static_cast<float>(std::numeric_limits<uint64_t>::max())
+            ? std::numeric_limits<uint64_t>::max()
             : desired_bucket_size_as_float >= 1.0f
-                  ? static_cast<size_t>(desired_bucket_size_as_float)
-                  : size_t{1};
+                  ? static_cast<uint64_t>(desired_bucket_size_as_float)
+                  : uint64_t{1};
     if (options.parallelism_ == 0) {
-      return riegeli::make_unique<EagerTransposedChunkEncoder>(
-          options.compression_type_, options.compression_level_,
-          desired_bucket_size);
+      return riegeli::make_unique<TransposeEncoder>(options.compression_type_,
+                                                    options.compression_level_,
+                                                    desired_bucket_size);
     } else {
-      return riegeli::make_unique<DeferredTransposedChunkEncoder>(
+      return riegeli::make_unique<DeferredTransposeEncoder>(
           options.compression_type_, options.compression_level_,
           desired_bucket_size);
     }
   } else {
-    return riegeli::make_unique<SimpleChunkEncoder>(options.compression_type_,
-                                                    options.compression_level_);
+    return riegeli::make_unique<SimpleEncoder>(options.compression_type_,
+                                               options.compression_level_);
   }
 }
 
@@ -84,24 +84,48 @@ class RecordWriter::Impl : public Object {
   virtual void OpenChunk() = 0;
 
   // Precondition: chunk is open.
-  void AddRecord(const google::protobuf::MessageLite& record) {
-    chunk_encoder_->AddRecord(record);
+  bool AddRecord(const google::protobuf::MessageLite& record) {
+    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
+      return Fail(*chunk_encoder_);
+    }
+    return true;
   }
 
   // Precondition: chunk is open.
-  void AddRecord(string_view record) { chunk_encoder_->AddRecord(record); }
-
-  // Precondition: chunk is open.
-  void AddRecord(std::string&& record) {
-    chunk_encoder_->AddRecord(std::move(record));
+  bool AddRecord(string_view record) {
+    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
+      return Fail(*chunk_encoder_);
+    }
+    return true;
   }
 
   // Precondition: chunk is open.
-  void AddRecord(const Chain& record) { chunk_encoder_->AddRecord(record); }
+  bool AddRecord(std::string&& record) {
+    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(std::move(record)))) {
+      return Fail(*chunk_encoder_);
+    }
+    return true;
+  }
 
   // Precondition: chunk is open.
-  void AddRecord(Chain&& record) {
-    chunk_encoder_->AddRecord(std::move(record));
+  bool AddRecord(const Chain& record) {
+    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
+      return Fail(*chunk_encoder_);
+    }
+    return true;
+  }
+
+  // Precondition: chunk is open.
+  bool AddRecord(Chain&& record) {
+    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(std::move(record)))) {
+      return Fail(*chunk_encoder_);
+    }
+    return true;
   }
 
   // Precondition: chunk is open.
@@ -116,7 +140,7 @@ class RecordWriter::Impl : public Object {
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
-RecordWriter::Impl::~Impl() = default;
+RecordWriter::Impl::~Impl() {}
 
 class RecordWriter::SerialImpl final : public Impl {
  public:
@@ -138,10 +162,9 @@ bool RecordWriter::SerialImpl::CloseChunk() {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   Chunk chunk;
   if (RIEGELI_UNLIKELY(!chunk_encoder_->Encode(&chunk))) {
-    return Fail("Failed to encode chunk");
+    return Fail("Encoding chunk failed", *chunk_encoder_);
   }
   if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
-    RIEGELI_ASSERT(!chunk_writer_->healthy());
     return Fail(*chunk_writer_);
   }
   return true;
@@ -296,7 +319,6 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           const Chunk chunk = request.write_chunk_request.chunk.get();
           if (RIEGELI_UNLIKELY(!healthy())) continue;
           if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
-            RIEGELI_ASSERT(!chunk_writer_->healthy());
             Fail(*chunk_writer_);
           }
           continue;
@@ -363,7 +385,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
     Chunk chunk;
     if (RIEGELI_UNLIKELY(!chunk_encoder->Encode(&chunk))) {
-      Fail("Failed to encode chunk");
+      Fail("Encoding chunk failed", *chunk_encoder);
     }
     delete chunk_encoder;
     chunk_promise->set_value(std::move(chunk));
@@ -410,7 +432,6 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
     Chunk signature;
     signature.header = ChunkHeader(signature.data, 0, 0);
     if (RIEGELI_UNLIKELY(!chunk_writer->WriteChunk(signature))) {
-      RIEGELI_ASSERT(!chunk_writer->healthy());
       Fail(*chunk_writer);
       return;
     }
@@ -441,7 +462,7 @@ RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
   return *this;
 }
 
-RecordWriter::~RecordWriter() = default;
+RecordWriter::~RecordWriter() {}
 
 void RecordWriter::Done() {
   if (RIEGELI_LIKELY(healthy()) && chunk_size_ != 0) {
@@ -466,60 +487,65 @@ void RecordWriter::Done() {
 }
 
 bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
-  const size_t size = record.ByteSizeLong();
-  if (RIEGELI_UNLIKELY(size > std::numeric_limits<int>::max())) {
-    return Fail(StrCat("Failed to serialize message of type ",
-                       record.GetTypeName(),
-                       " (exceeded maximum protobuf size of 2GB: ", size, ")"));
+  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.ByteSizeLong()))) {
+    return false;
   }
-  // The only remaining possibility for SerializeToZeroCopyStream() to fail is
-  // when the stream itself reports failure, which should not happen because
-  // ChunkEncoder writes to a Chain or string, hence we do not need to propagate
-  // potential failures from AddRecord() here.
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(size))) return false;
-  impl_->AddRecord(record);
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
+    return Fail(*impl_);
+  }
   return true;
 }
 
 bool RecordWriter::WriteRecord(string_view record) {
   if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  impl_->AddRecord(record);
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
+    return Fail(*impl_);
+  }
   return true;
 }
 
 bool RecordWriter::WriteRecord(std::string&& record) {
   if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  impl_->AddRecord(std::move(record));
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::move(record)))) {
+    return Fail(*impl_);
+  }
   return true;
 }
 
 bool RecordWriter::WriteRecord(const Chain& record) {
   if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  impl_->AddRecord(record);
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
+    return Fail(*impl_);
+  }
   return true;
 }
 
 bool RecordWriter::WriteRecord(Chain&& record) {
   if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  impl_->AddRecord(std::move(record));
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::move(record)))) {
+    return Fail(*impl_);
+  }
   return true;
 }
 
 inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  // Decoding a chunk allocates records in one array, and pointers to them in
-  // another array. We limit the size of both arrays (restricting only the first
-  // array might force accumulating an unbounded number of empty records).
-  // Since the decoder architecture is not known, and for deterministic output,
-  // the pointer size is conservatively assumed to be 8 bytes.
-  const size_t kAssumedPointerSize = 8;
-  if (chunk_size_ + record_size + kAssumedPointerSize > desired_chunk_size_ &&
-      chunk_size_ != 0) {
+  // Decoding a chunk writes records to one array, and their positions to
+  // another array. We limit the size of both arrays together, to include
+  // attempts to accumulate an unbounded number of empty records.
+  const uint64_t added_size =
+      RIEGELI_UNLIKELY(record_size >
+                       std::numeric_limits<uint64_t>::max() - sizeof(uint64_t))
+          ? std::numeric_limits<uint64_t>::max()
+          : IntCast<uint64_t>(record_size) + sizeof(uint64_t);
+  if (RIEGELI_UNLIKELY(chunk_size_ != 0 &&
+                       (chunk_size_ > desired_chunk_size_ ||
+                        added_size > desired_chunk_size_ - chunk_size_))) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
     chunk_size_ = 0;
   }
-  chunk_size_ += record_size + kAssumedPointerSize;
+  chunk_size_ += added_size;
   return true;
 }
 

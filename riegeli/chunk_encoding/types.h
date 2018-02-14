@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 namespace riegeli {
-namespace internal {
 
 // These values are frozen in the file format.
 enum class ChunkType : uint8_t {
@@ -34,7 +33,6 @@ enum class CompressionType : uint8_t {
   kZstd = 'z',
 };
 
-}  // namespace internal
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_INTERNAL_TYPES_H_

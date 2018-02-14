@@ -34,16 +34,14 @@ class FieldFilter {
 
   // Includes only the specified fields.
   template <typename Iterator>
-  FieldFilter(Iterator begin, Iterator end) : fields_(begin, end) {}
+  FieldFilter(Iterator begin, Iterator end);
 
   // Includes only the specified fields.
-  FieldFilter(std::initializer_list<Field> fields) : fields_(fields) {}
+  FieldFilter(std::initializer_list<Field> fields);
 
   // Starts with an empty set. Fields can be added with AddField().
-  FieldFilter() = default;
+  FieldFilter() noexcept {}
 
-  // Not defaulted because vector::vector(vector&&) and
-  // vector::operator=(vector&&) are not noexcept before C++17.
   FieldFilter(FieldFilter&&) noexcept;
   FieldFilter& operator=(FieldFilter&&) noexcept;
 
@@ -51,19 +49,16 @@ class FieldFilter {
   FieldFilter& operator=(const FieldFilter&);
 
   // Adds a field to the set.
-  FieldFilter& AddField(Field field) & {
-    fields_.push_back(std::move(field));
-    return *this;
-  }
-  FieldFilter&& AddField(Field field) && {
-    return std::move(AddField(std::move(field)));
-  }
+  FieldFilter& AddField(Field field) &;
+  FieldFilter&& AddField(Field field) &&;
 
   bool include_all() const { return include_all_; }
 
   const std::vector<Field>& fields() const { return fields_; };
 
  private:
+  static void AssertFieldValid(const Field& field);
+
   bool include_all_ = false;
   std::vector<Field> fields_;
 };
@@ -74,6 +69,16 @@ inline FieldFilter FieldFilter::All() noexcept {
   FieldFilter filter;
   filter.include_all_ = true;
   return filter;
+}
+
+template <typename Iterator>
+FieldFilter::FieldFilter(Iterator begin, Iterator end) : fields_(begin, end) {
+  for (const auto& field : fields_) AssertFieldValid(field);
+}
+
+inline FieldFilter::FieldFilter(std::initializer_list<Field> fields)
+    : fields_(fields) {
+  for (const auto& field : fields_) AssertFieldValid(field);
 }
 
 inline FieldFilter::FieldFilter(FieldFilter&& src) noexcept
@@ -93,6 +98,24 @@ inline FieldFilter& FieldFilter::operator=(const FieldFilter& src) {
   include_all_ = src.include_all_;
   fields_ = src.fields_;
   return *this;
+}
+
+inline FieldFilter& FieldFilter::AddField(Field field) & {
+  AssertFieldValid(field);
+  fields_.push_back(std::move(field));
+  return *this;
+}
+
+inline FieldFilter&& FieldFilter::AddField(Field field) && {
+  return std::move(AddField(std::move(field)));
+}
+
+inline void FieldFilter::AssertFieldValid(const Field& field) {
+  RIEGELI_ASSERT(!field.empty()) << "Empty field path";
+  for (const auto tag : field) {
+    RIEGELI_ASSERT_GE(tag, 1u) << "Field tag out of range";
+    RIEGELI_ASSERT_LE(tag, (uint32_t{1} << 29) - 1) << "Field tag out of range";
+  }
 }
 
 }  // namespace riegeli

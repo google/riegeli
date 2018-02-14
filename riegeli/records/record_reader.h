@@ -115,8 +115,6 @@ class RecordReader final : public Object {
   RecordReader(RecordReader&& src) noexcept;
   RecordReader& operator=(RecordReader&& src) noexcept;
 
-  ~RecordReader();
-
   // Reads the next record.
   //
   // ReadRecord(MessageLite*) parses raw bytes to a proto message after reading.
@@ -195,8 +193,8 @@ class RecordReader final : public Object {
   template <typename String>
   bool ReadRecordSlow(String* record, RecordPosition* key);
 
-  // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_,
-  // chunk_begin_, and chunk_end_. On failure clears chunk_decoder_.
+  // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
+  // and chunk_begin_. On failure resets chunk_decoder_.
   bool ReadChunk();
 
   // Invariant: if healthy() then chunk_reader_ != nullptr
@@ -208,7 +206,8 @@ class RecordReader final : public Object {
   Position chunk_begin_ = 0;
   // Current chunk if a chunk has been pulled, empty otherwise.
   //
-  // Invariant:
+  // Invariants:
+  //   if healthy() then chunk_decoder_.healthy()
   //   if !healthy() then chunk_decoder_.index() == chunk_decoder_.num_records()
   ChunkDecoder chunk_decoder_;
 };

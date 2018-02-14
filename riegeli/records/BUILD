@@ -14,7 +14,9 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_encoder",
-        "//riegeli/chunk_encoding:internal_types",
+        "//riegeli/chunk_encoding:simple_encoder",
+        "//riegeli/chunk_encoding:transpose_encoder",
+        "//riegeli/chunk_encoding:types",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
