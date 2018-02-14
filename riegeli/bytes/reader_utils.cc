@@ -110,6 +110,7 @@ char* CopyVarint32Slow(Reader* src, char* dest) {
     // More than a single byte.
     int remaining = kMaxLengthVarint32() - 1;
     do {
+      if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
@@ -142,6 +143,7 @@ char* CopyVarint64Slow(Reader* src, char* dest) {
     // More than a single byte.
     int remaining = kMaxLengthVarint64() - 1;
     do {
+      if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
