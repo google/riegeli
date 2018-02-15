@@ -108,35 +108,35 @@ class ChunkReader final : public Object {
   // after the block boundary).
   Position pos() const { return pos_; }
 
-  // Seeks to the given position, which should be a chunk boundary (or a block
-  // boundary which is interpreted as the nearest chunk boundary at or after the
-  // block boundary).
+  // Seeks to new_pos, which should be a chunk boundary (or a block boundary
+  // which is interpreted as the nearest chunk boundary at or after the block
+  // boundary).
   //
   // Return values:
-  //  * true                    - success (position is set to pos)
+  //  * true                    - success (position is set to new_pos)
   //  * false (when healthy())  - source ends before new_pos (position is set to
   //                              the end) or seeking backwards is not supported
   //                              (position is unchanged)
   //  * false (when !healthy()) - failure
   bool Seek(Position new_pos);
 
-  // Seeks to the nearest chunk boundary before or at the given position if the
-  // position corresponds to some numeric record position in the following chunk
-  // (i.e. is less than num_records bytes after chunk beginning), otherwise
-  // seeks to the nearest chunk boundary at or after the given position.
+  // Seeks to the nearest chunk boundary before or at new_pos if the position
+  // corresponds to some numeric record position in the following chunk (i.e. is
+  // less than num_records bytes after chunk beginning), otherwise seeks to the
+  // nearest chunk boundary at or after the given position.
   //
   // Return values:
-  //  * true                    - success (position is set to pos)
+  //  * true                    - success (position is set to new_pos)
   //  * false (when healthy())  - source ends before new_pos (position is set to
   //                              the end) or seeking backwards is not supported
   //                              (position is unchanged)
   //  * false (when !healthy()) - failure
   bool SeekToChunkContaining(Position new_pos);
 
-  // Seeks to the nearest chunk boundary at or after the given position.
+  // Seeks to the nearest chunk boundary at or after new_pos.
   //
   // Return values:
-  //  * true                    - success (position is set to pos)
+  //  * true                    - success (position is set to new_pos)
   //  * false (when healthy())  - source ends before new_pos (position is set to
   //                              the end) or seeking backwards is not supported
   //                              (position is unchanged)

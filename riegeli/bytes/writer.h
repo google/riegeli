@@ -147,8 +147,10 @@ class Writer : public Object {
   // Sets the current position for subsequent operations.
   //
   // Return values:
-  //  * true                    - success (seeked to new_pos)
-  //  * false (when healthy())  - destination ends before (seeked to end)
+  //  * true                    - success (position is set to new_pos)
+  //  * false (when healthy())  - destination ends before new_pos (position is
+  //                              set to end) or seeking backwards is not
+  //                              supported (position is unchanged)
   //  * false (when !healthy()) - failure
   bool Seek(Position new_pos);
 
@@ -163,8 +165,9 @@ class Writer : public Object {
   // Discards the part of the destination after the current position.
   //
   // Return values:
-  //  * true  - success (destination truncated, healthy())
-  //  * false - failure (!healthy())
+  //  * true                    - success (destination truncated, healthy())
+  //  * false (when healthy())  - truncation is not supported
+  //  * false (when !healthy()) - failure (!healthy())
   virtual bool Truncate() { return false; }
 
  protected:

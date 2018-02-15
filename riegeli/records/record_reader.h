@@ -152,7 +152,7 @@ class RecordReader final : public Object {
   // If it points between records, it is interpreted as the next record.
   //
   // Return values:
-  //  * true                    - success (position is set to pos)
+  //  * true                    - success (position is set to new_pos)
   //  * false (when healthy())  - source ends before new_pos (position is set to
   //                              the end) or seeking backwards is not supported
   //                              (position is unchanged)
