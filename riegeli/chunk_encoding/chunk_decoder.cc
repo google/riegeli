@@ -54,9 +54,8 @@ ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
       values_reader_(
           riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
       num_records_(riegeli::exchange(src.num_records_, 0)),
-      index_(riegeli::exchange(src.index_, 0)) {
-  src.record_scratch_ = std::string();
-}
+      index_(riegeli::exchange(src.index_, 0)),
+      record_scratch_(riegeli::exchange(src.record_scratch_, std::string())) {}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
@@ -66,7 +65,7 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
   num_records_ = riegeli::exchange(src.num_records_, 0);
   index_ = riegeli::exchange(src.index_, 0);
-  src.record_scratch_ = std::string();
+  record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
   return *this;
 }
 
