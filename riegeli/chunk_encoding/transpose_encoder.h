@@ -37,8 +37,9 @@
 //  - Compression type
 //  - Header length (compressed length if applicable)
 //  - Header (possibly compressed):
+//    - Number of separately compressed buckets that data buffers are split into
+//      [num_buckets]
 //    - Number of data buffers [num_buffers]
-//    - Number of buckets data buffers are split into [num_buckets]
 //    - Array of "num_buckets" varints: sizes of buckets (compressed size
 //      if applicable)
 //    - Array of "num_buffers" varints: lengths of buffers (uncompressed)
@@ -49,7 +50,6 @@
 //      - Array of subtypes (for all tags where applicable)
 //      - Array of data buffer indices (for all tags/subtypes where applicable)
 //    - Initial state index
-//  -- END OF HEADER --
 //  - "num_buckets" buckets:
 //    - Bucket data (possibly compressed):
 //      - Concatenated data buffers in this bucket (bytes)

@@ -818,16 +818,16 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
 
 inline bool TransposeDecoder::ParseBuffers(Context* context,
                                            Reader* header_reader, Reader* src) {
+  uint32_t num_buckets;
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buckets))) {
+    return Fail("Reading number of buckets failed");
+  }
   uint32_t num_buffers;
   if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buffers))) {
     return Fail("Reading number of buffers failed");
   }
   if (RIEGELI_UNLIKELY(num_buffers > context->buffers.max_size())) {
     return Fail("Too many buffers");
-  }
-  uint32_t num_buckets;
-  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buckets))) {
-    return Fail("Reading number of buckets failed");
   }
   if (num_buckets == 0) {
     if (RIEGELI_UNLIKELY(num_buffers != 0)) return Fail("Too few buckets");
@@ -897,19 +897,19 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
     Context* context, Reader* header_reader, Reader* src,
     std::vector<uint32_t>* first_buffer_indices,
     std::vector<uint32_t>* bucket_indices) {
-  uint32_t num_buffers;
-  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buffers))) {
-    return Fail("Reading number of buffers failed", *header_reader);
-  }
-  if (RIEGELI_UNLIKELY(num_buffers > bucket_indices->max_size())) {
-    return Fail("Too many buffers");
-  }
   uint32_t num_buckets;
   if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buckets))) {
     return Fail("Reading number of buckets failed", *header_reader);
   }
   if (RIEGELI_UNLIKELY(num_buckets > context->buckets.max_size())) {
     return Fail("Too many buckets");
+  }
+  uint32_t num_buffers;
+  if (RIEGELI_UNLIKELY(!ReadVarint32(header_reader, &num_buffers))) {
+    return Fail("Reading number of buffers failed", *header_reader);
+  }
+  if (RIEGELI_UNLIKELY(num_buffers > bucket_indices->max_size())) {
+    return Fail("Too many buffers");
   }
   if (num_buckets == 0) {
     if (RIEGELI_UNLIKELY(num_buffers != 0)) {

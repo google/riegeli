@@ -622,8 +622,8 @@ inline bool TransposeEncoder::WriteBuffers(
     bucket_lengths.push_back(IntCast<size_t>(data_writer->pos() - pos_before));
   }
 
-  WriteVarint32(header_writer, IntCast<uint32_t>(buffer_lengths.size()));
   WriteVarint32(header_writer, IntCast<uint32_t>(bucket_lengths.size()));
+  WriteVarint32(header_writer, IntCast<uint32_t>(buffer_lengths.size()));
   for (size_t length : bucket_lengths) {
     WriteVarint64(header_writer, IntCast<uint64_t>(length));
   }
