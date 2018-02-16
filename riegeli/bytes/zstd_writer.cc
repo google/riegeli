@@ -38,13 +38,11 @@ ZstdWriter::ZstdWriter(Writer* dest, Options options)
     Fail("ZSTD_createCStream() failed");
     return;
   }
-  const unsigned long long size_hint = UnsignedMin(
-      options.size_hint_, std::numeric_limits<unsigned long long>::max());
-  ZSTD_parameters params =
-      ZSTD_getParams(options.compression_level_, size_hint, 0);
-  params.fParams.contentSizeFlag = options.size_hint_ > 0 ? 1 : 0;
-  const size_t result = ZSTD_initCStream_advanced(compressor_.get(), nullptr, 0,
-                                                  params, size_hint);
+  const size_t result = ZSTD_initCStream_advanced(
+      compressor_.get(), nullptr, 0,
+      ZSTD_getParams(options.compression_level_,
+                     IntCast<unsigned long long>(options.size_hint_), 0),
+      ZSTD_CONTENTSIZE_UNKNOWN);
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
     Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
                 ZSTD_getErrorName(result)));
