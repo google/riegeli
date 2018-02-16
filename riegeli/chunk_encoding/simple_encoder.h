@@ -43,7 +43,8 @@ namespace riegeli {
 class SimpleEncoder final : public ChunkEncoder {
  public:
   // Creates an empty SimpleEncoder.
-  SimpleEncoder(CompressionType compression_type, int compression_level);
+  SimpleEncoder(CompressionType compression_type, int compression_level,
+                uint64_t size_hint);
 
   void Reset() override;
 
@@ -64,12 +65,14 @@ class SimpleEncoder final : public ChunkEncoder {
  private:
   class Compressor final : public Object {
    public:
-    Compressor(CompressionType compression_type, int compression_level);
+    Compressor(CompressionType compression_type, int compression_level,
+               uint64_t size_hint);
 
     Compressor(const Compressor&) = delete;
     Compressor& operator=(const Compressor&) = delete;
 
-    void Reset(CompressionType compression_type, int compression_level);
+    void Reset(CompressionType compression_type, int compression_level,
+               uint64_t size_hint);
     Writer* writer() const { return writer_.get(); }
     Chain* Encode();
 
@@ -86,6 +89,7 @@ class SimpleEncoder final : public ChunkEncoder {
 
   CompressionType compression_type_;
   int compression_level_;
+  uint64_t size_hint_;
   uint64_t num_records_ = 0;
   Compressor sizes_compressor_;
   Compressor values_compressor_;

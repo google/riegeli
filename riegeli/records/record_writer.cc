@@ -65,7 +65,8 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
     }
   } else {
     return riegeli::make_unique<SimpleEncoder>(options.compression_type_,
-                                               options.compression_level_);
+                                               options.compression_level_,
+                                               options.desired_chunk_size_);
   }
 }
 

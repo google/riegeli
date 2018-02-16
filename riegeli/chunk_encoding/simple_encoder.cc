@@ -38,9 +38,9 @@
 namespace riegeli {
 
 SimpleEncoder::Compressor::Compressor(CompressionType compression_type,
-                                      int compression_level)
+                                      int compression_level, uint64_t size_hint)
     : Object(State::kOpen) {
-  Reset(compression_type, compression_level);
+  Reset(compression_type, compression_level, size_hint);
 }
 
 void SimpleEncoder::Compressor::Done() {
@@ -49,24 +49,28 @@ void SimpleEncoder::Compressor::Done() {
 }
 
 inline void SimpleEncoder::Compressor::Reset(CompressionType compression_type,
-                                             int compression_level) {
+                                             int compression_level,
+                                             uint64_t size_hint) {
   MarkHealthy();
   data_.Clear();
-  std::unique_ptr<Writer> data_writer =
-      riegeli::make_unique<ChainWriter>(&data_);
+  std::unique_ptr<Writer> data_writer = riegeli::make_unique<ChainWriter>(
+      &data_, ChainWriter::Options().set_size_hint(
+                  compression_type == CompressionType::kNone ? size_hint : 0u));
   switch (compression_type) {
     case CompressionType::kNone:
       writer_ = std::move(data_writer);
       return;
     case CompressionType::kBrotli:
       writer_ = riegeli::make_unique<BrotliWriter>(
-          std::move(data_writer),
-          BrotliWriter::Options().set_compression_level(compression_level));
+          std::move(data_writer), BrotliWriter::Options()
+                                      .set_compression_level(compression_level)
+                                      .set_size_hint(size_hint));
       return;
     case CompressionType::kZstd:
       writer_ = riegeli::make_unique<ZstdWriter>(
-          std::move(data_writer),
-          ZstdWriter::Options().set_compression_level(compression_level));
+          std::move(data_writer), ZstdWriter::Options()
+                                      .set_compression_level(compression_level)
+                                      .set_size_hint(size_hint));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
@@ -74,16 +78,21 @@ inline void SimpleEncoder::Compressor::Reset(CompressionType compression_type,
 }
 
 Chain* SimpleEncoder::Compressor::Encode() {
-  if (RIEGELI_UNLIKELY(!writer_->Close())) return nullptr;
+  if (RIEGELI_UNLIKELY(!healthy())) return nullptr;
+  if (RIEGELI_UNLIKELY(!writer_->Close())) {
+    Fail(*writer_);
+    return nullptr;
+  }
   return &data_;
 }
 
 SimpleEncoder::SimpleEncoder(CompressionType compression_type,
-                             int compression_level)
+                             int compression_level, uint64_t size_hint)
     : compression_type_(compression_type),
       compression_level_(compression_level),
-      sizes_compressor_(compression_type, compression_level),
-      values_compressor_(compression_type, compression_level) {}
+      size_hint_(size_hint),
+      sizes_compressor_(compression_type, compression_level, 0),
+      values_compressor_(compression_type, compression_level, size_hint) {}
 
 void SimpleEncoder::Done() {
   num_records_ = 0;
@@ -94,8 +103,8 @@ void SimpleEncoder::Done() {
 void SimpleEncoder::Reset() {
   MarkHealthy();
   num_records_ = 0;
-  sizes_compressor_.Reset(compression_type_, compression_level_);
-  values_compressor_.Reset(compression_type_, compression_level_);
+  sizes_compressor_.Reset(compression_type_, compression_level_, 0);
+  values_compressor_.Reset(compression_type_, compression_level_, size_hint_);
 }
 
 bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
