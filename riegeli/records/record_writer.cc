@@ -539,9 +539,9 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
                        std::numeric_limits<uint64_t>::max() - sizeof(uint64_t))
           ? std::numeric_limits<uint64_t>::max()
           : IntCast<uint64_t>(record_size) + sizeof(uint64_t);
-  if (RIEGELI_UNLIKELY(chunk_size_ != 0 &&
-                       (chunk_size_ > desired_chunk_size_ ||
-                        added_size > desired_chunk_size_ - chunk_size_))) {
+  if (RIEGELI_UNLIKELY(chunk_size_ > desired_chunk_size_ ||
+                       added_size > desired_chunk_size_ - chunk_size_) &&
+      chunk_size_ != 0) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
     chunk_size_ = 0;

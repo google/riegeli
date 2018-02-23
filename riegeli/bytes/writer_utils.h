@@ -132,7 +132,7 @@ inline bool WriteVarint64(Writer* dest, uint64_t data) {
 
 inline bool WriteZeros(Writer* dest, Position length) {
   if (RIEGELI_LIKELY(length <= dest->available())) {
-    if (length > 0) {  // memset(nullptr, _, 0) is undefined.
+    if (RIEGELI_LIKELY(length > 0)) {  // memset(nullptr, _, 0) is undefined.
       std::memset(dest->cursor(), 0, length);
       dest->set_cursor(dest->cursor() + length);
     }

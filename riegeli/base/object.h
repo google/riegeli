@@ -246,46 +246,32 @@ inline Object::~Object() {
 
 inline bool Object::Close() {
   const uintptr_t status_before = status_.load(std::memory_order_acquire);
-  switch (status_before) {
-    default:
-      if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
-        return false;
-      }
-      RIEGELI_FALLTHROUGH;
-    case kHealthy(): {
-      Done();
-      const uintptr_t status_after = status_.load(std::memory_order_relaxed);
-      switch (status_after) {
-        case kHealthy():
-          status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
-          return true;
-        case kClosedSuccessfully():
-          RIEGELI_ASSERT_UNREACHABLE()
-              << "Object marked as closed during Done()";
-        default:
-          RIEGELI_ASSERT(
-              !reinterpret_cast<const FailedStatus*>(status_after)->closed)
-              << "Object marked as closed during Done()";
-          reinterpret_cast<FailedStatus*>(status_after)->closed = true;
-          return false;
-      }
+  if (RIEGELI_UNLIKELY(status_before != kHealthy())) {
+    if (RIEGELI_LIKELY(status_before == kClosedSuccessfully())) return true;
+    if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
+      return false;
     }
-    case kClosedSuccessfully():
-      return true;
   }
+  Done();
+  const uintptr_t status_after = status_.load(std::memory_order_relaxed);
+  if (RIEGELI_LIKELY(status_after == kHealthy())) {
+    status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
+    return true;
+  }
+  RIEGELI_ASSERT(status_after != kClosedSuccessfully() &&
+                 !reinterpret_cast<const FailedStatus*>(status_after)->closed)
+      << "Object marked as closed during Done()";
+  reinterpret_cast<FailedStatus*>(status_after)->closed = true;
+  return false;
 }
 
 inline void Object::DeleteStatus(uintptr_t status) {
-  switch (status) {
-    case kHealthy():
-    case kClosedSuccessfully():
-      break;
-    default:
-      DeleteAligned(
-          reinterpret_cast<FailedStatus*>(status),
-          offsetof(FailedStatus, message_data) +
-              reinterpret_cast<const FailedStatus*>(status)->message_size);
-      break;
+  if (RIEGELI_UNLIKELY(status != kHealthy() &&
+                       status != kClosedSuccessfully())) {
+    DeleteAligned(
+        reinterpret_cast<FailedStatus*>(status),
+        offsetof(FailedStatus, message_data) +
+            reinterpret_cast<const FailedStatus*>(status)->message_size);
   }
 }
 
@@ -295,14 +281,9 @@ inline bool Object::healthy() const {
 
 inline bool Object::closed() const {
   const uintptr_t status = status_.load(std::memory_order_acquire);
-  switch (status) {
-    case kHealthy():
-      return false;
-    case kClosedSuccessfully():
-      return true;
-    default:
-      return reinterpret_cast<const FailedStatus*>(status)->closed;
-  }
+  if (RIEGELI_LIKELY(status == kHealthy())) return false;
+  if (RIEGELI_LIKELY(status == kClosedSuccessfully())) return true;
+  return reinterpret_cast<const FailedStatus*>(status)->closed;
 }
 
 inline void Object::MarkHealthy() {

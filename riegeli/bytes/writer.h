@@ -275,8 +275,8 @@ inline void Writer::set_cursor(char* cursor) {
 
 inline bool Writer::Write(string_view src) {
   if (RIEGELI_LIKELY(src.size() <= available())) {
-    if (!src.empty()) {  // memcpy(nullptr, _, 0) and
-                         // memcpy(_, nullptr, 0) are undefined.
+    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) and
+                                         // memcpy(_, nullptr, 0) are undefined.
       std::memcpy(cursor_, src.data(), src.size());
       cursor_ += src.size();
     }
@@ -288,7 +288,7 @@ inline bool Writer::Write(string_view src) {
 inline bool Writer::Write(std::string&& src) {
   if (RIEGELI_LIKELY(src.size() <= available() &&
                      src.size() <= kMaxBytesToCopy())) {
-    if (!src.empty()) {  // memcpy(nullptr, _, 0) is undefined.
+    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) is undefined.
       std::memcpy(cursor_, src.data(), src.size());
       cursor_ += src.size();
     }

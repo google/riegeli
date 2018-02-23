@@ -305,8 +305,8 @@ inline void Reader::set_cursor(const char* cursor) {
 
 inline bool Reader::Read(char* dest, size_t length) {
   if (RIEGELI_LIKELY(length <= available())) {
-    if (length > 0) {  // memcpy(nullptr, _, 0) and
-                       // memcpy(_, nullptr, 0) are undefined.
+    if (RIEGELI_LIKELY(length > 0)) {  // memcpy(nullptr, _, 0) and
+                                       // memcpy(_, nullptr, 0) are undefined.
       std::memcpy(dest, cursor_, length);
       cursor_ += length;
     }
@@ -319,7 +319,8 @@ inline bool Reader::Read(std::string* dest, size_t length) {
   RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
       << "Failed precondition of Reader::Read(string*): string size overflow";
   if (RIEGELI_LIKELY(length <= available())) {
-    if (length > 0) {  // Avoid std::string::append(nullptr, 0) just in case.
+    if (RIEGELI_LIKELY(length > 0)) {  // Avoid std::string::append(nullptr, 0)
+                                       // just in case.
       dest->append(cursor_, length);
       cursor_ += length;
     }

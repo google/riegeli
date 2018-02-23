@@ -209,8 +209,8 @@ inline void BackwardWriter::set_cursor(char* cursor) {
 
 inline bool BackwardWriter::Write(string_view src) {
   if (RIEGELI_LIKELY(src.size() <= available())) {
-    if (!src.empty()) {  // memcpy(nullptr, _, 0) and
-                         // memcpy(_, nullptr, 0) are undefined.
+    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) and
+                                         // memcpy(_, nullptr, 0) are undefined.
       cursor_ -= src.size();
       std::memcpy(cursor_, src.data(), src.size());
     }
@@ -222,7 +222,7 @@ inline bool BackwardWriter::Write(string_view src) {
 inline bool BackwardWriter::Write(std::string&& src) {
   if (RIEGELI_LIKELY(src.size() <= available() &&
                      src.size() <= kMaxBytesToCopy())) {
-    if (!src.empty()) {  // memcpy(nullptr, _, 0) is undefined.
+    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) is undefined.
       cursor_ -= src.size();
       std::memcpy(cursor_, src.data(), src.size());
     }

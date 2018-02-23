@@ -412,8 +412,8 @@ bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
   const size_t length_to_read = UnsignedMin(length, available());
-  if (length_to_read > 0) {  // iter() is undefined
-                             // if contents_.blocks().size() != 1.
+  if (RIEGELI_LIKELY(length_to_read > 0)) {  // iter() is undefined if
+                                             // contents_.blocks().size() != 1.
     const size_t size_hint = dest->size() + length_to_read;
     iter().AppendSubstrTo(string_view(cursor_, length_to_read), dest,
                           size_hint);
@@ -431,8 +431,9 @@ bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
   if (length_to_copy == contents_.size()) {
     cursor_ = limit_;
     ok = dest->Write(contents_);
-  } else if (length_to_copy > 0) {  // iter() is undefined
-                                    // if contents_.blocks().size() != 1.
+  } else if (RIEGELI_LIKELY(length_to_copy > 0)) {  // iter() is undefined if
+                                                    // contents_.blocks().size()
+                                                    // != 1.
     Chain data;
     iter().AppendSubstrTo(string_view(cursor_, length_to_copy), &data,
                           length_to_copy);
