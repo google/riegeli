@@ -15,6 +15,7 @@
 #include "riegeli/records/record_writer.h"
 
 #include <stddef.h>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <future>
@@ -30,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
@@ -41,32 +43,71 @@
 
 namespace riegeli {
 
+bool RecordWriter::Options::Parse(string_view text, std::string* message) {
+  return ParseOptions(
+      {
+          {"default", EnumOption(this, {{"", Options()}})},
+          {"transpose",
+           EnumOption(&transpose_,
+                      {{"", true}, {"true", true}, {"false", false}})},
+          {"uncompressed",
+           EnumOption(&compression_type_, {{"", CompressionType::kNone}})},
+          {"brotli",
+           [this](string_view value, std::string* message) {
+             if (value.empty()) {
+               compression_level_ = 9;
+             } else if (RIEGELI_UNLIKELY(!IntOption(&compression_level_, 0, 11)(
+                            value, message))) {
+               return false;
+             }
+             compression_type_ = CompressionType::kBrotli;
+             return true;
+           }},
+          {"zstd",
+           [this](string_view value, std::string* message) {
+             if (value.empty()) {
+               compression_level_ = 9;
+             } else if (RIEGELI_UNLIKELY(!IntOption(&compression_level_, 1, 22)(
+                            value, message))) {
+               return false;
+             }
+             compression_type_ = CompressionType::kZstd;
+             return true;
+           }},
+          {"chunk_size",
+           BytesOption(&chunk_size_, 1, std::numeric_limits<uint64_t>::max())},
+          {"bucket_fraction", RealOption(&bucket_fraction_, 0.0, 1.0)},
+          {"parallelism",
+           IntOption(&parallelism_, 0, std::numeric_limits<int>::max())},
+      },
+      text, message);
+}
+
 inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
     const Options& options) {
   if (options.transpose_) {
-    const float desired_bucket_size_as_float =
-        static_cast<float>(options.desired_chunk_size_) *
-        options.desired_bucket_fraction_;
-    const uint64_t desired_bucket_size =
-        desired_bucket_size_as_float >=
-                static_cast<float>(std::numeric_limits<uint64_t>::max())
+    const long double long_double_bucket_size =
+        std::round(static_cast<long double>(options.chunk_size_) *
+                   static_cast<long double>(options.bucket_fraction_));
+    const uint64_t bucket_size =
+        RIEGELI_UNLIKELY(
+            long_double_bucket_size >=
+            static_cast<long double>(std::numeric_limits<uint64_t>::max()))
             ? std::numeric_limits<uint64_t>::max()
-            : desired_bucket_size_as_float >= 1.0f
-                  ? static_cast<uint64_t>(desired_bucket_size_as_float)
+            : RIEGELI_LIKELY(long_double_bucket_size >= 1.0L)
+                  ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
     if (options.parallelism_ == 0) {
-      return riegeli::make_unique<TransposeEncoder>(options.compression_type_,
-                                                    options.compression_level_,
-                                                    desired_bucket_size);
+      return riegeli::make_unique<TransposeEncoder>(
+          options.compression_type_, options.compression_level_, bucket_size);
     } else {
       return riegeli::make_unique<DeferredTransposeEncoder>(
-          options.compression_type_, options.compression_level_,
-          desired_bucket_size);
+          options.compression_type_, options.compression_level_, bucket_size);
     }
   } else {
     return riegeli::make_unique<SimpleEncoder>(options.compression_type_,
                                                options.compression_level_,
-                                               options.desired_chunk_size_);
+                                               options.chunk_size_);
   }
 }
 
@@ -426,7 +467,7 @@ RecordWriter::RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
 }
 
 RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
-    : Object(State::kOpen), desired_chunk_size_(options.desired_chunk_size_) {
+    : Object(State::kOpen), desired_chunk_size_(options.chunk_size_) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (chunk_writer->pos() == 0) {
     // Write file signature.
@@ -448,14 +489,14 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
 RecordWriter::RecordWriter(RecordWriter&& src) noexcept
     : Object(std::move(src)),
       desired_chunk_size_(riegeli::exchange(src.desired_chunk_size_, 0)),
-      chunk_size_(riegeli::exchange(src.chunk_size_, 0)),
+      chunk_size_so_far_(riegeli::exchange(src.chunk_size_so_far_, 0)),
       owned_chunk_writer_(std::move(src.owned_chunk_writer_)),
       impl_(std::move(src.impl_)) {}
 
 RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
   Object::operator=(std::move(src));
   desired_chunk_size_ = riegeli::exchange(src.desired_chunk_size_, 0);
-  chunk_size_ = riegeli::exchange(src.chunk_size_, 0);
+  chunk_size_so_far_ = riegeli::exchange(src.chunk_size_so_far_, 0);
   // impl_ must be assigned before owned_chunk_writer_ because background work
   // of impl_ may need owned_chunk_writer_.
   impl_ = std::move(src.impl_);
@@ -466,7 +507,7 @@ RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
 RecordWriter::~RecordWriter() {}
 
 void RecordWriter::Done() {
-  if (RIEGELI_LIKELY(healthy()) && chunk_size_ != 0) {
+  if (RIEGELI_LIKELY(healthy()) && chunk_size_so_far_ != 0) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) Fail(*impl_);
   }
   if (RIEGELI_LIKELY(impl_ != nullptr)) {
@@ -484,7 +525,7 @@ void RecordWriter::Done() {
     owned_chunk_writer_.reset();
   }
   desired_chunk_size_ = 0;
-  chunk_size_ = 0;
+  chunk_size_so_far_ = 0;
 }
 
 bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
@@ -539,29 +580,29 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
                        std::numeric_limits<uint64_t>::max() - sizeof(uint64_t))
           ? std::numeric_limits<uint64_t>::max()
           : IntCast<uint64_t>(record_size) + sizeof(uint64_t);
-  if (RIEGELI_UNLIKELY(chunk_size_ > desired_chunk_size_ ||
-                       added_size > desired_chunk_size_ - chunk_size_) &&
-      chunk_size_ != 0) {
+  if (RIEGELI_UNLIKELY(chunk_size_so_far_ > desired_chunk_size_ ||
+                       added_size > desired_chunk_size_ - chunk_size_so_far_) &&
+      chunk_size_so_far_ != 0) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
-    chunk_size_ = 0;
+    chunk_size_so_far_ = 0;
   }
-  chunk_size_ += added_size;
+  chunk_size_so_far_ += added_size;
   return true;
 }
 
 bool RecordWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (chunk_size_ != 0) {
+  if (chunk_size_so_far_ != 0) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
   }
   if (RIEGELI_UNLIKELY(!impl_->Flush(flush_type))) {
     if (impl_->healthy()) return false;
     return Fail(*impl_);
   }
-  if (chunk_size_ != 0) {
+  if (chunk_size_so_far_ != 0) {
     impl_->OpenChunk();
-    chunk_size_ = 0;
+    chunk_size_so_far_ = 0;
   }
   return true;
 }

@@ -65,7 +65,7 @@ class TransposeEncoder : public ChunkEncoder {
  public:
   // Creates an empty TransposeEncoder.
   TransposeEncoder(CompressionType compression_type, int compression_level,
-                   uint64_t desired_bucket_size);
+                   uint64_t bucket_size);
 
   ~TransposeEncoder();
 
@@ -303,7 +303,7 @@ class TransposeEncoder : public ChunkEncoder {
   // The default approximate bucket size, used if compression is enabled.
   // Finer bucket granularity (i.e. smaller size) worsens compression density
   // but makes field filtering more effective.
-  uint64_t desired_bucket_size_;
+  uint64_t bucket_size_;
 
   uint64_t num_records_;
   uint64_t decoded_data_size_;
@@ -332,7 +332,7 @@ class TransposeEncoder : public ChunkEncoder {
 class DeferredTransposeEncoder final : public ChunkEncoder {
  public:
   DeferredTransposeEncoder(CompressionType compression_type,
-                           int compression_level, size_t desired_bucket_size);
+                           int compression_level, size_t bucket_size);
 
   void Reset() override;
 
@@ -352,7 +352,7 @@ class DeferredTransposeEncoder final : public ChunkEncoder {
  private:
   CompressionType compression_type_;
   int compression_level_;
-  size_t desired_bucket_size_;
+  size_t bucket_size_;
   std::vector<Chain> records_;
 };
 

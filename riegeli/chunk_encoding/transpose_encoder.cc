@@ -190,11 +190,10 @@ inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(
       field(field) {}
 
 TransposeEncoder::TransposeEncoder(CompressionType compression_type,
-                                   int compression_level,
-                                   uint64_t desired_bucket_size)
+                                   int compression_level, uint64_t bucket_size)
     : compression_type_(compression_type),
       compression_level_(compression_level),
-      desired_bucket_size_(desired_bucket_size),
+      bucket_size_(bucket_size),
       num_records_(0),
       decoded_data_size_(0),
       nonproto_lengths_writer_(&nonproto_lengths_),
@@ -546,7 +545,7 @@ inline bool TransposeEncoder::AddBuffer(
   if (compression_type_ != CompressionType::kNone && bucket_writer->pos() > 0 &&
       (force_new_bucket ||
        IntCast<size_t>(bucket_writer->pos()) + next_chunk.size() >
-           desired_bucket_size_)) {
+           bucket_size_)) {
     if (RIEGELI_UNLIKELY(!bucket_writer->Close())) return Fail(*bucket_writer);
     const Position pos_before = data_writer->pos();
     if (RIEGELI_UNLIKELY(!AppendCompressedBuffer(
@@ -1327,11 +1326,10 @@ bool TransposeEncoder::EncodeInternal(uint32_t max_transition,
 }
 
 DeferredTransposeEncoder::DeferredTransposeEncoder(
-    CompressionType compression_type, int compression_level,
-    size_t desired_bucket_size)
+    CompressionType compression_type, int compression_level, size_t bucket_size)
     : compression_type_(compression_type),
       compression_level_(compression_level),
-      desired_bucket_size_(desired_bucket_size) {}
+      bucket_size_(bucket_size) {}
 
 void DeferredTransposeEncoder::Done() { records_ = std::vector<Chain>(); }
 
@@ -1364,7 +1362,7 @@ bool DeferredTransposeEncoder::Encode(Writer* dest, uint64_t* num_records,
                                       uint64_t* decoded_data_size) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   TransposeEncoder transpose_encoder(compression_type_, compression_level_,
-                                     desired_bucket_size_);
+                                     bucket_size_);
   for (const auto& record : records_) {
     transpose_encoder.AddRecord(record);
   }

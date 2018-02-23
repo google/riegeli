@@ -20,24 +20,30 @@
 #include <limits>
 #include <string>
 
+#include "riegeli/base/base.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
 namespace internal {
 
-constexpr size_t kIntToBufferSize() {
-  return size_t{std::numeric_limits<long long>::digits10 + 2};
+constexpr size_t kNumToBufferSize() {
+  // 14 characters are needed for 6-digit double: "-1.23456e+308\0"
+  return UnsignedMax(size_t{std::numeric_limits<long long>::digits10 + 2},
+                     size_t{14});
 }
 
-string_view IntToBuffer(int value, char (&buffer)[kIntToBufferSize()]);
-string_view IntToBuffer(unsigned value, char (&buffer)[kIntToBufferSize()]);
-string_view IntToBuffer(long value, char (&buffer)[kIntToBufferSize()]);
-string_view IntToBuffer(unsigned long value,
-                        char (&buffer)[kIntToBufferSize()]);
-string_view IntToBuffer(long long value, char (&buffer)[kIntToBufferSize()]);
-string_view IntToBuffer(unsigned long long value,
-                        char (&buffer)[kIntToBufferSize()]);
+string_view NumToBuffer(int value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(unsigned value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(long value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(unsigned long value,
+                        char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(long long value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(unsigned long long value,
+                        char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(float value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(double value, char (&buffer)[kNumToBufferSize()]);
+string_view NumToBuffer(long double value, char (&buffer)[kNumToBufferSize()]);
 
 std::string StrCatImpl(string_view a, string_view b);
 std::string StrCatImpl(string_view a, string_view b, string_view c);
@@ -59,14 +65,18 @@ class AlphaNum {
   AlphaNum(const char* value) : data_(value) {}
   AlphaNum(const std::string& value) : data_(value) {}
 
-  AlphaNum(int value) : data_(internal::IntToBuffer(value, digits_)) {}
-  AlphaNum(unsigned value) : data_(internal::IntToBuffer(value, digits_)) {}
-  AlphaNum(long value) : data_(internal::IntToBuffer(value, digits_)) {}
+  AlphaNum(int value) : data_(internal::NumToBuffer(value, digits_)) {}
+  AlphaNum(unsigned value) : data_(internal::NumToBuffer(value, digits_)) {}
+  AlphaNum(long value) : data_(internal::NumToBuffer(value, digits_)) {}
   AlphaNum(unsigned long value)
-      : data_(internal::IntToBuffer(value, digits_)) {}
-  AlphaNum(long long value) : data_(internal::IntToBuffer(value, digits_)) {}
+      : data_(internal::NumToBuffer(value, digits_)) {}
+  AlphaNum(long long value) : data_(internal::NumToBuffer(value, digits_)) {}
   AlphaNum(unsigned long long value)
-      : data_(internal::IntToBuffer(value, digits_)) {}
+      : data_(internal::NumToBuffer(value, digits_)) {}
+
+  AlphaNum(float value) : data_(internal::NumToBuffer(value, digits_)) {}
+  AlphaNum(double value) : data_(internal::NumToBuffer(value, digits_)) {}
+  AlphaNum(long double value) : data_(internal::NumToBuffer(value, digits_)) {}
 
   string_view data() const { return data_; }
 
@@ -75,7 +85,7 @@ class AlphaNum {
 
  private:
   string_view data_;
-  char digits_[internal::kIntToBufferSize()];
+  char digits_[internal::kNumToBufferSize()];
 };
 
 inline std::string StrCat() { return std::string(); }

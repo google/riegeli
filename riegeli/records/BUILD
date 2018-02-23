@@ -10,6 +10,7 @@ cc_library(
         ":chunk_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/base:options_parser",
         "//riegeli/base:parallelism",
         "//riegeli/bytes:writer",
         "//riegeli/chunk_encoding:chunk",

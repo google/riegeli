@@ -63,6 +63,30 @@ class RecordWriter final : public Object {
     // https://stackoverflow.com/questions/17430377
     constexpr Options() noexcept {}
 
+    // Parses options from text:
+    //
+    //   options ::= option? ("," option?)*
+    //   option ::=
+    //     "default" |
+    //     "transpose" (":" ("true" | "false"))? |
+    //     "uncompressed" |
+    //     "brotli" (":" brotli_level)? |
+    //     "zstd" (":" zstd_level)? |
+    //     "chunk_size" ":" chunk_size |
+    //     "bucket_fraction" ":" bucket_fraction |
+    //     "parallelism" ":" parallelism
+    //   brotli_level ::= integer 0..11 (default 9)
+    //   zstd_level ::= integer 1..22 (default 9)
+    //   chunk_size ::=
+    //     integer expressed as real with optional suffix [BkKMGTPE], 1..
+    //   bucket_fraction ::= real 0..1
+    //   parallelism ::= integer 1..
+    //
+    // Return values:
+    //  * true  - success
+    //  * false - failure (*message is set)
+    bool Parse(string_view text, std::string* message);
+
     // If true, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way
     // which allows for better compression.
@@ -70,7 +94,7 @@ class RecordWriter final : public Object {
     // If false, a chunk of records will be stored in a simpler format, directly
     // or with compression.
     //
-    // Default: true.
+    // Default: false.
     Options& set_transpose(bool transpose) & {
       transpose_ = transpose;
       return *this;
@@ -79,60 +103,47 @@ class RecordWriter final : public Object {
       return std::move(set_transpose(transpose));
     }
 
-    // Changes compression algorithm to none and turns off transpose.
-    //
-    // It is theoretically possible to DisableCompression().set_transpose(true)
-    // but this is not very useful, since the reason for transpose is to make
-    // the data compress better.
-    Options& DisableCompression() & {
-      transpose_ = false;
+    // Changes compression algorithm to none.
+    Options& set_uncompressed() & {
       compression_type_ = CompressionType::kNone;
       compression_level_ = 0;
       return *this;
     }
-    Options&& DisableCompression() && {
-      return std::move(DisableCompression());
-    }
+    Options&& set_uncompressed() && { return std::move(set_uncompressed()); }
 
     // Changes compression algorithm to Brotli.
     //
     // This is the default. Level must be between 0 and 11.
-    Options& EnableBrotliCompression(int level = 9) & {
+    Options& set_brotli(int level = 9) & {
       RIEGELI_ASSERT_GE(level, 0)
-          << "Failed precondition of "
-             "RecordWriter::Options::EnableBrotliCompression(): "
+          << "Failed precondition of RecordWriter::Options::set_brotli(): "
              "compression level out of range";
       RIEGELI_ASSERT_LE(level, 11)
-          << "Failed precondition of "
-             "RecordWriter::Options::EnableBrotliCompression(): "
+          << "Failed precondition of RecordWriter::Options::set_brotli(): "
              "compression level out of range";
       compression_type_ = CompressionType::kBrotli;
       compression_level_ = level;
       return *this;
     }
-    Options&& EnableBrotliCompression(int level = 9) && {
-      return std::move(EnableBrotliCompression(level));
+    Options&& set_brotli(int level = 9) && {
+      return std::move(set_brotli(level));
     }
 
     // Changes compression algorithm to Zstd.
     //
     // Level must be between 1 and 22.
-    Options& EnableZstdCompression(int level = 9) & {
+    Options& set_zstd(int level = 9) & {
       RIEGELI_ASSERT_GE(level, 1)
-          << "Failed precondition of "
-             "RecordWriter::Options::EnableZstdCompression(): "
+          << "Failed precondition of RecordWriter::Options::set_zstd(): "
              "compression level out of range";
       RIEGELI_ASSERT_LE(level, 22)
-          << "Failed precondition of "
-             "RecordWriter::Options::EnableZstdCompression(): "
+          << "Failed precondition of RecordWriter::Options::set_zstd(): "
              "compression level out of range";
       compression_type_ = CompressionType::kZstd;
       compression_level_ = level;
       return *this;
     }
-    Options&& EnableZstdCompression(int level = 9) && {
-      return std::move(EnableZstdCompression(level));
-    }
+    Options&& set_zstd(int level = 9) && { return std::move(set_zstd(level)); }
 
     // Sets the desired uncompressed size of a chunk which groups messages to be
     // transposed, compressed, and written together.
@@ -142,22 +153,21 @@ class RecordWriter final : public Object {
     // and reduces memory usage of both writer and reader.
     //
     // Default: 1 << 20
-    Options& set_desired_chunk_size(uint64_t size) & {
+    Options& set_chunk_size(uint64_t size) & {
       RIEGELI_ASSERT_GT(size, 0u)
-          << "Failed precondition of "
-             "RecordWriter::Options::set_desired_chunk_size(): "
+          << "Failed precondition of RecordWriter::Options::set_chunk_size(): "
              "zero chunk size";
-      desired_chunk_size_ = size;
+      chunk_size_ = size;
       return *this;
     }
-    Options&& set_desired_chunk_size(uint64_t size) && {
-      return std::move(set_desired_chunk_size(size));
+    Options&& set_chunk_size(uint64_t size) && {
+      return std::move(set_chunk_size(size));
     }
 
     // Sets the desired uncompressed size of a bucket which groups values of
     // several fields of the given wire type to be compressed together,
-    // relatively to the desired chunk size, on the scale between 0.0f (compress
-    // each field separately) to 1.0f (put all fields of the same wire type in
+    // relatively to the desired chunk size, on the scale between 0.0 (compress
+    // each field separately) to 1.0 (put all fields of the same wire type in
     // the same bucket).
     //
     // This is meaningful if transpose and compression are enabled. A larger
@@ -165,17 +175,21 @@ class RecordWriter final : public Object {
     // decoding faster if filtering is used during reading, allowing to skip
     // decompression of values of fields which are filtered out.
     //
-    // Default: 1.0f
-    Options& set_desired_bucket_fraction(float fraction) & {
-      RIEGELI_ASSERT_GE(fraction, 0.0f)
+    // Default: 1.0
+    Options& set_bucket_fraction(double fraction) & {
+      RIEGELI_ASSERT_GE(fraction, 0.0)
           << "Failed precondition of "
-             "RecordWriter::Options::set_desired_bucket_fraction(): "
-             "negative bucket size";
-      desired_bucket_fraction_ = fraction;
+             "RecordWriter::Options::set_bucket_fraction(): "
+             "negative bucket fraction";
+      RIEGELI_ASSERT_LE(fraction, 1.0)
+          << "Failed precondition of "
+             "RecordWriter::Options::set_bucket_fraction(): "
+             "fraction larger than 1";
+      bucket_fraction_ = fraction;
       return *this;
     }
-    Options&& set_desired_bucket_fraction(float fraction) && {
-      return std::move(set_desired_bucket_fraction(fraction));
+    Options&& set_bucket_fraction(double fraction) && {
+      return std::move(set_bucket_fraction(fraction));
     }
 
     // Sets the maximum number of chunks being encoded in parallel in
@@ -200,11 +214,11 @@ class RecordWriter final : public Object {
    private:
     friend class RecordWriter;
 
-    bool transpose_ = true;
+    bool transpose_ = false;
     CompressionType compression_type_ = CompressionType::kBrotli;
     int compression_level_ = 9;
-    uint64_t desired_chunk_size_ = uint64_t{1} << 20;
-    float desired_bucket_fraction_ = 1.0f;
+    uint64_t chunk_size_ = uint64_t{1} << 20;
+    double bucket_fraction_ = 1.0;
     int parallelism_ = 0;
   };
 
@@ -290,7 +304,7 @@ class RecordWriter final : public Object {
   bool EnsureRoomForRecord(size_t record_size);
 
   uint64_t desired_chunk_size_ = 0;
-  uint64_t chunk_size_ = 0;
+  uint64_t chunk_size_so_far_ = 0;
   std::unique_ptr<ChunkWriter> owned_chunk_writer_;
   // impl_ must be defined after owned_chunk_writer_ so that it is destroyed
   // before owned_chunk_writer_, because background work of impl_ may need

@@ -56,3 +56,10 @@ cc_library(
     hdrs = ["str_error.h"],
     deps = [":base"],
 )
+
+cc_library(
+    name = "options_parser",
+    srcs = ["options_parser.cc"],
+    hdrs = ["options_parser.h"],
+    deps = [":base"],
+)

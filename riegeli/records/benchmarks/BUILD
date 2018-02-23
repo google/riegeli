@@ -8,6 +8,7 @@ cc_binary(
     deps = [
         ":tfrecord_recognizer",
         "//riegeli/base",
+        "//riegeli/base:options_parser",
         "//riegeli/base:str_error",
         "//riegeli/bytes:fd_reader",
         "//riegeli/bytes:fd_writer",

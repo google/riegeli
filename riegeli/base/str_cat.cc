@@ -14,6 +14,7 @@
 
 #include "riegeli/base/str_cat.h"
 
+#include <cstdio>
 #include <initializer_list>
 #include <string>
 #include <type_traits>
@@ -27,8 +28,8 @@ namespace internal {
 namespace {
 
 template <typename Int>
-string_view SignedToBuffer(Int value, char (&buffer)[kIntToBufferSize()]) {
-  char* cursor = buffer + kIntToBufferSize();
+string_view SignedToBuffer(Int value, char (&buffer)[kNumToBufferSize()]) {
+  char* cursor = buffer + kNumToBufferSize();
   typename std::make_unsigned<Int>::type abs_value =
       static_cast<typename std::make_unsigned<Int>::type>(value);
   if (value < 0) abs_value = -abs_value;
@@ -37,45 +38,66 @@ string_view SignedToBuffer(Int value, char (&buffer)[kIntToBufferSize()]) {
     abs_value /= 10;
   } while (abs_value != 0);
   if (value < 0) *--cursor = '-';
-  return string_view(cursor, PtrDistance(cursor, buffer + kIntToBufferSize()));
+  return string_view(cursor, PtrDistance(cursor, buffer + kNumToBufferSize()));
 }
 
 template <typename Int>
-string_view UnsignedToBuffer(Int value, char (&buffer)[kIntToBufferSize()]) {
-  char* cursor = buffer + kIntToBufferSize();
+string_view UnsignedToBuffer(Int value, char (&buffer)[kNumToBufferSize()]) {
+  char* cursor = buffer + kNumToBufferSize();
   do {
     *--cursor = '0' + value % 10;
     value /= 10;
   } while (value != 0);
-  return string_view(cursor, PtrDistance(cursor, buffer + kIntToBufferSize()));
+  return string_view(cursor, PtrDistance(cursor, buffer + kNumToBufferSize()));
 }
 
 }  // namespace
 
-string_view IntToBuffer(int value, char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(int value, char (&buffer)[kNumToBufferSize()]) {
   return SignedToBuffer(value, buffer);
 }
 
-string_view IntToBuffer(unsigned value, char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(unsigned value, char (&buffer)[kNumToBufferSize()]) {
   return UnsignedToBuffer(value, buffer);
 }
 
-string_view IntToBuffer(long value, char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(long value, char (&buffer)[kNumToBufferSize()]) {
   return SignedToBuffer(value, buffer);
 }
 
-string_view IntToBuffer(unsigned long value,
-                        char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(unsigned long value,
+                        char (&buffer)[kNumToBufferSize()]) {
   return UnsignedToBuffer(value, buffer);
 }
 
-string_view IntToBuffer(long long value, char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(long long value, char (&buffer)[kNumToBufferSize()]) {
   return SignedToBuffer(value, buffer);
 }
 
-string_view IntToBuffer(unsigned long long value,
-                        char (&buffer)[kIntToBufferSize()]) {
+string_view NumToBuffer(unsigned long long value,
+                        char (&buffer)[kNumToBufferSize()]) {
   return UnsignedToBuffer(value, buffer);
+}
+
+string_view NumToBuffer(float value, char (&buffer)[kNumToBufferSize()]) {
+  const int needed = std::snprintf(buffer, kNumToBufferSize(), "%g", value);
+  RIEGELI_ASSERT_LT(IntCast<size_t>(needed), kNumToBufferSize())
+      << "kNumToBufferSize() not enough to print " << value;
+  return buffer;
+}
+
+string_view NumToBuffer(double value, char (&buffer)[kNumToBufferSize()]) {
+  const int needed = std::snprintf(buffer, kNumToBufferSize(), "%g", value);
+  RIEGELI_ASSERT_LT(IntCast<size_t>(needed), kNumToBufferSize())
+      << "kNumToBufferSize() not enough to print " << value;
+  return buffer;
+}
+
+string_view NumToBuffer(long double value, char (&buffer)[kNumToBufferSize()]) {
+  const int needed = std::snprintf(buffer, kNumToBufferSize(), "%Lg", value);
+  RIEGELI_ASSERT_LT(IntCast<size_t>(needed), kNumToBufferSize())
+      << "kNumToBufferSize() not enough to print " << value;
+  return buffer;
 }
 
 std::string StrCatImpl(string_view a, string_view b) {
