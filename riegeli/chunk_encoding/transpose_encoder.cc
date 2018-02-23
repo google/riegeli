@@ -349,27 +349,35 @@ inline bool TransposeEncoder::AddRecordInternal(
     const uint32_t field = tag >> 3;
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
-        char value[kMaxLengthVarint64()];
-        char* const value_end = CopyVarint64(record, value);
+        // Storing value as uint64_t[2] instead of uint8_t[10] lets Clang and
+        // GCC generate better code for clearing high bit of each byte.
+        uint64_t value[2];
+        static_assert(sizeof(value) >= kMaxLengthVarint64(),
+                      "value too small to hold a varint64");
+        char* const value_end =
+            CopyVarint64(record, reinterpret_cast<char*>(value));
         if (value_end == nullptr) {
           RIEGELI_ASSERT_UNREACHABLE()
               << "Invalid varint: " << record->Message();
         }
-        const size_t value_length = PtrDistance(value, value_end);
-        if (static_cast<uint8_t>(value[0]) <= kMaxVarintInline) {
-          encoded_tags_.push_back(
-              GetPosInTagsList(EncodedTag(parent_message_id, tag,
-                                          internal::Subtype::kVarintInline0 +
-                                              static_cast<uint8_t>(value[0]))));
+        const size_t value_length =
+            PtrDistance(reinterpret_cast<char*>(value), value_end);
+        if (reinterpret_cast<const unsigned char*>(value)[0] <=
+            kMaxVarintInline) {
+          encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
+              parent_message_id, tag,
+              internal::Subtype::kVarintInline0 +
+                  reinterpret_cast<const unsigned char*>(value)[0])));
         } else {
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kVarint1 +
                              IntCast<uint8_t>(value_length - 1))));
-          // TODO: Consider processing the whole sizeof(value) instead.
-          for (size_t i = 0; i < value_length - 1; ++i) value[i] &= ~0x80;
+          // Clear high bit of each byte.
+          for (auto& word : value) word &= ~uint64_t{0x8080808080808080};
           GetBuffer(parent_message_id, field, BufferType::kVarint)
-              ->Write(string_view(value, value_length));
+              ->Write(string_view(reinterpret_cast<const char*>(value),
+                                  value_length));
         }
       } break;
       case internal::WireType::kFixed32: {
