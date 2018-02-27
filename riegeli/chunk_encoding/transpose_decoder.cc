@@ -34,6 +34,7 @@
 #include "riegeli/bytes/backward_writer_utils.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/limiting_backward_writer.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/bytes/zstd_reader.h"
@@ -520,15 +521,18 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
   MarkHealthy();
   Context context;
   if (RIEGELI_UNLIKELY(!Parse(&context, src, field_filter))) return false;
-  if (RIEGELI_UNLIKELY(!Decode(&context, IntCast<size_t>(num_records) + 1, dest,
-                               boundaries))) {
+  LimitingBackwardWriter limiting_dest(dest, decoded_data_size);
+  if (RIEGELI_UNLIKELY(!Decode(&context, IntCast<size_t>(num_records) + 1,
+                               &limiting_dest, boundaries))) {
+    limiting_dest.Close();
     return false;
   }
-  // TODO: Implement and use LimitingBackwardWriter to stop early when
-  // decoded_data_size would be exceeded instead of checking after the fact.
+  if (RIEGELI_UNLIKELY(!limiting_dest.Close())) return Fail(limiting_dest);
+  RIEGELI_ASSERT_LE(boundaries->back(), decoded_data_size)
+      << "Decoded data size larger than expected";
   if (field_filter.include_all() &&
       RIEGELI_UNLIKELY(boundaries->back() != decoded_data_size)) {
-    return Fail("Wrong decoded data size");
+    return Fail("Decoded data size smaller than expected");
   }
   return true;
 }

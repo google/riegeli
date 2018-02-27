@@ -94,7 +94,8 @@ template <typename Dest>
 bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
-  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReader: position exceeds size limit";
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->Read(dest, length_to_read);
   SyncBuffer();
@@ -107,7 +108,8 @@ bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
          "length too small, use CopyTo(Writer*) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
-  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReader: position exceeds size limit";
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->CopyTo(dest, length_to_copy);
   SyncBuffer();
@@ -120,7 +122,8 @@ bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   src_->set_cursor(cursor_);
-  RIEGELI_ASSERT_LE(pos(), size_limit_) << "Failed invariant of LimitingReader";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReader: position exceeds size limit";
   if (RIEGELI_UNLIKELY(length > size_limit_ - pos())) {
     src_->Seek(size_limit_);
     SyncBuffer();

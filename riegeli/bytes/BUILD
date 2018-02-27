@@ -101,6 +101,28 @@ cc_library(
 )
 
 cc_library(
+    name = "limiting_writer",
+    srcs = ["limiting_writer.cc"],
+    hdrs = ["limiting_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+    ],
+)
+
+cc_library(
+    name = "limiting_backward_writer",
+    srcs = ["limiting_backward_writer.cc"],
+    hdrs = ["limiting_backward_writer.h"],
+    deps = [
+        ":backward_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+    ],
+)
+
+cc_library(
     name = "limiting_reader",
     srcs = ["limiting_reader.cc"],
     hdrs = ["limiting_reader.h"],

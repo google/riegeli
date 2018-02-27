@@ -146,6 +146,7 @@ cc_library(
         "//riegeli/bytes:backward_writer_utils",
         "//riegeli/bytes:brotli_reader",
         "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:limiting_backward_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:writer_utils",
