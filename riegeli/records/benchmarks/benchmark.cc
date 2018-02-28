@@ -263,7 +263,7 @@ bool Benchmarks::ReadRiegeli(
 }
 
 std::string Benchmarks::Filename(std::string name) {
-  for (char ch : name) {
+  for (auto& ch : name) {
     if (!(ch == '-' || ch == '.' || (ch >= '0' && ch <= '9') ||
           (ch >= 'A' && ch <= 'Z') || ch == '_' || (ch >= 'a' && ch <= 'z'))) {
       ch = '_';
@@ -317,7 +317,8 @@ void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
 }
 
 void Benchmarks::RunAll() {
-  std::cout << "Original size: " << std::fixed << std::setprecision(3)
+  std::cout << "Original uncompressed size: " << std::fixed
+            << std::setprecision(3)
             << (static_cast<double>(original_size_) / 1000000.0) << " MB"
             << std::endl;
   std::cout << std::left << std::setw(max_name_width_) << ""
