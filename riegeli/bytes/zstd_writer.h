@@ -70,9 +70,7 @@ class ZstdWriter final : public BufferedWriter {
     // density, and this causes the size to be stored in the compressed stream
     // header.
     //
-    // If the size hint turns out to not match reality, nothing breaks, except
-    // that ZSTD_getDecompressedSize() will report a wrong size, which may be
-    // confusing (zstd.h explicitly states that this value cannot be trusted).
+    // If the size hint turns out to not match reality, nothing breaks.
     Options& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
