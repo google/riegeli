@@ -18,7 +18,6 @@
 #include <stdint.h>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -32,12 +31,12 @@
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
-#include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_backward_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/bytes/zstd_reader.h"
+#include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
@@ -50,124 +49,6 @@ ChainReader* kEmptyChainReader() {
   RIEGELI_ASSERT(kStaticEmptyChainReader->healthy())
       << "kEmptyChainReader() has been closed";
   return kStaticEmptyChainReader.get();
-}
-
-class Decompressor final : public Object {
- public:
-  // Creates a closed Decompressor.
-  Decompressor() noexcept;
-
-  Decompressor(ChainReader src, CompressionType compression_type);
-  Decompressor(Reader* src, CompressionType compression_type);
-
-  Decompressor(Decompressor&& src) noexcept;
-  Decompressor& operator=(Decompressor&& src) noexcept;
-
-  Reader* reader() const { return reader_; }
-
-  bool VerifyEndAndClose();
-
- protected:
-  void Done() override;
-
- private:
-  void Initialize(Reader* src, CompressionType compression_type);
-
-  ChainReader owned_src_;
-  std::unique_ptr<Reader> owned_reader_;
-  Reader* reader_ = nullptr;
-};
-
-Decompressor::Decompressor() noexcept : Object(State::kClosed) {}
-
-Decompressor::Decompressor(ChainReader src, CompressionType compression_type)
-    : Object(State::kOpen), owned_src_(std::move(src)) {
-  Initialize(&owned_src_, compression_type);
-}
-
-Decompressor::Decompressor(Reader* src, CompressionType compression_type)
-    : Object(State::kOpen) {
-  Initialize(RIEGELI_ASSERT_NOTNULL(src), compression_type);
-}
-
-Decompressor::Decompressor(Decompressor&& src) noexcept
-    : Object(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      owned_reader_(std::move(src.owned_reader_)),
-      reader_(src.reader_ == &src.owned_src_ ? &owned_src_ : src.reader_) {
-  src.reader_ = nullptr;
-}
-
-Decompressor& Decompressor::operator=(Decompressor&& src) noexcept {
-  Object::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  owned_reader_ = std::move(src.owned_reader_);
-  // Set src.reader_ before reader_ to support self-assignment.
-  Reader* const reader =
-      src.reader_ == &src.owned_src_ ? &owned_src_ : src.reader_;
-  src.reader_ = nullptr;
-  reader_ = reader;
-  return *this;
-}
-
-void Decompressor::Done() {
-  owned_src_ = ChainReader();
-  owned_reader_.reset();
-  reader_ = nullptr;
-}
-
-void Decompressor::Initialize(Reader* src, CompressionType compression_type) {
-  if (compression_type == CompressionType::kNone) {
-    reader_ = src;
-    return;
-  }
-  uint64_t decompressed_size;
-  if (RIEGELI_UNLIKELY(!ReadVarint64(src, &decompressed_size))) {
-    Fail("Reading decompressed size failed");
-    return;
-  }
-  switch (compression_type) {
-    case CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
-    case CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(src);
-      reader_ = owned_reader_.get();
-      return;
-    case CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(src);
-      reader_ = owned_reader_.get();
-      return;
-  }
-  Fail(StrCat("Unknown compression type: ",
-              static_cast<unsigned>(compression_type)));
-}
-
-bool Decompressor::VerifyEndAndClose() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  // Verify that decompression succeeded, there are no extra compressed data,
-  // and in case the compression type was not kNone that there are no extra data
-  // after the compressed stream.
-  if (owned_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) {
-      return Fail(*owned_reader_);
-    }
-  }
-  if (RIEGELI_UNLIKELY(!owned_src_.VerifyEndAndClose())) {
-    return Fail(owned_src_);
-  }
-  return true;
-}
-
-// Returns decompressed size of data in "compressed_data" in "size".
-bool DecompressedSize(CompressionType compression_type,
-                      const Chain& compressed_data,
-                      uint64_t* decompressed_size) {
-  if (compression_type == CompressionType::kNone) {
-    *decompressed_size = compressed_data.size();
-    return true;
-  }
-  ChainReader compressed_data_reader(&compressed_data);
-  return ReadVarint64(&compressed_data_reader, decompressed_size);
 }
 
 constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();
@@ -478,7 +359,7 @@ struct TransposeDecoder::Context {
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
-  Decompressor transitions;
+  internal::Decompressor transitions;
 
   // --- Fields used in filtering. ---
   // We number used fields with indices into "existence_only" vector below.
@@ -495,16 +376,6 @@ struct TransposeDecoder::Context {
   // Template that can later be used later to finalize StateMachineNode.
   std::vector<StateMachineNodeTemplate> node_templates;
 };
-
-TransposeDecoder::TransposeDecoder() noexcept : Object(State::kOpen) {}
-
-TransposeDecoder::TransposeDecoder(TransposeDecoder&& src) noexcept
-    : Object(std::move(src)) {}
-
-TransposeDecoder& TransposeDecoder::operator=(TransposeDecoder&& src) noexcept {
-  Object::operator=(std::move(src));
-  return *this;
-}
 
 void TransposeDecoder::Done() {}
 
@@ -569,8 +440,8 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (RIEGELI_UNLIKELY(!src->Read(&header, header_size))) {
     return Fail("Reading header failed", *src);
   }
-  Decompressor header_decompressor((ChainReader(&header)),
-                                   context->compression_type);
+  internal::Decompressor header_decompressor(
+      riegeli::make_unique<ChainReader>(&header), context->compression_type);
   if (RIEGELI_UNLIKELY(!header_decompressor.healthy())) {
     return Fail(header_decompressor);
   }
@@ -813,7 +684,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (RIEGELI_UNLIKELY(!header_decompressor.VerifyEndAndClose())) {
     return Fail(header_decompressor);
   }
-  context->transitions = Decompressor(src, context->compression_type);
+  context->transitions = internal::Decompressor(src, context->compression_type);
   if (RIEGELI_UNLIKELY(!context->transitions.healthy())) {
     return Fail(context->transitions);
   }
@@ -838,12 +709,12 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
     return true;
   }
   context->buffers.reserve(num_buffers);
-  std::vector<Decompressor> bucket_decompressors;
+  std::vector<internal::Decompressor> bucket_decompressors;
   if (RIEGELI_UNLIKELY(num_buckets > bucket_decompressors.max_size())) {
     return Fail("Too many buckets");
   }
   bucket_decompressors.reserve(num_buckets);
-  for (uint32_t i = 0; i < num_buckets; ++i) {
+  for (uint32_t bucket_index = 0; bucket_index < num_buckets; ++bucket_index) {
     uint64_t bucket_length;
     if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &bucket_length))) {
       return Fail("Reading bucket length failed");
@@ -855,15 +726,16 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
     if (RIEGELI_UNLIKELY(!src->Read(&bucket, IntCast<size_t>(bucket_length)))) {
       return Fail("Reading bucket failed", *src);
     }
-    bucket_decompressors.emplace_back(ChainReader(std::move(bucket)),
-                                      context->compression_type);
+    bucket_decompressors.emplace_back(
+        riegeli::make_unique<ChainReader>(std::move(bucket)),
+        context->compression_type);
     if (RIEGELI_UNLIKELY(!bucket_decompressors.back().healthy())) {
       return Fail(bucket_decompressors.back());
     }
   }
 
   uint32_t bucket_index = 0;
-  for (size_t i = 0; i < num_buffers; ++i) {
+  for (size_t buffer_index = 0; buffer_index < num_buffers; ++buffer_index) {
     uint64_t buffer_length;
     if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &buffer_length))) {
       return Fail("Reading buffer length failed");
@@ -924,7 +796,7 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   first_buffer_indices->reserve(num_buckets);
   bucket_indices->reserve(num_buffers);
   context->buckets.reserve(num_buckets);
-  for (uint32_t i = 0; i < num_buckets; ++i) {
+  for (uint32_t bucket_index = 0; bucket_index < num_buckets; ++bucket_index) {
     uint64_t bucket_length;
     if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &bucket_length))) {
       return Fail("Reading bucket length failed");
@@ -942,12 +814,12 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   uint32_t bucket_index = 0;
   uint64_t remaining_bucket_size = 0;
   first_buffer_indices->push_back(0);
-  if (RIEGELI_UNLIKELY(!DecompressedSize(context->compression_type,
-                                         context->buckets[0].compressed_data,
-                                         &remaining_bucket_size))) {
-    return Fail("Reading decompressed size failed");
+  if (RIEGELI_UNLIKELY(!internal::Decompressor::UncompressedSize(
+          context->buckets[0].compressed_data, context->compression_type,
+          &remaining_bucket_size))) {
+    return Fail("Reading uncompressed size failed");
   }
-  for (uint32_t i = 0; i < num_buffers; ++i) {
+  for (uint32_t buffer_index = 0; buffer_index < num_buffers; ++buffer_index) {
     uint64_t buffer_length;
     if (RIEGELI_UNLIKELY(!ReadVarint64(header_reader, &buffer_length))) {
       return Fail("Reading buffer length failed", *header_reader);
@@ -964,12 +836,11 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
     bucket_indices->push_back(bucket_index);
     while (remaining_bucket_size == 0 && bucket_index + 1 < num_buckets) {
       ++bucket_index;
-      first_buffer_indices->push_back(i + 1);
-      if (RIEGELI_UNLIKELY(
-              !DecompressedSize(context->compression_type,
-                                context->buckets[bucket_index].compressed_data,
-                                &remaining_bucket_size))) {
-        return Fail("Reading decompressed size failed");
+      first_buffer_indices->push_back(buffer_index + 1);
+      if (RIEGELI_UNLIKELY(!internal::Decompressor::UncompressedSize(
+              context->buckets[bucket_index].compressed_data,
+              context->compression_type, &remaining_bucket_size))) {
+        return Fail("Reading uncompressed size failed");
       }
     }
   }
@@ -994,8 +865,9 @@ inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
   } else {
     RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffer_sizes.size())
         << "Index within bucket out of range";
-    Decompressor decompressor((ChainReader(&bucket.compressed_data)),
-                              context->compression_type);
+    internal::Decompressor decompressor(
+        riegeli::make_unique<ChainReader>(&bucket.compressed_data),
+        context->compression_type);
     if (RIEGELI_UNLIKELY(!decompressor.healthy())) {
       Fail(decompressor);
       return nullptr;

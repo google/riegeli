@@ -126,45 +126,11 @@ class RecordWriter::Impl : public Object {
   virtual void OpenChunk() = 0;
 
   // Precondition: chunk is open.
-  bool AddRecord(const google::protobuf::MessageLite& record) {
+  template <typename Record>
+  bool AddRecord(Record&& record) {
     if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
-      return Fail(*chunk_encoder_);
-    }
-    return true;
-  }
-
-  // Precondition: chunk is open.
-  bool AddRecord(string_view record) {
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
-      return Fail(*chunk_encoder_);
-    }
-    return true;
-  }
-
-  // Precondition: chunk is open.
-  bool AddRecord(std::string&& record) {
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(std::move(record)))) {
-      return Fail(*chunk_encoder_);
-    }
-    return true;
-  }
-
-  // Precondition: chunk is open.
-  bool AddRecord(const Chain& record) {
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(record))) {
-      return Fail(*chunk_encoder_);
-    }
-    return true;
-  }
-
-  // Precondition: chunk is open.
-  bool AddRecord(Chain&& record) {
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(!chunk_encoder_->AddRecord(std::move(record)))) {
+    if (RIEGELI_UNLIKELY(
+            !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
       return Fail(*chunk_encoder_);
     }
     return true;
@@ -203,7 +169,7 @@ class RecordWriter::SerialImpl final : public Impl {
 bool RecordWriter::SerialImpl::CloseChunk() {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   Chunk chunk;
-  if (RIEGELI_UNLIKELY(!chunk_encoder_->Encode(&chunk))) {
+  if (RIEGELI_UNLIKELY(!chunk_encoder_->EncodeAndClose(&chunk))) {
     return Fail("Encoding chunk failed", *chunk_encoder_);
   }
   if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
@@ -426,7 +392,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   }
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
     Chunk chunk;
-    if (RIEGELI_UNLIKELY(!chunk_encoder->Encode(&chunk))) {
+    if (RIEGELI_UNLIKELY(!chunk_encoder->EncodeAndClose(&chunk))) {
       Fail("Encoding chunk failed", *chunk_encoder);
     }
     delete chunk_encoder;
@@ -582,7 +548,7 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
           : IntCast<uint64_t>(record_size) + sizeof(uint64_t);
   if (RIEGELI_UNLIKELY(chunk_size_so_far_ > desired_chunk_size_ ||
                        added_size > desired_chunk_size_ - chunk_size_so_far_) &&
-      chunk_size_so_far_ != 0) {
+      chunk_size_so_far_ > 0) {
     if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
     chunk_size_so_far_ = 0;

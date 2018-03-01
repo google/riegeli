@@ -36,10 +36,10 @@ enum class CallbackType : uint8_t;
 
 class TransposeDecoder final : public Object {
  public:
-  TransposeDecoder() noexcept;
+  TransposeDecoder() noexcept : Object(State::kClosed) {}
 
-  TransposeDecoder(TransposeDecoder&& src) noexcept;
-  TransposeDecoder& operator=(TransposeDecoder&& src) noexcept;
+  TransposeDecoder(const TransposeDecoder&) = delete;
+  TransposeDecoder& operator=(const TransposeDecoder&) = delete;
 
   // Resets the TransposeDecoder and parses the chunk.
   //

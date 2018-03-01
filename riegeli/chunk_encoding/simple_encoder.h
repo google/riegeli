@@ -23,9 +23,9 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
-#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
@@ -54,8 +54,8 @@ class SimpleEncoder final : public ChunkEncoder {
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
 
-  bool Encode(Writer* dest, uint64_t* num_records,
-              uint64_t* decoded_data_size) override;
+  bool EncodeAndClose(Writer* dest, uint64_t* num_records,
+                      uint64_t* decoded_data_size) override;
 
  protected:
   void Done() override;
@@ -63,36 +63,13 @@ class SimpleEncoder final : public ChunkEncoder {
   ChunkType GetChunkType() const override { return ChunkType::kSimple; }
 
  private:
-  class Compressor final : public Object {
-   public:
-    Compressor(CompressionType compression_type, int compression_level,
-               uint64_t size_hint);
-
-    Compressor(const Compressor&) = delete;
-    Compressor& operator=(const Compressor&) = delete;
-
-    void Reset(CompressionType compression_type, int compression_level,
-               uint64_t size_hint);
-    Writer* writer() const { return writer_.get(); }
-    Chain* Encode();
-
-   protected:
-    void Done() override;
-
-   private:
-    Chain data_;
-    std::unique_ptr<Writer> writer_;
-  };
-
   template <typename Record>
   bool AddRecordImpl(Record&& record);
 
   CompressionType compression_type_;
-  int compression_level_;
-  uint64_t size_hint_;
   uint64_t num_records_ = 0;
-  Compressor sizes_compressor_;
-  Compressor values_compressor_;
+  internal::Compressor sizes_compressor_;
+  internal::Compressor values_compressor_;
 };
 
 }  // namespace riegeli

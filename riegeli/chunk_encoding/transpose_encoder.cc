@@ -31,7 +31,6 @@
 #include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
-#include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -41,7 +40,7 @@
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/bytes/zstd_writer.h"
+#include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
@@ -298,7 +297,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
     ChainBackwardWriter* const buffer =
         GetBuffer(internal::MessageId::kNonProto, 0, BufferType::kNonProto);
     if (RIEGELI_UNLIKELY(!record->CopyTo(buffer, IntCast<size_t>(size)))) {
-      return Fail("Copying data to buffer failed", *buffer);
+      return Fail(*buffer);
     }
     if (RIEGELI_UNLIKELY(!WriteVarint64(&nonproto_lengths_writer_,
                                         IntCast<uint64_t>(size)))) {
@@ -374,9 +373,12 @@ inline bool TransposeEncoder::AddRecordInternal(
                              IntCast<uint8_t>(value_length - 1))));
           // Clear high bit of each byte.
           for (auto& word : value) word &= ~uint64_t{0x8080808080808080};
-          GetBuffer(parent_message_id, field, BufferType::kVarint)
-              ->Write(string_view(reinterpret_cast<const char*>(value),
-                                  value_length));
+          ChainBackwardWriter* const buffer =
+              GetBuffer(parent_message_id, field, BufferType::kVarint);
+          if (RIEGELI_UNLIKELY(!buffer->Write(string_view(
+                  reinterpret_cast<const char*>(value), value_length)))) {
+            return Fail(*buffer);
+          }
         }
       } break;
       case internal::WireType::kFixed32: {
@@ -385,7 +387,7 @@ inline bool TransposeEncoder::AddRecordInternal(
         ChainBackwardWriter* const buffer =
             GetBuffer(parent_message_id, field, BufferType::kFixed32);
         if (RIEGELI_UNLIKELY(!record->CopyTo(buffer, sizeof(uint32_t)))) {
-          return Fail("Copying data to buffer failed", *buffer);
+          return Fail(*buffer);
         }
       } break;
       case internal::WireType::kFixed64: {
@@ -394,7 +396,7 @@ inline bool TransposeEncoder::AddRecordInternal(
         ChainBackwardWriter* const buffer =
             GetBuffer(parent_message_id, field, BufferType::kFixed64);
         if (RIEGELI_UNLIKELY(!record->CopyTo(buffer, sizeof(uint64_t)))) {
-          return Fail("Copying data to buffer failed", *buffer);
+          return Fail(*buffer);
         }
       } break;
       case internal::WireType::kLengthDelimited: {
@@ -447,7 +449,7 @@ inline bool TransposeEncoder::AddRecordInternal(
               GetBuffer(parent_message_id, field, BufferType::kString);
           if (RIEGELI_UNLIKELY(!record->CopyTo(
                   buffer, IntCast<size_t>(value_pos - length_pos) + length))) {
-            return Fail("Copying data to buffer failed", *buffer);
+            return Fail(*buffer);
           }
         }
       } break;
@@ -480,90 +482,35 @@ inline bool TransposeEncoder::AddRecordInternal(
   return true;
 }
 
-// TODO: Consider reducing indirections (writing directly to the
-// compressor, and/or letting the compressor write directly to dest if
-// prepend_compressed_size is false).
-inline bool TransposeEncoder::AppendCompressedBuffer(
-    bool prepend_compressed_size, const Chain& input, Writer* dest) {
-  switch (compression_type_) {
-    case CompressionType::kNone:
-      if (prepend_compressed_size) WriteVarint64(dest, input.size());
-      if (RIEGELI_UNLIKELY(!dest->Write(input))) return Fail(*dest);
-      return true;
-    case CompressionType::kBrotli: {
-      Chain compressed;
-      ChainWriter compressed_writer(&compressed);
-      BrotliWriter compressor(&compressed_writer,
-                              BrotliWriter::Options()
-                                  .set_compression_level(compression_level_)
-                                  .set_size_hint(input.size()));
-      compressor.Write(input);
-      if (RIEGELI_UNLIKELY(!compressor.Close())) return Fail(compressor);
-      if (RIEGELI_UNLIKELY(!compressed_writer.Close())) {
-        return Fail(compressed_writer);
-      }
-      if (prepend_compressed_size) {
-        WriteVarint64(dest, LengthVarint64(input.size()) + compressed.size());
-      }
-      WriteVarint64(dest, input.size());
-      if (RIEGELI_UNLIKELY(!dest->Write(std::move(compressed)))) {
-        return Fail(*dest);
-      }
-      return true;
-    }
-    case CompressionType::kZstd: {
-      Chain compressed;
-      ChainWriter compressed_writer(&compressed);
-      ZstdWriter compressor(&compressed_writer,
-                            ZstdWriter::Options()
-                                .set_compression_level(compression_level_)
-                                .set_size_hint(input.size()));
-      compressor.Write(input);
-      if (RIEGELI_UNLIKELY(!compressor.Close())) return Fail(compressor);
-      if (RIEGELI_UNLIKELY(!compressed_writer.Close())) {
-        return Fail(compressed_writer);
-      }
-      if (prepend_compressed_size) {
-        WriteVarint64(dest, LengthVarint64(input.size()) + compressed.size());
-      }
-      WriteVarint64(dest, input.size());
-      if (RIEGELI_UNLIKELY(!dest->Write(std::move(compressed)))) {
-        return Fail(*dest);
-      }
-      return true;
-    }
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown compression type: " << static_cast<int>(compression_type_);
-}
-
-inline bool TransposeEncoder::AddBuffer(
-    bool force_new_bucket, const Chain& next_chunk, Chain* bucket_buffer,
-    ChainWriter* bucket_writer, ChainWriter* data_writer,
-    std::vector<size_t>* bucket_lengths, std::vector<size_t>* buffer_lengths) {
+inline bool TransposeEncoder::AddBuffer(bool force_new_bucket,
+                                        const Chain& next_chunk,
+                                        internal::Compressor* bucket_compressor,
+                                        Writer* data_writer,
+                                        std::vector<size_t>* bucket_lengths,
+                                        std::vector<size_t>* buffer_lengths) {
   buffer_lengths->push_back(next_chunk.size());
-  if (compression_type_ != CompressionType::kNone && bucket_writer->pos() > 0 &&
-      (force_new_bucket ||
-       IntCast<size_t>(bucket_writer->pos()) + next_chunk.size() >
-           bucket_size_)) {
-    if (RIEGELI_UNLIKELY(!bucket_writer->Close())) return Fail(*bucket_writer);
+  if (RIEGELI_UNLIKELY(force_new_bucket ||
+                       bucket_compressor->writer()->pos() + next_chunk.size() >
+                           bucket_size_) &&
+      compression_type_ != CompressionType::kNone &&
+      bucket_compressor->writer()->pos() > 0) {
     const Position pos_before = data_writer->pos();
-    if (RIEGELI_UNLIKELY(!AppendCompressedBuffer(
-            /*prepend_compressed_size=*/false, *bucket_buffer, data_writer))) {
-      return false;
+    if (RIEGELI_UNLIKELY(!bucket_compressor->EncodeAndClose(data_writer))) {
+      return Fail(*bucket_compressor);
     }
     RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
         << "Data writer position decreased";
     bucket_lengths->push_back(IntCast<size_t>(data_writer->pos() - pos_before));
-    bucket_buffer->Clear();
-    *bucket_writer = ChainWriter(bucket_buffer);
+    bucket_compressor->Reset();
   }
-  bucket_writer->Write(next_chunk);
+  if (RIEGELI_UNLIKELY(!bucket_compressor->writer()->Write(next_chunk))) {
+    return Fail(*bucket_compressor);
+  }
   return true;
 }
 
 inline bool TransposeEncoder::WriteBuffers(
-    ChainWriter* header_writer, ChainWriter* data_writer,
+    Writer* header_writer, Writer* data_writer,
     std::unordered_map<TransposeEncoder::NodeId, uint32_t,
                        TransposeEncoder::NodeIdHasher>* buffer_pos) {
   size_t num_buffers = 0;
@@ -588,15 +535,14 @@ inline bool TransposeEncoder::WriteBuffers(
   buffer_lengths.reserve(num_buffers);
   std::vector<size_t> bucket_lengths;
 
-  Chain bucket_buffer;
-  ChainWriter bucket_writer(&bucket_buffer);
+  internal::Compressor bucket_compressor(compression_type_, compression_level_);
   // Write all buffer lengths to the header and data to "bucket_buffer".
   for (size_t i = 0; i < kNumBufferTypes; ++i) {
     for (size_t j = 0; j < data_[i].size(); ++j) {
       const auto& x = data_[i][j];
-      if (RIEGELI_UNLIKELY(!AddBuffer(j == 0, *x.buffer, &bucket_buffer,
-                                      &bucket_writer, data_writer,
-                                      &bucket_lengths, &buffer_lengths))) {
+      if (RIEGELI_UNLIKELY(!AddBuffer(j == 0, *x.buffer, &bucket_compressor,
+                                      data_writer, &bucket_lengths,
+                                      &buffer_lengths))) {
         return false;
       }
       const auto insert_result = buffer_pos->emplace(
@@ -609,40 +555,48 @@ inline bool TransposeEncoder::WriteBuffers(
   if (!nonproto_lengths_.empty()) {
     // nonproto_lengths_ is the last buffer if non-empty.
     if (RIEGELI_UNLIKELY(!AddBuffer(
-            /*force_new_bucket=*/true, nonproto_lengths_, &bucket_buffer,
-            &bucket_writer, data_writer, &bucket_lengths, &buffer_lengths))) {
+            /*force_new_bucket=*/true, nonproto_lengths_, &bucket_compressor,
+            data_writer, &bucket_lengths, &buffer_lengths))) {
       return false;
     }
     // Note: nonproto_lengths_ needs no buffer_pos.
   }
 
-  if (bucket_writer.pos() > 0) {
+  if (bucket_compressor.writer()->pos() > 0) {
     // Last bucket.
-    if (RIEGELI_UNLIKELY(!bucket_writer.Close())) return Fail(bucket_writer);
     const Position pos_before = data_writer->pos();
-    if (RIEGELI_UNLIKELY(!AppendCompressedBuffer(
-            /*prepend_compressed_size=*/false, bucket_buffer, data_writer))) {
-      return false;
+    if (RIEGELI_UNLIKELY(!bucket_compressor.EncodeAndClose(data_writer))) {
+      return Fail(bucket_compressor);
     }
     RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
         << "Data writer position decreased";
     bucket_lengths.push_back(IntCast<size_t>(data_writer->pos() - pos_before));
   }
 
-  WriteVarint32(header_writer, IntCast<uint32_t>(bucket_lengths.size()));
-  WriteVarint32(header_writer, IntCast<uint32_t>(buffer_lengths.size()));
+  if (RIEGELI_UNLIKELY(!WriteVarint32(
+          header_writer, IntCast<uint32_t>(bucket_lengths.size()))) ||
+      RIEGELI_UNLIKELY(!WriteVarint32(
+          header_writer, IntCast<uint32_t>(buffer_lengths.size())))) {
+    return Fail(*header_writer);
+  }
   for (size_t length : bucket_lengths) {
-    WriteVarint64(header_writer, IntCast<uint64_t>(length));
+    if (RIEGELI_UNLIKELY(
+            !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
+      return Fail(*header_writer);
+    }
   }
   for (size_t length : buffer_lengths) {
-    WriteVarint64(header_writer, IntCast<uint64_t>(length));
+    if (RIEGELI_UNLIKELY(
+            !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
+      return Fail(*header_writer);
+    }
   }
   return true;
 }
 
 inline bool TransposeEncoder::WriteStatesAndData(
     uint32_t max_transition, const std::vector<StateInfo>& state_machine,
-    ChainWriter* header_writer, ChainWriter* data_writer) {
+    Writer* header_writer, Writer* data_writer) {
   if (!encoded_tags_.empty() &&
       tags_list_[encoded_tags_[0]].dest_info.size() == 1) {
     // There should be no implicit transition from the last state. If there was
@@ -667,12 +621,18 @@ inline bool TransposeEncoder::WriteStatesAndData(
 
   base_to_write.reserve(state_machine.size());
 
-  WriteVarint32(header_writer, IntCast<uint32_t>(state_machine.size()));
+  if (RIEGELI_UNLIKELY(!WriteVarint32(
+          header_writer, IntCast<uint32_t>(state_machine.size())))) {
+    return Fail(*header_writer);
+  }
   for (auto state_info : state_machine) {
     if (state_info.etag_index == kInvalidPos) {
       // NoOp state.
-      WriteVarint32(header_writer,
-                    static_cast<uint32_t>(internal::MessageId::kNoOp));
+      if (RIEGELI_UNLIKELY(!WriteVarint32(
+              header_writer,
+              static_cast<uint32_t>(internal::MessageId::kNoOp)))) {
+        return Fail(*header_writer);
+      }
       base_to_write.push_back(state_info.base);
       continue;
     }
@@ -683,19 +643,26 @@ inline bool TransposeEncoder::WriteStatesAndData(
       if (is_string &&
           etag.subtype ==
               internal::Subtype::kLengthDelimitedStartOfSubmessage) {
-        WriteVarint32(
-            header_writer,
-            static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage));
+        if (RIEGELI_UNLIKELY(!WriteVarint32(
+                header_writer, static_cast<uint32_t>(
+                                   internal::MessageId::kStartOfSubmessage)))) {
+          return Fail(*header_writer);
+        }
       } else if (is_string &&
                  etag.subtype ==
                      internal::Subtype::kLengthDelimitedEndOfSubmessage) {
         // End of submessage is encoded as WireType::kSubmessage instead of
         // WireType::kLengthDelimited.
-        WriteVarint32(header_writer,
-                      etag.tag + (internal::WireType::kSubmessage -
-                                  internal::WireType::kLengthDelimited));
+        if (RIEGELI_UNLIKELY(!WriteVarint32(
+                header_writer,
+                etag.tag + (internal::WireType::kSubmessage -
+                            internal::WireType::kLengthDelimited)))) {
+          return Fail(*header_writer);
+        }
       } else {
-        WriteVarint32(header_writer, etag.tag);
+        if (RIEGELI_UNLIKELY(!WriteVarint32(header_writer, etag.tag))) {
+          return Fail(*header_writer);
+        }
         if (internal::HasSubtype(etag.tag)) {
           subtype_to_write.push_back(static_cast<char>(etag.subtype));
         }
@@ -710,7 +677,10 @@ inline bool TransposeEncoder::WriteStatesAndData(
       }
     } else {
       // NonProto and StartOfMessage special IDs.
-      WriteVarint32(header_writer, static_cast<uint32_t>(etag.message_id));
+      if (RIEGELI_UNLIKELY(!WriteVarint32(
+              header_writer, static_cast<uint32_t>(etag.message_id)))) {
+        return Fail(*header_writer);
+      }
       if (etag.message_id == internal::MessageId::kNonProto) {
         // NonProto has data buffer.
         const auto iter =
@@ -738,11 +708,17 @@ inline bool TransposeEncoder::WriteStatesAndData(
     }
   }
   for (auto v : base_to_write) {
-    WriteVarint32(header_writer, v);
+    if (RIEGELI_UNLIKELY(!WriteVarint32(header_writer, v))) {
+      return Fail(*header_writer);
+    }
   }
-  header_writer->Write(subtype_to_write);
+  if (RIEGELI_UNLIKELY(!header_writer->Write(std::move(subtype_to_write)))) {
+    return Fail(*header_writer);
+  }
   for (auto v : buffer_index_to_write) {
-    WriteVarint32(header_writer, v);
+    if (RIEGELI_UNLIKELY(!WriteVarint32(header_writer, v))) {
+      return Fail(*header_writer);
+    }
   }
 
   // Find the smallest index that has first tag.
@@ -754,22 +730,26 @@ inline bool TransposeEncoder::WriteStatesAndData(
       ++first_tag_pos;
     }
   }
-  WriteVarint32(header_writer, first_tag_pos);
-
-  Chain transitions_buffer;
-  ChainWriter transitions_writer(&transitions_buffer);
-  WriteTransitions(max_transition, state_machine, &transitions_writer);
-  if (RIEGELI_UNLIKELY(!transitions_writer.Close())) {
-    return Fail(transitions_writer);
+  if (RIEGELI_UNLIKELY(!WriteVarint32(header_writer, first_tag_pos))) {
+    return Fail(*header_writer);
   }
-  return AppendCompressedBuffer(/*prepend_compressed_size=*/false,
-                                transitions_buffer, data_writer);
+
+  internal::Compressor transitions_compressor(compression_type_,
+                                              compression_level_);
+  if (RIEGELI_UNLIKELY(!WriteTransitions(max_transition, state_machine,
+                                         transitions_compressor.writer()))) {
+    return false;
+  }
+  if (RIEGELI_UNLIKELY(!transitions_compressor.EncodeAndClose(data_writer))) {
+    return Fail(transitions_compressor);
+  }
+  return true;
 }
 
-inline void TransposeEncoder::WriteTransitions(
+inline bool TransposeEncoder::WriteTransitions(
     uint32_t max_transition, const std::vector<StateInfo>& state_machine,
-    ChainWriter* transitions_writer) {
-  if (encoded_tags_.empty()) return;
+    Writer* transitions_writer) {
+  if (encoded_tags_.empty()) return true;
   uint32_t prev_etag = encoded_tags_.back();
   uint32_t current_base = tags_list_[prev_etag].base;
   // Assuming an approximately balanced tree of NoOp nodes covering transitions
@@ -834,7 +814,10 @@ inline void TransposeEncoder::WriteTransitions(
               ++last_transition;
             } else {
               if (have_last_transition) {
-                WriteByte(transitions_writer, last_transition);
+                if (RIEGELI_UNLIKELY(
+                        !WriteByte(transitions_writer, last_transition))) {
+                  return Fail(*transitions_writer);
+                }
               }
               have_last_transition = true;
               last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -874,7 +857,10 @@ inline void TransposeEncoder::WriteTransitions(
           ++last_transition;
         } else {
           if (have_last_transition) {
-            WriteByte(transitions_writer, last_transition);
+            if (RIEGELI_UNLIKELY(
+                    !WriteByte(transitions_writer, last_transition))) {
+              return Fail(*transitions_writer);
+            }
           }
           have_last_transition = true;
           last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -889,8 +875,11 @@ inline void TransposeEncoder::WriteTransitions(
     current_base = tags_list_[prev_etag].base;
   }
   if (have_last_transition) {
-    WriteByte(transitions_writer, last_transition);
+    if (RIEGELI_UNLIKELY(!WriteByte(transitions_writer, last_transition))) {
+      return Fail(*transitions_writer);
+    }
   }
+  return true;
 }
 
 inline void TransposeEncoder::CollectTransitionStatistics() {
@@ -1275,18 +1264,19 @@ constexpr uint32_t kMaxTransition = 63;
 // appear in the private state list for node A.
 constexpr uint32_t kMinCountForState = 10;
 
-bool TransposeEncoder::Encode(Writer* dest, uint64_t* num_records,
-                              uint64_t* decoded_data_size) {
-  return EncodeInternal(kMaxTransition, kMinCountForState, dest, num_records,
-                        decoded_data_size);
+bool TransposeEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
+                                      uint64_t* decoded_data_size) {
+  return EncodeAndCloseInternal(kMaxTransition, kMinCountForState, dest,
+                                num_records, decoded_data_size);
 }
 
-bool TransposeEncoder::EncodeInternal(uint32_t max_transition,
-                                      uint32_t min_count_for_state,
-                                      Writer* dest, uint64_t* num_records,
-                                      uint64_t* decoded_data_size) {
+bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
+                                              uint32_t min_count_for_state,
+                                              Writer* dest,
+                                              uint64_t* num_records,
+                                              uint64_t* decoded_data_size) {
   RIEGELI_ASSERT_LE(max_transition, 63u)
-      << "Failed precondition of TransposeEncoder::EncodeInternal(): "
+      << "Failed precondition of TransposeEncoder::EncodeAndCloseInternal(): "
          "maximum transition too large to encode";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   *num_records = num_records_;
@@ -1302,27 +1292,40 @@ bool TransposeEncoder::EncodeInternal(uint32_t max_transition,
     return Fail(nonproto_lengths_writer_);
   }
 
-  WriteByte(dest, static_cast<uint8_t>(compression_type_));
-
-  Chain header;
-  ChainWriter header_writer(&header);
+  if (RIEGELI_UNLIKELY(
+          !WriteByte(dest, static_cast<uint8_t>(compression_type_)))) {
+    return Fail(*dest);
+  }
 
   const std::vector<StateInfo> state_machine =
       CreateStateMachine(max_transition, min_count_for_state);
+
+  internal::Compressor header_compressor(compression_type_, compression_level_);
   Chain data;
   ChainWriter data_writer(&data);
   if (RIEGELI_UNLIKELY(!WriteStatesAndData(max_transition, state_machine,
-                                           &header_writer, &data_writer))) {
-    return false;
-  }
-  if (RIEGELI_UNLIKELY(!header_writer.Close())) return Fail(header_writer);
-  if (RIEGELI_UNLIKELY(!AppendCompressedBuffer(/*prepend_compressed_size=*/true,
-                                               header, dest))) {
+                                           header_compressor.writer(),
+                                           &data_writer))) {
     return false;
   }
   if (RIEGELI_UNLIKELY(!data_writer.Close())) return Fail(data_writer);
+
+  Chain compressed_header;
+  ChainWriter compressed_header_writer(&compressed_header);
+  if (RIEGELI_UNLIKELY(
+          !header_compressor.EncodeAndClose(&compressed_header_writer))) {
+    return Fail(header_compressor);
+  }
+  if (RIEGELI_UNLIKELY(!compressed_header_writer.Close())) {
+    return Fail(compressed_header_writer);
+  }
+  if (RIEGELI_UNLIKELY(
+          !WriteVarint64(dest, IntCast<uint64_t>(compressed_header.size()))) ||
+      RIEGELI_UNLIKELY(!dest->Write(std::move(compressed_header)))) {
+    return Fail(*dest);
+  }
   if (RIEGELI_UNLIKELY(!dest->Write(std::move(data)))) return Fail(*dest);
-  return true;
+  return Close();
 }
 
 DeferredTransposeEncoder::DeferredTransposeEncoder(
@@ -1358,19 +1361,22 @@ bool DeferredTransposeEncoder::AddRecord(Chain&& record) {
   return true;
 }
 
-bool DeferredTransposeEncoder::Encode(Writer* dest, uint64_t* num_records,
-                                      uint64_t* decoded_data_size) {
+bool DeferredTransposeEncoder::EncodeAndClose(Writer* dest,
+                                              uint64_t* num_records,
+                                              uint64_t* decoded_data_size) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   TransposeEncoder transpose_encoder(compression_type_, compression_level_,
                                      bucket_size_);
   for (const auto& record : records_) {
-    transpose_encoder.AddRecord(record);
+    if (RIEGELI_UNLIKELY(!transpose_encoder.AddRecord(record))) {
+      return Fail(transpose_encoder);
+    }
   }
-  if (RIEGELI_UNLIKELY(
-          !transpose_encoder.Encode(dest, num_records, decoded_data_size))) {
+  if (RIEGELI_UNLIKELY(!transpose_encoder.EncodeAndClose(dest, num_records,
+                                                         decoded_data_size))) {
     Fail(transpose_encoder);
   }
-  return true;
+  return Close();
 }
 
 }  // namespace riegeli

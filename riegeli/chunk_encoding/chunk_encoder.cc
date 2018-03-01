@@ -51,7 +51,7 @@ bool ChunkEncoder::AddRecord(Chain&& record) {
   return AddRecord(record);
 }
 
-bool ChunkEncoder::Encode(Chunk* chunk) {
+bool ChunkEncoder::EncodeAndClose(Chunk* chunk) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   uint64_t num_records;
   uint64_t decoded_data_size;
@@ -59,7 +59,7 @@ bool ChunkEncoder::Encode(Chunk* chunk) {
   ChainWriter data_writer(&chunk->data);
   WriteByte(&data_writer, static_cast<uint8_t>(GetChunkType()));
   if (RIEGELI_UNLIKELY(
-          !Encode(&data_writer, &num_records, &decoded_data_size))) {
+          !EncodeAndClose(&data_writer, &num_records, &decoded_data_size))) {
     return false;
   }
   if (RIEGELI_UNLIKELY(!data_writer.Close())) return Fail(data_writer);

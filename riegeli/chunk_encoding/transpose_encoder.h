@@ -32,8 +32,17 @@
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
-// The layout of the format looks is as follows (values are varint encoded
-// unless indicated otherwise):
+namespace riegeli {
+
+namespace internal {
+
+class Compressor;
+
+}  // namespace internal
+
+class Reader;
+
+// Format (values are varint encoded unless indicated otherwise):
 //  - Compression type
 //  - Header length (compressed length if applicable)
 //  - Header (possibly compressed):
@@ -55,12 +64,6 @@
 //      - Concatenated data buffers in this bucket (bytes)
 //  - Transitions (possibly compressed):
 //    - State machine transitions (bytes)
-
-namespace riegeli {
-
-class ChainWriter;
-class Reader;
-
 class TransposeEncoder : public ChunkEncoder {
  public:
   // Creates an empty TransposeEncoder.
@@ -69,7 +72,6 @@ class TransposeEncoder : public ChunkEncoder {
 
   ~TransposeEncoder();
 
-  // Resets the object, to reuse it for the next batch of records.
   void Reset() override;
 
   // "record" should be a protocol message in binary format. Transpose works
@@ -80,10 +82,8 @@ class TransposeEncoder : public ChunkEncoder {
   bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
 
-  // Encode records added with AddRecord() calls. No records should be added
-  // after calling this method.
-  bool Encode(Writer* dest, uint64_t* num_records,
-              uint64_t* decoded_data_size) override;
+  bool EncodeAndClose(Writer* dest, uint64_t* num_records,
+                      uint64_t* decoded_data_size) override;
 
  protected:
   void Done() override;
@@ -93,17 +93,12 @@ class TransposeEncoder : public ChunkEncoder {
  private:
   bool AddRecordInternal(Reader* record);
 
-  // Compress "input" according to "compression_type_" and append to "output".
-  // If "prepend_compressed_size" is true, compressed size is written to output
-  // in the varint format.
-  bool AppendCompressedBuffer(bool prepend_compressed_size, const Chain& input,
-                              Writer* dest);
-
   // Encode messages added with AddRecord() calls and write the result to
   // "buffer". No messages should be added after calling this method.
-  bool EncodeInternal(uint32_t max_transition, uint32_t min_count_for_state,
-                      Writer* dest, uint64_t* num_records,
-                      uint64_t* decoded_data_size);
+  bool EncodeAndCloseInternal(uint32_t max_transition,
+                              uint32_t min_count_for_state, Writer* dest,
+                              uint64_t* num_records,
+                              uint64_t* decoded_data_size);
 
   // Types of data buffers protocol buffer fields are split into.
   // The buffer type information is not used in any way except to group similar
@@ -169,7 +164,7 @@ class TransposeEncoder : public ChunkEncoder {
   // and buffer lengths into "header_buffer".
   // Fill map with the sequential position of each buffer written.
   bool WriteBuffers(
-      ChainWriter* header_writer, ChainWriter* data_writer,
+      Writer* header_writer, Writer* data_writer,
       std::unordered_map<TransposeEncoder::NodeId, uint32_t,
                          TransposeEncoder::NodeIdHasher>* buffer_pos);
 
@@ -194,8 +189,8 @@ class TransposeEncoder : public ChunkEncoder {
   // the current bucket would become too large or "force_new_bucket" is true,
   // flush the bucket to "data_buffer" first and create a new bucket.
   bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
-                 Chain* bucket_buffer, ChainWriter* bucket_writer,
-                 ChainWriter* data_writer, std::vector<size_t>* bucket_lengths,
+                 internal::Compressor* bucket_compressor, Writer* data_writer,
+                 std::vector<size_t>* bucket_lengths,
                  std::vector<size_t>* buffer_lengths);
 
   // Compute base indices for states in "state_machine" that don't have one yet.
@@ -219,12 +214,13 @@ class TransposeEncoder : public ChunkEncoder {
   // "data_buffer".
   bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
-                          ChainWriter* header_writer, ChainWriter* data_writer);
+                          Writer* header_writer, Writer* data_writer);
 
-  // Write all state machine transitions from "encoded_tags_" into "buffer".
-  void WriteTransitions(uint32_t max_transition,
+  // Write all state machine transitions from "encoded_tags_" into
+  // "transitions_writer".
+  bool WriteTransitions(uint32_t max_transition,
                         const std::vector<StateInfo>& state_machine,
-                        ChainWriter* transitions_writer);
+                        Writer* transitions_writer);
 
   // Encoded tag represents a tag read from input together with the ID of the
   // message this tag belongs to and subtype extracted from the data.
@@ -328,7 +324,8 @@ class TransposeEncoder : public ChunkEncoder {
 
 // DeferredTransposeEncoder is similar to TransposeEncoder but it performs a
 // minimal amount of the encoding work in AddRecord(), deferring as much as
-// possible to Encode(). It does more memory copying than TransposeEncoder.
+// possible to EncodeAndClose(). It does more memory copying than
+// TransposeEncoder.
 class DeferredTransposeEncoder final : public ChunkEncoder {
  public:
   DeferredTransposeEncoder(CompressionType compression_type,
@@ -341,8 +338,8 @@ class DeferredTransposeEncoder final : public ChunkEncoder {
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
 
-  bool Encode(Writer* dest, uint64_t* num_records,
-              uint64_t* decoded_data_size) override;
+  bool EncodeAndClose(Writer* dest, uint64_t* num_records,
+                      uint64_t* decoded_data_size) override;
 
  protected:
   void Done() override;

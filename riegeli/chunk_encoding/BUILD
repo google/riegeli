@@ -73,20 +73,51 @@ cc_library(
 )
 
 cc_library(
-    name = "simple_encoder",
-    srcs = ["simple_encoder.cc"],
-    hdrs = ["simple_encoder.h"],
+    name = "compressor",
+    srcs = ["compressor.cc"],
+    hdrs = ["compressor.h"],
     deps = [
-        ":chunk_encoder",
         ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:brotli_writer",
         "//riegeli/bytes:chain_writer",
-        "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
         "//riegeli/bytes:zstd_writer",
+    ],
+)
+
+cc_library(
+    name = "decompressor",
+    srcs = ["decompressor.cc"],
+    hdrs = ["decompressor.h"],
+    deps = [
+        ":types",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:brotli_reader",
+        "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/bytes:reader_utils",
+        "//riegeli/bytes:zstd_reader",
+    ],
+)
+
+cc_library(
+    name = "simple_encoder",
+    srcs = ["simple_encoder.cc"],
+    hdrs = ["simple_encoder.h"],
+    deps = [
+        ":chunk_encoder",
+        ":compressor",
+        ":types",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:message_serialize",
+        "//riegeli/bytes:writer",
+        "//riegeli/bytes:writer_utils",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -96,13 +127,12 @@ cc_library(
     srcs = ["simple_decoder.cc"],
     hdrs = ["simple_decoder.h"],
     deps = [
+        ":decompressor",
         ":types",
         "//riegeli/base",
-        "//riegeli/bytes:brotli_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
-        "//riegeli/bytes:zstd_reader",
     ],
 )
 
@@ -112,13 +142,13 @@ cc_library(
     hdrs = ["transpose_encoder.h"],
     deps = [
         ":chunk_encoder",
+        ":compressor",
         ":transpose_internal",
         ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:backward_writer_utils",
-        "//riegeli/bytes:brotli_writer",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:chain_writer",
@@ -128,7 +158,6 @@ cc_library(
         "//riegeli/bytes:string_reader",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
-        "//riegeli/bytes:zstd_writer",
     ],
 )
 
@@ -137,6 +166,7 @@ cc_library(
     srcs = ["transpose_decoder.cc"],
     hdrs = ["transpose_decoder.h"],
     deps = [
+        ":decompressor",
         ":field_filter",
         ":transpose_internal",
         ":types",
@@ -144,13 +174,11 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:backward_writer_utils",
-        "//riegeli/bytes:brotli_reader",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:limiting_backward_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:writer_utils",
-        "//riegeli/bytes:zstd_reader",
     ],
 )
 

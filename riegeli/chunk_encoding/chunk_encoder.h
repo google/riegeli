@@ -30,13 +30,23 @@ namespace riegeli {
 
 class ChunkEncoder : public Object {
  public:
+  // Creates an empty ChunkEncoder.
   ChunkEncoder() noexcept : Object(State::kOpen) {}
 
   ChunkEncoder(const ChunkEncoder&) = delete;
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;
 
+  // Resets the ChunkEncoder back to empty.
   virtual void Reset() = 0;
 
+  // Adds the next record.
+  //
+  // AddRecord(MessageLite) serializes a proto message to raw bytes beforehand.
+  // The remaining overloads accept raw bytes.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
   virtual bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(string_view record) = 0;
   virtual bool AddRecord(std::string&& record) = 0;
@@ -44,10 +54,22 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
-  virtual bool Encode(Writer* dest, uint64_t* num_records,
-                      uint64_t* decoded_data_size) = 0;
+  // Encodes the chunk to *dest, setting *num_records and *decoded_data_size.
+  // Closes the ChunkEncoder.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy());
+  //            if !dest->healthy() then the problem was at dest
+  virtual bool EncodeAndClose(Writer* dest, uint64_t* num_records,
+                              uint64_t* decoded_data_size) = 0;
 
-  bool Encode(Chunk* chunk);
+  // Encodes the chunk to *chunk. Closes the ChunkEncoder.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy());
+  bool EncodeAndClose(Chunk* chunk);
 
  protected:
   virtual ChunkType GetChunkType() const = 0;

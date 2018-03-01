@@ -23,50 +23,13 @@
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/str_cat.h"
-#include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
-#include "riegeli/bytes/zstd_reader.h"
+#include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
-
-inline bool SimpleDecoder::Decompressor::Reset(
-    Reader* src, CompressionType compression_type) {
-  RIEGELI_ASSERT_NOTNULL(src);
-  MarkHealthy();
-  switch (compression_type) {
-    case CompressionType::kNone:
-      reader_ = src;
-      return true;
-    case CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(src);
-      reader_ = owned_reader_.get();
-      return true;
-    case CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(src);
-      reader_ = owned_reader_.get();
-      return true;
-  }
-  return Fail(StrCat("Unknown compression type: ",
-                     static_cast<unsigned>(compression_type)));
-}
-
-void SimpleDecoder::Decompressor::Done() {
-  owned_reader_.reset();
-  reader_ = nullptr;
-}
-
-inline bool SimpleDecoder::Decompressor::VerifyEndAndClose() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (owned_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) {
-      return Fail(*owned_reader_);
-    }
-  }
-  return Close();
-}
 
 void SimpleDecoder::Done() {
   if (RIEGELI_UNLIKELY(!values_decompressor_.Close())) {
@@ -96,9 +59,9 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
     return Fail("Size of sizes too large");
   }
   LimitingReader compressed_sizes_reader(src, src->pos() + sizes_size);
-  Decompressor sizes_decompressor;
-  if (RIEGELI_UNLIKELY(!sizes_decompressor.Reset(&compressed_sizes_reader,
-                                                 compression_type))) {
+  internal::Decompressor sizes_decompressor(&compressed_sizes_reader,
+                                            compression_type);
+  if (RIEGELI_UNLIKELY(!sizes_decompressor.healthy())) {
     compressed_sizes_reader.Close();
     return Fail(sizes_decompressor);
   }
@@ -130,7 +93,8 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
     return Fail("Decoded data size smaller than expected");
   }
 
-  if (RIEGELI_UNLIKELY(!values_decompressor_.Reset(src, compression_type))) {
+  values_decompressor_ = internal::Decompressor(src, compression_type);
+  if (RIEGELI_UNLIKELY(!values_decompressor_.healthy())) {
     return Fail(values_decompressor_);
   }
   return true;

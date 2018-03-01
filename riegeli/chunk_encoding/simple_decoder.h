@@ -17,18 +17,18 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <memory>
 #include <vector>
 
+#include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/chunk_encoding/types.h"
+#include "riegeli/chunk_encoding/decompressor.h"
 
 namespace riegeli {
 
 class SimpleDecoder final : public Object {
  public:
-  SimpleDecoder() noexcept : Object(State::kOpen) {}
+  SimpleDecoder() noexcept : Object(State::kClosed) {}
 
   SimpleDecoder(const SimpleDecoder&) = delete;
   SimpleDecoder& operator=(const SimpleDecoder&) = delete;
@@ -50,41 +50,35 @@ class SimpleDecoder final : public Object {
   bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
              std::vector<size_t>* boundaries);
 
-  // Concatenated messages are available for reading from reader() after Reset()
-  // returns true.
-  Reader* reader() const { return values_decompressor_.reader(); }
+  // Returns the Reader from which concatenated messages should be read.
+  //
+  // Precondition: healthy()
+  Reader* reader() const;
 
   // Verifies that the concatenated messages end at the current position,
   // failing the SimpleDecoder if not. Closes the SimpleDecoder.
+  //
+  // Return values:
+  //  * true  - success (concatenated messages end at the former current
+  //            position)
+  //  * false - failure (concatenated messages do not end at the former current
+  //            position or the SimpleDecoder was not healthy before closing)
   bool VerifyEndAndClose();
 
  protected:
   void Done() override;
 
  private:
-  class Decompressor final : public Object {
-   public:
-    Decompressor() : Object(State::kClosed) {}
-
-    Decompressor(const Decompressor&) = delete;
-    Decompressor& operator=(const Decompressor&) = delete;
-
-    bool Reset(Reader* src, CompressionType compression_type);
-
-    Reader* reader() const { return reader_; }
-
-    bool VerifyEndAndClose();
-
-   protected:
-    void Done() override;
-
-   private:
-    std::unique_ptr<Reader> owned_reader_;
-    Reader* reader_ = nullptr;
-  };
-
-  Decompressor values_decompressor_;
+  internal::Decompressor values_decompressor_;
 };
+
+// Implementation details follow.
+
+inline Reader* SimpleDecoder::reader() const {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of SimpleDecoder::reader(): " << Message();
+  return values_decompressor_.reader();
+}
 
 }  // namespace riegeli
 
