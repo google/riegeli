@@ -15,6 +15,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_encoder",
+        "//riegeli/chunk_encoding:deferred_encoder",
         "//riegeli/chunk_encoding:simple_encoder",
         "//riegeli/chunk_encoding:transpose_encoder",
         "//riegeli/chunk_encoding:types",

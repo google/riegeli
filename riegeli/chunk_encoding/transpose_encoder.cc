@@ -264,15 +264,45 @@ bool TransposeEncoder::AddRecord(const Chain& record) {
   return AddRecordInternal(&reader);
 }
 
+bool TransposeEncoder::AddRecords(const Chain& records,
+                                  const std::vector<size_t>& limits) {
+  RIEGELI_ASSERT_EQ(records.size(), limits.empty() ? 0u : limits.back())
+      << "Failed precondition of ChunkEncoder::AddRecords(): "
+         "end offsets of records do not match concatenated record values";
+  ChainReader records_reader(&records);
+  for (const auto limit : limits) {
+    RIEGELI_ASSERT_GE(limit, records_reader.pos())
+        << "Failed precondition of ChunkEncoder::AddRecords(): "
+           "end offsets of records not sorted";
+    LimitingReader record(&records_reader, limit);
+    if (RIEGELI_UNLIKELY(!AddRecordInternal(&record))) return false;
+    RIEGELI_ASSERT_EQ(record.pos(), limit)
+        << "Record was not read up to its end";
+    if (!record.Close()) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Closing record failed: " << record.Message();
+    }
+  }
+  if (!records_reader.Close()) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Closing records failed: " << records_reader.Message();
+  }
+  return true;
+}
+
 inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(record->pos(), 0u)
+  RIEGELI_ASSERT(record->healthy())
       << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
-         "non-zero initial position";
+      << record->Message();
+  const Position pos_before = record->pos();
   Position size;
   if (!record->Size(&size)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Getting record size failed";
   }
+  RIEGELI_ASSERT_LE(pos_before, size)
+      << "Current position after the end of record";
+  size -= pos_before;
   if (RIEGELI_UNLIKELY(num_records_ == std::numeric_limits<uint64_t>::max())) {
     return Fail("Too many records");
   }
@@ -283,14 +313,14 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   ++num_records_;
   decoded_data_size_ += size;
   const bool is_proto = IsProtoMessage(record);
-  if (!record->Seek(0)) {
+  if (!record->Seek(pos_before)) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Seeking reader of a record failed: " << record->Message();
   }
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kStartOfMessage, 0, internal::Subtype::kTrivial)));
-    return AddRecordInternal(record, internal::MessageId::kRoot, 0);
+    return AddMessage(record, internal::MessageId::kRoot, 0);
   } else {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kNonProto, 0, internal::Subtype::kTrivial)));
@@ -337,8 +367,9 @@ inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
 // Note: EncodedTags are appended into "encoded_tags_" but data is prepended
 // into respective buffers. "encoded_tags_" will be reversed later in
 // WriteToBuffer call.
-inline bool TransposeEncoder::AddRecordInternal(
-    Reader* record, internal::MessageId parent_message_id, int depth) {
+inline bool TransposeEncoder::AddMessage(Reader* record,
+                                         internal::MessageId parent_message_id,
+                                         int depth) {
   while (record->Pull()) {
     uint32_t tag;
     if (!ReadVarint32(record, &tag)) {
@@ -425,7 +456,7 @@ inline bool TransposeEncoder::AddRecordInternal(
             RIEGELI_ASSERT_UNREACHABLE()
                 << "Seeking submessage reader failed: " << value.Message();
           }
-          if (RIEGELI_UNLIKELY(!AddRecordInternal(
+          if (RIEGELI_UNLIKELY(!AddMessage(
                   &value, insert_result.first->second.message_id, depth + 1))) {
             return false;
           }
@@ -437,7 +468,10 @@ inline bool TransposeEncoder::AddRecordInternal(
                 << "Closing submessage reader failed: " << value.Message();
           }
         } else {
-          value.Close();
+          if (RIEGELI_UNLIKELY(!value.Close())) {
+            RIEGELI_ASSERT_UNREACHABLE()
+                << "Closing submessage reader failed: " << value.Message();
+          }
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedString)));
@@ -1328,55 +1362,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   return Close();
 }
 
-DeferredTransposeEncoder::DeferredTransposeEncoder(
-    CompressionType compression_type, int compression_level, size_t bucket_size)
-    : compression_type_(compression_type),
-      compression_level_(compression_level),
-      bucket_size_(bucket_size) {}
-
-void DeferredTransposeEncoder::Done() { records_ = std::vector<Chain>(); }
-
-void DeferredTransposeEncoder::Reset() { records_.clear(); }
-
-bool DeferredTransposeEncoder::AddRecord(string_view record) {
-  return AddRecord(Chain(record));
-}
-
-bool DeferredTransposeEncoder::AddRecord(std::string&& record) {
-  return AddRecord(Chain(std::move(record)));
-}
-
-bool DeferredTransposeEncoder::AddRecord(const Chain& record) {
-  return AddRecord(Chain(record));
-}
-
-bool DeferredTransposeEncoder::AddRecord(Chain&& record) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(records_.size() ==
-                       UnsignedMin(records_.max_size(),
-                                   std::numeric_limits<uint64_t>::max()))) {
-    return Fail("Too many records");
-  }
-  records_.push_back(std::move(record));
-  return true;
-}
-
-bool DeferredTransposeEncoder::EncodeAndClose(Writer* dest,
-                                              uint64_t* num_records,
-                                              uint64_t* decoded_data_size) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  TransposeEncoder transpose_encoder(compression_type_, compression_level_,
-                                     bucket_size_);
-  for (const auto& record : records_) {
-    if (RIEGELI_UNLIKELY(!transpose_encoder.AddRecord(record))) {
-      return Fail(transpose_encoder);
-    }
-  }
-  if (RIEGELI_UNLIKELY(!transpose_encoder.EncodeAndClose(dest, num_records,
-                                                         decoded_data_size))) {
-    Fail(transpose_encoder);
-  }
-  return Close();
+ChunkType TransposeEncoder::GetChunkType() const {
+  return ChunkType::kTransposed;
 }
 
 }  // namespace riegeli

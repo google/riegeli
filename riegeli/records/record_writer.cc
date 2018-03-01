@@ -37,6 +37,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
 #include "riegeli/records/chunk_writer.h"
@@ -85,6 +86,7 @@ bool RecordWriter::Options::Parse(string_view text, std::string* message) {
 
 inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
     const Options& options) {
+  std::unique_ptr<ChunkEncoder> chunk_encoder;
   if (options.transpose_) {
     const long double long_double_bucket_size =
         std::round(static_cast<long double>(options.chunk_size_) *
@@ -97,17 +99,17 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
             : RIEGELI_LIKELY(long_double_bucket_size >= 1.0L)
                   ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
-    if (options.parallelism_ == 0) {
-      return riegeli::make_unique<TransposeEncoder>(
-          options.compression_type_, options.compression_level_, bucket_size);
-    } else {
-      return riegeli::make_unique<DeferredTransposeEncoder>(
-          options.compression_type_, options.compression_level_, bucket_size);
-    }
+    chunk_encoder = riegeli::make_unique<TransposeEncoder>(
+        options.compression_type_, options.compression_level_, bucket_size);
   } else {
-    return riegeli::make_unique<SimpleEncoder>(options.compression_type_,
-                                               options.compression_level_,
-                                               options.chunk_size_);
+    chunk_encoder = riegeli::make_unique<SimpleEncoder>(
+        options.compression_type_, options.compression_level_,
+        options.chunk_size_);
+  }
+  if (options.parallelism_ == 0) {
+    return chunk_encoder;
+  } else {
+    return riegeli::make_unique<DeferredEncoder>(std::move(chunk_encoder));
   }
 }
 

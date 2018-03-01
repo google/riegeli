@@ -78,17 +78,21 @@ class TransposeEncoder : public ChunkEncoder {
   // just fine even if "record" is a corrupted protocol message or an arbitrary
   // string. Such records are internally stored separately -- these are not
   // broken down into columns.
+  using ChunkEncoder::AddRecord;
   bool AddRecord(string_view record) override;
   bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
 
+  bool AddRecords(const Chain& records,
+                  const std::vector<size_t>& limits) override;
+
   bool EncodeAndClose(Writer* dest, uint64_t* num_records,
                       uint64_t* decoded_data_size) override;
 
+  ChunkType GetChunkType() const override;
+
  protected:
   void Done() override;
-
-  ChunkType GetChunkType() const override { return ChunkType::kTransposed; }
 
  private:
   bool AddRecordInternal(Reader* record);
@@ -157,8 +161,8 @@ class TransposeEncoder : public ChunkEncoder {
   // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
   // this message returns true.
   // "depth" is the recursion depth.
-  bool AddRecordInternal(Reader* record, internal::MessageId parent_message_id,
-                         int depth);
+  bool AddMessage(Reader* record, internal::MessageId parent_message_id,
+                  int depth);
 
   // Write all data buffers in "data_" to "data_buffer" (possibly compressed)
   // and buffer lengths into "header_buffer".
@@ -320,37 +324,6 @@ class TransposeEncoder : public ChunkEncoder {
   ChainBackwardWriter nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
   internal::MessageId next_message_id_;
-};
-
-// DeferredTransposeEncoder is similar to TransposeEncoder but it performs a
-// minimal amount of the encoding work in AddRecord(), deferring as much as
-// possible to EncodeAndClose(). It does more memory copying than
-// TransposeEncoder.
-class DeferredTransposeEncoder final : public ChunkEncoder {
- public:
-  DeferredTransposeEncoder(CompressionType compression_type,
-                           int compression_level, size_t bucket_size);
-
-  void Reset() override;
-
-  bool AddRecord(string_view record) override;
-  bool AddRecord(std::string&& record) override;
-  bool AddRecord(const Chain& record) override;
-  bool AddRecord(Chain&& record) override;
-
-  bool EncodeAndClose(Writer* dest, uint64_t* num_records,
-                      uint64_t* decoded_data_size) override;
-
- protected:
-  void Done() override;
-
-  ChunkType GetChunkType() const override { return ChunkType::kTransposed; }
-
- private:
-  CompressionType compression_type_;
-  int compression_level_;
-  size_t bucket_size_;
-  std::vector<Chain> records_;
 };
 
 }  // namespace riegeli

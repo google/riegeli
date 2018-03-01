@@ -199,3 +199,20 @@ cc_library(
     hdrs = ["field_filter.h"],
     deps = ["//riegeli/base"],
 )
+
+cc_library(
+    name = "deferred_encoder",
+    srcs = ["deferred_encoder.cc"],
+    hdrs = ["deferred_encoder.h"],
+    deps = [
+        ":chunk_encoder",
+        ":types",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:message_serialize",
+        "//riegeli/bytes:writer",
+        "@protobuf_archive//:protobuf_lite",
+    ],
+)

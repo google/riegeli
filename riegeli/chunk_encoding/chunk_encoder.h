@@ -15,8 +15,10 @@
 #ifndef RIEGELI_CHUNK_ENCODING_CHUNK_ENCODER_H_
 #define RIEGELI_CHUNK_ENCODING_CHUNK_ENCODER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
@@ -54,6 +56,17 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
+  // Add multiple records, expressed as concatenated record values and sorted
+  // end offsets of records.
+  //
+  // Precondition: records.size() == (limits.empty() ? 0 : limits.back())
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
+  virtual bool AddRecords(const Chain& records,
+                          const std::vector<size_t>& limits) = 0;
+
   // Encodes the chunk to *dest, setting *num_records and *decoded_data_size.
   // Closes the ChunkEncoder.
   //
@@ -71,7 +84,7 @@ class ChunkEncoder : public Object {
   //  * false - failure (!healthy());
   bool EncodeAndClose(Chunk* chunk);
 
- protected:
+  // Returns the chunk type to write in a chunk header.
   virtual ChunkType GetChunkType() const = 0;
 };
 

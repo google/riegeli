@@ -1,4 +1,4 @@
-// Copyright 2017 Google LLC
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,41 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_CHUNK_ENCODING_SIMPLE_ENCODER_H_
-#define RIEGELI_CHUNK_ENCODING_SIMPLE_ENCODER_H_
+#ifndef RIEGELI_CHUNK_ENCODING_DEFERRED_ENCODER_H_
+#define RIEGELI_CHUNK_ENCODING_DEFERRED_ENCODER_H_
 
 #include <stddef.h>
 #include <stdint.h>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
+#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
-#include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 
-// Format:
-//  - Compression type
-//  - Size of record sizes (compressed if applicable)
-//  - Record sizes (possibly compressed):
-//    - Array of "num_records" varints: sizes of records
-//  - Record values (possibly compressed):
-//    - Concatenated record data (bytes)
-//
-// If compression is used, a compressed block is prefixed by its varint-encoded
-// uncompressed size.
-class SimpleEncoder final : public ChunkEncoder {
+// DeferredEncoder performs a minimal amount of the encoding work in
+// AddRecord(), deferring as much as possible to EncodeAndClose().
+// It does more memory copying than the base encoder though.
+class DeferredEncoder : public ChunkEncoder {
  public:
-  // Creates an empty SimpleEncoder.
-  SimpleEncoder(CompressionType compression_type, int compression_level,
-                uint64_t size_hint);
+  explicit DeferredEncoder(std::unique_ptr<ChunkEncoder> base_encoder);
 
   void Reset() override;
 
@@ -72,12 +63,22 @@ class SimpleEncoder final : public ChunkEncoder {
   template <typename Record>
   bool AddRecordImpl(Record&& record);
 
-  CompressionType compression_type_;
-  uint64_t num_records_ = 0;
-  internal::Compressor sizes_compressor_;
-  internal::Compressor values_compressor_;
+  std::unique_ptr<ChunkEncoder> base_encoder_;
+  // Concatenated record values.
+  Chain records_;
+  ChainWriter records_writer_;
+  // Sorted end offsets of records.
+  std::vector<size_t> limits_;
+
+  // Invariant: records_writer_.pos() == (limits_.empty() ? 0 : limits_.back())
 };
+
+// Implementation details follow.
+
+inline DeferredEncoder::DeferredEncoder(
+    std::unique_ptr<ChunkEncoder> base_encoder)
+    : base_encoder_(std::move(base_encoder)), records_writer_(&records_) {}
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_CHUNK_ENCODING_SIMPLE_ENCODER_H_
+#endif  // RIEGELI_CHUNK_ENCODING_DEFERRED_ENCODER_H_

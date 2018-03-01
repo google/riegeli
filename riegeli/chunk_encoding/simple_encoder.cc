@@ -14,11 +14,13 @@
 
 #include "riegeli/chunk_encoding/simple_encoder.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <limits>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -117,6 +119,38 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   return true;
 }
 
+bool SimpleEncoder::AddRecords(const Chain& records,
+                               const std::vector<size_t>& limits) {
+  RIEGELI_ASSERT_EQ(records.size(), limits.empty() ? 0u : limits.back())
+      << "Failed precondition of ChunkEncoder::AddRecords(): "
+         "end offsets of records do not match concatenated record values";
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (RIEGELI_UNLIKELY(limits.size() >
+                       std::numeric_limits<uint64_t>::max() - num_records_)) {
+    return Fail("Too many records");
+  }
+  num_records_ += IntCast<uint64_t>(limits.size());
+  size_t previous_limit = 0;
+  for (const auto limit : limits) {
+    RIEGELI_ASSERT_GE(limit, previous_limit)
+        << "Failed precondition of ChunkEncoder::AddRecords(): "
+           "end offsets of records not sorted";
+    RIEGELI_ASSERT_LE(limit, records.size())
+        << "Failed precondition of ChunkEncoder::AddRecords(): "
+           "end offsets of records do not match concatenated record values";
+    if (RIEGELI_UNLIKELY(
+            !WriteVarint64(sizes_compressor_.writer(),
+                           IntCast<uint64_t>(limit - previous_limit)))) {
+      return Fail(*sizes_compressor_.writer());
+    }
+    previous_limit = limit;
+  }
+  if (RIEGELI_UNLIKELY(!values_compressor_.writer()->Write(records))) {
+    return Fail(*values_compressor_.writer());
+  }
+  return true;
+}
+
 bool SimpleEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
                                    uint64_t* decoded_data_size) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
@@ -152,5 +186,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
   }
   return Close();
 }
+
+ChunkType SimpleEncoder::GetChunkType() const { return ChunkType::kSimple; }
 
 }  // namespace riegeli
