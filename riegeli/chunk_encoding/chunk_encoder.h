@@ -57,15 +57,16 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(Chain&& record);
 
   // Add multiple records, expressed as concatenated record values and sorted
-  // end offsets of records.
+  // record end positions.
   //
-  // Precondition: records.size() == (limits.empty() ? 0 : limits.back())
+  // Preconditions:
+  //   limits are sorted
+  //   (limits.empty() ? 0 : limits.back()) == records.size()
   //
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  virtual bool AddRecords(const Chain& records,
-                          const std::vector<size_t>& limits) = 0;
+  virtual bool AddRecords(Chain records, std::vector<size_t> limits) = 0;
 
   // Encodes the chunk to *dest, setting *num_records and *decoded_data_size.
   // Closes the ChunkEncoder.

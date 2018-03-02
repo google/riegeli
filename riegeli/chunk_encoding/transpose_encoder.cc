@@ -264,16 +264,15 @@ bool TransposeEncoder::AddRecord(const Chain& record) {
   return AddRecordInternal(&reader);
 }
 
-bool TransposeEncoder::AddRecords(const Chain& records,
-                                  const std::vector<size_t>& limits) {
-  RIEGELI_ASSERT_EQ(records.size(), limits.empty() ? 0u : limits.back())
+bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
+  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
-         "end offsets of records do not match concatenated record values";
+         "record end positions do not match concatenated record values";
   ChainReader records_reader(&records);
   for (const auto limit : limits) {
     RIEGELI_ASSERT_GE(limit, records_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
-           "end offsets of records not sorted";
+           "record end positions not sorted";
     LimitingReader record(&records_reader, limit);
     if (RIEGELI_UNLIKELY(!AddRecordInternal(&record))) return false;
     RIEGELI_ASSERT_EQ(record.pos(), limit)

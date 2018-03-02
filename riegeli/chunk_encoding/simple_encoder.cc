@@ -119,33 +119,32 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   return true;
 }
 
-bool SimpleEncoder::AddRecords(const Chain& records,
-                               const std::vector<size_t>& limits) {
-  RIEGELI_ASSERT_EQ(records.size(), limits.empty() ? 0u : limits.back())
+bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
+  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
-         "end offsets of records do not match concatenated record values";
+         "record end positions do not match concatenated record values";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(limits.size() >
                        std::numeric_limits<uint64_t>::max() - num_records_)) {
     return Fail("Too many records");
   }
   num_records_ += IntCast<uint64_t>(limits.size());
-  size_t previous_limit = 0;
+  size_t start = 0;
   for (const auto limit : limits) {
-    RIEGELI_ASSERT_GE(limit, previous_limit)
+    RIEGELI_ASSERT_GE(limit, start)
         << "Failed precondition of ChunkEncoder::AddRecords(): "
-           "end offsets of records not sorted";
+           "record end positions not sorted";
     RIEGELI_ASSERT_LE(limit, records.size())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
-           "end offsets of records do not match concatenated record values";
-    if (RIEGELI_UNLIKELY(
-            !WriteVarint64(sizes_compressor_.writer(),
-                           IntCast<uint64_t>(limit - previous_limit)))) {
+           "record end positions do not match concatenated record values";
+    if (RIEGELI_UNLIKELY(!WriteVarint64(sizes_compressor_.writer(),
+                                        IntCast<uint64_t>(limit - start)))) {
       return Fail(*sizes_compressor_.writer());
     }
-    previous_limit = limit;
+    start = limit;
   }
-  if (RIEGELI_UNLIKELY(!values_compressor_.writer()->Write(records))) {
+  if (RIEGELI_UNLIKELY(
+          !values_compressor_.writer()->Write(std::move(records)))) {
     return Fail(*values_compressor_.writer());
   }
   return true;

@@ -104,11 +104,10 @@ bool DeferredEncoder::AddRecordImpl(Record&& record) {
   return true;
 }
 
-bool DeferredEncoder::AddRecords(const Chain& records,
-                                 const std::vector<size_t>& limits) {
-  RIEGELI_ASSERT_EQ(records.size(), limits.empty() ? 0u : limits.back())
+bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
+  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
-         "end offsets of records do not match concatenated record values";
+         "record end positions do not match concatenated record values";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(limits.size() >
                        UnsignedMin(limits_.max_size(),
@@ -116,20 +115,15 @@ bool DeferredEncoder::AddRecords(const Chain& records,
                            limits_.size())) {
     return Fail("Too many records");
   }
-  if (RIEGELI_UNLIKELY(!records_writer_.Write(records))) {
+  if (RIEGELI_UNLIKELY(!records_writer_.Write(std::move(records)))) {
     return Fail(records_writer_);
   }
-  size_t base = limits_.empty() ? 0u : limits_.back();
-  size_t previous_limit = 0;
-  for (const auto limit : limits) {
-    RIEGELI_ASSERT_GE(limit, previous_limit)
-        << "Failed precondition of ChunkEncoder::AddRecords(): "
-           "end offsets of records not sorted";
-    RIEGELI_ASSERT_LE(limit, records.size())
-        << "Failed precondition of ChunkEncoder::AddRecords(): "
-           "end offsets of records do not match concatenated record values";
-    limits_.push_back(base + limit);
-    previous_limit = limit;
+  if (limits_.empty()) {
+    limits_ = std::move(limits);
+  } else {
+    const size_t base = limits_.back();
+    for (auto& limit : limits) limit += base;
+    limits_.insert(limits_.cend(), limits.begin(), limits.end());
   }
   return true;
 }
@@ -138,7 +132,8 @@ bool DeferredEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
                                      uint64_t* decoded_data_size) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(!records_writer_.Close())) return Fail(records_writer_);
-  if (RIEGELI_UNLIKELY(!base_encoder_->AddRecords(records_, limits_)) ||
+  if (RIEGELI_UNLIKELY(!base_encoder_->AddRecords(std::move(records_),
+                                                  std::move(limits_))) ||
       RIEGELI_UNLIKELY(!base_encoder_->EncodeAndClose(dest, num_records,
                                                       decoded_data_size))) {
     Fail(*base_encoder_);

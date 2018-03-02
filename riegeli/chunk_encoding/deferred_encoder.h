@@ -48,8 +48,7 @@ class DeferredEncoder : public ChunkEncoder {
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
 
-  bool AddRecords(const Chain& records,
-                  const std::vector<size_t>& limits) override;
+  bool AddRecords(Chain records, std::vector<size_t> limits) override;
 
   bool EncodeAndClose(Writer* dest, uint64_t* num_records,
                       uint64_t* decoded_data_size) override;
@@ -67,7 +66,7 @@ class DeferredEncoder : public ChunkEncoder {
   // Concatenated record values.
   Chain records_;
   ChainWriter records_writer_;
-  // Sorted end offsets of records.
+  // Sorted record end positions.
   std::vector<size_t> limits_;
 
   // Invariant: records_writer_.pos() == (limits_.empty() ? 0 : limits_.back())
