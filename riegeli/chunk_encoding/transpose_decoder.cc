@@ -383,26 +383,32 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
                              uint64_t decoded_data_size,
                              const FieldFilter& field_filter,
                              BackwardWriter* dest,
-                             std::vector<size_t>* boundaries) {
-  if (RIEGELI_UNLIKELY(dest->pos() != 0)) {
-    return Fail(
-        "Failed precondition of TransposeDecoder::Reset(): "
-        "non-zero destination position");
-  }
+                             std::vector<size_t>* limits) {
+  RIEGELI_ASSERT_EQ(dest->pos(), 0u)
+      << "Failed precondition of TransposeDecoder::Reset(): "
+         "non-zero destination position";
   MarkHealthy();
+  if (RIEGELI_UNLIKELY(num_records > limits->max_size())) {
+    return Fail("Too many records");
+  }
+  if (RIEGELI_UNLIKELY(decoded_data_size >
+                       std::numeric_limits<size_t>::max())) {
+    return Fail("Records too large");
+  }
+
   Context context;
   if (RIEGELI_UNLIKELY(!Parse(&context, src, field_filter))) return false;
   LimitingBackwardWriter limiting_dest(dest, decoded_data_size);
-  if (RIEGELI_UNLIKELY(!Decode(&context, IntCast<size_t>(num_records) + 1,
-                               &limiting_dest, boundaries))) {
+  if (RIEGELI_UNLIKELY(
+          !Decode(&context, num_records, &limiting_dest, limits))) {
     limiting_dest.Close();
     return false;
   }
   if (RIEGELI_UNLIKELY(!limiting_dest.Close())) return Fail(limiting_dest);
-  RIEGELI_ASSERT_LE(boundaries->back(), decoded_data_size)
+  RIEGELI_ASSERT_LE(dest->pos(), decoded_data_size)
       << "Decoded data size larger than expected";
   if (field_filter.include_all() &&
-      RIEGELI_UNLIKELY(boundaries->back() != decoded_data_size)) {
+      RIEGELI_UNLIKELY(dest->pos() != decoded_data_size)) {
     return Fail("Decoded data size smaller than expected");
   }
   return true;
@@ -1024,13 +1030,12 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     }                                                                        \
   } while (false)
 
-inline bool TransposeDecoder::Decode(Context* context, size_t num_boundaries,
+inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
                                      BackwardWriter* dest,
-                                     std::vector<size_t>* boundaries) {
-  // For now positions reported by *dest are pushed to boundaries directly.
-  // At the end boundaries will be reversed and complemented such that
-  // boundaries->front() == 0.
-  *boundaries = {0};
+                                     std::vector<size_t>* limits) {
+  // For now positions reported by *dest are pushed to limits directly.
+  // Later limits will be reversed and complemented.
+  limits->clear();
 
   // Set current node to the initial node.
   StateMachineNode* node = &context->state_machine_nodes[context->first_node];
@@ -1109,7 +1114,7 @@ skipped_submessage_start:
   goto do_transition;
 
 submessage_end:
-  submessage_stack.emplace_back(dest->pos(), node->tag_data);
+  submessage_stack.emplace_back(IntCast<size_t>(dest->pos()), node->tag_data);
   goto do_transition;
 
 failure:
@@ -1122,7 +1127,7 @@ submessage_start : {
   const SubmessageStackElement& elem = submessage_stack.back();
   RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
       << "Destination position decreased";
-  const Position length = dest->pos() - elem.end_of_submessage;
+  const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
   if (RIEGELI_UNLIKELY(length > std::numeric_limits<uint32_t>::max())) {
     return Fail("Message too large");
   }
@@ -1174,7 +1179,8 @@ submessage_start : {
   COPY_TAG_CALLBACK(tag_length);                                    \
   goto do_transition;                                               \
   end_filter_group_##tag_length                                     \
-      : submessage_stack.emplace_back(dest->pos(), node->tag_data); \
+      : submessage_stack.emplace_back(IntCast<size_t>(dest->pos()), \
+                                      node->tag_data);              \
   COPY_TAG_CALLBACK(tag_length);                                    \
   goto do_transition
 
@@ -1206,10 +1212,10 @@ message_start:
   if (RIEGELI_UNLIKELY(!submessage_stack.empty())) {
     return Fail("Submessages still open");
   }
-  if (RIEGELI_UNLIKELY(boundaries->size() == num_boundaries)) {
+  if (RIEGELI_UNLIKELY(limits->size() == num_records)) {
     return Fail("Too many records");
   }
-  boundaries->push_back(IntCast<size_t>(dest->pos()));
+  limits->push_back(IntCast<size_t>(dest->pos()));
   // Fall through to do_transition.
 
 do_transition:
@@ -1238,25 +1244,30 @@ done:
   if (RIEGELI_UNLIKELY(skipped_submessage_level != 0)) {
     return Fail("Skipped submessages still open");
   }
-  if (RIEGELI_UNLIKELY(boundaries->size() != num_boundaries)) {
+  if (RIEGELI_UNLIKELY(limits->size() != num_records)) {
     return Fail("Too few records");
   }
-  const size_t size = boundaries->back();
-  if (RIEGELI_UNLIKELY(dest->pos() != size)) {
+  const size_t size = limits->empty() ? 0u : limits->back();
+  if (RIEGELI_UNLIKELY(size != dest->pos())) {
     return Fail("Unfinished message");
   }
 
-  // Reverse boundaries and complement them such that boundaries->front() == 0.
-  std::vector<size_t>::iterator first = boundaries->begin();
-  std::vector<size_t>::iterator last = boundaries->end();
-  while (last - first > 1) {
+  // Reverse limits and complement them, but keep the last limit unchanged
+  // (because both old and new limits exclude 0 at the beginning and include
+  // size at the end), e.g. for records of sizes {10, 20, 30, 40}:
+  // {40, 70, 90, 100} -> {10, 30, 60, 100}.
+  auto first = limits->begin();
+  auto last = limits->end();
+  if (first != last) {
     --last;
-    const size_t tmp = size - *first;
-    *first = size - *last;
-    *last = tmp;
-    ++first;
+    while (first < last) {
+      --last;
+      const size_t tmp = size - *first;
+      *first = size - *last;
+      *last = tmp;
+      ++first;
+    }
   }
-  if (first != last) *first = size - *first;
   return true;
 }
 

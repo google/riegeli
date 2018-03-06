@@ -35,11 +35,8 @@ class SimpleDecoder final : public Object {
 
   // Resets the SimpleDecoder and parses the chunk.
   //
-  // Makes concatenated messages available for reading from reader().
-  // Sets *boundaries to positions between messages:
-  // boundaries->size() == num_records + 1, message[i] is in reader()
-  // between positions (*boundaries)[i] and (*boundaries)[i + 1],
-  // boundaries->front() == 0, and boundaries->back() == decoded_data_size.
+  // Makes concatenated record values available for reading from reader().
+  // Sets *limits to sorted record end positions.
   //
   // src is not owned by this SimpleDecoder and must be kept alive but not
   // accessed until closing the SimpleDecoder.
@@ -48,14 +45,14 @@ class SimpleDecoder final : public Object {
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
   bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
-             std::vector<size_t>* boundaries);
+             std::vector<size_t>* limits);
 
-  // Returns the Reader from which concatenated messages should be read.
+  // Returns the Reader from which concatenated record values should be read.
   //
   // Precondition: healthy()
   Reader* reader() const;
 
-  // Verifies that the concatenated messages end at the current position,
+  // Verifies that the concatenated record values end at the current position,
   // failing the SimpleDecoder if not. Closes the SimpleDecoder.
   //
   // Return values:

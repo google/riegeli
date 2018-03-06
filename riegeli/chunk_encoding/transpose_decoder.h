@@ -19,7 +19,6 @@
 #include <stdint.h>
 #include <vector>
 
-#include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -43,10 +42,8 @@ class TransposeDecoder final : public Object {
 
   // Resets the TransposeDecoder and parses the chunk.
   //
-  // Writes concatenated messages to *dest. Sets *boundaries to positions
-  // between messages: boundaries->size() == num_records + 1, message[i] is
-  // in *dest between positions (*boundaries)[i] and (*boundaries)[i + 1],
-  // boundaries->front() == 0, and boundaries->back() == decoded_data_size.
+  // Writes concatenated record values to *dest. Sets *limits to sorted record
+  // end positions.
   //
   // Precondition: dest->pos() == 0
   //
@@ -56,7 +53,7 @@ class TransposeDecoder final : public Object {
   //            if !dest->healthy() then the problem was at dest
   bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
              const FieldFilter& field_filter, BackwardWriter* dest,
-             std::vector<size_t>* boundaries);
+             std::vector<size_t>* limits);
 
  protected:
   void Done() override;
@@ -75,10 +72,10 @@ class TransposeDecoder final : public Object {
   // submessages. Decoding works in non-recursive loop and this class keeps the
   // information needed to finalize one submessage.
   struct SubmessageStackElement {
-    SubmessageStackElement(Position end_of_submessage, TagData tag_data)
+    SubmessageStackElement(size_t end_of_submessage, TagData tag_data)
         : end_of_submessage(end_of_submessage), tag_data(tag_data) {}
     // The position of the end of submessage.
-    Position end_of_submessage;
+    size_t end_of_submessage;
     // Tag of this submessage.
     TagData tag_data;
   };
@@ -155,8 +152,8 @@ class TransposeDecoder final : public Object {
   static bool ContainsImplicitLoop(
       std::vector<StateMachineNode>* state_machine_nodes);
 
-  bool Decode(Context* context, size_t num_boundaries, BackwardWriter* dest,
-              std::vector<size_t>* boundaries);
+  bool Decode(Context* context, uint64_t num_records, BackwardWriter* dest,
+              std::vector<size_t>* limits);
 
   // Set callback_type in "node" based on "skipped_submessage_level",
   // "submessage_stack" and "node->node_template".

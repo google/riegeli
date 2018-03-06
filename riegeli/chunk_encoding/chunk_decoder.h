@@ -115,7 +115,7 @@ class ChunkDecoder : public Object {
 
   uint64_t index() const { return index_; }
   void SetIndex(uint64_t index);
-  uint64_t num_records() const { return num_records_; }
+  uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
 
  protected:
   void Done() override;
@@ -127,15 +127,14 @@ class ChunkDecoder : public Object {
   bool skip_corruption_;
   FieldFilter field_filter_;
   // Invariants:
-  //   if healthy() then boundaries_[0] == 0
-  //   for each i, boundaries_[i + 1] >= boundaries_[i]
-  std::vector<size_t> boundaries_;
+  //   limits_ are sorted
+  //   (limits_.empty() ? 0 : limits_.back()) == size of values_reader_
+  //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()
+  std::vector<size_t> limits_;
   ChainReader values_reader_;
-  // Invariant: if healthy() then num_records_ == boundaries_.size() - 1
-  uint64_t num_records_;
   // Invariants:
-  //   index_ <= num_records_
-  //   if !healthy() then index_ == num_records_
+  //   index_ <= num_records()
+  //   if !healthy() then index_ == num_records()
   uint64_t index_;
   std::string record_scratch_;
 };
@@ -143,15 +142,13 @@ class ChunkDecoder : public Object {
 // Implementation details follow.
 
 inline bool ChunkDecoder::ReadRecord(string_view* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == num_records_)) return false;
-  RIEGELI_ASSERT_GE(boundaries_[IntCast<size_t>(index_) + 1],
-                    boundaries_[IntCast<size_t>(index_)])
-      << "Failed invariant of ChunkDecoder: decreasing boundaries";
+  if (RIEGELI_UNLIKELY(index_ == limits_.size())) return false;
   if (key != nullptr) *key = index_;
-  ++index_;
-  if (!values_reader_.Read(record, &record_scratch_,
-                           boundaries_[IntCast<size_t>(index_)] -
-                               boundaries_[IntCast<size_t>(index_) - 1])) {
+  const size_t start = IntCast<size_t>(values_reader_.pos());
+  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  RIEGELI_ASSERT_GE(limit, start)
+      << "Failed invariant of ChunkDecoder: record end positions not sorted";
+  if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.Message();
   }
@@ -159,16 +156,14 @@ inline bool ChunkDecoder::ReadRecord(string_view* record, uint64_t* key) {
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == num_records_)) return false;
-  RIEGELI_ASSERT_GE(boundaries_[IntCast<size_t>(index_) + 1],
-                    boundaries_[IntCast<size_t>(index_)])
-      << "Failed invariant of ChunkDecoder: decreasing boundaries";
+  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
-  ++index_;
+  const size_t start = IntCast<size_t>(values_reader_.pos());
+  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  RIEGELI_ASSERT_GE(limit, start)
+      << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->clear();
-  if (!values_reader_.Read(record,
-                           boundaries_[IntCast<size_t>(index_)] -
-                               boundaries_[IntCast<size_t>(index_) - 1])) {
+  if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.Message();
   }
@@ -176,16 +171,14 @@ inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == num_records_)) return false;
-  RIEGELI_ASSERT_GE(boundaries_[IntCast<size_t>(index_) + 1],
-                    boundaries_[IntCast<size_t>(index_)])
-      << "Failed invariant of ChunkDecoder: decreasing boundaries";
+  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
-  ++index_;
+  const size_t start = IntCast<size_t>(values_reader_.pos());
+  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  RIEGELI_ASSERT_GE(limit, start)
+      << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->Clear();
-  if (!values_reader_.Read(record,
-                           boundaries_[IntCast<size_t>(index_)] -
-                               boundaries_[IntCast<size_t>(index_) - 1])) {
+  if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.Message();
   }
@@ -193,8 +186,9 @@ inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
-  index_ = UnsignedMin(index, num_records_);
-  if (!values_reader_.Seek(boundaries_[IntCast<size_t>(index_)])) {
+  index_ = UnsignedMin(index, num_records());
+  const size_t start = index_ == 0 ? 0u : limits_[IntCast<size_t>(index_ - 1)];
+  if (!values_reader_.Seek(start)) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Failed seeking values reader: " << values_reader_.Message();
   }

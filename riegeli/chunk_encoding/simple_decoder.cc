@@ -39,8 +39,15 @@ void SimpleDecoder::Done() {
 
 bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
                           uint64_t decoded_data_size,
-                          std::vector<size_t>* boundaries) {
+                          std::vector<size_t>* limits) {
   MarkHealthy();
+  if (RIEGELI_UNLIKELY(num_records > limits->max_size())) {
+    return Fail("Too many records");
+  }
+  if (RIEGELI_UNLIKELY(decoded_data_size >
+                       std::numeric_limits<size_t>::max())) {
+    return Fail("Records too large");
+  }
 
   uint8_t compression_type_byte;
   if (RIEGELI_UNLIKELY(!ReadByte(src, &compression_type_byte))) {
@@ -65,22 +72,20 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
     compressed_sizes_reader.Close();
     return Fail(sizes_decompressor);
   }
-  boundaries->clear();
-  const size_t num_boundaries = IntCast<size_t>(num_records) + 1;
-  size_t boundary = 0;
-  for (;;) {
-    boundaries->push_back(boundary);
-    if (boundaries->size() == num_boundaries) break;
+  limits->clear();
+  size_t limit = 0;
+  while (limits->size() != num_records) {
     uint64_t size;
     if (RIEGELI_UNLIKELY(!ReadVarint64(sizes_decompressor.reader(), &size))) {
       compressed_sizes_reader.Close();
       return Fail("Reading record size failed", *sizes_decompressor.reader());
     }
-    if (RIEGELI_UNLIKELY(size > decoded_data_size - boundary)) {
+    if (RIEGELI_UNLIKELY(size > decoded_data_size - limit)) {
       compressed_sizes_reader.Close();
       return Fail("Decoded data size larger than expected");
     }
-    boundary += size;
+    limit += IntCast<size_t>(size);
+    limits->push_back(limit);
   }
   if (RIEGELI_UNLIKELY(!sizes_decompressor.VerifyEndAndClose())) {
     compressed_sizes_reader.Close();
@@ -89,7 +94,7 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
   if (RIEGELI_UNLIKELY(!compressed_sizes_reader.VerifyEndAndClose())) {
     return Fail(compressed_sizes_reader);
   }
-  if (RIEGELI_UNLIKELY(boundaries->back() != decoded_data_size)) {
+  if (RIEGELI_UNLIKELY(limit != decoded_data_size)) {
     return Fail("Decoded data size smaller than expected");
   }
 
