@@ -150,6 +150,10 @@ class Benchmarks {
 bool Benchmarks::ReadFile(const std::string& filename, std::vector<std::string>* records,
                           size_t* max_size) {
   riegeli::FdReader file_reader(filename, O_RDONLY);
+  if (RIEGELI_UNLIKELY(!file_reader.healthy())) {
+    std::cerr << "Could not open file: " << file_reader.Message() << std::endl;
+    std::exit(1);
+  }
   {
     riegeli::TFRecordDetector tfrecord_recognizer(&file_reader);
     tensorflow::io::RecordReaderOptions record_reader_options;
