@@ -115,12 +115,19 @@ class ZstdWriter final : public BufferedWriter {
     void operator()(ZSTD_CStream* ptr) const { ZSTD_freeCStream(ptr); }
   };
 
+  bool EnsureCStreamCreated();
+  bool InitializeCStream();
+
   template <typename Function>
   bool FlushInternal(Function function, string_view function_name);
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr
   Writer* dest_ = nullptr;
+  int compression_level_ = 0;
+  Position size_hint_ = 0;
+  // If healthy() but compressor_ == nullptr then compressor_ was not created
+  // yet.
   std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
 };
 
@@ -131,19 +138,19 @@ inline ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
   owned_dest_ = std::move(dest);
 }
 
+inline ZstdWriter::ZstdWriter(Writer* dest, Options options)
+    : BufferedWriter(options.buffer_size_),
+      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
+      compression_level_(options.compression_level_),
+      size_hint_(options.size_hint_) {}
+
 inline ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
     : BufferedWriter(std::move(src)),
       owned_dest_(std::move(src.owned_dest_)),
       dest_(riegeli::exchange(src.dest_, nullptr)),
+      compression_level_(riegeli::exchange(src.compression_level_, 0)),
+      size_hint_(riegeli::exchange(src.size_hint_, 0)),
       compressor_(std::move(src.compressor_)) {}
-
-inline ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  compressor_ = std::move(src.compressor_);
-  return *this;
-}
 
 }  // namespace riegeli
 

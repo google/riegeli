@@ -16,13 +16,15 @@
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 
 #include <stdint.h>
-#include <memory>
 #include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/brotli_writer.h"
+#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
@@ -39,6 +41,8 @@ class Compressor final : public Object {
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
+
+  ~Compressor();
 
   // Resets the Compressor back to empty.
   void Reset();
@@ -62,11 +66,27 @@ class Compressor final : public Object {
   void Done() override;
 
  private:
+  void CloseCompressor();
+
   CompressionType compression_type_ = CompressionType::kNone;
   int compression_level_ = 0;
   uint64_t size_hint_ = 0;
   Chain compressed_;
-  std::unique_ptr<Writer> writer_;
+  // Invariant: compressed_writer_ writes to compressed_
+  ChainWriter compressed_writer_;
+  // compression_type_ determines the active member of the union, if any.
+  union {
+    BrotliWriter brotli_writer_;
+    ZstdWriter zstd_writer_;
+  };
+  // Invariants:
+  //   if compression_type_ == CompressionType::kNone
+  //       then writer_ == &compressed_writer_
+  //   if compression_type_ == CompressionType::kBrotli
+  //       then writer_ == &brotli_writer_
+  //   if compression_type_ == CompressionType::kZstd
+  //       then writer_ == &zstd_writer_
+  Writer* writer_;
 };
 
 // Implementation details follow.
@@ -74,7 +94,7 @@ class Compressor final : public Object {
 inline Writer* Compressor::writer() const {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Compressor::writer(): " << Message();
-  return writer_.get();
+  return writer_;
 }
 
 }  // namespace internal

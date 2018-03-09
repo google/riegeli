@@ -15,7 +15,7 @@
 #include "riegeli/chunk_encoding/compressor.h"
 
 #include <stdint.h>
-#include <memory>
+#include <new>
 #include <utility>
 
 #include "riegeli/base/base.h"
@@ -37,34 +37,70 @@ Compressor::Compressor(CompressionType compression_type, int compression_level,
     : Object(State::kOpen),
       compression_type_(compression_type),
       compression_level_(compression_level),
-      size_hint_(size_hint) {
-  Reset();
+      size_hint_(size_hint),
+      compressed_writer_(
+          &compressed_,
+          ChainWriter::Options().set_size_hint(
+              compression_type_ == CompressionType::kNone ? size_hint_ : 0u)) {
+  switch (compression_type_) {
+    case CompressionType::kNone:
+      writer_ = &compressed_writer_;
+      return;
+    case CompressionType::kBrotli:
+      new (&brotli_writer_) BrotliWriter(
+          &compressed_writer_, BrotliWriter::Options()
+                                   .set_compression_level(compression_level_)
+                                   .set_size_hint(size_hint_));
+      writer_ = &brotli_writer_;
+      return;
+    case CompressionType::kZstd:
+      new (&zstd_writer_) ZstdWriter(
+          &compressed_writer_, ZstdWriter::Options()
+                                   .set_compression_level(compression_level_)
+                                   .set_size_hint(size_hint_));
+      writer_ = &zstd_writer_;
+      return;
+  }
+  RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
+                               << static_cast<unsigned>(compression_type_);
+}
+
+Compressor::~Compressor() {
+  switch (compression_type_) {
+    case CompressionType::kNone:
+      return;
+    case CompressionType::kBrotli:
+      brotli_writer_.~BrotliWriter();
+      return;
+    case CompressionType::kZstd:
+      zstd_writer_.~ZstdWriter();
+      return;
+  }
+  RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
+                               << static_cast<unsigned>(compression_type_);
 }
 
 void Compressor::Reset() {
   MarkHealthy();
   compressed_.Clear();
-  std::unique_ptr<Writer> compressed_writer = riegeli::make_unique<ChainWriter>(
+  compressed_writer_ = ChainWriter(
       &compressed_,
       ChainWriter::Options().set_size_hint(
           compression_type_ == CompressionType::kNone ? size_hint_ : 0u));
   switch (compression_type_) {
     case CompressionType::kNone:
-      writer_ = std::move(compressed_writer);
       return;
     case CompressionType::kBrotli:
-      writer_ = riegeli::make_unique<BrotliWriter>(
-          std::move(compressed_writer),
-          BrotliWriter::Options()
-              .set_compression_level(compression_level_)
-              .set_size_hint(size_hint_));
+      brotli_writer_ = BrotliWriter(
+          &compressed_writer_, BrotliWriter::Options()
+                                   .set_compression_level(compression_level_)
+                                   .set_size_hint(size_hint_));
       return;
     case CompressionType::kZstd:
-      writer_ = riegeli::make_unique<ZstdWriter>(
-          std::move(compressed_writer),
-          ZstdWriter::Options()
-              .set_compression_level(compression_level_)
-              .set_size_hint(size_hint_));
+      zstd_writer_ = ZstdWriter(&compressed_writer_,
+                                ZstdWriter::Options()
+                                    .set_compression_level(compression_level_)
+                                    .set_size_hint(size_hint_));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
@@ -72,8 +108,24 @@ void Compressor::Reset() {
 }
 
 void Compressor::Done() {
+  CloseCompressor();
+  if (RIEGELI_UNLIKELY(!compressed_writer_.Close())) Fail(compressed_writer_);
   compressed_ = Chain();
-  writer_.reset();
+}
+
+inline void Compressor::CloseCompressor() {
+  switch (compression_type_) {
+    case CompressionType::kNone:
+      return;
+    case CompressionType::kBrotli:
+      if (RIEGELI_UNLIKELY(!brotli_writer_.Close())) Fail(brotli_writer_);
+      return;
+    case CompressionType::kZstd:
+      if (RIEGELI_UNLIKELY(!zstd_writer_.Close())) Fail(zstd_writer_);
+      return;
+  }
+  RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
+                               << static_cast<unsigned>(compression_type_);
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
@@ -81,6 +133,9 @@ bool Compressor::EncodeAndClose(Writer* dest) {
   const Position uncompressed_size = writer_->pos();
   if (RIEGELI_UNLIKELY(!writer_->Close())) return Fail(*writer_);
   if (compression_type_ != CompressionType::kNone) {
+    if (RIEGELI_UNLIKELY(!compressed_writer_.Close())) {
+      return Fail(compressed_writer_);
+    }
     if (RIEGELI_UNLIKELY(
             !WriteVarint64(dest, IntCast<uint64_t>(uncompressed_size)))) {
       return Fail(*dest);

@@ -30,23 +30,20 @@
 
 namespace riegeli {
 
-ZstdWriter::ZstdWriter(Writer* dest, Options options)
-    : BufferedWriter(options.buffer_size_),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      compressor_(ZSTD_createCStream()) {
-  if (RIEGELI_UNLIKELY(compressor_ == nullptr)) {
-    Fail("ZSTD_createCStream() failed");
-    return;
+ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
+  BufferedWriter::operator=(std::move(src));
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = riegeli::exchange(src.dest_, nullptr);
+  compression_level_ = riegeli::exchange(src.compression_level_, 0);
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  if (src.compressor_ != nullptr || RIEGELI_UNLIKELY(!healthy())) {
+    compressor_ = std::move(src.compressor_);
+  } else if (compressor_ != nullptr) {
+    // Reuse this ZSTD_CStream because if options are the same then reusing it
+    // is faster than creating it again.
+    InitializeCStream();
   }
-  const size_t result = ZSTD_initCStream_advanced(
-      compressor_.get(), nullptr, 0,
-      ZSTD_getParams(options.compression_level_,
-                     IntCast<unsigned long long>(options.size_hint_), 0),
-      ZSTD_CONTENTSIZE_UNKNOWN);
-  if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-    Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
-                ZSTD_getErrorName(result)));
-  }
+  return *this;
 }
 
 void ZstdWriter::Done() {
@@ -63,8 +60,33 @@ void ZstdWriter::Done() {
     owned_dest_.reset();
   }
   dest_ = nullptr;
-  compressor_.reset();
+  // Do not reset compressor_. It might be reused if a fresh ZstdWriter is
+  // assigned to *this.
   BufferedWriter::Done();
+}
+
+inline bool ZstdWriter::EnsureCStreamCreated() {
+  if (RIEGELI_UNLIKELY(compressor_ == nullptr)) {
+    compressor_.reset(ZSTD_createCStream());
+    if (RIEGELI_UNLIKELY(compressor_ == nullptr)) {
+      return Fail("ZSTD_createCStream() failed");
+    }
+    return InitializeCStream();
+  }
+  return true;
+}
+
+inline bool ZstdWriter::InitializeCStream() {
+  const size_t result = ZSTD_initCStream_advanced(
+      compressor_.get(), nullptr, 0,
+      ZSTD_getParams(compression_level_,
+                     IntCast<unsigned long long>(size_hint_), 0),
+      ZSTD_CONTENTSIZE_UNKNOWN);
+  if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
+    return Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
+                       ZSTD_getErrorName(result)));
+  }
+  return true;
 }
 
 bool ZstdWriter::Flush(FlushType flush_type) {
@@ -98,6 +120,7 @@ bool ZstdWriter::WriteInternal(string_view src) {
     limit_ = start_;
     return FailOverflow();
   }
+  if (RIEGELI_UNLIKELY(!EnsureCStreamCreated())) return false;
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
@@ -131,6 +154,7 @@ bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriter::FlushInternal(): "
          "buffer not cleared";
+  if (RIEGELI_UNLIKELY(!EnsureCStreamCreated())) return false;
   for (;;) {
     ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
     const size_t result = function(compressor_.get(), &output);

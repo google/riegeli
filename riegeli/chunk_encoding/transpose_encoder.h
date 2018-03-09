@@ -29,16 +29,11 @@
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
-
-namespace internal {
-
-class Compressor;
-
-}  // namespace internal
 
 class Reader;
 
@@ -167,7 +162,7 @@ class TransposeEncoder : public ChunkEncoder {
   // and buffer lengths into "header_buffer".
   // Fill map with the sequential position of each buffer written.
   bool WriteBuffers(
-      Writer* header_writer, Writer* data_writer,
+      Writer* data_writer,
       std::unordered_map<TransposeEncoder::NodeId, uint32_t,
                          TransposeEncoder::NodeIdHasher>* buffer_pos);
 
@@ -192,8 +187,7 @@ class TransposeEncoder : public ChunkEncoder {
   // the current bucket would become too large or "force_new_bucket" is true,
   // flush the bucket to "data_buffer" first and create a new bucket.
   bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
-                 internal::Compressor* bucket_compressor, Writer* data_writer,
-                 std::vector<size_t>* bucket_lengths,
+                 Writer* data_writer, std::vector<size_t>* bucket_lengths,
                  std::vector<size_t>* buffer_lengths);
 
   // Compute base indices for states in "state_machine" that don't have one yet.
@@ -217,13 +211,12 @@ class TransposeEncoder : public ChunkEncoder {
   // "data_buffer".
   bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
-                          Writer* header_writer, Writer* data_writer);
+                          Writer* data_writer);
 
   // Write all state machine transitions from "encoded_tags_" into
   // "transitions_writer".
   bool WriteTransitions(uint32_t max_transition,
-                        const std::vector<StateInfo>& state_machine,
-                        Writer* transitions_writer);
+                        const std::vector<StateInfo>& state_machine);
 
   // Encoded tag represents a tag read from input together with the ID of the
   // message this tag belongs to and subtype extracted from the data.
@@ -298,7 +291,6 @@ class TransposeEncoder : public ChunkEncoder {
   };
 
   CompressionType compression_type_;
-  int compression_level_;
   // The default approximate bucket size, used if compression is enabled.
   // Finer bucket granularity (i.e. smaller size) worsens compression density
   // but makes field filtering more effective.
@@ -306,6 +298,9 @@ class TransposeEncoder : public ChunkEncoder {
 
   uint64_t num_records_;
   uint64_t decoded_data_size_;
+  internal::Compressor header_compressor_;
+  internal::Compressor bucket_compressor_;
+  internal::Compressor transitions_compressor_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
   // Sequence of tags on input as indices into "tags_list_".
