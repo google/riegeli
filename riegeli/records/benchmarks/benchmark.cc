@@ -325,12 +325,14 @@ void Benchmarks::RunAll() {
             << std::setprecision(3)
             << (static_cast<double>(original_size_) / 1000000.0) << " MB"
             << std::endl;
+  std::cout << "Creating files " << output_dir_ << "/record_benchmark_*"
+            << std::endl;
   std::cout << std::left << std::setw(max_name_width_) << ""
-            << " Compr.    Write       Read" << std::endl;
+            << "  Compr.    Write       Read" << std::endl;
   std::cout << std::left << std::setw(max_name_width_) << ""
-            << " ratio    CPU Real   CPU Real" << std::endl;
+            << "  ratio    CPU Real   CPU Real" << std::endl;
   std::cout << std::setw(max_name_width_) << "Format"
-            << "   %     MB/s MB/s  MB/s MB/s" << std::endl;
+            << "    %     MB/s MB/s  MB/s MB/s" << std::endl;
   std::cout << std::setfill('-') << std::setw(max_name_width_ + 30) << ""
             << std::setfill(' ') << std::endl;
 
@@ -419,7 +421,7 @@ void Benchmarks::RunOne(
   }
 
   std::cout << std::left << std::setw(max_name_width_) << name << ' '
-            << std::right << std::setw(6) << std::fixed << std::setprecision(2)
+            << std::right << std::setw(7) << std::fixed << std::setprecision(3)
             << compression.Median();
   for (const auto& stats_cpu_real :
        {std::array<Stats*, 2>{&writing_cpu_speed, &writing_real_speed},
@@ -535,6 +537,7 @@ int main(int argc, char** argv) {
     std::cerr << kUsage << std::endl;
     return 1;
   }
+  std::cout << std::endl;
   for (int i = 1; i < argc; ++i) {
     if (!Benchmarks::ReadFile(argv[i], &records, &max_size)) break;
   }
