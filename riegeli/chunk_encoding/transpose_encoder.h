@@ -63,7 +63,7 @@ class TransposeEncoder : public ChunkEncoder {
  public:
   // Creates an empty TransposeEncoder.
   TransposeEncoder(CompressionType compression_type, int compression_level,
-                   uint64_t bucket_size);
+                   int window_log, uint64_t bucket_size);
 
   ~TransposeEncoder();
 

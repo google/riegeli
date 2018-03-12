@@ -1,25 +1,25 @@
 workspace(name = "com_google_riegeli")
 
-# Import Brotli (2017-11-28).
+# Import Brotli (2018-03-02).
 http_archive(
     name = "org_brotli",
-    strip_prefix = "brotli-1.0.2",
-    urls = ["https://github.com/google/brotli/archive/v1.0.2.zip"],
+    strip_prefix = "brotli-1.0.3",
+    urls = ["https://github.com/google/brotli/archive/v1.0.3.zip"],
 )
 
 git_repository(
     name = "io_bazel_rules_go",
     remote = "https://github.com/bazelbuild/rules_go.git",
-    tag = "0.5.5",
+    tag = "0.9.0",
 )
 
 http_archive(
     name = "io_bazel_rules_closure",
-    sha256 = "25f5399f18d8bf9ce435f85c6bbf671ec4820bc4396b3022cc5dc4bc66303609",
-    strip_prefix = "rules_closure-0.4.2",
+    sha256 = "6691c58a2cd30a86776dd9bb34898b041e37136f2dc7e24cadaeaf599c95c657",
+    strip_prefix = "rules_closure-08039ba8ca59f64248bb3b6ae016460fe9c9914f",
     urls = [
-        "http://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/0.4.2.tar.gz",
-        "https://github.com/bazelbuild/rules_closure/archive/0.4.2.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/08039ba8ca59f64248bb3b6ae016460fe9c9914f.tar.gz",
+        "https://github.com/bazelbuild/rules_closure/archive/08039ba8ca59f64248bb3b6ae016460fe9c9914f.tar.gz",  # 2018-01-16
     ],
 )
 

@@ -38,10 +38,12 @@
 namespace riegeli {
 
 SimpleEncoder::SimpleEncoder(CompressionType compression_type,
-                             int compression_level, uint64_t size_hint)
+                             int compression_level, int window_log,
+                             uint64_t size_hint)
     : compression_type_(compression_type),
-      sizes_compressor_(compression_type, compression_level),
-      values_compressor_(compression_type, compression_level, size_hint) {}
+      sizes_compressor_(compression_type, compression_level, window_log),
+      values_compressor_(compression_type, compression_level, window_log,
+                         size_hint) {}
 
 void SimpleEncoder::Done() {
   num_records_ = 0;

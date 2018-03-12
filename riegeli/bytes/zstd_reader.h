@@ -36,6 +36,7 @@ class ZstdReader final : public BufferedReader {
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
+    static size_t kDefaultBufferSize() { return ZSTD_DStreamOutSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of ZstdReader::Options::set_buffer_size(): "
@@ -50,7 +51,7 @@ class ZstdReader final : public BufferedReader {
    private:
     friend class ZstdReader;
 
-    size_t buffer_size_ = ZSTD_DStreamOutSize();
+    size_t buffer_size_ = kDefaultBufferSize();
   };
 
   // Creates a closed ZstdReader.

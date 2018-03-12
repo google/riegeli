@@ -189,16 +189,17 @@ inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(
       field(field) {}
 
 TransposeEncoder::TransposeEncoder(CompressionType compression_type,
-                                   int compression_level, uint64_t bucket_size)
+                                   int compression_level, int window_log,
+                                   uint64_t bucket_size)
     : compression_type_(compression_type),
       bucket_size_(compression_type == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
       num_records_(0),
       decoded_data_size_(0),
-      header_compressor_(compression_type, compression_level),
-      bucket_compressor_(compression_type, compression_level),
-      transitions_compressor_(compression_type, compression_level),
+      header_compressor_(compression_type, compression_level, window_log),
+      bucket_compressor_(compression_type, compression_level, window_log),
+      transitions_compressor_(compression_type, compression_level, window_log),
       nonproto_lengths_writer_(&nonproto_lengths_),
       next_message_id_(internal::MessageId::kRoot + 1) {}
 

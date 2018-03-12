@@ -33,6 +33,12 @@ BrotliReader::BrotliReader(Reader* src, Options options)
   if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");
   }
+  if (RIEGELI_UNLIKELY(!BrotliDecoderSetParameter(
+          decompressor_.get(), BROTLI_DECODER_PARAM_LARGE_WINDOW,
+          uint32_t{true}))) {
+    Fail("BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed");
+    return;
+  }
 }
 
 void BrotliReader::Done() {

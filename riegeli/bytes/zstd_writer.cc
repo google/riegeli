@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make ZSTD_initCStream_advanced() available, which allows specifying a size
-// hint.
+// Make ZSTD_WINDOWLOG_MIN, ZSTD_WINDOWLOG_MAX, ZSTD_getParams(), and
+// ZSTD_initCStream_advanced() available.
 #define ZSTD_STATIC_LINKING_ONLY
 
 #include "riegeli/bytes/zstd_writer.h"
@@ -30,11 +30,17 @@
 
 namespace riegeli {
 
+// These methods are defined here instead of in zstd_writer.h because
+// ZSTD_WINDOWLOG_{MIN,MAX} require ZSTD_STATIC_LINKING_ONLY.
+int ZstdWriter::Options::kMinWindowLog() { return ZSTD_WINDOWLOG_MIN; }
+int ZstdWriter::Options::kMaxWindowLog() { return ZSTD_WINDOWLOG_MAX; }
+
 ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
   BufferedWriter::operator=(std::move(src));
   owned_dest_ = std::move(src.owned_dest_);
   dest_ = riegeli::exchange(src.dest_, nullptr);
   compression_level_ = riegeli::exchange(src.compression_level_, 0);
+  window_log_ = riegeli::exchange(src.window_log_, 0),
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
   if (src.compressor_ != nullptr || RIEGELI_UNLIKELY(!healthy())) {
     compressor_ = std::move(src.compressor_);
@@ -77,11 +83,13 @@ inline bool ZstdWriter::EnsureCStreamCreated() {
 }
 
 inline bool ZstdWriter::InitializeCStream() {
+  ZSTD_parameters params = ZSTD_getParams(
+      compression_level_, IntCast<unsigned long long>(size_hint_), 0);
+  if (window_log_ >= 0) {
+    params.cParams.windowLog = IntCast<unsigned>(window_log_);
+  }
   const size_t result = ZSTD_initCStream_advanced(
-      compressor_.get(), nullptr, 0,
-      ZSTD_getParams(compression_level_,
-                     IntCast<unsigned long long>(size_hint_), 0),
-      ZSTD_CONTENTSIZE_UNKNOWN);
+      compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
     return Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
                        ZSTD_getErrorName(result)));

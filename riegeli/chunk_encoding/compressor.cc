@@ -33,10 +33,11 @@ namespace riegeli {
 namespace internal {
 
 Compressor::Compressor(CompressionType compression_type, int compression_level,
-                       uint64_t size_hint)
+                       int window_log, uint64_t size_hint)
     : Object(State::kOpen),
       compression_type_(compression_type),
       compression_level_(compression_level),
+      window_log_(window_log),
       size_hint_(size_hint),
       compressed_writer_(
           &compressed_,
@@ -50,6 +51,7 @@ Compressor::Compressor(CompressionType compression_type, int compression_level,
       new (&brotli_writer_) BrotliWriter(
           &compressed_writer_, BrotliWriter::Options()
                                    .set_compression_level(compression_level_)
+                                   .set_window_log(window_log_)
                                    .set_size_hint(size_hint_));
       writer_ = &brotli_writer_;
       return;
@@ -57,6 +59,7 @@ Compressor::Compressor(CompressionType compression_type, int compression_level,
       new (&zstd_writer_) ZstdWriter(
           &compressed_writer_, ZstdWriter::Options()
                                    .set_compression_level(compression_level_)
+                                   .set_window_log(window_log_)
                                    .set_size_hint(size_hint_));
       writer_ = &zstd_writer_;
       return;
@@ -94,12 +97,14 @@ void Compressor::Reset() {
       brotli_writer_ = BrotliWriter(
           &compressed_writer_, BrotliWriter::Options()
                                    .set_compression_level(compression_level_)
+                                   .set_window_log(window_log_)
                                    .set_size_hint(size_hint_));
       return;
     case CompressionType::kZstd:
       zstd_writer_ = ZstdWriter(&compressed_writer_,
                                 ZstdWriter::Options()
                                     .set_compression_level(compression_level_)
+                                    .set_window_log(window_log_)
                                     .set_size_hint(size_hint_));
       return;
   }

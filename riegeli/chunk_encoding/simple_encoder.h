@@ -46,7 +46,7 @@ class SimpleEncoder final : public ChunkEncoder {
  public:
   // Creates an empty SimpleEncoder.
   SimpleEncoder(CompressionType compression_type, int compression_level,
-                uint64_t size_hint);
+                int window_log, uint64_t size_hint);
 
   void Reset() override;
 

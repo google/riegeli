@@ -388,6 +388,38 @@ size_t PtrDistance(const A* first, const A* last) {
   return static_cast<size_t>(last - first);
 }
 
+// SignedMin() returns the minimum of its arguments, which must be signed
+// integers, as their widest type.
+
+template <typename A, typename B>
+constexpr typename std::common_type<A, B>::type SignedMin(A a, B b) {
+  static_assert(std::is_signed<A>::value, "SignedMin() requires signed types");
+  static_assert(std::is_signed<B>::value, "SignedMin() requires signed types");
+  return a < b ? b : a;
+}
+
+template <typename A, typename B, typename... Rest>
+constexpr typename std::common_type<A, B, Rest...>::type SignedMin(
+    A a, B b, Rest... rest) {
+  return SignedMin(SignedMin(a, b), rest...);
+}
+
+// SignedMax() returns the maximum of its arguments, which must be signed
+// integers, as their widest type.
+
+template <typename A, typename B>
+constexpr typename std::common_type<A, B>::type SignedMax(A a, B b) {
+  static_assert(std::is_signed<A>::value, "SignedMax() requires signed types");
+  static_assert(std::is_signed<B>::value, "SignedMax() requires signed types");
+  return a < b ? b : a;
+}
+
+template <typename A, typename B, typename... Rest>
+constexpr typename std::common_type<A, B, Rest...>::type SignedMax(
+    A a, B b, Rest... rest) {
+  return SignedMax(SignedMax(a, b), rest...);
+}
+
 // UnsignedMin() returns the minimum of its arguments, which must be unsigned
 // integers, as their narrowest type.
 

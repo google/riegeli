@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Make ZSTD_DCtx_setMaxWindowSize() and ZSTD_WINDOWLOG_MAX available.
+#define ZSTD_STATIC_LINKING_ONLY
+
 #include "riegeli/bytes/zstd_reader.h"
 
 #include <stddef.h>
@@ -33,9 +36,19 @@ ZstdReader::ZstdReader(Reader* src, Options options)
     Fail("ZSTD_createDStream() failed");
     return;
   }
-  const size_t result = ZSTD_initDStream(decompressor_.get());
-  if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-    Fail(StrCat("ZSTD_initDStream() failed: ", ZSTD_getErrorName(result)));
+  {
+    const size_t result = ZSTD_initDStream(decompressor_.get());
+    if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
+      Fail(StrCat("ZSTD_initDStream() failed: ", ZSTD_getErrorName(result)));
+    }
+  }
+  {
+    const size_t result = ZSTD_DCtx_setMaxWindowSize(
+        decompressor_.get(), size_t{1} << ZSTD_WINDOWLOG_MAX);
+    if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
+      Fail(StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
+                  ZSTD_getErrorName(result)));
+    }
   }
 }
 

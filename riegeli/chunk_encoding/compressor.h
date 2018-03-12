@@ -37,7 +37,7 @@ class Compressor final : public Object {
 
   // Creates an empty Compressor.
   Compressor(CompressionType compression_type, int compression_level,
-             uint64_t size_hint = 0);
+             int window_log, uint64_t size_hint = 0);
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
@@ -70,6 +70,7 @@ class Compressor final : public Object {
 
   CompressionType compression_type_ = CompressionType::kNone;
   int compression_level_ = 0;
+  int window_log_ = 0;
   uint64_t size_hint_ = 0;
   Chain compressed_;
   // Invariant: compressed_writer_ writes to compressed_

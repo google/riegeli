@@ -36,25 +36,60 @@ class ZstdWriter final : public BufferedWriter {
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
-    // Tune compression level vs. compression speed tradeoff.
+    // Tunes the tradeoff between compression density and compression speed
+    // (higher = better density but slower).
     //
-    // Level must be between 1 and 22. Default: 9.
-    Options& set_compression_level(int level) & {
-      RIEGELI_ASSERT_GE(level, 1)
+    // compression_level must be between kMinCompressionLevel() (1) and
+    // kMaxCompressionLevel() (22). Default: kDefaultCompressionLevel() (9).
+    static constexpr int kMinCompressionLevel() { return 1; }
+    static int kMaxCompressionLevel() { return ZSTD_maxCLevel(); }
+    static constexpr int kDefaultCompressionLevel() { return 9; }
+    Options& set_compression_level(int compression_level) & {
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
           << "Failed precondition of "
              "ZstdWriter::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(level, 22)
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
           << "Failed precondition of "
              "ZstdWriter::Options::set_compression_level()"
              "compression level out of range";
-      compression_level_ = level;
+      compression_level_ = compression_level;
       return *this;
     }
     Options&& set_compression_level(int level) && {
       return std::move(set_compression_level(level));
     }
 
+    // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
+    // between compression density and memory usage (higher = better density but
+    // more memory).
+    //
+    // Special value kDefaultWindowLog() (-1) means to derive window_log from
+    // compression_level and size_hint.
+    //
+    // window_log must be kDefaultWindowLog() (-1) or between kMinWindowLog()
+    // (10) and kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit build).
+    // Default: kDefaultWindowLog() (-1).
+    static int kMinWindowLog();
+    static int kMaxWindowLog();
+    static constexpr int kDefaultWindowLog() { return -1; }
+    Options& set_window_log(int window_log) & {
+      if (window_log != kDefaultWindowLog()) {
+        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+            << "Failed precondition of ZstdWriter::Options::set_window_log(): "
+               "window log out of range";
+        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+            << "Failed precondition of ZstdWriter::Options::set_window_log(): "
+               "window log out of range";
+      }
+      window_log_ = window_log;
+      return *this;
+    }
+    Options&& set_window_log(int window_log) && {
+      return std::move(set_window_log(window_log));
+    }
+
+    static size_t kDefaultBufferSize() { return ZSTD_CStreamInSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of ZstdWriter::Options::set_buffer_size(): "
@@ -82,8 +117,9 @@ class ZstdWriter final : public BufferedWriter {
    private:
     friend class ZstdWriter;
 
-    int compression_level_ = 9;
-    size_t buffer_size_ = ZSTD_CStreamInSize();
+    int compression_level_ = kDefaultCompressionLevel();
+    int window_log_ = kDefaultWindowLog();
+    size_t buffer_size_ = kDefaultBufferSize();
     Position size_hint_ = 0;
   };
 
@@ -125,6 +161,7 @@ class ZstdWriter final : public BufferedWriter {
   // Invariant: if healthy() then dest_ != nullptr
   Writer* dest_ = nullptr;
   int compression_level_ = 0;
+  int window_log_ = 0;
   Position size_hint_ = 0;
   // If healthy() but compressor_ == nullptr then compressor_ was not created
   // yet.
@@ -142,6 +179,7 @@ inline ZstdWriter::ZstdWriter(Writer* dest, Options options)
     : BufferedWriter(options.buffer_size_),
       dest_(RIEGELI_ASSERT_NOTNULL(dest)),
       compression_level_(options.compression_level_),
+      window_log_(options.window_log_),
       size_hint_(options.size_hint_) {}
 
 inline ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
@@ -149,6 +187,7 @@ inline ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
       owned_dest_(std::move(src.owned_dest_)),
       dest_(riegeli::exchange(src.dest_, nullptr)),
       compression_level_(riegeli::exchange(src.compression_level_, 0)),
+      window_log_(riegeli::exchange(src.window_log_, 0)),
       size_hint_(riegeli::exchange(src.size_hint_, 0)),
       compressor_(std::move(src.compressor_)) {}
 
