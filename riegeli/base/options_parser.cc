@@ -43,6 +43,26 @@ const OptionParser* FindOption(
   return nullptr;
 }
 
+// This is a class rather than a lambda to capture parser1 and parser2 by move.
+class AltOptionParser {
+ public:
+  AltOptionParser(OptionParser parser1, OptionParser parser2)
+      : parser1_(std::move(parser1)), parser2_(std::move(parser2)) {}
+
+  bool operator()(string_view value, std::string* valid_values) const {
+    std::string valid_values1;
+    if (RIEGELI_LIKELY(parser1_(value, &valid_values1))) return true;
+    std::string valid_values2;
+    if (RIEGELI_LIKELY(parser2_(value, &valid_values2))) return true;
+    *valid_values = StrCat(valid_values1, ", ", valid_values2);
+    return false;
+  }
+
+ private:
+  OptionParser parser1_;
+  OptionParser parser2_;
+};
+
 }  // namespace
 
 bool ParseOptions(
@@ -72,8 +92,11 @@ bool ParseOptions(
         }
         return false;
       }
-      if (RIEGELI_UNLIKELY(!(*option_parser)(value, message))) {
-        *message = StrCat("Option ", option, ": ", *message);
+      std::string valid_values;
+      if (RIEGELI_UNLIKELY(!(*option_parser)(value, &valid_values))) {
+        *message = StrCat("Option ", option, ": ",
+                          "invalid value: ", value.empty() ? "(empty)" : value,
+                          ", valid values: ", valid_values);
         return false;
       }
     }
@@ -86,7 +109,7 @@ bool ParseOptions(
 OptionParser IntOption(int* out, int min_value, int max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* message) {
+  return [out, min_value, max_value](string_view value, std::string* valid_values) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -99,8 +122,7 @@ OptionParser IntOption(int* out, int min_value, int max_value) {
         return true;
       }
     }
-    *message = StrCat("invalid value: ", value.empty() ? "(empty)" : value,
-                      ", valid values: integers ", min_value, "..", max_value);
+    *valid_values = StrCat("integers ", min_value, "..", max_value);
     return false;
   };
 }
@@ -109,7 +131,7 @@ OptionParser BytesOption(uint64_t* out, uint64_t min_value,
                          uint64_t max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of BytesOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* message) {
+  return [out, min_value, max_value](string_view value, std::string* valid_values) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -164,10 +186,10 @@ OptionParser BytesOption(uint64_t* out, uint64_t min_value,
       }
     }
   error:
-    *message = StrCat("invalid value: ", value.empty() ? "(empty)" : value,
-                      ", valid values: integers expressed as reals with "
-                      "optional suffix [BkKMGTPE], ",
-                      min_value, "..", max_value);
+    *valid_values = StrCat(
+        "integers expressed as reals with "
+        "optional suffix [BkKMGTPE], ",
+        min_value, "..", max_value);
     return false;
   };
 }
@@ -175,7 +197,7 @@ OptionParser BytesOption(uint64_t* out, uint64_t min_value,
 OptionParser RealOption(double* out, double min_value, double max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* message) {
+  return [out, min_value, max_value](string_view value, std::string* valid_values) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -188,10 +210,21 @@ OptionParser RealOption(double* out, double min_value, double max_value) {
         return true;
       }
     }
-    *message = StrCat("invalid value: ", value.empty() ? "(empty)" : value,
-                      ", valid values: reals ", min_value, "..", max_value);
+    *valid_values = StrCat("reals ", min_value, "..", max_value);
     return false;
   };
 }
+
+OptionParser AltOption(OptionParser parser1, OptionParser parser2) {
+  return AltOptionParser(std::move(parser1), std::move(parser2));
+}
+
+std::pair<string_view, OptionParser> CopyOption(string_view key, std::string* text) {
+  return {key, [key, text](string_view value, std::string* valid_values) {
+            StrAppend(text, text->empty() ? "" : ",", key,
+                      value.empty() ? "" : ":", value);
+            return true;
+          }};
+};
 
 }  // namespace riegeli

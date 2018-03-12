@@ -41,6 +41,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/compressor.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
@@ -188,18 +189,17 @@ inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(
       message_id(message_id),
       field(field) {}
 
-TransposeEncoder::TransposeEncoder(CompressionType compression_type,
-                                   int compression_level, int window_log,
+TransposeEncoder::TransposeEncoder(CompressorOptions options,
                                    uint64_t bucket_size)
-    : compression_type_(compression_type),
-      bucket_size_(compression_type == CompressionType::kNone
+    : compression_type_(options.compression_type()),
+      bucket_size_(options.compression_type() == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
       num_records_(0),
       decoded_data_size_(0),
-      header_compressor_(compression_type, compression_level, window_log),
-      bucket_compressor_(compression_type, compression_level, window_log),
-      transitions_compressor_(compression_type, compression_level, window_log),
+      header_compressor_(options),
+      bucket_compressor_(options),
+      transitions_compressor_(options),
       nonproto_lengths_writer_(&nonproto_lengths_),
       next_message_id_(internal::MessageId::kRoot + 1) {}
 

@@ -65,26 +65,22 @@ class BrotliWriter final : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value kDefaultWindowLog() (-1) means to use a default (22).
-    //
-    // window_log must be kDefaultWindowLog() (-1) or between kMinWindowLog()
-    // (10) and kMaxWindowLog() (30). Default: kDefaultWindowLog() (-1).
+    // window_log must be between kMinWindowLog() (10) and kMaxWindowLog() (30).
+    // Default: kDefaultWindowLog() (22).
     static constexpr int kMinWindowLog() { return BROTLI_MIN_WINDOW_BITS; }
     static constexpr int kMaxWindowLog() {
       return BROTLI_LARGE_MAX_WINDOW_BITS;
     }
-    static constexpr int kDefaultWindowLog() { return -1; }
+    static constexpr int kDefaultWindowLog() { return BROTLI_DEFAULT_WINDOW; }
     Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog()) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
-            << "Failed precondition of "
-               "BrotliWriter::Options::set_window_log(): "
-               "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
-            << "Failed precondition of "
-               "BrotliWriter::Options::set_window_log(): "
-               "window log out of range";
-      }
+      RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+          << "Failed precondition of "
+             "BrotliWriter::Options::set_window_log(): "
+             "window log out of range";
+      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+          << "Failed precondition of "
+             "BrotliWriter::Options::set_window_log(): "
+             "window log out of range";
       window_log_ = window_log;
       return *this;
     }

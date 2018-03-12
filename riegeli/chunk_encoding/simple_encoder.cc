@@ -33,17 +33,15 @@
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 
-SimpleEncoder::SimpleEncoder(CompressionType compression_type,
-                             int compression_level, int window_log,
-                             uint64_t size_hint)
-    : compression_type_(compression_type),
-      sizes_compressor_(compression_type, compression_level, window_log),
-      values_compressor_(compression_type, compression_level, window_log,
-                         size_hint) {}
+SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
+    : compression_type_(options.compression_type()),
+      sizes_compressor_(options),
+      values_compressor_(options, size_hint) {}
 
 void SimpleEncoder::Done() {
   num_records_ = 0;

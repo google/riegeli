@@ -25,6 +25,7 @@
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/zstd_writer.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
@@ -36,8 +37,7 @@ class Compressor final : public Object {
   Compressor() noexcept : Object(State::kClosed) {}
 
   // Creates an empty Compressor.
-  Compressor(CompressionType compression_type, int compression_level,
-             int window_log, uint64_t size_hint = 0);
+  Compressor(CompressorOptions options, uint64_t size_hint = 0);
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
@@ -54,8 +54,8 @@ class Compressor final : public Object {
 
   // Writes compressed data to *dest. Closes the Compressor.
   //
-  // If compression_type is not kNone, writes uncompressed size as a varint
-  // before the data.
+  // If options.compression_type() is not kNone, writes uncompressed size as a
+  // varint before the data.
   //
   // Return values:
   //  * true  - success (healthy())
@@ -66,26 +66,29 @@ class Compressor final : public Object {
   void Done() override;
 
  private:
+  ChainWriter::Options GetChainWriterOptions() const;
+  BrotliWriter::Options GetBrotliWriterOptions() const;
+  ZstdWriter::Options GetZstdWriterOptions() const;
+
   void CloseCompressor();
 
-  CompressionType compression_type_ = CompressionType::kNone;
-  int compression_level_ = 0;
-  int window_log_ = 0;
+  CompressorOptions options_;
   uint64_t size_hint_ = 0;
   Chain compressed_;
   // Invariant: compressed_writer_ writes to compressed_
   ChainWriter compressed_writer_;
-  // compression_type_ determines the active member of the union, if any.
+  // options_.compression_type() determines the active member of the union,
+  // if any.
   union {
     BrotliWriter brotli_writer_;
     ZstdWriter zstd_writer_;
   };
   // Invariants:
-  //   if compression_type_ == CompressionType::kNone
+  //   if options_.compression_type() == CompressionType::kNone
   //       then writer_ == &compressed_writer_
-  //   if compression_type_ == CompressionType::kBrotli
+  //   if options_.compression_type() == CompressionType::kBrotli
   //       then writer_ == &brotli_writer_
-  //   if compression_type_ == CompressionType::kZstd
+  //   if options_.compression_type() == CompressionType::kZstd
   //       then writer_ == &zstd_writer_
   Writer* writer_;
 };

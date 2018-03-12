@@ -30,6 +30,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 #include "riegeli/chunk_encoding/types.h"
 
@@ -62,8 +63,7 @@ class Reader;
 class TransposeEncoder : public ChunkEncoder {
  public:
   // Creates an empty TransposeEncoder.
-  TransposeEncoder(CompressionType compression_type, int compression_level,
-                   int window_log, uint64_t bucket_size);
+  TransposeEncoder(CompressorOptions options, uint64_t bucket_size);
 
   ~TransposeEncoder();
 

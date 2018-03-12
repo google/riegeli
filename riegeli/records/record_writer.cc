@@ -35,9 +35,7 @@
 #include "riegeli/base/parallelism.h"
 #include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
-#include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/deferred_encoder.h"
@@ -48,93 +46,29 @@
 namespace riegeli {
 
 bool RecordWriter::Options::Parse(string_view text, std::string* message) {
-  if (RIEGELI_UNLIKELY(!ParseOptions(
-          {
-              {"default", EnumOption(this, {{"", Options()}})},
-              {"transpose",
-               EnumOption(&transpose_,
-                          {{"", true}, {"true", true}, {"false", false}})},
-              {"uncompressed",
-               EnumOption(&compression_type_, {{"", CompressionType::kNone}})},
-              {"brotli",
-               [this](string_view value, std::string* message) {
-                 if (value.empty()) {
-                   compression_level_ =
-                       BrotliWriter::Options::kDefaultCompressionLevel();
-                 } else if (RIEGELI_UNLIKELY(!IntOption(
-                                &compression_level_,
-                                BrotliWriter::Options::kMinCompressionLevel(),
-                                BrotliWriter::Options::kMaxCompressionLevel())(
-                                value, message))) {
-                   return false;
-                 }
-                 compression_type_ = CompressionType::kBrotli;
-                 return true;
-               }},
-              {"zstd",
-               [this](string_view value, std::string* message) {
-                 if (value.empty()) {
-                   compression_level_ =
-                       ZstdWriter::Options::kDefaultCompressionLevel();
-                 } else if (RIEGELI_UNLIKELY(!IntOption(
-                                &compression_level_,
-                                ZstdWriter::Options::kMinCompressionLevel(),
-                                ZstdWriter::Options::kMaxCompressionLevel())(
-                                value, message))) {
-                   return false;
-                 }
-                 compression_type_ = CompressionType::kZstd;
-                 return true;
-               }},
-              {"window_log",
-               [this](string_view value, std::string* message) {
-                 if (value == "auto") {
-                   window_log_ = kDefaultWindowLog();
-                   return true;
-                 } else {
-                   return IntOption(&window_log_, kMinWindowLog(),
-                                    kMaxWindowLog())(value, message);
-                 }
-               }},
-              {"chunk_size", BytesOption(&chunk_size_, 1,
-                                         std::numeric_limits<uint64_t>::max())},
-              {"bucket_fraction", RealOption(&bucket_fraction_, 0.0, 1.0)},
-              {"parallelism",
-               IntOption(&parallelism_, 0, std::numeric_limits<int>::max())},
-          },
-          text, message))) {
-    return false;
-  }
-  switch (compression_type_) {
-    case CompressionType::kNone:
-      compression_level_ = 0;
-      break;
-    case CompressionType::kBrotli:
-      if (window_log_ != kDefaultWindowLog() &&
-          RIEGELI_UNLIKELY(
-              window_log_ < BrotliWriter::Options::kMinWindowLog() ||
-              window_log_ > BrotliWriter::Options::kMaxWindowLog())) {
-        *message = StrCat("Option window_log: invalid value: ", window_log_,
-                          ", valid values: integers ",
-                          BrotliWriter::Options::kMinWindowLog(), "..",
-                          BrotliWriter::Options::kMaxWindowLog());
-        return false;
-      }
-      break;
-    case CompressionType::kZstd:
-      if (window_log_ != kDefaultWindowLog() &&
-          RIEGELI_UNLIKELY(window_log_ < ZstdWriter::Options::kMinWindowLog() ||
-                           window_log_ >
-                               ZstdWriter::Options::kMaxWindowLog())) {
-        *message = StrCat("Option window_log: invalid value: ", window_log_,
-                          ", valid values: integers ",
-                          ZstdWriter::Options::kMinWindowLog(), "..",
-                          ZstdWriter::Options::kMaxWindowLog());
-        return false;
-      }
-      break;
-  }
-  return true;
+  // TODO: Conflicting options like "brotli,default" should probably be
+  // errors. Currently "default" overwrites previous options except those parsed
+  // by compressor_options_, which is an artifact of the implementation.
+  std::string compressor_text;
+  return RIEGELI_LIKELY(ParseOptions(
+             {
+                 {"default", EnumOption(this, {{"", Options()}})},
+                 {"transpose",
+                  EnumOption(&transpose_,
+                             {{"", true}, {"true", true}, {"false", false}})},
+                 CopyOption("uncompressed", &compressor_text),
+                 CopyOption("brotli", &compressor_text),
+                 CopyOption("zstd", &compressor_text),
+                 CopyOption("window_log", &compressor_text),
+                 {"chunk_size",
+                  BytesOption(&chunk_size_, 1,
+                              std::numeric_limits<uint64_t>::max())},
+                 {"bucket_fraction", RealOption(&bucket_fraction_, 0.0, 1.0)},
+                 {"parallelism",
+                  IntOption(&parallelism_, 0, std::numeric_limits<int>::max())},
+             },
+             text, message)) &&
+         compressor_options_.Parse(compressor_text, message);
 }
 
 inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
@@ -153,12 +87,10 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
                   ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
     chunk_encoder = riegeli::make_unique<TransposeEncoder>(
-        options.compression_type_, options.compression_level_,
-        options.window_log_, bucket_size);
+        options.compressor_options_, bucket_size);
   } else {
     chunk_encoder = riegeli::make_unique<SimpleEncoder>(
-        options.compression_type_, options.compression_level_,
-        options.window_log_, options.chunk_size_);
+        options.compressor_options_, options.chunk_size_);
   }
   if (options.parallelism_ == 0) {
     return chunk_encoder;

@@ -73,10 +73,24 @@ cc_library(
 )
 
 cc_library(
+    name = "compressor_options",
+    srcs = ["compressor_options.cc"],
+    hdrs = ["compressor_options.h"],
+    deps = [
+        ":types",
+        "//riegeli/base",
+        "//riegeli/base:options_parser",
+        "//riegeli/bytes:brotli_writer",
+        "//riegeli/bytes:zstd_writer",
+    ],
+)
+
+cc_library(
     name = "compressor",
     srcs = ["compressor.cc"],
     hdrs = ["compressor.h"],
     deps = [
+        ":compressor_options",
         ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -111,6 +125,7 @@ cc_library(
     deps = [
         ":chunk_encoder",
         ":compressor",
+        ":compressor_options",
         ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -143,6 +158,7 @@ cc_library(
     deps = [
         ":chunk_encoder",
         ":compressor",
+        ":compressor_options",
         ":transpose_internal",
         ":types",
         "//riegeli/base",

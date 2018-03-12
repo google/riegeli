@@ -25,10 +25,8 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_view.h"
-#include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/zstd_writer.h"
-#include "riegeli/chunk_encoding/types.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 
 namespace google {
 namespace protobuf {
@@ -109,8 +107,7 @@ class RecordWriter final : public Object {
 
     // Changes compression algorithm to none.
     Options& set_uncompressed() & {
-      compression_type_ = CompressionType::kNone;
-      compression_level_ = 0;
+      compressor_options_.set_uncompressed();
       return *this;
     }
     Options&& set_uncompressed() && { return std::move(set_uncompressed()); }
@@ -124,27 +121,20 @@ class RecordWriter final : public Object {
     //
     // This is the default compression algorithm.
     static constexpr int kMinBrotli() {
-      return BrotliWriter::Options::kMinCompressionLevel();
+      return CompressorOptions::kMinBrotli();
     }
     static constexpr int kMaxBrotli() {
-      return BrotliWriter::Options::kMaxCompressionLevel();
+      return CompressorOptions::kMaxBrotli();
     }
     static constexpr int kDefaultBrotli() {
-      return BrotliWriter::Options::kDefaultCompressionLevel();
+      return CompressorOptions::kDefaultBrotli();
     }
     Options& set_brotli(int compression_level = kDefaultBrotli()) & {
-      RIEGELI_ASSERT_GE(compression_level, kMinBrotli())
-          << "Failed precondition of RecordWriter::Options::set_brotli(): "
-             "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxBrotli())
-          << "Failed precondition of RecordWriter::Options::set_brotli(): "
-             "compression level out of range";
-      compression_type_ = CompressionType::kBrotli;
-      compression_level_ = compression_level;
+      compressor_options_.set_brotli(compression_level);
       return *this;
     }
-    Options&& set_brotli(int level = kDefaultBrotli()) && {
-      return std::move(set_brotli(level));
+    Options&& set_brotli(int compression_level = kDefaultBrotli()) && {
+      return std::move(set_brotli(compression_level));
     }
 
     // Changes compression algorithm to Zstd. Sets compression level which tunes
@@ -153,28 +143,17 @@ class RecordWriter final : public Object {
     //
     // compression_level must be between kMinZstd() (1) and kMaxZstd() (22).
     // Default: kDefaultZstd() (9).
-    static constexpr int kMinZstd() {
-      return ZstdWriter::Options::kMinCompressionLevel();
-    }
-    static int kMaxZstd() {
-      return ZstdWriter::Options::kMaxCompressionLevel();
-    }
+    static constexpr int kMinZstd() { return CompressorOptions::kMinZstd(); }
+    static int kMaxZstd() { return CompressorOptions::kMaxZstd(); }
     static constexpr int kDefaultZstd() {
-      return ZstdWriter::Options::kDefaultCompressionLevel();
+      return CompressorOptions::kDefaultZstd();
     }
     Options& set_zstd(int compression_level = kDefaultZstd()) & {
-      RIEGELI_ASSERT_GE(compression_level, kMinZstd())
-          << "Failed precondition of RecordWriter::Options::set_zstd(): "
-             "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxZstd())
-          << "Failed precondition of RecordWriter::Options::set_zstd(): "
-             "compression level out of range";
-      compression_type_ = CompressionType::kZstd;
-      compression_level_ = compression_level;
+      compressor_options_.set_zstd(compression_level);
       return *this;
     }
-    Options&& set_zstd(int level = kDefaultZstd()) && {
-      return std::move(set_zstd(level));
+    Options&& set_zstd(int compression_level = kDefaultZstd()) && {
+      return std::move(set_zstd(compression_level));
     }
 
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
@@ -184,7 +163,7 @@ class RecordWriter final : public Object {
     // Special value kDefaultWindowLog() (-1) means to keep the default
     // (brotli: 22, zstd: derived from compression level and chunk size).
     //
-    // For uncompressed, window_log is ignored.
+    // For uncompressed, window_log must be kDefaultWindowLog() (-1).
     //
     // For brotli, window_log must be kDefaultWindowLog() (-1) or between
     // BrotliWriter::Options::kMinWindowLog() (10) and
@@ -196,27 +175,13 @@ class RecordWriter final : public Object {
     // build).
     //
     // Default: kDefaultWindowLog() (-1).
-    static int kMinWindowLog() {
-      return SignedMin(BrotliWriter::Options::kMinWindowLog(),
-                       ZstdWriter::Options::kMinWindowLog());
+    static int kMinWindowLog() { return CompressorOptions::kMinWindowLog(); }
+    static int kMaxWindowLog() { return CompressorOptions::kMaxWindowLog(); }
+    static constexpr int kDefaultWindowLog() {
+      return CompressorOptions::kDefaultWindowLog();
     }
-    static int kMaxWindowLog() {
-      return SignedMax(BrotliWriter::Options::kMaxWindowLog(),
-                       ZstdWriter::Options::kMaxWindowLog());
-    }
-    static constexpr int kDefaultWindowLog() { return -1; }
     Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog()) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
-            << "Failed precondition of "
-               "RecordWriter::Options::set_window_log(): "
-               "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
-            << "Failed precondition of "
-               "RecordWriter::Options::set_window_log(): "
-               "window log out of range";
-      }
-      window_log_ = window_log;
+      compressor_options_.set_window_log(window_log);
       return *this;
     }
     Options&& set_window_log(int window_log) && {
@@ -293,9 +258,7 @@ class RecordWriter final : public Object {
     friend class RecordWriter;
 
     bool transpose_ = false;
-    CompressionType compression_type_ = CompressionType::kBrotli;
-    int compression_level_ = kDefaultBrotli();
-    int window_log_ = -1;
+    CompressorOptions compressor_options_;
     uint64_t chunk_size_ = uint64_t{1} << 20;
     double bucket_fraction_ = 1.0;
     int parallelism_ = 0;

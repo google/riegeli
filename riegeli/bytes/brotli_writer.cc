@@ -34,8 +34,6 @@ BrotliWriter::BrotliWriter(Writer* dest, Options options)
     Fail("BrotliEncoderCreateInstance() failed");
     return;
   }
-  const int window_log =
-      options.window_log_ >= 0 ? options.window_log_ : BROTLI_DEFAULT_WINDOW;
   if (RIEGELI_UNLIKELY(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_QUALITY,
           IntCast<uint32_t>(options.compression_level_)))) {
@@ -44,13 +42,13 @@ BrotliWriter::BrotliWriter(Writer* dest, Options options)
   }
   if (RIEGELI_UNLIKELY(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,
-          uint32_t{window_log > BROTLI_MAX_WINDOW_BITS}))) {
+          uint32_t{options.window_log_ > BROTLI_MAX_WINDOW_BITS}))) {
     Fail("BrotliEncoderSetParameter(BROTLI_PARAM_LARGE_WINDOW) failed");
     return;
   }
   if (RIEGELI_UNLIKELY(
           !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_LGWIN,
-                                     IntCast<uint32_t>(window_log)))) {
+                                     IntCast<uint32_t>(options.window_log_)))) {
     Fail("BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed");
     return;
   }

@@ -30,8 +30,9 @@ namespace riegeli {
 //
 // Return values:
 //  * true  - success (captured state is changed according to value)
-//  * false - failure (*message is set)
-using OptionParser = std::function<bool(string_view value, std::string* message)>;
+//  * false - failure (*valid_values is set to a description of valid values)
+using OptionParser =
+    std::function<bool(string_view value, std::string* valid_values)>;
 
 // Parses options from text:
 //
@@ -55,35 +56,27 @@ bool ParseOptions(
 // Option parser for explicitly enumerated valid values.
 //
 // An empty possible value matches also the case when ":" with value is absent.
-//
-// Return values:
-//  * true  - success (*out is set to the corresponding value)
-//  * false - failure (*message is set)
 template <typename Enum>
 OptionParser EnumOption(
     Enum* out, std::vector<std::pair<string_view, Enum>> possible_values);
 
 // Option parser for integers min_value..max_value.
-//
-// Return values:
-//  * true  - success (*out is set to the corresponding value)
-//  * false - failure (*message is set)
 OptionParser IntOption(int* out, int min_value, int max_value);
 
 // Option parser for integers expressed as reals with optional suffix
 // [BkKMGTPE], min_value..max_value.
-//
-// Return values:
-//  * true  - success (*out is set to the corresponding value)
-//  * false - failure (*message is set)
 OptionParser BytesOption(uint64_t* out, uint64_t min_value, uint64_t max_value);
 
 // Option parser for reals min_value..max_value.
-//
-// Return values:
-//  * true  - success (*out is set to the corresponding value)
-//  * false - failure (*message is set)
 OptionParser RealOption(double* out, double min_value, double max_value);
+
+// Option parser which tries two parsers and returns the result of the first one
+// which succeeds.
+OptionParser AltOption(OptionParser parser1, OptionParser parser2);
+
+// Option parser which appends the option to a separate options string, to be
+// parsed with a separate ParseOptions() call.
+std::pair<string_view, OptionParser> CopyOption(string_view key, std::string* text);
 
 // Implementation details follow.
 
@@ -97,20 +90,19 @@ class EnumOptionParser {
                    std::vector<std::pair<string_view, Enum>> possible_values)
       : out_(out), possible_values_(std::move(possible_values)) {}
 
-  bool operator()(string_view value, std::string* message) const {
+  bool operator()(string_view value, std::string* valid_values) const {
     for (const auto& possible_value : possible_values_) {
       if (value == possible_value.first) {
         *out_ = possible_value.second;
         return true;
       }
     }
-    *message = StrCat("invalid value: ", value.empty() ? "(empty)" : value,
-                      ", valid values: ");
     auto iter = possible_values_.cbegin();
     if (iter != possible_values_.cend()) {
-      StrAppend(message, iter->first.empty() ? "(empty)" : iter->first);
+      StrAppend(valid_values, iter->first.empty() ? "(empty)" : iter->first);
       for (++iter; iter != possible_values_.cend(); ++iter) {
-        StrAppend(message, ", ", iter->first.empty() ? "(empty)" : iter->first);
+        StrAppend(valid_values, ", ",
+                  iter->first.empty() ? "(empty)" : iter->first);
       }
     }
     return false;
@@ -126,8 +118,7 @@ class EnumOptionParser {
 template <typename Enum>
 OptionParser EnumOption(
     Enum* out, std::vector<std::pair<string_view, Enum>> possible_values) {
-  return std::move(
-      internal::EnumOptionParser<Enum>(out, std::move(possible_values)));
+  return internal::EnumOptionParser<Enum>(out, std::move(possible_values));
 }
 
 };  // namespace riegeli

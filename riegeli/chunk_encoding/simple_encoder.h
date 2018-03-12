@@ -28,6 +28,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
@@ -45,8 +46,7 @@ namespace riegeli {
 class SimpleEncoder final : public ChunkEncoder {
  public:
   // Creates an empty SimpleEncoder.
-  SimpleEncoder(CompressionType compression_type, int compression_level,
-                int window_log, uint64_t size_hint);
+  SimpleEncoder(CompressorOptions options, uint64_t size_hint);
 
   void Reset() override;
 
