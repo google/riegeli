@@ -91,8 +91,7 @@ class TransposeEncoder : public ChunkEncoder {
  private:
   bool AddRecordInternal(Reader* record);
 
-  // Encode messages added with AddRecord() calls and write the result to
-  // "buffer". No messages should be added after calling this method.
+  // Encode messages added with AddRecord() calls and write the result to *dest.
   bool EncodeAndCloseInternal(uint32_t max_transition,
                               uint32_t min_count_for_state, Writer* dest,
                               uint64_t* num_records,
@@ -158,11 +157,11 @@ class TransposeEncoder : public ChunkEncoder {
   bool AddMessage(Reader* record, internal::MessageId parent_message_id,
                   int depth);
 
-  // Write all data buffers in "data_" to "data_buffer" (possibly compressed)
-  // and buffer lengths into "header_buffer".
-  // Fill map with the sequential position of each buffer written.
+  // Write all buffer lengths to "header_writer" and data buffers in "data_" to
+  // "data_writer" (compressed using compressor_). Fill map with the sequential
+  // position of each buffer written.
   bool WriteBuffers(
-      Writer* data_writer,
+      Writer* header_writer, Writer* data_writer,
       std::unordered_map<TransposeEncoder::NodeId, uint32_t,
                          TransposeEncoder::NodeIdHasher>* buffer_pos);
 
@@ -183,9 +182,9 @@ class TransposeEncoder : public ChunkEncoder {
     uint32_t canonical_source;
   };
 
-  // Add "next_chunk" to "bucket_buffer". If compression is enabled and either
-  // the current bucket would become too large or "force_new_bucket" is true,
-  // flush the bucket to "data_buffer" first and create a new bucket.
+  // Add "next_chunk" to compressor_.writer(). If either the current bucket
+  // would become too large or "force_new_bucket" is true, flush the current
+  // bucket to "data_writer" first and create a new bucket.
   bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
                  Writer* data_writer, std::vector<size_t>* bucket_lengths,
                  std::vector<size_t>* buffer_lengths);
@@ -207,14 +206,14 @@ class TransposeEncoder : public ChunkEncoder {
   std::vector<StateInfo> CreateStateMachine(uint32_t max_transition,
                                             uint32_t min_count_for_state);
 
-  // Write state machine states into "header_buffer" and all data buffers into
-  // "data_buffer".
+  // Write state machine states into "header_writer" and all data buffers and
+  // transitions into "data_writer" (compressed using compressor_).
   bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
-                          Writer* data_writer);
+                          Writer* header_writer, Writer* data_writer);
 
   // Write all state machine transitions from "encoded_tags_" into
-  // "transitions_writer".
+  // compressor_.writer().
   bool WriteTransitions(uint32_t max_transition,
                         const std::vector<StateInfo>& state_machine);
 
@@ -298,9 +297,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   uint64_t num_records_;
   uint64_t decoded_data_size_;
-  internal::Compressor header_compressor_;
-  internal::Compressor bucket_compressor_;
-  internal::Compressor transitions_compressor_;
+  internal::Compressor compressor_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
   // Sequence of tags on input as indices into "tags_list_".
