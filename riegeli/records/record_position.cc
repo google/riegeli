@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <cstring>
 #include <limits>
+#include <ostream>
 #include <string>
 
 #include "riegeli/base/base.h"
@@ -44,6 +45,10 @@ bool RecordPosition::Parse(string_view serialized) {
   chunk_begin_ = chunk_begin;
   record_index_ = record_index;
   return true;
+}
+
+std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
+  return out << pos.chunk_begin() << "/" << pos.record_index();
 }
 
 }  // namespace riegeli

@@ -183,6 +183,9 @@ class RecordReader final : public Object {
   bool Search(std::function<bool(int*)>, bool* found);
 #endif
 
+  // Returns the amount of data skipped because of corruption, in bytes.
+  Position corrupted_bytes_skipped() const;
+
  protected:
   void Done() override;
 
@@ -256,6 +259,11 @@ inline RecordPosition RecordReader::pos() const {
 inline bool RecordReader::Size(Position* size) const {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   return chunk_reader_->Size(size);
+}
+
+inline Position RecordReader::corrupted_bytes_skipped() const {
+  if (RIEGELI_UNLIKELY(chunk_reader_ == nullptr)) return 0;
+  return chunk_reader_->corrupted_bytes_skipped();
 }
 
 }  // namespace riegeli

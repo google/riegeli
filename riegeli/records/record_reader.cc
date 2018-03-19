@@ -83,10 +83,11 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
 }
 
 void RecordReader::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
+  if (chunk_reader_ != nullptr) {
     if (RIEGELI_UNLIKELY(!chunk_reader_->Close())) Fail(*chunk_reader_);
+    // Do not reset chunk_reader_ so that corrupted_bytes_skipped() remains
+    // available.
   }
-  chunk_reader_.reset();
   skip_corruption_ = false;
   chunk_begin_ = 0;
   chunk_decoder_ = ChunkDecoder();

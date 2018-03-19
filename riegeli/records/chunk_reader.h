@@ -150,6 +150,9 @@ class ChunkReader final : public Object {
   //  * false - failure (healthy() is unchanged)
   bool Size(Position* size) const;
 
+  // Returns the amount of data skipped because of corruption, in bytes.
+  Position corrupted_bytes_skipped() const { return corrupted_bytes_skipped_; }
+
  protected:
   void Done() override;
 
@@ -166,9 +169,8 @@ class ChunkReader final : public Object {
   struct Recovering {
     void Reset();
 
-    // If true, pos_ has been adjusted to a block boundary and skip_corruption_
-    // has been checked.
-    bool in_progress = false;
+    // If true, recovery is caused by corruption.
+    bool corrupted = false;
     // If true, chunk_begin is known since the block header has been read.
     bool chunk_begin_known = false;
     // Target position after recovery is complete.
@@ -186,23 +188,35 @@ class ChunkReader final : public Object {
 
   // Reads or continues reading block_header_ if the current position is
   // immediately before or inside a block header, otherwise does nothing.
+  //
+  // If the block header is invalid, this is treated as corruption and pos_ is
+  // changed to begin a new recovery past this block header.
   bool ReadBlockHeader();
 
   // Prepares for reading a new chunk.
   void PrepareForReading();
 
-  // Prepares for recovery (locating a chunk using block headers) even if
-  // skip_corruption_ is false. pos_ must be a block boundary.
-  void PrepareForFindingChunk();
-
-  // Prepares for recovery (locating a chunk using block headers) if
-  // skip_corruption_ is true, otherwise fails.
+  // Prepares for recovery (locating a chunk using block headers).
   void PrepareForRecovering();
+
+  // Increases pos_ over a region which should be counted as corrupted if
+  // recovering because of corruption.
+  //
+  // Preconditions:
+  //   is_recovering_
+  //   new_pos >= pos_
+  void SeekOverCorruption(Position new_pos);
 
   // Begins or continues recovery by reading block headers and looking for a
   // chunk beginning. Scans forwards only so that it does not require the Reader
   // to support random access.
+  //
+  // Precondition: is_recovering_
   bool Recover();
+
+  // Reports an invalid chunk boundary. Returns true if recovery should be
+  // attempted.
+  bool InvalidChunkBoundary();
 
   // Shared implementation of SeekToChunkContaining() (containing = true) and
   // SeekToChunkAfter() (containing = false).
@@ -218,12 +232,15 @@ class ChunkReader final : public Object {
   //
   // If !is_recovering_, this is a chunk boundary.
   //
-  // If is_recovering_, this is a block boundary.
+  // If is_recovering_, this is a block boundary or end of file.
   Position pos_;
 
-  // If true, the source is truncated, but truncation was not reported yet
-  // because byte_reader_->HopeForMore().
-  bool is_truncated_ = false;
+  // If true, the current chunk is incomplete, but this was not reported yet as
+  // a truncated file because HopeForMore() is true.
+  bool current_chunk_is_incomplete_ = false;
+
+  // The amount of data skipped because of corruption, in bytes.
+  Position corrupted_bytes_skipped_ = 0;
 
   // If true, recovery is needed (a chunk must be located using block headers),
   // either because corruption was detected and skip_corruption_ is true, or

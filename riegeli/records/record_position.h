@@ -16,6 +16,7 @@
 #define RIEGELI_RECORDS_RECORD_POSITION_H_
 
 #include <stdint.h>
+#include <iosfwd>
 #include <limits>
 #include <string>
 
@@ -58,47 +59,55 @@ class RecordPosition {
   std::string Serialize() const;
   bool Parse(string_view serialized);
 
-  friend bool operator==(RecordPosition a, RecordPosition b);
-  friend bool operator!=(RecordPosition a, RecordPosition b);
-  friend bool operator<(RecordPosition a, RecordPosition b);
-  friend bool operator>(RecordPosition a, RecordPosition b);
-  friend bool operator<=(RecordPosition a, RecordPosition b);
-  friend bool operator>=(RecordPosition a, RecordPosition b);
-
  private:
   // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_
   uint64_t chunk_begin_ = 0;
   uint64_t record_index_ = 0;
 };
 
+bool operator==(RecordPosition a, RecordPosition b);
+bool operator!=(RecordPosition a, RecordPosition b);
+bool operator<(RecordPosition a, RecordPosition b);
+bool operator>(RecordPosition a, RecordPosition b);
+bool operator<=(RecordPosition a, RecordPosition b);
+bool operator>=(RecordPosition a, RecordPosition b);
+
+std::ostream& operator<<(std::ostream& out, RecordPosition pos);
+
 // Implementation details follow.
 
 inline bool operator==(RecordPosition a, RecordPosition b) {
-  return a.chunk_begin_ == b.chunk_begin_ && a.record_index_ == b.record_index_;
+  return a.chunk_begin() == b.chunk_begin() &&
+         a.record_index() == b.record_index();
 }
 
 inline bool operator!=(RecordPosition a, RecordPosition b) {
-  return a.chunk_begin_ != b.chunk_begin_ || a.record_index_ != b.record_index_;
+  return a.chunk_begin() != b.chunk_begin() ||
+         a.record_index() != b.record_index();
 }
 
 inline bool operator<(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin_ != b.chunk_begin_) return a.chunk_begin_ < b.chunk_begin_;
-  return a.record_index_ < b.record_index_;
+  if (a.chunk_begin() != b.chunk_begin())
+    return a.chunk_begin() < b.chunk_begin();
+  return a.record_index() < b.record_index();
 }
 
 inline bool operator>(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin_ != b.chunk_begin_) return a.chunk_begin_ > b.chunk_begin_;
-  return a.record_index_ > b.record_index_;
+  if (a.chunk_begin() != b.chunk_begin())
+    return a.chunk_begin() > b.chunk_begin();
+  return a.record_index() > b.record_index();
 }
 
 inline bool operator<=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin_ != b.chunk_begin_) return a.chunk_begin_ < b.chunk_begin_;
-  return a.record_index_ <= b.record_index_;
+  if (a.chunk_begin() != b.chunk_begin())
+    return a.chunk_begin() < b.chunk_begin();
+  return a.record_index() <= b.record_index();
 }
 
 inline bool operator>=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin_ != b.chunk_begin_) return a.chunk_begin_ > b.chunk_begin_;
-  return a.record_index_ >= b.record_index_;
+  if (a.chunk_begin() != b.chunk_begin())
+    return a.chunk_begin() > b.chunk_begin();
+  return a.record_index() >= b.record_index();
 }
 
 }  // namespace riegeli
