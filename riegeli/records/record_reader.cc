@@ -139,12 +139,13 @@ template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
 bool RecordReader::Seek(RecordPosition new_pos) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (new_pos.chunk_begin() == chunk_begin_) {
-    if (new_pos.record_index() == 0) {
-      // Seeking to the beginning of a chunk does not need pulling the chunk nor
+    if (new_pos.record_index() == 0 || chunk_reader_->pos() > chunk_begin_) {
+      // Seeking to the beginning of a chunk does not need reading the chunk nor
       // checking its size, which is important because it may be non-existent at
       // end of file, corrupted, or empty.
-      chunk_decoder_.SetIndex(0);
-      return true;
+      //
+      // If chunk_reader_->pos() > chunk_begin_, the chunk is already read.
+      goto skip_reading_chunk;
     }
   } else {
     if (RIEGELI_UNLIKELY(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
@@ -153,18 +154,25 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
-    if (new_pos.record_index() == 0) {
-      // Seeking to the beginning of a chunk does not need pulling the chunk nor
+    if (new_pos.record_index() == 0 ||
+        RIEGELI_UNLIKELY(chunk_reader_->pos() > new_pos.chunk_begin())) {
+      // Seeking to the beginning of a chunk does not need reading the chunk nor
       // checking its size, which is important because it may be non-existent at
       // end of file, corrupted, or empty.
+      //
+      // If chunk_reader_->pos() > new_pos.chunk_begin(), corruption was
+      // skipped.
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       return true;
     }
-    if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
   }
-  RIEGELI_ASSERT_EQ(chunk_begin_, new_pos.chunk_begin())
-      << "Unexpected chunk position after seeking";
+  if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
+  if (RIEGELI_UNLIKELY(chunk_begin_ > new_pos.chunk_begin())) {
+    // Corruption was skipped. Leave the position after the corruption.
+    return true;
+  }
+skip_reading_chunk:
   chunk_decoder_.SetIndex(new_pos.record_index());
   return true;
 }
@@ -172,7 +180,7 @@ bool RecordReader::Seek(RecordPosition new_pos) {
 bool RecordReader::Seek(Position new_pos) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (new_pos >= chunk_begin_ && new_pos <= chunk_reader_->pos()) {
-    // Seeking inside or just after the current chunk which has been pulled,
+    // Seeking inside or just after the current chunk which has been read,
     // or to the beginning of the current chunk which has been located,
     // or to the end of file which has been reached.
   } else {
@@ -183,17 +191,21 @@ bool RecordReader::Seek(Position new_pos) {
       return Fail(*chunk_reader_);
     }
     if (chunk_reader_->pos() >= new_pos) {
-      // Seeking to the beginning of a chunk does not need pulling the chunk,
-      // which is important because it may be non-existent at end of file or
-      // corrupted.
+      // If chunk_reader_->pos() == new_pos, seeking to the beginning of a
+      // chunk. This does not need reading the chunk, which is important because
+      // it may be non-existent at end of file or corrupted.
+      //
+      // If chunk_reader_->pos() > new_pos, corruption was skipped.
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       return true;
     }
     if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
+    if (RIEGELI_UNLIKELY(chunk_begin_ > new_pos)) {
+      // Corruption was skipped. Leave the position after the corruption.
+      return true;
+    }
   }
-  RIEGELI_ASSERT_GE(chunk_begin_, new_pos)
-      << "Unexpected chunk position after seeking";
   chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
   return true;
 }

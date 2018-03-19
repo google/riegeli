@@ -207,7 +207,7 @@ class RecordReader final : public Object {
   // Seek(Position) failed to locate the chunk containing the position, in which
   // case this is that position.
   Position chunk_begin_ = 0;
-  // Current chunk if a chunk has been pulled, empty otherwise.
+  // Current chunk if a chunk has been read, empty otherwise.
   //
   // Invariants:
   //   if healthy() then chunk_decoder_.healthy()
