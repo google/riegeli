@@ -293,18 +293,18 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
                riegeli::IntCast<int>(
                    riegeli::StrCat("tfrecord ", tfrecord_options).size()));
   const char* compression = tensorflow::io::compression::kNone;
-  std::string message;
-  RIEGELI_CHECK(riegeli::ParseOptions(
-      {
-          {"uncompressed",
-           riegeli::EnumOption(&compression,
-                               {{"", tensorflow::io::compression::kNone}})},
-          {"gzip",
-           riegeli::EnumOption(&compression,
-                               {{"", tensorflow::io::compression::kGzip}})},
-      },
-      tfrecord_options, &message))
-      << message;
+  riegeli::OptionsParser parser;
+  parser.AddOption("uncompressed", parser.Empty([&parser, &compression] {
+    if (RIEGELI_UNLIKELY(!parser.FailIfSeen("gzip"))) return false;
+    compression = tensorflow::io::compression::kNone;
+    return true;
+  }));
+  parser.AddOption("gzip", parser.Empty([&parser, &compression] {
+    if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed"))) return false;
+    compression = tensorflow::io::compression::kGzip;
+    return true;
+  }));
+  RIEGELI_CHECK(parser.Parse(tfrecord_options)) << parser.Message();
   tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
 }
 

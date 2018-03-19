@@ -46,29 +46,28 @@
 namespace riegeli {
 
 bool RecordWriter::Options::Parse(string_view text, std::string* message) {
-  // TODO: Conflicting options like "brotli,default" should probably be
-  // errors. Currently "default" overwrites previous options except those parsed
-  // by compressor_options_, which is an artifact of the implementation.
   std::string compressor_text;
-  return RIEGELI_LIKELY(ParseOptions(
-             {
-                 {"default", EnumOption(this, {{"", Options()}})},
-                 {"transpose",
-                  EnumOption(&transpose_,
-                             {{"", true}, {"true", true}, {"false", false}})},
-                 CopyOption("uncompressed", &compressor_text),
-                 CopyOption("brotli", &compressor_text),
-                 CopyOption("zstd", &compressor_text),
-                 CopyOption("window_log", &compressor_text),
-                 {"chunk_size",
-                  BytesOption(&chunk_size_, 1,
-                              std::numeric_limits<uint64_t>::max())},
-                 {"bucket_fraction", RealOption(&bucket_fraction_, 0.0, 1.0)},
-                 {"parallelism",
-                  IntOption(&parallelism_, 0, std::numeric_limits<int>::max())},
-             },
-             text, message)) &&
-         compressor_options_.Parse(compressor_text, message);
+  OptionsParser parser;
+  parser.AddOption("default",
+                   parser.Empty([&parser] { return parser.FailIfAnySeen(); }));
+  parser.AddOption(
+      "transpose",
+      parser.Enum(&transpose_, {{"", true}, {"true", true}, {"false", false}}));
+  parser.AddOption("uncompressed", parser.CopyTo(&compressor_text));
+  parser.AddOption("brotli", parser.CopyTo(&compressor_text));
+  parser.AddOption("zstd", parser.CopyTo(&compressor_text));
+  parser.AddOption("window_log", parser.CopyTo(&compressor_text));
+  parser.AddOption(
+      "chunk_size",
+      parser.Bytes(&chunk_size_, 1, std::numeric_limits<uint64_t>::max()));
+  parser.AddOption("bucket_fraction", parser.Real(&bucket_fraction_, 0.0, 1.0));
+  parser.AddOption("parallelism", parser.Int(&parallelism_, 0,
+                                             std::numeric_limits<int>::max()));
+  if (RIEGELI_UNLIKELY(!parser.Parse(text))) {
+    *message = std::string(parser.Message());
+    return false;
+  }
+  return compressor_options_.Parse(compressor_text, message);
 }
 
 inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(

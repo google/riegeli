@@ -16,109 +16,222 @@
 #define RIEGELI_BASE_OPTIONS_PARSER_H_
 
 #include <stdint.h>
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "riegeli/base/object.h"
 #include "riegeli/base/str_cat.h"
 #include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
-// Specifies how to parse the value of a particular option key.
-//
-// Return values:
-//  * true  - success (captured state is changed according to value)
-//  * false - failure (*valid_values is set to a description of valid values)
-using OptionParser =
-    std::function<bool(string_view value, std::string* valid_values)>;
+class OptionsParser : public Object {
+ public:
+  // Parser of an option value.
+  //
+  // Return values:
+  //  * true  - success (FailIfSeen() nor FailIfAnySeen() must not have been
+  //            called)
+  //  * false - failure (InvalidValue(), FailIfSeen(), or FailIfAnySeen() may
+  //            have been called)
+  using ValueParser = std::function<bool(string_view)>;
 
-// Parses options from text:
-//
-//   options ::= option? ("," option?)*
-//   option ::= key (":" value)?
-//   key ::= (char except ',' and ':')*
-//   value ::= (char except ',')*
-//
-// For each recognized option key, calls the corresponding option parser.
-// If ":" with value is absent, string_view() is passed as the value.
-//
-// If an option parser fails, prepends StrCat("Option ", key, ": ") to *message.
-//
-// Return values:
-//  * true  - success
-//  * false - failure (*message is set)
-bool ParseOptions(
-    const std::vector<std::pair<string_view, OptionParser>>& option_parsers,
-    string_view text, std::string* message);
+  OptionsParser() : Object(State::kOpen) {}
 
-// Option parser for explicitly enumerated valid values.
-//
-// An empty possible value matches also the case when ":" with value is absent.
-template <typename Enum>
-OptionParser EnumOption(
-    Enum* out, std::vector<std::pair<string_view, Enum>> possible_values);
+  OptionsParser(const OptionsParser&) = delete;
+  OptionsParser& operator=(const OptionsParser&) = delete;
 
-// Option parser for integers min_value..max_value.
-OptionParser IntOption(int* out, int min_value, int max_value);
+  // Registers an option with the given key. Its value must be accepted by the
+  // value parser.
+  //
+  // The value parser may be implemented explicitly (e.g. as a lambda)
+  // or returned by one of functions below (called on this OptionsParser).
+  void AddOption(std::string key, ValueParser value_parser);
 
-// Option parser for integers expressed as reals with optional suffix
-// [BkKMGTPE], min_value..max_value.
-OptionParser BytesOption(uint64_t* out, uint64_t min_value, uint64_t max_value);
+  // Value parser for absent or empty argument.
+  ValueParser Empty(std::function<bool()> present);
 
-// Option parser for reals min_value..max_value.
-OptionParser RealOption(double* out, double min_value, double max_value);
+  // Value parser for explicitly enumerated valid values.
+  //
+  // An empty possible value matches also the case when ":" with value is
+  // absent.
+  template <typename T>
+  ValueParser Enum(T* out, std::vector<std::pair<std::string, T>> possible_values);
 
-// Option parser which tries two parsers and returns the result of the first one
-// which succeeds.
-OptionParser AltOption(OptionParser parser1, OptionParser parser2);
+  // Value parser for integers min_value..max_value.
+  ValueParser Int(int* out, int min_value, int max_value);
 
-// Option parser which appends the option to a separate options string, to be
-// parsed with a separate ParseOptions() call.
-std::pair<string_view, OptionParser> CopyOption(string_view key, std::string* text);
+  // Value parser for integers expressed as reals with optional suffix
+  // [BkKMGTPE], min_value..max_value.
+  ValueParser Bytes(uint64_t* out, uint64_t min_value, uint64_t max_value);
+
+  // Value parser for reals min_value..max_value.
+  ValueParser Real(double* out, double min_value, double max_value);
+
+  // Value parser which tries multiple parsers and returns the result of the
+  // first one which succeeds.
+  //
+  // The parsers must not call FailIfSeen() nor FailIfAnySeen(). Conflicts with
+  // other options should be checked outside the Or().
+  static ValueParser Or(ValueParser parser1, ValueParser parser2);
+  template <typename... ValueParsers>
+  static ValueParser Or(ValueParser parser1, ValueParser parser2,
+                        ValueParsers&&... parsers);
+
+  // Value parser which appends the option to a separate options string
+  // (as comma-separated key:value pairs), to be parsed with a separate
+  // OptionsParser.
+  ValueParser CopyTo(std::string* text);
+
+  // TODO: Consider splitting the state of parsing an option value to a
+  // separate class.
+
+  // Returns the key of the option being parsed.
+  //
+  // Precondition: an option value is being parsed
+  const std::string& current_key() const;
+
+  // Reports that the value is invalid, given a human-readable description of
+  // values which would have been valid.
+  //
+  // Multiple descriptions from several InvalidValue() calls are joined with
+  // commas. This normally happens if all parsers from Or() fail.
+  //
+  // Preconditions:
+  //   !valid_values.empty()
+  //   an option value is being parsed
+  //
+  // Always returns false.
+  bool InvalidValue(string_view valid_values);
+
+  // Reports a conflict if an option with any of the given keys was seen before
+  // this option.
+  //
+  // Multiple occurrences of the same option are always invalid and do not have
+  // to be explicitly checked with FailIfSeen().
+  //
+  // Precondition: an option value is being parsed
+  //
+  // Return values:
+  //  * true - there was no conflict
+  //  * false - there was a conflict
+  bool FailIfSeen(string_view key);
+  template <typename... Keys>
+  bool FailIfSeen(string_view key, Keys&&... keys);
+
+  // Reports a conflict if an any option was seen before this option.
+  //
+  // Precondition: an option value is being parsed
+  //
+  // Return values:
+  //  * true - there was no conflict
+  //  * false - there was a conflict
+  bool FailIfAnySeen();
+
+  // Parses options from text. Valid options must have been registered with
+  // AddOptions().
+  //
+  //   options ::= option? ("," option?)*
+  //   option ::= key (":" value)?
+  //   key ::= (char except ',' and ':')*
+  //   value ::= (char except ',')*
+  //
+  // For each recognized option key, calls the corresponding value parser.
+  // If ":" with value is absent, string_view() is passed as the value.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
+  bool Parse(string_view text);
+
+ protected:
+  void Done() override;
+
+ private:
+  struct Option {
+    Option(std::string key, ValueParser value_parser)
+        : key(std::move(key)), value_parser(std::move(value_parser)) {}
+
+    std::string key;
+    ValueParser value_parser;
+    bool seen = false;
+  };
+
+  std::vector<Option> options_;
+  // When an option value is being parsed, the corresponding option, otherwise
+  // nullptr.
+  Option* current_option_ = nullptr;
+  // When an option value is being parsed and InvalidValue() was called,
+  // a human-readable description of valid values, otherwise empty.
+  std::string current_valid_values_;
+};
 
 // Implementation details follow.
 
+inline void OptionsParser::AddOption(std::string key, ValueParser value_parser) {
+  RIEGELI_ASSERT(std::find_if(options_.cbegin(), options_.cend(),
+                              [&key](const Option& option) {
+                                return option.key == key;
+                              }) == options_.cend())
+      << "Failed precondition of OptionsParser::AddOption(): option " << key
+      << "already registered";
+  options_.emplace_back(std::move(key), std::move(value_parser));
+}
+
+inline const std::string& OptionsParser::current_key() const {
+  RIEGELI_ASSERT(current_option_ != nullptr)
+      << "Failed precondition of OptionsParser::current_key(): "
+         "no option is being parsed";
+  return current_option_->key;
+}
+
 namespace internal {
 
-// This is a class rather than a lambda to capture possible_values by move.
-template <typename Enum>
-class EnumOptionParser {
- public:
-  EnumOptionParser(Enum* out,
-                   std::vector<std::pair<string_view, Enum>> possible_values)
-      : out_(out), possible_values_(std::move(possible_values)) {}
-
-  bool operator()(string_view value, std::string* valid_values) const {
-    for (const auto& possible_value : possible_values_) {
+// This is a struct rather than a lambda to capture possible_values by move.
+template <typename T>
+struct EnumOptionParser {
+  bool operator()(string_view value) const {
+    for (const auto& possible_value : possible_values) {
       if (value == possible_value.first) {
-        *out_ = possible_value.second;
+        *out = possible_value.second;
         return true;
       }
     }
-    auto iter = possible_values_.cbegin();
-    if (iter != possible_values_.cend()) {
-      StrAppend(valid_values, iter->first.empty() ? "(empty)" : iter->first);
-      for (++iter; iter != possible_values_.cend(); ++iter) {
-        StrAppend(valid_values, ", ",
-                  iter->first.empty() ? "(empty)" : iter->first);
-      }
+    for (const auto& possible_value : possible_values) {
+      parser->InvalidValue(possible_value.first.empty()
+                               ? string_view("(empty)")
+                               : string_view(possible_value.first));
     }
     return false;
   }
 
- private:
-  Enum* out_;
-  std::vector<std::pair<string_view, Enum>> possible_values_;
+  OptionsParser* parser;
+  T* out;
+  std::vector<std::pair<std::string, T>> possible_values;
 };
 
 }  // namespace internal
 
-template <typename Enum>
-OptionParser EnumOption(
-    Enum* out, std::vector<std::pair<string_view, Enum>> possible_values) {
-  return internal::EnumOptionParser<Enum>(out, std::move(possible_values));
+template <typename T>
+OptionsParser::ValueParser OptionsParser::Enum(
+    T* out, std::vector<std::pair<std::string, T>> possible_values) {
+  return internal::EnumOptionParser<T>{this, out, std::move(possible_values)};
+}
+
+template <typename... ValueParsers>
+OptionsParser::ValueParser OptionsParser::Or(ValueParser parser1,
+                                             ValueParser parser2,
+                                             ValueParsers&&... parsers) {
+  return Or(parser1, Or(parser2, std::forward<ValueParsers>(parsers)...));
+}
+
+template <typename... Keys>
+bool OptionsParser::FailIfSeen(string_view key, Keys&&... keys) {
+  return RIEGELI_LIKELY(FailIfSeen(key)) &&
+         FailIfSeen(std::forward<Keys>(keys)...);
 }
 
 };  // namespace riegeli

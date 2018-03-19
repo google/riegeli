@@ -16,9 +16,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <algorithm>
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <limits>
 #include <string>
 #include <utility>
@@ -32,84 +34,45 @@ namespace riegeli {
 
 namespace {
 
-const OptionParser* FindOption(
-    const std::vector<std::pair<string_view, OptionParser>>& option_parsers,
-    string_view key) {
-  for (const auto& option_parser : option_parsers) {
-    if (option_parser.first == key) {
-      return &option_parser.second;
-    }
-  }
-  return nullptr;
-}
-
-// This is a class rather than a lambda to capture parser1 and parser2 by move.
-class AltOptionParser {
- public:
-  AltOptionParser(OptionParser parser1, OptionParser parser2)
-      : parser1_(std::move(parser1)), parser2_(std::move(parser2)) {}
-
-  bool operator()(string_view value, std::string* valid_values) const {
-    std::string valid_values1;
-    if (RIEGELI_LIKELY(parser1_(value, &valid_values1))) return true;
-    std::string valid_values2;
-    if (RIEGELI_LIKELY(parser2_(value, &valid_values2))) return true;
-    *valid_values = StrCat(valid_values1, ", ", valid_values2);
-    return false;
+// This is a struct rather than a lambda to capture present by move.
+struct EmptyParser {
+  bool operator()(string_view value) const {
+    if (RIEGELI_LIKELY(value.empty())) return present();
+    return parser->InvalidValue("(empty)");
   }
 
- private:
-  OptionParser parser1_;
-  OptionParser parser2_;
+  OptionsParser* parser;
+  std::function<bool()> present;
+};
+
+// This is a struct rather than a lambda to capture parser1 and parser2 by move.
+struct OrParser {
+  bool operator()(string_view value) const {
+    return parser1(value) || parser2(value);
+  }
+
+  OptionsParser::ValueParser parser1;
+  OptionsParser::ValueParser parser2;
 };
 
 }  // namespace
 
-bool ParseOptions(
-    const std::vector<std::pair<string_view, OptionParser>>& option_parsers,
-    string_view text, std::string* message) {
-  size_t option_begin = 0;
-  for (;;) {
-    size_t option_end = text.find(',', option_begin);
-    if (option_end == string_view::npos) option_end = text.size();
-    if (option_begin != option_end) {
-      string_view option = text.substr(option_begin, option_end - option_begin);
-      string_view value;
-      const size_t colon = option.find(':');
-      if (colon != string_view::npos) {
-        value = option.substr(colon + 1);
-        option = option.substr(0, colon);
-      }
-      const OptionParser* option_parser = FindOption(option_parsers, option);
-      if (RIEGELI_UNLIKELY(option_parser == nullptr)) {
-        *message = StrCat("Unknown option ", option, ", valid options: ");
-        auto iter = option_parsers.cbegin();
-        if (iter != option_parsers.cend()) {
-          StrAppend(message, iter->first);
-          for (++iter; iter != option_parsers.cend(); ++iter) {
-            StrAppend(message, ", ", iter->first);
-          }
-        }
-        return false;
-      }
-      std::string valid_values;
-      if (RIEGELI_UNLIKELY(!(*option_parser)(value, &valid_values))) {
-        *message = StrCat("Option ", option, ": ",
-                          "invalid value: ", value.empty() ? "(empty)" : value,
-                          ", valid values: ", valid_values);
-        return false;
-      }
-    }
-    if (option_end == text.size()) break;
-    option_begin = option_end + 1;
-  }
-  return true;
+void OptionsParser::Done() {
+  options_ = std::vector<Option>();
+  current_option_ = nullptr;
+  current_valid_values_ = std::string();
 }
 
-OptionParser IntOption(int* out, int min_value, int max_value) {
+OptionsParser::ValueParser OptionsParser::Empty(std::function<bool()> present) {
+  return EmptyParser{this, std::move(present)};
+}
+
+OptionsParser::ValueParser OptionsParser::Int(int* out, int min_value,
+                                              int max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
-      << "Failed precondition of IntOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* valid_values) {
+      << "Failed precondition of OptionsParser::IntOption(): "
+         "bounds in the wrong order";
+  return [this, out, min_value, max_value](string_view value) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -122,16 +85,16 @@ OptionParser IntOption(int* out, int min_value, int max_value) {
         return true;
       }
     }
-    *valid_values = StrCat("integers ", min_value, "..", max_value);
-    return false;
+    return InvalidValue(StrCat("integers ", min_value, "..", max_value));
   };
 }
 
-OptionParser BytesOption(uint64_t* out, uint64_t min_value,
-                         uint64_t max_value) {
+OptionsParser::ValueParser OptionsParser::Bytes(uint64_t* out,
+                                                uint64_t min_value,
+                                                uint64_t max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of BytesOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* valid_values) {
+  return [this, out, min_value, max_value](string_view value) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -186,18 +149,18 @@ OptionParser BytesOption(uint64_t* out, uint64_t min_value,
       }
     }
   error:
-    *valid_values = StrCat(
-        "integers expressed as reals with "
-        "optional suffix [BkKMGTPE], ",
-        min_value, "..", max_value);
-    return false;
+    return InvalidValue(
+        StrCat("integers expressed as reals with "
+               "optional suffix [BkKMGTPE], ",
+               min_value, "..", max_value));
   };
 }
 
-OptionParser RealOption(double* out, double min_value, double max_value) {
+OptionsParser::ValueParser OptionsParser::Real(double* out, double min_value,
+                                               double max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
-  return [out, min_value, max_value](string_view value, std::string* valid_values) {
+  return [this, out, min_value, max_value](string_view value) {
     if (RIEGELI_LIKELY(!value.empty())) {
       const std::string string_value(value);
       errno = 0;
@@ -210,21 +173,120 @@ OptionParser RealOption(double* out, double min_value, double max_value) {
         return true;
       }
     }
-    *valid_values = StrCat("reals ", min_value, "..", max_value);
-    return false;
+    return InvalidValue(StrCat("reals ", min_value, "..", max_value));
   };
 }
 
-OptionParser AltOption(OptionParser parser1, OptionParser parser2) {
-  return AltOptionParser(std::move(parser1), std::move(parser2));
+OptionsParser::ValueParser OptionsParser::Or(ValueParser parser1,
+                                             ValueParser parser2) {
+  return OrParser{std::move(parser1), std::move(parser2)};
 }
 
-std::pair<string_view, OptionParser> CopyOption(string_view key, std::string* text) {
-  return {key, [key, text](string_view value, std::string* valid_values) {
-            StrAppend(text, text->empty() ? "" : ",", key,
-                      value.empty() ? "" : ":", value);
-            return true;
-          }};
-};
+OptionsParser::ValueParser OptionsParser::CopyTo(std::string* text) {
+  return [this, text](string_view value) {
+    StrAppend(text, text->empty() ? "" : ",", current_key(),
+              value.empty() ? "" : ":", value);
+    return true;
+  };
+}
+
+bool OptionsParser::InvalidValue(string_view valid_values) {
+  RIEGELI_ASSERT(!valid_values.empty())
+      << "Failed precondition of OptionsParser::InvalidValue(): "
+         "empty valid values";
+  RIEGELI_ASSERT(current_option_ != nullptr)
+      << "Failed precondition of OptionsParser::InvalidValue(): "
+         "no option is being parsed";
+  StrAppend(&current_valid_values_, current_valid_values_.empty() ? "" : ", ",
+            valid_values);
+  return false;
+}
+
+bool OptionsParser::FailIfSeen(string_view key) {
+  RIEGELI_ASSERT(current_option_ != nullptr)
+      << "Failed precondition of OptionsParser::FailIfSeen(): "
+         "no option is being parsed";
+  const auto option =
+      std::find_if(options_.cbegin(), options_.cend(),
+                   [key](const Option& option) { return option.key == key; });
+  RIEGELI_ASSERT(option != options_.cend()) << "Unknown option " << key;
+  if (RIEGELI_UNLIKELY(option->seen)) {
+    return Fail(StrCat("Option ", current_option_->key,
+                       " conflicts with option ", key));
+  }
+  return true;
+}
+
+bool OptionsParser::FailIfAnySeen() {
+  RIEGELI_ASSERT(current_option_ != nullptr)
+      << "Failed precondition of OptionsParser::FailIfAnySeen(): "
+         "no option is being parsed";
+  for (const auto& option : options_) {
+    if (RIEGELI_UNLIKELY(option.seen)) {
+      return Fail(StrCat("Option ", current_option_->key, " must be first"));
+    }
+  }
+  return true;
+}
+
+bool OptionsParser::Parse(string_view text) {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  size_t option_begin = 0;
+  for (;;) {
+    size_t option_end = text.find(',', option_begin);
+    if (option_end == string_view::npos) option_end = text.size();
+    if (option_begin != option_end) {
+      const string_view key_value =
+          text.substr(option_begin, option_end - option_begin);
+      string_view key;
+      string_view value;
+      const size_t colon = key_value.find(':');
+      if (colon == string_view::npos) {
+        key = key_value;
+      } else {
+        key = key_value.substr(0, colon);
+        value = key_value.substr(colon + 1);
+      }
+      const auto option = std::find_if(
+          options_.begin(), options_.end(),
+          [key](const Option& option) { return option.key == key; });
+      if (RIEGELI_UNLIKELY(option == options_.end())) {
+        std::string message = StrCat("Unknown option ", key, ", valid options: ");
+        auto iter = options_.cbegin();
+        if (iter != options_.cend()) {
+          StrAppend(&message, iter->key);
+          for (++iter; iter != options_.cend(); ++iter) {
+            StrAppend(&message, ", ", iter->key);
+          }
+        }
+        return Fail(message);
+      }
+      if (RIEGELI_UNLIKELY(option->seen)) {
+        return Fail(StrCat("Option ", key, " is present more than once"));
+      }
+      current_option_ = &*option;
+      RIEGELI_ASSERT_EQ(current_valid_values_, "")
+          << "Failed invariant of OptionsParser: "
+             "current_valid_values_ not cleared";
+      if (RIEGELI_UNLIKELY(!option->value_parser(value))) {
+        if (!healthy()) return false;
+        return Fail(
+            StrCat("Option ", key, ": ",
+                   "invalid value: ", value.empty() ? "(empty)" : value,
+                   current_valid_values_.empty() ? "" : ", valid values: ",
+                   current_valid_values_));
+      }
+      RIEGELI_ASSERT(healthy())
+          << "Value parser of option " << key
+          << " failed the OptionsParser but returned true";
+      option->seen = true;
+      current_option_ = nullptr;
+      current_valid_values_.clear();
+    }
+    if (option_end == text.size()) break;
+    option_begin = option_end + 1;
+  }
+  return true;
+}
 
 }  // namespace riegeli
