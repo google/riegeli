@@ -487,6 +487,24 @@ constexpr typename std::common_type<A, B, Rest...>::type UnsignedMax(
   return UnsignedMax(UnsignedMax(a, b), rest...);
 }
 
+// SaturatingAdd() adds unsigned values, or returns max possible value of the
+// type if addition would overflow.
+template <typename T>
+T SaturatingAdd(T a, T b) {
+  static_assert(std::is_unsigned<T>::value,
+                "SaturatingAdd() requires an unsigned type");
+  return a + UnsignedMin(b, std::numeric_limits<T>::max() - a);
+}
+
+// SaturatingSub() subtracts unsigned values, or returns 0 if subtraction would
+// underflow.
+template <typename T>
+T SaturatingSub(T a, T b) {
+  static_assert(std::is_unsigned<T>::value,
+                "SaturatingSub() requires an unsigned type");
+  return a - UnsignedMin(b, a);
+}
+
 // RoundDown() rounds an unsigned value downwards to the nearest multiple of the
 // given power of 2.
 template <size_t alignment, typename T>

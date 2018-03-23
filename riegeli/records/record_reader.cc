@@ -71,7 +71,9 @@ RecordReader::RecordReader(RecordReader&& src) noexcept
       chunk_reader_(std::move(src.chunk_reader_)),
       skip_corruption_(riegeli::exchange(src.skip_corruption_, false)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
-      chunk_decoder_(std::move(src.chunk_decoder_)) {}
+      chunk_decoder_(std::move(src.chunk_decoder_)),
+      corrupted_bytes_skipped_(
+          riegeli::exchange(src.corrupted_bytes_skipped_, 0)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   Object::operator=(std::move(src));
@@ -79,6 +81,7 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   skip_corruption_ = riegeli::exchange(src.skip_corruption_, false);
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
+  corrupted_bytes_skipped_ = riegeli::exchange(src.corrupted_bytes_skipped_, 0);
   return *this;
 }
 
@@ -93,25 +96,9 @@ void RecordReader::Done() {
   chunk_decoder_ = ChunkDecoder();
 }
 
-bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
-                              RecordPosition* key) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  for (;;) {
-    uint64_t index;
-    if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
-      if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
-      return true;
-    }
-    if (RIEGELI_UNLIKELY(!chunk_decoder_.healthy())) {
-      return Fail(chunk_decoder_);
-    }
-    if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
-  }
-}
-
-template <typename String>
-bool RecordReader::ReadRecordSlow(String* record, RecordPosition* key) {
-  RIEGELI_ASSERT_GE(chunk_decoder_.index(), chunk_decoder_.num_records())
+template <typename Record>
+bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
+  RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
       << "Failed precondition of RecordReader::ReadRecordSlow(): "
          "records available, use ReadRecord() instead";
   if (RIEGELI_UNLIKELY(!healthy())) return false;
@@ -126,11 +113,15 @@ bool RecordReader::ReadRecordSlow(String* record, RecordPosition* key) {
       return true;
     }
     if (RIEGELI_UNLIKELY(!chunk_decoder_.healthy())) {
+      RIEGELI_ASSERT(!skip_corruption_)
+          << "ChunkDecoder failed but skip_corruption is true";
       return Fail(chunk_decoder_);
     }
   }
 }
 
+template bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
+                                           RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(string_view* record,
                                            RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* key);
@@ -211,35 +202,31 @@ bool RecordReader::Seek(Position new_pos) {
 }
 
 inline bool RecordReader::ReadChunk() {
-again:
   Chunk chunk;
-  if (RIEGELI_UNLIKELY(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
-    chunk_begin_ = chunk_reader_->pos();
-    chunk_decoder_.Reset();
-    if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
-    return Fail(*chunk_reader_);
-  }
-  if (chunk_begin_ == 0) {
-    // Verify file signature.
-    if (RIEGELI_UNLIKELY(chunk.header.data_size() != 0 ||
-                         chunk.header.num_records() != 0 ||
-                         chunk.header.decoded_data_size() != 0)) {
+  for (;;) {
+    if (RIEGELI_UNLIKELY(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
+      chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      return Fail("Invalid Riegeli/records file: missing file signature");
+      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
+      return Fail(*chunk_reader_);
     }
-    // Decoding this chunk will yield no records and ReadChunk() will be called
-    // again if needed.
-  }
-  if (RIEGELI_UNLIKELY(!chunk_decoder_.Reset(chunk))) {
-    if (skip_corruption_) {
-      chunk_decoder_.Reset();
-      goto again;
+    if (chunk_begin_ == 0) {
+      // Verify file signature.
+      if (RIEGELI_UNLIKELY(chunk.header.data_size() != 0 ||
+                           chunk.header.num_records() != 0 ||
+                           chunk.header.decoded_data_size() != 0)) {
+        chunk_decoder_.Reset();
+        return Fail("Invalid Riegeli/records file: missing file signature");
+      }
+      // Decoding this chunk will yield no records and ReadChunk() will be
+      // called again if needed.
     }
-    const std::string message(chunk_decoder_.Message());
+    if (RIEGELI_LIKELY(chunk_decoder_.Reset(chunk))) return true;
+    if (!skip_corruption_) return Fail(chunk_decoder_);
     chunk_decoder_.Reset();
-    return Fail(message);
+    corrupted_bytes_skipped_ = SaturatingAdd(
+        corrupted_bytes_skipped_, chunk_reader_->pos() - chunk_begin_);
   }
-  return true;
 }
 
 }  // namespace riegeli

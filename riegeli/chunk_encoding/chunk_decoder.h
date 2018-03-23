@@ -93,6 +93,10 @@ class ChunkDecoder : public Object {
   void Reset();
 
   // Resets the ChunkDecoder and parses the chunk.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
   bool Reset(const Chunk& chunk);
 
   // Reads the next record.
@@ -107,7 +111,8 @@ class ChunkDecoder : public Object {
   // Return values:
   //  * true                    - success (*record is set, healthy())
   //  * false (when healthy())  - chunk ends
-  //  * false (when !healthy()) - failure
+  //  * false (when !healthy()) - failure (impossible if healthy() on entry and
+  //                              skip_corruption is true)
   bool ReadRecord(google::protobuf::MessageLite* record, uint64_t* key = nullptr);
   bool ReadRecord(string_view* record, uint64_t* key = nullptr);
   bool ReadRecord(std::string* record, uint64_t* key = nullptr);
@@ -146,7 +151,7 @@ inline bool ChunkDecoder::ReadRecord(string_view* record, uint64_t* key) {
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
-  RIEGELI_ASSERT_GE(limit, start)
+  RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
@@ -160,7 +165,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
-  RIEGELI_ASSERT_GE(limit, start)
+  RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->clear();
   if (!values_reader_.Read(record, limit - start)) {
@@ -175,7 +180,7 @@ inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
-  RIEGELI_ASSERT_GE(limit, start)
+  RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->Clear();
   if (!values_reader_.Read(record, limit - start)) {

@@ -97,6 +97,7 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   Chain values;
   if (RIEGELI_UNLIKELY(
           !Parse(chunk_type, chunk.header, &data_reader, &values))) {
+    limits_.clear();  // Ensure that index() == num_records().
     return false;
   }
   RIEGELI_ASSERT_EQ(limits_.size(), chunk.header.num_records())
@@ -164,39 +165,53 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* key) {
-again:
-  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
-  if (key != nullptr) *key = index_;
-  const size_t limit = limits_[IntCast<size_t>(index_++)];
-  RIEGELI_ASSERT_GE(limit, IntCast<size_t>(values_reader_.pos()))
-      << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  LimitingReader message_reader(&values_reader_, limit);
-  if (RIEGELI_UNLIKELY(!ParsePartialFromReader(record, &message_reader))) {
-    message_reader.Close();
-    if (!values_reader_.Seek(limit)) {
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Seeking record values failed: " << values_reader_.Message();
+  for (;;) {
+    if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
+    if (key != nullptr) *key = index_;
+    const size_t start = IntCast<size_t>(values_reader_.pos());
+    const size_t limit = limits_[IntCast<size_t>(index_++)];
+    RIEGELI_ASSERT_LE(start, limit)
+        << "Failed invariant of ChunkDecoder: record end positions not sorted";
+    LimitingReader message_reader(&values_reader_, limit);
+    if (RIEGELI_LIKELY(ParsePartialFromReader(record, &message_reader))) {
+      RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
+          << "Record was not read up to its end";
+      if (!message_reader.Close()) {
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Closing message reader failed: " << message_reader.Message();
+      }
+      if (RIEGELI_LIKELY(record->IsInitialized())) return true;
+      if (!skip_corruption_) {
+        index_ = num_records();
+        return Fail(StrCat("Failed to parse message of type ",
+                           record->GetTypeName(),
+                           " because it is missing required fields: ",
+                           record->InitializationErrorString()));
+      }
+    } else {
+      message_reader.Close();
+      if (!values_reader_.Seek(limit)) {
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Seeking record values failed: " << values_reader_.Message();
+      }
+      if (!skip_corruption_) {
+        index_ = num_records();
+        return Fail(
+            StrCat("Failed to parse message of type ", record->GetTypeName()));
+      }
     }
-    if (skip_corruption_) goto again;
-    index_ = num_records();
-    return Fail(
-        StrCat("Failed to parse message of type ", record->GetTypeName()));
+    // TODO: Corruption is being skipped here without accounting for
+    // this in RecordReader::corrupted_bytes_skipped_. But that would be tricky.
+    // Ordinarily corrupted_bytes_skipped_ measures file bytes (compressed),
+    // which is a meaningless concept when skipping a subset of records after
+    // decoding.
+    //
+    // We might account for record skipping in the same way as record positions:
+    // each record counts for 1 byte, except the last record in a chunk which
+    // counts for the remaining chunk size. This would maintain the property
+    // that when the whole file is skipped, corrupted_bytes_skipped_ is the file
+    // size.
   }
-  RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
-      << "Record was not read up to its end";
-  if (!message_reader.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing message reader failed: " << message_reader.Message();
-  }
-  if (RIEGELI_UNLIKELY(!record->IsInitialized())) {
-    if (skip_corruption_) goto again;
-    index_ = num_records();
-    return Fail(StrCat("Failed to parse message of type ",
-                       record->GetTypeName(),
-                       " because it is missing required fields: ",
-                       record->InitializationErrorString()));
-  }
-  return true;
 }
 
 }  // namespace riegeli

@@ -193,8 +193,8 @@ class RecordReader final : public Object {
   RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
 
   // Precondition: chunk_decoder_.index() < chunk_decoder_.num_records()
-  template <typename String>
-  bool ReadRecordSlow(String* record, RecordPosition* key);
+  template <typename Record>
+  bool ReadRecordSlow(Record* record, RecordPosition* key);
 
   // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
   // and chunk_begin_. On failure resets chunk_decoder_.
@@ -213,9 +213,22 @@ class RecordReader final : public Object {
   //   if healthy() then chunk_decoder_.healthy()
   //   if !healthy() then chunk_decoder_.index() == chunk_decoder_.num_records()
   ChunkDecoder chunk_decoder_;
+  // The amount of data skipped because of corruption, in bytes, in addition to
+  // chunk_reader_->corrupted_bytes_skipped().
+  Position corrupted_bytes_skipped_ = 0;
 };
 
 // Implementation details follow.
+
+inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
+                                     RecordPosition* key) {
+  uint64_t index;
+  if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+    if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+    return true;
+  }
+  return ReadRecordSlow(record, key);
+}
 
 inline bool RecordReader::ReadRecord(string_view* record, RecordPosition* key) {
   uint64_t index;
@@ -263,7 +276,8 @@ inline bool RecordReader::Size(Position* size) const {
 
 inline Position RecordReader::corrupted_bytes_skipped() const {
   if (RIEGELI_UNLIKELY(chunk_reader_ == nullptr)) return 0;
-  return chunk_reader_->corrupted_bytes_skipped();
+  return SaturatingAdd(chunk_reader_->corrupted_bytes_skipped(),
+                       corrupted_bytes_skipped_);
 }
 
 }  // namespace riegeli

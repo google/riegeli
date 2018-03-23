@@ -79,12 +79,6 @@ constexpr Position kUsableBlockSize() {
   return kBlockSize() - BlockHeader::size();
 }
 
-// Subtraction of unsigned values, or 0 if that would underflow.
-template <typename T>
-T SaturatingSub(T a, T b) {
-  return a > b ? a - b : T{0};
-}
-
 // Whether pos is a block boundary (immediately before a block header).
 inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize() == 0; }
 

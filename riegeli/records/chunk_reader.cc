@@ -299,9 +299,8 @@ inline void ChunkReader::SeekOverCorruption(Position new_pos) {
       << "Failed precondition of ChunkReader::SeekOverCorruption(): "
          "seeking backwards";
   if (recovering_.corrupted) {
-    corrupted_bytes_skipped_ +=
-        UnsignedMin(new_pos - pos_, std::numeric_limits<Position>::max() -
-                                        corrupted_bytes_skipped_);
+    corrupted_bytes_skipped_ =
+        SaturatingAdd(corrupted_bytes_skipped_, new_pos - pos_);
   }
   pos_ = new_pos;
 }
