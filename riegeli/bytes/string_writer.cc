@@ -45,8 +45,9 @@ bool StringWriter::PushSlow() {
     limit_ = start_;
     return FailOverflow();
   }
-  if (dest_->capacity() == dest_->size()) dest_->reserve(dest_->size() + 1);
-  MakeBuffer();
+  const size_t cursor_pos = dest_->size();
+  if (dest_->capacity() == dest_->size()) dest_->push_back('\0');
+  MakeBuffer(cursor_pos);
   return true;
 }
 
@@ -64,7 +65,7 @@ bool StringWriter::WriteSlow(string_view src) {
   }
   DiscardBuffer();
   dest_->append(src.data(), src.size());
-  MakeBuffer();
+  MakeBuffer(dest_->size());
   return true;
 }
 
@@ -82,7 +83,7 @@ bool StringWriter::WriteSlow(const Chain& src) {
   }
   DiscardBuffer();
   src.AppendTo(dest_);
-  MakeBuffer();
+  MakeBuffer(dest_->size());
   return true;
 }
 
@@ -101,11 +102,10 @@ inline void StringWriter::DiscardBuffer() {
   dest_->resize(written_to_buffer());
 }
 
-inline void StringWriter::MakeBuffer() {
-  const size_t size_before = dest_->size();
+inline void StringWriter::MakeBuffer(size_t cursor_pos) {
   dest_->resize(dest_->capacity());
   start_ = &(*dest_)[0];
-  cursor_ = &(*dest_)[size_before];
+  cursor_ = &(*dest_)[cursor_pos];
   limit_ = &(*dest_)[dest_->size()];
 }
 

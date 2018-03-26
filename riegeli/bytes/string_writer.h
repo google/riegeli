@@ -79,7 +79,7 @@ class StringWriter final : public Writer {
 
   // Appends some uninitialized space to *dest_ if this can be done without
   // reallocation. Sets buffer pointers to the uninitialized space.
-  void MakeBuffer();
+  void MakeBuffer(size_t cursor_pos);
 
   // If healthy(), the string being written to, with uninitialized space
   // appended (possibly empty); cursor_ points to the uninitialized space.
@@ -97,9 +97,8 @@ class StringWriter final : public Writer {
 
 inline StringWriter::StringWriter(std::string* dest, Options options)
     : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
-  if (options.size_hint_ > 0) {
-    dest_->reserve(UnsignedMin(options.size_hint_, dest->max_size()));
-  }
+  const size_t size_hint = UnsignedMin(options.size_hint_, dest->max_size());
+  if (dest->capacity() < size_hint) dest_->reserve(size_hint);
   start_ = &(*dest_)[0];
   cursor_ = &(*dest_)[dest_->size()];
   limit_ = cursor_;
