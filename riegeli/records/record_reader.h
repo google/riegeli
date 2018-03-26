@@ -82,8 +82,12 @@ class RecordReader final : public Object {
     }
 
     // Specifies the set of fields to be included in returned records, allowing
-    // to exclude the remaining fields (but does not guarantee exclusion).
-    // Excluding data makes reading faster.
+    // to exclude the remaining fields (but does not guarantee that they will be
+    // excluded). Excluding data makes reading faster.
+    //
+    // Filtering is effective if the file has been written with
+    // set_transpose(true). Additionally, set_bucket_fraction() with a lower
+    // value can make reading with filtering faster.
     Options& set_field_filter(FieldFilter field_filter) & {
       field_filter_ = std::move(field_filter);
       return *this;

@@ -420,9 +420,9 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (filtering_enabled) {
     for (const auto& include_field : field_filter.fields()) {
       uint32_t current_index = kInvalidPos;
-      for (size_t i = 0; i < include_field.size(); ++i) {
+      for (size_t i = 0; i < include_field.path().size(); ++i) {
         const auto insert_result = context->include_fields.emplace(
-            std::make_pair(current_index, include_field[i]),
+            std::make_pair(current_index, include_field.path()[i]),
             IntCast<uint32_t>(context->existence_only.size()));
         if (insert_result.second) context->existence_only.push_back(true);
         current_index = insert_result.first->second;
