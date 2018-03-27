@@ -16,42 +16,42 @@
 
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 
 namespace riegeli {
 
-bool CompressorOptions::Parse(string_view text, std::string* message) {
+bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
   // Set just compression_type_ first because other parsers depend on
   // compression_type_.
   {
     OptionsParser parser;
-    parser.AddOption("uncompressed", [this, &parser](string_view value) {
+    parser.AddOption("uncompressed", [this, &parser](absl::string_view value) {
       if (RIEGELI_UNLIKELY(!parser.FailIfSeen("brotli", "zstd"))) {
         return false;
       }
       compression_type_ = CompressionType::kNone;
       return true;
     });
-    parser.AddOption("brotli", [this, &parser](string_view value) {
+    parser.AddOption("brotli", [this, &parser](absl::string_view value) {
       if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed", "zstd"))) {
         return false;
       }
       compression_type_ = CompressionType::kBrotli;
       return true;
     });
-    parser.AddOption("zstd", [this, &parser](string_view value) {
+    parser.AddOption("zstd", [this, &parser](absl::string_view value) {
       if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed", "brotli"))) {
         return false;
       }
       compression_type_ = CompressionType::kZstd;
       return true;
     });
-    parser.AddOption("window_log", [this](string_view value) { return true; });
+    parser.AddOption("window_log",
+                     [this](absl::string_view value) { return true; });
     if (RIEGELI_UNLIKELY(!parser.Parse(text))) {
       *message = std::string(parser.Message());
       return false;
@@ -86,7 +86,7 @@ bool CompressorOptions::Parse(string_view text, std::string* message) {
   parser.AddOption("window_log", [&] {
     switch (compression_type_) {
       case CompressionType::kNone:
-        return OptionsParser::ValueParser([&parser](string_view value) {
+        return OptionsParser::ValueParser([&parser](absl::string_view value) {
           return parser.FailIfSeen("uncompressed");
         });
       case CompressionType::kBrotli:

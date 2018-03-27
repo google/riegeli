@@ -21,10 +21,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -127,7 +127,7 @@ class Reader : public Object {
   // If CopyTo() returns false and !dest->healthy(), the problem was at dest.
   bool Read(char* dest, size_t length);
   bool Read(std::string* dest, size_t length);
-  bool Read(string_view* dest, std::string* scratch, size_t length);
+  bool Read(absl::string_view* dest, std::string* scratch, size_t length);
   bool Read(Chain* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
@@ -237,7 +237,7 @@ class Reader : public Object {
   //   length <= numeric_limits<size_t>::max() - dest->size()
   virtual bool ReadSlow(char* dest, size_t length);
   bool ReadSlow(std::string* dest, size_t length);
-  bool ReadSlow(string_view* dest, std::string* scratch, size_t length);
+  bool ReadSlow(absl::string_view* dest, std::string* scratch, size_t length);
   virtual bool ReadSlow(Chain* dest, size_t length);
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
@@ -329,12 +329,13 @@ inline bool Reader::Read(std::string* dest, size_t length) {
   return ReadSlow(dest, length);
 }
 
-inline bool Reader::Read(string_view* dest, std::string* scratch, size_t length) {
+inline bool Reader::Read(absl::string_view* dest, std::string* scratch,
+                         size_t length) {
   RIEGELI_CHECK_LE(length, scratch->max_size())
       << "Failed precondition of Reader::Read(string_view*): "
          "string size overflow";
   if (RIEGELI_LIKELY(length <= available())) {
-    *dest = string_view(cursor_, length);
+    *dest = absl::string_view(cursor_, length);
     cursor_ += length;
     return true;
   }
@@ -345,7 +346,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
-    dest->Append(string_view(cursor_, length), dest->size() + length);
+    dest->Append(absl::string_view(cursor_, length), dest->size() + length);
     cursor_ += length;
     return true;
   }
@@ -354,7 +355,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 
 inline bool Reader::CopyTo(Writer* dest, Position length) {
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
-    const string_view data(cursor_, IntCast<size_t>(length));
+    const absl::string_view data(cursor_, IntCast<size_t>(length));
     cursor_ += length;
     return dest->Write(data);
   }
@@ -363,7 +364,7 @@ inline bool Reader::CopyTo(Writer* dest, Position length) {
 
 inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
   if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
-    const string_view data(cursor_, length);
+    const absl::string_view data(cursor_, length);
     cursor_ += length;
     return dest->Write(data);
   }

@@ -19,9 +19,9 @@
 
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -113,7 +113,7 @@ bool ParsePartialFromReader(google::protobuf::MessageLite* message, Reader* inpu
   return message->ParsePartialFromZeroCopyStream(&input_stream);
 }
 
-bool ParseFromStringView(google::protobuf::MessageLite* message, string_view data) {
+bool ParseFromStringView(google::protobuf::MessageLite* message, absl::string_view data) {
   if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
     return false;
   }
@@ -121,7 +121,7 @@ bool ParseFromStringView(google::protobuf::MessageLite* message, string_view dat
 }
 
 bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
-                                string_view data) {
+                                absl::string_view data) {
   if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
     return false;
   }

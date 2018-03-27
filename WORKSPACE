@@ -1,5 +1,12 @@
 workspace(name = "com_google_riegeli")
 
+# Import Abseil (2018-03-21).
+http_archive(
+    name = "com_google_absl",
+    strip_prefix = "abseil-cpp-4e2e6c5c0071e6430056a8ef0a6c8a1fe584d8ff",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/4e2e6c5c0071e6430056a8ef0a6c8a1fe584d8ff.zip"],
+)
+
 # Import Brotli (2018-03-02).
 http_archive(
     name = "org_brotli",

@@ -23,12 +23,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -928,68 +927,68 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 }
 
 // Copy tag from *node to *dest.
-#define COPY_TAG_CALLBACK(tag_length)                                      \
-  do {                                                                     \
-    if (RIEGELI_UNLIKELY(                                                  \
-            !dest->Write(string_view(node->tag_data.data, tag_length)))) { \
-      return Fail(*dest);                                                  \
-    }                                                                      \
+#define COPY_TAG_CALLBACK(tag_length)                               \
+  do {                                                              \
+    if (RIEGELI_UNLIKELY(!dest->Write(                              \
+            absl::string_view(node->tag_data.data, tag_length)))) { \
+      return Fail(*dest);                                           \
+    }                                                               \
   } while (false)
 
 // Decode varint value from *node to *dest.
-#define VARINT_CALLBACK(tag_length, data_length)                              \
-  do {                                                                        \
-    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) {      \
-      dest->set_cursor(dest->cursor() - (tag_length + data_length));          \
-      char* const buffer = dest->cursor();                                    \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !node->buffer->Read(buffer + tag_length, data_length))) {       \
-        return Fail("Reading varint field failed", *node->buffer);            \
-      }                                                                       \
-      for (size_t i = 0; i < data_length - 1; ++i) {                          \
-        buffer[tag_length + i] |= 0x80;                                       \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-    } else {                                                                  \
-      char buffer[tag_length + data_length];                                  \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !node->buffer->Read(buffer + tag_length, data_length))) {       \
-        return Fail("Reading varint field failed", *node->buffer);            \
-      }                                                                       \
-      for (size_t i = 0; i < data_length - 1; ++i) {                          \
-        buffer[tag_length + i] |= 0x80;                                       \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !dest->Write(string_view(buffer, tag_length + data_length)))) { \
-        return Fail(*dest);                                                   \
-      }                                                                       \
-    }                                                                         \
+#define VARINT_CALLBACK(tag_length, data_length)                         \
+  do {                                                                   \
+    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) { \
+      dest->set_cursor(dest->cursor() - (tag_length + data_length));     \
+      char* const buffer = dest->cursor();                               \
+      if (RIEGELI_UNLIKELY(                                              \
+              !node->buffer->Read(buffer + tag_length, data_length))) {  \
+        return Fail("Reading varint field failed", *node->buffer);       \
+      }                                                                  \
+      for (size_t i = 0; i < data_length - 1; ++i) {                     \
+        buffer[tag_length + i] |= 0x80;                                  \
+      }                                                                  \
+      std::memcpy(buffer, node->tag_data.data, tag_length);              \
+    } else {                                                             \
+      char buffer[tag_length + data_length];                             \
+      if (RIEGELI_UNLIKELY(                                              \
+              !node->buffer->Read(buffer + tag_length, data_length))) {  \
+        return Fail("Reading varint field failed", *node->buffer);       \
+      }                                                                  \
+      for (size_t i = 0; i < data_length - 1; ++i) {                     \
+        buffer[tag_length + i] |= 0x80;                                  \
+      }                                                                  \
+      std::memcpy(buffer, node->tag_data.data, tag_length);              \
+      if (RIEGELI_UNLIKELY(!dest->Write(                                 \
+              absl::string_view(buffer, tag_length + data_length)))) {   \
+        return Fail(*dest);                                              \
+      }                                                                  \
+    }                                                                    \
   } while (false)
 
 // Decode fixed32 or fixed64 value from *node to *dest.
-#define FIXED_CALLBACK(tag_length, data_length)                               \
-  do {                                                                        \
-    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) {      \
-      dest->set_cursor(dest->cursor() - (tag_length + data_length));          \
-      char* const buffer = dest->cursor();                                    \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !node->buffer->Read(buffer + tag_length, data_length))) {       \
-        return Fail("Reading fixed field failed", *node->buffer);             \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-    } else {                                                                  \
-      char buffer[tag_length + data_length];                                  \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !node->buffer->Read(buffer + tag_length, data_length))) {       \
-        return Fail("Reading fixed field failed", *node->buffer);             \
-      }                                                                       \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                   \
-      if (RIEGELI_UNLIKELY(                                                   \
-              !dest->Write(string_view(buffer, tag_length + data_length)))) { \
-        return Fail(*dest);                                                   \
-      }                                                                       \
-    }                                                                         \
+#define FIXED_CALLBACK(tag_length, data_length)                          \
+  do {                                                                   \
+    if (RIEGELI_LIKELY(dest->available() >= tag_length + data_length)) { \
+      dest->set_cursor(dest->cursor() - (tag_length + data_length));     \
+      char* const buffer = dest->cursor();                               \
+      if (RIEGELI_UNLIKELY(                                              \
+              !node->buffer->Read(buffer + tag_length, data_length))) {  \
+        return Fail("Reading fixed field failed", *node->buffer);        \
+      }                                                                  \
+      std::memcpy(buffer, node->tag_data.data, tag_length);              \
+    } else {                                                             \
+      char buffer[tag_length + data_length];                             \
+      if (RIEGELI_UNLIKELY(                                              \
+              !node->buffer->Read(buffer + tag_length, data_length))) {  \
+        return Fail("Reading fixed field failed", *node->buffer);        \
+      }                                                                  \
+      std::memcpy(buffer, node->tag_data.data, tag_length);              \
+      if (RIEGELI_UNLIKELY(!dest->Write(                                 \
+              absl::string_view(buffer, tag_length + data_length)))) {   \
+        return Fail(*dest);                                              \
+      }                                                                  \
+    }                                                                    \
   } while (false)
 
 // Decode string value from *node to *dest.
@@ -1024,8 +1023,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
       if (!dest->healthy()) return Fail(*dest);                              \
       return Fail("Reading string field failed", *node->buffer);             \
     }                                                                        \
-    if (RIEGELI_UNLIKELY(                                                    \
-            !dest->Write(string_view(node->tag_data.data, tag_length)))) {   \
+    if (RIEGELI_UNLIKELY(!dest->Write(                                       \
+            absl::string_view(node->tag_data.data, tag_length)))) {          \
       return Fail(*dest);                                                    \
     }                                                                        \
   } while (false)
@@ -1134,8 +1133,8 @@ submessage_start : {
   if (RIEGELI_UNLIKELY(!WriteVarint32(dest, IntCast<uint32_t>(length)))) {
     return Fail(*dest);
   }
-  if (RIEGELI_UNLIKELY(
-          !dest->Write(string_view(elem.tag_data.data, elem.tag_data.size)))) {
+  if (RIEGELI_UNLIKELY(!dest->Write(
+          absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
     return Fail(*dest);
   }
   submessage_stack.pop_back();

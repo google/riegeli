@@ -17,11 +17,11 @@
 #include <stdint.h>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
 #include "highwayhash/instruction_sets.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 namespace internal {
@@ -37,7 +37,7 @@ const highwayhash::HHKey kHashKey = {
 
 }  // namespace
 
-uint64_t Hash(string_view data) {
+uint64_t Hash(absl::string_view data) {
   highwayhash::HHResult64 result;
   highwayhash::InstructionSets::Run<highwayhash::HighwayHash>(
       kHashKey, data.data(), data.size(), &result);
@@ -49,7 +49,7 @@ uint64_t Hash(const Chain& data) {
   if (data.blocks().size() == 1) return Hash(data.blocks().front());
   std::vector<highwayhash::StringView> fragments;
   fragments.reserve(data.blocks().size());
-  for (const string_view fragment : data.blocks()) {
+  for (const absl::string_view fragment : data.blocks()) {
     fragments.push_back(
         highwayhash::StringView{fragment.data(), fragment.size()});
   }

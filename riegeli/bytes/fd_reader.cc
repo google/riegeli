@@ -35,13 +35,13 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -61,11 +61,12 @@ class MMapRef {
 
   ~MMapRef();
 
-  string_view data() const {
-    return string_view(static_cast<const char*>(data_), size_);
+  absl::string_view data() const {
+    return absl::string_view(static_cast<const char*>(data_), size_);
   }
-  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
-  void DumpStructure(string_view data, std::ostream& out) const;
+  void AddUniqueTo(absl::string_view data,
+                   MemoryEstimator* memory_estimator) const;
+  void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
   void* data_;
@@ -95,12 +96,12 @@ MMapRef::~MMapRef() {
   }
 }
 
-void MMapRef::AddUniqueTo(string_view data,
+void MMapRef::AddUniqueTo(absl::string_view data,
                           MemoryEstimator* memory_estimator) const {
   memory_estimator->AddMemory(sizeof(*this));
 }
 
-void MMapRef::DumpStructure(string_view data, std::ostream& out) const {
+void MMapRef::DumpStructure(absl::string_view data, std::ostream& out) const {
   out << "mmap";
 }
 
@@ -113,7 +114,7 @@ inline FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
-      filename_(fd == 0 ? "/dev/stdin" : StrCat("/proc/self/fd/", fd)) {
+      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdReaderBase::FdReaderBase(int): "
          "negative file descriptor";
@@ -149,10 +150,11 @@ void FdReaderBase::Done() {
   BufferedReader::Done();
 }
 
-inline bool FdReaderBase::FailOperation(string_view operation, int error_code) {
+inline bool FdReaderBase::FailOperation(absl::string_view operation,
+                                        int error_code) {
   error_code_ = error_code;
-  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", reading ",
-                     filename_));
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+                           ", reading ", filename_));
 }
 
 }  // namespace internal
@@ -322,7 +324,7 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
 
 FdMMapReader::FdMMapReader(int fd, Options options)
     : Reader(State::kOpen),
-      filename_(fd == 0 ? "/dev/stdin" : StrCat("/proc/self/fd/", fd)) {
+      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdMMapReader::FdMMapReader(int): "
          "negative file descriptor";
@@ -388,10 +390,11 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
   }
 }
 
-inline bool FdMMapReader::FailOperation(string_view operation, int error_code) {
+inline bool FdMMapReader::FailOperation(absl::string_view operation,
+                                        int error_code) {
   error_code_ = error_code;
-  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", reading ",
-                     filename_));
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+                           ", reading ", filename_));
 }
 
 inline Chain::BlockIterator FdMMapReader::iter() const {
@@ -415,7 +418,7 @@ bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
   if (RIEGELI_LIKELY(length_to_read > 0)) {  // iter() is undefined if
                                              // contents_.blocks().size() != 1.
     const size_t size_hint = dest->size() + length_to_read;
-    iter().AppendSubstrTo(string_view(cursor_, length_to_read), dest,
+    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_read), dest,
                           size_hint);
     cursor_ += length_to_read;
   }
@@ -435,7 +438,7 @@ bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
                                                     // contents_.blocks().size()
                                                     // != 1.
     Chain data;
-    iter().AppendSubstrTo(string_view(cursor_, length_to_copy), &data,
+    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_copy), &data,
                           length_to_copy);
     cursor_ += length_to_copy;
     ok = dest->Write(std::move(data));
@@ -456,7 +459,7 @@ bool FdMMapReader::CopyToSlow(BackwardWriter* dest, size_t length) {
     return dest->Write(contents_);
   }
   Chain data;
-  iter().AppendSubstrTo(string_view(cursor_, length), &data, length);
+  iter().AppendSubstrTo(absl::string_view(cursor_, length), &data, length);
   cursor_ += length;
   return dest->Write(std::move(data));
 }

@@ -21,10 +21,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -87,7 +87,7 @@ class BackwardWriter : public Object {
   //  * true  - success (src.size() bytes written)
   //  * false - failure (a suffix of less than src.size() bytes written,
   //                    !healthy())
-  bool Write(string_view src);
+  bool Write(absl::string_view src);
   bool Write(std::string&& src);
   bool Write(const char* src);
   bool Write(const Chain& src);
@@ -148,7 +148,7 @@ class BackwardWriter : public Object {
   // Precondition for WriteSlow(string&&), WriteSlow(const Chain&), and
   // WriteSlow(Chain&&):
   //   src.size() > UnsignedMin(available(), kMaxBytesToCopy())
-  virtual bool WriteSlow(string_view src);
+  virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(std::string&& src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
@@ -207,7 +207,7 @@ inline void BackwardWriter::set_cursor(char* cursor) {
   cursor_ = cursor;
 }
 
-inline bool BackwardWriter::Write(string_view src) {
+inline bool BackwardWriter::Write(absl::string_view src) {
   if (RIEGELI_LIKELY(src.size() <= available())) {
     if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) and
                                          // memcpy(_, nullptr, 0) are undefined.
@@ -232,7 +232,7 @@ inline bool BackwardWriter::Write(std::string&& src) {
 }
 
 inline bool BackwardWriter::Write(const char* src) {
-  return Write(string_view(src));
+  return Write(absl::string_view(src));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {

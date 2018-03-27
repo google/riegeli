@@ -20,8 +20,8 @@
 #include <stddef.h>
 #include <limits>
 
+#include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -39,15 +39,16 @@ ZstdReader::ZstdReader(Reader* src, Options options)
   {
     const size_t result = ZSTD_initDStream(decompressor_.get());
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-      Fail(StrCat("ZSTD_initDStream() failed: ", ZSTD_getErrorName(result)));
+      Fail(absl::StrCat("ZSTD_initDStream() failed: ",
+                        ZSTD_getErrorName(result)));
     }
   }
   {
     const size_t result = ZSTD_DCtx_setMaxWindowSize(
         decompressor_.get(), size_t{1} << ZSTD_WINDOWLOG_MAX);
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-      Fail(StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
-                  ZSTD_getErrorName(result)));
+      Fail(absl::StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
+                        ZSTD_getErrorName(result)));
     }
   }
 }
@@ -105,8 +106,8 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
       return output.pos >= min_length;
     }
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-      Fail(StrCat("ZSTD_decompressStream() failed: ",
-                  ZSTD_getErrorName(result)));
+      Fail(absl::StrCat("ZSTD_decompressStream() failed: ",
+                        ZSTD_getErrorName(result)));
       limit_pos_ += output.pos;
       return output.pos >= min_length;
     }

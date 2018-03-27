@@ -22,7 +22,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"

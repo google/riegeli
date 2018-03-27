@@ -19,11 +19,11 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
@@ -122,7 +122,7 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
 
 template bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
                                            RecordPosition* key);
-template bool RecordReader::ReadRecordSlow(string_view* record,
+template bool RecordReader::ReadRecordSlow(absl::string_view* record,
                                            RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);

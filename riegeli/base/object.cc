@@ -18,19 +18,19 @@
 #include <atomic>
 #include <cstring>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
-inline Object::FailedStatus::FailedStatus(string_view message)
+inline Object::FailedStatus::FailedStatus(absl::string_view message)
     : message_size(message.size()) {
   std::memcpy(message_data, message.data(), message.size());
 }
 
-bool Object::Fail(string_view message) {
+bool Object::Fail(absl::string_view message) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of Object::Fail(): Object closed";
   const uintptr_t new_status =
@@ -45,8 +45,9 @@ bool Object::Fail(string_view message) {
   return false;
 }
 
-bool Object::Fail(string_view message, const Object& src) {
-  return Fail(src.healthy() ? message : StrCat(message, ": ", src.Message()));
+bool Object::Fail(absl::string_view message, const Object& src) {
+  return Fail(src.healthy() ? message
+                            : absl::StrCat(message, ": ", src.Message()));
 }
 
 bool Object::Fail(const Object& src) {
@@ -56,7 +57,7 @@ bool Object::Fail(const Object& src) {
   return Fail(src.Message());
 }
 
-string_view Object::Message() const {
+absl::string_view Object::Message() const {
   const uintptr_t status = status_.load(std::memory_order_acquire);
   switch (status) {
     case kHealthy():
@@ -64,7 +65,7 @@ string_view Object::Message() const {
     case kClosedSuccessfully():
       return "Closed";
     default:
-      return string_view(
+      return absl::string_view(
           reinterpret_cast<const FailedStatus*>(status)->message_data,
           reinterpret_cast<const FailedStatus*>(status)->message_size);
   }

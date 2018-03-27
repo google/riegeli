@@ -23,9 +23,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -74,7 +74,7 @@ class TransposeEncoder : public ChunkEncoder {
   // string. Such records are internally stored separately -- these are not
   // broken down into columns.
   using ChunkEncoder::AddRecord;
-  bool AddRecord(string_view record) override;
+  bool AddRecord(absl::string_view record) override;
   bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
 

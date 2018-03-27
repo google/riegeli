@@ -18,9 +18,9 @@
 #include <stdint.h>
 #include <limits>
 
+#include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -64,7 +64,7 @@ void BrotliWriter::Done() {
   if (RIEGELI_LIKELY(healthy())) {
     const size_t buffered_length = written_to_buffer();
     cursor_ = start_;
-    WriteInternal(string_view(start_, buffered_length),
+    WriteInternal(absl::string_view(start_, buffered_length),
                   BROTLI_OPERATION_FINISH);
   }
   if (owned_dest_ != nullptr) {
@@ -82,8 +82,9 @@ bool BrotliWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   const size_t buffered_length = written_to_buffer();
   cursor_ = start_;
-  if (RIEGELI_UNLIKELY(!WriteInternal(string_view(start_, buffered_length),
-                                      BROTLI_OPERATION_FLUSH))) {
+  if (RIEGELI_UNLIKELY(
+          !WriteInternal(absl::string_view(start_, buffered_length),
+                         BROTLI_OPERATION_FLUSH))) {
     return false;
   }
   if (RIEGELI_UNLIKELY(!dest_->Flush(flush_type))) {
@@ -94,7 +95,7 @@ bool BrotliWriter::Flush(FlushType flush_type) {
   return true;
 }
 
-bool BrotliWriter::WriteInternal(string_view src) {
+bool BrotliWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -107,7 +108,7 @@ bool BrotliWriter::WriteInternal(string_view src) {
   return WriteInternal(src, BROTLI_OPERATION_PROCESS);
 }
 
-inline bool BrotliWriter::WriteInternal(string_view src,
+inline bool BrotliWriter::WriteInternal(absl::string_view src,
                                         BrotliEncoderOperation op) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BrotliWriter::WriteInternal(): "
@@ -134,7 +135,7 @@ inline bool BrotliWriter::WriteInternal(string_view src,
     const char* const data = reinterpret_cast<const char*>(
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
-      if (RIEGELI_UNLIKELY(!dest_->Write(string_view(data, length)))) {
+      if (RIEGELI_UNLIKELY(!dest_->Write(absl::string_view(data, length)))) {
         limit_ = start_;
         return Fail(*dest_);
       }

@@ -18,10 +18,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
@@ -61,7 +61,7 @@ bool LimitingBackwardWriter::PushSlow() {
   return ok;
 }
 
-bool LimitingBackwardWriter::WriteSlow(string_view src) {
+bool LimitingBackwardWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";

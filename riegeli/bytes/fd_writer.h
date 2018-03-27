@@ -21,8 +21,8 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/writer.h"
@@ -53,7 +53,7 @@ class FdWriterBase : public BufferedWriter {
   FdWriterBase& operator=(FdWriterBase&& src) noexcept;
 
   void Done() override;
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(string_view operation,
+  RIEGELI_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                             int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
@@ -172,7 +172,7 @@ class FdWriter final : public internal::FdWriterBase {
  protected:
   void Done() override;
   bool MaybeSyncPos() override;
-  bool WriteInternal(string_view src) override;
+  bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
 
  private:
@@ -279,7 +279,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
   FdStreamWriter& operator=(FdStreamWriter&& src) noexcept;
 
  protected:
-  bool WriteInternal(string_view src) override;
+  bool WriteInternal(absl::string_view src) override;
 };
 
 // Implementation details follow.

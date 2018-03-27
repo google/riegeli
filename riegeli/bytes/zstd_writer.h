@@ -19,8 +19,8 @@
 #include <memory>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -144,7 +144,7 @@ class ZstdWriter final : public BufferedWriter {
 
  protected:
   void Done() override;
-  bool WriteInternal(string_view src) override;
+  bool WriteInternal(absl::string_view src) override;
 
  private:
   struct ZSTD_CStreamDeleter {
@@ -155,7 +155,7 @@ class ZstdWriter final : public BufferedWriter {
   bool InitializeCStream();
 
   template <typename Function>
-  bool FlushInternal(Function function, string_view function_name);
+  bool FlushInternal(Function function, absl::string_view function_name);
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr

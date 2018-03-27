@@ -17,13 +17,13 @@
 
 #include <stdint.h>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 namespace internal {
 
-uint64_t Hash(string_view data);
+uint64_t Hash(absl::string_view data);
 uint64_t Hash(const Chain& data);
 
 }  // namespace internal

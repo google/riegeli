@@ -19,9 +19,9 @@
 #include <stdint.h>
 #include <cstring>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
 
@@ -52,8 +52,8 @@ class BlockHeader {
   static constexpr size_t size() { return sizeof(words_); }
 
   uint64_t computed_header_hash() const {
-    return internal::Hash(string_view(reinterpret_cast<const char*>(words_ + 1),
-                                      size() - sizeof(uint64_t)));
+    return internal::Hash(absl::string_view(
+        reinterpret_cast<const char*>(words_ + 1), size() - sizeof(uint64_t)));
   }
   uint64_t stored_header_hash() const { return ReadLittleEndian64(words_[0]); }
   uint64_t previous_chunk() const { return ReadLittleEndian64(words_[1]); }

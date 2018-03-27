@@ -20,9 +20,9 @@
 #include <ostream>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -32,7 +32,7 @@ std::string RecordPosition::Serialize() const {
   return std::string(reinterpret_cast<const char*>(words), sizeof(words));
 }
 
-bool RecordPosition::Parse(string_view serialized) {
+bool RecordPosition::Parse(absl::string_view serialized) {
   uint64_t words[2];
   if (RIEGELI_UNLIKELY(serialized.size() != sizeof(words))) return false;
   std::memcpy(words, serialized.data(), sizeof(words));

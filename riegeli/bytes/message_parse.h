@@ -16,8 +16,8 @@
 #define RIEGELI_BYTES_MESSAGE_PARSE_H_
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -30,10 +30,11 @@ bool ParseFromReader(google::protobuf::MessageLite* message, Reader* input);
 bool ParsePartialFromReader(google::protobuf::MessageLite* message, Reader* input);
 
 // Parses a message contained in an array of bytes.
-bool ParseFromStringView(google::protobuf::MessageLite* message, string_view data);
+bool ParseFromStringView(google::protobuf::MessageLite* message, absl::string_view data);
 // Like ParseFromStringView(), but accepts messages that are missing required
 // fields.
-bool ParsePartialFromStringView(google::protobuf::MessageLite* message, string_view data);
+bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
+                                absl::string_view data);
 
 // Parses a message contained in a Chain.
 bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data);

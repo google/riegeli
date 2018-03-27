@@ -19,8 +19,8 @@
 #include <memory>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zlib.h"
@@ -100,7 +100,7 @@ class ZLibReader : public BufferedReader {
   bool HopeForMoreSlow() const override;
 
  private:
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(string_view operation);
+  RIEGELI_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   std::unique_ptr<Reader> owned_src_;
   // Invariant: if healthy() then src_ != nullptr

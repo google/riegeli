@@ -18,8 +18,8 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/types.h"
@@ -47,7 +47,7 @@ class CompressorOptions {
   // Return values:
   //  * true  - success
   //  * false - failure (*message is set)
-  bool Parse(string_view text, std::string* message);
+  bool Parse(absl::string_view text, std::string* message);
 
   // Changes compression algorithm to none.
   CompressorOptions& set_uncompressed() & {

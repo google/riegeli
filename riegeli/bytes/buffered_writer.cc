@@ -18,8 +18,8 @@
 #include <limits>
 #include <memory>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -48,10 +48,10 @@ bool BufferedWriter::PushInternal() {
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return true;
   cursor_ = start_;
-  return WriteInternal(string_view(start_, buffered_length));
+  return WriteInternal(absl::string_view(start_, buffered_length));
 }
 
-bool BufferedWriter::WriteSlow(string_view src) {
+bool BufferedWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";

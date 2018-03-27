@@ -19,9 +19,9 @@
 #include <memory>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -142,7 +142,7 @@ class BrotliWriter final : public BufferedWriter {
 
  protected:
   void Done() override;
-  bool WriteInternal(string_view src) override;
+  bool WriteInternal(absl::string_view src) override;
 
  private:
   struct BrotliEncoderStateDeleter {
@@ -151,7 +151,7 @@ class BrotliWriter final : public BufferedWriter {
     }
   };
 
-  bool WriteInternal(string_view src, BrotliEncoderOperation op);
+  bool WriteInternal(absl::string_view src, BrotliEncoderOperation op);
 
   std::unique_ptr<Writer> owned_dest_;
   // Invariant: if healthy() then dest_ != nullptr

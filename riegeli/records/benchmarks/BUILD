@@ -16,6 +16,7 @@ cc_binary(
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",
         "//riegeli/records:record_writer",
+        "@com_google_absl//absl/strings",
         "@org_tensorflow//tensorflow/core:lib",
     ],
 )

@@ -19,9 +19,9 @@
 #include <memory>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -51,7 +51,7 @@ class BufferedWriter : public Writer {
   virtual void Done() override = 0;
 
   bool PushSlow() override;
-  bool WriteSlow(string_view src) override;
+  bool WriteSlow(absl::string_view src) override;
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not
   // ensure that a buffer is allocated.
@@ -68,7 +68,7 @@ class BufferedWriter : public Writer {
   //   !src.empty()
   //   healthy()
   //   written_to_buffer() == 0
-  virtual bool WriteInternal(string_view src) = 0;
+  virtual bool WriteInternal(absl::string_view src) = 0;
 
   // The size of the buffer that start_ points to, once it is allocated.
   //

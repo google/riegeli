@@ -19,6 +19,7 @@ cc_library(
         "//riegeli/chunk_encoding:deferred_encoder",
         "//riegeli/chunk_encoding:simple_encoder",
         "//riegeli/chunk_encoding:transpose_encoder",
+        "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -36,6 +37,7 @@ cc_library(
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_decoder",
         "//riegeli/chunk_encoding:field_filter",
+        "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -47,6 +49,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:endian",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -64,6 +67,7 @@ cc_library(
         "//riegeli/bytes:writer_utils",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:hash",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -89,5 +93,6 @@ cc_library(
         "//riegeli/base:endian",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:hash",
+        "@com_google_absl//absl/strings",
     ],
 )

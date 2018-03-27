@@ -4,8 +4,8 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 namespace internal {
@@ -29,7 +29,7 @@ class FdHolder {
   //  * errno - failure (fd is closed anyway)
   int Close();
 
-  static string_view CloseFunctionName();
+  static absl::string_view CloseFunctionName();
 
  private:
   int fd_ = -1;
@@ -71,7 +71,7 @@ inline int FdHolder::Close() {
   return error_code;
 }
 
-inline string_view FdHolder::CloseFunctionName() {
+inline absl::string_view FdHolder::CloseFunctionName() {
 #ifdef POSIX_CLOSE_RESTART
   return "posix_close()";
 #else

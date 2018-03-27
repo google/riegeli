@@ -21,9 +21,9 @@
 #include <stddef.h>
 #include <limits>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -91,8 +91,8 @@ inline bool ZstdWriter::InitializeCStream() {
   const size_t result = ZSTD_initCStream_advanced(
       compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
   if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
-    return Fail(StrCat("ZSTD_initCStream_advanced() failed: ",
-                       ZSTD_getErrorName(result)));
+    return Fail(absl::StrCat("ZSTD_initCStream_advanced() failed: ",
+                             ZSTD_getErrorName(result)));
   }
   return true;
 }
@@ -113,7 +113,7 @@ bool ZstdWriter::Flush(FlushType flush_type) {
   return true;
 }
 
-bool ZstdWriter::WriteInternal(string_view src) {
+bool ZstdWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -137,8 +137,8 @@ bool ZstdWriter::WriteInternal(string_view src) {
     dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
       limit_ = start_;
-      return Fail(
-          StrCat("ZSTD_compressStream() failed: ", ZSTD_getErrorName(result)));
+      return Fail(absl::StrCat("ZSTD_compressStream() failed: ",
+                               ZSTD_getErrorName(result)));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
@@ -155,7 +155,8 @@ bool ZstdWriter::WriteInternal(string_view src) {
 }
 
 template <typename Function>
-bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
+bool ZstdWriter::FlushInternal(Function function,
+                               absl::string_view function_name) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of ZstdWriter::FlushInternal(): "
          "Object unhealthy";
@@ -171,7 +172,7 @@ bool ZstdWriter::FlushInternal(Function function, string_view function_name) {
     if (RIEGELI_UNLIKELY(ZSTD_isError(result))) {
       limit_ = start_;
       return Fail(
-          StrCat(function_name, " failed: ", ZSTD_getErrorName(result)));
+          absl::StrCat(function_name, " failed: ", ZSTD_getErrorName(result)));
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size)
         << function_name << " returned but there is still output space";

@@ -21,10 +21,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 
@@ -87,7 +87,7 @@ class RecordWriter final : public Object {
     // Return values:
     //  * true  - success
     //  * false - failure (*message is set)
-    bool Parse(string_view text, std::string* message);
+    bool Parse(absl::string_view text, std::string* message);
 
     // If true, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way
@@ -309,7 +309,7 @@ class RecordWriter final : public Object {
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
   bool WriteRecord(const google::protobuf::MessageLite& record);
-  bool WriteRecord(string_view record);
+  bool WriteRecord(absl::string_view record);
   bool WriteRecord(std::string&& record);
   bool WriteRecord(const char* record);
   bool WriteRecord(const Chain& record);
@@ -359,7 +359,7 @@ class RecordWriter final : public Object {
 // Implementation details follow.
 
 inline bool RecordWriter::WriteRecord(const char* record) {
-  return WriteRecord(string_view(record));
+  return WriteRecord(absl::string_view(record));
 }
 
 }  // namespace riegeli

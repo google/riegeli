@@ -23,8 +23,8 @@
 #include <vector>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -43,7 +43,7 @@ class DeferredEncoder : public ChunkEncoder {
 
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record) override;
-  bool AddRecord(string_view record) override;
+  bool AddRecord(absl::string_view record) override;
   bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;

@@ -25,10 +25,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -253,14 +253,14 @@ inline size_t TransposeEncoder::EncodedTagHasher::operator()(
       static_cast<uint64_t>(encoded_tag.subtype));
 }
 
-bool TransposeEncoder::AddRecord(string_view record) {
+bool TransposeEncoder::AddRecord(absl::string_view record) {
   StringReader reader(record.data(), record.size());
   return AddRecordInternal(&reader);
 }
 
 bool TransposeEncoder::AddRecord(std::string&& record) {
   if (record.size() <= kMaxBytesToCopy()) {
-    return AddRecord(string_view(record));
+    return AddRecord(absl::string_view(record));
   } else {
     return AddRecord(Chain(std::move(record)));
   }
@@ -412,7 +412,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
           for (auto& word : value) word &= ~uint64_t{0x8080808080808080};
           ChainBackwardWriter* const buffer =
               GetBuffer(parent_message_id, field, BufferType::kVarint);
-          if (RIEGELI_UNLIKELY(!buffer->Write(string_view(
+          if (RIEGELI_UNLIKELY(!buffer->Write(absl::string_view(
                   reinterpret_cast<const char*>(value), value_length)))) {
             return Fail(*buffer);
           }

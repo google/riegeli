@@ -25,10 +25,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -53,9 +53,9 @@ class Chain {
 
   constexpr Chain() noexcept {}
 
-  explicit Chain(string_view src);
+  explicit Chain(absl::string_view src);
   explicit Chain(std::string&& src);
-  explicit Chain(const char* src) : Chain(string_view(src)) {}
+  explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
 
   Chain(const Chain& src);
   Chain& operator=(const Chain& src);
@@ -97,12 +97,12 @@ class Chain {
   Buffer MakeAppendBuffer(size_t min_length = 0, size_t size_hint = 0);
   Buffer MakePrependBuffer(size_t min_length = 0, size_t size_hint = 0);
 
-  void Append(string_view src, size_t size_hint = 0);
+  void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
   void Append(const char* src, size_t size_hint = 0);
   void Append(const Chain& src, size_t size_hint = 0);
   void Append(Chain&& src, size_t size_hint = 0);
-  void Prepend(string_view src, size_t size_hint = 0);
+  void Prepend(absl::string_view src, size_t size_hint = 0);
   void Prepend(std::string&& src, size_t size_hint = 0);
   void Prepend(const char* src, size_t size_hint = 0);
   void Prepend(const Chain& src, size_t size_hint = 0);
@@ -116,7 +116,7 @@ class Chain {
   // If the data parameter is not given, T must support:
   //
   //   // Contents of the object.
-  //   string_view data() const;
+  //   absl::string_view data() const;
   //
   // If the data parameter is given, it must remain valid after the object is
   // moved.
@@ -124,11 +124,11 @@ class Chain {
   // T must also support:
   //
   //   // Registers this object with MemoryEstimator.
-  //   void AddUniqueTo(string_view data,
+  //   void AddUniqueTo(absl::string_view data,
   //                    MemoryEstimator* memory_estimator) const;
   //   // Shows internal structure in a human-readable way, for debugging
   //   // (a type name is enough).
-  //   void DumpStructure(string_view data, std::ostream& out) const;
+  //   void DumpStructure(absl::string_view data, std::ostream& out) const;
   //
   // where the data parameter of AddUniqueTo() and DumpStructure() will get the
   // original value of the data parameter of AppendExternal()/PrependExternal()
@@ -140,18 +140,18 @@ class Chain {
   template <typename T>
   void AppendExternal(T object, size_t size_hint = 0);
   template <typename T>
-  void AppendExternal(T object, string_view data, size_t size_hint = 0);
+  void AppendExternal(T object, absl::string_view data, size_t size_hint = 0);
   template <typename T>
   void PrependExternal(T object, size_t size_hint = 0);
   template <typename T>
-  void PrependExternal(T object, string_view data, size_t size_hint = 0);
+  void PrependExternal(T object, absl::string_view data, size_t size_hint = 0);
 
   void RemoveSuffix(size_t length, size_t size_hint = 0);
   void RemovePrefix(size_t length, size_t size_hint = 0);
 
   void Swap(Chain* b);
 
-  int Compare(string_view b) const;
+  int Compare(absl::string_view b) const;
   int Compare(const Chain& b) const;
 
  private:
@@ -222,10 +222,12 @@ class Chain {
 
   void AppendBlock(Block* block, size_t size_hint);
 
-  void RawAppendExternal(Block* (*new_block)(void*, string_view), void* object,
-                         string_view data, size_t size_hint);
-  void RawPrependExternal(Block* (*new_block)(void*, string_view), void* object,
-                          string_view data, size_t size_hint);
+  void RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
+                         void* object, absl::string_view data,
+                         size_t size_hint);
+  void RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
+                          void* object, absl::string_view data,
+                          size_t size_hint);
 
   void RemoveSuffixSlow(size_t length, size_t size_hint);
   void RemovePrefixSlow(size_t length, size_t size_hint);
@@ -254,25 +256,25 @@ bool operator>(const Chain& a, const Chain& b);
 bool operator<=(const Chain& a, const Chain& b);
 bool operator>=(const Chain& a, const Chain& b);
 
-bool operator==(const Chain& a, string_view b);
-bool operator!=(const Chain& a, string_view b);
-bool operator<(const Chain& a, string_view b);
-bool operator>(const Chain& a, string_view b);
-bool operator<=(const Chain& a, string_view b);
-bool operator>=(const Chain& a, string_view b);
+bool operator==(const Chain& a, absl::string_view b);
+bool operator!=(const Chain& a, absl::string_view b);
+bool operator<(const Chain& a, absl::string_view b);
+bool operator>(const Chain& a, absl::string_view b);
+bool operator<=(const Chain& a, absl::string_view b);
+bool operator>=(const Chain& a, absl::string_view b);
 
-bool operator==(string_view a, const Chain& b);
-bool operator!=(string_view a, const Chain& b);
-bool operator<(string_view a, const Chain& b);
-bool operator>(string_view a, const Chain& b);
-bool operator<=(string_view a, const Chain& b);
-bool operator>=(string_view a, const Chain& b);
+bool operator==(absl::string_view a, const Chain& b);
+bool operator!=(absl::string_view a, const Chain& b);
+bool operator<(absl::string_view a, const Chain& b);
+bool operator>(absl::string_view a, const Chain& b);
+bool operator<=(absl::string_view a, const Chain& b);
+bool operator>=(absl::string_view a, const Chain& b);
 
 std::ostream& operator<<(std::ostream& out, const Chain& str);
 
 class Chain::Blocks {
  public:
-  using value_type = string_view;
+  using value_type = absl::string_view;
   using pointer = value_type*;
   using const_pointer = const value_type*;
   using reference = value_type&;
@@ -317,7 +319,7 @@ class Chain::Blocks {
 class Chain::BlockIterator {
  public:
   using iterator_category = std::random_access_iterator_tag;
-  using value_type = string_view;
+  using value_type = absl::string_view;
   using pointer = const value_type*;
   using reference = const value_type&;
   using difference_type = ptrdiff_t;
@@ -366,7 +368,7 @@ class Chain::BlockIterator {
   void AppendTo(Chain* dest, size_t size_hint = 0) const;
 
   // Appends substr to *dest. substr must be contained in **this.
-  void AppendSubstrTo(string_view substr, Chain* dest,
+  void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       size_t size_hint = 0) const;
 
  private:
@@ -436,7 +438,7 @@ class Chain::Block {
   // data to the data parameter, which must remain valid after the object is
   // moved. This constructor is public for NewAligned().
   template <typename T>
-  Block(T* object, string_view data);
+  Block(T* object, absl::string_view data);
 
   Block* Ref();
   void Unref();
@@ -446,7 +448,7 @@ class Chain::Block {
 
   bool TryClear();
 
-  const string_view& data() const { return data_; }
+  const absl::string_view& data() const { return data_; }
   size_t size() const { return data_.size(); }
   bool empty() const { return data_.empty(); }
   const char* data_begin() const { return data_.data(); }
@@ -487,8 +489,8 @@ class Chain::Block {
   size_t max_can_prepend() const;
   Buffer MakeAppendBuffer(size_t max_size);
   Buffer MakePrependBuffer(size_t max_size);
-  void Append(string_view src);
-  void Prepend(string_view src);
+  void Append(absl::string_view src);
+  void Prepend(absl::string_view src);
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
 
@@ -518,7 +520,7 @@ class Chain::Block {
   size_t space_after() const;
 
   std::atomic<size_t> ref_count_{1};
-  string_view data_;
+  absl::string_view data_;
   // If is_internal(), end of allocated space. If is_external(), nullptr.
   // This distinguishes internal from external blocks.
   const char* allocated_end_ = nullptr;
@@ -543,12 +545,12 @@ template <typename T>
 struct Chain::ExternalMethodsFor {
   // object has type T*. Creates an external block containing the moved object
   // and sets block data to moved_object.data().
-  static Block* NewBlockImplicitData(void* object, string_view unused);
+  static Block* NewBlockImplicitData(void* object, absl::string_view unused);
 
   // object has type T*. Creates an external block containing the moved object
   // and sets block data to the data parameter, which must remain valid after
   // the object is moved.
-  static Block* NewBlockExplicitData(void* object, string_view data);
+  static Block* NewBlockExplicitData(void* object, absl::string_view data);
 
   static const Chain::ExternalMethods methods;
 
@@ -561,14 +563,14 @@ struct Chain::ExternalMethodsFor {
 
 template <typename T>
 Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
-    void* object, string_view unused) {
+    void* object, absl::string_view unused) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object));
 }
 
 template <typename T>
 Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
-    void* object, string_view data) {
+    void* object, absl::string_view data) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
       data);
@@ -610,7 +612,7 @@ Chain::Block::Block(T* object) {
 }
 
 template <typename T>
-Chain::Block::Block(T* object, string_view data) : data_(data) {
+Chain::Block::Block(T* object, absl::string_view data) : data_(data) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
   RIEGELI_ASSERT(is_external())
@@ -951,11 +953,11 @@ inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
 inline Chain::Blocks Chain::blocks() const { return Blocks(begin_, end_); }
 
 inline void Chain::Append(const char* src, size_t size_hint) {
-  Append(string_view(src), size_hint);
+  Append(absl::string_view(src), size_hint);
 }
 
 inline void Chain::Prepend(const char* src, size_t size_hint) {
-  Prepend(string_view(src), size_hint);
+  Prepend(absl::string_view(src), size_hint);
 }
 
 template <typename T>
@@ -965,7 +967,7 @@ void Chain::AppendExternal(T object, size_t size_hint) {
 }
 
 template <typename T>
-void Chain::AppendExternal(T object, string_view data, size_t size_hint) {
+void Chain::AppendExternal(T object, absl::string_view data, size_t size_hint) {
   RawAppendExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
                     size_hint);
 }
@@ -977,7 +979,8 @@ void Chain::PrependExternal(T object, size_t size_hint) {
 }
 
 template <typename T>
-void Chain::PrependExternal(T object, string_view data, size_t size_hint) {
+void Chain::PrependExternal(T object, absl::string_view data,
+                            size_t size_hint) {
   RawPrependExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
                      size_hint);
 }
@@ -1034,47 +1037,51 @@ inline bool operator>=(const Chain& a, const Chain& b) {
   return a.Compare(b) >= 0;
 }
 
-inline bool operator==(const Chain& a, string_view b) {
+inline bool operator==(const Chain& a, absl::string_view b) {
   return a.size() == b.size() && a.Compare(b) == 0;
 }
 
-inline bool operator!=(const Chain& a, string_view b) { return !(a == b); }
+inline bool operator!=(const Chain& a, absl::string_view b) {
+  return !(a == b);
+}
 
-inline bool operator<(const Chain& a, string_view b) {
+inline bool operator<(const Chain& a, absl::string_view b) {
   return a.Compare(b) < 0;
 }
 
-inline bool operator>(const Chain& a, string_view b) {
+inline bool operator>(const Chain& a, absl::string_view b) {
   return a.Compare(b) > 0;
 }
 
-inline bool operator<=(const Chain& a, string_view b) {
+inline bool operator<=(const Chain& a, absl::string_view b) {
   return a.Compare(b) <= 0;
 }
 
-inline bool operator>=(const Chain& a, string_view b) {
+inline bool operator>=(const Chain& a, absl::string_view b) {
   return a.Compare(b) >= 0;
 }
 
-inline bool operator==(string_view a, const Chain& b) {
+inline bool operator==(absl::string_view a, const Chain& b) {
   return a.size() == b.size() && b.Compare(a) == 0;
 }
 
-inline bool operator!=(string_view a, const Chain& b) { return !(a == b); }
+inline bool operator!=(absl::string_view a, const Chain& b) {
+  return !(a == b);
+}
 
-inline bool operator<(string_view a, const Chain& b) {
+inline bool operator<(absl::string_view a, const Chain& b) {
   return b.Compare(a) > 0;
 }
 
-inline bool operator>(string_view a, const Chain& b) {
+inline bool operator>(absl::string_view a, const Chain& b) {
   return b.Compare(a) < 0;
 }
 
-inline bool operator<=(string_view a, const Chain& b) {
+inline bool operator<=(absl::string_view a, const Chain& b) {
   return b.Compare(a) >= 0;
 }
 
-inline bool operator>=(string_view a, const Chain& b) {
+inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
 }
 

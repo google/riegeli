@@ -19,9 +19,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -168,7 +168,7 @@ char* CopyVarint64Slow(Reader* src, char* dest) {
 
 }  // namespace internal
 
-bool ReadAll(Reader* src, string_view* dest, std::string* scratch) {
+bool ReadAll(Reader* src, absl::string_view* dest, std::string* scratch) {
   Position size;
   if (src->Size(&size)) {
     RIEGELI_ASSERT_LE(src->pos(), size)

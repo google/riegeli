@@ -21,7 +21,6 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {

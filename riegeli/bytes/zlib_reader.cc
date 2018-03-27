@@ -18,9 +18,9 @@
 #include <limits>
 #include <string>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -61,10 +61,10 @@ void ZLibReader::Done() {
   BufferedReader::Done();
 }
 
-inline bool ZLibReader::FailOperation(string_view operation) {
-  std::string message = StrCat(operation, " failed");
+inline bool ZLibReader::FailOperation(absl::string_view operation) {
+  std::string message = absl::StrCat(operation, " failed");
   if (decompressor_.msg != nullptr) {
-    StrAppend(&message, ": ", decompressor_.msg);
+    absl::StrAppend(&message, ": ", decompressor_.msg);
   }
   return Fail(message);
 }

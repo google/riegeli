@@ -18,10 +18,10 @@
 #include <cstring>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -29,7 +29,7 @@ bool BackwardWriter::FailOverflow() {
   return Fail("BackwardWriter position overflow");
 }
 
-bool BackwardWriter::WriteSlow(string_view src) {
+bool BackwardWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";

@@ -27,14 +27,13 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -45,7 +44,7 @@
 
 namespace riegeli {
 
-bool RecordWriter::Options::Parse(string_view text, std::string* message) {
+bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) {
   std::string compressor_text;
   OptionsParser parser;
   parser.AddOption("default",
@@ -491,7 +490,7 @@ bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
   return true;
 }
 
-bool RecordWriter::WriteRecord(string_view record) {
+bool RecordWriter::WriteRecord(absl::string_view record) {
   if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
   if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
     return Fail(*impl_);

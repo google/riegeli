@@ -18,16 +18,16 @@
 #include <cstring>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
 bool Writer::FailOverflow() { return Fail("Writer position overflow"); }
 
-bool Writer::WriteSlow(string_view src) {
+bool Writer::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
@@ -59,7 +59,7 @@ bool Writer::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
-  for (string_view fragment : src.blocks()) {
+  for (absl::string_view fragment : src.blocks()) {
     if (RIEGELI_UNLIKELY(!Write(fragment))) return false;
   }
   return true;

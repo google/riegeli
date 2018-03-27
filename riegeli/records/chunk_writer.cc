@@ -18,9 +18,9 @@
 #include <memory>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
@@ -86,7 +86,7 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
           IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
           IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
-              string_view(block_header.bytes(), block_header.size())))) {
+              absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
     }
@@ -111,7 +111,7 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
           IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
           IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
       if (RIEGELI_UNLIKELY(!byte_writer_->Write(
-              string_view(block_header.bytes(), block_header.size())))) {
+              absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
     }

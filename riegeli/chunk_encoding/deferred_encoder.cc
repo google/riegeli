@@ -22,10 +22,10 @@
 #include <vector>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
@@ -50,16 +50,16 @@ void DeferredEncoder::Reset() {
 bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   if (RIEGELI_UNLIKELY(!record.IsInitialized())) {
-    return Fail(StrCat("Failed to serialize message of type ",
-                       record.GetTypeName(),
-                       " because it is missing required fields: ",
-                       record.InitializationErrorString()));
+    return Fail(absl::StrCat("Failed to serialize message of type ",
+                             record.GetTypeName(),
+                             " because it is missing required fields: ",
+                             record.InitializationErrorString()));
   }
   const size_t size = record.ByteSizeLong();
   if (RIEGELI_UNLIKELY(size > size_t{std::numeric_limits<int>::max()})) {
-    return Fail(
-        StrCat("Failed to serialize message of type ", record.GetTypeName(),
-               " because it exceeds maximum protobuf size of 2GB: ", size));
+    return Fail(absl::StrCat(
+        "Failed to serialize message of type ", record.GetTypeName(),
+        " because it exceeds maximum protobuf size of 2GB: ", size));
   }
   if (RIEGELI_UNLIKELY(limits_.size() ==
                        UnsignedMin(limits_.max_size(),
@@ -73,7 +73,7 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   return true;
 }
 
-bool DeferredEncoder::AddRecord(string_view record) {
+bool DeferredEncoder::AddRecord(absl::string_view record) {
   return AddRecordImpl(record);
 }
 

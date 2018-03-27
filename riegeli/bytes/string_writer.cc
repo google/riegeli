@@ -17,9 +17,9 @@
 #include <stddef.h>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -51,7 +51,7 @@ bool StringWriter::PushSlow() {
   return true;
 }
 
-bool StringWriter::WriteSlow(string_view src) {
+bool StringWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";

@@ -20,8 +20,8 @@
 #include <limits>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -57,7 +57,7 @@ class RecordPosition {
   // Serialized strings have the same natural order as the corresponding
   // positions.
   std::string Serialize() const;
-  bool Parse(string_view serialized);
+  bool Parse(absl::string_view serialized);
 
  private:
   // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_

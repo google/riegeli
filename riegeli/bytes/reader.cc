@@ -20,9 +20,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -78,7 +78,7 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
   return true;
 }
 
-bool Reader::ReadSlow(string_view* dest, std::string* scratch, size_t length) {
+bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(string_view*): "
          "length too small, use Read(string_view*) instead";
@@ -88,7 +88,7 @@ bool Reader::ReadSlow(string_view* dest, std::string* scratch, size_t length) {
   if (available() == 0) {
     if (RIEGELI_UNLIKELY(!PullSlow())) return false;
     if (length <= available()) {
-      *dest = string_view(cursor_, length);
+      *dest = absl::string_view(cursor_, length);
       cursor_ += length;
       return true;
     }
@@ -126,13 +126,13 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   while (length > available()) {
-    const string_view data(cursor_, available());
+    const absl::string_view data(cursor_, available());
     cursor_ = limit_;
     if (RIEGELI_UNLIKELY(!dest->Write(data))) return false;
     length -= data.size();
     if (RIEGELI_UNLIKELY(!PullSlow())) return false;
   }
-  const string_view data(cursor_, length);
+  const absl::string_view data(cursor_, length);
   cursor_ += length;
   return dest->Write(data);
 }
@@ -142,14 +142,14 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (length <= available()) {
-    const string_view data(cursor_, length);
+    const absl::string_view data(cursor_, length);
     cursor_ += length;
     return dest->Write(data);
   }
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
     if (RIEGELI_UNLIKELY(!ReadSlow(buffer, length))) return false;
-    return dest->Write(string_view(buffer, length));
+    return dest->Write(absl::string_view(buffer, length));
   }
   Chain data;
   if (RIEGELI_UNLIKELY(!ReadSlow(&data, length))) return false;

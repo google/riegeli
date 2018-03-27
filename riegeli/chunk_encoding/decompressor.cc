@@ -17,11 +17,11 @@
 #include <stdint.h>
 #include <utility>
 
+#include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -73,8 +73,8 @@ Decompressor::Decompressor(Reader* src, CompressionType compression_type)
       reader_ = owned_reader_.get();
       return;
   }
-  Fail(StrCat("Unknown compression type: ",
-              static_cast<unsigned>(compression_type)));
+  Fail(absl::StrCat("Unknown compression type: ",
+                    static_cast<unsigned>(compression_type)));
 }
 
 void Decompressor::Done() {

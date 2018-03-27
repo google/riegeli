@@ -19,9 +19,9 @@
 #include <stdint.h>
 #include <atomic>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -102,7 +102,7 @@ class Object {
   // Returns a human-readable message describing the Object health.
   //
   // This is "Healthy", "Closed", or a failure message.
-  string_view Message() const;
+  absl::string_view Message() const;
 
   // Returns a token which allows to detect the class of the Object at runtime.
   //
@@ -172,13 +172,14 @@ class Object {
   // If Fail() is called multiple times, the first message wins.
   //
   // Precondition: !closed()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message);
+  RIEGELI_ATTRIBUTE_COLD bool Fail(absl::string_view message);
 
   // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
   // Fail(StrCat(message, ": ", src.Message())).
   //
   // Precondition: !closed()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(string_view message, const Object& src);
+  RIEGELI_ATTRIBUTE_COLD bool Fail(absl::string_view message,
+                                   const Object& src);
 
   // Equivalent to Fail(src.Message()).
   //
@@ -189,7 +190,7 @@ class Object {
 
  private:
   struct FailedStatus {
-    explicit FailedStatus(string_view message);
+    explicit FailedStatus(absl::string_view message);
 
     size_t message_size;
     // The closed flag may be changed from false to true by Close(). This

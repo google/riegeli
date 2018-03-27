@@ -19,9 +19,9 @@
 #include <limits>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -116,7 +116,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     const size_t available_length = available();
     if (available_length > 0) {  // iter() is undefined if
                                  // buffer_.blocks().size() != 1.
-      iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
+      iter().AppendSubstrTo(absl::string_view(cursor_, available_length), dest,
                             size_hint);
       length -= available_length;
     }
@@ -143,8 +143,8 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       const size_t available_length = available();
       if (available_length > 0) {  // iter() is undefined if
                                    // buffer_.blocks().size() != 1.
-        iter().AppendSubstrTo(string_view(cursor_, available_length), dest,
-                              size_hint);
+        iter().AppendSubstrTo(absl::string_view(cursor_, available_length),
+                              dest, size_hint);
         length -= available_length;
       }
       buffer_.Clear();
@@ -179,7 +179,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       << "Bug in BufferedReader::ReadSlow(Chain*): "
          "remaining length larger than available data";
   if (length > 0) {  // iter() is undefined if buffer_.blocks().size() != 1.
-    iter().AppendSubstrTo(string_view(cursor_, length), dest, size_hint);
+    iter().AppendSubstrTo(absl::string_view(cursor_, length), dest, size_hint);
     cursor_ += length;
   }
   return ok;
@@ -205,8 +205,8 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
           write_ok = dest->Write(buffer_);
         } else {
           Chain data;
-          iter().AppendSubstrTo(string_view(cursor_, available_length), &data,
-                                available_length);
+          iter().AppendSubstrTo(absl::string_view(cursor_, available_length),
+                                &data, available_length);
           write_ok = dest->Write(std::move(data));
         }
         if (RIEGELI_UNLIKELY(!write_ok)) {
@@ -252,7 +252,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       write_ok = dest->Write(buffer_);
     } else {
       Chain data;
-      iter().AppendSubstrTo(string_view(cursor_, length), &data, length);
+      iter().AppendSubstrTo(absl::string_view(cursor_, length), &data, length);
       write_ok = dest->Write(std::move(data));
     }
     cursor_ += length;
@@ -267,7 +267,7 @@ bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
     if (RIEGELI_UNLIKELY(!ReadSlow(buffer, length))) return false;
-    return dest->Write(string_view(buffer, length));
+    return dest->Write(absl::string_view(buffer, length));
   }
   Chain data;
   if (RIEGELI_UNLIKELY(!ReadSlow(&data, length))) return false;

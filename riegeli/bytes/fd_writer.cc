@@ -34,10 +34,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/writer.h"
@@ -51,9 +51,9 @@ inline FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
                                  Position{std::numeric_limits<off_t>::max()})),
       owned_fd_(owns_fd ? fd : -1),
       fd_(fd),
-      filename_(fd == 1
-                    ? "/dev/stdout"
-                    : fd == 2 ? "/dev/stderr" : StrCat("/proc/self/fd/", fd)) {
+      filename_(fd == 1 ? "/dev/stdout"
+                        : fd == 2 ? "/dev/stderr"
+                                  : absl::StrCat("/proc/self/fd/", fd)) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdWriterBase::FdWriterBase(int): "
          "negative file descriptor";
@@ -89,10 +89,11 @@ void FdWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-inline bool FdWriterBase::FailOperation(string_view operation, int error_code) {
+inline bool FdWriterBase::FailOperation(absl::string_view operation,
+                                        int error_code) {
   error_code_ = error_code;
-  return Fail(StrCat(operation, " failed: ", StrError(error_code), ", writing ",
-                     filename_));
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+                           ", writing ", filename_));
 }
 
 bool FdWriterBase::Flush(FlushType flush_type) {
@@ -167,7 +168,7 @@ bool FdWriter::MaybeSyncPos() {
   return true;
 }
 
-bool FdWriter::WriteInternal(string_view src) {
+bool FdWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -281,7 +282,7 @@ FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
   }
 }
 
-bool FdStreamWriter::WriteInternal(string_view src) {
+bool FdStreamWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";

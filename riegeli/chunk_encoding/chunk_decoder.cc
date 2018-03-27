@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -161,7 +161,7 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
     }
   }
   return Fail(
-      StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
+      absl::StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* key) {
@@ -183,10 +183,10 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* k
       if (RIEGELI_LIKELY(record->IsInitialized())) return true;
       if (!skip_corruption_) {
         index_ = num_records();
-        return Fail(StrCat("Failed to parse message of type ",
-                           record->GetTypeName(),
-                           " because it is missing required fields: ",
-                           record->InitializationErrorString()));
+        return Fail(absl::StrCat("Failed to parse message of type ",
+                                 record->GetTypeName(),
+                                 " because it is missing required fields: ",
+                                 record->InitializationErrorString()));
       }
     } else {
       message_reader.Close();
@@ -196,8 +196,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* k
       }
       if (!skip_corruption_) {
         index_ = num_records();
-        return Fail(
-            StrCat("Failed to parse message of type ", record->GetTypeName()));
+        return Fail(absl::StrCat("Failed to parse message of type ",
+                                 record->GetTypeName()));
       }
     }
     // TODO: Corruption is being skipped here without accounting for

@@ -24,10 +24,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -62,7 +62,7 @@ inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
 }
 
 inline Chain::Block::Block(size_t capacity, size_t space_before)
-    : data_(string_view(allocated_begin_ + space_before, 0)),
+    : data_(absl::string_view(allocated_begin_ + space_before, 0)),
       allocated_end_(allocated_begin_ + capacity) {
   RIEGELI_ASSERT_LE(space_before, capacity)
       << "Failed precondition of Chain::Block::Block(): "
@@ -184,13 +184,13 @@ inline void Chain::Block::DumpStructure(std::ostream& out) const {
 
 inline void Chain::Block::PrepareForAppend() {
   if (is_internal() && has_unique_owner() && empty()) {
-    data_ = string_view(allocated_begin_, 0);
+    data_ = absl::string_view(allocated_begin_, 0);
   }
 }
 
 inline void Chain::Block::PrepareForPrepend() {
   if (is_internal() && has_unique_owner() && empty()) {
-    data_ = string_view(allocated_end_, 0);
+    data_ = absl::string_view(allocated_end_, 0);
   }
 }
 
@@ -216,8 +216,8 @@ inline Chain::Buffer Chain::Block::MakeAppendBuffer(size_t max_size) {
          "block is immutable";
   const size_t size = UnsignedMin(space_after(), max_size);
   const Buffer buffer(const_cast<char*>(data_end()), size);
-  data_ = string_view(data_begin(),
-                      PtrDistance(data_begin(), buffer.data() + buffer.size()));
+  data_ = absl::string_view(
+      data_begin(), PtrDistance(data_begin(), buffer.data() + buffer.size()));
   return buffer;
 }
 
@@ -227,25 +227,26 @@ inline Chain::Buffer Chain::Block::MakePrependBuffer(size_t max_size) {
          "block is immutable";
   const size_t size = UnsignedMin(space_before(), max_size);
   const Buffer buffer(const_cast<char*>(data_begin()) - size, size);
-  data_ = string_view(buffer.data(), PtrDistance(buffer.data(), data_end()));
+  data_ =
+      absl::string_view(buffer.data(), PtrDistance(buffer.data(), data_end()));
   return buffer;
 }
 
-inline void Chain::Block::Append(string_view src) {
+inline void Chain::Block::Append(absl::string_view src) {
   RIEGELI_ASSERT(can_append(src.size()))
       << "Failed precondition of Chain::Block::Append(): "
          "not enough space";
   std::memcpy(const_cast<char*>(data_end()), src.data(), src.size());
-  data_ = string_view(data_begin(), size() + src.size());
+  data_ = absl::string_view(data_begin(), size() + src.size());
 }
 
-inline void Chain::Block::Prepend(string_view src) {
+inline void Chain::Block::Prepend(absl::string_view src) {
   RIEGELI_ASSERT(can_prepend(src.size()))
       << "Failed precondition of Chain::Block::Prepend(): "
          "not enough space";
   std::memcpy(const_cast<char*>(data_begin() - src.size()), src.data(),
               src.size());
-  data_ = string_view(data_begin() - src.size(), size() + src.size());
+  data_ = absl::string_view(data_begin() - src.size(), size() + src.size());
 }
 
 class Chain::BlockRef {
@@ -257,8 +258,9 @@ class Chain::BlockRef {
 
   ~BlockRef();
 
-  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
-  void DumpStructure(string_view data, std::ostream& out) const;
+  void AddUniqueTo(absl::string_view data,
+                   MemoryEstimator* memory_estimator) const;
+  void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
   Block* block_;
@@ -295,12 +297,12 @@ inline Chain::BlockRef::~BlockRef() {
 }
 
 inline void Chain::BlockRef::AddUniqueTo(
-    string_view data, MemoryEstimator* memory_estimator) const {
+    absl::string_view data, MemoryEstimator* memory_estimator) const {
   memory_estimator->AddMemory(sizeof(*this));
   block_->AddSharedTo(memory_estimator);
 }
 
-inline void Chain::BlockRef::DumpStructure(string_view data,
+inline void Chain::BlockRef::DumpStructure(absl::string_view data,
                                            std::ostream& out) const {
   out << "offset: " << (data.data() - block_->data_begin()) << "; ";
   block_->DumpStructure(out);
@@ -313,9 +315,10 @@ class Chain::StringRef {
   StringRef(StringRef&& src) noexcept;
   StringRef& operator=(StringRef&& src) noexcept;
 
-  string_view data() const { return src_; }
-  void AddUniqueTo(string_view data, MemoryEstimator* memory_estimator) const;
-  void DumpStructure(string_view data, std::ostream& out) const;
+  absl::string_view data() const { return src_; }
+  void AddUniqueTo(absl::string_view data,
+                   MemoryEstimator* memory_estimator) const;
+  void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
   friend class Chain;
@@ -332,11 +335,11 @@ inline Chain::StringRef& Chain::StringRef::operator=(StringRef&& src) noexcept {
 }
 
 inline void Chain::StringRef::AddUniqueTo(
-    string_view data, MemoryEstimator* memory_estimator) const {
+    absl::string_view data, MemoryEstimator* memory_estimator) const {
   memory_estimator->AddMemory(sizeof(*this) + src_.capacity() + 1);
 }
 
-inline void Chain::StringRef::DumpStructure(string_view data,
+inline void Chain::StringRef::DumpStructure(absl::string_view data,
                                             std::ostream& out) const {
   out << "string";
 }
@@ -354,10 +357,10 @@ void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
   dest->AppendBlock(block, size_hint);
 }
 
-void Chain::BlockIterator::AppendSubstrTo(string_view substr, Chain* dest,
+void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                           size_t size_hint) const {
   Block* const block = *iter_;
-  const string_view data = block->data();
+  const absl::string_view data = block->data();
   RIEGELI_ASSERT(substr.data() >= data.data())
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
          "substring not contained in data";
@@ -379,7 +382,7 @@ void Chain::BlockIterator::AppendSubstrTo(string_view substr, Chain* dest,
   dest->AppendExternal(BlockRef(block, true), substr, size_hint);
 }
 
-Chain::Chain(string_view src) {
+Chain::Chain(absl::string_view src) {
   if (src.empty()) return;
   Block* const block = Block::NewInternal(src.size());
   block->Append(src);
@@ -439,7 +442,7 @@ void Chain::UnrefBlocksSlow(Block* const* begin, Block* const* end) {
 
 void Chain::CopyTo(char* dest) const {
   if (empty()) return;  // memcpy(nullptr, _, 0) is undefined.
-  for (string_view fragment : blocks()) {
+  for (absl::string_view fragment : blocks()) {
     std::memcpy(dest, fragment.data(), fragment.size());
     dest += fragment.size();
   }
@@ -451,7 +454,7 @@ void Chain::AppendTo(std::string* dest) const {
          "string size overflow";
   const size_t final_size = dest->size() + size();
   if (final_size > dest->capacity()) dest->reserve(final_size);
-  for (string_view fragment : blocks()) {
+  for (absl::string_view fragment : blocks()) {
     dest->append(fragment.data(), fragment.size());
   }
 }
@@ -825,7 +828,7 @@ Chain::Buffer Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
   return buffer;
 }
 
-void Chain::Append(string_view src, size_t size_hint) {
+void Chain::Append(absl::string_view src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string_view): "
          "Chain size overflow";
@@ -1062,7 +1065,7 @@ void Chain::Append(Chain&& src, size_t size_hint) {
   src.size_ = 0;
 }
 
-void Chain::Prepend(string_view src, size_t size_hint) {
+void Chain::Prepend(absl::string_view src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string_view): "
          "Chain size overflow";
@@ -1355,8 +1358,8 @@ inline void Chain::AppendBlock(Block* block, size_t size_hint) {
   size_ += block->size();
 }
 
-void Chain::RawAppendExternal(Block* (*new_block)(void*, string_view),
-                              void* object, string_view data,
+void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
+                              void* object, absl::string_view data,
                               size_t size_hint) {
   RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendExternal(): "
@@ -1392,8 +1395,8 @@ void Chain::RawAppendExternal(Block* (*new_block)(void*, string_view),
   size_ += block->size();
 }
 
-void Chain::RawPrependExternal(Block* (*new_block)(void*, string_view),
-                               void* object, string_view data,
+void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
+                               void* object, absl::string_view data,
                                size_t size_hint) {
   RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::PrependExternal(): "
@@ -1458,7 +1461,7 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
     block->Unref();
     return;
   }
-  string_view data = block->data();
+  absl::string_view data = block->data();
   data.remove_suffix(length);
   // Compensate for increasing size_ by Append() or AppendExternal().
   size_ -= data.size();
@@ -1499,7 +1502,7 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
     block->Unref();
     return;
   }
-  string_view data = block->data();
+  absl::string_view data = block->data();
   data.remove_prefix(length);
   // Compensate for increasing size_ by Prepend() or PrependExternal().
   size_ -= data.size();
@@ -1527,7 +1530,7 @@ void Chain::Swap(Chain* b) {
   swap(size_, b->size_);
 }
 
-int Chain::Compare(string_view b) const {
+int Chain::Compare(absl::string_view b) const {
   Chain::BlockIterator a_iter = blocks().begin();
   size_t a_pos = 0;
   size_t b_pos = 0;

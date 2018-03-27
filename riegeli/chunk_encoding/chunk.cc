@@ -16,9 +16,9 @@
 
 #include <stdint.h>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/hash.h"
@@ -35,13 +35,13 @@ ChunkHeader::ChunkHeader(const Chain& data, uint64_t num_records,
 }
 
 uint64_t ChunkHeader::computed_header_hash() const {
-  return internal::Hash(string_view(reinterpret_cast<const char*>(words_ + 1),
-                                    size() - sizeof(uint64_t)));
+  return internal::Hash(absl::string_view(
+      reinterpret_cast<const char*>(words_ + 1), size() - sizeof(uint64_t)));
 }
 
 bool Chunk::WriteTo(Writer* dest) const {
   if (RIEGELI_UNLIKELY(
-          !dest->Write(string_view(header.bytes(), header.size())))) {
+          !dest->Write(absl::string_view(header.bytes(), header.size())))) {
     return false;
   }
   return dest->Write(data);

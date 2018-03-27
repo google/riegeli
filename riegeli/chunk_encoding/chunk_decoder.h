@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/chunk_encoding/field_filter.h"
 #include "riegeli/chunk_encoding/types.h"
@@ -114,7 +114,7 @@ class ChunkDecoder : public Object {
   //  * false (when !healthy()) - failure (impossible if healthy() on entry and
   //                              skip_corruption is true)
   bool ReadRecord(google::protobuf::MessageLite* record, uint64_t* key = nullptr);
-  bool ReadRecord(string_view* record, uint64_t* key = nullptr);
+  bool ReadRecord(absl::string_view* record, uint64_t* key = nullptr);
   bool ReadRecord(std::string* record, uint64_t* key = nullptr);
   bool ReadRecord(Chain* record, uint64_t* key = nullptr);
 
@@ -146,7 +146,7 @@ class ChunkDecoder : public Object {
 
 // Implementation details follow.
 
-inline bool ChunkDecoder::ReadRecord(string_view* record, uint64_t* key) {
+inline bool ChunkDecoder::ReadRecord(absl::string_view* record, uint64_t* key) {
   if (RIEGELI_UNLIKELY(index_ == limits_.size())) return false;
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());

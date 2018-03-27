@@ -21,9 +21,9 @@
 #include <vector>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/types.h"
@@ -50,9 +50,9 @@ class ChunkEncoder : public Object {
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
   virtual bool AddRecord(const google::protobuf::MessageLite& record);
-  virtual bool AddRecord(string_view record) = 0;
+  virtual bool AddRecord(absl::string_view record) = 0;
   virtual bool AddRecord(std::string&& record) = 0;
-  bool AddRecord(const char* record) { return AddRecord(string_view(record)); }
+  bool AddRecord(const char* record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
@@ -88,6 +88,12 @@ class ChunkEncoder : public Object {
   // Returns the chunk type to write in a chunk header.
   virtual ChunkType GetChunkType() const = 0;
 };
+
+// Implementation details follow.
+
+inline bool ChunkEncoder::AddRecord(const char* record) {
+  return AddRecord(absl::string_view(record));
+}
 
 }  // namespace riegeli
 

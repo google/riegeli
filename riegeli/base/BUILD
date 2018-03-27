@@ -7,17 +7,14 @@ cc_library(
     srcs = [
         "base.cc",
         "object.cc",
-        "str_cat.cc",
-        "string_view.cc",
     ],
     hdrs = [
         "base.h",
         "memory.h",
         "object.h",
         "port.h",
-        "str_cat.h",
-        "string_view.h",
     ],
+    deps = ["@com_google_absl//absl/strings"],
 )
 
 cc_library(
@@ -34,6 +31,7 @@ cc_library(
     deps = [
         ":base",
         ":memory_estimator",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -54,12 +52,18 @@ cc_library(
     name = "str_error",
     srcs = ["str_error.cc"],
     hdrs = ["str_error.h"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(
     name = "options_parser",
     srcs = ["options_parser.cc"],
     hdrs = ["options_parser.h"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/strings",
+    ],
 )

@@ -38,9 +38,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/str_cat.h"
 #include "riegeli/base/str_error.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -288,10 +288,9 @@ Benchmarks::Benchmarks(std::vector<std::string> records, std::string output_dir,
 }
 
 void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
-  max_name_width_ =
-      std::max(max_name_width_,
-               riegeli::IntCast<int>(
-                   riegeli::StrCat("tfrecord ", tfrecord_options).size()));
+  max_name_width_ = std::max(
+      max_name_width_, riegeli::IntCast<int>(
+                           absl::StrCat("tfrecord ", tfrecord_options).size()));
   const char* compression = tensorflow::io::compression::kNone;
   riegeli::OptionsParser parser;
   parser.AddOption("uncompressed", parser.Empty([&parser, &compression] {
@@ -309,10 +308,9 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
 }
 
 void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
-  max_name_width_ =
-      std::max(max_name_width_,
-               riegeli::IntCast<int>(
-                   riegeli::StrCat("riegeli ", riegeli_options).size()));
+  max_name_width_ = std::max(
+      max_name_width_,
+      riegeli::IntCast<int>(absl::StrCat("riegeli ", riegeli_options).size()));
   riegeli::RecordWriter::Options options;
   std::string message;
   RIEGELI_CHECK(options.Parse(riegeli_options, &message)) << message;
@@ -337,7 +335,7 @@ void Benchmarks::RunAll() {
             << std::setfill(' ') << std::endl;
 
   for (const auto& tfrecord_options : tfrecord_benchmarks_) {
-    RunOne(riegeli::StrCat("tfrecord ", tfrecord_options.first),
+    RunOne(absl::StrCat("tfrecord ", tfrecord_options.first),
            [&](const std::string& filename, const std::vector<std::string>& records) {
              WriteTFRecord(
                  filename,
@@ -354,7 +352,7 @@ void Benchmarks::RunAll() {
            });
   }
   for (const auto& riegeli_options : riegeli_benchmarks_) {
-    RunOne(riegeli::StrCat("riegeli ", riegeli_options.first),
+    RunOne(absl::StrCat("riegeli ", riegeli_options.first),
            [&](const std::string& filename, const std::vector<std::string>& records) {
              WriteRiegeli(filename, riegeli_options.second, records);
            },
@@ -371,7 +369,7 @@ void Benchmarks::RunOne(
         write_records,
     std::function<void(const std::string&, std::vector<std::string>*)> read_records) {
   const std::string filename =
-      riegeli::StrCat(output_dir_, "/record_benchmark_", Filename(name));
+      absl::StrCat(output_dir_, "/record_benchmark_", Filename(name));
 
   Stats compression;
   Stats writing_cpu_speed;

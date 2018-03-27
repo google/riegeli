@@ -20,10 +20,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/field_filter.h"
@@ -133,7 +133,7 @@ class RecordReader final : public Object {
   //  * false (when healthy())  - source ends
   //  * false (when !healthy()) - failure
   bool ReadRecord(google::protobuf::MessageLite* record, RecordPosition* key = nullptr);
-  bool ReadRecord(string_view* record, RecordPosition* key = nullptr);
+  bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
 
@@ -234,7 +234,8 @@ inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
   return ReadRecordSlow(record, key);
 }
 
-inline bool RecordReader::ReadRecord(string_view* record, RecordPosition* key) {
+inline bool RecordReader::ReadRecord(absl::string_view* record,
+                                     RecordPosition* key) {
   uint64_t index;
   if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
     if (key != nullptr) *key = RecordPosition(chunk_begin_, index);

@@ -22,9 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/str_cat.h"
-#include "riegeli/base/string_view.h"
 
 namespace riegeli {
 
@@ -37,7 +36,7 @@ class OptionsParser : public Object {
   //            called)
   //  * false - failure (InvalidValue(), FailIfSeen(), or FailIfAnySeen() may
   //            have been called)
-  using ValueParser = std::function<bool(string_view)>;
+  using ValueParser = std::function<bool(absl::string_view)>;
 
   OptionsParser() : Object(State::kOpen) {}
 
@@ -105,7 +104,7 @@ class OptionsParser : public Object {
   //   an option value is being parsed
   //
   // Always returns false.
-  bool InvalidValue(string_view valid_values);
+  bool InvalidValue(absl::string_view valid_values);
 
   // Reports a conflict if an option with any of the given keys was seen before
   // this option.
@@ -118,9 +117,9 @@ class OptionsParser : public Object {
   // Return values:
   //  * true - there was no conflict
   //  * false - there was a conflict
-  bool FailIfSeen(string_view key);
+  bool FailIfSeen(absl::string_view key);
   template <typename... Keys>
-  bool FailIfSeen(string_view key, Keys&&... keys);
+  bool FailIfSeen(absl::string_view key, Keys&&... keys);
 
   // Reports a conflict if an any option was seen before this option.
   //
@@ -145,7 +144,7 @@ class OptionsParser : public Object {
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  bool Parse(string_view text);
+  bool Parse(absl::string_view text);
 
  protected:
   void Done() override;
@@ -193,7 +192,7 @@ namespace internal {
 // This is a struct rather than a lambda to capture possible_values by move.
 template <typename T>
 struct EnumOptionParser {
-  bool operator()(string_view value) const {
+  bool operator()(absl::string_view value) const {
     for (const auto& possible_value : possible_values) {
       if (value == possible_value.first) {
         *out = possible_value.second;
@@ -202,8 +201,8 @@ struct EnumOptionParser {
     }
     for (const auto& possible_value : possible_values) {
       parser->InvalidValue(possible_value.first.empty()
-                               ? string_view("(empty)")
-                               : string_view(possible_value.first));
+                               ? absl::string_view("(empty)")
+                               : absl::string_view(possible_value.first));
     }
     return false;
   }
@@ -229,7 +228,7 @@ OptionsParser::ValueParser OptionsParser::Or(ValueParser parser1,
 }
 
 template <typename... Keys>
-bool OptionsParser::FailIfSeen(string_view key, Keys&&... keys) {
+bool OptionsParser::FailIfSeen(absl::string_view key, Keys&&... keys) {
   return RIEGELI_LIKELY(FailIfSeen(key)) &&
          FailIfSeen(std::forward<Keys>(keys)...);
 }

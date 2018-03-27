@@ -18,9 +18,9 @@
 #include <limits>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/string_view.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -69,12 +69,13 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
       << "ChainReader source changed unexpectedly";
   const size_t size_hint = dest->size() + length;
   if (length <= available()) {
-    iter_.AppendSubstrTo(string_view(cursor_, length), dest, size_hint);
+    iter_.AppendSubstrTo(absl::string_view(cursor_, length), dest, size_hint);
     cursor_ += length;
     return true;
   }
   if (RIEGELI_UNLIKELY(iter_ == src_->blocks().cend())) return false;
-  iter_.AppendSubstrTo(string_view(cursor_, available()), dest, size_hint);
+  iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest,
+                       size_hint);
   length -= available();
   for (;;) {
     if (RIEGELI_UNLIKELY(++iter_ == src_->blocks().cend())) {
@@ -90,7 +91,7 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
       start_ = iter_->data();
       cursor_ = iter_->data() + length;
       limit_ = iter_->data() + iter_->size();
-      iter_.AppendSubstrTo(string_view(start_, length), dest, size_hint);
+      iter_.AppendSubstrTo(absl::string_view(start_, length), dest, size_hint);
       return true;
     }
     iter_.AppendTo(dest, size_hint);
@@ -116,7 +117,8 @@ bool ChainReader::CopyToSlow(Writer* dest, Position length) {
     if (!Read(buffer, IntCast<size_t>(length_to_copy))) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(char*) failed";
     }
-    ok = dest->Write(string_view(buffer, IntCast<size_t>(length_to_copy)));
+    ok =
+        dest->Write(absl::string_view(buffer, IntCast<size_t>(length_to_copy)));
   } else {
     Chain data;
     if (!Read(&data, IntCast<size_t>(length_to_copy))) {
@@ -150,7 +152,7 @@ bool ChainReader::CopyToSlow(BackwardWriter* dest, size_t length) {
     if (!Reader::ReadSlow(buffer, length)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::ReadSlow(char*) failed";
     }
-    return dest->Write(string_view(buffer, length));
+    return dest->Write(absl::string_view(buffer, length));
   }
   Chain data;
   if (!ReadSlow(&data, length)) {
