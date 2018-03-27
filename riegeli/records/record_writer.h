@@ -27,6 +27,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
+#include "riegeli/records/record_position.h"
 
 namespace google {
 namespace protobuf {
@@ -305,15 +306,20 @@ class RecordWriter final : public Object {
   // WriteRecord(MessageLite) serializes a proto message to raw bytes
   // beforehand. The remaining overloads accept raw bytes.
   //
+  // If key != nullptr, *key is set to the canonical record position on success.
+  //
+  // Finding the position might block if parallelism > 0.
+  //
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  bool WriteRecord(const google::protobuf::MessageLite& record);
-  bool WriteRecord(absl::string_view record);
-  bool WriteRecord(std::string&& record);
-  bool WriteRecord(const char* record);
-  bool WriteRecord(const Chain& record);
-  bool WriteRecord(Chain&& record);
+  bool WriteRecord(const google::protobuf::MessageLite& record,
+                   RecordPosition* key = nullptr);
+  bool WriteRecord(absl::string_view record, RecordPosition* key = nullptr);
+  bool WriteRecord(std::string&& record, RecordPosition* key = nullptr);
+  bool WriteRecord(const char* record, RecordPosition* key = nullptr);
+  bool WriteRecord(const Chain& record, RecordPosition* key = nullptr);
+  bool WriteRecord(Chain&& record, RecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the Writer.
   // If Options::set_parallelism() was used, waits for any background writing to
@@ -332,6 +338,20 @@ class RecordWriter final : public Object {
   //  * false (when !healthy()) - failure to push
   bool Flush(FlushType flush_type);
 
+  // Returns the current position.
+  //
+  // Pos().numeric() returns the position as an integer of type Position.
+  //
+  // Finding the position might block if parallelism > 0.
+  //
+  // A position returned by Pos() before writing a record is not greater than
+  // the canonical position returned by WriteRecord() in *key for that record,
+  // but seeking to either position will read the same record.
+  //
+  // After Flush(), Pos() is equal to the canonical position returned by the
+  // following WriteRecord() in *key.
+  RecordPosition Pos() const;
+
  protected:
   void Done() override;
 
@@ -343,7 +363,8 @@ class RecordWriter final : public Object {
 
   static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
 
-  bool EnsureRoomForRecord(size_t record_size);
+  template <typename Record>
+  bool WriteRecordImpl(Record&& record, RecordPosition* key);
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
@@ -358,8 +379,31 @@ class RecordWriter final : public Object {
 
 // Implementation details follow.
 
-inline bool RecordWriter::WriteRecord(const char* record) {
-  return WriteRecord(absl::string_view(record));
+inline bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record,
+                                      RecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
+inline bool RecordWriter::WriteRecord(absl::string_view record,
+                                      RecordPosition* key) {
+  return WriteRecordImpl<const absl::string_view&>(record, key);
+}
+
+inline bool RecordWriter::WriteRecord(std::string&& record, RecordPosition* key) {
+  return WriteRecordImpl(std::move(record), key);
+}
+
+inline bool RecordWriter::WriteRecord(const char* record, RecordPosition* key) {
+  return WriteRecordImpl<const absl::string_view&>(record, key);
+}
+
+inline bool RecordWriter::WriteRecord(const Chain& record,
+                                      RecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
+inline bool RecordWriter::WriteRecord(Chain&& record, RecordPosition* key) {
+  return WriteRecordImpl(std::move(record), key);
 }
 
 }  // namespace riegeli

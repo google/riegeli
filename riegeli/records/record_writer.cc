@@ -40,9 +40,24 @@
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
+#include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
+#include "riegeli/records/record_position.h"
 
 namespace riegeli {
+
+namespace {
+
+template <typename Record>
+size_t RecordSize(const Record& record) {
+  return record.size();
+}
+
+size_t RecordSize(const google::protobuf::MessageLite& record) {
+  return record.ByteSizeLong();
+}
+
+}  // namespace
 
 bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) {
   std::string compressor_text;
@@ -113,14 +128,7 @@ class RecordWriter::Impl : public Object {
 
   // Precondition: chunk is open.
   template <typename Record>
-  bool AddRecord(Record&& record) {
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
-    if (RIEGELI_UNLIKELY(
-            !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
-      return Fail(*chunk_encoder_);
-    }
-    return true;
-  }
+  bool AddRecord(Record&& record);
 
   // Precondition: chunk is open.
   //
@@ -130,11 +138,29 @@ class RecordWriter::Impl : public Object {
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
 
+  RecordPosition Pos();
+
  protected:
+  virtual Position ChunkBegin() = 0;
+
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
 RecordWriter::Impl::~Impl() {}
+
+template <typename Record>
+bool RecordWriter::Impl::AddRecord(Record&& record) {
+  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (RIEGELI_UNLIKELY(
+          !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
+    return Fail(*chunk_encoder_);
+  }
+  return true;
+}
+
+inline RecordPosition RecordWriter::Impl::Pos() {
+  return RecordPosition(ChunkBegin(), chunk_encoder_->num_records());
+}
 
 class RecordWriter::SerialImpl final : public Impl {
  public:
@@ -147,6 +173,7 @@ class RecordWriter::SerialImpl final : public Impl {
 
  protected:
   void Done() override {}
+  Position ChunkBegin() override { return chunk_writer_->pos(); }
 
  private:
   ChunkWriter* chunk_writer_;
@@ -187,6 +214,7 @@ class RecordWriter::ParallelImpl final : public Impl {
 
  protected:
   void Done() override;
+  Position ChunkBegin() override;
 
  private:
   // A request to the chunk writer thread.
@@ -196,7 +224,7 @@ class RecordWriter::ParallelImpl final : public Impl {
     kDoneRequest,
   };
   struct WriteChunkRequest {
-    std::future<Chunk> chunk;
+    std::shared_future<Chunk> chunk;
   };
   struct FlushRequest {
     FlushType flush_type;
@@ -230,6 +258,8 @@ class RecordWriter::ParallelImpl final : public Impl {
   std::deque<ChunkWriterRequest> chunk_writer_requests_;
   std::condition_variable has_chunk_writer_request_;
   std::condition_variable has_space_for_chunk_;
+  // The value of chunk_writer_->pos() before handling chunk_writer_requests_.
+  Position chunk_writer_pos_before_requests_;
 };
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
@@ -294,42 +324,42 @@ RecordWriter::ParallelImpl::ChunkWriterRequest::operator=(
 
 inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
                                                 const Options& options)
-    : options_(options), chunk_writer_(chunk_writer) {
+    : options_(options),
+      chunk_writer_(chunk_writer),
+      chunk_writer_pos_before_requests_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
+    std::unique_lock<std::mutex> lock(mutex_);
     for (;;) {
-      std::unique_lock<std::mutex> lock(mutex_);
       while (chunk_writer_requests_.empty()) {
         has_chunk_writer_request_.wait(lock);
       }
-      ChunkWriterRequest request = std::move(chunk_writer_requests_.front());
-      chunk_writer_requests_.pop_front();
-      has_space_for_chunk_.notify_one();
+      ChunkWriterRequest& request = chunk_writer_requests_.front();
       lock.unlock();
       switch (request.request_type) {
         case RequestType::kWriteChunkRequest: {
           // If !healthy(), the chunk must still be waited for, to ensure that
           // the chunk encoder thread exits before the chunk writer thread
           // responds to DoneRequest.
-          const Chunk chunk = request.write_chunk_request.chunk.get();
-          if (RIEGELI_UNLIKELY(!healthy())) continue;
+          const Chunk& chunk = request.write_chunk_request.chunk.get();
+          if (RIEGELI_UNLIKELY(!healthy())) goto handled;
           if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
             Fail(*chunk_writer_);
           }
-          continue;
+          goto handled;
         }
         case RequestType::kFlushRequest: {
           if (RIEGELI_UNLIKELY(!healthy())) {
             request.flush_request.done.set_value(false);
-            continue;
+            goto handled;
           }
           if (RIEGELI_UNLIKELY(
                   !chunk_writer_->Flush(request.flush_request.flush_type))) {
             if (!chunk_writer_->healthy()) Fail(*chunk_writer_);
             request.flush_request.done.set_value(false);
-            continue;
+            goto handled;
           }
           request.flush_request.done.set_value(true);
-          continue;
+          goto handled;
         }
         case RequestType::kDoneRequest: {
           request.done_request.done.set_value();
@@ -338,6 +368,11 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       }
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown request type: " << static_cast<int>(request.request_type);
+    handled:
+      lock.lock();
+      chunk_writer_requests_.pop_front();
+      has_space_for_chunk_.notify_all();
+      chunk_writer_pos_before_requests_ = chunk_writer_->pos();
     }
   });
 }
@@ -356,7 +391,7 @@ void RecordWriter::ParallelImpl::Done() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
-    has_chunk_writer_request_.notify_one();
+    has_chunk_writer_request_.notify_all();
   }
   done_future.get();
 }
@@ -374,7 +409,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
     }
     chunk_writer_requests_.emplace_back(
         WriteChunkRequest{chunk_promise->get_future()});
-    has_chunk_writer_request_.notify_one();
+    has_chunk_writer_request_.notify_all();
   }
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
     Chunk chunk;
@@ -395,9 +430,30 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
     std::lock_guard<std::mutex> lock(mutex_);
     chunk_writer_requests_.emplace_back(
         FlushRequest{flush_type, std::move(done_promise)});
-    has_chunk_writer_request_.notify_one();
+    has_chunk_writer_request_.notify_all();
   }
   return done_future.get();
+}
+
+Position RecordWriter::ParallelImpl::ChunkBegin() {
+  Position pos;
+  std::vector<std::shared_future<Chunk>> chunks;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    pos = chunk_writer_pos_before_requests_;
+    for (const auto& pending_request : chunk_writer_requests_) {
+      RIEGELI_ASSERT(pending_request.request_type ==
+                     RequestType::kWriteChunkRequest)
+          << "Unexpected type of request in the queue: "
+          << static_cast<int>(pending_request.request_type);
+      chunks.push_back(pending_request.write_chunk_request.chunk);
+    }
+  }
+  for (const auto& chunk_future : chunks) {
+    const Chunk& chunk = chunk_future.get();
+    pos = internal::ChunkEnd(chunk.header, pos);
+  }
+  return pos;
 }
 
 RecordWriter::RecordWriter() noexcept : Object(State::kClosed) {}
@@ -480,58 +536,14 @@ void RecordWriter::Done() {
   chunk_size_so_far_ = 0;
 }
 
-bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record) {
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.ByteSizeLong()))) {
-    return false;
-  }
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
-    return Fail(*impl_);
-  }
-  return true;
-}
-
-bool RecordWriter::WriteRecord(absl::string_view record) {
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
-    return Fail(*impl_);
-  }
-  return true;
-}
-
-bool RecordWriter::WriteRecord(std::string&& record) {
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::move(record)))) {
-    return Fail(*impl_);
-  }
-  return true;
-}
-
-bool RecordWriter::WriteRecord(const Chain& record) {
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(record))) {
-    return Fail(*impl_);
-  }
-  return true;
-}
-
-bool RecordWriter::WriteRecord(Chain&& record) {
-  if (RIEGELI_UNLIKELY(!EnsureRoomForRecord(record.size()))) return false;
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::move(record)))) {
-    return Fail(*impl_);
-  }
-  return true;
-}
-
-inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
+template <typename Record>
+bool RecordWriter::WriteRecordImpl(Record&& record, RecordPosition* key) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
-  const uint64_t added_size =
-      RIEGELI_UNLIKELY(record_size >
-                       std::numeric_limits<uint64_t>::max() - sizeof(uint64_t))
-          ? std::numeric_limits<uint64_t>::max()
-          : IntCast<uint64_t>(record_size) + sizeof(uint64_t);
+  const uint64_t added_size = SaturatingAdd(
+      IntCast<uint64_t>(RecordSize(record)), uint64_t{sizeof(uint64_t)});
   if (RIEGELI_UNLIKELY(chunk_size_so_far_ > desired_chunk_size_ ||
                        added_size > desired_chunk_size_ - chunk_size_so_far_) &&
       chunk_size_so_far_ > 0) {
@@ -540,8 +552,23 @@ inline bool RecordWriter::EnsureRoomForRecord(size_t record_size) {
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
+  if (key != nullptr) *key = impl_->Pos();
+  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::forward<Record>(record)))) {
+    return Fail(*impl_);
+  }
   return true;
 }
+
+template bool RecordWriter::WriteRecordImpl(const google::protobuf::MessageLite& record,
+                                            RecordPosition* key);
+template bool RecordWriter::WriteRecordImpl(const absl::string_view& record,
+                                            RecordPosition* key);
+template bool RecordWriter::WriteRecordImpl(std::string&& record,
+                                            RecordPosition* key);
+template bool RecordWriter::WriteRecordImpl(const Chain& record,
+                                            RecordPosition* key);
+template bool RecordWriter::WriteRecordImpl(Chain&& record,
+                                            RecordPosition* key);
 
 bool RecordWriter::Flush(FlushType flush_type) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
@@ -557,6 +584,11 @@ bool RecordWriter::Flush(FlushType flush_type) {
     chunk_size_so_far_ = 0;
   }
   return true;
+}
+
+RecordPosition RecordWriter::Pos() const {
+  if (RIEGELI_UNLIKELY(impl_ == nullptr)) return RecordPosition();
+  return impl_->Pos();
 }
 
 }  // namespace riegeli

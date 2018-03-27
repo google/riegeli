@@ -41,7 +41,9 @@ DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
 
 DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
     : ChunkWriter(State::kOpen),
-      byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {}
+      byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {
+  pos_ = byte_writer_->pos();
+}
 
 void DefaultChunkWriter::Done() {
   if (owned_byte_writer_ != nullptr) {
@@ -53,6 +55,7 @@ void DefaultChunkWriter::Done() {
     owned_byte_writer_.reset();
   }
   byte_writer_ = nullptr;
+  ChunkWriter::Done();
 }
 
 bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
@@ -61,9 +64,10 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
          "Wrong chunk data hash";
   StringReader header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader data_reader(&chunk.data);
-  const Position chunk_begin = byte_writer_->pos();
-  const Position chunk_end =
-      internal::ChunkEnd(chunk.header, IntCast<uint64_t>(chunk_begin));
+  const Position chunk_begin = pos_;
+  const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
+  RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_begin)
+      << "Unexpected position before writing chunk";
   if (RIEGELI_UNLIKELY(!WriteSection(&header_reader, chunk_begin, chunk_end))) {
     return false;
   }
@@ -75,6 +79,7 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   }
   RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_end)
       << "Unexpected position after writing chunk";
+  pos_ = chunk_end;
   return true;
 }
 
@@ -132,7 +137,5 @@ bool DefaultChunkWriter::Flush(FlushType flush_type) {
   }
   return true;
 }
-
-Position DefaultChunkWriter::pos() const { return byte_writer_->pos(); }
 
 }  // namespace riegeli

@@ -67,6 +67,8 @@ class DeferredEncoder : public ChunkEncoder {
   Chain records_;
   ChainWriter records_writer_;
   // Sorted record end positions.
+  //
+  // Invariant: limits_.size() == num_records_
   std::vector<size_t> limits_;
 
   // Invariant: records_writer_.pos() == (limits_.empty() ? 0 : limits_.back())

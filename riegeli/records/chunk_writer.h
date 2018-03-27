@@ -72,7 +72,12 @@ class ChunkWriter : public Object {
   virtual bool Flush(FlushType flush_type) = 0;
 
   // Returns the current byte position.
-  virtual Position pos() const = 0;
+  Position pos() const { return pos_; }
+
+ protected:
+  void Done() override;
+
+  Position pos_ = 0;
 };
 
 // The default ChunkWriter. Writes chunks to a byte Writer, interleaving them
@@ -89,7 +94,6 @@ class DefaultChunkWriter final : public ChunkWriter {
 
   bool WriteChunk(const Chunk& chunk) override;
   bool Flush(FlushType flush_type) override;
-  Position pos() const override;
 
  protected:
   void Done() override;
@@ -102,6 +106,10 @@ class DefaultChunkWriter final : public ChunkWriter {
   // Invariant: if healthy() then byte_writer_ != nullptr
   Writer* byte_writer_;
 };
+
+// Implementation details follow.
+
+inline void ChunkWriter::Done() { pos_ = 0; }
 
 }  // namespace riegeli
 

@@ -7,7 +7,9 @@ cc_library(
     srcs = ["record_writer.cc"],
     hdrs = ["record_writer.h"],
     deps = [
+        ":block",
         ":chunk_writer",
+        ":record_position",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:options_parser",

@@ -44,14 +44,13 @@ SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
       values_compressor_(options, size_hint) {}
 
 void SimpleEncoder::Done() {
-  num_records_ = 0;
   if (RIEGELI_UNLIKELY(!sizes_compressor_.Close())) Fail(sizes_compressor_);
   if (RIEGELI_UNLIKELY(!values_compressor_.Close())) Fail(values_compressor_);
+  ChunkEncoder::Done();
 }
 
 void SimpleEncoder::Reset() {
-  MarkHealthy();
-  num_records_ = 0;
+  ChunkEncoder::Reset();
   sizes_compressor_.Reset();
   values_compressor_.Reset();
 }

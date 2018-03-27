@@ -38,9 +38,11 @@ void DeferredEncoder::Done() {
   records_ = Chain();
   records_writer_ = ChainWriter();
   limits_ = std::vector<size_t>();
+  ChunkEncoder::Done();
 }
 
 void DeferredEncoder::Reset() {
+  ChunkEncoder::Reset();
   base_encoder_->Reset();
   records_.Clear();
   records_writer_ = ChainWriter(&records_);
@@ -61,11 +63,12 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
         "Failed to serialize message of type ", record.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
-  if (RIEGELI_UNLIKELY(limits_.size() ==
+  if (RIEGELI_UNLIKELY(num_records_ ==
                        UnsignedMin(limits_.max_size(),
                                    std::numeric_limits<uint64_t>::max()))) {
     return Fail("Too many records");
   }
+  ++num_records_;
   if (RIEGELI_UNLIKELY(!SerializePartialToWriter(record, &records_writer_))) {
     return Fail(records_writer_);
   }
@@ -92,11 +95,12 @@ bool DeferredEncoder::AddRecord(Chain&& record) {
 template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
   if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(limits_.size() ==
+  if (RIEGELI_UNLIKELY(num_records_ ==
                        UnsignedMin(limits_.max_size(),
                                    std::numeric_limits<uint64_t>::max()))) {
     return Fail("Too many records");
   }
+  ++num_records_;
   if (RIEGELI_UNLIKELY(!records_writer_.Write(std::forward<Record>(record)))) {
     return Fail(records_writer_);
   }
@@ -112,9 +116,10 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   if (RIEGELI_UNLIKELY(limits.size() >
                        UnsignedMin(limits_.max_size(),
                                    std::numeric_limits<uint64_t>::max()) -
-                           limits_.size())) {
+                           num_records_)) {
     return Fail("Too many records");
   }
+  num_records_ += IntCast<uint64_t>(limits.size());
   if (RIEGELI_UNLIKELY(!records_writer_.Write(std::move(records)))) {
     return Fail(records_writer_);
   }

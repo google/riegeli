@@ -295,8 +295,7 @@ class TransposeEncoder : public ChunkEncoder {
   // but makes field filtering more effective.
   uint64_t bucket_size_;
 
-  uint64_t num_records_;
-  uint64_t decoded_data_size_;
+  uint64_t decoded_data_size_ = 0;
   internal::Compressor compressor_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
@@ -314,7 +313,7 @@ class TransposeEncoder : public ChunkEncoder {
   Chain nonproto_lengths_;
   ChainBackwardWriter nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
-  internal::MessageId next_message_id_;
+  internal::MessageId next_message_id_ = internal::MessageId::kRoot + 1;
 };
 
 }  // namespace riegeli

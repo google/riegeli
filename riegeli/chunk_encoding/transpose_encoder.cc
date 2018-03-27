@@ -195,16 +195,12 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
       bucket_size_(options.compression_type() == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
-      num_records_(0),
-      decoded_data_size_(0),
       compressor_(options),
-      nonproto_lengths_writer_(&nonproto_lengths_),
-      next_message_id_(internal::MessageId::kRoot + 1) {}
+      nonproto_lengths_writer_(&nonproto_lengths_) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
 void TransposeEncoder::Done() {
-  num_records_ = 0;
   decoded_data_size_ = 0;
   if (RIEGELI_UNLIKELY(!compressor_.Close())) Fail(compressor_);
   tags_list_ = std::vector<EncodedTagInfo>();
@@ -219,11 +215,11 @@ void TransposeEncoder::Done() {
   }
   nonproto_lengths_ = Chain();
   next_message_id_ = internal::MessageId::kRoot + 1;
+  ChunkEncoder::Done();
 }
 
 void TransposeEncoder::Reset() {
-  MarkHealthy();
-  num_records_ = 0;
+  ChunkEncoder::Reset();
   decoded_data_size_ = 0;
   compressor_.Reset();
   tags_list_.clear();

@@ -39,7 +39,7 @@ class ChunkEncoder : public Object {
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;
 
   // Resets the ChunkEncoder back to empty.
-  virtual void Reset() = 0;
+  virtual void Reset();
 
   // Adds the next record.
   //
@@ -68,6 +68,9 @@ class ChunkEncoder : public Object {
   //  * false - failure (!healthy())
   virtual bool AddRecords(Chain records, std::vector<size_t> limits) = 0;
 
+  // Returns the number of records added so far.
+  uint64_t num_records() const { return num_records_; }
+
   // Encodes the chunk to *dest, setting *num_records and *decoded_data_size.
   // Closes the ChunkEncoder.
   //
@@ -87,7 +90,21 @@ class ChunkEncoder : public Object {
 
   // Returns the chunk type to write in a chunk header.
   virtual ChunkType GetChunkType() const = 0;
+
+ protected:
+  void Done() override;
+
+  uint64_t num_records_ = 0;
 };
+
+// Implementation details follow.
+
+inline void ChunkEncoder::Done() { num_records_ = 0; }
+
+inline void ChunkEncoder::Reset() {
+  MarkHealthy();
+  num_records_ = 0;
+}
 
 // Implementation details follow.
 

@@ -72,7 +72,6 @@ class SimpleEncoder final : public ChunkEncoder {
   bool AddRecordImpl(Record&& record);
 
   CompressionType compression_type_;
-  uint64_t num_records_ = 0;
   internal::Compressor sizes_compressor_;
   internal::Compressor values_compressor_;
 };
