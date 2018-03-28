@@ -36,33 +36,33 @@ namespace riegeli {
 RecordReader::RecordReader() noexcept : Object(State::kClosed) {}
 
 RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
-    : RecordReader(absl::make_unique<ChunkReader>(
-                       std::move(byte_reader),
-                       ChunkReader::Options().set_skip_corruption(
-                           options.skip_corruption_)),
-                   std::move(options)) {}
+    : RecordReader(
+          absl::make_unique<ChunkReader>(
+              std::move(byte_reader),
+              ChunkReader::Options().set_skip_errors(options.skip_errors_)),
+          std::move(options)) {}
 
 RecordReader::RecordReader(Reader* byte_reader, Options options)
     : RecordReader(absl::make_unique<ChunkReader>(
-                       byte_reader, ChunkReader::Options().set_skip_corruption(
-                                        options.skip_corruption_)),
+                       byte_reader, ChunkReader::Options().set_skip_errors(
+                                        options.skip_errors_)),
                    std::move(options)) {}
 
 inline RecordReader::RecordReader(std::unique_ptr<ChunkReader> chunk_reader,
                                   Options options)
     : Object(State::kOpen),
       chunk_reader_(std::move(chunk_reader)),
-      skip_corruption_(options.skip_corruption_),
+      skip_errors_(options.skip_errors_),
       chunk_begin_(chunk_reader_->pos()),
       chunk_decoder_(ChunkDecoder::Options()
-                         .set_skip_corruption(options.skip_corruption_)
+                         .set_skip_errors(options.skip_errors_)
                          .set_field_filter(std::move(options.field_filter_))) {
-  if (chunk_begin_ == 0 && !skip_corruption_) {
+  if (chunk_begin_ == 0 && !skip_errors_) {
     // Verify file signature before any records are read, done proactively here
     // in case the caller calls Seek() before ReadRecord(). This is not done if
-    // skip_corruption_ is true because in this case invalid file beginning
-    // would cause scanning the file until a valid chunk is found, which might
-    // not be intended.
+    // skip_errors_ is true because in this case invalid file beginning would
+    // cause scanning the file until a valid chunk is found, which might not be
+    // intended.
     ReadChunk();
   }
 }
@@ -70,31 +70,79 @@ inline RecordReader::RecordReader(std::unique_ptr<ChunkReader> chunk_reader,
 RecordReader::RecordReader(RecordReader&& src) noexcept
     : Object(std::move(src)),
       chunk_reader_(std::move(src.chunk_reader_)),
-      skip_corruption_(riegeli::exchange(src.skip_corruption_, false)),
+      skip_errors_(riegeli::exchange(src.skip_errors_, false)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
       chunk_decoder_(std::move(src.chunk_decoder_)),
-      corrupted_bytes_skipped_(
-          riegeli::exchange(src.corrupted_bytes_skipped_, 0)) {}
+      bytes_skipped_(riegeli::exchange(src.bytes_skipped_, 0)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   Object::operator=(std::move(src));
   chunk_reader_ = std::move(src.chunk_reader_);
-  skip_corruption_ = riegeli::exchange(src.skip_corruption_, false);
+  skip_errors_ = riegeli::exchange(src.skip_errors_, false);
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
-  corrupted_bytes_skipped_ = riegeli::exchange(src.corrupted_bytes_skipped_, 0);
+  bytes_skipped_ = riegeli::exchange(src.bytes_skipped_, 0);
   return *this;
 }
 
 void RecordReader::Done() {
   if (chunk_reader_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) Fail(*chunk_reader_);
-    // Do not reset chunk_reader_ so that corrupted_bytes_skipped() remains
+    // Do not reset chunk_reader_ so that bytes_skipped() remains
     // available.
   }
-  skip_corruption_ = false;
+  skip_errors_ = false;
   chunk_begin_ = 0;
   chunk_decoder_ = ChunkDecoder();
+}
+
+bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
+                                  RecordPosition* key, uint64_t index_before) {
+  RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
+      << "Failed precondition of RecordReader::ReadRecordSlow(): "
+         "records available, use ReadRecord() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  for (;;) {
+    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
+      RIEGELI_ASSERT(!skip_errors_)
+          << "ChunkDecoder::ReadRecord() made ChunkDecoder unhealthy "
+             "but skip_errors is true";
+      return Fail(chunk_decoder_);
+    }
+    if (skip_errors_) {
+      RIEGELI_ASSERT_GE(chunk_decoder_.index(), index_before)
+          << "ChunkDecoder::ReadRecord() decremented record index";
+      if (ABSL_PREDICT_FALSE(chunk_decoder_.index() > index_before)) {
+        // Last records of the chunk were skipped. In bytes_skipped_, account
+        // for them as the rest of the chunk size.
+        RIEGELI_ASSERT_GE(chunk_reader_->pos(), chunk_begin_)
+            << "Failed invariant of RecordReader: negative chunk size";
+        const Position chunk_size = chunk_reader_->pos() - chunk_begin_;
+        RIEGELI_ASSERT_LE(chunk_decoder_.index(), chunk_size)
+            << "Failed invariant of RecordReader: "
+               "number of records greater than chunk size";
+        bytes_skipped_ =
+            SaturatingAdd(bytes_skipped_, chunk_size - index_before);
+      }
+    }
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+    index_before = chunk_decoder_.index();
+    if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+      RIEGELI_ASSERT_GT(chunk_decoder_.index(), index_before)
+          << "ChunkDecoder::ReadRecord() did not increment record index";
+      if (key != nullptr) {
+        *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+      }
+      const uint64_t records_skipped =
+          chunk_decoder_.index() - index_before - 1;
+      if (ABSL_PREDICT_FALSE(records_skipped > 0)) {
+        // Records other than last records of the chunk were skipped.
+        // In bytes_skipped_, account for them as one byte each.
+        bytes_skipped_ = SaturatingAdd(bytes_skipped_, records_skipped);
+      }
+      return true;
+    }
+  }
 }
 
 template <typename Record>
@@ -103,26 +151,22 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
       << "Failed precondition of RecordReader::ReadRecordSlow(): "
          "records available, use ReadRecord() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT(chunk_decoder_.healthy())
-      << "Failed invariant of RecordReader: "
-         "RecordReader healthy but ChunkDecoder unhealthy";
   for (;;) {
+    RIEGELI_ASSERT(chunk_decoder_.healthy())
+        << "ChunkDecoder::ReadRecord() made ChunkDecoder unhealthy "
+           "but record was not being parsed to a proto message";
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
-    uint64_t index;
-    if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
-      if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+    if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+      if (key != nullptr) {
+        RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+            << "ChunkDecoder::ReadRecord() left record index at 0";
+        *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+      }
       return true;
-    }
-    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
-      RIEGELI_ASSERT(!skip_corruption_)
-          << "ChunkDecoder failed but skip_corruption is true";
-      return Fail(chunk_decoder_);
     }
   }
 }
 
-template bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
-                                           RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(absl::string_view* record,
                                            RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* key);
@@ -223,10 +267,10 @@ inline bool RecordReader::ReadChunk() {
       // called again if needed.
     }
     if (ABSL_PREDICT_TRUE(chunk_decoder_.Reset(chunk))) return true;
-    if (!skip_corruption_) return Fail(chunk_decoder_);
+    if (!skip_errors_) return Fail(chunk_decoder_);
     chunk_decoder_.Reset();
-    corrupted_bytes_skipped_ = SaturatingAdd(
-        corrupted_bytes_skipped_, chunk_reader_->pos() - chunk_begin_);
+    bytes_skipped_ =
+        SaturatingAdd(bytes_skipped_, chunk_reader_->pos() - chunk_begin_);
   }
 }
 

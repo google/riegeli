@@ -53,16 +53,19 @@ class ChunkDecoder : public Object {
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
-    // If true, corrupted records will be skipped. if false, corrupted records
-    // will cause reading to fail.
+    // If true, unparsable records will be skipped. If false, they will cause
+    // reading to fail.
+    //
+    // This affects ReadRecord() but not Reset(Chunk) which still fails when the
+    // chunk cannot be decoded.
     //
     // Default: false
-    Options& set_skip_corruption(bool skip_corruption) & {
-      skip_corruption_ = skip_corruption;
+    Options& set_skip_errors(bool skip_errors) & {
+      skip_errors_ = skip_errors;
       return *this;
     }
-    Options&& set_skip_corruption(bool skip_corruption) && {
-      return std::move(set_skip_corruption(skip_corruption));
+    Options&& set_skip_errors(bool skip_errors) && {
+      return std::move(set_skip_errors(skip_errors));
     }
 
     // Specifies the set of fields to be included in returned records, allowing
@@ -79,7 +82,7 @@ class ChunkDecoder : public Object {
    private:
     friend class ChunkDecoder;
 
-    bool skip_corruption_ = false;
+    bool skip_errors_ = false;
     FieldFilter field_filter_ = FieldFilter::All();
   };
 
@@ -111,16 +114,20 @@ class ChunkDecoder : public Object {
   // Return values:
   //  * true                    - success (*record is set, healthy())
   //  * false (when healthy())  - chunk ends
-  //  * false (when !healthy()) - failure (impossible if healthy() on entry and
-  //                              skip_corruption is true)
-  bool ReadRecord(google::protobuf::MessageLite* record, uint64_t* key = nullptr);
-  bool ReadRecord(absl::string_view* record, uint64_t* key = nullptr);
-  bool ReadRecord(std::string* record, uint64_t* key = nullptr);
-  bool ReadRecord(Chain* record, uint64_t* key = nullptr);
+  //  * false (when !healthy()) - failure (only for ReadRecord(MessageLite*)
+  //                              when skip_errors is false, or if !healthy()
+  //                              on entry)
+  bool ReadRecord(google::protobuf::MessageLite* record);
+  bool ReadRecord(absl::string_view* record);
+  bool ReadRecord(std::string* record);
+  bool ReadRecord(Chain* record);
 
   uint64_t index() const { return index_; }
   void SetIndex(uint64_t index);
   uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
+
+  // Returns the number of records skipped because they could not be parsed.
+  Position records_skipped() const { return records_skipped_; }
 
  protected:
   void Done() override;
@@ -129,7 +136,7 @@ class ChunkDecoder : public Object {
   bool Parse(ChunkType chunk_type, const ChunkHeader& header, ChainReader* src,
              Chain* dest);
 
-  bool skip_corruption_;
+  bool skip_errors_;
   FieldFilter field_filter_;
   // Invariants:
   //   limits_ are sorted
@@ -140,15 +147,16 @@ class ChunkDecoder : public Object {
   // Invariants:
   //   index_ <= num_records()
   //   if !healthy() then index_ == num_records()
-  uint64_t index_;
+  uint64_t index_ = 0;
   std::string record_scratch_;
+  // Number of records skipped because they could not be parsed.
+  Position records_skipped_ = 0;
 };
 
 // Implementation details follow.
 
-inline bool ChunkDecoder::ReadRecord(absl::string_view* record, uint64_t* key) {
+inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   if (ABSL_PREDICT_FALSE(index_ == limits_.size())) return false;
-  if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -160,9 +168,8 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record, uint64_t* key) {
   return true;
 }
 
-inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
+inline bool ChunkDecoder::ReadRecord(std::string* record) {
   if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
-  if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -175,9 +182,8 @@ inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
   return true;
 }
 
-inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
+inline bool ChunkDecoder::ReadRecord(Chain* record) {
   if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
-  if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)

@@ -70,16 +70,16 @@ class RecordReader final : public Object {
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
-    // If true, corrupted regions will be skipped. if false, corrupted regions
-    // will cause reading to fail.
+    // If true, corrupted regions and unparsable records will be skipped.
+    // If false, they will cause reading to fail.
     //
     // Default: false
-    Options& set_skip_corruption(bool skip_corruption) & {
-      skip_corruption_ = std::move(skip_corruption);
+    Options& set_skip_errors(bool skip_errors) & {
+      skip_errors_ = skip_errors;
       return *this;
     }
-    Options&& set_skip_corruption(bool skip_corruption) && {
-      return std::move(set_skip_corruption(skip_corruption));
+    Options&& set_skip_errors(bool skip_errors) && {
+      return std::move(set_skip_errors(skip_errors));
     }
 
     // Specifies the set of fields to be included in returned records, allowing
@@ -100,7 +100,7 @@ class RecordReader final : public Object {
    private:
     friend class RecordReader;
 
-    bool skip_corruption_ = false;
+    bool skip_errors_ = false;
     FieldFilter field_filter_ = FieldFilter::All();
   };
 
@@ -192,8 +192,14 @@ class RecordReader final : public Object {
   bool Search(std::function<bool(int*)>, bool* found);
 #endif
 
-  // Returns the amount of data skipped because of corruption, in bytes.
-  Position corrupted_bytes_skipped() const;
+  // Returns the number of bytes skipped because of corrupted regions or
+  // unparsable records.
+  //
+  // An unparsable record counts as the number of bytes between the canonical
+  // record position of that record and the next record, i.e. it counts as one
+  // byte, except that the last record of a chunk counts as the rest of the
+  // chunk size.
+  Position bytes_skipped() const;
 
  protected:
   void Done() override;
@@ -201,7 +207,9 @@ class RecordReader final : public Object {
  private:
   RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
 
-  // Precondition: chunk_decoder_.index() < chunk_decoder_.num_records()
+  // Precondition: chunk_decoder_.index() == chunk_decoder_.num_records()
+  bool ReadRecordSlow(google::protobuf::MessageLite* record, RecordPosition* key,
+                      uint64_t index_before);
   template <typename Record>
   bool ReadRecordSlow(Record* record, RecordPosition* key);
 
@@ -211,7 +219,7 @@ class RecordReader final : public Object {
 
   // Invariant: if healthy() then chunk_reader_ != nullptr
   std::unique_ptr<ChunkReader> chunk_reader_;
-  bool skip_corruption_ = false;
+  bool skip_errors_ = false;
   // Position of the beginning of the current chunk or end of file, except when
   // Seek(Position) failed to locate the chunk containing the position, in which
   // case this is that position.
@@ -222,46 +230,63 @@ class RecordReader final : public Object {
   //   if healthy() then chunk_decoder_.healthy()
   //   if !healthy() then chunk_decoder_.index() == chunk_decoder_.num_records()
   ChunkDecoder chunk_decoder_;
-  // The amount of data skipped because of corruption, in bytes, in addition to
-  // chunk_reader_->corrupted_bytes_skipped().
-  Position corrupted_bytes_skipped_ = 0;
+  // The number of bytes skipped because of corrupted regions or unparsable
+  // records, in addition to chunk_reader_->bytes_skipped().
+  Position bytes_skipped_ = 0;
 };
 
 // Implementation details follow.
 
 inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
                                      RecordPosition* key) {
-  uint64_t index;
-  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
-    if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+  const uint64_t index_before = chunk_decoder_.index();
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), index_before)
+        << "ChunkDecoder::ReadRecord() did not increment record index";
+    if (key != nullptr) {
+      *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+    }
+    const uint64_t records_skipped = chunk_decoder_.index() - index_before - 1;
+    if (ABSL_PREDICT_FALSE(records_skipped > 0)) {
+      bytes_skipped_ = SaturatingAdd(bytes_skipped_, records_skipped);
+    }
     return true;
   }
-  return ReadRecordSlow(record, key);
+  return ReadRecordSlow(record, key, index_before);
 }
 
 inline bool RecordReader::ReadRecord(absl::string_view* record,
                                      RecordPosition* key) {
-  uint64_t index;
-  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
-    if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    if (key != nullptr) {
+      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+          << "ChunkDecoder::ReadRecord() left record index at 0";
+      *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+    }
     return true;
   }
   return ReadRecordSlow(record, key);
 }
 
 inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
-  uint64_t index;
-  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
-    if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    if (key != nullptr) {
+      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+          << "ChunkDecoder::ReadRecord() left record index at 0";
+      *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+    }
     return true;
   }
   return ReadRecordSlow(record, key);
 }
 
 inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
-  uint64_t index;
-  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
-    if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    if (key != nullptr) {
+      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+          << "ChunkDecoder::ReadRecord() left record index at 0";
+      *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+    }
     return true;
   }
   return ReadRecordSlow(record, key);
@@ -285,10 +310,9 @@ inline bool RecordReader::Size(Position* size) const {
   return chunk_reader_->Size(size);
 }
 
-inline Position RecordReader::corrupted_bytes_skipped() const {
+inline Position RecordReader::bytes_skipped() const {
   if (ABSL_PREDICT_FALSE(chunk_reader_ == nullptr)) return 0;
-  return SaturatingAdd(chunk_reader_->corrupted_bytes_skipped(),
-                       corrupted_bytes_skipped_);
+  return SaturatingAdd(chunk_reader_->bytes_skipped(), bytes_skipped_);
 }
 
 }  // namespace riegeli

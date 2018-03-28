@@ -48,7 +48,7 @@ ChunkReader::ChunkReader(std::unique_ptr<Reader> byte_reader, Options options)
 ChunkReader::ChunkReader(Reader* byte_reader, Options options)
     : Object(State::kOpen),
       byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)),
-      skip_corruption_(options.skip_corruption_),
+      skip_errors_(options.skip_errors_),
       pos_(byte_reader_->pos()),
       is_recovering_(
           internal::IsBlockBoundary(pos_) ||
@@ -78,7 +78,7 @@ void ChunkReader::Done() {
     // file because HopeForMore() is true, so the caller could have retried
     // reading a growing file. It turned out that the caller did not retry
     // reading, so Close() reports the incomplete chunk as corruption.
-    if (!skip_corruption_) {
+    if (!skip_errors_) {
       Fail("Truncated Riegeli/records file");
     } else {
       PrepareForRecovering();
@@ -95,10 +95,10 @@ void ChunkReader::Done() {
     owned_byte_reader_.reset();
   }
   byte_reader_ = nullptr;
-  skip_corruption_ = false;
+  skip_errors_ = false;
   pos_ = 0;
   current_chunk_is_incomplete_ = false;
-  // corrupted_bytes_skipped_ is not cleared.
+  // bytes_skipped_ is not cleared.
   if (is_recovering_) {
     recovering_ = Recovering();
   } else {
@@ -112,7 +112,7 @@ inline bool ChunkReader::ReadingFailed() {
     return false;
   }
   if (byte_reader_->healthy()) {
-    if (!skip_corruption_) return Fail("Truncated Riegeli/records file");
+    if (!skip_errors_) return Fail("Truncated Riegeli/records file");
     PrepareForRecovering();
     recovering_.corrupted = true;
     SeekOverCorruption(byte_reader_->pos());
@@ -183,7 +183,7 @@ again:
 
   if (ABSL_PREDICT_FALSE(internal::Hash(reading_.chunk.data) !=
                          reading_.chunk.header.data_hash())) {
-    if (!skip_corruption_) return Fail("Corrupted Riegeli/records file");
+    if (!skip_errors_) return Fail("Corrupted Riegeli/records file");
     PrepareForRecovering();
     recovering_.corrupted = true;
     SeekOverCorruption(chunk_end);
@@ -247,7 +247,7 @@ inline bool ChunkReader::ReadChunkHeader() {
 
   if (ABSL_PREDICT_FALSE(reading_.chunk.header.computed_header_hash() !=
                          reading_.chunk.header.stored_header_hash())) {
-    if (!skip_corruption_) return Fail("Corrupted Riegeli/records file");
+    if (!skip_errors_) return Fail("Corrupted Riegeli/records file");
     PrepareForRecovering();
     recovering_.corrupted = true;
     return false;
@@ -266,7 +266,7 @@ inline bool ChunkReader::ReadBlockHeader() {
   }
   if (ABSL_PREDICT_FALSE(block_header_.computed_header_hash() !=
                          block_header_.stored_header_hash())) {
-    if (!skip_corruption_) return Fail("Corrupted Riegeli/records file");
+    if (!skip_errors_) return Fail("Corrupted Riegeli/records file");
     PrepareForRecovering();
     recovering_.corrupted = true;
     SeekOverCorruption(byte_reader_->pos());
@@ -303,8 +303,7 @@ inline void ChunkReader::SeekOverCorruption(Position new_pos) {
       << "Failed precondition of ChunkReader::SeekOverCorruption(): "
          "seeking backwards";
   if (recovering_.corrupted) {
-    corrupted_bytes_skipped_ =
-        SaturatingAdd(corrupted_bytes_skipped_, new_pos - pos_);
+    bytes_skipped_ = SaturatingAdd(bytes_skipped_, new_pos - pos_);
   }
   pos_ = new_pos;
 }
@@ -363,7 +362,7 @@ again:
 }
 
 inline bool ChunkReader::InvalidChunkBoundary() {
-  if (!skip_corruption_) {
+  if (!skip_errors_) {
     return Fail("Invalid Riegeli/records file: invalid chunk boundary");
   }
   PrepareForRecovering();

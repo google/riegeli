@@ -44,22 +44,22 @@ class ChunkReader final : public Object {
     // https://stackoverflow.com/questions/17430377
     constexpr Options() noexcept {}
 
-    // If true, corrupted regions will be skipped. if false, corrupted regions
-    // will cause reading to fail.
+    // If true, corrupted regions will be skipped. If false, they will cause
+    // reading to fail.
     //
     // Default: false
-    Options& set_skip_corruption(bool skip_corruption) & {
-      skip_corruption_ = std::move(skip_corruption);
+    Options& set_skip_errors(bool skip_errors) & {
+      skip_errors_ = skip_errors;
       return *this;
     }
-    Options&& set_skip_corruption(bool skip_corruption) && {
-      return std::move(set_skip_corruption(skip_corruption));
+    Options&& set_skip_errors(bool skip_errors) && {
+      return std::move(set_skip_errors(skip_errors));
     }
 
    private:
     friend class ChunkReader;
 
-    bool skip_corruption_ = false;
+    bool skip_errors_ = false;
   };
 
   // Will read chunks from the byte Reader which is owned by this ChunkReader
@@ -79,7 +79,7 @@ class ChunkReader final : public Object {
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
-  // options.set_skip_corruption(true) should not be used, otherwise the whole
+  // options.set_skip_errors(true) should not be used, otherwise the whole
   // file will be scanned for a valid chunk.
   //
   // Return values:
@@ -151,8 +151,8 @@ class ChunkReader final : public Object {
   //  * false - failure (healthy() is unchanged)
   bool Size(Position* size) const;
 
-  // Returns the amount of data skipped because of corruption, in bytes.
-  Position corrupted_bytes_skipped() const { return corrupted_bytes_skipped_; }
+  // Returns the number of bytes skipped because of corrupted regions.
+  Position bytes_skipped() const { return bytes_skipped_; }
 
  protected:
   void Done() override;
@@ -226,7 +226,7 @@ class ChunkReader final : public Object {
   std::unique_ptr<Reader> owned_byte_reader_;
   // Invariant: if healthy() then byte_reader_ != nullptr
   Reader* byte_reader_;
-  bool skip_corruption_;
+  bool skip_errors_;
 
   // Current position, excluding data buffered in reading_ or implied by
   // recovering_.
@@ -240,11 +240,11 @@ class ChunkReader final : public Object {
   // a truncated file because HopeForMore() is true.
   bool current_chunk_is_incomplete_ = false;
 
-  // The amount of data skipped because of corruption, in bytes.
-  Position corrupted_bytes_skipped_ = 0;
+  // The number of bytes skipped because of corrupted regions.
+  Position bytes_skipped_ = 0;
 
   // If true, recovery is needed (a chunk must be located using block headers),
-  // either because corruption was detected and skip_corruption_ is true, or
+  // either because corruption was detected and skip_errors_ is true, or
   // after seeking to a block boundary.
   //
   // If false, the next chunk can be read from byte_reader_, or a truncated

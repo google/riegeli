@@ -39,29 +39,30 @@ namespace riegeli {
 
 ChunkDecoder::ChunkDecoder(Options options)
     : Object(State::kOpen),
-      skip_corruption_(options.skip_corruption_),
+      skip_errors_(options.skip_errors_),
       field_filter_(std::move(options.field_filter_)),
-      values_reader_(Chain()),
-      index_(0) {}
+      values_reader_(Chain()) {}
 
 ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
     : Object(std::move(src)),
-      skip_corruption_(src.skip_corruption_),
+      skip_errors_(src.skip_errors_),
       field_filter_(std::move(src.field_filter_)),
       limits_(std::move(src.limits_)),
       values_reader_(
           riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
       index_(riegeli::exchange(src.index_, 0)),
-      record_scratch_(riegeli::exchange(src.record_scratch_, std::string())) {}
+      record_scratch_(riegeli::exchange(src.record_scratch_, std::string())),
+      records_skipped_(riegeli::exchange(src.records_skipped_, 0)) {}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
-  skip_corruption_ = src.skip_corruption_;
+  skip_errors_ = src.skip_errors_;
   field_filter_ = std::move(src.field_filter_);
   limits_ = std::move(src.limits_);
   values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
   index_ = riegeli::exchange(src.index_, 0);
   record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
+  records_skipped_ = riegeli::exchange(src.records_skipped_, 0);
   return *this;
 }
 
@@ -164,10 +165,9 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
       absl::StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
 }
 
-bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* key) {
+bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   for (;;) {
     if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
-    if (key != nullptr) *key = index_;
     const size_t start = IntCast<size_t>(values_reader_.pos());
     const size_t limit = limits_[IntCast<size_t>(index_++)];
     RIEGELI_ASSERT_LE(start, limit)
@@ -181,7 +181,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* k
             << "Closing message reader failed: " << message_reader.Message();
       }
       if (ABSL_PREDICT_TRUE(record->IsInitialized())) return true;
-      if (!skip_corruption_) {
+      if (!skip_errors_) {
         index_ = num_records();
         return Fail(absl::StrCat("Failed to parse message of type ",
                                  record->GetTypeName(),
@@ -194,23 +194,13 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* k
         RIEGELI_ASSERT_UNREACHABLE()
             << "Seeking record values failed: " << values_reader_.Message();
       }
-      if (!skip_corruption_) {
+      if (!skip_errors_) {
         index_ = num_records();
         return Fail(absl::StrCat("Failed to parse message of type ",
                                  record->GetTypeName()));
       }
     }
-    // TODO: Corruption is being skipped here without accounting for
-    // this in RecordReader::corrupted_bytes_skipped_. But that would be tricky.
-    // Ordinarily corrupted_bytes_skipped_ measures file bytes (compressed),
-    // which is a meaningless concept when skipping a subset of records after
-    // decoding.
-    //
-    // We might account for record skipping in the same way as record positions:
-    // each record counts for 1 byte, except the last record in a chunk which
-    // counts for the remaining chunk size. This would maintain the property
-    // that when the whole file is skipped, corrupted_bytes_skipped_ is the file
-    // size.
+    records_skipped_ = SaturatingAdd(records_skipped_, Position{1});
   }
 }
 
