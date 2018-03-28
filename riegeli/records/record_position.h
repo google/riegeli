@@ -87,26 +87,30 @@ inline bool operator!=(RecordPosition a, RecordPosition b) {
 }
 
 inline bool operator<(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin())
+  if (a.chunk_begin() != b.chunk_begin()) {
     return a.chunk_begin() < b.chunk_begin();
+  }
   return a.record_index() < b.record_index();
 }
 
 inline bool operator>(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin())
+  if (a.chunk_begin() != b.chunk_begin()) {
     return a.chunk_begin() > b.chunk_begin();
+  }
   return a.record_index() > b.record_index();
 }
 
 inline bool operator<=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin())
+  if (a.chunk_begin() != b.chunk_begin()) {
     return a.chunk_begin() < b.chunk_begin();
+  }
   return a.record_index() <= b.record_index();
 }
 
 inline bool operator>=(RecordPosition a, RecordPosition b) {
-  if (a.chunk_begin() != b.chunk_begin())
+  if (a.chunk_begin() != b.chunk_begin()) {
     return a.chunk_begin() > b.chunk_begin();
+  }
   return a.record_index() >= b.record_index();
 }
 

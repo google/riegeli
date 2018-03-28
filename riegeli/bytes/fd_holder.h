@@ -1,8 +1,8 @@
 #ifndef RIEGELI_BYTES_FD_HOLDER_H_
 #define RIEGELI_BYTES_FD_HOLDER_H_
 
-#include <errno.h>
 #include <unistd.h>
+#include <cerrno>
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"

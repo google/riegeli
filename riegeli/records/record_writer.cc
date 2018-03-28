@@ -441,6 +441,7 @@ Position RecordWriter::ParallelImpl::ChunkBegin() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     pos = chunk_writer_pos_before_requests_;
+    chunks.reserve(chunk_writer_requests_.size());
     for (const auto& pending_request : chunk_writer_requests_) {
       RIEGELI_ASSERT(pending_request.request_type ==
                      RequestType::kWriteChunkRequest)

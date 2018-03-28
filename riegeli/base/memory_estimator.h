@@ -50,11 +50,11 @@ class MemoryEstimator {
  public:
   MemoryEstimator() {}
 
-  MemoryEstimator(const MemoryEstimator&);
-  MemoryEstimator& operator=(const MemoryEstimator&);
+  MemoryEstimator(const MemoryEstimator& src);
+  MemoryEstimator& operator=(const MemoryEstimator& src);
 
-  MemoryEstimator(MemoryEstimator&&) noexcept;
-  MemoryEstimator& operator=(MemoryEstimator&&) noexcept;
+  MemoryEstimator(MemoryEstimator&& src) noexcept;
+  MemoryEstimator& operator=(MemoryEstimator&& src) noexcept;
 
   // Registers the given amount of memory as used.
   void AddMemory(size_t memory);

@@ -24,13 +24,13 @@
 
 #include "riegeli/bytes/fd_reader.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cerrno>
 #include <limits>
 #include <string>
 #include <utility>

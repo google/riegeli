@@ -31,8 +31,7 @@ namespace riegeli {
 namespace {
 
 // POSIX strerror_r returns int.
-template <size_t buffer_size>
-std::string StrErrorResult(int result, char (&buffer)[buffer_size], int error_code) {
+std::string StrErrorResult(int result, const char* buffer, int error_code) {
   if (RIEGELI_UNLIKELY(result != 0)) {
     return absl::StrCat("Unknown error ", error_code);
   }
@@ -40,9 +39,7 @@ std::string StrErrorResult(int result, char (&buffer)[buffer_size], int error_co
 }
 
 // GNU strerror_r returns char*.
-template <size_t buffer_size>
-std::string StrErrorResult(char* result, char (&buffer)[buffer_size],
-                      int error_code) {
+std::string StrErrorResult(char* result, const char* buffer, int error_code) {
   return result;
 }
 
