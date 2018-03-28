@@ -1,17 +1,20 @@
 workspace(name = "com_google_riegeli")
 
-# Import Abseil (2018-03-21).
+# Import Abseil (2018-03-27).
 http_archive(
     name = "com_google_absl",
-    strip_prefix = "abseil-cpp-4e2e6c5c0071e6430056a8ef0a6c8a1fe584d8ff",
-    urls = ["https://github.com/abseil/abseil-cpp/archive/4e2e6c5c0071e6430056a8ef0a6c8a1fe584d8ff.zip"],
+    strip_prefix = "abseil-cpp-70b5fa948d920ccca86d143057497132f63a44f3",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/70b5fa948d920ccca86d143057497132f63a44f3.zip"],
 )
 
-# Import Brotli (2018-03-02).
+# Import Brotli (2018-03-27).
+
+# Temporarily depend on a non-released Brotli because it has a fix for a broken
+# build with new bazel regarding -Wimplicit-fallthrough.
 http_archive(
     name = "org_brotli",
-    strip_prefix = "brotli-1.0.3",
-    urls = ["https://github.com/google/brotli/archive/v1.0.3.zip"],
+    strip_prefix = "brotli-0f3c84e7458d2ef91a29fdf269e8ad016ae694ba",
+    urls = ["https://github.com/google/brotli/archive/0f3c84e7458d2ef91a29fdf269e8ad016ae694ba.zip"],
 )
 
 git_repository(
@@ -30,12 +33,12 @@ http_archive(
     ],
 )
 
-# Import Zstd (2017-12-21).
+# Import Zstd (2018-03-27).
 new_http_archive(
     name = "net_zstd",
     build_file = "net_zstd.BUILD",
-    strip_prefix = "zstd-1.3.3/lib",
-    urls = ["https://github.com/facebook/zstd/archive/v1.3.3.zip"],
+    strip_prefix = "zstd-1.3.4/lib",
+    urls = ["https://github.com/facebook/zstd/archive/v1.3.4.zip"],
 )
 
 # Import zlib (2017-01-15).
@@ -47,19 +50,19 @@ new_http_archive(
     urls = ["http://zlib.net/fossils/zlib-1.2.11.tar.gz"],
 )
 
-# Import HighwayHash (2018-01-03).
+# Import HighwayHash (2018-02-09).
 new_http_archive(
     name = "com_google_highwayhash",
     build_file = "com_google_highwayhash.BUILD",
-    strip_prefix = "highwayhash-eeea4463df1639c7ce271a1d0fdfa8ae5e81a49f",
-    urls = ["https://github.com/google/highwayhash/archive/eeea4463df1639c7ce271a1d0fdfa8ae5e81a49f.zip"],
+    strip_prefix = "highwayhash-14dedecd1de87cb662f7a882ea1578d2384feb2f",
+    urls = ["https://github.com/google/highwayhash/archive/14dedecd1de87cb662f7a882ea1578d2384feb2f.zip"],
 )
 
-# Import Tensorflow (2018-02-04) and Protobuf (2017-12-15).
+# Import Tensorflow (2018-02-28) and Protobuf (2017-12-15).
 http_archive(
     name = "org_tensorflow",
-    strip_prefix = "tensorflow-1.6.0-rc0",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/v1.6.0-rc0.zip"],
+    strip_prefix = "tensorflow-1.6.0",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/v1.6.0.zip"],
 )
 
 load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
