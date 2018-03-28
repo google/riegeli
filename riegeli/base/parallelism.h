@@ -16,10 +16,11 @@
 #define RIEGELI_BASE_PARALLELISM_H_
 
 #include <stddef.h>
-#include <condition_variable>
 #include <deque>
 #include <functional>
-#include <mutex>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
 namespace riegeli {
 namespace internal {
@@ -38,14 +39,11 @@ class ThreadPool {
   void Schedule(std::function<void()> task);
 
  private:
-  std::mutex mutex_;
-  // All variables below are guarded by mutex_.
-  bool exiting_ = false;
-  size_t num_threads_ = 0;
-  size_t num_idle_threads_ = 0;
-  std::deque<std::function<void()>> tasks_;
-  std::condition_variable has_work_;
-  std::condition_variable workers_exited_;
+  absl::Mutex mutex_;
+  bool exiting_ GUARDED_BY(mutex_) = false;
+  size_t num_threads_ GUARDED_BY(mutex_) = 0;
+  size_t num_idle_threads_ GUARDED_BY(mutex_) = 0;
+  std::deque<std::function<void()>> tasks_ GUARDED_BY(mutex_);
 };
 
 ThreadPool& DefaultThreadPool();

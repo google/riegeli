@@ -23,23 +23,6 @@
 #define RIEGELI_INTERNAL_HAS_BUILTIN(x) 0
 #endif
 
-// Clang has __has_cpp_attribute(). GCC has __has_cpp_attribute() since
-// version 5. Other compilers need other means to detect availability of C++
-// style attributes.
-#if defined(__has_cpp_attribute)
-#define RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
-#else
-#define RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(x) 0
-#endif
-
-// Clang has __has_attribute(). GCC has __has_attribute() since version 5. Other
-// compilers need other means to detect availability of GCC style attributes.
-#ifdef __has_attribute
-#define RIEGELI_INTERNAL_HAS_ATTRIBUTE(x) __has_attribute(x)
-#else
-#define RIEGELI_INTERNAL_HAS_ATTRIBUTE(x) 0
-#endif
-
 #define RIEGELI_INTERNAL_IS_GCC_VERSION(major, minor) \
   (__GNUC__ > (major) || (__GNUC__ == (major) && __GNUC_MINOR__ >= (minor)))
 

@@ -9,6 +9,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -20,6 +21,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -33,7 +35,9 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -47,6 +51,7 @@ cc_library(
     deps = [
         ":writer",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -62,6 +67,7 @@ cc_library(
         ":backward_writer",
         ":writer_utils",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -79,6 +85,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -90,6 +97,7 @@ cc_library(
     deps = [
         ":writer",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -104,7 +112,9 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -116,6 +126,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -128,6 +139,7 @@ cc_library(
         ":backward_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -142,6 +154,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 
@@ -153,6 +166,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -164,6 +178,7 @@ cc_library(
     deps = [
         ":reader",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -176,7 +191,9 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -188,7 +205,9 @@ cc_library(
         ":backward_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -202,6 +221,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -218,6 +238,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:str_error",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -238,6 +259,7 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:memory_estimator",
         "//riegeli/base:str_error",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -250,6 +272,7 @@ cc_library(
         ":buffered_writer",
         ":writer",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@org_brotli//:brotlienc",
     ],
@@ -262,6 +285,7 @@ cc_library(
     deps = [
         ":reader",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@org_brotli//:brotlidec",
     ],
@@ -275,6 +299,7 @@ cc_library(
         ":buffered_writer",
         ":writer",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@net_zstd//:zstdlib",
     ],
@@ -288,6 +313,7 @@ cc_library(
         ":buffered_reader",
         ":reader",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@net_zstd//:zstdlib",
     ],
@@ -301,6 +327,7 @@ cc_library(
         ":buffered_reader",
         ":reader",
         "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@zlib_archive//:zlib",
     ],
@@ -315,6 +342,7 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@protobuf_archive//:protobuf_lite",
     ],
 )
@@ -328,6 +356,7 @@ cc_library(
         ":reader",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],

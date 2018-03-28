@@ -18,6 +18,7 @@
 #include <atomic>
 #include <cstring>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -37,7 +38,7 @@ bool Object::Fail(absl::string_view message) {
       reinterpret_cast<uintptr_t>(NewAligned<FailedStatus>(
           offsetof(FailedStatus, message_data) + message.size(), message));
   uintptr_t old_status = kHealthy();
-  if (RIEGELI_UNLIKELY(!status_.compare_exchange_strong(
+  if (ABSL_PREDICT_FALSE(!status_.compare_exchange_strong(
           old_status, new_status, std::memory_order_release))) {
     // status_ was already set, new_status loses.
     DeleteStatus(new_status);

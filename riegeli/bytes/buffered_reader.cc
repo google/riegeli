@@ -19,7 +19,9 @@
 #include <limits>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -28,7 +30,7 @@
 
 namespace riegeli {
 
-inline bool BufferedReader::TooSmall(Chain::Buffer flat_buffer) const {
+inline bool BufferedReader::TooSmall(absl::Span<char> flat_buffer) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
   RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size_)
       << "Failed precondition of BufferedReader::TooSmall(): "
@@ -46,8 +48,8 @@ bool BufferedReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
   if (TooSmall(flat_buffer)) {
     // Make a new buffer.
     RIEGELI_ASSERT_GT(buffer_size_, 0u)
@@ -82,7 +84,7 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
     // If reading through buffer_ would need multiple ReadInternal() calls, it
     // is faster to copy current contents of buffer_ and read the remaining data
     // directly into dest.
-    if (RIEGELI_UNLIKELY(!healthy())) return false;
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
     const size_t available_length = available();
     if (available_length > 0) {  // memcpy(_, nullptr, 0) is undefined.
       std::memcpy(dest, cursor_, available_length);
@@ -102,7 +104,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t size_hint = dest->size() + length;
   if (length >= available() && length - available() >= buffer_size_) {
     // If reading through buffer_ would need multiple ReadInternal() calls, it
@@ -121,7 +123,8 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       length -= available_length;
     }
     ClearBuffer();
-    const Chain::Buffer flat_buffer = dest->MakeAppendBuffer(length, size_hint);
+    const absl::Span<char> flat_buffer =
+        dest->MakeAppendBuffer(length, size_hint);
     const Position pos_before = limit_pos_;
     const bool ok = ReadInternal(flat_buffer.data(), length, length);
     RIEGELI_ASSERT_GE(limit_pos_, pos_before)
@@ -135,7 +138,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
 
   bool ok = true;
   while (length > available()) {
-    Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
+    absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Append a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
@@ -166,7 +169,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
-    if (RIEGELI_UNLIKELY(!ok)) {
+    if (ABSL_PREDICT_FALSE(!ok)) {
       if (length > available()) {
         length = available();
       } else {
@@ -189,10 +192,10 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   bool read_ok = true;
   while (length > available()) {
-    Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
+    absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Write a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
@@ -209,7 +212,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
                                 &data, available_length);
           write_ok = dest->Write(std::move(data));
         }
-        if (RIEGELI_UNLIKELY(!write_ok)) {
+        if (ABSL_PREDICT_FALSE(!write_ok)) {
           cursor_ = limit_;
           return false;
         }
@@ -234,7 +237,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
-    if (RIEGELI_UNLIKELY(!read_ok)) {
+    if (ABSL_PREDICT_FALSE(!read_ok)) {
       if (length > available()) {
         length = available();
       } else {
@@ -266,17 +269,17 @@ bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
          "length too small, use CopyTo(Writer*) instead";
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
-    if (RIEGELI_UNLIKELY(!ReadSlow(buffer, length))) return false;
+    if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
     return dest->Write(absl::string_view(buffer, length));
   }
   Chain data;
-  if (RIEGELI_UNLIKELY(!ReadSlow(&data, length))) return false;
+  if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;
   return dest->Write(std::move(data));
 }
 
 void BufferedReader::ClearBuffer() {
   buffer_.Clear();
-  Chain::Buffer flat_buffer = buffer_.MakeAppendBuffer();
+  absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
   start_ = flat_buffer.data();
   cursor_ = flat_buffer.data();
   limit_ = flat_buffer.data();

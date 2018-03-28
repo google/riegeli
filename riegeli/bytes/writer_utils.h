@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <cstring>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
 #include "riegeli/bytes/varint.h"
@@ -53,7 +54,7 @@ bool WriteZerosSlow(Writer* dest, Position length);
 }  // namespace internal
 
 inline bool WriteByte(Writer* dest, uint8_t data) {
-  if (RIEGELI_UNLIKELY(!dest->Push())) return false;
+  if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
   char* cursor = dest->cursor();
   *cursor++ = static_cast<char>(data);
   dest->set_cursor(cursor);
@@ -115,7 +116,7 @@ inline char* WriteVarint64(char* dest, uint64_t data) {
 }
 
 inline bool WriteVarint32(Writer* dest, uint32_t data) {
-  if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint32())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32())) {
     dest->set_cursor(WriteVarint32(dest->cursor(), data));
     return true;
   }
@@ -123,7 +124,7 @@ inline bool WriteVarint32(Writer* dest, uint32_t data) {
 }
 
 inline bool WriteVarint64(Writer* dest, uint64_t data) {
-  if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint64())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64())) {
     dest->set_cursor(WriteVarint64(dest->cursor(), data));
     return true;
   }
@@ -131,8 +132,8 @@ inline bool WriteVarint64(Writer* dest, uint64_t data) {
 }
 
 inline bool WriteZeros(Writer* dest, Position length) {
-  if (RIEGELI_LIKELY(length <= dest->available())) {
-    if (RIEGELI_LIKELY(length > 0)) {  // memset(nullptr, _, 0) is undefined.
+  if (ABSL_PREDICT_TRUE(length <= dest->available())) {
+    if (ABSL_PREDICT_TRUE(length > 0)) {  // memset(nullptr, _, 0) is undefined.
       std::memset(dest->cursor(), 0, length);
       dest->set_cursor(dest->cursor() + length);
     }

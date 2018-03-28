@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <limits>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
@@ -30,10 +31,10 @@ BrotliReader::BrotliReader(Reader* src, Options options)
     : Reader(State::kOpen),
       src_(RIEGELI_ASSERT_NOTNULL(src)),
       decompressor_(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr)) {
-  if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) {
+  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");
   }
-  if (RIEGELI_UNLIKELY(!BrotliDecoderSetParameter(
+  if (ABSL_PREDICT_FALSE(!BrotliDecoderSetParameter(
           decompressor_.get(), BROTLI_DECODER_PARAM_LARGE_WINDOW,
           uint32_t{true}))) {
     Fail("BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed");
@@ -42,12 +43,12 @@ BrotliReader::BrotliReader(Reader* src, Options options)
 }
 
 void BrotliReader::Done() {
-  if (!Pull() && RIEGELI_UNLIKELY(decompressor_ != nullptr)) {
+  if (!Pull() && ABSL_PREDICT_FALSE(decompressor_ != nullptr)) {
     Fail("Truncated Brotli-compressed stream");
   }
   if (owned_src_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(*owned_src_);
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
     }
     owned_src_.reset();
   }
@@ -60,8 +61,8 @@ bool BrotliReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(decompressor_ == nullptr)) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   size_t available_out = 0;
   for (;;) {
     size_t available_in = src_->available();
@@ -70,7 +71,7 @@ bool BrotliReader::PullSlow() {
         decompressor_.get(), &available_in, &next_in, &available_out, nullptr,
         nullptr);
     src_->set_cursor(reinterpret_cast<const char*>(next_in));
-    if (RIEGELI_UNLIKELY(result == BROTLI_DECODER_RESULT_ERROR)) {
+    if (ABSL_PREDICT_FALSE(result == BROTLI_DECODER_RESULT_ERROR)) {
       Fail(absl::StrCat("BrotliDecoderDecompressStream() failed: ",
                         BrotliDecoderErrorString(
                             BrotliDecoderGetErrorCode(decompressor_.get()))));
@@ -85,8 +86,8 @@ bool BrotliReader::PullSlow() {
     if (length > 0) {
       start_ = data;
       cursor_ = data;
-      if (RIEGELI_UNLIKELY(length >
-                           std::numeric_limits<Position>::max() - limit_pos_)) {
+      if (ABSL_PREDICT_FALSE(length > std::numeric_limits<Position>::max() -
+                                          limit_pos_)) {
         limit_ = data;
         return FailOverflow();
       }
@@ -101,8 +102,8 @@ bool BrotliReader::PullSlow() {
         return length > 0;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
-        if (RIEGELI_UNLIKELY(!src_->Pull())) {
-          if (RIEGELI_LIKELY(src_->HopeForMore())) return false;
+        if (ABSL_PREDICT_FALSE(!src_->Pull())) {
+          if (ABSL_PREDICT_TRUE(src_->HopeForMore())) return false;
           if (src_->healthy()) {
             return Fail("Truncated Brotli-compressed stream");
           }
@@ -125,7 +126,7 @@ bool BrotliReader::HopeForMoreSlow() const {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::HopeForMoreSlow(): "
          "data available, use HopeForMore() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return decompressor_ != nullptr;
 }
 

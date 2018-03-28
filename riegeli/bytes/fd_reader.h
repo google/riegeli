@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -54,8 +55,8 @@ class FdReaderBase : public BufferedReader {
   FdReaderBase& operator=(FdReaderBase&& src) noexcept;
 
   void Done() override;
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                            int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
   FdHolder owned_fd_;
@@ -310,8 +311,8 @@ class FdMMapReader final : public Reader {
  private:
   void Initialize(int fd, Options options);
 
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                            int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         int error_code);
 
   // Iterator pointing to the block of contents_ which holds the actual data.
   //

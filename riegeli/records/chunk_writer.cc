@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
@@ -47,8 +48,8 @@ DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
 
 void DefaultChunkWriter::Done() {
   if (owned_byte_writer_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_byte_writer_->Close())) {
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_byte_writer_->Close())) {
         Fail(*owned_byte_writer_);
       }
     }
@@ -68,13 +69,14 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
   RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_begin)
       << "Unexpected position before writing chunk";
-  if (RIEGELI_UNLIKELY(!WriteSection(&header_reader, chunk_begin, chunk_end))) {
+  if (ABSL_PREDICT_FALSE(
+          !WriteSection(&header_reader, chunk_begin, chunk_end))) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(!WriteSection(&data_reader, chunk_begin, chunk_end))) {
+  if (ABSL_PREDICT_FALSE(!WriteSection(&data_reader, chunk_begin, chunk_end))) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(!WritePadding(chunk_begin, chunk_end))) {
+  if (ABSL_PREDICT_FALSE(!WritePadding(chunk_begin, chunk_end))) {
     return false;
   }
   RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_end)
@@ -90,14 +92,14 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
       internal::BlockHeader block_header(
           IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
           IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
-      if (RIEGELI_UNLIKELY(!byte_writer_->Write(
+      if (ABSL_PREDICT_FALSE(!byte_writer_->Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
     }
     if (!src->CopyTo(byte_writer_, internal::RemainingInBlock(IntCast<uint64_t>(
                                        byte_writer_->pos())))) {
-      if (RIEGELI_LIKELY(byte_writer_->healthy())) break;
+      if (ABSL_PREDICT_TRUE(byte_writer_->healthy())) break;
       return Fail(*byte_writer_);
     }
   }
@@ -115,7 +117,7 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
       internal::BlockHeader block_header(
           IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
           IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
-      if (RIEGELI_UNLIKELY(!byte_writer_->Write(
+      if (ABSL_PREDICT_FALSE(!byte_writer_->Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
@@ -123,7 +125,7 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
     const Position slice_size = UnsignedMin(
         chunk_end - byte_writer_->pos(),
         internal::RemainingInBlock(IntCast<uint64_t>(byte_writer_->pos())));
-    if (RIEGELI_UNLIKELY(!WriteZeros(byte_writer_, slice_size))) {
+    if (ABSL_PREDICT_FALSE(!WriteZeros(byte_writer_, slice_size))) {
       return Fail(*byte_writer_);
     }
   }
@@ -131,7 +133,7 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
 }
 
 bool DefaultChunkWriter::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!byte_writer_->Flush(flush_type))) {
+  if (ABSL_PREDICT_FALSE(!byte_writer_->Flush(flush_type))) {
     if (byte_writer_->healthy()) return false;
     return Fail(*byte_writer_);
   }

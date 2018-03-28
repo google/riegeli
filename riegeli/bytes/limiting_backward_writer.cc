@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -39,7 +40,7 @@ LimitingBackwardWriter::LimitingBackwardWriter(BackwardWriter* dest,
 }
 
 void LimitingBackwardWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) dest_->set_cursor(cursor_);
+  if (ABSL_PREDICT_TRUE(healthy())) dest_->set_cursor(cursor_);
   dest_ = nullptr;
   size_limit_ = 0;
   BackwardWriter::Done();
@@ -49,8 +50,8 @@ bool LimitingBackwardWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "space available, use Push() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(pos() == size_limit_)) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -91,11 +92,11 @@ bool LimitingBackwardWriter::WriteSlow(Chain&& src) {
 
 template <typename Src>
 bool LimitingBackwardWriter::WriteInternal(Src&& src) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriter: "
          "position exceeds size limit";
-  if (RIEGELI_UNLIKELY(src.size() > size_limit_ - pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -111,10 +112,10 @@ inline void LimitingBackwardWriter::SyncBuffer() {
   cursor_ = dest_->cursor();
   limit_ = dest_->limit();
   start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
-  if (RIEGELI_UNLIKELY(limit_pos() > size_limit_)) {
+  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
     limit_ += IntCast<size_t>(limit_pos() - size_limit_);
   }
-  if (RIEGELI_UNLIKELY(!dest_->healthy())) Fail(*dest_);
+  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
 }
 
 }  // namespace riegeli

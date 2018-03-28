@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -85,16 +86,16 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   const ChunkType chunk_type = ReadByte(&data_reader, &chunk_type_byte)
                                    ? static_cast<ChunkType>(chunk_type_byte)
                                    : ChunkType::kPadding;
-  if (RIEGELI_UNLIKELY(chunk.header.num_records() > limits_.max_size())) {
+  if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail("Too many records");
   }
-  if (RIEGELI_UNLIKELY(chunk.header.decoded_data_size() >
-                       record_scratch_.max_size())) {
+  if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() >
+                         record_scratch_.max_size())) {
     return Fail("Too large chunk");
   }
   limits_.reserve(IntCast<size_t>(chunk.header.num_records()));
   Chain values;
-  if (RIEGELI_UNLIKELY(
+  if (ABSL_PREDICT_FALSE(
           !Parse(chunk_type, chunk.header, &data_reader, &values))) {
     limits_.clear();  // Ensure that index() == num_records().
     return false;
@@ -121,20 +122,20 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
       return true;
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
-      if (RIEGELI_UNLIKELY(!simple_decoder.Reset(src, header.num_records(),
-                                                 header.decoded_data_size(),
-                                                 &limits_))) {
+      if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
+                                                   header.decoded_data_size(),
+                                                   &limits_))) {
         return Fail("Invalid simple chunk", simple_decoder);
       }
       dest->Clear();
-      if (RIEGELI_UNLIKELY(!simple_decoder.reader()->Read(
+      if (ABSL_PREDICT_FALSE(!simple_decoder.reader()->Read(
               dest, IntCast<size_t>(header.decoded_data_size())))) {
         return Fail("Reading record values failed", *simple_decoder.reader());
       }
-      if (RIEGELI_UNLIKELY(!simple_decoder.VerifyEndAndClose())) {
+      if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
         return Fail(simple_decoder);
       }
-      if (RIEGELI_UNLIKELY(!src->VerifyEndAndClose())) {
+      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) {
         return Fail("Invalid simple chunk", *src);
       }
       return true;
@@ -149,11 +150,11 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
       const bool ok = transpose_decoder.Reset(
           src, header.num_records(), header.decoded_data_size(), field_filter_,
           &dest_writer, &limits_);
-      if (RIEGELI_UNLIKELY(!dest_writer.Close())) return Fail(dest_writer);
-      if (RIEGELI_UNLIKELY(!ok)) {
+      if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);
+      if (ABSL_PREDICT_FALSE(!ok)) {
         return Fail("Invalid transposed chunk", transpose_decoder);
       }
-      if (RIEGELI_UNLIKELY(!src->VerifyEndAndClose())) {
+      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) {
         return Fail("Invalid transposed chunk", *src);
       }
       return true;
@@ -165,21 +166,21 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record, uint64_t* key) {
   for (;;) {
-    if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
+    if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
     if (key != nullptr) *key = index_;
     const size_t start = IntCast<size_t>(values_reader_.pos());
     const size_t limit = limits_[IntCast<size_t>(index_++)];
     RIEGELI_ASSERT_LE(start, limit)
         << "Failed invariant of ChunkDecoder: record end positions not sorted";
     LimitingReader message_reader(&values_reader_, limit);
-    if (RIEGELI_LIKELY(ParsePartialFromReader(record, &message_reader))) {
+    if (ABSL_PREDICT_TRUE(ParsePartialFromReader(record, &message_reader))) {
       RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
           << "Record was not read up to its end";
       if (!message_reader.Close()) {
         RIEGELI_ASSERT_UNREACHABLE()
             << "Closing message reader failed: " << message_reader.Message();
       }
-      if (RIEGELI_LIKELY(record->IsInitialized())) return true;
+      if (ABSL_PREDICT_TRUE(record->IsInitialized())) return true;
       if (!skip_corruption_) {
         index_ = num_records();
         return Fail(absl::StrCat("Failed to parse message of type ",

@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -30,15 +31,15 @@
 namespace riegeli {
 
 bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!record.IsInitialized())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!record.IsInitialized())) {
     return Fail(absl::StrCat("Failed to serialize message of type ",
                              record.GetTypeName(),
                              " because it is missing required fields: ",
                              record.InitializationErrorString()));
   }
   const size_t size = record.ByteSizeLong();
-  if (RIEGELI_UNLIKELY(size > size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return Fail(absl::StrCat(
         "Failed to serialize message of type ", record.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
@@ -52,17 +53,17 @@ bool ChunkEncoder::AddRecord(Chain&& record) {
 }
 
 bool ChunkEncoder::EncodeAndClose(Chunk* chunk) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   uint64_t num_records;
   uint64_t decoded_data_size;
   chunk->data.Clear();
   ChainWriter data_writer(&chunk->data);
   WriteByte(&data_writer, static_cast<uint8_t>(GetChunkType()));
-  if (RIEGELI_UNLIKELY(
+  if (ABSL_PREDICT_FALSE(
           !EncodeAndClose(&data_writer, &num_records, &decoded_data_size))) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(!data_writer.Close())) return Fail(data_writer);
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
   chunk->header = ChunkHeader(chunk->data, num_records,
                               IntCast<uint64_t>(decoded_data_size));
   return true;

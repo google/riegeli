@@ -19,6 +19,7 @@
 
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -60,10 +61,10 @@ inline Position WriterOutputStream::relative_pos() const {
 
 bool WriterOutputStream::Next(void** data, int* size) {
   const Position pos = relative_pos();
-  if (RIEGELI_UNLIKELY(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(!dest_->Push())) return false;
+  if (ABSL_PREDICT_FALSE(!dest_->Push())) return false;
   *data = dest_->cursor();
   *size = IntCast<int>(
       UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
@@ -129,7 +130,7 @@ bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output) 
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));
-  if (RIEGELI_UNLIKELY(!SerializeToWriter(message, &output_writer))) {
+  if (ABSL_PREDICT_FALSE(!SerializeToWriter(message, &output_writer))) {
     return false;
   }
   return output_writer.Close();
@@ -142,7 +143,7 @@ bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* o
   ChainWriter output_writer(
       output, ChainWriter::Options().set_size_hint(output->size() +
                                                    message.ByteSizeLong()));
-  if (RIEGELI_UNLIKELY(!SerializePartialToWriter(message, &output_writer))) {
+  if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(message, &output_writer))) {
     return false;
   }
   return output_writer.Close();

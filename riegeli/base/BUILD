@@ -14,7 +14,10 @@ cc_library(
         "object.h",
         "port.h",
     ],
-    deps = ["@com_google_absl//absl/strings"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(
@@ -31,7 +34,9 @@ cc_library(
     deps = [
         ":base",
         ":memory_estimator",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -45,7 +50,12 @@ cc_library(
     srcs = ["parallelism.cc"],
     hdrs = ["parallelism.h"],
     visibility = ["//riegeli:__subpackages__"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
 )
 
 cc_library(
@@ -53,7 +63,7 @@ cc_library(
     srcs = ["str_error.cc"],
     hdrs = ["str_error.h"],
     deps = [
-        ":base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -64,6 +74,7 @@ cc_library(
     hdrs = ["options_parser.h"],
     deps = [
         ":base",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )

@@ -19,6 +19,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -263,7 +264,7 @@ class ChunkReader final : public Object {
 // Implementation details follow.
 
 inline bool ChunkReader::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return byte_reader_->Size(size);
 }
 

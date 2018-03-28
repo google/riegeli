@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -101,8 +102,8 @@ inline bool LimitingReader::SupportsRandomAccess() const {
 }
 
 inline bool LimitingReader::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!src_->Size(size))) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!src_->Size(size))) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
 }

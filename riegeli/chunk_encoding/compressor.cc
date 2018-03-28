@@ -18,6 +18,7 @@
 #include <new>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -115,7 +116,7 @@ inline ZstdWriter::Options Compressor::GetZstdWriterOptions() const {
 
 void Compressor::Done() {
   CloseCompressor();
-  if (RIEGELI_UNLIKELY(!compressed_writer_.Close())) Fail(compressed_writer_);
+  if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) Fail(compressed_writer_);
   compressed_ = Chain();
 }
 
@@ -124,10 +125,10 @@ inline void Compressor::CloseCompressor() {
     case CompressionType::kNone:
       return;
     case CompressionType::kBrotli:
-      if (RIEGELI_UNLIKELY(!brotli_writer_.Close())) Fail(brotli_writer_);
+      if (ABSL_PREDICT_FALSE(!brotli_writer_.Close())) Fail(brotli_writer_);
       return;
     case CompressionType::kZstd:
-      if (RIEGELI_UNLIKELY(!zstd_writer_.Close())) Fail(zstd_writer_);
+      if (ABSL_PREDICT_FALSE(!zstd_writer_.Close())) Fail(zstd_writer_);
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
@@ -136,19 +137,19 @@ inline void Compressor::CloseCompressor() {
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Position uncompressed_size = writer_->pos();
-  if (RIEGELI_UNLIKELY(!writer_->Close())) return Fail(*writer_);
+  if (ABSL_PREDICT_FALSE(!writer_->Close())) return Fail(*writer_);
   if (options_.compression_type() != CompressionType::kNone) {
-    if (RIEGELI_UNLIKELY(!compressed_writer_.Close())) {
+    if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
       return Fail(compressed_writer_);
     }
-    if (RIEGELI_UNLIKELY(
+    if (ABSL_PREDICT_FALSE(
             !WriteVarint64(dest, IntCast<uint64_t>(uncompressed_size)))) {
       return Fail(*dest);
     }
   }
-  if (RIEGELI_UNLIKELY(!dest->Write(std::move(compressed_)))) {
+  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_)))) {
     return Fail(*dest);
   }
   return Close();

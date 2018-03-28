@@ -25,7 +25,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
@@ -49,7 +51,6 @@ class Chain {
  public:
   class Blocks;
   class BlockIterator;
-  class Buffer;
 
   constexpr Chain() noexcept {}
 
@@ -94,8 +95,10 @@ class Chain {
   // Returns a larger buffer than requested if more space would be allocated
   // anyway (if min_length is 0, returns whatever space is already allocated).
   // Use RemoveSuffix()/RemovePrefix() afterwards to trim excessive size.
-  Buffer MakeAppendBuffer(size_t min_length = 0, size_t size_hint = 0);
-  Buffer MakePrependBuffer(size_t min_length = 0, size_t size_hint = 0);
+  absl::Span<char> MakeAppendBuffer(size_t min_length = 0,
+                                    size_t size_hint = 0);
+  absl::Span<char> MakePrependBuffer(size_t min_length = 0,
+                                     size_t size_hint = 0);
 
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
@@ -379,24 +382,6 @@ class Chain::BlockIterator {
   Block* const* iter_ = nullptr;
 };
 
-class Chain::Buffer {
- public:
-  Buffer() noexcept {}
-
-  Buffer(char* data, size_t size) noexcept : data_(data), size_(size) {}
-
-  Buffer(const Buffer& src) noexcept;
-  Buffer& operator=(const Buffer& src) noexcept;
-
-  char* data() const { return data_; }
-  size_t size() const { return size_; }
-  bool empty() const { return size_ == 0; }
-
- private:
-  char* data_ = nullptr;
-  size_t size_ = 0;
-};
-
 // Implementation details follow.
 
 // Chain representation consists of blocks.
@@ -487,8 +472,8 @@ class Chain::Block {
   bool can_prepend(size_t size) const;
   size_t max_can_append() const;
   size_t max_can_prepend() const;
-  Buffer MakeAppendBuffer(size_t max_size);
-  Buffer MakePrependBuffer(size_t max_size);
+  absl::Span<char> MakeAppendBuffer(size_t max_size);
+  absl::Span<char> MakePrependBuffer(size_t max_size);
   void Append(absl::string_view src);
   void Prepend(absl::string_view src);
   bool TryRemoveSuffix(size_t length);
@@ -881,15 +866,6 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   return end_[-1]->data();
 }
 
-inline Chain::Buffer::Buffer(const Buffer& src) noexcept
-    : data_(src.data_), size_(src.size_) {}
-
-inline Chain::Buffer& Chain::Buffer::operator=(const Buffer& src) noexcept {
-  data_ = src.data_;
-  size_ = src.size_;
-  return *this;
-}
-
 inline Chain::Chain(Chain&& src) noexcept
     : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
   if (src.is_here()) {
@@ -993,8 +969,8 @@ inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
-  if (RIEGELI_LIKELY(length <= back()->size() &&
-                     back()->TryRemoveSuffix(length))) {
+  if (ABSL_PREDICT_TRUE(length <= back()->size() &&
+                        back()->TryRemoveSuffix(length))) {
     return;
   }
   RemoveSuffixSlow(length, size_hint);
@@ -1008,8 +984,8 @@ inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
-  if (RIEGELI_LIKELY(length <= front()->size() &&
-                     front()->TryRemovePrefix(length))) {
+  if (ABSL_PREDICT_TRUE(length <= front()->size() &&
+                        front()->TryRemovePrefix(length))) {
     return;
   }
   RemovePrefixSlow(length, size_hint);

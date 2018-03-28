@@ -15,6 +15,7 @@ cc_library(
         "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
@@ -37,6 +38,7 @@ cc_library(
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:message_parse",
         "//riegeli/bytes:reader_utils",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
@@ -48,11 +50,11 @@ cc_library(
     hdrs = ["chunk.h"],
     deps = [
         ":hash",
-        "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:endian",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -68,6 +70,7 @@ cc_library(
     hdrs = ["hash.h"],
     deps = [
         "//riegeli/base:chain",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_highwayhash//:hh_types",
         "@com_google_highwayhash//:highwayhash_dynamic",
@@ -85,6 +88,7 @@ cc_library(
         "//riegeli/base:options_parser",
         "//riegeli/bytes:brotli_writer",
         "//riegeli/bytes:zstd_writer",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -103,6 +107,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
         "//riegeli/bytes:zstd_writer",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 
@@ -119,6 +124,8 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:zstd_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -138,6 +145,7 @@ cc_library(
         "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
@@ -154,6 +162,7 @@ cc_library(
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -181,6 +190,8 @@ cc_library(
         "//riegeli/bytes:string_reader",
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -203,6 +214,8 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:writer_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -222,7 +235,10 @@ cc_library(
 cc_library(
     name = "field_filter",
     hdrs = ["field_filter.h"],
-    deps = ["//riegeli/base"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/container:inlined_vector",
+    ],
 )
 
 cc_library(
@@ -238,6 +254,7 @@ cc_library(
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],

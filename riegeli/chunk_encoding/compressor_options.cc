@@ -16,6 +16,7 @@
 
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
@@ -30,21 +31,21 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
   {
     OptionsParser parser;
     parser.AddOption("uncompressed", [this, &parser](absl::string_view value) {
-      if (RIEGELI_UNLIKELY(!parser.FailIfSeen("brotli", "zstd"))) {
+      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("brotli", "zstd"))) {
         return false;
       }
       compression_type_ = CompressionType::kNone;
       return true;
     });
     parser.AddOption("brotli", [this, &parser](absl::string_view value) {
-      if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed", "zstd"))) {
+      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed", "zstd"))) {
         return false;
       }
       compression_type_ = CompressionType::kBrotli;
       return true;
     });
     parser.AddOption("zstd", [this, &parser](absl::string_view value) {
-      if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed", "brotli"))) {
+      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed", "brotli"))) {
         return false;
       }
       compression_type_ = CompressionType::kZstd;
@@ -52,14 +53,14 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
     });
     parser.AddOption("window_log",
                      [this](absl::string_view value) { return true; });
-    if (RIEGELI_UNLIKELY(!parser.Parse(text))) {
+    if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
       *message = std::string(parser.Message());
       return false;
     }
   }
   OptionsParser parser;
   parser.AddOption("uncompressed", parser.Empty([this, &parser] {
-    if (RIEGELI_UNLIKELY(!parser.FailIfSeen("window_log"))) return false;
+    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("window_log"))) return false;
     compression_level_ = 0;
     return true;
   }));
@@ -103,7 +104,7 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
     RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
   }());
-  if (RIEGELI_UNLIKELY(!parser.Parse(text))) {
+  if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
     *message = std::string(parser.Message());
     return false;
   }

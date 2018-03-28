@@ -17,10 +17,11 @@
 #include <stdint.h>
 #include <utility>
 
+#include "absl/base/optimization.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -57,7 +58,7 @@ Decompressor::Decompressor(Reader* src, CompressionType compression_type)
     return;
   }
   uint64_t decompressed_size;
-  if (RIEGELI_UNLIKELY(!ReadVarint64(src, &decompressed_size))) {
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, &decompressed_size))) {
     Fail("Reading decompressed size failed");
     return;
   }
@@ -65,11 +66,11 @@ Decompressor::Decompressor(Reader* src, CompressionType compression_type)
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      owned_reader_ = riegeli::make_unique<BrotliReader>(src);
+      owned_reader_ = absl::make_unique<BrotliReader>(src);
       reader_ = owned_reader_.get();
       return;
     case CompressionType::kZstd:
-      owned_reader_ = riegeli::make_unique<ZstdReader>(src);
+      owned_reader_ = absl::make_unique<ZstdReader>(src);
       reader_ = owned_reader_.get();
       return;
   }
@@ -79,14 +80,14 @@ Decompressor::Decompressor(Reader* src, CompressionType compression_type)
 
 void Decompressor::Done() {
   if (owned_reader_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_reader_->Close())) Fail(*owned_reader_);
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_reader_->Close())) Fail(*owned_reader_);
     }
     owned_reader_.reset();
   }
   if (owned_src_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(*owned_src_);
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
     }
     owned_src_.reset();
   }
@@ -95,12 +96,12 @@ void Decompressor::Done() {
 
 bool Decompressor::VerifyEndAndClose() {
   if (owned_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_reader_->VerifyEndAndClose())) {
+    if (ABSL_PREDICT_FALSE(!owned_reader_->VerifyEndAndClose())) {
       return Fail(*owned_reader_);
     }
   }
   if (owned_src_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!owned_src_->VerifyEndAndClose())) {
+    if (ABSL_PREDICT_FALSE(!owned_src_->VerifyEndAndClose())) {
       return Fail(*owned_src_);
     }
   }

@@ -21,6 +21,8 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -206,7 +208,7 @@ class Reader : public Object {
   // This can be called if limit_pos_ would overflow.
   //
   // Precondition: healthy()
-  RIEGELI_ATTRIBUTE_COLD bool FailOverflow();
+  ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of the slow part of Pull().
   //
@@ -291,7 +293,7 @@ inline void Reader::Done() {
 }
 
 inline bool Reader::Pull() {
-  if (RIEGELI_LIKELY(available() > 0)) return true;
+  if (ABSL_PREDICT_TRUE(available() > 0)) return true;
   return PullSlow();
 }
 
@@ -304,9 +306,10 @@ inline void Reader::set_cursor(const char* cursor) {
 }
 
 inline bool Reader::Read(char* dest, size_t length) {
-  if (RIEGELI_LIKELY(length <= available())) {
-    if (RIEGELI_LIKELY(length > 0)) {  // memcpy(nullptr, _, 0) and
-                                       // memcpy(_, nullptr, 0) are undefined.
+  if (ABSL_PREDICT_TRUE(length <= available())) {
+    if (ABSL_PREDICT_TRUE(length > 0)) {  // memcpy(nullptr, _, 0) and
+                                          // memcpy(_, nullptr, 0)
+                                          // are undefined.
       std::memcpy(dest, cursor_, length);
       cursor_ += length;
     }
@@ -318,9 +321,9 @@ inline bool Reader::Read(char* dest, size_t length) {
 inline bool Reader::Read(std::string* dest, size_t length) {
   RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
       << "Failed precondition of Reader::Read(string*): string size overflow";
-  if (RIEGELI_LIKELY(length <= available())) {
-    if (RIEGELI_LIKELY(length > 0)) {  // Avoid std::string::append(nullptr, 0)
-                                       // just in case.
+  if (ABSL_PREDICT_TRUE(length <= available())) {
+    if (ABSL_PREDICT_TRUE(length > 0)) {  // Avoid std::string::append(nullptr, 0)
+                                          // just in case.
       dest->append(cursor_, length);
       cursor_ += length;
     }
@@ -334,7 +337,7 @@ inline bool Reader::Read(absl::string_view* dest, std::string* scratch,
   RIEGELI_CHECK_LE(length, scratch->max_size())
       << "Failed precondition of Reader::Read(string_view*): "
          "string size overflow";
-  if (RIEGELI_LIKELY(length <= available())) {
+  if (ABSL_PREDICT_TRUE(length <= available())) {
     *dest = absl::string_view(cursor_, length);
     cursor_ += length;
     return true;
@@ -345,7 +348,7 @@ inline bool Reader::Read(absl::string_view* dest, std::string* scratch,
 inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
-  if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
     dest->Append(absl::string_view(cursor_, length), dest->size() + length);
     cursor_ += length;
     return true;
@@ -354,7 +357,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 }
 
 inline bool Reader::CopyTo(Writer* dest, Position length) {
-  if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
     const absl::string_view data(cursor_, IntCast<size_t>(length));
     cursor_ += length;
     return dest->Write(data);
@@ -363,7 +366,7 @@ inline bool Reader::CopyTo(Writer* dest, Position length) {
 }
 
 inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
-  if (RIEGELI_LIKELY(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
     const absl::string_view data(cursor_, length);
     cursor_ += length;
     return dest->Write(data);
@@ -388,7 +391,7 @@ inline Position Reader::start_pos() const {
 }
 
 inline bool Reader::Seek(Position new_pos) {
-  if (RIEGELI_LIKELY(new_pos >= start_pos() && new_pos <= limit_pos_)) {
+  if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= limit_pos_)) {
     cursor_ = limit_ - (limit_pos_ - new_pos);
     return true;
   }
@@ -396,11 +399,12 @@ inline bool Reader::Seek(Position new_pos) {
 }
 
 inline bool Reader::Skip(Position length) {
-  if (RIEGELI_LIKELY(length <= available())) {
+  if (ABSL_PREDICT_TRUE(length <= available())) {
     cursor_ += length;
     return true;
   }
-  if (RIEGELI_UNLIKELY(length > std::numeric_limits<Position>::max() - pos())) {
+  if (ABSL_PREDICT_FALSE(length >
+                         std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
   }
   return SeekSlow(pos() + length);

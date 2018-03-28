@@ -18,6 +18,7 @@
 #include <cstring>
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -43,7 +44,7 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
       src.remove_suffix(available_length);
     }
   skip_copy:
-    if (RIEGELI_UNLIKELY(!PushSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PushSlow())) return false;
   } while (src.size() > available());
   cursor_ -= src.size();
   std::memcpy(cursor_, src.data(), src.size());
@@ -64,7 +65,7 @@ bool BackwardWriter::WriteSlow(const Chain& src) {
          "length too small, use Write(Chain) instead";
   for (auto iter = src.blocks().crbegin(); iter != src.blocks().crend();
        ++iter) {
-    if (RIEGELI_UNLIKELY(!Write(*iter))) return false;
+    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
   }
   return true;
 }

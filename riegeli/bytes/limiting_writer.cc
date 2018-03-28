@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -37,7 +38,7 @@ LimitingWriter::LimitingWriter(Writer* dest, Position size_limit)
 }
 
 void LimitingWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) dest_->set_cursor(cursor_);
+  if (ABSL_PREDICT_TRUE(healthy())) dest_->set_cursor(cursor_);
   dest_ = nullptr;
   size_limit_ = 0;
   Writer::Done();
@@ -47,8 +48,8 @@ bool LimitingWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(pos() == size_limit_)) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -89,10 +90,10 @@ bool LimitingWriter::WriteSlow(Chain&& src) {
 
 template <typename Src>
 bool LimitingWriter::WriteInternal(Src&& src) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingWriter: position exceeds size limit";
-  if (RIEGELI_UNLIKELY(src.size() > size_limit_ - pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -107,7 +108,7 @@ bool LimitingWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
   const bool ok = dest_->Seek(pos_to_seek);
@@ -120,14 +121,14 @@ inline void LimitingWriter::SyncBuffer() {
   cursor_ = dest_->cursor();
   limit_ = dest_->limit();
   start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
-  if (RIEGELI_UNLIKELY(limit_pos() > size_limit_)) {
+  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
     limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
   }
-  if (RIEGELI_UNLIKELY(!dest_->healthy())) Fail(*dest_);
+  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
 }
 
 bool LimitingWriter::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);
   const bool ok = dest_->Flush(flush_type);
   SyncBuffer();
@@ -135,7 +136,7 @@ bool LimitingWriter::Flush(FlushType flush_type) {
 }
 
 bool LimitingWriter::Truncate() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);
   const bool ok = dest_->Truncate();
   SyncBuffer();

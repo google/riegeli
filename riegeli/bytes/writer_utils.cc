@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <cstring>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/writer.h"
@@ -52,7 +53,7 @@ bool WriteZerosSlow(Writer* dest, Position length) {
       length -= available_length;
     }
   skip_copy:
-    if (RIEGELI_UNLIKELY(!dest->Push())) return false;
+    if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
   } while (length > dest->available());
   std::memset(dest->cursor(), 0, length);
   dest->set_cursor(dest->cursor() + length);

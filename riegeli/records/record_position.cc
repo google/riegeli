@@ -20,6 +20,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
@@ -34,12 +35,12 @@ std::string RecordPosition::Serialize() const {
 
 bool RecordPosition::Parse(absl::string_view serialized) {
   uint64_t words[2];
-  if (RIEGELI_UNLIKELY(serialized.size() != sizeof(words))) return false;
+  if (ABSL_PREDICT_FALSE(serialized.size() != sizeof(words))) return false;
   std::memcpy(words, serialized.data(), sizeof(words));
   const uint64_t chunk_begin = ReadBigEndian64(words[0]);
   const uint64_t record_index = ReadBigEndian64(words[1]);
-  if (RIEGELI_UNLIKELY(record_index >
-                       std::numeric_limits<uint64_t>::max() - chunk_begin)) {
+  if (ABSL_PREDICT_FALSE(record_index >
+                         std::numeric_limits<uint64_t>::max() - chunk_begin)) {
     return false;
   }
   chunk_begin_ = chunk_begin;

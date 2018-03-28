@@ -24,7 +24,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
@@ -210,23 +212,23 @@ inline size_t Chain::Block::max_can_prepend() const {
   return is_internal() && has_unique_owner() ? space_before() : size_t{0};
 }
 
-inline Chain::Buffer Chain::Block::MakeAppendBuffer(size_t max_size) {
+inline absl::Span<char> Chain::Block::MakeAppendBuffer(size_t max_size) {
   RIEGELI_ASSERT(can_append(0))
       << "Failed precondition of Chain::Block::MakeAppendBuffer(): "
          "block is immutable";
   const size_t size = UnsignedMin(space_after(), max_size);
-  const Buffer buffer(const_cast<char*>(data_end()), size);
+  const absl::Span<char> buffer(const_cast<char*>(data_end()), size);
   data_ = absl::string_view(
       data_begin(), PtrDistance(data_begin(), buffer.data() + buffer.size()));
   return buffer;
 }
 
-inline Chain::Buffer Chain::Block::MakePrependBuffer(size_t max_size) {
+inline absl::Span<char> Chain::Block::MakePrependBuffer(size_t max_size) {
   RIEGELI_ASSERT(can_prepend(0))
       << "Failed precondition of Chain::Block::MakePrependBuffer(): "
          "block is immutable";
   const size_t size = UnsignedMin(space_before(), max_size);
-  const Buffer buffer(const_cast<char*>(data_begin()) - size, size);
+  const absl::Span<char> buffer(const_cast<char*>(data_begin()) - size, size);
   data_ =
       absl::string_view(buffer.data(), PtrDistance(buffer.data(), data_end()));
   return buffer;
@@ -583,7 +585,7 @@ inline void Chain::PrependBlocks(Block* const* begin, Block* const* end) {
 inline void Chain::ReserveBack(size_t extra_capacity) {
   Block** const allocated_end =
       is_here() ? block_ptrs_.here + 2 : block_ptrs_.allocated.end;
-  if (RIEGELI_UNLIKELY(extra_capacity > PtrDistance(end_, allocated_end))) {
+  if (ABSL_PREDICT_FALSE(extra_capacity > PtrDistance(end_, allocated_end))) {
     // The slow path is in a separate function to make easier for the compiler
     // to make good inlining decisions.
     ReserveBackSlow(extra_capacity);
@@ -593,7 +595,8 @@ inline void Chain::ReserveBack(size_t extra_capacity) {
 inline void Chain::ReserveFront(size_t extra_capacity) {
   Block** const allocated_begin =
       is_here() ? block_ptrs_.here : block_ptrs_.allocated.begin;
-  if (RIEGELI_UNLIKELY(extra_capacity > PtrDistance(allocated_begin, begin_))) {
+  if (ABSL_PREDICT_FALSE(extra_capacity >
+                         PtrDistance(allocated_begin, begin_))) {
     // The slow path is in a separate function to make easier for the compiler
     // to make good inlining decisions.
     ReserveFrontSlow(extra_capacity);
@@ -658,8 +661,8 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   Block** old_allocated_begin;
   Block** old_allocated_end;
   if (is_here()) {
-    if (RIEGELI_LIKELY(extra_capacity <=
-                       PtrDistance(end_, block_ptrs_.here + 2))) {
+    if (ABSL_PREDICT_TRUE(extra_capacity <=
+                          PtrDistance(end_, block_ptrs_.here + 2))) {
       // There is space without reallocation. Shift old blocks by extra_capacity
       // to the right because the new begin_ must remain at block_ptrs_.here.
       if (end_ != block_ptrs_.here) {
@@ -738,7 +741,7 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_size, size_t new_size,
                   kMaxBufferSize())));
 }
 
-Chain::Buffer Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
+absl::Span<char> Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
       << "Failed precondition of Chain::MakeAppendBuffer(): "
          "Chain size overflow";
@@ -750,11 +753,12 @@ Chain::Buffer Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
       // New space can be appended in place.
       block = last;
     } else if (min_length == 0) {
-      return Buffer();
+      return absl::Span<char>();
     } else if (last->tiny() || last->wasteful()) {
       // The last block must be rewritten. Merge it with the new space to a
       // new block.
-      if (RIEGELI_UNLIKELY(min_length > Block::kMaxCapacity() - last->size())) {
+      if (ABSL_PREDICT_FALSE(min_length >
+                             Block::kMaxCapacity() - last->size())) {
         back() = last->CopyAndUnref();
         goto new_block;
       }
@@ -767,14 +771,14 @@ Chain::Buffer Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
       goto new_block;
     }
   } else if (min_length == 0) {
-    return Buffer();
+    return absl::Span<char>();
   } else {
   new_block:
     // Append a new block.
     block = Block::NewInternal(NewBlockCapacity(0, min_length, size_hint));
     PushBack(block);
   }
-  const Buffer buffer =
+  const absl::Span<char> buffer =
       block->MakeAppendBuffer(std::numeric_limits<size_t>::max() - size_);
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::Block::MakeAppendBuffer() returned less than the free space";
@@ -782,7 +786,7 @@ Chain::Buffer Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
   return buffer;
 }
 
-Chain::Buffer Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
+absl::Span<char> Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
       << "Failed precondition of Chain::MakePrependBuffer(): "
          "Chain size overflow";
@@ -794,12 +798,12 @@ Chain::Buffer Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
       // New space can be prepended in place.
       block = first;
     } else if (min_length == 0) {
-      return Buffer();
+      return absl::Span<char>();
     } else if (first->tiny() || first->wasteful()) {
       // The first block must be rewritten. Merge it with the new space to a
       // new block.
-      if (RIEGELI_UNLIKELY(min_length >
-                           Block::kMaxCapacity() - first->size())) {
+      if (ABSL_PREDICT_FALSE(min_length >
+                             Block::kMaxCapacity() - first->size())) {
         front() = first->CopyAndUnref();
         goto new_block;
       }
@@ -812,7 +816,7 @@ Chain::Buffer Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
       goto new_block;
     }
   } else if (min_length == 0) {
-    return Buffer();
+    return absl::Span<char>();
   } else {
   new_block:
     // Prepend a new block.
@@ -820,7 +824,7 @@ Chain::Buffer Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
         NewBlockCapacity(0, min_length, size_hint));
     PushFront(block);
   }
-  const Buffer buffer =
+  const absl::Span<char> buffer =
       block->MakePrependBuffer(std::numeric_limits<size_t>::max() - size_);
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::Block::MakePrependBuffer() returned less than the free space";
@@ -845,7 +849,8 @@ void Chain::Append(absl::string_view src, size_t size_hint) {
     const size_t available = last->max_can_append();
     if (last->tiny(available) || last->wasteful(available)) {
       // The last block must be rewritten. Merge it with src to a new block.
-      if (RIEGELI_UNLIKELY(src.size() > Block::kMaxCapacity() - last->size())) {
+      if (ABSL_PREDICT_FALSE(src.size() >
+                             Block::kMaxCapacity() - last->size())) {
         back() = last->CopyAndUnref();
         goto new_block;
       }
@@ -1082,8 +1087,8 @@ void Chain::Prepend(absl::string_view src, size_t size_hint) {
     const size_t available = first->max_can_prepend();
     if (first->tiny(available) || first->wasteful(available)) {
       // The first block must be rewritten. Merge it with src to a new block.
-      if (RIEGELI_UNLIKELY(src.size() >
-                           Block::kMaxCapacity() - first->size())) {
+      if (ABSL_PREDICT_FALSE(src.size() >
+                             Block::kMaxCapacity() - first->size())) {
         front() = first->CopyAndUnref();
         goto new_block;
       }
@@ -1595,8 +1600,8 @@ int Chain::Compare(const Chain& b) const {
 std::ostream& operator<<(std::ostream& out, const Chain& str) {
   std::ostream::sentry sentry(out);
   if (sentry) {
-    if (RIEGELI_UNLIKELY(str.size() >
-                         size_t{std::numeric_limits<std::streamsize>::max()})) {
+    if (ABSL_PREDICT_FALSE(
+            str.size() > size_t{std::numeric_limits<std::streamsize>::max()})) {
       out.setstate(std::ios::badbit);
       return out;
     }

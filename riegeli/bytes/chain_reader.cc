@@ -18,6 +18,7 @@
 #include <limits>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -40,9 +41,9 @@ bool ChainReader::PullSlow() {
          "data available, use Pull() instead";
   RIEGELI_ASSERT_LE(limit_pos_, src_->size())
       << "ChainReader source changed unexpectedly";
-  if (RIEGELI_UNLIKELY(iter_ == src_->blocks().cend())) return false;
+  if (ABSL_PREDICT_FALSE(iter_ == src_->blocks().cend())) return false;
   while (++iter_ != src_->blocks().cend()) {
-    if (RIEGELI_LIKELY(!iter_->empty())) {
+    if (ABSL_PREDICT_TRUE(!iter_->empty())) {
       RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
           << "ChainReader source changed unexpectedly";
       start_ = iter_->data();
@@ -73,12 +74,12 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
     cursor_ += length;
     return true;
   }
-  if (RIEGELI_UNLIKELY(iter_ == src_->blocks().cend())) return false;
+  if (ABSL_PREDICT_FALSE(iter_ == src_->blocks().cend())) return false;
   iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest,
                        size_hint);
   length -= available();
   for (;;) {
-    if (RIEGELI_UNLIKELY(++iter_ == src_->blocks().cend())) {
+    if (ABSL_PREDICT_FALSE(++iter_ == src_->blocks().cend())) {
       start_ = nullptr;
       cursor_ = nullptr;
       limit_ = nullptr;
@@ -135,7 +136,7 @@ bool ChainReader::CopyToSlow(BackwardWriter* dest, size_t length) {
          "length too small, use CopyTo(BackwardWriter*) instead";
   RIEGELI_ASSERT_LE(limit_pos_, src_->size())
       << "ChainReader source changed unexpectedly";
-  if (RIEGELI_UNLIKELY(length > src_->size() - pos())) {
+  if (ABSL_PREDICT_FALSE(length > src_->size() - pos())) {
     if (!Seek(src_->size())) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Seek() failed";
     }
@@ -176,7 +177,7 @@ bool ChainReader::SeekSlow(Position new_pos) {
       << "ChainReader source changed unexpectedly";
   if (new_pos > limit_pos_) {
     // Seeking forwards.
-    if (RIEGELI_UNLIKELY(new_pos > src_->size())) {
+    if (ABSL_PREDICT_FALSE(new_pos > src_->size())) {
       // Source ends.
       iter_ = src_->blocks().cend();
       start_ = nullptr;

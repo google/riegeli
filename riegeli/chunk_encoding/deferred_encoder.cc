@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -50,26 +51,26 @@ void DeferredEncoder::Reset() {
 }
 
 bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!record.IsInitialized())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!record.IsInitialized())) {
     return Fail(absl::StrCat("Failed to serialize message of type ",
                              record.GetTypeName(),
                              " because it is missing required fields: ",
                              record.InitializationErrorString()));
   }
   const size_t size = record.ByteSizeLong();
-  if (RIEGELI_UNLIKELY(size > size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return Fail(absl::StrCat(
         "Failed to serialize message of type ", record.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
-  if (RIEGELI_UNLIKELY(num_records_ ==
-                       UnsignedMin(limits_.max_size(),
-                                   std::numeric_limits<uint64_t>::max()))) {
+  if (ABSL_PREDICT_FALSE(num_records_ ==
+                         UnsignedMin(limits_.max_size(),
+                                     std::numeric_limits<uint64_t>::max()))) {
     return Fail("Too many records");
   }
   ++num_records_;
-  if (RIEGELI_UNLIKELY(!SerializePartialToWriter(record, &records_writer_))) {
+  if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(record, &records_writer_))) {
     return Fail(records_writer_);
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
@@ -94,14 +95,15 @@ bool DeferredEncoder::AddRecord(Chain&& record) {
 
 template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(num_records_ ==
-                       UnsignedMin(limits_.max_size(),
-                                   std::numeric_limits<uint64_t>::max()))) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(num_records_ ==
+                         UnsignedMin(limits_.max_size(),
+                                     std::numeric_limits<uint64_t>::max()))) {
     return Fail("Too many records");
   }
   ++num_records_;
-  if (RIEGELI_UNLIKELY(!records_writer_.Write(std::forward<Record>(record)))) {
+  if (ABSL_PREDICT_FALSE(
+          !records_writer_.Write(std::forward<Record>(record)))) {
     return Fail(records_writer_);
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
@@ -112,15 +114,15 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(limits.size() >
-                       UnsignedMin(limits_.max_size(),
-                                   std::numeric_limits<uint64_t>::max()) -
-                           num_records_)) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(limits.size() >
+                         UnsignedMin(limits_.max_size(),
+                                     std::numeric_limits<uint64_t>::max()) -
+                             num_records_)) {
     return Fail("Too many records");
   }
   num_records_ += IntCast<uint64_t>(limits.size());
-  if (RIEGELI_UNLIKELY(!records_writer_.Write(std::move(records)))) {
+  if (ABSL_PREDICT_FALSE(!records_writer_.Write(std::move(records)))) {
     return Fail(records_writer_);
   }
   if (limits_.empty()) {
@@ -135,12 +137,14 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
 
 bool DeferredEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
                                      uint64_t* decoded_data_size) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!records_writer_.Close())) return Fail(records_writer_);
-  if (RIEGELI_UNLIKELY(!base_encoder_->AddRecords(std::move(records_),
-                                                  std::move(limits_))) ||
-      RIEGELI_UNLIKELY(!base_encoder_->EncodeAndClose(dest, num_records,
-                                                      decoded_data_size))) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
+    return Fail(records_writer_);
+  }
+  if (ABSL_PREDICT_FALSE(!base_encoder_->AddRecords(std::move(records_),
+                                                    std::move(limits_))) ||
+      ABSL_PREDICT_FALSE(!base_encoder_->EncodeAndClose(dest, num_records,
+                                                        decoded_data_size))) {
     Fail(*base_encoder_);
   }
   return Close();

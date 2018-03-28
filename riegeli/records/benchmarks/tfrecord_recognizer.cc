@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/bytes/reader.h"
@@ -29,9 +30,9 @@ void TFRecordDetector::Done() { byte_reader_ = nullptr; }
 
 bool TFRecordDetector::CheckFileFormat(
     tensorflow::io::RecordReaderOptions* record_reader_options) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!byte_reader_->Pull())) {
-    if (RIEGELI_LIKELY(byte_reader_->healthy())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
+    if (ABSL_PREDICT_TRUE(byte_reader_->healthy())) {
       // Empty file: return false but leave healthy() as true. This mimics the
       // behavior of reading functions at end of file.
       return false;
@@ -44,7 +45,7 @@ bool TFRecordDetector::CheckFileFormat(
   Reader* reader;
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;
-    if (RIEGELI_UNLIKELY(!byte_reader_->Seek(pos_before))) {
+    if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_before))) {
       if (byte_reader_->healthy()) return Fail("Seeking failed");
       return Fail(*byte_reader_);
     }
@@ -62,9 +63,9 @@ bool TFRecordDetector::CheckFileFormat(
 
   char header[sizeof(uint64_t)];
   uint32_t masked_crc;
-  if (RIEGELI_UNLIKELY(!reader->Read(header, sizeof(header))) ||
-      RIEGELI_UNLIKELY(!reader->Read(reinterpret_cast<char*>(&masked_crc),
-                                     sizeof(masked_crc)))) {
+  if (ABSL_PREDICT_FALSE(!reader->Read(header, sizeof(header))) ||
+      ABSL_PREDICT_FALSE(!reader->Read(reinterpret_cast<char*>(&masked_crc),
+                                       sizeof(masked_crc)))) {
     if (reader->healthy()) return Fail("Truncated TFRecord file");
     return Fail(*reader);
   }

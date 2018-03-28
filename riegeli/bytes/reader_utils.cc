@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -31,24 +32,24 @@ namespace riegeli {
 namespace internal {
 
 bool ReadVarint32Slow(Reader* src, uint32_t* data) {
-  if (RIEGELI_UNLIKELY(!src->Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
   const char* cursor = src->cursor();
   uint32_t acc = static_cast<uint8_t>(*cursor++);
   src->set_cursor(cursor);
-  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
     // More than a single byte.
     uint32_t byte;
     int shift = 0;
     do {
-      if (RIEGELI_UNLIKELY(!src->Pull())) return false;
+      if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
       shift += 7;
       acc += (byte - 1) << shift;
-      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint32() - 1) * 7)) {
+      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint32() - 1) * 7)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint32_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           return false;
@@ -56,7 +57,7 @@ bool ReadVarint32Slow(Reader* src, uint32_t* data) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       return false;
     }
@@ -66,24 +67,24 @@ bool ReadVarint32Slow(Reader* src, uint32_t* data) {
 }
 
 bool ReadVarint64Slow(Reader* src, uint64_t* data) {
-  if (RIEGELI_UNLIKELY(!src->Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
   const char* cursor = src->cursor();
   uint64_t acc = static_cast<uint8_t>(*cursor++);
   src->set_cursor(cursor);
-  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
     // More than a single byte.
     uint64_t byte;
     int shift = 0;
     do {
-      if (RIEGELI_UNLIKELY(!src->Pull())) return false;
+      if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
       shift += 7;
       acc += (byte - 1) << shift;
-      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint64() - 1) * 7)) {
+      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint64() - 1) * 7)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint64_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           return false;
@@ -91,7 +92,7 @@ bool ReadVarint64Slow(Reader* src, uint64_t* data) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       return false;
     }
@@ -101,23 +102,23 @@ bool ReadVarint64Slow(Reader* src, uint64_t* data) {
 }
 
 char* CopyVarint32Slow(Reader* src, char* dest) {
-  if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
   const char* cursor = src->cursor();
   uint8_t byte = static_cast<uint8_t>(*cursor++);
   src->set_cursor(cursor);
   *dest++ = static_cast<char>(byte);
-  if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
     // More than a single byte.
     int remaining = kMaxLengthVarint32() - 1;
     do {
-      if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
+      if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
       *dest++ = static_cast<char>(byte);
-      if (RIEGELI_UNLIKELY(--remaining == 0)) {
+      if (ABSL_PREDICT_FALSE(--remaining == 0)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint8_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           return nullptr;
@@ -125,7 +126,7 @@ char* CopyVarint32Slow(Reader* src, char* dest) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       return nullptr;
     }
@@ -134,23 +135,23 @@ char* CopyVarint32Slow(Reader* src, char* dest) {
 }
 
 char* CopyVarint64Slow(Reader* src, char* dest) {
-  if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
   const char* cursor = src->cursor();
   uint8_t byte = static_cast<uint8_t>(*cursor++);
   src->set_cursor(cursor);
   *dest++ = static_cast<char>(byte);
-  if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
     // More than a single byte.
     int remaining = kMaxLengthVarint64() - 1;
     do {
-      if (RIEGELI_UNLIKELY(!src->Pull())) return nullptr;
+      if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
       const char* cursor = src->cursor();
       byte = static_cast<uint8_t>(*cursor++);
       src->set_cursor(cursor);
       *dest++ = static_cast<char>(byte);
-      if (RIEGELI_UNLIKELY(--remaining == 0)) {
+      if (ABSL_PREDICT_FALSE(--remaining == 0)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint8_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           return nullptr;
@@ -158,7 +159,7 @@ char* CopyVarint64Slow(Reader* src, char* dest) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       return nullptr;
     }
@@ -204,7 +205,7 @@ bool ReadAll(Reader* src, Chain* dest) {
     return src->Read(dest, size - src->pos());
   }
   do {
-    if (RIEGELI_UNLIKELY(!src->Read(dest, src->available()))) return false;
+    if (ABSL_PREDICT_FALSE(!src->Read(dest, src->available()))) return false;
   } while (src->Pull());
   return src->healthy();
 }
@@ -217,7 +218,7 @@ bool CopyAll(Reader* src, Writer* dest) {
     return src->CopyTo(dest, size - src->pos());
   }
   do {
-    if (RIEGELI_UNLIKELY(!src->CopyTo(dest, src->available()))) return false;
+    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, src->available()))) return false;
   } while (src->Pull());
   return src->healthy();
 }
@@ -230,7 +231,7 @@ bool CopyAll(Reader* src, BackwardWriter* dest) {
     return src->CopyTo(dest, size - src->pos());
   }
   Chain data;
-  if (RIEGELI_UNLIKELY(!ReadAll(src, &data))) return false;
+  if (ABSL_PREDICT_FALSE(!ReadAll(src, &data))) return false;
   return dest->Write(std::move(data));
 }
 

@@ -16,8 +16,8 @@
 
 #include <stdint.h>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -40,7 +40,7 @@ uint64_t ChunkHeader::computed_header_hash() const {
 }
 
 bool Chunk::WriteTo(Writer* dest) const {
-  if (RIEGELI_UNLIKELY(
+  if (ABSL_PREDICT_FALSE(
           !dest->Write(absl::string_view(header.bytes(), header.size())))) {
     return false;
   }
@@ -49,7 +49,9 @@ bool Chunk::WriteTo(Writer* dest) const {
 
 bool Chunk::ReadFrom(Reader* src) {
   data.Clear();
-  if (RIEGELI_UNLIKELY(!src->Read(header.bytes(), header.size()))) return false;
+  if (ABSL_PREDICT_FALSE(!src->Read(header.bytes(), header.size()))) {
+    return false;
+  }
   return src->Read(&data, header.data_size());
 }
 

@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -24,7 +25,7 @@
 namespace riegeli {
 
 void StringWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
+  if (ABSL_PREDICT_TRUE(healthy())) {
     RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
         << "StringWriter destination changed unexpectedly";
     DiscardBuffer();
@@ -37,10 +38,10 @@ bool StringWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
       << "StringWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(dest_->size() == dest_->max_size())) {
+  if (ABSL_PREDICT_FALSE(dest_->size() == dest_->max_size())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -55,10 +56,11 @@ bool StringWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
       << "StringWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(src.size() > dest_->max_size() - written_to_buffer())) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         dest_->max_size() - written_to_buffer())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -73,10 +75,11 @@ bool StringWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
       << "StringWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(src.size() > dest_->max_size() - written_to_buffer())) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         dest_->max_size() - written_to_buffer())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -88,7 +91,7 @@ bool StringWriter::WriteSlow(const Chain& src) {
 }
 
 bool StringWriter::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
       << "StringWriter destination changed unexpectedly";
   DiscardBuffer();

@@ -34,6 +34,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -70,7 +71,7 @@ inline FdWriterBase::FdWriterBase(std::string filename, int flags,
          "flags must include O_WRONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, permissions);
-  if (RIEGELI_UNLIKELY(fd_ < 0)) {
+  if (ABSL_PREDICT_FALSE(fd_ < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     FailOperation("open()", error_code);
@@ -80,9 +81,9 @@ again:
 }
 
 void FdWriterBase::Done() {
-  if (RIEGELI_LIKELY(PushInternal())) MaybeSyncPos();
+  if (ABSL_PREDICT_TRUE(PushInternal())) MaybeSyncPos();
   const int error_code = owned_fd_.Close();
-  if (RIEGELI_UNLIKELY(error_code != 0) && RIEGELI_LIKELY(healthy())) {
+  if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
     FailOperation(FdHolder::CloseFunctionName(), error_code);
   }
   // filename_ and error_code_ are not cleared.
@@ -97,8 +98,8 @@ inline bool FdWriterBase::FailOperation(absl::string_view operation,
 }
 
 bool FdWriterBase::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!PushInternal())) return false;
-  if (RIEGELI_UNLIKELY(!MaybeSyncPos())) return false;
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!MaybeSyncPos())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
     case FlushType::kFromProcess:
@@ -127,7 +128,7 @@ FdWriter::FdWriter(std::string filename, int flags, Options options)
   RIEGELI_ASSERT(options.owns_fd_)
       << "Failed precondition of FdWriter::FdWriter(string): "
          "file must be owned if FdWriter opens it";
-  if (RIEGELI_LIKELY(healthy())) InitializePos(flags);
+  if (ABSL_PREDICT_TRUE(healthy())) InitializePos(flags);
 }
 
 void FdWriter::Done() {
@@ -138,14 +139,14 @@ void FdWriter::Done() {
 inline void FdWriter::InitializePos(int flags) {
   if (sync_pos_) {
     const off_t result = lseek(fd_, 0, SEEK_CUR);
-    if (RIEGELI_UNLIKELY(result < 0)) {
+    if (ABSL_PREDICT_FALSE(result < 0)) {
       FailOperation("lseek()", errno);
       return;
     }
     start_pos_ = IntCast<Position>(result);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
-    if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
       FailOperation("fstat()", error_code);
       return;
@@ -159,8 +160,8 @@ bool FdWriter::MaybeSyncPos() {
       << "Failed precondition of FdWriterBase::MaybeSyncPos(): "
          "buffer not cleared";
   if (sync_pos_) {
-    if (RIEGELI_UNLIKELY(lseek(fd_, IntCast<off_t>(start_pos_), SEEK_SET) <
-                         0)) {
+    if (ABSL_PREDICT_FALSE(lseek(fd_, IntCast<off_t>(start_pos_), SEEK_SET) <
+                           0)) {
       limit_ = start_;
       return FailOperation("lseek()", errno);
     }
@@ -178,9 +179,9 @@ bool FdWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
-  if (RIEGELI_UNLIKELY(src.size() >
-                       Position{std::numeric_limits<off_t>::max()} -
-                           start_pos_)) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         Position{std::numeric_limits<off_t>::max()} -
+                             start_pos_)) {
     limit_ = start_;
     return FailOverflow();
   }
@@ -190,7 +191,7 @@ bool FdWriter::WriteInternal(absl::string_view src) {
         fd_, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(start_pos_));
-    if (RIEGELI_UNLIKELY(result < 0)) {
+    if (ABSL_PREDICT_FALSE(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       limit_ = start_;
@@ -209,18 +210,18 @@ bool FdWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
   if (new_pos >= start_pos_) {
     // Seeking forwards.
     struct stat stat_info;
-    if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
       limit_ = start_;
       return FailOperation("fstat()", error_code);
     }
-    if (RIEGELI_UNLIKELY(new_pos > IntCast<Position>(stat_info.st_size))) {
+    if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
       start_pos_ = IntCast<Position>(stat_info.st_size);
       return false;
@@ -231,20 +232,20 @@ bool FdWriter::SeekSlow(Position new_pos) {
 }
 
 bool FdWriter::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   struct stat stat_info;
   const int result = fstat(fd_, &stat_info);
-  if (RIEGELI_UNLIKELY(result < 0)) return false;
+  if (ABSL_PREDICT_FALSE(result < 0)) return false;
   *size = UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
   return true;
 }
 
 bool FdWriter::Truncate() {
-  if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
 again:
-  if (RIEGELI_UNLIKELY(ftruncate(fd_, IntCast<off_t>(start_pos_)) < 0)) {
+  if (ABSL_PREDICT_FALSE(ftruncate(fd_, IntCast<off_t>(start_pos_)) < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     limit_ = start_;
@@ -268,12 +269,12 @@ FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
   RIEGELI_ASSERT(options.owns_fd_)
       << "Failed precondition of FdStreamWriter::FdStreamWriter(string): "
          "file must be owned if FdStreamWriter opens it";
-  if (RIEGELI_UNLIKELY(!healthy())) return;
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (options.has_assumed_pos_) {
     start_pos_ = options.assumed_pos_;
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
-    if (RIEGELI_UNLIKELY(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
       const int error_code = errno;
       FailOperation("fstat()", error_code);
       return;
@@ -292,9 +293,9 @@ bool FdStreamWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
-  if (RIEGELI_UNLIKELY(src.size() >
-                       Position{std::numeric_limits<off_t>::max()} -
-                           start_pos_)) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         Position{std::numeric_limits<off_t>::max()} -
+                             start_pos_)) {
     limit_ = start_;
     return FailOverflow();
   }
@@ -303,7 +304,7 @@ bool FdStreamWriter::WriteInternal(absl::string_view src) {
     const ssize_t result = write(
         fd_, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}));
-    if (RIEGELI_UNLIKELY(result < 0)) {
+    if (ABSL_PREDICT_FALSE(result < 0)) {
       const int error_code = errno;
       if (error_code == EINTR) goto again;
       limit_ = start_;

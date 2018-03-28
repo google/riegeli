@@ -18,6 +18,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -36,19 +37,19 @@ ZLibReader::ZLibReader(Reader* src, Options options)
   decompressor_.zalloc = nullptr;
   decompressor_.zfree = nullptr;
   decompressor_.opaque = nullptr;
-  if (RIEGELI_UNLIKELY(inflateInit2(&decompressor_, options.window_bits_) !=
-                       Z_OK)) {
+  if (ABSL_PREDICT_FALSE(inflateInit2(&decompressor_, options.window_bits_) !=
+                         Z_OK)) {
     FailOperation("inflateInit2()");
   }
 }
 
 void ZLibReader::Done() {
-  if (RIEGELI_UNLIKELY(!Pull() && decompressor_present_)) {
+  if (ABSL_PREDICT_FALSE(!Pull() && decompressor_present_)) {
     Fail("Truncated zlib-compressed stream");
   }
   if (owned_src_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_src_->Close())) Fail(*owned_src_);
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
     }
     owned_src_.reset();
   }
@@ -75,7 +76,7 @@ bool ZLibReader::PullSlow() {
          "data available, use Pull() instead";
   // After all data have been decompressed, skip BufferedReader::PullSlow()
   // to avoid allocating the buffer in case it was not allocated yet.
-  if (RIEGELI_UNLIKELY(!decompressor_present_)) return false;
+  if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
   return BufferedReader::PullSlow();
 }
 
@@ -90,7 +91,7 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "Object unhealthy";
-  if (RIEGELI_UNLIKELY(!decompressor_present_)) return false;
+  if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
   decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
     decompressor_.avail_out =
@@ -114,9 +115,9 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
         RIEGELI_ASSERT_EQ(decompressor_.avail_in, 0u)
             << "inflate() returned but there are still input data and output "
                "space";
-        if (RIEGELI_UNLIKELY(!src_->Pull())) {
+        if (ABSL_PREDICT_FALSE(!src_->Pull())) {
           limit_pos_ += length_read;
-          if (RIEGELI_LIKELY(src_->HopeForMore())) return false;
+          if (ABSL_PREDICT_TRUE(src_->HopeForMore())) return false;
           if (src_->healthy()) return Fail("Truncated zlib-compressed stream");
           return Fail(*src_);
         }
@@ -139,7 +140,7 @@ bool ZLibReader::HopeForMoreSlow() const {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::HopeForMoreSlow(): "
          "data available, use HopeForMore() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return decompressor_present_;
 }
 

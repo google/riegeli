@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -146,7 +147,7 @@ class ChunkDecoder : public Object {
 // Implementation details follow.
 
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == limits_.size())) return false;
+  if (ABSL_PREDICT_FALSE(index_ == limits_.size())) return false;
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
@@ -160,7 +161,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record, uint64_t* key) {
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
+  if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
@@ -175,7 +176,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record, uint64_t* key) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record, uint64_t* key) {
-  if (RIEGELI_UNLIKELY(index_ == num_records())) return false;
+  if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
   if (key != nullptr) *key = index_;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];

@@ -79,7 +79,7 @@ class BufferedReader : public Reader {
  private:
   // Returns true if flat_buffer is considered too small to continue reading
   // into it and a new buffer should be allocated instead.
-  bool TooSmall(Chain::Buffer flat_buffer) const;
+  bool TooSmall(absl::Span<char> flat_buffer) const;
 
   // Iterator pointing to the block of buffer_ which holds the actual data.
   //

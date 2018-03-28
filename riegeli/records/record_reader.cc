@@ -19,10 +19,11 @@
 #include <utility>
 
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -35,14 +36,14 @@ namespace riegeli {
 RecordReader::RecordReader() noexcept : Object(State::kClosed) {}
 
 RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
-    : RecordReader(riegeli::make_unique<ChunkReader>(
+    : RecordReader(absl::make_unique<ChunkReader>(
                        std::move(byte_reader),
                        ChunkReader::Options().set_skip_corruption(
                            options.skip_corruption_)),
                    std::move(options)) {}
 
 RecordReader::RecordReader(Reader* byte_reader, Options options)
-    : RecordReader(riegeli::make_unique<ChunkReader>(
+    : RecordReader(absl::make_unique<ChunkReader>(
                        byte_reader, ChunkReader::Options().set_skip_corruption(
                                         options.skip_corruption_)),
                    std::move(options)) {}
@@ -87,7 +88,7 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
 
 void RecordReader::Done() {
   if (chunk_reader_ != nullptr) {
-    if (RIEGELI_UNLIKELY(!chunk_reader_->Close())) Fail(*chunk_reader_);
+    if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) Fail(*chunk_reader_);
     // Do not reset chunk_reader_ so that corrupted_bytes_skipped() remains
     // available.
   }
@@ -101,18 +102,18 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
   RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
       << "Failed precondition of RecordReader::ReadRecordSlow(): "
          "records available, use ReadRecord() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT(chunk_decoder_.healthy())
       << "Failed invariant of RecordReader: "
          "RecordReader healthy but ChunkDecoder unhealthy";
   for (;;) {
-    if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
     uint64_t index;
-    if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+    if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
       if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
       return true;
     }
-    if (RIEGELI_UNLIKELY(!chunk_decoder_.healthy())) {
+    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
       RIEGELI_ASSERT(!skip_corruption_)
           << "ChunkDecoder failed but skip_corruption is true";
       return Fail(chunk_decoder_);
@@ -128,7 +129,7 @@ template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* 
 template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
 
 bool RecordReader::Seek(RecordPosition new_pos) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_pos.chunk_begin() == chunk_begin_) {
     if (new_pos.record_index() == 0 || chunk_reader_->pos() > chunk_begin_) {
       // Seeking to the beginning of a chunk does not need reading the chunk nor
@@ -139,14 +140,14 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       goto skip_reading_chunk;
     }
   } else {
-    if (RIEGELI_UNLIKELY(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
+    if (ABSL_PREDICT_FALSE(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
+      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
     if (new_pos.record_index() == 0 ||
-        RIEGELI_UNLIKELY(chunk_reader_->pos() > new_pos.chunk_begin())) {
+        ABSL_PREDICT_FALSE(chunk_reader_->pos() > new_pos.chunk_begin())) {
       // Seeking to the beginning of a chunk does not need reading the chunk nor
       // checking its size, which is important because it may be non-existent at
       // end of file, corrupted, or empty.
@@ -158,8 +159,8 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       return true;
     }
   }
-  if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
-  if (RIEGELI_UNLIKELY(chunk_begin_ > new_pos.chunk_begin())) {
+  if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+  if (ABSL_PREDICT_FALSE(chunk_begin_ > new_pos.chunk_begin())) {
     // Corruption was skipped. Leave the position after the corruption.
     return true;
   }
@@ -169,16 +170,16 @@ skip_reading_chunk:
 }
 
 bool RecordReader::Seek(Position new_pos) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_pos >= chunk_begin_ && new_pos <= chunk_reader_->pos()) {
     // Seeking inside or just after the current chunk which has been read,
     // or to the beginning of the current chunk which has been located,
     // or to the end of file which has been reached.
   } else {
-    if (RIEGELI_UNLIKELY(!chunk_reader_->SeekToChunkContaining(new_pos))) {
+    if (ABSL_PREDICT_FALSE(!chunk_reader_->SeekToChunkContaining(new_pos))) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
+      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
     if (chunk_reader_->pos() >= new_pos) {
@@ -191,8 +192,8 @@ bool RecordReader::Seek(Position new_pos) {
       chunk_decoder_.Reset();
       return true;
     }
-    if (RIEGELI_UNLIKELY(!ReadChunk())) return false;
-    if (RIEGELI_UNLIKELY(chunk_begin_ > new_pos)) {
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+    if (ABSL_PREDICT_FALSE(chunk_begin_ > new_pos)) {
       // Corruption was skipped. Leave the position after the corruption.
       return true;
     }
@@ -204,24 +205,24 @@ bool RecordReader::Seek(Position new_pos) {
 inline bool RecordReader::ReadChunk() {
   Chunk chunk;
   for (;;) {
-    if (RIEGELI_UNLIKELY(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
+    if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      if (RIEGELI_LIKELY(chunk_reader_->healthy())) return false;
+      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
       return Fail(*chunk_reader_);
     }
     if (chunk_begin_ == 0) {
       // Verify file signature.
-      if (RIEGELI_UNLIKELY(chunk.header.data_size() != 0 ||
-                           chunk.header.num_records() != 0 ||
-                           chunk.header.decoded_data_size() != 0)) {
+      if (ABSL_PREDICT_FALSE(chunk.header.data_size() != 0 ||
+                             chunk.header.num_records() != 0 ||
+                             chunk.header.decoded_data_size() != 0)) {
         chunk_decoder_.Reset();
         return Fail("Invalid Riegeli/records file: missing file signature");
       }
       // Decoding this chunk will yield no records and ReadChunk() will be
       // called again if needed.
     }
-    if (RIEGELI_LIKELY(chunk_decoder_.Reset(chunk))) return true;
+    if (ABSL_PREDICT_TRUE(chunk_decoder_.Reset(chunk))) return true;
     if (!skip_corruption_) return Fail(chunk_decoder_);
     chunk_decoder_.Reset();
     corrupted_bytes_skipped_ = SaturatingAdd(

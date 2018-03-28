@@ -22,21 +22,8 @@
 #include <utility>
 
 #include "riegeli/base/base.h"
-#include "riegeli/base/port.h"
 
 namespace riegeli {
-
-// RIEGELI_CONST_INIT attribute makes a static assertion that the variable
-// to which it is attached does not undergo dynamic initialization:
-// http://en.cppreference.com/w/cpp/language/constant_initialization
-// The variable must have static or thread storage duration.
-//
-// This is redundant for constexpr variables.
-#if RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(clang::require_constant_initialization)
-#define RIEGELI_CONST_INIT [[clang::require_constant_initialization]]
-#else
-#define RIEGELI_CONST_INIT
-#endif
 
 // NoDestructor<T> constructs and stores an object of type T but does not call
 // its destructor.
@@ -87,52 +74,6 @@ class NoDestructor {
     T object_;
   };
 };
-
-// riegeli::make_unique() is the same as std::make_unique() from C++14, but is
-// available since C++11.
-
-#if __cpp_lib_make_unique
-
-using std::make_unique;
-
-#else  // !__cpp_lib_make_unique
-
-namespace internal {
-
-template <typename T>
-struct MakeUniqueResult {
-  using Scalar = std::unique_ptr<T>;
-};
-
-template <typename T>
-struct MakeUniqueResult<T[]> {
-  using Array = std::unique_ptr<T[]>;
-  using ElementType = T;
-};
-
-template <typename T, size_t n>
-struct MakeUniqueResult<T[n]> {
-  using ArrayWithBound = void;
-};
-
-}  // namespace internal
-
-template <typename T, typename... Args>
-typename internal::MakeUniqueResult<T>::Scalar make_unique(Args&&... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
-template <typename T>
-typename internal::MakeUniqueResult<T>::Array make_unique(size_t n) {
-  using ElementType = typename internal::MakeUniqueResult<T>::ElementType;
-  return std::unique_ptr<T>(new ElementType[n]());
-}
-
-template <typename T, typename... Args>
-typename internal::MakeUniqueResult<T>::ArrayWithBound make_unique(Args&&...) =
-    delete;
-
-#endif  // !__cpp_lib_make_unique
 
 // {New,Delete}Aligned() provide memory allocation with the specified alignment
 // known at compile time, with the size specified in bytes, and which allow

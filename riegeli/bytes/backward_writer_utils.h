@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include "riegeli/base/base.h"
+#include "absl/base/optimization.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/varint.h"
 #include "riegeli/bytes/writer_utils.h"
@@ -37,7 +37,7 @@ bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data);
 }  // namespace internal
 
 inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
-  if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint32())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32())) {
     char* start = dest->cursor() - LengthVarint32(data);
     dest->set_cursor(start);
     WriteVarint32(start, data);
@@ -47,7 +47,7 @@ inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
 }
 
 inline bool WriteVarint64(BackwardWriter* dest, uint64_t data) {
-  if (RIEGELI_LIKELY(dest->available() >= kMaxLengthVarint64())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64())) {
     char* start = dest->cursor() - LengthVarint64(data);
     dest->set_cursor(start);
     WriteVarint64(start, data);

@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <limits>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -34,7 +35,7 @@ LimitingReader::LimitingReader(Reader* src, Position size_limit)
       << "Failed precondition of LimitingReader::LimitingReader(): "
          "size limit smaller than current position";
   if (src_->GetTypeId() == TypeId::For<LimitingReader>() &&
-      RIEGELI_LIKELY(src_->healthy())) {
+      ABSL_PREDICT_TRUE(src_->healthy())) {
     wrapped_ = static_cast<LimitingReader*>(src_);
     // src is already a LimitingReader: refer to its source instead, so that
     // creating a stack of LimitingReaders avoids iterating through the stack
@@ -47,7 +48,7 @@ LimitingReader::LimitingReader(Reader* src, Position size_limit)
 }
 
 void LimitingReader::Done() {
-  if (RIEGELI_LIKELY(healthy())) src_->set_cursor(cursor_);
+  if (ABSL_PREDICT_TRUE(healthy())) src_->set_cursor(cursor_);
   if (wrapped_ != nullptr) {
     wrapped_->SyncBuffer();
     wrapped_ = nullptr;
@@ -65,9 +66,9 @@ bool LimitingReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   src_->set_cursor(cursor_);
-  if (RIEGELI_UNLIKELY(limit_pos_ == size_limit_)) return false;
+  if (ABSL_PREDICT_FALSE(limit_pos_ == size_limit_)) return false;
   const bool ok = src_->Pull();
   SyncBuffer();
   return ok;
@@ -92,7 +93,7 @@ bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
 
 template <typename Dest>
 bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   src_->set_cursor(cursor_);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
@@ -106,7 +107,7 @@ bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   src_->set_cursor(cursor_);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
@@ -120,11 +121,11 @@ bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   src_->set_cursor(cursor_);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
-  if (RIEGELI_UNLIKELY(length > size_limit_ - pos())) {
+  if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
     src_->Seek(size_limit_);
     SyncBuffer();
     return false;
@@ -145,7 +146,7 @@ bool LimitingReader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   src_->set_cursor(cursor_);
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
   const bool ok = src_->Seek(pos_to_seek);
@@ -158,11 +159,11 @@ inline void LimitingReader::SyncBuffer() {
   cursor_ = src_->cursor();
   limit_ = src_->limit();
   limit_pos_ = src_->pos() + src_->available();  // src_->limit_pos_
-  if (RIEGELI_UNLIKELY(limit_pos_ > size_limit_)) {
+  if (ABSL_PREDICT_FALSE(limit_pos_ > size_limit_)) {
     limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
     limit_pos_ = size_limit_;
   }
-  if (RIEGELI_UNLIKELY(!src_->healthy())) Fail(*src_);
+  if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail(*src_);
 }
 
 }  // namespace riegeli

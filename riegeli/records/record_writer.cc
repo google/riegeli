@@ -16,21 +16,23 @@
 
 #include <stddef.h>
 #include <cmath>
-#include <condition_variable>
 #include <deque>
 #include <future>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <new>
 #include <string>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
+#include "absl/container/inlined_vector.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
@@ -77,7 +79,7 @@ bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) 
   parser.AddOption("bucket_fraction", parser.Real(&bucket_fraction_, 0.0, 1.0));
   parser.AddOption("parallelism", parser.Int(&parallelism_, 0,
                                              std::numeric_limits<int>::max()));
-  if (RIEGELI_UNLIKELY(!parser.Parse(text))) {
+  if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
     *message = std::string(parser.Message());
     return false;
   }
@@ -92,23 +94,23 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
         std::round(static_cast<long double>(options.chunk_size_) *
                    static_cast<long double>(options.bucket_fraction_));
     const uint64_t bucket_size =
-        RIEGELI_UNLIKELY(
+        ABSL_PREDICT_FALSE(
             long_double_bucket_size >=
             static_cast<long double>(std::numeric_limits<uint64_t>::max()))
             ? std::numeric_limits<uint64_t>::max()
-            : RIEGELI_LIKELY(long_double_bucket_size >= 1.0L)
+            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
                   ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
-    chunk_encoder = riegeli::make_unique<TransposeEncoder>(
+    chunk_encoder = absl::make_unique<TransposeEncoder>(
         options.compressor_options_, bucket_size);
   } else {
-    chunk_encoder = riegeli::make_unique<SimpleEncoder>(
+    chunk_encoder = absl::make_unique<SimpleEncoder>(
         options.compressor_options_, options.chunk_size_);
   }
   if (options.parallelism_ == 0) {
     return chunk_encoder;
   } else {
-    return riegeli::make_unique<DeferredEncoder>(std::move(chunk_encoder));
+    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
   }
 }
 
@@ -150,8 +152,8 @@ RecordWriter::Impl::~Impl() {}
 
 template <typename Record>
 bool RecordWriter::Impl::AddRecord(Record&& record) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
     return Fail(*chunk_encoder_);
   }
@@ -180,20 +182,20 @@ class RecordWriter::SerialImpl final : public Impl {
 };
 
 bool RecordWriter::SerialImpl::CloseChunk() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
-  if (RIEGELI_UNLIKELY(!chunk_encoder_->EncodeAndClose(&chunk))) {
+  if (ABSL_PREDICT_FALSE(!chunk_encoder_->EncodeAndClose(&chunk))) {
     return Fail("Encoding chunk failed", *chunk_encoder_);
   }
-  if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
     return Fail(*chunk_writer_);
   }
   return true;
 }
 
 bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
-  if (RIEGELI_UNLIKELY(!chunk_writer_->Flush(flush_type))) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
     if (chunk_writer_->healthy()) return false;
     return Fail(*chunk_writer_);
   }
@@ -253,13 +255,10 @@ class RecordWriter::ParallelImpl final : public Impl {
 
   Options options_;
   ChunkWriter* chunk_writer_;
-  std::mutex mutex_;
-  // All variables below are guarded by mutex_.
-  std::deque<ChunkWriterRequest> chunk_writer_requests_;
-  std::condition_variable has_chunk_writer_request_;
-  std::condition_variable has_space_for_chunk_;
+  absl::Mutex mutex_;
+  std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
   // The value of chunk_writer_->pos() before handling chunk_writer_requests_.
-  Position chunk_writer_pos_before_requests_;
+  Position chunk_writer_pos_before_requests_ GUARDED_BY(mutex_);
 };
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
@@ -328,31 +327,33 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       chunk_writer_(chunk_writer),
       chunk_writer_pos_before_requests_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
-    std::unique_lock<std::mutex> lock(mutex_);
+    mutex_.Lock();
     for (;;) {
-      while (chunk_writer_requests_.empty()) {
-        has_chunk_writer_request_.wait(lock);
-      }
+      mutex_.Await(absl::Condition(
+          +[](std::deque<ChunkWriterRequest>* chunk_writer_requests) {
+            return !chunk_writer_requests->empty();
+          },
+          &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
-      lock.unlock();
+      mutex_.Unlock();
       switch (request.request_type) {
         case RequestType::kWriteChunkRequest: {
           // If !healthy(), the chunk must still be waited for, to ensure that
           // the chunk encoder thread exits before the chunk writer thread
           // responds to DoneRequest.
           const Chunk& chunk = request.write_chunk_request.chunk.get();
-          if (RIEGELI_UNLIKELY(!healthy())) goto handled;
-          if (RIEGELI_UNLIKELY(!chunk_writer_->WriteChunk(chunk))) {
+          if (ABSL_PREDICT_FALSE(!healthy())) goto handled;
+          if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
             Fail(*chunk_writer_);
           }
           goto handled;
         }
         case RequestType::kFlushRequest: {
-          if (RIEGELI_UNLIKELY(!healthy())) {
+          if (ABSL_PREDICT_FALSE(!healthy())) {
             request.flush_request.done.set_value(false);
             goto handled;
           }
-          if (RIEGELI_UNLIKELY(
+          if (ABSL_PREDICT_FALSE(
                   !chunk_writer_->Flush(request.flush_request.flush_type))) {
             if (!chunk_writer_->healthy()) Fail(*chunk_writer_);
             request.flush_request.done.set_value(false);
@@ -369,16 +370,15 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown request type: " << static_cast<int>(request.request_type);
     handled:
-      lock.lock();
+      mutex_.Lock();
       chunk_writer_requests_.pop_front();
-      has_space_for_chunk_.notify_all();
       chunk_writer_pos_before_requests_ = chunk_writer_->pos();
     }
   });
 }
 
 RecordWriter::ParallelImpl::~ParallelImpl() {
-  if (RIEGELI_UNLIKELY(!closed())) {
+  if (ABSL_PREDICT_FALSE(!closed())) {
     // Ask the chunk writer thread to stop working and exit.
     Fail("Cancelled");
     Done();
@@ -389,31 +389,32 @@ void RecordWriter::ParallelImpl::Done() {
   std::promise<void> done_promise;
   std::future<void> done_future = done_promise.get_future();
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
-    has_chunk_writer_request_.notify_all();
   }
   done_future.get();
 }
 
 bool RecordWriter::ParallelImpl::CloseChunk() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkEncoder* const chunk_encoder = chunk_encoder_.release();
   std::promise<Chunk>* const chunk_promise =
       new std::promise<Chunk>();
   {
-    std::unique_lock<std::mutex> lock(mutex_);
-    while (chunk_writer_requests_.size() >=
-           IntCast<size_t>(options_.parallelism_)) {
-      has_space_for_chunk_.wait(lock);
-    }
+    mutex_.LockWhen(absl::Condition(
+        +[](ParallelImpl* self) {
+          self->mutex_.AssertHeld();
+          return self->chunk_writer_requests_.size() <
+                 IntCast<size_t>(self->options_.parallelism_);
+        },
+        this));
     chunk_writer_requests_.emplace_back(
         WriteChunkRequest{chunk_promise->get_future()});
-    has_chunk_writer_request_.notify_all();
+    mutex_.Unlock();
   }
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
     Chunk chunk;
-    if (RIEGELI_UNLIKELY(!chunk_encoder->EncodeAndClose(&chunk))) {
+    if (ABSL_PREDICT_FALSE(!chunk_encoder->EncodeAndClose(&chunk))) {
       Fail("Encoding chunk failed", *chunk_encoder);
     }
     delete chunk_encoder;
@@ -427,19 +428,18 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     chunk_writer_requests_.emplace_back(
         FlushRequest{flush_type, std::move(done_promise)});
-    has_chunk_writer_request_.notify_all();
   }
   return done_future.get();
 }
 
 Position RecordWriter::ParallelImpl::ChunkBegin() {
   Position pos;
-  std::vector<std::shared_future<Chunk>> chunks;
+  absl::InlinedVector<std::shared_future<Chunk>, 16> chunks;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     pos = chunk_writer_pos_before_requests_;
     chunks.reserve(chunk_writer_requests_.size());
     for (const auto& pending_request : chunk_writer_requests_) {
@@ -462,11 +462,11 @@ RecordWriter::RecordWriter() noexcept : Object(State::kClosed) {}
 RecordWriter::RecordWriter(std::unique_ptr<Writer> chunk_writer,
                            Options options)
     : RecordWriter(
-          riegeli::make_unique<DefaultChunkWriter>(std::move(chunk_writer)),
+          absl::make_unique<DefaultChunkWriter>(std::move(chunk_writer)),
           options) {}
 
 RecordWriter::RecordWriter(Writer* chunk_writer, Options options)
-    : RecordWriter(riegeli::make_unique<DefaultChunkWriter>(chunk_writer),
+    : RecordWriter(absl::make_unique<DefaultChunkWriter>(chunk_writer),
                    options) {}
 
 RecordWriter::RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
@@ -482,15 +482,15 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
     // Write file signature.
     Chunk signature;
     signature.header = ChunkHeader(signature.data, 0, 0);
-    if (RIEGELI_UNLIKELY(!chunk_writer->WriteChunk(signature))) {
+    if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(signature))) {
       Fail(*chunk_writer);
       return;
     }
   }
   if (options.parallelism_ == 0) {
-    impl_ = riegeli::make_unique<SerialImpl>(chunk_writer, options);
+    impl_ = absl::make_unique<SerialImpl>(chunk_writer, options);
   } else {
-    impl_ = riegeli::make_unique<ParallelImpl>(chunk_writer, options);
+    impl_ = absl::make_unique<ParallelImpl>(chunk_writer, options);
   }
   impl_->OpenChunk();
 }
@@ -516,18 +516,18 @@ RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
 RecordWriter::~RecordWriter() {}
 
 void RecordWriter::Done() {
-  if (RIEGELI_LIKELY(healthy()) && chunk_size_so_far_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) Fail(*impl_);
+  if (ABSL_PREDICT_TRUE(healthy()) && chunk_size_so_far_ != 0) {
+    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) Fail(*impl_);
   }
-  if (RIEGELI_LIKELY(impl_ != nullptr)) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!impl_->Close())) Fail(*impl_);
+  if (ABSL_PREDICT_TRUE(impl_ != nullptr)) {
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!impl_->Close())) Fail(*impl_);
     }
     impl_.reset();
   }
   if (owned_chunk_writer_ != nullptr) {
-    if (RIEGELI_LIKELY(healthy())) {
-      if (RIEGELI_UNLIKELY(!owned_chunk_writer_->Close())) {
+    if (ABSL_PREDICT_TRUE(healthy())) {
+      if (ABSL_PREDICT_FALSE(!owned_chunk_writer_->Close())) {
         Fail(*owned_chunk_writer_);
       }
     }
@@ -539,22 +539,23 @@ void RecordWriter::Done() {
 
 template <typename Record>
 bool RecordWriter::WriteRecordImpl(Record&& record, RecordPosition* key) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
   const uint64_t added_size = SaturatingAdd(
       IntCast<uint64_t>(RecordSize(record)), uint64_t{sizeof(uint64_t)});
-  if (RIEGELI_UNLIKELY(chunk_size_so_far_ > desired_chunk_size_ ||
-                       added_size > desired_chunk_size_ - chunk_size_so_far_) &&
+  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ > desired_chunk_size_ ||
+                         added_size >
+                             desired_chunk_size_ - chunk_size_so_far_) &&
       chunk_size_so_far_ > 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
+    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) return Fail(*impl_);
     impl_->OpenChunk();
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
   if (key != nullptr) *key = impl_->Pos();
-  if (RIEGELI_UNLIKELY(!impl_->AddRecord(std::forward<Record>(record)))) {
+  if (ABSL_PREDICT_FALSE(!impl_->AddRecord(std::forward<Record>(record)))) {
     return Fail(*impl_);
   }
   return true;
@@ -572,11 +573,11 @@ template bool RecordWriter::WriteRecordImpl(Chain&& record,
                                             RecordPosition* key);
 
 bool RecordWriter::Flush(FlushType flush_type) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (chunk_size_so_far_ != 0) {
-    if (RIEGELI_UNLIKELY(!impl_->CloseChunk())) return Fail(*impl_);
+    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) return Fail(*impl_);
   }
-  if (RIEGELI_UNLIKELY(!impl_->Flush(flush_type))) {
+  if (ABSL_PREDICT_FALSE(!impl_->Flush(flush_type))) {
     if (impl_->healthy()) return false;
     return Fail(*impl_);
   }
@@ -588,7 +589,7 @@ bool RecordWriter::Flush(FlushType flush_type) {
 }
 
 RecordPosition RecordWriter::Pos() const {
-  if (RIEGELI_UNLIKELY(impl_ == nullptr)) return RecordPosition();
+  if (ABSL_PREDICT_FALSE(impl_ == nullptr)) return RecordPosition();
   return impl_->Pos();
 }
 

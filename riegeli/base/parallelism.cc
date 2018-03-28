@@ -15,12 +15,11 @@
 #include "riegeli/base/parallelism.h"
 
 #include <functional>
-#include <chrono>
-#include <condition_variable>
-#include <mutex>
 #include <thread>
 #include <utility>
 
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 
@@ -28,43 +27,42 @@ namespace riegeli {
 namespace internal {
 
 ThreadPool::~ThreadPool() {
-  std::unique_lock<std::mutex> lock(mutex_);
+  absl::MutexLock lock(&mutex_);
   exiting_ = true;
-  has_work_.notify_all();
-  while (num_threads_ > 0) workers_exited_.wait(lock);
+  mutex_.Await(absl::Condition(
+      +[](size_t* num_threads) { return *num_threads == 0; }, &num_threads_));
 }
 
 void ThreadPool::Schedule(std::function<void()> task) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    absl::MutexLock lock(&mutex_);
     RIEGELI_ASSERT(!exiting_)
         << "Failed precondition of ThreadPool::Schedule(): no new threads may "
            "be scheduled while the thread pool is exiting";
     tasks_.push_back(std::move(task));
-    if (num_idle_threads_ >= tasks_.size()) {
-      has_work_.notify_one();
-      return;
-    }
+    if (num_idle_threads_ >= tasks_.size()) return;
     ++num_threads_;
   }
   std::thread([this] {
     for (;;) {
-      std::unique_lock<std::mutex> lock(mutex_);
+      absl::ReleasableMutexLock lock(&mutex_);
       ++num_idle_threads_;
-      while (tasks_.empty() && !exiting_) {
-        if (has_work_.wait_for(lock, std::chrono::seconds(60)) ==
-            std::cv_status::timeout) {
-          break;
-        }
-      }
+      mutex_.AwaitWithTimeout(absl::Condition(
+                                  +[](ThreadPool* self) {
+                                    self->mutex_.AssertHeld();
+                                    return !self->tasks_.empty() ||
+                                           self->exiting_;
+                                  },
+                                  this),
+                              absl::Seconds(60));
       --num_idle_threads_;
       if (tasks_.empty() || exiting_) {
-        if (--num_threads_ == 0) workers_exited_.notify_all();
+        --num_threads_;
         return;
       }
       const std::function<void()> task = std::move(tasks_.front());
       tasks_.pop_front();
-      lock.unlock();
+      lock.Release();
       task();
     }
   })

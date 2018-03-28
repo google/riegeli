@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -231,7 +232,7 @@ class RecordReader final : public Object {
 inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
                                      RecordPosition* key) {
   uint64_t index;
-  if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
     if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
     return true;
   }
@@ -241,7 +242,7 @@ inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
 inline bool RecordReader::ReadRecord(absl::string_view* record,
                                      RecordPosition* key) {
   uint64_t index;
-  if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
     if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
     return true;
   }
@@ -250,7 +251,7 @@ inline bool RecordReader::ReadRecord(absl::string_view* record,
 
 inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
   uint64_t index;
-  if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
     if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
     return true;
   }
@@ -259,7 +260,7 @@ inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
 
 inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
   uint64_t index;
-  if (RIEGELI_LIKELY(chunk_decoder_.ReadRecord(record, &index))) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record, &index))) {
     if (key != nullptr) *key = RecordPosition(chunk_begin_, index);
     return true;
   }
@@ -272,19 +273,20 @@ inline bool RecordReader::HopeForMore() const {
 }
 
 inline RecordPosition RecordReader::Pos() const {
-  if (RIEGELI_LIKELY(chunk_decoder_.index() < chunk_decoder_.num_records())) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
+                        chunk_decoder_.num_records())) {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());
   }
   return RecordPosition(chunk_reader_->pos(), 0);
 }
 
 inline bool RecordReader::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return chunk_reader_->Size(size);
 }
 
 inline Position RecordReader::corrupted_bytes_skipped() const {
-  if (RIEGELI_UNLIKELY(chunk_reader_ == nullptr)) return 0;
+  if (ABSL_PREDICT_FALSE(chunk_reader_ == nullptr)) return 0;
   return SaturatingAdd(chunk_reader_->corrupted_bytes_skipped(),
                        corrupted_bytes_skipped_);
 }

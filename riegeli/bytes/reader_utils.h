@@ -18,8 +18,8 @@
 #include <stdint.h>
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -72,7 +72,7 @@ char* CopyVarint64Slow(Reader* src, char* dest);
 }  // namespace internal
 
 inline bool ReadByte(Reader* src, uint8_t* data) {
-  if (RIEGELI_UNLIKELY(!src->Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
   const char* cursor = src->cursor();
   *data = static_cast<uint8_t>(*cursor++);
   src->set_cursor(cursor);
@@ -82,7 +82,7 @@ inline bool ReadByte(Reader* src, uint8_t* data) {
 inline bool ReadVarint32(const char** src, uint32_t* data) {
   const char* cursor = *src;
   uint32_t acc = static_cast<uint8_t>(*cursor++);
-  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
     // More than a single byte.
     uint32_t byte;
     int shift = 0;
@@ -90,9 +90,9 @@ inline bool ReadVarint32(const char** src, uint32_t* data) {
       byte = static_cast<uint8_t>(*cursor++);
       shift += 7;
       acc += (byte - 1) << shift;
-      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint32() - 1) * 7)) {
+      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint32() - 1) * 7)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint32_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           *src = cursor;
@@ -101,7 +101,7 @@ inline bool ReadVarint32(const char** src, uint32_t* data) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       *src = cursor;
       return false;
@@ -115,7 +115,7 @@ inline bool ReadVarint32(const char** src, uint32_t* data) {
 inline bool ReadVarint64(const char** src, uint64_t* data) {
   const char* cursor = *src;
   uint64_t acc = static_cast<uint8_t>(*cursor++);
-  if (RIEGELI_UNLIKELY(acc >= 0x80)) {
+  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
     // More than a single byte.
     uint64_t byte;
     int shift = 0;
@@ -123,9 +123,9 @@ inline bool ReadVarint64(const char** src, uint64_t* data) {
       byte = static_cast<uint8_t>(*cursor++);
       shift += 7;
       acc += (byte - 1) << shift;
-      if (RIEGELI_UNLIKELY(shift == (kMaxLengthVarint64() - 1) * 7)) {
+      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint64() - 1) * 7)) {
         // Last possible byte.
-        if (RIEGELI_UNLIKELY(
+        if (ABSL_PREDICT_FALSE(
                 byte >= uint64_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
           // Some bits are set outside of the range of possible values.
           *src = cursor;
@@ -134,7 +134,7 @@ inline bool ReadVarint64(const char** src, uint64_t* data) {
         break;
       }
     } while (byte >= 0x80);
-    if (RIEGELI_UNLIKELY(byte == 0)) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) {
       // Overlong representation.
       *src = cursor;
       return false;
@@ -146,7 +146,7 @@ inline bool ReadVarint64(const char** src, uint64_t* data) {
 }
 
 inline bool ReadVarint32(Reader* src, uint32_t* data) {
-  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint32())) {
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint32())) {
     const char* cursor = src->cursor();
     const bool ok = ReadVarint32(&cursor, data);
     src->set_cursor(cursor);
@@ -156,7 +156,7 @@ inline bool ReadVarint32(Reader* src, uint32_t* data) {
 }
 
 inline bool ReadVarint64(Reader* src, uint64_t* data) {
-  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint64())) {
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint64())) {
     const char* cursor = src->cursor();
     const bool ok = ReadVarint64(&cursor, data);
     src->set_cursor(cursor);
@@ -166,21 +166,21 @@ inline bool ReadVarint64(Reader* src, uint64_t* data) {
 }
 
 inline char* CopyVarint32(Reader* src, char* dest) {
-  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint32())) {
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint32())) {
     const char* cursor = src->cursor();
     uint8_t byte = static_cast<uint8_t>(*cursor++);
     *dest++ = static_cast<char>(byte);
-    if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
       // More than a single byte.
       int remaining = kMaxLengthVarint32() - 1;
       do {
         byte = static_cast<uint8_t>(*cursor++);
         *dest++ = static_cast<char>(byte);
-        if (RIEGELI_UNLIKELY(--remaining == 0)) {
+        if (ABSL_PREDICT_FALSE(--remaining == 0)) {
           // Last possible byte.
-          if (RIEGELI_UNLIKELY(byte >=
-                               uint32_t{1}
-                                   << (32 - (kMaxLengthVarint32() - 1) * 7))) {
+          if (ABSL_PREDICT_FALSE(
+                  byte >= uint32_t{1}
+                              << (32 - (kMaxLengthVarint32() - 1) * 7))) {
             // Some bits are set outside of the range of possible values.
             src->set_cursor(cursor);
             return nullptr;
@@ -188,7 +188,7 @@ inline char* CopyVarint32(Reader* src, char* dest) {
           break;
         }
       } while (byte >= 0x80);
-      if (RIEGELI_UNLIKELY(byte == 0)) {
+      if (ABSL_PREDICT_FALSE(byte == 0)) {
         // Overlong representation.
         src->set_cursor(cursor);
         return nullptr;
@@ -201,21 +201,21 @@ inline char* CopyVarint32(Reader* src, char* dest) {
 }
 
 inline char* CopyVarint64(Reader* src, char* dest) {
-  if (RIEGELI_LIKELY(src->available() >= kMaxLengthVarint64())) {
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint64())) {
     const char* cursor = src->cursor();
     uint8_t byte = static_cast<uint8_t>(*cursor++);
     *dest++ = static_cast<char>(byte);
-    if (RIEGELI_UNLIKELY(byte >= 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
       // More than a single byte.
       int remaining = kMaxLengthVarint64() - 1;
       do {
         byte = static_cast<uint8_t>(*cursor++);
         *dest++ = static_cast<char>(byte);
-        if (RIEGELI_UNLIKELY(--remaining == 0)) {
+        if (ABSL_PREDICT_FALSE(--remaining == 0)) {
           // Last possible byte.
-          if (RIEGELI_UNLIKELY(byte >=
-                               uint8_t{1}
-                                   << (64 - (kMaxLengthVarint64() - 1) * 7))) {
+          if (ABSL_PREDICT_FALSE(
+                  byte >= uint8_t{1}
+                              << (64 - (kMaxLengthVarint64() - 1) * 7))) {
             // Some bits are set outside of the range of possible values.
             src->set_cursor(cursor);
             return nullptr;
@@ -223,7 +223,7 @@ inline char* CopyVarint64(Reader* src, char* dest) {
           break;
         }
       } while (byte >= 0x80);
-      if (RIEGELI_UNLIKELY(byte == 0)) {
+      if (ABSL_PREDICT_FALSE(byte == 0)) {
         // Overlong representation.
         src->set_cursor(cursor);
         return nullptr;

@@ -38,6 +38,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
@@ -150,7 +152,7 @@ class Benchmarks {
 bool Benchmarks::ReadFile(const std::string& filename, std::vector<std::string>* records,
                           size_t* max_size) {
   riegeli::FdReader file_reader(filename, O_RDONLY);
-  if (RIEGELI_UNLIKELY(!file_reader.healthy())) {
+  if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
     std::cerr << "Could not open file: " << file_reader.Message() << std::endl;
     std::exit(1);
   }
@@ -225,7 +227,7 @@ bool Benchmarks::ReadTFRecord(
     }
     const size_t memory =
         riegeli::LengthVarint64(record.size()) + record.size();
-    if (RIEGELI_UNLIKELY(*max_size < memory)) return false;
+    if (ABSL_PREDICT_FALSE(*max_size < memory)) return false;
     *max_size -= memory;
     records->push_back(std::move(record));
   }
@@ -257,7 +259,7 @@ bool Benchmarks::ReadRiegeli(
   while (record_reader.ReadRecord(&record)) {
     const size_t memory =
         riegeli::LengthVarint64(record.size()) + record.size();
-    if (RIEGELI_UNLIKELY(*max_size < memory)) return false;
+    if (ABSL_PREDICT_FALSE(*max_size < memory)) return false;
     *max_size -= memory;
     records->push_back(std::move(record));
   }
@@ -294,12 +296,12 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
   const char* compression = tensorflow::io::compression::kNone;
   riegeli::OptionsParser parser;
   parser.AddOption("uncompressed", parser.Empty([&parser, &compression] {
-    if (RIEGELI_UNLIKELY(!parser.FailIfSeen("gzip"))) return false;
+    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("gzip"))) return false;
     compression = tensorflow::io::compression::kNone;
     return true;
   }));
   parser.AddOption("gzip", parser.Empty([&parser, &compression] {
-    if (RIEGELI_UNLIKELY(!parser.FailIfSeen("uncompressed"))) return false;
+    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed"))) return false;
     compression = tensorflow::io::compression::kGzip;
     return true;
   }));
@@ -499,12 +501,7 @@ int main(int argc, char** argv) {
         riegeli_benchmarks = optarg;
         break;
       case 3:  // --max_size
-        if (RIEGELI_LIKELY(*optarg != '\0')) {
-          errno = 0;
-          char* end;
-          max_size = riegeli::IntCast<size_t>(std::strtoul(optarg, &end, 10));
-          if (RIEGELI_LIKELY(errno == 0 && *end == '\0')) break;
-        }
+        if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(optarg, &max_size))) break;
         std::cerr << argv[0]
                   << ": option '--max_size' requires an integer argument\n";
         return 1;
@@ -512,12 +509,7 @@ int main(int argc, char** argv) {
         output_dir = std::string(optarg);
         break;
       case 5:  // --repetitions
-        if (RIEGELI_LIKELY(*optarg != '\0')) {
-          errno = 0;
-          char* end;
-          repetitions = riegeli::IntCast<int>(std::strtol(optarg, &end, 10));
-          if (RIEGELI_LIKELY(errno == 0 && *end == '\0')) break;
-        }
+        if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(optarg, &repetitions))) break;
         std::cerr << argv[0]
                   << ": option '--repetitions' requires an integer argument\n";
         return 1;

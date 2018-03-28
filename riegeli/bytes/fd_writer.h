@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -53,8 +54,8 @@ class FdWriterBase : public BufferedWriter {
   FdWriterBase& operator=(FdWriterBase&& src) noexcept;
 
   void Done() override;
-  RIEGELI_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                            int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         int error_code);
   virtual bool MaybeSyncPos() { return true; }
 
   FdHolder owned_fd_;

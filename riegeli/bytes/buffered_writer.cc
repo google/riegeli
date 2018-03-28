@@ -18,6 +18,7 @@
 #include <limits>
 #include <memory>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/writer.h"
@@ -28,12 +29,12 @@ bool BufferedWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
-  if (RIEGELI_UNLIKELY(!PushInternal())) return false;
-  if (RIEGELI_UNLIKELY(start_ == nullptr)) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(start_ == nullptr)) {
     RIEGELI_ASSERT_GT(buffer_size_, 0u)
         << "Failed invariant of BufferedWriter: no buffer size specified";
-    if (RIEGELI_UNLIKELY(buffer_size_ >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+    if (ABSL_PREDICT_FALSE(buffer_size_ >
+                           std::numeric_limits<Position>::max() - start_pos_)) {
       return FailOverflow();
     }
     start_ = std::allocator<char>().allocate(buffer_size_);
@@ -44,7 +45,7 @@ bool BufferedWriter::PushSlow() {
 }
 
 bool BufferedWriter::PushInternal() {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return true;
   cursor_ = start_;
@@ -60,7 +61,7 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
     // If writing through the buffer would need multiple WriteInternal() calls,
     // it is faster to push current contents of the buffer and write the
     // remaining data directly from src.
-    if (RIEGELI_UNLIKELY(!PushInternal())) return false;
+    if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);

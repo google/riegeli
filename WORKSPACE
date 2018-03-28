@@ -7,6 +7,13 @@ http_archive(
     urls = ["https://github.com/abseil/abseil-cpp/archive/70b5fa948d920ccca86d143057497132f63a44f3.zip"],
 )
 
+# Import CCTZ needed for absl/time (2018-02-06).
+http_archive(
+    name = "com_googlesource_code_cctz",
+    urls = ["https://github.com/google/cctz/archive/v2.2.zip"],
+    strip_prefix = "cctz-2.2",
+)
+
 # Import Brotli (2018-03-27).
 
 # Temporarily depend on a non-released Brotli because it has a fix for a broken

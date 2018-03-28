@@ -19,6 +19,7 @@
 
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -63,10 +64,10 @@ inline Position ReaderInputStream::relative_pos() const {
 
 bool ReaderInputStream::Next(const void** data, int* size) {
   const Position pos = relative_pos();
-  if (RIEGELI_UNLIKELY(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
     return false;
   }
-  if (RIEGELI_UNLIKELY(!src_->Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src_->Pull())) return false;
   *data = src_->cursor();
   *size = IntCast<int>(
       UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
@@ -90,7 +91,7 @@ bool ReaderInputStream::Skip(int length) {
       << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
   const Position max_length =
       Position{std::numeric_limits<google::protobuf::int64>::max()} - relative_pos();
-  if (RIEGELI_UNLIKELY(IntCast<size_t>(length) > max_length)) {
+  if (ABSL_PREDICT_FALSE(IntCast<size_t>(length) > max_length)) {
     src_->Skip(max_length);
     return false;
   }
@@ -114,7 +115,8 @@ bool ParsePartialFromReader(google::protobuf::MessageLite* message, Reader* inpu
 }
 
 bool ParseFromStringView(google::protobuf::MessageLite* message, absl::string_view data) {
-  if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_FALSE(data.size() >
+                         size_t{std::numeric_limits<int>::max()})) {
     return false;
   }
   return message->ParseFromArray(data.data(), IntCast<int>(data.size()));
@@ -122,7 +124,8 @@ bool ParseFromStringView(google::protobuf::MessageLite* message, absl::string_vi
 
 bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
                                 absl::string_view data) {
-  if (RIEGELI_UNLIKELY(data.size() > size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_FALSE(data.size() >
+                         size_t{std::numeric_limits<int>::max()})) {
     return false;
   }
   return message->ParsePartialFromArray(data.data(), IntCast<int>(data.size()));
@@ -130,13 +133,13 @@ bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
 
 bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data) {
   ChainReader data_reader(&data);
-  if (RIEGELI_UNLIKELY(!ParseFromReader(message, &data_reader))) return false;
+  if (ABSL_PREDICT_FALSE(!ParseFromReader(message, &data_reader))) return false;
   return data_reader.Close();
 }
 
 bool ParsePartialFromChain(google::protobuf::MessageLite* message, const Chain& data) {
   ChainReader data_reader(&data);
-  if (RIEGELI_UNLIKELY(!ParsePartialFromReader(message, &data_reader))) {
+  if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(message, &data_reader))) {
     return false;
   }
   return data_reader.Close();

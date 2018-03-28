@@ -15,8 +15,8 @@
 #include "riegeli/chunk_encoding/hash.h"
 
 #include <stdint.h>
-#include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
@@ -47,7 +47,7 @@ uint64_t Hash(absl::string_view data) {
 uint64_t Hash(const Chain& data) {
   if (data.empty()) return Hash("");
   if (data.blocks().size() == 1) return Hash(data.blocks().front());
-  std::vector<highwayhash::StringView> fragments;
+  absl::InlinedVector<highwayhash::StringView, 16> fragments;
   fragments.reserve(data.blocks().size());
   for (const absl::string_view fragment : data.blocks()) {
     fragments.push_back(

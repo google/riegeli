@@ -16,6 +16,7 @@ cc_binary(
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",
         "//riegeli/records:record_writer",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@org_tensorflow//tensorflow/core:lib",
     ],
@@ -30,6 +31,7 @@ cc_library(
         "//riegeli/base:endian",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:zlib_reader",
+        "@com_google_absl//absl/base:core_headers",
         "@org_tensorflow//tensorflow/core:lib",
     ],
 )

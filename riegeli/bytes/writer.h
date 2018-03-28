@@ -21,6 +21,8 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -192,7 +194,7 @@ class Writer : public Object {
   // size or if start_pos_ would overflow.
   //
   // Precondition: healthy()
-  RIEGELI_ATTRIBUTE_COLD bool FailOverflow();
+  ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of the slow part of Push().
   //
@@ -261,7 +263,7 @@ inline void Writer::Done() {
 }
 
 inline bool Writer::Push() {
-  if (RIEGELI_LIKELY(available() > 0)) return true;
+  if (ABSL_PREDICT_TRUE(available() > 0)) return true;
   return PushSlow();
 }
 
@@ -274,9 +276,10 @@ inline void Writer::set_cursor(char* cursor) {
 }
 
 inline bool Writer::Write(absl::string_view src) {
-  if (RIEGELI_LIKELY(src.size() <= available())) {
-    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) and
-                                         // memcpy(_, nullptr, 0) are undefined.
+  if (ABSL_PREDICT_TRUE(src.size() <= available())) {
+    if (ABSL_PREDICT_TRUE(!src.empty())) {  // memcpy(nullptr, _, 0) and
+                                            // memcpy(_, nullptr, 0)
+                                            // are undefined.
       std::memcpy(cursor_, src.data(), src.size());
       cursor_ += src.size();
     }
@@ -286,9 +289,10 @@ inline bool Writer::Write(absl::string_view src) {
 }
 
 inline bool Writer::Write(std::string&& src) {
-  if (RIEGELI_LIKELY(src.size() <= available() &&
-                     src.size() <= kMaxBytesToCopy())) {
-    if (RIEGELI_LIKELY(!src.empty())) {  // memcpy(nullptr, _, 0) is undefined.
+  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+                        src.size() <= kMaxBytesToCopy())) {
+    if (ABSL_PREDICT_TRUE(!src.empty())) {  // memcpy(nullptr, _, 0)
+                                            // is undefined.
       std::memcpy(cursor_, src.data(), src.size());
       cursor_ += src.size();
     }
@@ -302,8 +306,8 @@ inline bool Writer::Write(const char* src) {
 }
 
 inline bool Writer::Write(const Chain& src) {
-  if (RIEGELI_LIKELY(src.size() <= available() &&
-                     src.size() <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+                        src.size() <= kMaxBytesToCopy())) {
     src.CopyTo(cursor_);
     cursor_ += src.size();
     return true;
@@ -312,8 +316,8 @@ inline bool Writer::Write(const Chain& src) {
 }
 
 inline bool Writer::Write(Chain&& src) {
-  if (RIEGELI_LIKELY(src.size() <= available() &&
-                     src.size() <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+                        src.size() <= kMaxBytesToCopy())) {
     src.CopyTo(cursor_);
     cursor_ += src.size();
     return true;
@@ -336,7 +340,7 @@ inline Position Writer::limit_pos() const {
 }
 
 inline bool Writer::Seek(Position new_pos) {
-  if (RIEGELI_LIKELY(new_pos >= start_pos_ && new_pos <= pos())) {
+  if (ABSL_PREDICT_TRUE(new_pos >= start_pos_ && new_pos <= pos())) {
     cursor_ = start_ + (new_pos - start_pos_);
     return true;
   }

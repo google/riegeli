@@ -22,7 +22,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 
 namespace riegeli {
@@ -229,7 +231,7 @@ OptionsParser::ValueParser OptionsParser::Or(ValueParser parser1,
 
 template <typename... Keys>
 bool OptionsParser::FailIfSeen(absl::string_view key, Keys&&... keys) {
-  return RIEGELI_LIKELY(FailIfSeen(key)) &&
+  return ABSL_PREDICT_TRUE(FailIfSeen(key)) &&
          FailIfSeen(std::forward<Keys>(keys)...);
 }
 

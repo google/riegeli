@@ -18,8 +18,8 @@
 #include <stdint.h>
 #include <initializer_list>
 #include <utility>
-#include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -27,7 +27,7 @@ namespace riegeli {
 // Specifies a proto field path.
 class Field {
  public:
-  using Path = std::vector<uint32_t>;
+  using Path = absl::InlinedVector<uint32_t, 1>;
 
   // Specifies the path using a sequence of proto field tags descending from the
   // root message.
@@ -61,7 +61,7 @@ class Field {
 // Specifies a set of fields to include.
 class FieldFilter {
  public:
-  using Fields = std::vector<Field>;
+  using Fields = absl::InlinedVector<Field, 1>;
 
   // Includes all fields.
   static FieldFilter All();

@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -131,7 +132,7 @@ inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
 }
 
 inline bool ChainReader::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *size = src_->size();
   return true;
 }

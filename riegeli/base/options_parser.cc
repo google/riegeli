@@ -17,15 +17,15 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <algorithm>
-#include <cerrno>
 #include <cmath>
-#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -37,7 +37,7 @@ namespace {
 // This is a struct rather than a lambda to capture present by move.
 struct EmptyParser {
   bool operator()(absl::string_view value) const {
-    if (RIEGELI_LIKELY(value.empty())) return present();
+    if (ABSL_PREDICT_TRUE(value.empty())) return present();
     return parser->InvalidValue("(empty)");
   }
 
@@ -73,17 +73,11 @@ OptionsParser::ValueParser OptionsParser::Int(int* out, int min_value,
       << "Failed precondition of OptionsParser::IntOption(): "
          "bounds in the wrong order";
   return [this, out, min_value, max_value](absl::string_view value) {
-    if (RIEGELI_LIKELY(!value.empty())) {
-      const std::string string_value(value);
-      errno = 0;
-      char* end;
-      long long_value = std::strtol(string_value.c_str(), &end, 10);
-      if (RIEGELI_LIKELY(errno == 0 &&
-                         end == string_value.c_str() + string_value.size() &&
-                         long_value >= min_value && long_value <= max_value)) {
-        *out = IntCast<int>(long_value);
-        return true;
-      }
+    int int_value;
+    if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(value, &int_value) &&
+                          int_value >= min_value && int_value <= max_value)) {
+      *out = int_value;
+      return true;
     }
     return InvalidValue(absl::StrCat("integers ", min_value, "..", max_value));
   };
@@ -95,60 +89,52 @@ OptionsParser::ValueParser OptionsParser::Bytes(uint64_t* out,
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of BytesOption(): bounds in the wrong order";
   return [this, out, min_value, max_value](absl::string_view value) {
-    if (RIEGELI_LIKELY(!value.empty())) {
-      const std::string string_value(value);
-      errno = 0;
-      char* end;
-      long double long_double_value = std::strtold(string_value.c_str(), &end);
-      if (RIEGELI_LIKELY(errno == 0)) {
-        if (end != string_value.c_str() + string_value.size()) {
-          long double scale;
-          switch (*end++) {
-            case 'B':
-              scale = 1.0L;
-              break;
-            case 'k':
-            case 'K':
-              scale = static_cast<long double>(uint64_t{1} << 10);
-              break;
-            case 'M':
-              scale = static_cast<long double>(uint64_t{1} << 20);
-              break;
-            case 'G':
-              scale = static_cast<long double>(uint64_t{1} << 30);
-              break;
-            case 'T':
-              scale = static_cast<long double>(uint64_t{1} << 40);
-              break;
-            case 'P':
-              scale = static_cast<long double>(uint64_t{1} << 50);
-              break;
-            case 'E':
-              scale = static_cast<long double>(uint64_t{1} << 60);
-              break;
-            default:
-              goto error;
-          }
-          long_double_value *= scale;
-        }
-        if (RIEGELI_LIKELY(end == string_value.c_str() + string_value.size() &&
-                           long_double_value >= 0.0L)) {
-          long_double_value = std::round(long_double_value);
-          const uint64_t uint64_value =
-              RIEGELI_UNLIKELY(long_double_value >=
-                               static_cast<long double>(
-                                   std::numeric_limits<uint64_t>::max()))
-                  ? std::numeric_limits<uint64_t>::max()
-                  : static_cast<uint64_t>(long_double_value);
-          if (RIEGELI_LIKELY(uint64_value >= min_value &&
-                             uint64_value <= max_value)) {
-            *out = uint64_value;
-            return true;
-          }
-        }
+    double scale = 1.0;
+    if (ABSL_PREDICT_TRUE(!value.empty())) {
+      switch (value.back()) {
+        case 'B':
+          break;
+        case 'k':
+        case 'K':
+          scale = static_cast<double>(uint64_t{1} << 10);
+          break;
+        case 'M':
+          scale = static_cast<double>(uint64_t{1} << 20);
+          break;
+        case 'G':
+          scale = static_cast<double>(uint64_t{1} << 30);
+          break;
+        case 'T':
+          scale = static_cast<double>(uint64_t{1} << 40);
+          break;
+        case 'P':
+          scale = static_cast<double>(uint64_t{1} << 50);
+          break;
+        case 'E':
+          scale = static_cast<double>(uint64_t{1} << 60);
+          break;
+        default:
+          goto no_scale;
+      }
+      value.remove_suffix(1);
+    }
+  no_scale:
+    double double_value;
+    if (ABSL_PREDICT_TRUE(absl::SimpleAtod(value, &double_value) &&
+                          double_value >= 0.0)) {
+      double_value = std::round(double_value * scale);
+      const uint64_t uint64_value =
+          ABSL_PREDICT_FALSE(
+              double_value >=
+              static_cast<double>(std::numeric_limits<uint64_t>::max()))
+              ? std::numeric_limits<uint64_t>::max()
+              : static_cast<uint64_t>(double_value);
+      if (ABSL_PREDICT_TRUE(uint64_value >= min_value &&
+                            uint64_value <= max_value)) {
+        *out = uint64_value;
+        return true;
       }
     }
-  error:
     return InvalidValue(
         absl::StrCat("integers expressed as reals with "
                      "optional suffix [BkKMGTPE], ",
@@ -161,17 +147,12 @@ OptionsParser::ValueParser OptionsParser::Real(double* out, double min_value,
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
   return [this, out, min_value, max_value](absl::string_view value) {
-    if (RIEGELI_LIKELY(!value.empty())) {
-      const std::string string_value(value);
-      errno = 0;
-      char* end;
-      double float_value = std::strtod(string_value.c_str(), &end);
-      if (RIEGELI_LIKELY(
-              errno == 0 && end == string_value.c_str() + string_value.size() &&
-              float_value >= min_value && float_value <= max_value)) {
-        *out = float_value;
-        return true;
-      }
+    double double_value;
+    if (ABSL_PREDICT_TRUE(absl::SimpleAtod(value, &double_value) &&
+                          double_value >= min_value &&
+                          double_value <= max_value)) {
+      *out = double_value;
+      return true;
     }
     return InvalidValue(absl::StrCat("reals ", min_value, "..", max_value));
   };
@@ -210,7 +191,7 @@ bool OptionsParser::FailIfSeen(absl::string_view key) {
       std::find_if(options_.cbegin(), options_.cend(),
                    [key](const Option& option) { return option.key == key; });
   RIEGELI_ASSERT(option != options_.cend()) << "Unknown option " << key;
-  if (RIEGELI_UNLIKELY(option->seen)) {
+  if (ABSL_PREDICT_FALSE(option->seen)) {
     return Fail(absl::StrCat("Option ", current_option_->key,
                              " conflicts with option ", key));
   }
@@ -222,7 +203,7 @@ bool OptionsParser::FailIfAnySeen() {
       << "Failed precondition of OptionsParser::FailIfAnySeen(): "
          "no option is being parsed";
   for (const auto& option : options_) {
-    if (RIEGELI_UNLIKELY(option.seen)) {
+    if (ABSL_PREDICT_FALSE(option.seen)) {
       return Fail(
           absl::StrCat("Option ", current_option_->key, " must be first"));
     }
@@ -231,7 +212,7 @@ bool OptionsParser::FailIfAnySeen() {
 }
 
 bool OptionsParser::Parse(absl::string_view text) {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   size_t option_begin = 0;
   for (;;) {
     size_t option_end = text.find(',', option_begin);
@@ -251,7 +232,7 @@ bool OptionsParser::Parse(absl::string_view text) {
       const auto option = std::find_if(
           options_.begin(), options_.end(),
           [key](const Option& option) { return option.key == key; });
-      if (RIEGELI_UNLIKELY(option == options_.end())) {
+      if (ABSL_PREDICT_FALSE(option == options_.end())) {
         std::string message =
             absl::StrCat("Unknown option ", key, ", valid options: ");
         auto iter = options_.cbegin();
@@ -263,14 +244,14 @@ bool OptionsParser::Parse(absl::string_view text) {
         }
         return Fail(message);
       }
-      if (RIEGELI_UNLIKELY(option->seen)) {
+      if (ABSL_PREDICT_FALSE(option->seen)) {
         return Fail(absl::StrCat("Option ", key, " is present more than once"));
       }
       current_option_ = &*option;
       RIEGELI_ASSERT_EQ(current_valid_values_, "")
           << "Failed invariant of OptionsParser: "
              "current_valid_values_ not cleared";
-      if (RIEGELI_UNLIKELY(!option->value_parser(value))) {
+      if (ABSL_PREDICT_FALSE(!option->value_parser(value))) {
         if (!healthy()) return false;
         return Fail(absl::StrCat(
             "Option ", key, ": ",

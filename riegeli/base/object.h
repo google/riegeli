@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include <atomic>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
@@ -172,21 +174,20 @@ class Object {
   // If Fail() is called multiple times, the first message wins.
   //
   // Precondition: !closed()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(absl::string_view message);
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message);
 
   // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
   // Fail(StrCat(message, ": ", src.Message())).
   //
   // Precondition: !closed()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(absl::string_view message,
-                                   const Object& src);
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message, const Object& src);
 
   // Equivalent to Fail(src.Message()).
   //
   // Preconditions:
   //   !src.healthy()
   //   !closed()
-  RIEGELI_ATTRIBUTE_COLD bool Fail(const Object& src);
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& src);
 
  private:
   struct FailedStatus {
@@ -247,15 +248,15 @@ inline Object::~Object() {
 
 inline bool Object::Close() {
   const uintptr_t status_before = status_.load(std::memory_order_acquire);
-  if (RIEGELI_UNLIKELY(status_before != kHealthy())) {
-    if (RIEGELI_LIKELY(status_before == kClosedSuccessfully())) return true;
+  if (ABSL_PREDICT_FALSE(status_before != kHealthy())) {
+    if (ABSL_PREDICT_TRUE(status_before == kClosedSuccessfully())) return true;
     if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
       return false;
     }
   }
   Done();
   const uintptr_t status_after = status_.load(std::memory_order_relaxed);
-  if (RIEGELI_LIKELY(status_after == kHealthy())) {
+  if (ABSL_PREDICT_TRUE(status_after == kHealthy())) {
     status_.store(kClosedSuccessfully(), std::memory_order_relaxed);
     return true;
   }
@@ -267,8 +268,8 @@ inline bool Object::Close() {
 }
 
 inline void Object::DeleteStatus(uintptr_t status) {
-  if (RIEGELI_UNLIKELY(status != kHealthy() &&
-                       status != kClosedSuccessfully())) {
+  if (ABSL_PREDICT_FALSE(status != kHealthy() &&
+                         status != kClosedSuccessfully())) {
     DeleteAligned(
         reinterpret_cast<FailedStatus*>(status),
         offsetof(FailedStatus, message_data) +
@@ -282,8 +283,8 @@ inline bool Object::healthy() const {
 
 inline bool Object::closed() const {
   const uintptr_t status = status_.load(std::memory_order_acquire);
-  if (RIEGELI_LIKELY(status == kHealthy())) return false;
-  if (RIEGELI_LIKELY(status == kClosedSuccessfully())) return true;
+  if (ABSL_PREDICT_TRUE(status == kHealthy())) return false;
+  if (ABSL_PREDICT_TRUE(status == kClosedSuccessfully())) return true;
   return reinterpret_cast<const FailedStatus*>(status)->closed;
 }
 

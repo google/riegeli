@@ -25,6 +25,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -32,65 +34,6 @@ namespace riegeli {
 // Entities defined in namespace riegeli and macros beginning with RIEGELI_ are
 // a part of the public API, except for entities defined in namespace
 // riegeli::internal and macros beginning with RIEGELI_INTERNAL_.
-
-// RIEGELI_LIKELY() hints the compiler that the condition is likely to be true.
-// RIEGELI_UNLIKELY() hints the compiler that the condition is likely to be
-// false. They may help the compiler generating better code.
-//
-// They are primarily used to distinguish normal paths from error paths, and
-// fast paths of inline code where data is in the buffer from slow paths where
-// the performance is less important.
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_expect) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 0)
-#define RIEGELI_LIKELY(x) __builtin_expect(bool(x), true)
-#define RIEGELI_UNLIKELY(x) __builtin_expect(bool(x), false)
-#else
-#define RIEGELI_LIKELY(x) bool(x)
-#define RIEGELI_UNLIKELY(x) bool(x)
-#endif
-
-// Marks a function as unlikely to be executed. This may help the compiler
-// generating better code.
-//
-// This is primarily used in implementation of error paths.
-#if RIEGELI_INTERNAL_HAS_ATTRIBUTE(cold) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(4, 3)
-#define RIEGELI_ATTRIBUTE_COLD __attribute__((cold))
-#else
-#define RIEGELI_ATTRIBUTE_COLD
-#endif
-
-// Marks a function that never returns. This not only helps the compiler
-// generating better code but also silences spurious warnings.
-#if RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(noreturn)
-#define RIEGELI_ATTRIBUTE_NORETURN [[noreturn]]
-#elif RIEGELI_INTERNAL_HAS_ATTRIBUTE(noreturn) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(2, 5)
-#define RIEGELI_ATTRIBUTE_NORETURN __attribute__((noreturn))
-#elif defined(_MSC_VER)
-#define RIEGELI_ATTRIBUTE_NORETURN __declspec(noreturn)
-#else
-#define RIEGELI_ATTRIBUTE_NORETURN
-#endif
-
-// Asks the compiler to not inline a function.
-#if RIEGELI_INTERNAL_HAS_ATTRIBUTE(noinline) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 1)
-#define RIEGELI_ATTRIBUTE_NOINLINE __attribute__((noinline))
-#elif defined(_MSC_VER)
-#define RIEGELI_ATTRIBUTE_NOINLINE __declspec(noinline)
-#else
-#define RIEGELI_ATTRIBUTE_NOINLINE
-#endif
-
-// Annotates implicit fallthrough between case labels which is intended.
-#if RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(fallthrough)
-#define RIEGELI_FALLTHROUGH [[fallthrough]]
-#elif RIEGELI_INTERNAL_HAS_CPP_ATTRIBUTE(clang::fallthrough)
-#define RIEGELI_FALLTHROUGH [[clang::fallthrough]]
-#else
-#define RIEGELI_FALLTHROUGH
-#endif
 
 // RIEGELI_DEBUG determines whether assertions are verified or just assumed.
 // By default it follows NDEBUG.
@@ -117,14 +60,14 @@ class CheckFailed {
  public:
   // Begins formatting the message as:
   // "Check failed at file:line in function: message ".
-  RIEGELI_ATTRIBUTE_COLD CheckFailed(const char* file, int line,
-                                     const char* function, const char* message);
+  ABSL_ATTRIBUTE_COLD CheckFailed(const char* file, int line,
+                                  const char* function, const char* message);
 
   // Allows to add details to the message by writing to the stream.
   std::ostream& stream() { return stream_; }
 
   // Prints the formatted message and terminates the program.
-  RIEGELI_ATTRIBUTE_NORETURN ~CheckFailed();
+  ABSL_ATTRIBUTE_NORETURN ~CheckFailed();
 
  private:
   std::stringstream stream_;
@@ -154,9 +97,8 @@ class CheckResult {
 };
 
 template <typename A, typename B>
-RIEGELI_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
-                                                        const A& a,
-                                                        const B& b) {
+ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
+                                                     const A& a, const B& b) {
   std::stringstream stream;
   stream << message << " (" << a << " vs. " << b << ")";
   // Do not bother with freeing this string: the program will soon terminate.
@@ -169,7 +111,7 @@ RIEGELI_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
 #define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                       \
   template <typename A, typename B>                                      \
   CheckResult Check##name(const char* message, const A& a, const B& b) { \
-    if (RIEGELI_LIKELY(a op b)) {                                        \
+    if (ABSL_PREDICT_TRUE(a op b)) {                                     \
       return CheckResult();                                              \
     } else {                                                             \
       return CheckResult(FormatCheckOpMessage(message, a, b));           \
@@ -189,7 +131,7 @@ RIEGELI_INTERNAL_DEFINE_CHECK_OP(Ge, >=);
 template <typename T>
 T CheckNotNull(const char* file, int line, const char* function,
                const char* message, T&& value) {
-  if (RIEGELI_UNLIKELY(value == nullptr)) {
+  if (ABSL_PREDICT_FALSE(value == nullptr)) {
     CheckFailed(file, line, function, message);
   }
   return std::forward<T>(value);
@@ -201,7 +143,7 @@ class UnreachableStream {
  public:
   UnreachableStream() { RIEGELI_INTERNAL_UNREACHABLE(); }
 
-  RIEGELI_ATTRIBUTE_NORETURN ~UnreachableStream() {
+  ABSL_ATTRIBUTE_NORETURN ~UnreachableStream() {
     RIEGELI_INTERNAL_UNREACHABLE();
   }
 
@@ -257,7 +199,7 @@ T AssertNotNull(T&& value) {
       .stream()
 
 #define RIEGELI_CHECK(expr)                                          \
-  while (RIEGELI_UNLIKELY(!(expr)))                                  \
+  while (ABSL_PREDICT_FALSE(!(expr)))                                \
   ::riegeli::internal::CheckFailed(__FILE__, __LINE__,               \
                                    RIEGELI_INTERNAL_FUNCTION, #expr) \
       .stream()

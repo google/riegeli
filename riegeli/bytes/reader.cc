@@ -20,7 +20,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -29,7 +31,7 @@
 namespace riegeli {
 
 bool Reader::VerifyEndAndClose() {
-  if (RIEGELI_UNLIKELY(Pull())) Fail("End of data expected");
+  if (ABSL_PREDICT_FALSE(Pull())) Fail("End of data expected");
   return Close();
 }
 
@@ -49,7 +51,7 @@ bool Reader::ReadSlow(char* dest, size_t length) {
       length -= available_length;
     }
   skip_copy:
-    if (RIEGELI_UNLIKELY(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
   } while (length > available());
   std::memcpy(dest, cursor_, length);
   cursor_ += length;
@@ -66,7 +68,7 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
   const size_t dest_pos = dest->size();
   dest->resize(dest_pos + length);
   const Position pos_before = pos();
-  if (RIEGELI_UNLIKELY(!ReadSlow(&(*dest)[dest_pos], length))) {
+  if (ABSL_PREDICT_FALSE(!ReadSlow(&(*dest)[dest_pos], length))) {
     RIEGELI_ASSERT_GE(pos(), pos_before)
         << "Reader::ReadSlow(char*) decreased pos()";
     const Position length_read = pos() - pos_before;
@@ -86,7 +88,7 @@ bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch, size_t leng
       << "Failed precondition of Reader::ReadSlow(string_view*): "
          "string size overflow";
   if (available() == 0) {
-    if (RIEGELI_UNLIKELY(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
     if (length <= available()) {
       *dest = absl::string_view(cursor_, length);
       cursor_ += length;
@@ -106,10 +108,10 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  const Chain::Buffer buffer = dest->MakeAppendBuffer(length);
+  const absl::Span<char> buffer = dest->MakeAppendBuffer(length);
   const Position pos_before = pos();
   const bool ok = Read(buffer.data(), length);
-  if (RIEGELI_UNLIKELY(!ok)) {
+  if (ABSL_PREDICT_FALSE(!ok)) {
     RIEGELI_ASSERT_GE(pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
     const Position length_read = pos() - pos_before;
@@ -128,9 +130,9 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
   while (length > available()) {
     const absl::string_view data(cursor_, available());
     cursor_ = limit_;
-    if (RIEGELI_UNLIKELY(!dest->Write(data))) return false;
+    if (ABSL_PREDICT_FALSE(!dest->Write(data))) return false;
     length -= data.size();
-    if (RIEGELI_UNLIKELY(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
   }
   const absl::string_view data(cursor_, length);
   cursor_ += length;
@@ -148,11 +150,11 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
   }
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
-    if (RIEGELI_UNLIKELY(!ReadSlow(buffer, length))) return false;
+    if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
     return dest->Write(absl::string_view(buffer, length));
   }
   Chain data;
-  if (RIEGELI_UNLIKELY(!ReadSlow(&data, length))) return false;
+  if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;
   return dest->Write(std::move(data));
 }
 
@@ -167,11 +169,11 @@ bool Reader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (RIEGELI_UNLIKELY(new_pos <= limit_pos_)) return false;
+  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos_)) return false;
   // Seeking forwards.
   do {
     cursor_ = limit_;
-    if (RIEGELI_UNLIKELY(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
   } while (new_pos > limit_pos_);
   const Position available_length = limit_pos_ - new_pos;
   RIEGELI_ASSERT_LE(available_length, buffer_size())

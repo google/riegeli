@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -81,7 +82,7 @@ inline StringReader& StringReader::operator=(StringReader&& src) noexcept {
 }
 
 inline bool StringReader::Size(Position* size) const {
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *size = limit_pos_;
   return true;
 }

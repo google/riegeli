@@ -19,7 +19,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -27,7 +29,7 @@
 namespace riegeli {
 
 void ChainBackwardWriter::Done() {
-  if (RIEGELI_LIKELY(healthy())) {
+  if (ABSL_PREDICT_TRUE(healthy())) {
     RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
         << "ChainBackwardWriter destination changed unexpectedly";
     DiscardBuffer();
@@ -40,16 +42,16 @@ bool ChainBackwardWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "space available, use Push() instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(dest_->size() == std::numeric_limits<size_t>::max())) {
+  if (ABSL_PREDICT_FALSE(dest_->size() == std::numeric_limits<size_t>::max())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
   start_pos_ = dest_->size();
-  const Chain::Buffer buffer = dest_->MakePrependBuffer(1, size_hint_);
+  const absl::Span<char> buffer = dest_->MakePrependBuffer(1, size_hint_);
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
@@ -60,11 +62,11 @@ bool ChainBackwardWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(src.size() > std::numeric_limits<size_t>::max() -
-                                        IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -79,11 +81,11 @@ bool ChainBackwardWriter::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
          "length too small, use Write(string&&) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(src.size() > std::numeric_limits<size_t>::max() -
-                                        IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -98,11 +100,11 @@ bool ChainBackwardWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (RIEGELI_UNLIKELY(src.size() > std::numeric_limits<size_t>::max() -
-                                        IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
@@ -117,7 +119,7 @@ bool ChainBackwardWriter::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
-  if (RIEGELI_UNLIKELY(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   DiscardBuffer();
   dest_->Prepend(std::move(src), size_hint_);
   MakeBuffer();
@@ -130,7 +132,7 @@ inline void ChainBackwardWriter::DiscardBuffer() {
 
 inline void ChainBackwardWriter::MakeBuffer() {
   start_pos_ = dest_->size();
-  const Chain::Buffer buffer = dest_->MakePrependBuffer();
+  const absl::Span<char> buffer = dest_->MakePrependBuffer();
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
