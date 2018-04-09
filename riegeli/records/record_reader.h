@@ -60,7 +60,7 @@ namespace riegeli {
 //     ... Process record.
 //   }
 //   if (!record_reader_.Close()) {
-//     ... Failed with reason: record_reader_.Message()
+//     ... Failed with reason: record_reader_.message()
 //   }
 class RecordReader final : public Object {
  public:

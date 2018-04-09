@@ -178,7 +178,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
           << "Record was not read up to its end";
       if (!message_reader.Close()) {
         RIEGELI_ASSERT_UNREACHABLE()
-            << "Closing message reader failed: " << message_reader.Message();
+            << "Closing message reader failed: " << message_reader.message();
       }
       if (ABSL_PREDICT_TRUE(record->IsInitialized())) return true;
       if (!skip_errors_) {
@@ -192,7 +192,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
       message_reader.Close();
       if (!values_reader_.Seek(limit)) {
         RIEGELI_ASSERT_UNREACHABLE()
-            << "Seeking record values failed: " << values_reader_.Message();
+            << "Seeking record values failed: " << values_reader_.message();
       }
       if (!skip_errors_) {
         index_ = num_records();

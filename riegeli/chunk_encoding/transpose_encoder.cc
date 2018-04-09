@@ -110,7 +110,7 @@ bool IsProtoMessage(Reader* record) {
     }
   }
   RIEGELI_ASSERT(record->healthy())
-      << "Reading record failed: " << record->Message();
+      << "Reading record failed: " << record->message();
   return started_groups.empty();
 }
 
@@ -283,12 +283,12 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
         << "Record was not read up to its end";
     if (!record.Close()) {
       RIEGELI_ASSERT_UNREACHABLE()
-          << "Closing record failed: " << record.Message();
+          << "Closing record failed: " << record.message();
     }
   }
   if (!records_reader.Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing records failed: " << records_reader.Message();
+        << "Closing records failed: " << records_reader.message();
   }
   return true;
 }
@@ -297,7 +297,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT(record->healthy())
       << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
-      << record->Message();
+      << record->message();
   const Position pos_before = record->pos();
   Position size;
   if (!record->Size(&size)) {
@@ -319,7 +319,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   const bool is_proto = IsProtoMessage(record);
   if (!record->Seek(pos_before)) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Seeking reader of a record failed: " << record->Message();
+        << "Seeking reader of a record failed: " << record->message();
   }
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
@@ -377,7 +377,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
   while (record->Pull()) {
     uint32_t tag;
     if (!ReadVarint32(record, &tag)) {
-      RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record->Message();
+      RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record->message();
     }
     const uint32_t field = tag >> 3;
     switch (static_cast<internal::WireType>(tag & 7)) {
@@ -391,7 +391,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
             CopyVarint64(record, reinterpret_cast<char*>(value));
         if (value_end == nullptr) {
           RIEGELI_ASSERT_UNREACHABLE()
-              << "Invalid varint: " << record->Message();
+              << "Invalid varint: " << record->message();
         }
         const size_t value_length =
             PtrDistance(reinterpret_cast<char*>(value), value_end);
@@ -439,7 +439,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
         const Position length_pos = record->pos();
         if (!ReadVarint32(record, &length)) {
           RIEGELI_ASSERT_UNREACHABLE()
-              << "Invalid length: " << record->Message();
+              << "Invalid length: " << record->message();
         }
         const Position value_pos = record->pos();
         LimitingReader value(record, value_pos + length);
@@ -458,7 +458,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
           }
           if (!value.Seek(value_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking submessage reader failed: " << value.Message();
+                << "Seeking submessage reader failed: " << value.message();
           }
           if (ABSL_PREDICT_FALSE(!AddMessage(
                   &value, insert_result.first->second.message_id, depth + 1))) {
@@ -469,19 +469,19 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
                          internal::Subtype::kLengthDelimitedEndOfSubmessage)));
           if (!value.Close()) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Closing submessage reader failed: " << value.Message();
+                << "Closing submessage reader failed: " << value.message();
           }
         } else {
           if (ABSL_PREDICT_FALSE(!value.Close())) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Closing submessage reader failed: " << value.Message();
+                << "Closing submessage reader failed: " << value.message();
           }
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedString)));
           if (!record->Seek(length_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking message reader failed: " << record->Message();
+                << "Seeking message reader failed: " << record->message();
           }
           ChainBackwardWriter* const buffer =
               GetBuffer(parent_message_id, field, BufferType::kString);
@@ -516,7 +516,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
     }
   }
   RIEGELI_ASSERT(record->healthy())
-      << "Reading record failed: " << record->Message();
+      << "Reading record failed: " << record->message();
   return true;
 }
 

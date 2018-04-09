@@ -104,7 +104,7 @@ class Object {
   // Returns a human-readable message describing the Object health.
   //
   // This is "Healthy", "Closed", or a failure message.
-  absl::string_view Message() const;
+  absl::string_view message() const;
 
   // Returns a token which allows to detect the class of the Object at runtime.
   //
@@ -177,12 +177,12 @@ class Object {
   ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message);
 
   // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
-  // Fail(StrCat(message, ": ", src.Message())).
+  // Fail(StrCat(message, ": ", src.message())).
   //
   // Precondition: !closed()
   ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message, const Object& src);
 
-  // Equivalent to Fail(src.Message()).
+  // Equivalent to Fail(src.message()).
   //
   // Preconditions:
   //   !src.healthy()
@@ -286,6 +286,20 @@ inline bool Object::closed() const {
   if (ABSL_PREDICT_TRUE(status == kHealthy())) return false;
   if (ABSL_PREDICT_TRUE(status == kClosedSuccessfully())) return true;
   return reinterpret_cast<const FailedStatus*>(status)->closed;
+}
+
+inline absl::string_view Object::message() const {
+  const uintptr_t status = status_.load(std::memory_order_acquire);
+  switch (status) {
+    case kHealthy():
+      return "Healthy";
+    case kClosedSuccessfully():
+      return "Closed";
+    default:
+      return absl::string_view(
+          reinterpret_cast<const FailedStatus*>(status)->message_data,
+          reinterpret_cast<const FailedStatus*>(status)->message_size);
+  }
 }
 
 inline void Object::MarkHealthy() {

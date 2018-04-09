@@ -105,7 +105,7 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
   }
   if (!src->Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing section reader failed: " << src->Message();
+        << "Closing section reader failed: " << src->message();
   }
   return true;
 }

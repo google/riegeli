@@ -163,7 +163,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.Message();
+                                 << values_reader_.message();
   }
   return true;
 }
@@ -177,7 +177,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
   record->clear();
   if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.Message();
+                                 << values_reader_.message();
   }
   return true;
 }
@@ -191,7 +191,7 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
   record->Clear();
   if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.Message();
+                                 << values_reader_.message();
   }
   return true;
 }
@@ -202,7 +202,7 @@ inline void ChunkDecoder::SetIndex(uint64_t index) {
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];
   if (!values_reader_.Seek(start)) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Failed seeking values reader: " << values_reader_.Message();
+        << "Failed seeking values reader: " << values_reader_.message();
   }
 }
 

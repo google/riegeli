@@ -54,7 +54,7 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
     parser.AddOption("window_log",
                      [this](absl::string_view value) { return true; });
     if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-      *message = std::string(parser.Message());
+      *message = std::string(parser.message());
       return false;
     }
   }
@@ -105,7 +105,7 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
                                  << static_cast<unsigned>(compression_type_);
   }());
   if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-    *message = std::string(parser.Message());
+    *message = std::string(parser.message());
     return false;
   }
   return true;

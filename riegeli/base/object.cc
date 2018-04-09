@@ -48,28 +48,14 @@ bool Object::Fail(absl::string_view message) {
 
 bool Object::Fail(absl::string_view message, const Object& src) {
   return Fail(src.healthy() ? message
-                            : absl::StrCat(message, ": ", src.Message()));
+                            : absl::StrCat(message, ": ", src.message()));
 }
 
 bool Object::Fail(const Object& src) {
   RIEGELI_ASSERT(!src.healthy())
       << "Failed precondition of Object::Fail(Object): "
          "source Object is healthy";
-  return Fail(src.Message());
-}
-
-absl::string_view Object::Message() const {
-  const uintptr_t status = status_.load(std::memory_order_acquire);
-  switch (status) {
-    case kHealthy():
-      return "Healthy";
-    case kClosedSuccessfully():
-      return "Closed";
-    default:
-      return absl::string_view(
-          reinterpret_cast<const FailedStatus*>(status)->message_data,
-          reinterpret_cast<const FailedStatus*>(status)->message_size);
-  }
+  return Fail(src.message());
 }
 
 TypeId Object::GetTypeId() const { return TypeId(); }

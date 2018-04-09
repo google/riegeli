@@ -153,7 +153,7 @@ bool Benchmarks::ReadFile(const std::string& filename, std::vector<std::string>*
                           size_t* max_size) {
   riegeli::FdReader file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
-    std::cerr << "Could not open file: " << file_reader.Message() << std::endl;
+    std::cerr << "Could not open file: " << file_reader.message() << std::endl;
     std::exit(1);
   }
   {
@@ -161,18 +161,18 @@ bool Benchmarks::ReadFile(const std::string& filename, std::vector<std::string>*
     tensorflow::io::RecordReaderOptions record_reader_options;
     if (tfrecord_recognizer.CheckFileFormat(&record_reader_options)) {
       RIEGELI_CHECK(tfrecord_recognizer.Close())
-          << tfrecord_recognizer.Message();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.Message();
+          << tfrecord_recognizer.message();
+      RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
       std::cout << "Reading TFRecord: " << filename << std::endl;
       return ReadTFRecord(filename, record_reader_options, records, max_size);
     }
   }
-  RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.Message();
+  RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.message();
   {
     riegeli::ChunkReader chunk_reader(&file_reader);
     if (chunk_reader.CheckFileFormat()) {
-      RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.Message();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.Message();
+      RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.message();
+      RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
       std::cout << "Reading Riegeli/records: " << filename << std::endl;
       return ReadRiegeli(filename, riegeli::RecordReader::Options(), records,
                          max_size);
@@ -241,10 +241,10 @@ void Benchmarks::WriteRiegeli(
   riegeli::FdWriter file_writer(filename, O_WRONLY | O_CREAT | O_TRUNC);
   riegeli::RecordWriter record_writer(&file_writer, record_writer_options);
   for (const auto& record : records) {
-    RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.Message();
+    RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.message();
   }
-  RIEGELI_CHECK(record_writer.Close()) << record_writer.Message();
-  RIEGELI_CHECK(file_writer.Close()) << file_writer.Message();
+  RIEGELI_CHECK(record_writer.Close()) << record_writer.message();
+  RIEGELI_CHECK(file_writer.Close()) << file_writer.message();
 }
 
 bool Benchmarks::ReadRiegeli(
@@ -263,8 +263,8 @@ bool Benchmarks::ReadRiegeli(
     *max_size -= memory;
     records->push_back(std::move(record));
   }
-  RIEGELI_CHECK(record_reader.Close()) << record_reader.Message();
-  RIEGELI_CHECK(file_reader.Close()) << file_reader.Message();
+  RIEGELI_CHECK(record_reader.Close()) << record_reader.message();
+  RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
   return true;
 }
 
@@ -305,7 +305,7 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
     compression = tensorflow::io::compression::kGzip;
     return true;
   }));
-  RIEGELI_CHECK(parser.Parse(tfrecord_options)) << parser.Message();
+  RIEGELI_CHECK(parser.Parse(tfrecord_options)) << parser.message();
   tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
 }
 

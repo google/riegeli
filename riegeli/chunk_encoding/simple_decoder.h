@@ -73,7 +73,7 @@ class SimpleDecoder final : public Object {
 
 inline Reader* SimpleDecoder::reader() const {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of SimpleDecoder::reader(): " << Message();
+      << "Failed precondition of SimpleDecoder::reader(): " << message();
   return values_decompressor_.reader();
 }
 

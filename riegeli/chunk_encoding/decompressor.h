@@ -107,7 +107,7 @@ inline Decompressor& Decompressor::operator=(Decompressor&& src) noexcept {
 
 inline Reader* Decompressor::reader() const {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Decompressor::reader(): " << Message();
+      << "Failed precondition of Decompressor::reader(): " << message();
   return reader_;
 }
 

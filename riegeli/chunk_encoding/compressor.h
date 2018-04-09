@@ -97,7 +97,7 @@ class Compressor final : public Object {
 
 inline Writer* Compressor::writer() const {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Compressor::writer(): " << Message();
+      << "Failed precondition of Compressor::writer(): " << message();
   return writer_;
 }
 

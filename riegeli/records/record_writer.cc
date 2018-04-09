@@ -80,7 +80,7 @@ bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) 
   parser.AddOption("parallelism", parser.Int(&parallelism_, 0,
                                              std::numeric_limits<int>::max()));
   if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-    *message = std::string(parser.Message());
+    *message = std::string(parser.message());
     return false;
   }
   return compressor_options_.Parse(compressor_text, message);

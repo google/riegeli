@@ -1020,7 +1020,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
       length_length = IntCast<size_t>(node->buffer->pos() - pos_before);    \
       if (!node->buffer->Seek(pos_before)) {                                \
         RIEGELI_ASSERT_UNREACHABLE()                                        \
-            << "Seeking buffer failed: " << node->buffer->Message();        \
+            << "Seeking buffer failed: " << node->buffer->message();        \
       }                                                                     \
     }                                                                       \
     if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -  \
