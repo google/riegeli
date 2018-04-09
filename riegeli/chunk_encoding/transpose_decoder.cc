@@ -1255,7 +1255,7 @@ done:
   if (ABSL_PREDICT_FALSE(limits->size() != num_records)) {
     return Fail("Too few records");
   }
-  const size_t size = limits->empty() ? 0u : limits->back();
+  const size_t size = limits->empty() ? size_t{0} : limits->back();
   if (ABSL_PREDICT_FALSE(size != dest->pos())) {
     return Fail("Unfinished message");
   }

@@ -73,7 +73,7 @@ RecordReader::RecordReader(RecordReader&& src) noexcept
       skip_errors_(riegeli::exchange(src.skip_errors_, false)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
       chunk_decoder_(std::move(src.chunk_decoder_)),
-      bytes_skipped_(riegeli::exchange(src.bytes_skipped_, 0)) {}
+      skipped_bytes_(riegeli::exchange(src.skipped_bytes_, 0)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   Object::operator=(std::move(src));
@@ -81,14 +81,14 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   skip_errors_ = riegeli::exchange(src.skip_errors_, false);
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
-  bytes_skipped_ = riegeli::exchange(src.bytes_skipped_, 0);
+  skipped_bytes_ = riegeli::exchange(src.skipped_bytes_, 0);
   return *this;
 }
 
 void RecordReader::Done() {
   if (chunk_reader_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) Fail(*chunk_reader_);
-    // Do not reset chunk_reader_ so that bytes_skipped() remains
+    // Do not reset chunk_reader_ so that skipped_bytes() remains
     // available.
   }
   skip_errors_ = false;
@@ -113,7 +113,7 @@ bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
       RIEGELI_ASSERT_GE(chunk_decoder_.index(), index_before)
           << "ChunkDecoder::ReadRecord() decremented record index";
       if (ABSL_PREDICT_FALSE(chunk_decoder_.index() > index_before)) {
-        // Last records of the chunk were skipped. In bytes_skipped_, account
+        // Last records of the chunk were skipped. In skipped_bytes_, account
         // for them as the rest of the chunk size.
         RIEGELI_ASSERT_GE(chunk_reader_->pos(), chunk_begin_)
             << "Failed invariant of RecordReader: negative chunk size";
@@ -121,8 +121,8 @@ bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
         RIEGELI_ASSERT_LE(chunk_decoder_.index(), chunk_size)
             << "Failed invariant of RecordReader: "
                "number of records greater than chunk size";
-        bytes_skipped_ =
-            SaturatingAdd(bytes_skipped_, chunk_size - index_before);
+        skipped_bytes_ =
+            SaturatingAdd(skipped_bytes_, chunk_size - index_before);
       }
     }
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
@@ -133,12 +133,12 @@ bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
       if (key != nullptr) {
         *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
       }
-      const uint64_t records_skipped =
+      const uint64_t skipped_records =
           chunk_decoder_.index() - index_before - 1;
-      if (ABSL_PREDICT_FALSE(records_skipped > 0)) {
+      if (ABSL_PREDICT_FALSE(skipped_records > 0)) {
         // Records other than last records of the chunk were skipped.
-        // In bytes_skipped_, account for them as one byte each.
-        bytes_skipped_ = SaturatingAdd(bytes_skipped_, records_skipped);
+        // In skipped_bytes_, account for them as one byte each.
+        skipped_bytes_ = SaturatingAdd(skipped_bytes_, skipped_records);
       }
       return true;
     }
@@ -269,8 +269,8 @@ inline bool RecordReader::ReadChunk() {
     if (ABSL_PREDICT_TRUE(chunk_decoder_.Reset(chunk))) return true;
     if (!skip_errors_) return Fail(chunk_decoder_);
     chunk_decoder_.Reset();
-    bytes_skipped_ =
-        SaturatingAdd(bytes_skipped_, chunk_reader_->pos() - chunk_begin_);
+    skipped_bytes_ =
+        SaturatingAdd(skipped_bytes_, chunk_reader_->pos() - chunk_begin_);
   }
 }
 

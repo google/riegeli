@@ -152,7 +152,7 @@ class ChunkReader final : public Object {
   bool Size(Position* size) const;
 
   // Returns the number of bytes skipped because of corrupted regions.
-  Position bytes_skipped() const { return bytes_skipped_; }
+  Position skipped_bytes() const { return skipped_bytes_; }
 
  protected:
   void Done() override;
@@ -241,7 +241,7 @@ class ChunkReader final : public Object {
   bool current_chunk_is_incomplete_ = false;
 
   // The number of bytes skipped because of corrupted regions.
-  Position bytes_skipped_ = 0;
+  Position skipped_bytes_ = 0;
 
   // If true, recovery is needed (a chunk must be located using block headers),
   // either because corruption was detected and skip_errors_ is true, or

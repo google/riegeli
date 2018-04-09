@@ -127,7 +127,7 @@ class ChunkDecoder : public Object {
   uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
 
   // Returns the number of records skipped because they could not be parsed.
-  Position records_skipped() const { return records_skipped_; }
+  Position skipped_records() const { return skipped_records_; }
 
  protected:
   void Done() override;
@@ -150,7 +150,7 @@ class ChunkDecoder : public Object {
   uint64_t index_ = 0;
   std::string record_scratch_;
   // Number of records skipped because they could not be parsed.
-  Position records_skipped_ = 0;
+  Position skipped_records_ = 0;
 };
 
 // Implementation details follow.
@@ -198,7 +198,8 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
   index_ = UnsignedMin(index, num_records());
-  const size_t start = index_ == 0 ? 0u : limits_[IntCast<size_t>(index_ - 1)];
+  const size_t start =
+      index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];
   if (!values_reader_.Seek(start)) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Failed seeking values reader: " << values_reader_.Message();

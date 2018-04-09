@@ -199,7 +199,7 @@ class RecordReader final : public Object {
   // record position of that record and the next record, i.e. it counts as one
   // byte, except that the last record of a chunk counts as the rest of the
   // chunk size.
-  Position bytes_skipped() const;
+  Position skipped_bytes() const;
 
  protected:
   void Done() override;
@@ -231,8 +231,8 @@ class RecordReader final : public Object {
   //   if !healthy() then chunk_decoder_.index() == chunk_decoder_.num_records()
   ChunkDecoder chunk_decoder_;
   // The number of bytes skipped because of corrupted regions or unparsable
-  // records, in addition to chunk_reader_->bytes_skipped().
-  Position bytes_skipped_ = 0;
+  // records, in addition to chunk_reader_->skipped_bytes().
+  Position skipped_bytes_ = 0;
 };
 
 // Implementation details follow.
@@ -246,9 +246,9 @@ inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
     if (key != nullptr) {
       *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
     }
-    const uint64_t records_skipped = chunk_decoder_.index() - index_before - 1;
-    if (ABSL_PREDICT_FALSE(records_skipped > 0)) {
-      bytes_skipped_ = SaturatingAdd(bytes_skipped_, records_skipped);
+    const uint64_t skipped_records = chunk_decoder_.index() - index_before - 1;
+    if (ABSL_PREDICT_FALSE(skipped_records > 0)) {
+      skipped_bytes_ = SaturatingAdd(skipped_bytes_, skipped_records);
     }
     return true;
   }
@@ -310,9 +310,9 @@ inline bool RecordReader::Size(Position* size) const {
   return chunk_reader_->Size(size);
 }
 
-inline Position RecordReader::bytes_skipped() const {
+inline Position RecordReader::skipped_bytes() const {
   if (ABSL_PREDICT_FALSE(chunk_reader_ == nullptr)) return 0;
-  return SaturatingAdd(chunk_reader_->bytes_skipped(), bytes_skipped_);
+  return SaturatingAdd(chunk_reader_->skipped_bytes(), skipped_bytes_);
 }
 
 }  // namespace riegeli

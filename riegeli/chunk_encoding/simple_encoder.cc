@@ -122,7 +122,7 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
 }
 
 bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
-  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
+  RIEGELI_ASSERT_EQ(limits.empty() ? size_t{0} : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

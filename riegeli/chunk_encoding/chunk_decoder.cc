@@ -52,7 +52,7 @@ ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
           riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
       index_(riegeli::exchange(src.index_, 0)),
       record_scratch_(riegeli::exchange(src.record_scratch_, std::string())),
-      records_skipped_(riegeli::exchange(src.records_skipped_, 0)) {}
+      skipped_records_(riegeli::exchange(src.skipped_records_, 0)) {}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
@@ -62,7 +62,7 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
   index_ = riegeli::exchange(src.index_, 0);
   record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
-  records_skipped_ = riegeli::exchange(src.records_skipped_, 0);
+  skipped_records_ = riegeli::exchange(src.skipped_records_, 0);
   return *this;
 }
 
@@ -103,7 +103,7 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   }
   RIEGELI_ASSERT_EQ(limits_.size(), chunk.header.num_records())
       << "Wrong number of record end positions";
-  RIEGELI_ASSERT_EQ(limits_.empty() ? 0u : limits_.back(), values.size())
+  RIEGELI_ASSERT_EQ(limits_.empty() ? size_t{0} : limits_.back(), values.size())
       << "Wrong last record end position";
   if (field_filter_.include_all()) {
     RIEGELI_ASSERT_EQ(values.size(), chunk.header.decoded_data_size())
@@ -145,9 +145,9 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
       TransposeDecoder transpose_decoder;
       dest->Clear();
       ChainBackwardWriter dest_writer(
-          dest,
-          ChainBackwardWriter::Options().set_size_hint(
-              field_filter_.include_all() ? header.decoded_data_size() : 0u));
+          dest, ChainBackwardWriter::Options().set_size_hint(
+                    field_filter_.include_all() ? header.decoded_data_size()
+                                                : uint64_t{0}));
       const bool ok = transpose_decoder.Reset(
           src, header.num_records(), header.decoded_data_size(), field_filter_,
           &dest_writer, &limits_);
@@ -200,7 +200,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
                                  record->GetTypeName()));
       }
     }
-    records_skipped_ = SaturatingAdd(records_skipped_, Position{1});
+    skipped_records_ = SaturatingAdd(skipped_records_, Position{1});
   }
 }
 

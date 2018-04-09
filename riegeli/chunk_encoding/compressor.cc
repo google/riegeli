@@ -97,7 +97,8 @@ void Compressor::Reset() {
 
 inline ChainWriter::Options Compressor::GetChainWriterOptions() const {
   return ChainWriter::Options().set_size_hint(
-      options_.compression_type() == CompressionType::kNone ? size_hint_ : 0u);
+      options_.compression_type() == CompressionType::kNone ? size_hint_
+                                                            : uint64_t{0});
 }
 
 inline BrotliWriter::Options Compressor::GetBrotliWriterOptions() const {

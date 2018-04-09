@@ -98,7 +98,7 @@ void ChunkReader::Done() {
   skip_errors_ = false;
   pos_ = 0;
   current_chunk_is_incomplete_ = false;
-  // bytes_skipped_ is not cleared.
+  // skipped_bytes_ is not cleared.
   if (is_recovering_) {
     recovering_ = Recovering();
   } else {
@@ -303,7 +303,7 @@ inline void ChunkReader::SeekOverCorruption(Position new_pos) {
       << "Failed precondition of ChunkReader::SeekOverCorruption(): "
          "seeking backwards";
   if (recovering_.corrupted) {
-    bytes_skipped_ = SaturatingAdd(bytes_skipped_, new_pos - pos_);
+    skipped_bytes_ = SaturatingAdd(skipped_bytes_, new_pos - pos_);
   }
   pos_ = new_pos;
 }

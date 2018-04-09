@@ -35,7 +35,8 @@ class RecordPosition {
   RecordPosition(uint64_t chunk_begin, uint64_t record_index)
       : chunk_begin_(chunk_begin), record_index_(record_index) {
     RIEGELI_ASSERT_LE(record_index,
-                      std::numeric_limits<uint64_t>::max() - chunk_begin);
+                      std::numeric_limits<uint64_t>::max() - chunk_begin)
+        << "RecordPosition overflow";
   }
 
   RecordPosition(const RecordPosition& src) noexcept
