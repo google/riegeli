@@ -145,12 +145,12 @@ class RecordReader final : public Object {
 
   // Returns the current position.
   //
-  // Pos().numeric() returns the position as an integer of type Position.
+  // pos().numeric() returns the position as an integer of type Position.
   //
-  // A position returned by Pos() before reading a record is not greater than
+  // A position returned by pos() before reading a record is not greater than
   // the canonical position returned by ReadRecord() in *key for that record,
   // but seeking to either position will read the same record.
-  RecordPosition Pos() const;
+  RecordPosition pos() const;
 
   // Seeks to a position.
   //
@@ -297,7 +297,7 @@ inline bool RecordReader::HopeForMore() const {
          (healthy() && chunk_reader_->HopeForMore());
 }
 
-inline RecordPosition RecordReader::Pos() const {
+inline RecordPosition RecordReader::pos() const {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
                         chunk_decoder_.num_records())) {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());

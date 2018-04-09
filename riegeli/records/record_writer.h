@@ -17,15 +17,19 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <future>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/record_position.h"
 
@@ -39,6 +43,44 @@ namespace riegeli {
 
 class ChunkEncoder;
 class ChunkWriter;
+
+// FutureRecordPosition is similar to shared_future<RecordPosition>.
+//
+// RecordWriter returns FutureRecordPosition instead of RecordPosition because
+// with parallelism > 0 the actual position is not known until pending chunks
+// finish encoding in background.
+class FutureRecordPosition {
+ public:
+  constexpr FutureRecordPosition() noexcept {}
+
+  explicit FutureRecordPosition(RecordPosition pos) noexcept;
+
+  FutureRecordPosition(FutureRecordPosition&& src) noexcept;
+  FutureRecordPosition& operator=(FutureRecordPosition&& src) noexcept;
+
+  FutureRecordPosition(const FutureRecordPosition& src);
+  FutureRecordPosition& operator=(const FutureRecordPosition& src);
+
+  // May block if returned by RecordWriter with parallelism > 0.
+  RecordPosition get() const;
+
+ private:
+  friend class RecordWriter;
+
+  class FutureChunkBegin;
+
+  explicit FutureRecordPosition(Position chunk_begin);
+
+  FutureRecordPosition(
+      Position pos_before_chunks,
+      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+
+  std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
+  // If future_chunk_begin_ == nullptr, chunk_begin_ is stored here, otherwise
+  // it is future_chunk_begin_->get().
+  Position chunk_begin_ = 0;
+  uint64_t record_index_ = 0;
+};
 
 // RecordWriter writes records to a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
@@ -308,18 +350,17 @@ class RecordWriter final : public Object {
   //
   // If key != nullptr, *key is set to the canonical record position on success.
   //
-  // Finding the position might block if parallelism > 0.
-  //
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
   bool WriteRecord(const google::protobuf::MessageLite& record,
-                   RecordPosition* key = nullptr);
-  bool WriteRecord(absl::string_view record, RecordPosition* key = nullptr);
-  bool WriteRecord(std::string&& record, RecordPosition* key = nullptr);
-  bool WriteRecord(const char* record, RecordPosition* key = nullptr);
-  bool WriteRecord(const Chain& record, RecordPosition* key = nullptr);
-  bool WriteRecord(Chain&& record, RecordPosition* key = nullptr);
+                   FutureRecordPosition* key = nullptr);
+  bool WriteRecord(absl::string_view record,
+                   FutureRecordPosition* key = nullptr);
+  bool WriteRecord(std::string&& record, FutureRecordPosition* key = nullptr);
+  bool WriteRecord(const char* record, FutureRecordPosition* key = nullptr);
+  bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
+  bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the Writer.
   // If Options::set_parallelism() was used, waits for any background writing to
@@ -340,9 +381,7 @@ class RecordWriter final : public Object {
 
   // Returns the current position.
   //
-  // Pos().numeric() returns the position as an integer of type Position.
-  //
-  // Finding the position might block if parallelism > 0.
+  // Pos().get().numeric() returns the position as an integer of type Position.
   //
   // A position returned by Pos() before writing a record is not greater than
   // the canonical position returned by WriteRecord() in *key for that record,
@@ -350,7 +389,7 @@ class RecordWriter final : public Object {
   //
   // After Flush(), Pos() is equal to the canonical position returned by the
   // following WriteRecord() in *key.
-  RecordPosition Pos() const;
+  FutureRecordPosition Pos() const;
 
  protected:
   void Done() override;
@@ -364,7 +403,7 @@ class RecordWriter final : public Object {
   static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
 
   template <typename Record>
-  bool WriteRecordImpl(Record&& record, RecordPosition* key);
+  bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
@@ -379,30 +418,100 @@ class RecordWriter final : public Object {
 
 // Implementation details follow.
 
+class FutureRecordPosition::FutureChunkBegin {
+ public:
+  FutureChunkBegin(
+      Position pos_before_chunks,
+      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+
+  FutureChunkBegin(const FutureChunkBegin&) = delete;
+  FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
+
+  Position get() const;
+
+ private:
+  void Resolve() const;
+
+  mutable absl::once_flag flag;
+  // Position before writing chunks having chunk_headers_.
+  mutable Position pos_before_chunks_ = 0;
+  // Headers of chunks to be written after pos_before_chunks_.
+  mutable std::vector<std::shared_future<ChunkHeader>> chunk_headers_;
+};
+
+inline Position FutureRecordPosition::FutureChunkBegin::get() const {
+  absl::call_once(flag, &FutureChunkBegin::Resolve, this);
+  RIEGELI_ASSERT(chunk_headers_.empty())
+      << "FutureRecordPosition::FutureChunkBegin::Resolve() "
+         "did not clear chunk_headers_";
+  return pos_before_chunks_;
+}
+
+inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
+    : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    FutureRecordPosition&& src) noexcept
+    : future_chunk_begin_(std::move(src.future_chunk_begin_)),
+      chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
+      record_index_(riegeli::exchange(src.record_index_, 0)) {}
+
+inline FutureRecordPosition& FutureRecordPosition::operator=(
+    FutureRecordPosition&& src) noexcept {
+  future_chunk_begin_ = std::move(src.future_chunk_begin_);
+  chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
+  record_index_ = riegeli::exchange(src.record_index_, 0);
+  return *this;
+}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    const FutureRecordPosition& src)
+    : future_chunk_begin_(src.future_chunk_begin_),
+      chunk_begin_(src.chunk_begin_),
+      record_index_(src.record_index_) {}
+
+inline FutureRecordPosition& FutureRecordPosition::operator=(
+    const FutureRecordPosition& src) {
+  future_chunk_begin_ = src.future_chunk_begin_;
+  chunk_begin_ = src.chunk_begin_;
+  record_index_ = src.record_index_;
+  return *this;
+}
+
+inline RecordPosition FutureRecordPosition::get() const {
+  return RecordPosition(future_chunk_begin_ == nullptr
+                            ? chunk_begin_
+                            : future_chunk_begin_->get(),
+                        record_index_);
+}
+
 inline bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record,
-                                      RecordPosition* key) {
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);
 }
 
 inline bool RecordWriter::WriteRecord(absl::string_view record,
-                                      RecordPosition* key) {
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(std::string&& record, RecordPosition* key) {
+inline bool RecordWriter::WriteRecord(std::string&& record,
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
 }
 
-inline bool RecordWriter::WriteRecord(const char* record, RecordPosition* key) {
+inline bool RecordWriter::WriteRecord(const char* record,
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
 inline bool RecordWriter::WriteRecord(const Chain& record,
-                                      RecordPosition* key) {
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(Chain&& record, RecordPosition* key) {
+inline bool RecordWriter::WriteRecord(Chain&& record,
+                                      FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
 }
 

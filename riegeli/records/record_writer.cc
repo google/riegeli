@@ -23,11 +23,11 @@
 #include <new>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -60,6 +60,34 @@ size_t RecordSize(const google::protobuf::MessageLite& record) {
 }
 
 }  // namespace
+
+inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
+    Position pos_before_chunks,
+    std::vector<std::shared_future<ChunkHeader>> chunk_headers)
+    : pos_before_chunks_(pos_before_chunks),
+      chunk_headers_(std::move(chunk_headers)) {}
+
+void FutureRecordPosition::FutureChunkBegin::Resolve() const {
+  Position pos = pos_before_chunks_;
+  for (const auto& chunk_header : chunk_headers_) {
+    pos = internal::ChunkEnd(chunk_header.get(), pos);
+  }
+  pos_before_chunks_ = pos;
+  chunk_headers_ = std::vector<std::shared_future<ChunkHeader>>();
+}
+
+inline FutureRecordPosition::FutureRecordPosition(Position chunk_begin)
+    : chunk_begin_(chunk_begin) {}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    Position pos_before_chunks,
+    std::vector<std::shared_future<ChunkHeader>> chunk_headers)
+    : future_chunk_begin_(
+          chunk_headers.empty()
+              ? nullptr
+              : absl::make_unique<FutureChunkBegin>(pos_before_chunks,
+                                                    std::move(chunk_headers))),
+      chunk_begin_(pos_before_chunks) {}
 
 bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) {
   std::string compressor_text;
@@ -140,10 +168,10 @@ class RecordWriter::Impl : public Object {
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
 
-  RecordPosition Pos();
+  FutureRecordPosition Pos();
 
  protected:
-  virtual Position ChunkBegin() = 0;
+  virtual FutureRecordPosition ChunkBegin() = 0;
 
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
@@ -160,8 +188,10 @@ bool RecordWriter::Impl::AddRecord(Record&& record) {
   return true;
 }
 
-inline RecordPosition RecordWriter::Impl::Pos() {
-  return RecordPosition(ChunkBegin(), chunk_encoder_->num_records());
+inline FutureRecordPosition RecordWriter::Impl::Pos() {
+  FutureRecordPosition pos = ChunkBegin();
+  pos.record_index_ = chunk_encoder_->num_records();
+  return pos;
 }
 
 class RecordWriter::SerialImpl final : public Impl {
@@ -175,7 +205,7 @@ class RecordWriter::SerialImpl final : public Impl {
 
  protected:
   void Done() override {}
-  Position ChunkBegin() override { return chunk_writer_->pos(); }
+  FutureRecordPosition ChunkBegin() override;
 
  private:
   ChunkWriter* chunk_writer_;
@@ -202,6 +232,10 @@ bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
   return true;
 }
 
+FutureRecordPosition RecordWriter::SerialImpl::ChunkBegin() {
+  return FutureRecordPosition(chunk_writer_->pos());
+}
+
 // ParallelImpl uses parallelism internally, but the class is still only
 // thread-compatible, not thread-safe.
 class RecordWriter::ParallelImpl final : public Impl {
@@ -216,9 +250,14 @@ class RecordWriter::ParallelImpl final : public Impl {
 
  protected:
   void Done() override;
-  Position ChunkBegin() override;
+  FutureRecordPosition ChunkBegin() override;
 
  private:
+  struct ChunkPromises {
+    std::promise<ChunkHeader> chunk_header;
+    std::promise<Chunk> chunk;
+  };
+
   // A request to the chunk writer thread.
   enum class RequestType {
     kWriteChunkRequest,
@@ -226,7 +265,8 @@ class RecordWriter::ParallelImpl final : public Impl {
     kDoneRequest,
   };
   struct WriteChunkRequest {
-    std::shared_future<Chunk> chunk;
+    std::shared_future<ChunkHeader> chunk_header;
+    std::future<Chunk> chunk;
   };
   struct FlushRequest {
     FlushType flush_type;
@@ -257,8 +297,8 @@ class RecordWriter::ParallelImpl final : public Impl {
   ChunkWriter* chunk_writer_;
   absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
-  // The value of chunk_writer_->pos() before handling chunk_writer_requests_.
-  Position chunk_writer_pos_before_requests_ GUARDED_BY(mutex_);
+  // Position before handling chunk_writer_requests_.
+  Position pos_before_chunks_ GUARDED_BY(mutex_);
 };
 
 inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
@@ -325,7 +365,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
                                                 const Options& options)
     : options_(options),
       chunk_writer_(chunk_writer),
-      chunk_writer_pos_before_requests_(chunk_writer_->pos()) {
+      pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
     mutex_.Lock();
     for (;;) {
@@ -341,7 +381,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           // If !healthy(), the chunk must still be waited for, to ensure that
           // the chunk encoder thread exits before the chunk writer thread
           // responds to DoneRequest.
-          const Chunk& chunk = request.write_chunk_request.chunk.get();
+          const Chunk chunk = request.write_chunk_request.chunk.get();
           if (ABSL_PREDICT_FALSE(!healthy())) goto handled;
           if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
             Fail(*chunk_writer_);
@@ -372,7 +412,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
     handled:
       mutex_.Lock();
       chunk_writer_requests_.pop_front();
-      chunk_writer_pos_before_requests_ = chunk_writer_->pos();
+      pos_before_chunks_ = chunk_writer_->pos();
     }
   });
 }
@@ -398,8 +438,7 @@ void RecordWriter::ParallelImpl::Done() {
 bool RecordWriter::ParallelImpl::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkEncoder* const chunk_encoder = chunk_encoder_.release();
-  std::promise<Chunk>* const chunk_promise =
-      new std::promise<Chunk>();
+  ChunkPromises* const chunk_promises = new ChunkPromises();
   {
     mutex_.LockWhen(absl::Condition(
         +[](ParallelImpl* self) {
@@ -409,17 +448,19 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
         },
         this));
     chunk_writer_requests_.emplace_back(
-        WriteChunkRequest{chunk_promise->get_future()});
+        WriteChunkRequest{chunk_promises->chunk_header.get_future(),
+                          chunk_promises->chunk.get_future()});
     mutex_.Unlock();
   }
-  internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promise] {
+  internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promises] {
     Chunk chunk;
     if (ABSL_PREDICT_FALSE(!chunk_encoder->EncodeAndClose(&chunk))) {
       Fail("Encoding chunk failed", *chunk_encoder);
     }
     delete chunk_encoder;
-    chunk_promise->set_value(std::move(chunk));
-    delete chunk_promise;
+    chunk_promises->chunk_header.set_value(chunk.header);
+    chunk_promises->chunk.set_value(std::move(chunk));
+    delete chunk_promises;
   });
   return true;
 }
@@ -435,26 +476,18 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-Position RecordWriter::ParallelImpl::ChunkBegin() {
-  Position pos;
-  absl::InlinedVector<std::shared_future<Chunk>, 16> chunks;
-  {
-    absl::MutexLock lock(&mutex_);
-    pos = chunk_writer_pos_before_requests_;
-    chunks.reserve(chunk_writer_requests_.size());
-    for (const auto& pending_request : chunk_writer_requests_) {
-      RIEGELI_ASSERT(pending_request.request_type ==
-                     RequestType::kWriteChunkRequest)
-          << "Unexpected type of request in the queue: "
-          << static_cast<int>(pending_request.request_type);
-      chunks.push_back(pending_request.write_chunk_request.chunk);
-    }
+FutureRecordPosition RecordWriter::ParallelImpl::ChunkBegin() {
+  absl::MutexLock lock(&mutex_);
+  std::vector<std::shared_future<ChunkHeader>> chunk_headers;
+  chunk_headers.reserve(chunk_writer_requests_.size());
+  for (const auto& pending_request : chunk_writer_requests_) {
+    RIEGELI_ASSERT(pending_request.request_type ==
+                   RequestType::kWriteChunkRequest)
+        << "Unexpected type of request in the queue: "
+        << static_cast<int>(pending_request.request_type);
+    chunk_headers.push_back(pending_request.write_chunk_request.chunk_header);
   }
-  for (const auto& chunk_future : chunks) {
-    const Chunk& chunk = chunk_future.get();
-    pos = internal::ChunkEnd(chunk.header, pos);
-  }
-  return pos;
+  return FutureRecordPosition(pos_before_chunks_, std::move(chunk_headers));
 }
 
 RecordWriter::RecordWriter() noexcept : Object(State::kClosed) {}
@@ -538,7 +571,7 @@ void RecordWriter::Done() {
 }
 
 template <typename Record>
-bool RecordWriter::WriteRecordImpl(Record&& record, RecordPosition* key) {
+bool RecordWriter::WriteRecordImpl(Record&& record, FutureRecordPosition* key) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
@@ -562,15 +595,15 @@ bool RecordWriter::WriteRecordImpl(Record&& record, RecordPosition* key) {
 }
 
 template bool RecordWriter::WriteRecordImpl(const google::protobuf::MessageLite& record,
-                                            RecordPosition* key);
+                                            FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(const absl::string_view& record,
-                                            RecordPosition* key);
+                                            FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(std::string&& record,
-                                            RecordPosition* key);
+                                            FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(const Chain& record,
-                                            RecordPosition* key);
+                                            FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(Chain&& record,
-                                            RecordPosition* key);
+                                            FutureRecordPosition* key);
 
 bool RecordWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -588,8 +621,8 @@ bool RecordWriter::Flush(FlushType flush_type) {
   return true;
 }
 
-RecordPosition RecordWriter::Pos() const {
-  if (ABSL_PREDICT_FALSE(impl_ == nullptr)) return RecordPosition();
+FutureRecordPosition RecordWriter::Pos() const {
+  if (ABSL_PREDICT_FALSE(impl_ == nullptr)) return FutureRecordPosition();
   return impl_->Pos();
 }
 
