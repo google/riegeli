@@ -91,24 +91,27 @@ inline FutureRecordPosition::FutureRecordPosition(
 
 bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) {
   std::string compressor_text;
-  OptionsParser parser;
-  parser.AddOption("default",
-                   parser.Empty([&parser] { return parser.FailIfAnySeen(); }));
-  parser.AddOption(
+  OptionsParser options_parser;
+  options_parser.AddOption("default", ValueParser::FailIfAnySeen());
+  options_parser.AddOption(
       "transpose",
-      parser.Enum(&transpose_, {{"", true}, {"true", true}, {"false", false}}));
-  parser.AddOption("uncompressed", parser.CopyTo(&compressor_text));
-  parser.AddOption("brotli", parser.CopyTo(&compressor_text));
-  parser.AddOption("zstd", parser.CopyTo(&compressor_text));
-  parser.AddOption("window_log", parser.CopyTo(&compressor_text));
-  parser.AddOption(
-      "chunk_size",
-      parser.Bytes(&chunk_size_, 1, std::numeric_limits<uint64_t>::max()));
-  parser.AddOption("bucket_fraction", parser.Real(&bucket_fraction_, 0.0, 1.0));
-  parser.AddOption("parallelism", parser.Int(&parallelism_, 0,
-                                             std::numeric_limits<int>::max()));
-  if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-    *message = std::string(parser.message());
+      ValueParser::Enum(&transpose_,
+                        {{"", true}, {"true", true}, {"false", false}}));
+  options_parser.AddOption("uncompressed",
+                           ValueParser::CopyTo(&compressor_text));
+  options_parser.AddOption("brotli", ValueParser::CopyTo(&compressor_text));
+  options_parser.AddOption("zstd", ValueParser::CopyTo(&compressor_text));
+  options_parser.AddOption("window_log", ValueParser::CopyTo(&compressor_text));
+  options_parser.AddOption(
+      "chunk_size", ValueParser::Bytes(&chunk_size_, 1,
+                                       std::numeric_limits<uint64_t>::max()));
+  options_parser.AddOption("bucket_fraction",
+                           ValueParser::Real(&bucket_fraction_, 0.0, 1.0));
+  options_parser.AddOption(
+      "parallelism",
+      ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
+  if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
+    *message = std::string(options_parser.message());
     return false;
   }
   return compressor_options_.Parse(compressor_text, message);

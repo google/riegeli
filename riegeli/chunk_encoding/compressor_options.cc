@@ -29,83 +29,77 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
   // Set just compression_type_ first because other parsers depend on
   // compression_type_.
   {
-    OptionsParser parser;
-    parser.AddOption("uncompressed", [this, &parser](absl::string_view value) {
-      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("brotli", "zstd"))) {
-        return false;
-      }
-      compression_type_ = CompressionType::kNone;
-      return true;
-    });
-    parser.AddOption("brotli", [this, &parser](absl::string_view value) {
-      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed", "zstd"))) {
-        return false;
-      }
-      compression_type_ = CompressionType::kBrotli;
-      return true;
-    });
-    parser.AddOption("zstd", [this, &parser](absl::string_view value) {
-      if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed", "brotli"))) {
-        return false;
-      }
-      compression_type_ = CompressionType::kZstd;
-      return true;
-    });
-    parser.AddOption("window_log",
-                     [this](absl::string_view value) { return true; });
-    if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-      *message = std::string(parser.message());
+    OptionsParser options_parser;
+    options_parser.AddOption(
+        "uncompressed",
+        ValueParser::And(ValueParser::FailIfSeen("brotli", "zstd"),
+                         [this](ValueParser* value_parser) {
+                           compression_type_ = CompressionType::kNone;
+                           return true;
+                         }));
+    options_parser.AddOption(
+        "brotli",
+        ValueParser::And(ValueParser::FailIfSeen("uncompressed", "zstd"),
+                         [this](ValueParser* value_parser) {
+                           compression_type_ = CompressionType::kBrotli;
+                           return true;
+                         }));
+    options_parser.AddOption(
+        "zstd",
+        ValueParser::And(ValueParser::FailIfSeen("uncompressed", "brotli"),
+                         [this](ValueParser* value_parser) {
+                           compression_type_ = CompressionType::kZstd;
+                           return true;
+                         }));
+    options_parser.AddOption("window_log",
+                             [](ValueParser* value_parser) { return true; });
+    if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
+      *message = std::string(options_parser.message());
       return false;
     }
   }
-  OptionsParser parser;
-  parser.AddOption("uncompressed", parser.Empty([this, &parser] {
-    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("window_log"))) return false;
-    compression_level_ = 0;
-    return true;
-  }));
-  parser.AddOption(
-      "brotli", OptionsParser::Or(
-                    parser.Empty([this] {
-                      compression_level_ =
-                          BrotliWriter::Options::kDefaultCompressionLevel();
-                      return true;
-                    }),
-                    parser.Int(&compression_level_,
-                               BrotliWriter::Options::kMinCompressionLevel(),
-                               BrotliWriter::Options::kMaxCompressionLevel())));
-  parser.AddOption(
-      "zstd", OptionsParser::Or(
-                  parser.Empty([this] {
-                    compression_level_ =
-                        ZstdWriter::Options::kDefaultCompressionLevel();
-                    return true;
-                  }),
-                  parser.Int(&compression_level_,
-                             ZstdWriter::Options::kMinCompressionLevel(),
-                             ZstdWriter::Options::kMaxCompressionLevel())));
-  parser.AddOption("window_log", [&] {
+  OptionsParser options_parser;
+  options_parser.AddOption(
+      "uncompressed",
+      ValueParser::And(ValueParser::FailIfSeen("window_log"),
+                       ValueParser::Empty(&compression_level_, 0)));
+  options_parser.AddOption(
+      "brotli",
+      ValueParser::Or(
+          ValueParser::Empty(&compression_level_,
+                             BrotliWriter::Options::kDefaultCompressionLevel()),
+          ValueParser::Int(&compression_level_,
+                           BrotliWriter::Options::kMinCompressionLevel(),
+                           BrotliWriter::Options::kMaxCompressionLevel())));
+  options_parser.AddOption(
+      "zstd",
+      ValueParser::Or(
+          ValueParser::Empty(&compression_level_,
+                             ZstdWriter::Options::kDefaultCompressionLevel()),
+          ValueParser::Int(&compression_level_,
+                           ZstdWriter::Options::kMinCompressionLevel(),
+                           ZstdWriter::Options::kMaxCompressionLevel())));
+  options_parser.AddOption("window_log", [&] {
     switch (compression_type_) {
       case CompressionType::kNone:
-        return OptionsParser::ValueParser([&parser](absl::string_view value) {
-          return parser.FailIfSeen("uncompressed");
-        });
+        return ValueParser::FailIfSeen("uncompressed");
       case CompressionType::kBrotli:
-        return OptionsParser::Or(
-            parser.Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
-            parser.Int(&window_log_, BrotliWriter::Options::kMinWindowLog(),
-                       BrotliWriter::Options::kMaxWindowLog()));
+        return ValueParser::Or(
+            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
+            ValueParser::Int(&window_log_,
+                             BrotliWriter::Options::kMinWindowLog(),
+                             BrotliWriter::Options::kMaxWindowLog()));
       case CompressionType::kZstd:
-        return OptionsParser::Or(
-            parser.Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
-            parser.Int(&window_log_, ZstdWriter::Options::kMinWindowLog(),
-                       ZstdWriter::Options::kMaxWindowLog()));
+        return ValueParser::Or(
+            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
+            ValueParser::Int(&window_log_, ZstdWriter::Options::kMinWindowLog(),
+                             ZstdWriter::Options::kMaxWindowLog()));
     }
     RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
   }());
-  if (ABSL_PREDICT_FALSE(!parser.Parse(text))) {
-    *message = std::string(parser.message());
+  if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
+    *message = std::string(options_parser.message());
     return false;
   }
   return true;

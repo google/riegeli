@@ -29,7 +29,9 @@
 
 namespace riegeli {
 
-class OptionsParser : public Object {
+class OptionsParser;
+
+class ValueParser : public Object {
  public:
   // Parser of an option value.
   //
@@ -38,8 +40,104 @@ class OptionsParser : public Object {
   //            called)
   //  * false - failure (InvalidValue(), FailIfSeen(), or FailIfAnySeen() may
   //            have been called)
-  using ValueParser = std::function<bool(absl::string_view)>;
+  using Function = std::function<bool(ValueParser*)>;
 
+  ValueParser(const ValueParser&) = delete;
+  ValueParser& operator=(const ValueParser&) = delete;
+
+  // Value parser for absent or empty argument.
+  template <typename T>
+  static Function Empty(T* out, T value);
+
+  // Value parser for explicitly enumerated valid values.
+  //
+  // An empty possible value matches also the case when ":" with value is
+  // absent.
+  template <typename T>
+  static Function Enum(T* out,
+                       std::vector<std::pair<std::string, T>> possible_values);
+
+  // Value parser for integers min_value..max_value.
+  static Function Int(int* out, int min_value, int max_value);
+
+  // Value parser for integers expressed as reals with optional suffix
+  // [BkKMGTPE], min_value..max_value.
+  static Function Bytes(uint64_t* out, uint64_t min_value, uint64_t max_value);
+
+  // Value parser for reals min_value..max_value.
+  static Function Real(double* out, double min_value, double max_value);
+
+  // Value parser which tries multiple parsers and returns the result of the
+  // first one which succeeds.
+  //
+  // The parsers must not include FailIfSeen() nor FailIfAnySeen(). Conflicts
+  // with other options should be checked outside the Or().
+  static Function Or(Function function1, Function function2);
+  template <typename... Functions>
+  static Function Or(Function function1, Function function2,
+                     Functions&&... functions);
+
+  // Value parser which runs multiple parsers and expects all of them to
+  // succeed.
+  static Function And(Function function1, Function function2);
+  template <typename... Functions>
+  static Function And(Function function1, Function function2,
+                      Functions&&... functions);
+
+  // Value parser which appends the option to a separate options string
+  // (as comma-separated key:value pairs), to be parsed with a separate
+  // OptionsParser.
+  static Function CopyTo(std::string* text);
+
+  // Value parser which reports a conflict if an option with any of the given
+  // keys was seen before this option.
+  //
+  // Multiple occurrences of the same option are always invalid and do not have
+  // to be explicitly checked with FailIfSeen().
+  static Function FailIfSeen(absl::string_view key);
+  template <typename... Keys>
+  static Function FailIfSeen(absl::string_view key, Keys&&... keys);
+
+  // Value parser which reports a conflict if an any option was seen before this
+  // option.
+  static Function FailIfAnySeen();
+
+  // Returns the key of the option being parsed.
+  absl::string_view key() const { return key_; }
+
+  // Returns the value of the option being parsed.
+  absl::string_view value() const { return value_; }
+
+  // Reports that the value is invalid, given a human-readable description of
+  // values which would have been valid.
+  //
+  // Multiple descriptions from several InvalidValue() calls are joined with
+  // commas. This normally happens if all parsers from Or() fail.
+  //
+  // Precondition: !valid_values.empty()
+  //
+  // Always returns false.
+  bool InvalidValue(absl::string_view valid_values);
+
+ protected:
+  void Done() override;
+
+ private:
+  friend class OptionsParser;
+
+  ValueParser(OptionsParser* options_parser, absl::string_view key,
+              absl::string_view value);
+
+  OptionsParser* options_parser_;
+  absl::string_view key_;
+  absl::string_view value_;
+  // When InvalidValue() was called, a human-readable description of valid
+  // values, otherwise empty.
+  std::string valid_values_;
+};
+
+class OptionsParser : public Object {
+ public:
   OptionsParser() : Object(State::kOpen) {}
 
   OptionsParser(const OptionsParser&) = delete;
@@ -50,87 +148,7 @@ class OptionsParser : public Object {
   //
   // The value parser may be implemented explicitly (e.g. as a lambda)
   // or returned by one of functions below (called on this OptionsParser).
-  void AddOption(std::string key, ValueParser value_parser);
-
-  // Value parser for absent or empty argument.
-  ValueParser Empty(std::function<bool()> present);
-
-  // Value parser for explicitly enumerated valid values.
-  //
-  // An empty possible value matches also the case when ":" with value is
-  // absent.
-  template <typename T>
-  ValueParser Enum(T* out, std::vector<std::pair<std::string, T>> possible_values);
-
-  // Value parser for integers min_value..max_value.
-  ValueParser Int(int* out, int min_value, int max_value);
-
-  // Value parser for integers expressed as reals with optional suffix
-  // [BkKMGTPE], min_value..max_value.
-  ValueParser Bytes(uint64_t* out, uint64_t min_value, uint64_t max_value);
-
-  // Value parser for reals min_value..max_value.
-  ValueParser Real(double* out, double min_value, double max_value);
-
-  // Value parser which tries multiple parsers and returns the result of the
-  // first one which succeeds.
-  //
-  // The parsers must not call FailIfSeen() nor FailIfAnySeen(). Conflicts with
-  // other options should be checked outside the Or().
-  static ValueParser Or(ValueParser parser1, ValueParser parser2);
-  template <typename... ValueParsers>
-  static ValueParser Or(ValueParser parser1, ValueParser parser2,
-                        ValueParsers&&... parsers);
-
-  // Value parser which appends the option to a separate options string
-  // (as comma-separated key:value pairs), to be parsed with a separate
-  // OptionsParser.
-  ValueParser CopyTo(std::string* text);
-
-  // TODO: Consider splitting the state of parsing an option value to a
-  // separate class.
-
-  // Returns the key of the option being parsed.
-  //
-  // Precondition: an option value is being parsed
-  const std::string& current_key() const;
-
-  // Reports that the value is invalid, given a human-readable description of
-  // values which would have been valid.
-  //
-  // Multiple descriptions from several InvalidValue() calls are joined with
-  // commas. This normally happens if all parsers from Or() fail.
-  //
-  // Preconditions:
-  //   !valid_values.empty()
-  //   an option value is being parsed
-  //
-  // Always returns false.
-  bool InvalidValue(absl::string_view valid_values);
-
-  // Reports a conflict if an option with any of the given keys was seen before
-  // this option.
-  //
-  // Multiple occurrences of the same option are always invalid and do not have
-  // to be explicitly checked with FailIfSeen().
-  //
-  // Precondition: an option value is being parsed
-  //
-  // Return values:
-  //  * true - there was no conflict
-  //  * false - there was a conflict
-  bool FailIfSeen(absl::string_view key);
-  template <typename... Keys>
-  bool FailIfSeen(absl::string_view key, Keys&&... keys);
-
-  // Reports a conflict if an any option was seen before this option.
-  //
-  // Precondition: an option value is being parsed
-  //
-  // Return values:
-  //  * true - there was no conflict
-  //  * false - there was a conflict
-  bool FailIfAnySeen();
+  void AddOption(std::string key, ValueParser::Function function);
 
   // Parses options from text. Valid options must have been registered with
   // AddOptions().
@@ -152,64 +170,57 @@ class OptionsParser : public Object {
   void Done() override;
 
  private:
+  friend class ValueParser;
+
   struct Option {
-    Option(std::string key, ValueParser value_parser)
-        : key(std::move(key)), value_parser(std::move(value_parser)) {}
+    Option(std::string key, ValueParser::Function function)
+        : key(std::move(key)), function(std::move(function)) {}
 
     std::string key;
-    ValueParser value_parser;
+    ValueParser::Function function;
     bool seen = false;
   };
 
   std::vector<Option> options_;
-  // When an option value is being parsed, the corresponding option, otherwise
-  // nullptr.
-  Option* current_option_ = nullptr;
-  // When an option value is being parsed and InvalidValue() was called,
-  // a human-readable description of valid values, otherwise empty.
-  std::string current_valid_values_;
 };
 
 // Implementation details follow.
 
-inline void OptionsParser::AddOption(std::string key, ValueParser value_parser) {
-  RIEGELI_ASSERT(std::find_if(options_.cbegin(), options_.cend(),
-                              [&key](const Option& option) {
-                                return option.key == key;
-                              }) == options_.cend())
-      << "Failed precondition of OptionsParser::AddOption(): option " << key
-      << "already registered";
-  options_.emplace_back(std::move(key), std::move(value_parser));
-}
-
-inline const std::string& OptionsParser::current_key() const {
-  RIEGELI_ASSERT(current_option_ != nullptr)
-      << "Failed precondition of OptionsParser::current_key(): "
-         "no option is being parsed";
-  return current_option_->key;
-}
-
 namespace internal {
+
+// This is a struct rather than a lambda to capture value by move.
+template <typename T>
+struct EmptyFunction {
+  bool operator()(ValueParser* value_parser) const {
+    if (ABSL_PREDICT_TRUE(value_parser->value().empty())) {
+      *out = value;
+      return true;
+    }
+    return value_parser->InvalidValue("(empty)");
+  }
+
+  T* out;
+  T value;
+};
 
 // This is a struct rather than a lambda to capture possible_values by move.
 template <typename T>
-struct EnumOptionParser {
-  bool operator()(absl::string_view value) const {
+struct EnumOptionFunction {
+  bool operator()(ValueParser* value_parser) const {
     for (const auto& possible_value : possible_values) {
-      if (value == possible_value.first) {
+      if (value_parser->value() == possible_value.first) {
         *out = possible_value.second;
         return true;
       }
     }
     for (const auto& possible_value : possible_values) {
-      parser->InvalidValue(possible_value.first.empty()
-                               ? absl::string_view("(empty)")
-                               : absl::string_view(possible_value.first));
+      value_parser->InvalidValue(possible_value.first.empty()
+                                     ? absl::string_view("(empty)")
+                                     : absl::string_view(possible_value.first));
     }
     return false;
   }
 
-  OptionsParser* parser;
   T* out;
   std::vector<std::pair<std::string, T>> possible_values;
 };
@@ -217,22 +228,43 @@ struct EnumOptionParser {
 }  // namespace internal
 
 template <typename T>
-OptionsParser::ValueParser OptionsParser::Enum(
-    T* out, std::vector<std::pair<std::string, T>> possible_values) {
-  return internal::EnumOptionParser<T>{this, out, std::move(possible_values)};
+ValueParser::Function ValueParser::Empty(T* out, T value) {
+  return internal::EmptyFunction<T>{out, std::move(value)};
 }
 
-template <typename... ValueParsers>
-OptionsParser::ValueParser OptionsParser::Or(ValueParser parser1,
-                                             ValueParser parser2,
-                                             ValueParsers&&... parsers) {
-  return Or(parser1, Or(parser2, std::forward<ValueParsers>(parsers)...));
+template <typename T>
+ValueParser::Function ValueParser::Enum(
+    T* out, std::vector<std::pair<std::string, T>> possible_values) {
+  return internal::EnumOptionFunction<T>{out, std::move(possible_values)};
+}
+
+template <typename... Functions>
+ValueParser::Function ValueParser::Or(Function function1, Function function2,
+                                      Functions&&... functions) {
+  return Or(function1, Or(function2, std::forward<Functions>(functions)...));
+}
+
+template <typename... Functions>
+ValueParser::Function ValueParser::And(Function function1, Function function2,
+                                       Functions&&... functions) {
+  return And(function1, And(function2, std::forward<Functions>(functions)...));
 }
 
 template <typename... Keys>
-bool OptionsParser::FailIfSeen(absl::string_view key, Keys&&... keys) {
-  return ABSL_PREDICT_TRUE(FailIfSeen(key)) &&
-         FailIfSeen(std::forward<Keys>(keys)...);
+ValueParser::Function ValueParser::FailIfSeen(absl::string_view key,
+                                              Keys&&... keys) {
+  return And(FailIfSeen(key), FailIfSeen(std::forward<Keys>(keys)...));
+}
+
+inline void OptionsParser::AddOption(std::string key,
+                                     ValueParser::Function function) {
+  RIEGELI_ASSERT(std::find_if(options_.cbegin(), options_.cend(),
+                              [&key](const Option& option) {
+                                return option.key == key;
+                              }) == options_.cend())
+      << "Failed precondition of OptionsParser::AddOption(): option " << key
+      << "already registered";
+  options_.emplace_back(std::move(key), std::move(function));
 }
 
 };  // namespace riegeli

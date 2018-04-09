@@ -294,18 +294,20 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
       max_name_width_, riegeli::IntCast<int>(
                            absl::StrCat("tfrecord ", tfrecord_options).size()));
   const char* compression = tensorflow::io::compression::kNone;
-  riegeli::OptionsParser parser;
-  parser.AddOption("uncompressed", parser.Empty([&parser, &compression] {
-    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("gzip"))) return false;
-    compression = tensorflow::io::compression::kNone;
-    return true;
-  }));
-  parser.AddOption("gzip", parser.Empty([&parser, &compression] {
-    if (ABSL_PREDICT_FALSE(!parser.FailIfSeen("uncompressed"))) return false;
-    compression = tensorflow::io::compression::kGzip;
-    return true;
-  }));
-  RIEGELI_CHECK(parser.Parse(tfrecord_options)) << parser.message();
+  riegeli::OptionsParser options_parser;
+  options_parser.AddOption(
+      "uncompressed",
+      riegeli::ValueParser::And(
+          riegeli::ValueParser::FailIfSeen("gzip"),
+          riegeli::ValueParser::Empty(&compression,
+                                      tensorflow::io::compression::kNone)));
+  options_parser.AddOption(
+      "gzip", riegeli::ValueParser::And(
+                  riegeli::ValueParser::FailIfSeen("uncompressed"),
+                  riegeli::ValueParser::Empty(
+                      &compression, tensorflow::io::compression::kGzip)));
+  RIEGELI_CHECK(options_parser.Parse(tfrecord_options))
+      << options_parser.message();
   tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
 }
 
