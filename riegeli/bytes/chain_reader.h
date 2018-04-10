@@ -57,7 +57,7 @@ class ChainReader final : public Reader {
   bool SeekSlow(Position new_pos) override;
 
  private:
-  ChainReader(ChainReader&& src, size_t block_index);
+  ChainReader(ChainReader&& src, size_t block_index, size_t cursor_index);
 
   // Invariant: if !healthy() then owned_src_.empty()
   Chain owned_src_;
@@ -80,9 +80,9 @@ inline ChainReader::ChainReader(Chain src)
     : Reader(State::kOpen), owned_src_(std::move(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
-    cursor_ = iter_->data();
-    limit_ = iter_->data() + iter_->size();
-    limit_pos_ = iter_->size();
+    cursor_ = start_;
+    limit_ = start_ + iter_->size();
+    limit_pos_ = buffer_size();
   }
 }
 
@@ -90,21 +90,23 @@ inline ChainReader::ChainReader(const Chain* src)
     : Reader(State::kOpen), src_(RIEGELI_ASSERT_NOTNULL(src)) {
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
-    cursor_ = iter_->data();
-    limit_ = iter_->data() + iter_->size();
-    limit_pos_ = iter_->size();
+    cursor_ = start_;
+    limit_ = start_ + iter_->size();
+    limit_pos_ = buffer_size();
   }
 }
 
 inline ChainReader::ChainReader(ChainReader&& src) noexcept
-    : ChainReader(
-          std::move(src),
-          static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin())) {}
+    : ChainReader(std::move(src),
+                  static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin()),
+                  src.read_from_buffer()) {}
 
-// block_index is computed early because if src.src_ == &src.owned_src_ then
-// *src.src_ is moved, which invalidates src.iter_, and block_index depends on
-// src.iter_.
-inline ChainReader::ChainReader(ChainReader&& src, size_t block_index)
+// block_index and cursor_index are computed early because if src.src_ ==
+// &src.owned_src_ then *src.src_ is moved, which invalidates src.iter_ and
+// src.cursor_, but block_index and cursor_index depend on src.iter_ and
+// src.cursor_.
+inline ChainReader::ChainReader(ChainReader&& src, size_t block_index,
+                                size_t cursor_index)
     : Reader(std::move(src)),
       owned_src_(std::move(src.owned_src_)),
       src_(src.src_ == &src.owned_src_
@@ -112,14 +114,21 @@ inline ChainReader::ChainReader(ChainReader&& src, size_t block_index)
                : riegeli::exchange(src.src_, &src.owned_src_)),
       iter_(src_->blocks().cbegin() + block_index) {
   src.iter_ = src.src_->blocks().cbegin();
+  if (iter_ != src_->blocks().cend()) {
+    start_ = iter_->data();
+    cursor_ = start_ + cursor_index;
+    limit_ = start_ + iter_->size();
+  }
 }
 
 inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
-  // block_index is computed early because if src.src_ == &src.owned_src_ then
-  // *src.src_ is moved, which invalidates src.iter_, and block_index depends
-  // on src.iter_.
+  // block_index and cursor_index are computed early because if src.src_ ==
+  // &src.owned_src_ then *src.src_ is moved, which invalidates src.iter_ and
+  // src.cursor_, but block_index and cursor_index depend on src.iter_ and
+  // src.cursor_.
   const size_t block_index =
       static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin());
+  const size_t cursor_index = src.read_from_buffer();
   Reader::operator=(std::move(src));
   owned_src_ = std::move(src.owned_src_);
   src_ = src.src_ == &src.owned_src_
@@ -128,6 +137,11 @@ inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
   // Set src.iter_ before iter_ to support self-assignment.
   src.iter_ = src.src_->blocks().cbegin();
   iter_ = src_->blocks().cbegin() + block_index;
+  if (iter_ != src_->blocks().cend()) {
+    start_ = iter_->data();
+    cursor_ = start_ + cursor_index;
+    limit_ = start_ + iter_->size();
+  }
   return *this;
 }
 

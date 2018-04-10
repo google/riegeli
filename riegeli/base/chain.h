@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <atomic>
+#include <cstring>
 #include <iosfwd>
 #include <iterator>
 #include <limits>
@@ -51,6 +52,7 @@ class Chain {
  public:
   class Blocks;
   class BlockIterator;
+  struct PinnedBlock;
 
   constexpr Chain() noexcept {}
 
@@ -63,8 +65,8 @@ class Chain {
 
   // The source Chain is left cleared.
   //
-  // Moving a Chain invalidates its BlockIterators, but the number of
-  // BlockIterators and their respective data pointers are kept unchanged.
+  // Moving a Chain invalidates its BlockIterators and data pointers, but the
+  // shape of blocks (their number and sizes) remains unchanged.
   Chain(Chain&& src) noexcept;
   Chain& operator=(Chain&& src) noexcept;
 
@@ -172,15 +174,26 @@ class Chain {
     Block** end;
   };
 
+  static constexpr size_t kMaxShortDataSize = sizeof(Block*) * 2;
+
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
 
     // If the Chain is empty, no block pointers are needed. Some union member is
     // needed though for the default constructor to be constexpr.
     Empty empty;
-    // If is_here(), array of between 0 and 2 block pointers.
+    // If begin_ == end_, size_ characters.
+    //
+    // If also has_here(), then there are 0 pointers in here so short_data
+    // can safely contain size_ characters. If also has_allocated(), then
+    // size_ == 0, and EnsureHasHere() must be called before writing to
+    // short_data.
+    char short_data[kMaxShortDataSize];
+    // If has_here(), array of block pointers between begin_ == here and end_
+    // (0 to 2 pointers).
     Block* here[2];
-    // If is_allocated(), pointers to a heap-allocated array of block pointers.
+    // If has_allocated(), pointers to a heap-allocated array of block
+    // pointers.
     Allocated allocated;
   };
 
@@ -188,15 +201,22 @@ class Chain {
   static constexpr size_t kMaxBufferSize() { return size_t{64} << 10; }
   static constexpr size_t kAllocationCost() { return 256; }
 
+  bool has_here() const { return begin_ == block_ptrs_.here; }
+  bool has_allocated() const { return begin_ != block_ptrs_.here; }
+
+  absl::string_view short_data() const;
+
   static Block** NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();
+  // If has_allocated(), delete the block pointer array and make has_here()
+  // true. This is used before appending to short_data.
+  //
+  // Precondition: begin_ == end_
+  void EnsureHasHere();
 
   void UnrefBlocks();
   static void UnrefBlocks(Block* const* begin, Block* const* end);
   static void UnrefBlocksSlow(Block* const* begin, Block* const* end);
-
-  bool is_here() const { return begin_ == block_ptrs_.here; }
-  bool is_allocated() const { return begin_ != block_ptrs_.here; }
 
   Block*& back() { return end_[-1]; }
   Block* const& back() const { return end_[-1]; }
@@ -236,17 +256,23 @@ class Chain {
   void RemovePrefixSlow(size_t length, size_t size_hint);
 
   BlockPtrs block_ptrs_;
+
   // The range of the block pointers array which is actually used.
   //
   // Invariants:
   //   begin_ <= end_
-  //   if is_here() then begin_ == block_ptrs_.here
-  //                 and end_ <= block_ptrs_.here + 2
-  //   if is_allocated() then begin_ >= block_ptrs_.allocated.begin
-  //                      and end_ <= block_ptrs_.allocated.end
+  //   if has_here() then begin_ == block_ptrs_.here
+  //                  and end_ <= block_ptrs_.here + 2
+  //   if has_allocated() then begin_ >= block_ptrs_.allocated.begin
+  //                       and end_ <= block_ptrs_.allocated.end
   Block** begin_ = block_ptrs_.here;
   Block** end_ = block_ptrs_.here;
-  // Invariant: size_ is the sum of sizes of blocks in [begin_, end)
+
+  // Invariants:
+  //   if begin_ == end_ then size_ <= kMaxShortDataSize
+  //   if begin_ == end_ && has_allocated() then size_ == 0
+  //   if begin_ != end_ then
+  //       size_ is the sum of sizes of blocks in [begin_, end_)
   size_t size_ = 0;
 };
 
@@ -275,13 +301,108 @@ bool operator>=(absl::string_view a, const Chain& b);
 
 std::ostream& operator<<(std::ostream& out, const Chain& str);
 
+class Chain::BlockIterator {
+ public:
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = absl::string_view;
+  using reference = value_type;
+  using difference_type = ptrdiff_t;
+
+  class pointer {
+   public:
+    const value_type* operator->() const { return &value_; }
+
+   private:
+    friend class BlockIterator;
+
+    explicit pointer(value_type value) : value_(value) {}
+
+    value_type value_;
+  };
+
+  BlockIterator() noexcept {}
+
+  BlockIterator(const BlockIterator& src) noexcept;
+  BlockIterator& operator=(const BlockIterator& src) noexcept;
+
+  reference operator*() const;
+  pointer operator->() const;
+  BlockIterator& operator++();
+  BlockIterator operator++(int);
+  BlockIterator& operator--();
+  BlockIterator operator--(int);
+  BlockIterator& operator+=(difference_type n);
+  BlockIterator operator+(difference_type n) const;
+  BlockIterator& operator-=(difference_type n);
+  BlockIterator operator-(difference_type n) const;
+  reference operator[](difference_type n) const;
+
+  friend bool operator==(BlockIterator a, BlockIterator b);
+  friend bool operator!=(BlockIterator a, BlockIterator b);
+  friend bool operator<(BlockIterator a, BlockIterator b);
+  friend bool operator>(BlockIterator a, BlockIterator b);
+  friend bool operator<=(BlockIterator a, BlockIterator b);
+  friend bool operator>=(BlockIterator a, BlockIterator b);
+  friend difference_type operator-(BlockIterator a, BlockIterator b);
+  friend BlockIterator operator+(difference_type n, BlockIterator a);
+
+  // Pins the block pointed to by this iterator, keeping it alive and unchanged,
+  // until PinnedBlock::Unpin() is called. Returns a PinnedBlock which contains
+  // a data pointer valid for the pinned block and a void* token to be passed to
+  // PinnedBlock::Unpin().
+  //
+  // Precondition: this is not past the end iterator.
+  PinnedBlock Pin();
+
+  // Returns a pointer to the external object if this points to an external
+  // block holding an object of type T, otherwise returns nullptr.
+  //
+  // Precondition: this is not past the end iterator.
+  template <typename T>
+  const T* external_object() const;
+
+  // Appends **this to *dest.
+  //
+  // Precondition: this is not past the end iterator.
+  void AppendTo(Chain* dest, size_t size_hint = 0) const;
+
+  // Appends substr to *dest. substr must be contained in **this.
+  //
+  // Precondition: this is not past the end iterator.
+  void AppendSubstrTo(absl::string_view substr, Chain* dest,
+                      size_t size_hint = 0) const;
+
+ private:
+  friend class Chain;
+
+  // Sentinel values for iterators over a pseudo-block pointer representing
+  // short data of a Chain.
+  static Block* const kShortData[1];
+  static Block* const* kBeginShortData() { return kShortData; }
+  static Block* const* kEndShortData() { return kShortData + 1; }
+
+  BlockIterator(const Chain* chain, Block* const* ptr) noexcept;
+
+  const Chain* chain_ = nullptr;
+  Block* const* ptr_ = nullptr;
+};
+
+// The result of BlockIterator::Pin(). Consists of a data pointer valid for the
+// pinned block and a void* token to be passed to Unpin().
+struct Chain::PinnedBlock {
+  static void Unpin(void* token);
+
+  absl::string_view data;
+  void* token;
+};
+
 class Chain::Blocks {
  public:
   using value_type = absl::string_view;
-  using pointer = value_type*;
-  using const_pointer = const value_type*;
-  using reference = value_type&;
-  using const_reference = const value_type&;
+  using const_reference = value_type;
+  using reference = const_reference;
+  using const_pointer = BlockIterator::pointer;
+  using pointer = const_pointer;
   using const_iterator = BlockIterator;
   using iterator = const_iterator;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
@@ -313,73 +434,9 @@ class Chain::Blocks {
  private:
   friend class Chain;
 
-  Blocks(Block* const* begin, Block* const* end) noexcept;
+  explicit Blocks(const Chain* chain) noexcept : chain_(chain) {}
 
-  Block* const* begin_ = nullptr;
-  Block* const* end_ = nullptr;
-};
-
-class Chain::BlockIterator {
- public:
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = absl::string_view;
-  using pointer = const value_type*;
-  using reference = const value_type&;
-  using difference_type = ptrdiff_t;
-
-  BlockIterator() noexcept {}
-
-  BlockIterator(const BlockIterator& src) noexcept;
-  BlockIterator& operator=(const BlockIterator& src) noexcept;
-
-  reference operator*() const;
-  pointer operator->() const;
-  BlockIterator& operator++();
-  BlockIterator operator++(int);
-  BlockIterator& operator--();
-  BlockIterator operator--(int);
-  BlockIterator& operator+=(difference_type n);
-  BlockIterator operator+(difference_type n) const;
-  BlockIterator& operator-=(difference_type n);
-  BlockIterator operator-(difference_type n) const;
-  reference operator[](difference_type n) const;
-
-  friend bool operator==(BlockIterator a, BlockIterator b);
-  friend bool operator!=(BlockIterator a, BlockIterator b);
-  friend bool operator<(BlockIterator a, BlockIterator b);
-  friend bool operator>(BlockIterator a, BlockIterator b);
-  friend bool operator<=(BlockIterator a, BlockIterator b);
-  friend bool operator>=(BlockIterator a, BlockIterator b);
-  friend difference_type operator-(BlockIterator a, BlockIterator b);
-  friend BlockIterator operator+(difference_type n, BlockIterator a);
-
-  // Pins the block pointed to by this iterator until Unpin() is called.
-  // Returns a token to be passed to Unpin().
-  //
-  // Precondition: this is not past the end iterator.
-  void* Pin() const;
-  // Undoes the effect of one Pin() call. The argument must be the token
-  // returned by Pin().
-  static void Unpin(void* token);
-
-  // Returns a pointer to the external object if this points to an external
-  // block holding an object of type T, otherwise returns nullptr.
-  template <typename T>
-  const T* external_object() const;
-
-  // Appends **this to *dest.
-  void AppendTo(Chain* dest, size_t size_hint = 0) const;
-
-  // Appends substr to *dest. substr must be contained in **this.
-  void AppendSubstrTo(absl::string_view substr, Chain* dest,
-                      size_t size_hint = 0) const;
-
- private:
-  friend class Chain;
-
-  explicit BlockIterator(Block* const* iter) noexcept : iter_(iter) {}
-
-  Block* const* iter_ = nullptr;
+  const Chain* chain_ = nullptr;
 };
 
 // Implementation details follow.
@@ -475,9 +532,19 @@ class Chain::Block {
   absl::Span<char> MakeAppendBuffer(size_t max_size);
   absl::Span<char> MakePrependBuffer(size_t max_size);
   void Append(absl::string_view src);
+  // Reads size_to_copy from src.data() but account for src.size(). Faster
+  // than Append() if size_to_copy is a compile time constant, but requires
+  // size_to_copy bytes to be readable, possibly past the end of src.
+  //
+  // Precondition: size_to_copy >= src.size().
+  void AppendWithExplicitSizeToCopy(absl::string_view src, size_t size_to_copy);
   void Prepend(absl::string_view src);
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
+
+  void AppendTo(Chain* dest, size_t size_hint);
+
+  void AppendSubstrTo(absl::string_view substr, Chain* dest, size_t size_hint);
 
  private:
   template <typename T>
@@ -530,7 +597,8 @@ template <typename T>
 struct Chain::ExternalMethodsFor {
   // object has type T*. Creates an external block containing the moved object
   // and sets block data to moved_object.data().
-  static Block* NewBlockImplicitData(void* object, absl::string_view unused);
+  static Block* NewBlockImplicitData(
+      void* object, absl::string_view unused = absl::string_view());
 
   // object has type T*. Creates an external block containing the moved object
   // and sets block data to the data parameter, which must remain valid after
@@ -683,25 +751,37 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
   return false;
 }
 
+inline Chain::BlockIterator::BlockIterator(const Chain* chain,
+                                           Block* const* ptr) noexcept
+    : chain_(chain), ptr_(ptr) {}
+
 inline Chain::BlockIterator::BlockIterator(const BlockIterator& src) noexcept
-    : iter_(src.iter_) {}
+    : chain_(src.chain_), ptr_(src.ptr_) {}
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator=(
     const BlockIterator& src) noexcept {
-  iter_ = src.iter_;
+  chain_ = src.chain_;
+  ptr_ = src.ptr_;
   return *this;
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
-  return (*iter_)->data();
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
+      << "Failed precondition of Chain::BlockIterator::operator*(): "
+         "iterator is end()";
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+    return chain_->short_data();
+  } else {
+    return (*ptr_)->data();
+  }
 }
 
 inline Chain::BlockIterator::pointer Chain::BlockIterator::operator->() const {
-  return &**this;
+  return pointer(**this);
 }
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator++() {
-  ++iter_;
+  ++ptr_;
   return *this;
 }
 
@@ -712,7 +792,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator++(int) {
 }
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator--() {
-  --iter_;
+  --ptr_;
   return *this;
 }
 
@@ -724,7 +804,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator--(int) {
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator+=(
     difference_type n) {
-  iter_ += n;
+  ptr_ += n;
   return *this;
 }
 
@@ -735,7 +815,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator+(
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator-=(
     difference_type n) {
-  iter_ -= n;
+  ptr_ -= n;
   return *this;
 }
 
@@ -750,32 +830,53 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 }
 
 inline bool operator==(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ == b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator==(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ == b.ptr_;
 }
 
 inline bool operator!=(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ != b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator!=(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ != b.ptr_;
 }
 
 inline bool operator<(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ < b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator<(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ < b.ptr_;
 }
 
 inline bool operator>(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ > b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator>(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ > b.ptr_;
 }
 
 inline bool operator<=(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ <= b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator<=(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ <= b.ptr_;
 }
 
 inline bool operator>=(Chain::BlockIterator a, Chain::BlockIterator b) {
-  return a.iter_ >= b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator>=(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ >= b.ptr_;
 }
 
 inline Chain::BlockIterator::difference_type operator-(Chain::BlockIterator a,
                                                        Chain::BlockIterator b) {
-  return a.iter_ - b.iter_;
+  RIEGELI_ASSERT(a.chain_ == b.chain_)
+      << "Failed precondition of operator-(Chain::BlockIterator): "
+         "incomparable iterators";
+  return a.ptr_ - b.ptr_;
 }
 
 inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
@@ -783,31 +884,37 @@ inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
   return a + n;
 }
 
-inline void* Chain::BlockIterator::Pin() const { return (*iter_)->Ref(); }
-
 template <typename T>
 const T* Chain::BlockIterator::external_object() const {
-  return (*iter_)->checked_external_object<T>();
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
+      << "Failed precondition of Chain::BlockIterator::external_object(): "
+         "iterator is end()";
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+    return nullptr;
+  } else {
+    return (*ptr_)->checked_external_object<T>();
+  }
 }
 
-inline Chain::Blocks::Blocks(Block* const* begin, Block* const* end) noexcept
-    : begin_(begin), end_(end) {}
-
-inline Chain::Blocks::Blocks(const Blocks& src) noexcept
-    : begin_(src.begin_), end_(src.end_) {}
+inline Chain::Blocks::Blocks(const Blocks& src) noexcept : chain_(src.chain_) {}
 
 inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& src) noexcept {
-  begin_ = src.begin_;
-  end_ = src.end_;
+  chain_ = src.chain_;
   return *this;
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
-  return const_iterator(begin_);
+  return BlockIterator(chain_, chain_->begin_ == chain_->end_
+                                   ? chain_->empty()
+                                         ? BlockIterator::kEndShortData()
+                                         : BlockIterator::kBeginShortData()
+                                   : chain_->begin_);
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::end() const {
-  return const_iterator(end_);
+  return BlockIterator(chain_, chain_->begin_ == chain_->end_
+                                   ? BlockIterator::kEndShortData()
+                                   : chain_->end_);
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::cbegin() const {
@@ -835,41 +942,64 @@ inline Chain::Blocks::const_reverse_iterator Chain::Blocks::crend() const {
 }
 
 inline Chain::Blocks::size_type Chain::Blocks::size() const {
-  return PtrDistance(begin_, end_);
+  if (chain_->begin_ == chain_->end_) {
+    return chain_->empty() ? 0 : 1;
+  } else {
+    return PtrDistance(chain_->begin_, chain_->end_);
+  }
 }
 
-inline bool Chain::Blocks::empty() const { return begin_ == end_; }
+inline bool Chain::Blocks::empty() const {
+  return chain_->begin_ == chain_->end_ && chain_->empty();
+}
 
 inline Chain::Blocks::const_reference Chain::Blocks::operator[](
     size_type n) const {
   RIEGELI_ASSERT_LT(n, size())
       << "Failed precondition of Chain::Blocks::operator[](): "
          "block index out of range";
-  return begin_[n]->data();
+  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
+    return chain_->short_data();
+  } else {
+    return chain_->begin_[n]->data();
+  }
 }
 
 inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
   RIEGELI_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
                                  "block index out of range";
-  return begin_[n]->data();
+  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
+    return chain_->short_data();
+  } else {
+    return chain_->begin_[n]->data();
+  }
 }
 
 inline Chain::Blocks::const_reference Chain::Blocks::front() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::front(): no blocks";
-  return begin_[0]->data();
+  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
+    return chain_->short_data();
+  } else {
+    return chain_->begin_[0]->data();
+  }
 }
 
 inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::back(): no blocks";
-  return end_[-1]->data();
+  if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
+    return chain_->short_data();
+  } else {
+    return chain_->end_[-1]->data();
+  }
 }
 
 inline Chain::Chain(Chain&& src) noexcept
     : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
-  if (src.is_here()) {
-    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
+  if (src.has_here()) {
+    // src.has_here() implies that src.begin_ == src.block_ptrs_.here
+    // already.
     begin_ = block_ptrs_.here;
     end_ =
         block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
@@ -886,8 +1016,9 @@ inline Chain& Chain::operator=(Chain&& src) noexcept {
   // Exchange src.begin_ and src.end_ early to support self-assignment.
   Block** begin;
   Block** end;
-  if (src.is_here()) {
-    // src.is_here() implies that src.begin_ == src.block_ptrs_.here already.
+  if (src.has_here()) {
+    // src.has_here() implies that src.begin_ == src.block_ptrs_.here
+    // already.
     begin = block_ptrs_.here;
     end =
         block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
@@ -912,8 +1043,14 @@ inline Chain::~Chain() {
   DeleteBlockPtrs();
 }
 
+inline absl::string_view Chain::short_data() const {
+  RIEGELI_ASSERT(begin_ == end_)
+      << "Failed precondition of Chain::short_data(): blocks exist";
+  return absl::string_view(block_ptrs_.short_data, size_);
+}
+
 inline void Chain::DeleteBlockPtrs() {
-  if (is_allocated()) {
+  if (has_allocated()) {
     std::allocator<Block*>().deallocate(
         block_ptrs_.allocated.begin,
         block_ptrs_.allocated.end - block_ptrs_.allocated.begin);
@@ -926,7 +1063,7 @@ inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
   if (begin != end) UnrefBlocksSlow(begin, end);
 }
 
-inline Chain::Blocks Chain::blocks() const { return Blocks(begin_, end_); }
+inline Chain::Blocks Chain::blocks() const { return Blocks(this); }
 
 inline void Chain::Append(const char* src, size_t size_hint) {
   Append(absl::string_view(src), size_hint);
@@ -966,9 +1103,11 @@ inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemoveSuffix(): "
       << "length to remove greater than current size";
-  RIEGELI_ASSERT(begin_ != end_)
-      << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
+  if (begin_ == end_) {
+    // Chain has short data which have suffix removed in place.
+    return;
+  }
   if (ABSL_PREDICT_TRUE(length <= back()->size() &&
                         back()->TryRemoveSuffix(length))) {
     return;
@@ -981,9 +1120,13 @@ inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemovePrefix(): "
       << "length to remove greater than current size";
-  RIEGELI_ASSERT(begin_ != end_)
-      << "Failed invariant of Chain: no blocks but non-zero size";
   size_ -= length;
+  if (begin_ == end_) {
+    // Chain has short data which have prefix removed by shifting the rest.
+    std::memmove(block_ptrs_.short_data, block_ptrs_.short_data + length,
+                 size_);
+    return;
+  }
   if (ABSL_PREDICT_TRUE(length <= front()->size() &&
                         front()->TryRemovePrefix(length))) {
     return;
