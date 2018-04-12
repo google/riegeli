@@ -71,7 +71,7 @@ class BufferedReader : public Reader {
 
   void ClearBuffer();
 
-  // The capacity of buffer_ once it is allocated.
+  // The intended capacity of buffer_ once it is allocated.
   //
   // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;

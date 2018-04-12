@@ -32,10 +32,8 @@ namespace riegeli {
 
 inline bool BufferedReader::TooSmall(absl::Span<char> flat_buffer) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
-  RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size_)
-      << "Failed precondition of BufferedReader::TooSmall(): "
-         "flat buffer larger than buffer size";
-  return buffer_size_ - flat_buffer.size() > flat_buffer.size();
+  return flat_buffer.size() < buffer_size_ &&
+         buffer_size_ - flat_buffer.size() > flat_buffer.size();
 }
 
 inline Chain::BlockIterator BufferedReader::iter() const {
