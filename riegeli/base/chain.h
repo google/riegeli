@@ -460,6 +460,7 @@ class Chain::Blocks {
 //  - Tiny blocks must not be adjacent.
 class Chain::Block {
  public:
+  static constexpr size_t kInternalAllocatedOffset();
   static constexpr size_t kMaxCapacity();
 
   // Creates an internal block for appending.
@@ -558,7 +559,6 @@ class Chain::Block {
     char object_lower_bound[1];
   };
 
-  static constexpr size_t kInternalAllocatedOffset();
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
@@ -683,7 +683,7 @@ constexpr size_t Chain::Block::kExternalObjectOffset() {
 }
 
 constexpr size_t Chain::Block::kMaxCapacity() {
-  return std::numeric_limits<size_t>::max() - kInternalAllocatedOffset();
+  return size_t{std::numeric_limits<ptrdiff_t>::max()};
 }
 
 inline Chain::Block* Chain::Block::Ref() {

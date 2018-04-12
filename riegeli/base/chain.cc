@@ -145,7 +145,8 @@ inline void Chain::StringRef::DumpStructure(absl::string_view data,
 inline Chain::Block* Chain::Block::NewInternal(size_t capacity) {
   RIEGELI_ASSERT_GT(capacity, 0u)
       << "Failed precondition of Chain::Block::NewInternal(): zero capacity";
-  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity()) << "Out of memory";
+  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity())
+      << "Chain block capacity overflow";
   return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity, 0);
 }
 
@@ -153,7 +154,8 @@ inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
   RIEGELI_ASSERT_GT(capacity, 0u)
       << "Failed precondition of Chain::Block::NewInternalForPrepend(): zero "
          "capacity";
-  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity()) << "Out of memory";
+  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity())
+      << "Chain block capacity overflow";
   return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity,
                            capacity);
 }
@@ -429,36 +431,13 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
 
 constexpr size_t Chain::kMaxShortDataSize;
 
-Chain::Chain(absl::string_view src) {
-  if (src.size() <= kMaxShortDataSize) {
-    if (src.empty()) return;  // memcpy(_, nullptr, 0) is undefined.
-    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
-  } else {
-    Block* const block = Block::NewInternal(src.size());
-    block->Append(src);
-    block_ptrs_.here[0] = block;
-    end_ = block_ptrs_.here + 1;
-  }
-  size_ = src.size();
-}
+// In converting constructors below, size_hint being src.size() optimizes for
+// the case when the resulting Chain will not be appended to further, reducing
+// the size of allocations.
 
-Chain::Chain(std::string&& src) {
-  if (src.size() <= kMaxShortDataSize) {
-    std::memcpy(block_ptrs_.short_data, src.data(), src.size());
-    size_ = src.size();
-  } else {
-    Block* block;
-    if (src.size() <= kMaxBytesToCopy()) {
-      block = Block::NewInternal(src.size());
-      block->Append(src);
-    } else {
-      block = ExternalMethodsFor<StringRef>::NewBlockImplicitData(&src);
-    }
-    block_ptrs_.here[0] = block;
-    end_ = block_ptrs_.here + 1;
-    size_ = block->size();
-  }
-}
+Chain::Chain(absl::string_view src) { Append(src, src.size()); }
+
+Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
 
 Chain::Chain(const Chain& src) : size_(src.size_) {
   if (src.begin_ == src.end_) {
@@ -531,10 +510,10 @@ void Chain::CopyTo(char* dest) const {
 }
 
 void Chain::AppendTo(std::string* dest) const {
-  RIEGELI_CHECK_LE(size(), dest->max_size() - dest->size())
+  RIEGELI_CHECK_LE(size_, dest->max_size() - dest->size())
       << "Failed precondition of Chain::AppendTo(string*): "
          "string size overflow";
-  const size_t final_size = dest->size() + size();
+  const size_t final_size = dest->size() + size_;
   if (final_size > dest->capacity()) dest->reserve(final_size);
   Block* const* iter = begin_;
   if (iter == end_) {
@@ -811,32 +790,39 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
 
 inline size_t Chain::NewBlockCapacity(size_t replaced_size, size_t new_size,
                                       size_t size_hint) const {
-  constexpr size_t kGranularity = 16;
   RIEGELI_ASSERT_LE(replaced_size, size_)
       << "Failed precondition of Chain::NewBlockCapacity(): "
          "size to replace greater than current size";
-  RIEGELI_CHECK_LE(new_size,
-                   RoundDown<kGranularity>(std::numeric_limits<size_t>::max()) -
-                       replaced_size)
-      << "Out of memory";
+  RIEGELI_CHECK_LE(new_size, Block::kMaxCapacity() - replaced_size)
+      << "Chain block capacity overflow";
   const size_t size_before = size_ - replaced_size;
-  return RoundUp<kGranularity>(UnsignedMax(
-      replaced_size + new_size,
-      UnsignedMin(size_before < size_hint
-                      ? size_hint - size_before
-                      : UnsignedMax(kMinBufferSize(), size_before / 2),
-                  kMaxBufferSize())));
+  return EstimatedAllocatedSize(
+             Block::kInternalAllocatedOffset() +
+             UnsignedMax(replaced_size + new_size,
+                         UnsignedMin(size_before < size_hint
+                                         ? size_hint - size_before
+                                         : UnsignedMax(kMinBufferSize(),
+                                                       size_before / 2),
+                                     kMaxBufferSize()))) -
+         Block::kInternalAllocatedOffset();
 }
 
 absl::Span<char> Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
+  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::MakeAppendBuffer(): "
          "Chain size overflow";
   Block* block;
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    if (min_length <= kMaxShortDataSize - size_) {
+    // Do not bother returning short data if size_hint is larger. Except that
+    // Chain promises no reallocation if min_length == 0, no matter what is
+    // size_hint.
+    const size_t expected_length =
+        size_ < size_hint && min_length > 0
+            ? UnsignedMax(min_length, size_hint - size_)
+            : min_length;
+    if (expected_length <= kMaxShortDataSize - size_) {
       // Append the new space to short data.
       EnsureHasHere();
       const absl::Span<char> buffer(block_ptrs_.short_data + size_,
@@ -894,14 +880,21 @@ absl::Span<char> Chain::MakeAppendBuffer(size_t min_length, size_t size_hint) {
 }
 
 absl::Span<char> Chain::MakePrependBuffer(size_t min_length, size_t size_hint) {
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
+  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::MakePrependBuffer(): "
          "Chain size overflow";
   Block* block;
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    if (min_length <= kMaxShortDataSize - size_) {
+    // Do not bother returning short data if size_hint is larger. Except that
+    // Chain promises no reallocation if min_length == 0, no matter what is
+    // size_hint.
+    const size_t expected_length =
+        size_ < size_hint && min_length > 0
+            ? UnsignedMax(min_length, size_hint - size_)
+            : min_length;
+    if (expected_length <= kMaxShortDataSize - size_) {
       // Prepend the new space to short data.
       EnsureHasHere();
       const absl::Span<char> buffer(block_ptrs_.short_data,
@@ -966,65 +959,21 @@ void Chain::Append(absl::string_view src, size_t size_hint) {
       << "Failed precondition of Chain::Append(string_view): "
          "Chain size overflow";
   if (src.empty()) return;
-  Block* block;
-  if (begin_ == end_) {
-    RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
-        << "Failed invariant of Chain: short data size too large";
-    if (src.size() <= kMaxShortDataSize - size_) {
-      // Append src to short data.
-      EnsureHasHere();
-      std::memcpy(block_ptrs_.short_data + size_, src.data(), src.size());
-      size_ += src.size();
+  for (;;) {
+    // If size_hint is not reached, use it to determine the block capacity,
+    // otherwise ask for src.size(), but not more than kMaxBufferSize().
+    const absl::Span<char> buffer = MakeAppendBuffer(
+        size_ < size_hint ? size_t{1}
+                          : UnsignedMin(src.size(), kMaxBufferSize()),
+        size_hint);
+    if (src.size() <= buffer.size()) {
+      std::memcpy(buffer.data(), src.data(), src.size());
+      RemoveSuffix(buffer.size() - src.size());
       return;
     }
-    // Merge short data with src to a new block.
-    if (ABSL_PREDICT_FALSE(src.size() > Block::kMaxCapacity() - size_)) {
-      block = Block::NewInternal(kMaxShortDataSize);
-      block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(block);
-      block = Block::NewInternal(NewBlockCapacity(0, src.size(), size_hint));
-    } else {
-      block = Block::NewInternal(NewBlockCapacity(
-          size_, UnsignedMax(src.size(), kMaxShortDataSize - size_),
-          size_hint));
-      block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-    }
-    PushBack(block);
-  } else {
-    Block* const last = back();
-    last->PrepareForAppend();
-    if (last->can_append(src.size())) {
-      // src can be appended in place.
-      block = last;
-    } else {
-      const size_t available = last->max_can_append();
-      if (last->tiny(available) || last->wasteful(available)) {
-        // The last block must be rewritten. Merge it with src to a new block.
-        if (ABSL_PREDICT_FALSE(src.size() >
-                               Block::kMaxCapacity() - last->size())) {
-          back() = last->CopyAndUnref();
-          goto new_block;
-        }
-        block = Block::NewInternal(
-            NewBlockCapacity(last->size(), src.size(), size_hint));
-        block->Append(last->data());
-        last->Unref();
-        back() = block;
-      } else {
-        if (available > 0) {
-          last->Append(src.substr(0, available));
-          size_ += available;
-          src.remove_prefix(available);
-        }
-      new_block:
-        // Append a new block.
-        block = Block::NewInternal(NewBlockCapacity(0, src.size(), size_hint));
-        PushBack(block);
-      }
-    }
+    std::memcpy(buffer.data(), src.data(), buffer.size());
+    src.remove_prefix(buffer.size());
   }
-  block->Append(src);
-  size_ += src.size();
 }
 
 void Chain::Append(std::string&& src, size_t size_hint) {
@@ -1281,68 +1230,23 @@ void Chain::Prepend(absl::string_view src, size_t size_hint) {
       << "Failed precondition of Chain::Prepend(string_view): "
          "Chain size overflow";
   if (src.empty()) return;
-  Block* block;
-  if (begin_ == end_) {
-    RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
-        << "Failed invariant of Chain: short data size too large";
-    if (src.size() <= kMaxShortDataSize - size_) {
-      // Prepend src to short data.
-      EnsureHasHere();
-      std::memmove(block_ptrs_.short_data + src.size(), block_ptrs_.short_data,
-                   size_);
-      std::memcpy(block_ptrs_.short_data, src.data(), src.size());
-      size_ += src.size();
+  for (;;) {
+    // If size_hint is not reached, use it to determine the block capacity,
+    // otherwise ask for src.size(), but not more than kMaxBufferSize().
+    const absl::Span<char> buffer = MakePrependBuffer(
+        size_ < size_hint ? size_t{1}
+                          : UnsignedMin(src.size(), kMaxBufferSize()),
+        size_hint);
+    if (src.size() <= buffer.size()) {
+      std::memcpy(buffer.data() + (buffer.size() - src.size()), src.data(),
+                  src.size());
+      RemovePrefix(buffer.size() - src.size());
       return;
     }
-    // Merge short data with src to a new block.
-    if (ABSL_PREDICT_FALSE(src.size() > Block::kMaxCapacity() - size_)) {
-      block = Block::NewInternal(kMaxShortDataSize);
-      block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushFront(block);
-      block = Block::NewInternalForPrepend(
-          NewBlockCapacity(0, src.size(), size_hint));
-    } else {
-      block = Block::NewInternalForPrepend(
-          NewBlockCapacity(size_, src.size(), size_hint));
-      block->Prepend(short_data());
-    }
-    PushFront(block);
-  } else {
-    Block* const first = front();
-    first->PrepareForPrepend();
-    if (first->can_prepend(src.size())) {
-      // src can be prepended in place.
-      block = first;
-    } else {
-      const size_t available = first->max_can_prepend();
-      if (first->tiny(available) || first->wasteful(available)) {
-        // The first block must be rewritten. Merge it with src to a new block.
-        if (ABSL_PREDICT_FALSE(src.size() >
-                               Block::kMaxCapacity() - first->size())) {
-          front() = first->CopyAndUnref();
-          goto new_block;
-        }
-        block = Block::NewInternalForPrepend(
-            NewBlockCapacity(first->size(), src.size(), size_hint));
-        block->Prepend(first->data());
-        first->Unref();
-        front() = block;
-      } else {
-        if (available > 0) {
-          first->Prepend(src.substr(src.size() - available));
-          size_ += available;
-          src.remove_suffix(available);
-        }
-      new_block:
-        // Prepend a new block.
-        block = Block::NewInternalForPrepend(
-            NewBlockCapacity(0, src.size(), size_hint));
-        PushFront(block);
-      }
-    }
+    std::memcpy(buffer.data(), src.data() + (src.size() - buffer.size()),
+                buffer.size());
+    src.remove_suffix(buffer.size());
   }
-  block->Prepend(src);
-  size_ += src.size();
 }
 
 void Chain::Prepend(std::string&& src, size_t size_hint) {

@@ -179,6 +179,12 @@ void DeleteAligned(T* ptr, size_t num_bytes) {
 #endif
 }
 
+// Returns the estimated size which will be allocated when requesting to
+// allocate requested_size.
+inline size_t EstimatedAllocatedSize(size_t requested_size) {
+  return RoundUp<sizeof(size_t) * 2>(requested_size);
+}
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_MEMORY_H_
