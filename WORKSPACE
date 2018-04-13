@@ -14,14 +14,12 @@ http_archive(
     strip_prefix = "cctz-2.2",
 )
 
-# Import Brotli (2018-03-27).
+# Import Brotli (2018-03-29).
 
-# Temporarily depend on a non-released Brotli because it has a fix for a broken
-# build with new bazel regarding -Wimplicit-fallthrough.
 http_archive(
     name = "org_brotli",
-    strip_prefix = "brotli-0f3c84e7458d2ef91a29fdf269e8ad016ae694ba",
-    urls = ["https://github.com/google/brotli/archive/0f3c84e7458d2ef91a29fdf269e8ad016ae694ba.zip"],
+    strip_prefix = "brotli-1.0.4",
+    urls = ["https://github.com/google/brotli/archive/v1.0.4.zip"],
 )
 
 git_repository(
@@ -65,11 +63,11 @@ new_http_archive(
     urls = ["https://github.com/google/highwayhash/archive/14dedecd1de87cb662f7a882ea1578d2384feb2f.zip"],
 )
 
-# Import Tensorflow (2018-02-28) and Protobuf (2017-12-15).
+# Import Tensorflow (2018-04-12) and Protobuf (2017-12-15).
 http_archive(
     name = "org_tensorflow",
-    strip_prefix = "tensorflow-1.6.0",
-    urls = ["https://github.com/tensorflow/tensorflow/archive/v1.6.0.zip"],
+    strip_prefix = "tensorflow-1.8.0-rc0",
+    urls = ["https://github.com/tensorflow/tensorflow/archive/v1.8.0-rc0.zip"],
 )
 
 load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
