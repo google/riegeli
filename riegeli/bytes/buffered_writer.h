@@ -43,7 +43,7 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& src) noexcept;
   BufferedWriter& operator=(BufferedWriter&& src) noexcept;
 
-  ~BufferedWriter();
+  ~BufferedWriter() { DeleteBuffer(); }
 
   // BufferedWriter provides a partial override of Writer::Done().
   // Derived classes must override it further and include a call to
@@ -77,6 +77,10 @@ class BufferedWriter : public Writer {
   // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;
 
+ private:
+  // If the buffer is allocated, deletes it.
+  void DeleteBuffer();
+
   // Invariant if healthy():
   //   buffer_size() == (start_ == nullptr ? 0 : buffer_size_)
 };
@@ -97,27 +101,23 @@ inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& src) noexcept {
   // Exchange src.start_ early to support self-assignment.
   char* const start = riegeli::exchange(src.start_, nullptr);
-  if (start_ != nullptr) {
-    std::allocator<char>().deallocate(start_, buffer_size_);
-  }
+  DeleteBuffer();
   Writer::operator=(std::move(src));
   start_ = start;
   buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
   return *this;
 }
 
-inline BufferedWriter::~BufferedWriter() {
-  if (start_ != nullptr) {
-    std::allocator<char>().deallocate(start_, buffer_size_);
-  }
-}
-
 inline void BufferedWriter::Done() {
-  if (start_ != nullptr) {
-    std::allocator<char>().deallocate(start_, buffer_size_);
-  }
+  DeleteBuffer();
   buffer_size_ = 0;
   Writer::Done();
+}
+
+inline void BufferedWriter::DeleteBuffer() {
+  if (start_ != nullptr) {
+    std::allocator<char>().deallocate(start_, buffer_size_);
+  }
 }
 
 }  // namespace riegeli
