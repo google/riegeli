@@ -32,8 +32,11 @@ namespace riegeli {
 
 inline bool BufferedReader::TooSmall(absl::Span<char> flat_buffer) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
-  return flat_buffer.size() < buffer_size_ &&
-         buffer_size_ - flat_buffer.size() > flat_buffer.size();
+  const size_t buffer_size = UnsignedMax(buffer_size_, buffer_.size());
+  RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size)
+      << "Failed precondition of BufferedReader::TooSmall(): "
+         "flat buffer larger than buffer size";
+  return buffer_size - flat_buffer.size() > flat_buffer.size();
 }
 
 inline Chain::BlockIterator BufferedReader::iter() const {
@@ -47,15 +50,19 @@ bool BufferedReader::PullSlow() {
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer();
   if (TooSmall(flat_buffer)) {
     // Make a new buffer.
     RIEGELI_ASSERT_GT(buffer_size_, 0u)
         << "Failed invariant of BufferedReader: no buffer size specified";
     buffer_.Clear();
-    flat_buffer = buffer_.MakeAppendBuffer(buffer_size_, buffer_size_);
+    flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
     start_ = flat_buffer.data();
     cursor_ = flat_buffer.data();
+  } else if (start_ == nullptr) {
+    // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+    start_ = iter()->data();
+    cursor_ = start_;
   }
   RIEGELI_ASSERT(start_ == iter()->data())
       << "Failed invariant of BufferedReader: "
@@ -122,7 +129,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     }
     ClearBuffer();
     const absl::Span<char> flat_buffer =
-        dest->MakeAppendBuffer(length, size_hint);
+        dest->AppendBuffer(length, 0, size_hint);
     const Position pos_before = limit_pos_;
     const bool ok = ReadInternal(flat_buffer.data(), length, length);
     RIEGELI_ASSERT_GE(limit_pos_, pos_before)
@@ -136,7 +143,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
 
   bool ok = true;
   while (length > available()) {
-    absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Append a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
@@ -149,9 +156,13 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
         length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.MakeAppendBuffer(buffer_size_, buffer_size_);
+      flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
       start_ = flat_buffer.data();
       cursor_ = flat_buffer.data();
+    } else if (start_ == nullptr) {
+      // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+      start_ = iter()->data();
+      cursor_ = start_;
     }
     RIEGELI_ASSERT(start_ == iter()->data())
         << "Failed invariant of BufferedReader: "
@@ -193,7 +204,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   bool read_ok = true;
   while (length > available()) {
-    absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer();
     if (TooSmall(flat_buffer)) {
       // Write a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
@@ -217,9 +228,13 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
         length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.MakeAppendBuffer(buffer_size_, buffer_size_);
+      flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
       start_ = flat_buffer.data();
       cursor_ = flat_buffer.data();
+    } else if (start_ == nullptr) {
+      // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+      start_ = iter()->data();
+      cursor_ = start_;
     }
     RIEGELI_ASSERT(start_ == iter()->data())
         << "Failed invariant of BufferedReader: "
@@ -277,7 +292,7 @@ bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
 
 void BufferedReader::ClearBuffer() {
   buffer_.Clear();
-  absl::Span<char> flat_buffer = buffer_.MakeAppendBuffer();
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer();
   start_ = flat_buffer.data();
   cursor_ = flat_buffer.data();
   limit_ = flat_buffer.data();

@@ -93,14 +93,30 @@ class Chain {
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
-  // Appends/prepends some uninitialized space with at least the given length.
+  // Appends/prepends some uninitialized space.
+  //
+  // The buffer will have length at least min_length.
+  //
+  // The buffer will have length at least recommended_length unless there are
+  // reasons to return a smaller buffer (e.g. a smaller buffer is already
+  // allocated or recommended_length exceeds internal thresholds).
+  //
+  // size_hint announces the intended total size, including existing data, this
+  // buffer, and future data.
+  //
+  // If all three parameters are 0, returns whatever space is already allocated
+  // (possibly an empty buffer), without invalidating existing pointers.
+  //
   // Returns a larger buffer than requested if more space would be allocated
-  // anyway (if min_length is 0, returns whatever space is already allocated).
-  // Use RemoveSuffix()/RemovePrefix() afterwards to trim excessive size.
-  absl::Span<char> MakeAppendBuffer(size_t min_length = 0,
-                                    size_t size_hint = 0);
-  absl::Span<char> MakePrependBuffer(size_t min_length = 0,
-                                     size_t size_hint = 0);
+  // anyway. Use RemoveSuffix()/RemovePrefix() afterwards to trim excessive
+  // length, they do not invalidate existing pointers when called directly after
+  // {Append,Prepend}Buffer() with a length not exceeding the buffer size.
+  absl::Span<char> AppendBuffer(size_t min_length = 0,
+                                size_t recommended_length = 0,
+                                size_t size_hint = 0);
+  absl::Span<char> PrependBuffer(size_t min_length = 0,
+                                 size_t recommended_length = 0,
+                                 size_t size_hint = 0);
 
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
@@ -238,10 +254,11 @@ class Chain {
   void ReserveFrontSlow(size_t extra_capacity);
 
   // Decides about the capacity of a new block to be appended/prepended.
-  // If replaced_size > 0, the block will replace an existing block of that
-  // size. It requires the capacity of new_size in addition to replaced_size.
-  size_t NewBlockCapacity(size_t replaced_size, size_t new_size,
-                          size_t size_hint) const;
+  // If replaced_length > 0, the block will replace an existing block of that
+  // size. In addition to replaced_length, it requires the capacity of at least
+  // min_length, preferably recommended_length.
+  size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
+                          size_t recommended_length, size_t size_hint) const;
 
   void AppendBlock(Block* block, size_t size_hint);
 
@@ -526,12 +543,12 @@ class Chain::Block {
 
   void PrepareForAppend();
   void PrepareForPrepend();
-  bool can_append(size_t size) const;
-  bool can_prepend(size_t size) const;
+  bool can_append(size_t length) const;
+  bool can_prepend(size_t length) const;
   size_t max_can_append() const;
   size_t max_can_prepend() const;
-  absl::Span<char> MakeAppendBuffer(size_t max_size);
-  absl::Span<char> MakePrependBuffer(size_t max_size);
+  absl::Span<char> AppendBuffer(size_t max_length);
+  absl::Span<char> PrependBuffer(size_t max_length);
   void Append(absl::string_view src);
   // Reads size_to_copy from src.data() but account for src.size(). Faster
   // than Append() if size_to_copy is a compile time constant, but requires

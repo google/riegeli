@@ -51,7 +51,7 @@ bool ChainWriter::PushSlow() {
     return FailOverflow();
   }
   start_pos_ = dest_->size();
-  const absl::Span<char> buffer = dest_->MakeAppendBuffer(1, size_hint_);
+  const absl::Span<char> buffer = dest_->AppendBuffer(1, 0, size_hint_);
   start_ = buffer.data();
   cursor_ = buffer.data();
   limit_ = buffer.data() + buffer.size();
@@ -142,7 +142,7 @@ inline void ChainWriter::DiscardBuffer() { dest_->RemoveSuffix(available()); }
 
 inline void ChainWriter::MakeBuffer() {
   start_pos_ = dest_->size();
-  const absl::Span<char> buffer = dest_->MakeAppendBuffer();
+  const absl::Span<char> buffer = dest_->AppendBuffer(0, 0, size_hint_);
   start_ = buffer.data();
   cursor_ = buffer.data();
   limit_ = buffer.data() + buffer.size();

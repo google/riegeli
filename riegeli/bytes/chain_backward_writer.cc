@@ -51,7 +51,7 @@ bool ChainBackwardWriter::PushSlow() {
     return FailOverflow();
   }
   start_pos_ = dest_->size();
-  const absl::Span<char> buffer = dest_->MakePrependBuffer(1, size_hint_);
+  const absl::Span<char> buffer = dest_->PrependBuffer(1, 0, size_hint_);
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
@@ -132,7 +132,7 @@ inline void ChainBackwardWriter::DiscardBuffer() {
 
 inline void ChainBackwardWriter::MakeBuffer() {
   start_pos_ = dest_->size();
-  const absl::Span<char> buffer = dest_->MakePrependBuffer();
+  const absl::Span<char> buffer = dest_->PrependBuffer(0, 0, size_hint_);
   start_ = buffer.data() + buffer.size();
   cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();

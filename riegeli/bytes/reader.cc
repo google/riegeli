@@ -108,19 +108,26 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  const absl::Span<char> buffer = dest->MakeAppendBuffer(length);
-  const Position pos_before = pos();
-  const bool ok = Read(buffer.data(), length);
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    RIEGELI_ASSERT_GE(pos(), pos_before)
-        << "Reader::Read(char*) decreased pos()";
-    const Position length_read = pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length)
-        << "Reader::Read(char*) read more than requested";
-    length = IntCast<size_t>(length_read);
-  }
-  dest->RemoveSuffix(buffer.size() - length);
-  return ok;
+  const size_t size_hint = dest->size() + length;
+  absl::Span<char> buffer;
+  size_t length_to_read;
+  do {
+    buffer = dest->AppendBuffer(1, length, size_hint);
+    const Position pos_before = pos();
+    length_to_read = UnsignedMin(length, buffer.size());
+    if (ABSL_PREDICT_FALSE(!Read(buffer.data(), length_to_read))) {
+      RIEGELI_ASSERT_GE(pos(), pos_before)
+          << "Reader::Read(char*) decreased pos()";
+      const Position length_read = pos() - pos_before;
+      RIEGELI_ASSERT_LE(length_read, length)
+          << "Reader::Read(char*) read more than requested";
+      dest->RemoveSuffix(buffer.size() - IntCast<size_t>(length_read));
+      return false;
+    }
+    length -= length_to_read;
+  } while (length > 0);
+  dest->RemoveSuffix(buffer.size() - length_to_read);
+  return true;
 }
 
 bool Reader::CopyToSlow(Writer* dest, Position length) {
