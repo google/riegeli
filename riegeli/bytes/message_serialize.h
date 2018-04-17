@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
+#include <stddef.h>
+
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/writer.h"
@@ -42,9 +44,11 @@ Chain SerializePartialAsChain(const google::protobuf::MessageLite& message);
 
 // Like SerializeToChain(), but appends to the data to the Chain's existing
 // contents. All required fields must be set.
-bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output);
+bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
+                   size_t size_hint = 0);
 // Like AppendToChain(), but allows missing required fields.
-bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output);
+bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output,
+                          size_t size_hint = 0);
 
 }  // namespace riegeli
 

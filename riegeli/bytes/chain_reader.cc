@@ -68,15 +68,13 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
          "Chain size overflow";
   RIEGELI_ASSERT_LE(limit_pos_, src_->size())
       << "ChainReader source changed unexpectedly";
-  const size_t size_hint = dest->size() + length;
   if (length <= available()) {
-    iter_.AppendSubstrTo(absl::string_view(cursor_, length), dest, size_hint);
+    iter_.AppendSubstrTo(absl::string_view(cursor_, length), dest);
     cursor_ += length;
     return true;
   }
   if (ABSL_PREDICT_FALSE(iter_ == src_->blocks().cend())) return false;
-  iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest,
-                       size_hint);
+  iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest);
   length -= available();
   for (;;) {
     if (ABSL_PREDICT_FALSE(++iter_ == src_->blocks().cend())) {
@@ -92,10 +90,10 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
       start_ = iter_->data();
       cursor_ = start_ + length;
       limit_ = start_ + iter_->size();
-      iter_.AppendSubstrTo(absl::string_view(start_, length), dest, size_hint);
+      iter_.AppendSubstrTo(absl::string_view(start_, length), dest);
       return true;
     }
-    iter_.AppendTo(dest, size_hint);
+    iter_.AppendTo(dest);
     length -= iter_->size();
   }
 }

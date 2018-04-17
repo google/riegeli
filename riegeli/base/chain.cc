@@ -474,7 +474,7 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
          "iterator is end()";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
-    dest->Append(substr);
+    dest->Append(substr, size_hint);
   } else {
     (*ptr_)->AppendSubstrTo(substr, dest, size_hint);
   }
@@ -568,8 +568,6 @@ void Chain::AppendTo(std::string* dest) const {
   RIEGELI_CHECK_LE(size_, dest->max_size() - dest->size())
       << "Failed precondition of Chain::AppendTo(string*): "
          "string size overflow";
-  const size_t final_size = dest->size() + size_;
-  if (final_size > dest->capacity()) dest->reserve(final_size);
   Block* const* iter = begin_;
   if (iter == end_) {
     dest->append(block_ptrs_.short_data, size_);

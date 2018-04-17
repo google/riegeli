@@ -349,7 +349,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
-    dest->Append(absl::string_view(cursor_, length), dest->size() + length);
+    dest->Append(absl::string_view(cursor_, length));
     cursor_ += length;
     return true;
   }

@@ -110,7 +110,6 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const size_t size_hint = dest->size() + length;
   if (length >= available() && length - available() >= buffer_size_) {
     // If reading through buffer_ would need multiple ReadInternal() calls, it
     // is faster to append current contents of buffer_ and read the remaining
@@ -123,13 +122,11 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     const size_t available_length = available();
     if (available_length > 0) {  // iter() is undefined if
                                  // buffer_.blocks().size() != 1.
-      iter().AppendSubstrTo(absl::string_view(cursor_, available_length), dest,
-                            size_hint);
+      iter().AppendSubstrTo(absl::string_view(cursor_, available_length), dest);
       length -= available_length;
     }
     ClearBuffer();
-    const absl::Span<char> flat_buffer =
-        dest->AppendBuffer(length, 0, size_hint);
+    const absl::Span<char> flat_buffer = dest->AppendBuffer(length);
     const Position pos_before = limit_pos_;
     const bool ok = ReadInternal(flat_buffer.data(), length, length);
     RIEGELI_ASSERT_GE(limit_pos_, pos_before)
@@ -152,7 +149,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       if (available_length > 0) {  // iter() is undefined if
                                    // buffer_.blocks().size() != 1.
         iter().AppendSubstrTo(absl::string_view(cursor_, available_length),
-                              dest, size_hint);
+                              dest);
         length -= available_length;
       }
       buffer_.Clear();
@@ -191,7 +188,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       << "Bug in BufferedReader::ReadSlow(Chain*): "
          "remaining length larger than available data";
   if (length > 0) {  // iter() is undefined if buffer_.blocks().size() != 1.
-    iter().AppendSubstrTo(absl::string_view(cursor_, length), dest, size_hint);
+    iter().AppendSubstrTo(absl::string_view(cursor_, length), dest);
     cursor_ += length;
   }
   return ok;

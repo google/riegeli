@@ -419,9 +419,7 @@ bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
   if (ABSL_PREDICT_TRUE(length_to_read > 0)) {  // iter() is undefined if
                                                 // contents_.blocks().size()
                                                 //     != 1.
-    const size_t size_hint = dest->size() + length_to_read;
-    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_read), dest,
-                          size_hint);
+    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_read), dest);
     cursor_ += length_to_read;
   }
   return length_to_read == length;

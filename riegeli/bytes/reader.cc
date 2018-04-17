@@ -108,11 +108,10 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  const size_t size_hint = dest->size() + length;
   absl::Span<char> buffer;
   size_t length_to_read;
   do {
-    buffer = dest->AppendBuffer(1, length, size_hint);
+    buffer = dest->AppendBuffer(1, length);
     const Position pos_before = pos();
     length_to_read = UnsignedMin(length, buffer.size());
     if (ABSL_PREDICT_FALSE(!Read(buffer.data(), length_to_read))) {
