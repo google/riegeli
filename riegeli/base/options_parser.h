@@ -207,13 +207,13 @@ struct EmptyFunction {
 template <typename T>
 struct EnumOptionFunction {
   bool operator()(ValueParser* value_parser) const {
-    for (const auto& possible_value : possible_values) {
+    for (const std::pair<std::string, T>& possible_value : possible_values) {
       if (value_parser->value() == possible_value.first) {
         *out = possible_value.second;
         return true;
       }
     }
-    for (const auto& possible_value : possible_values) {
+    for (const std::pair<std::string, T>& possible_value : possible_values) {
       value_parser->InvalidValue(possible_value.first.empty()
                                      ? absl::string_view("(empty)")
                                      : absl::string_view(possible_value.first));

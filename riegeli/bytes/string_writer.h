@@ -100,7 +100,7 @@ inline StringWriter::StringWriter(std::string* dest, Options options)
   const size_t size_hint = UnsignedMin(options.size_hint_, dest->max_size());
   if (dest->capacity() < size_hint) dest_->reserve(size_hint);
   start_ = &(*dest_)[0];
-  cursor_ = &(*dest_)[dest_->size()];
+  cursor_ = start_ + dest_->size();
   limit_ = cursor_;
 }
 

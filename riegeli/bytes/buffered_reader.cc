@@ -58,7 +58,7 @@ bool BufferedReader::PullSlow() {
     buffer_.Clear();
     flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
     start_ = flat_buffer.data();
-    cursor_ = flat_buffer.data();
+    cursor_ = start_;
   } else if (start_ == nullptr) {
     // buffer_ was empty and buffer_.AppendBuffer() returned short data.
     start_ = iter()->data();
@@ -158,7 +158,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       buffer_.Clear();
       flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
       start_ = flat_buffer.data();
-      cursor_ = flat_buffer.data();
+      cursor_ = start_;
     } else if (start_ == nullptr) {
       // buffer_ was empty and buffer_.AppendBuffer() returned short data.
       start_ = iter()->data();
@@ -230,7 +230,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       buffer_.Clear();
       flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
       start_ = flat_buffer.data();
-      cursor_ = flat_buffer.data();
+      cursor_ = start_;
     } else if (start_ == nullptr) {
       // buffer_ was empty and buffer_.AppendBuffer() returned short data.
       start_ = iter()->data();
@@ -294,8 +294,8 @@ void BufferedReader::ClearBuffer() {
   buffer_.Clear();
   absl::Span<char> flat_buffer = buffer_.AppendBuffer();
   start_ = flat_buffer.data();
-  cursor_ = flat_buffer.data();
-  limit_ = flat_buffer.data();
+  cursor_ = start_;
+  limit_ = start_;
   buffer_.RemoveSuffix(flat_buffer.size());
 }
 

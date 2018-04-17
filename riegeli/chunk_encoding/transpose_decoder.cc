@@ -420,12 +420,15 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
                                     const FieldFilter& field_filter) {
   const bool filtering_enabled = !field_filter.include_all();
   if (filtering_enabled) {
-    for (const auto& include_field : field_filter.fields()) {
+    for (const Field& include_field : field_filter.fields()) {
       uint32_t current_index = kInvalidPos;
       for (size_t i = 0; i < include_field.path().size(); ++i) {
-        const auto insert_result = context->include_fields.emplace(
-            std::make_pair(current_index, include_field.path()[i]),
-            IntCast<uint32_t>(context->existence_only.size()));
+        const std::pair<std::unordered_map<std::pair<uint32_t, uint32_t>,
+                                           uint32_t, PairHasher>::iterator,
+                        bool>
+            insert_result = context->include_fields.emplace(
+                std::make_pair(current_index, include_field.path()[i]),
+                IntCast<uint32_t>(context->existence_only.size()));
         if (insert_result.second) context->existence_only.push_back(true);
         current_index = insert_result.first->second;
       }
@@ -886,7 +889,7 @@ inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
       return nullptr;
     }
     bucket.buffers.reserve(bucket.buffer_sizes.size());
-    for (auto buffer_size : bucket.buffer_sizes) {
+    for (const size_t buffer_size : bucket.buffer_sizes) {
       Chain buffer;
       if (ABSL_PREDICT_FALSE(
               !decompressor.reader()->Read(&buffer, buffer_size))) {
@@ -909,11 +912,11 @@ inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
 
 inline bool TransposeDecoder::ContainsImplicitLoop(
     std::vector<StateMachineNode>* state_machine_nodes) {
-  for (auto& node : *state_machine_nodes) {
+  for (StateMachineNode& node : *state_machine_nodes) {
     node.implicit_loop_id = 0;
   }
   size_t next_loop_id = 1;
-  for (auto& node : *state_machine_nodes) {
+  for (StateMachineNode& node : *state_machine_nodes) {
     if (node.implicit_loop_id != 0) {
       continue;
     }
@@ -1091,7 +1094,7 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
       &&failure,  // Unknown
   };
 
-  for (auto& state : context->state_machine_nodes) {
+  for (StateMachineNode& state : context->state_machine_nodes) {
     state.callback =
         labels[static_cast<uint8_t>(state.callback_type) &
                ~static_cast<uint8_t>(internal::CallbackType::kImplicit)];
@@ -1264,8 +1267,8 @@ done:
   // (because both old and new limits exclude 0 at the beginning and include
   // size at the end), e.g. for records of sizes {10, 20, 30, 40}:
   // {40, 70, 90, 100} -> {10, 30, 60, 100}.
-  auto first = limits->begin();
-  auto last = limits->end();
+  std::vector<size_t>::iterator first = limits->begin();
+  std::vector<size_t>::iterator last = limits->end();
   if (first != last) {
     --last;
     while (first < last) {
@@ -1305,12 +1308,14 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         if (!ReadVarint32(&cursor, &tag)) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         }
-        auto it = context->include_fields.find(std::make_pair(index, tag >> 3));
-        if (it == context->include_fields.end()) {
+        const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
+                                 PairHasher>::const_iterator iter =
+            context->include_fields.find(std::make_pair(index, tag >> 3));
+        if (iter == context->include_fields.end()) {
           field_included = FieldIncluded::kNo;
           break;
         }
-        index = it->second;
+        index = iter->second;
         if (!context->existence_only[index]) {
           field_included = FieldIncluded::kYes;
           break;
@@ -1333,11 +1338,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       if (!ReadVarint32(&cursor, &tag)) {
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       }
-      auto it = context->include_fields.find(std::make_pair(index, tag >> 3));
-      if (it == context->include_fields.end()) {
+      const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
+                               PairHasher>::const_iterator iter =
+          context->include_fields.find(std::make_pair(index, tag >> 3));
+      if (iter == context->include_fields.end()) {
         field_included = FieldIncluded::kNo;
       } else {
-        index = it->second;
+        index = iter->second;
         if (!context->existence_only[index]) {
           field_included = FieldIncluded::kYes;
         }

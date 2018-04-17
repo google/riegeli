@@ -60,7 +60,7 @@ bool Writer::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
-  for (absl::string_view fragment : src.blocks()) {
+  for (const absl::string_view fragment : src.blocks()) {
     if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;
   }
   return true;

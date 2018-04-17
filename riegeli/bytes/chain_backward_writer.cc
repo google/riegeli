@@ -52,9 +52,9 @@ bool ChainBackwardWriter::PushSlow() {
   }
   start_pos_ = dest_->size();
   const absl::Span<char> buffer = dest_->PrependBuffer(1, 0, size_hint_);
-  start_ = buffer.data() + buffer.size();
-  cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
+  start_ = limit_ + buffer.size();
+  cursor_ = start_;
   return true;
 }
 
@@ -133,9 +133,9 @@ inline void ChainBackwardWriter::DiscardBuffer() {
 inline void ChainBackwardWriter::MakeBuffer() {
   start_pos_ = dest_->size();
   const absl::Span<char> buffer = dest_->PrependBuffer(0, 0, size_hint_);
-  start_ = buffer.data() + buffer.size();
-  cursor_ = buffer.data() + buffer.size();
   limit_ = buffer.data();
+  start_ = limit_ + buffer.size();
+  cursor_ = start_;
 }
 
 }  // namespace riegeli

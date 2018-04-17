@@ -182,7 +182,8 @@ ValueParser::Function ValueParser::CopyTo(std::string* text) {
 
 ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
   return [key](ValueParser* value_parser) {
-    for (const auto& option : value_parser->options_parser_->options_) {
+    for (const OptionsParser::Option& option :
+         value_parser->options_parser_->options_) {
       if (option.key == key) {
         if (ABSL_PREDICT_FALSE(option.seen)) {
           return value_parser->Fail(absl::StrCat(
@@ -197,7 +198,8 @@ ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
 
 ValueParser::Function ValueParser::FailIfAnySeen() {
   return [](ValueParser* value_parser) {
-    for (const auto& option : value_parser->options_parser_->options_) {
+    for (const OptionsParser::Option& option :
+         value_parser->options_parser_->options_) {
       if (ABSL_PREDICT_FALSE(option.seen)) {
         return value_parser->Fail(
             absl::StrCat("Option ", value_parser->key(), " must be first"));
@@ -235,13 +237,13 @@ bool OptionsParser::Parse(absl::string_view text) {
         key = key_value.substr(0, colon);
         value = key_value.substr(colon + 1);
       }
-      const auto option = std::find_if(
+      const std::vector<Option>::iterator option = std::find_if(
           options_.begin(), options_.end(),
           [key](const Option& option) { return option.key == key; });
       if (ABSL_PREDICT_FALSE(option == options_.end())) {
         std::string message =
             absl::StrCat("Unknown option ", key, ", valid options: ");
-        auto iter = options_.cbegin();
+        std::vector<Option>::const_iterator iter = options_.cbegin();
         if (iter != options_.cend()) {
           absl::StrAppend(&message, iter->key);
           for (++iter; iter != options_.cend(); ++iter) {

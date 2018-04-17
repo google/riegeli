@@ -132,7 +132,7 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   }
   num_records_ += IntCast<uint64_t>(limits.size());
   size_t start = 0;
-  for (const auto limit : limits) {
+  for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, start)
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";

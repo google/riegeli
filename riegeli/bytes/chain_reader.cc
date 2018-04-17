@@ -47,9 +47,9 @@ bool ChainReader::PullSlow() {
       RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
           << "ChainReader source changed unexpectedly";
       start_ = iter_->data();
-      cursor_ = iter_->data();
-      limit_ = iter_->data() + iter_->size();
-      limit_pos_ += iter_->size();
+      cursor_ = start_;
+      limit_ = start_ + iter_->size();
+      limit_pos_ += buffer_size();
       return true;
     }
   }
@@ -90,8 +90,8 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
     limit_pos_ += iter_->size();
     if (length <= iter_->size()) {
       start_ = iter_->data();
-      cursor_ = iter_->data() + length;
-      limit_ = iter_->data() + iter_->size();
+      cursor_ = start_ + length;
+      limit_ = start_ + iter_->size();
       iter_.AppendSubstrTo(absl::string_view(start_, length), dest, size_hint);
       return true;
     }
@@ -244,7 +244,7 @@ bool ChainReader::SeekSlow(Position new_pos) {
     }
   }
   start_ = iter_->data();
-  limit_ = iter_->data() + iter_->size();
+  limit_ = start_ + iter_->size();
   RIEGELI_ASSERT_GE(limit_pos_, new_pos)
       << "ChainReader::SeekSlow() stopped before the target";
   const Position available_length = limit_pos_ - new_pos;

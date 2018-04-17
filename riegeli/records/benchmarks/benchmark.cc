@@ -195,7 +195,7 @@ void Benchmarks::WriteTFRecord(
   }
   tensorflow::io::RecordWriter record_writer(file_writer.get(),
                                              record_writer_options);
-  for (const auto& record : records) {
+  for (const std::string& record : records) {
     const tensorflow::Status status = record_writer.WriteRecord(record);
     RIEGELI_CHECK(status.ok()) << status;
   }
@@ -240,7 +240,7 @@ void Benchmarks::WriteRiegeli(
     const std::vector<std::string>& records) {
   riegeli::FdWriter file_writer(filename, O_WRONLY | O_CREAT | O_TRUNC);
   riegeli::RecordWriter record_writer(&file_writer, record_writer_options);
-  for (const auto& record : records) {
+  for (const std::string& record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.message();
   }
   RIEGELI_CHECK(record_writer.Close()) << record_writer.message();
@@ -269,7 +269,7 @@ bool Benchmarks::ReadRiegeli(
 }
 
 std::string Benchmarks::Filename(std::string name) {
-  for (auto& ch : name) {
+  for (char& ch : name) {
     if (!(ch == '-' || ch == '.' || (ch >= '0' && ch <= '9') ||
           (ch >= 'A' && ch <= 'Z') || ch == '_' || (ch >= 'a' && ch <= 'z'))) {
       ch = '_';
@@ -284,7 +284,7 @@ Benchmarks::Benchmarks(std::vector<std::string> records, std::string output_dir,
       original_size_(0),
       output_dir_(std::move(output_dir)),
       repetitions_(repetitions) {
-  for (const auto& record : records_) {
+  for (const std::string& record : records_) {
     original_size_ += riegeli::LengthVarint64(record.size()) + record.size();
   }
 }
@@ -338,7 +338,8 @@ void Benchmarks::RunAll() {
   std::cout << std::setfill('-') << std::setw(max_name_width_ + 30) << ""
             << std::setfill(' ') << std::endl;
 
-  for (const auto& tfrecord_options : tfrecord_benchmarks_) {
+  for (const std::pair<std::string, const char*>& tfrecord_options :
+       tfrecord_benchmarks_) {
     RunOne(absl::StrCat("tfrecord ", tfrecord_options.first),
            [&](const std::string& filename, const std::vector<std::string>& records) {
              WriteTFRecord(
@@ -355,7 +356,8 @@ void Benchmarks::RunAll() {
                  records);
            });
   }
-  for (const auto& riegeli_options : riegeli_benchmarks_) {
+  for (const std::pair<std::string, riegeli::RecordWriter::Options>&
+           riegeli_options : riegeli_benchmarks_) {
     RunOne(absl::StrCat("riegeli ", riegeli_options.first),
            [&](const std::string& filename, const std::vector<std::string>& records) {
              WriteRiegeli(filename, riegeli_options.second, records);
@@ -425,11 +427,11 @@ void Benchmarks::RunOne(
   std::cout << std::left << std::setw(max_name_width_) << name << ' '
             << std::right << std::setw(7) << std::fixed << std::setprecision(3)
             << compression.Median();
-  for (const auto& stats_cpu_real :
+  for (const std::array<Stats*, 2>& stats_cpu_real :
        {std::array<Stats*, 2>{&writing_cpu_speed, &writing_real_speed},
         std::array<Stats*, 2>{&reading_cpu_speed, &reading_real_speed}}) {
     std::cout << ' ';
-    for (const auto& stats : stats_cpu_real) {
+    for (Stats* const stats : stats_cpu_real) {
       std::cout << ' ' << std::right << std::setw(4) << std::setprecision(0)
                 << stats->Median();
     }

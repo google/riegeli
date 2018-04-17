@@ -53,8 +53,8 @@ bool ChainWriter::PushSlow() {
   start_pos_ = dest_->size();
   const absl::Span<char> buffer = dest_->AppendBuffer(1, 0, size_hint_);
   start_ = buffer.data();
-  cursor_ = buffer.data();
-  limit_ = buffer.data() + buffer.size();
+  cursor_ = start_;
+  limit_ = start_ + buffer.size();
   return true;
 }
 
@@ -144,8 +144,8 @@ inline void ChainWriter::MakeBuffer() {
   start_pos_ = dest_->size();
   const absl::Span<char> buffer = dest_->AppendBuffer(0, 0, size_hint_);
   start_ = buffer.data();
-  cursor_ = buffer.data();
-  limit_ = buffer.data() + buffer.size();
+  cursor_ = start_;
+  limit_ = start_ + buffer.size();
 }
 
 }  // namespace riegeli

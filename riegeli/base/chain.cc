@@ -1895,7 +1895,7 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
       }
     }
     if (lpad > 0) WritePadding(out, lpad);
-    for (const auto fragment : str.blocks()) {
+    for (const absl::string_view fragment : str.blocks()) {
       out.write(fragment.data(), IntCast<std::streamsize>(fragment.size()));
     }
     if (rpad > 0) WritePadding(out, rpad);

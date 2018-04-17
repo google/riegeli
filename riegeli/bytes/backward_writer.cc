@@ -63,8 +63,8 @@ bool BackwardWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
-  for (auto iter = src.blocks().crbegin(); iter != src.blocks().crend();
-       ++iter) {
+  for (Chain::Blocks::const_reverse_iterator iter = src.blocks().crbegin();
+       iter != src.blocks().crend(); ++iter) {
     if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
   }
   return true;

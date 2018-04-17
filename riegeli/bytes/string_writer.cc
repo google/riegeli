@@ -96,7 +96,7 @@ bool StringWriter::Flush(FlushType flush_type) {
       << "StringWriter destination changed unexpectedly";
   DiscardBuffer();
   start_ = &(*dest_)[0];
-  cursor_ = &(*dest_)[dest_->size()];
+  cursor_ = start_ + dest_->size();
   limit_ = cursor_;
   return true;
 }
@@ -106,10 +106,11 @@ inline void StringWriter::DiscardBuffer() {
 }
 
 inline void StringWriter::MakeBuffer(size_t cursor_pos) {
-  dest_->resize(dest_->capacity());
+  const size_t dest_size = dest_->capacity();
+  dest_->resize(dest_size);
   start_ = &(*dest_)[0];
-  cursor_ = &(*dest_)[cursor_pos];
-  limit_ = &(*dest_)[dest_->size()];
+  cursor_ = start_ + cursor_pos;
+  limit_ = start_ + dest_size;
 }
 
 }  // namespace riegeli

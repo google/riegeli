@@ -208,7 +208,9 @@ void TransposeEncoder::Done() {
   encoded_tags_ = std::vector<uint32_t>();
   encoded_tag_pos_ =
       std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher>();
-  for (auto& buffers : data_) buffers = std::vector<BufferWithMetadata>();
+  for (std::vector<BufferWithMetadata>& buffers : data_) {
+    buffers = std::vector<BufferWithMetadata>();
+  }
   group_stack_ = std::vector<internal::MessageId>();
   message_nodes_ = std::unordered_map<NodeId, MessageNode, NodeIdHasher>();
   if (ABSL_PREDICT_FALSE(!nonproto_lengths_writer_.Close())) {
@@ -226,7 +228,7 @@ void TransposeEncoder::Reset() {
   tags_list_.clear();
   encoded_tags_.clear();
   encoded_tag_pos_.clear();
-  for (auto& buffers : data_) buffers.clear();
+  for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   group_stack_.clear();
   message_nodes_.clear();
   nonproto_lengths_.Clear();
@@ -273,7 +275,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   ChainReader records_reader(&records);
-  for (const auto limit : limits) {
+  for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, records_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";
@@ -343,24 +345,30 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
 
 inline ChainBackwardWriter* TransposeEncoder::GetBuffer(
     internal::MessageId parent_message_id, uint32_t field, BufferType type) {
-  const auto insert_result = message_nodes_.emplace(
-      NodeId(parent_message_id, field), MessageNode(next_message_id_));
+  const std::pair<
+      std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator, bool>
+      insert_result = message_nodes_.emplace(NodeId(parent_message_id, field),
+                                             MessageNode(next_message_id_));
   if (insert_result.second) {
     // New node was added.
     ++next_message_id_;
   }
   MessageNode& node = insert_result.first->second;
   if (node.writer == nullptr) {
-    auto& data = data_[static_cast<uint32_t>(type)];
-    data.emplace_back(parent_message_id, field);
+    std::vector<BufferWithMetadata>& buffers =
+        data_[static_cast<uint32_t>(type)];
+    buffers.emplace_back(parent_message_id, field);
     node.writer =
-        absl::make_unique<ChainBackwardWriter>(data.back().buffer.get());
+        absl::make_unique<ChainBackwardWriter>(buffers.back().buffer.get());
   }
   return node.writer.get();
 }
 
 inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
-  const auto insert_result = encoded_tag_pos_.emplace(etag, tags_list_.size());
+  const std::pair<
+      std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher>::iterator,
+      bool>
+      insert_result = encoded_tag_pos_.emplace(etag, tags_list_.size());
   if (insert_result.second) {
     tags_list_.emplace_back(etag);
   }
@@ -407,7 +415,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
                          internal::Subtype::kVarint1 +
                              IntCast<uint8_t>(value_length - 1))));
           // Clear high bit of each byte.
-          for (auto& word : value) word &= ~uint64_t{0x8080808080808080};
+          for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
           ChainBackwardWriter* const buffer =
               GetBuffer(parent_message_id, field, BufferType::kVarint);
           if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
@@ -450,8 +458,12 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
           encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
               parent_message_id, tag,
               internal::Subtype::kLengthDelimitedStartOfSubmessage)));
-          const auto insert_result = message_nodes_.emplace(
-              NodeId(parent_message_id, field), MessageNode(next_message_id_));
+          const std::pair<
+              std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator,
+              bool>
+              insert_result =
+                  message_nodes_.emplace(NodeId(parent_message_id, field),
+                                         MessageNode(next_message_id_));
           if (insert_result.second) {
             // New node was added.
             ++next_message_id_;
@@ -494,8 +506,12 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
       case internal::WireType::kStartGroup: {
         encoded_tags_.push_back(GetPosInTagsList(
             EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        const auto insert_result = message_nodes_.emplace(
-            NodeId(parent_message_id, field), MessageNode(next_message_id_));
+        const std::pair<
+            std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator,
+            bool>
+            insert_result =
+                message_nodes_.emplace(NodeId(parent_message_id, field),
+                                       MessageNode(next_message_id_));
         if (insert_result.second) {
           // New node was added.
           ++next_message_id_;
@@ -574,16 +590,21 @@ inline bool TransposeEncoder::WriteBuffers(
   // Write all buffer lengths to the header and data to "bucket_buffer".
   for (size_t i = 0; i < kNumBufferTypes; ++i) {
     for (size_t j = 0; j < data_[i].size(); ++j) {
-      const auto& x = data_[i][j];
-      if (ABSL_PREDICT_FALSE(!AddBuffer(j == 0, *x.buffer, data_writer,
+      const BufferWithMetadata& buffer = data_[i][j];
+      if (ABSL_PREDICT_FALSE(!AddBuffer(j == 0, *buffer.buffer, data_writer,
                                         &bucket_lengths, &buffer_lengths))) {
         return false;
       }
-      const auto insert_result = buffer_pos->emplace(
-          NodeId(x.message_id, x.field), IntCast<uint32_t>(buffer_pos->size()));
+      const std::pair<
+          std::unordered_map<TransposeEncoder::NodeId, uint32_t,
+                             TransposeEncoder::NodeIdHasher>::iterator,
+          bool>
+          insert_result =
+              buffer_pos->emplace(NodeId(buffer.message_id, buffer.field),
+                                  IntCast<uint32_t>(buffer_pos->size()));
       RIEGELI_ASSERT(insert_result.second)
           << "Field already has buffer assigned: "
-          << static_cast<uint32_t>(x.message_id) << "/" << x.field;
+          << static_cast<uint32_t>(buffer.message_id) << "/" << buffer.field;
     }
   }
   if (!nonproto_lengths_.empty()) {
@@ -613,13 +634,13 @@ inline bool TransposeEncoder::WriteBuffers(
           header_writer, IntCast<uint32_t>(buffer_lengths.size())))) {
     return Fail(*header_writer);
   }
-  for (size_t length : bucket_lengths) {
+  for (const size_t length : bucket_lengths) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
       return Fail(*header_writer);
     }
   }
-  for (size_t length : buffer_lengths) {
+  for (const size_t length : buffer_lengths) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
       return Fail(*header_writer);
@@ -637,7 +658,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
     // one, then it would not be obvious whether to stop or continue decoding.
     // Only if transition is explicit we check whether there is more transition
     // bytes.
-    auto& dest_info = tags_list_[encoded_tags_[0]].dest_info;
+    std::unordered_map<uint32_t, DestInfo, Uint32Hasher>& dest_info =
+        tags_list_[encoded_tags_[0]].dest_info;
     const uint32_t first_key = dest_info.begin()->first;
     dest_info[first_key + 1];
     RIEGELI_ASSERT_NE(tags_list_[encoded_tags_[0]].dest_info.size(), 1u)
@@ -659,7 +681,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
           header_writer, IntCast<uint32_t>(state_machine.size())))) {
     return Fail(*header_writer);
   }
-  for (auto state_info : state_machine) {
+  for (const StateInfo state_info : state_machine) {
     if (state_info.etag_index == kInvalidPos) {
       // NoOp state.
       if (ABSL_PREDICT_FALSE(!WriteVarint32(
@@ -701,7 +723,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
           subtype_to_write.push_back(static_cast<char>(etag.subtype));
         }
         if (internal::HasDataBuffer(etag.tag, etag.subtype)) {
-          const auto iter =
+          const std::unordered_map<NodeId, uint32_t,
+                                   NodeIdHasher>::const_iterator iter =
               buffer_pos.find(NodeId(etag.message_id, etag.tag >> 3));
           RIEGELI_ASSERT(iter != buffer_pos.end())
               << "Buffer not found: " << static_cast<uint32_t>(etag.message_id)
@@ -717,8 +740,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
       }
       if (etag.message_id == internal::MessageId::kNonProto) {
         // NonProto has data buffer.
-        const auto iter =
-            buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
+        const std::unordered_map<NodeId, uint32_t, NodeIdHasher>::const_iterator
+            iter = buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
         RIEGELI_ASSERT(iter != buffer_pos.end())
             << "Buffer of non-proto records not found";
         buffer_index_to_write.push_back(iter->second);
@@ -741,16 +764,16 @@ inline bool TransposeEncoder::WriteStatesAndData(
       base_to_write.push_back(0);
     }
   }
-  for (auto v : base_to_write) {
-    if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, v))) {
+  for (const uint32_t value : base_to_write) {
+    if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, value))) {
       return Fail(*header_writer);
     }
   }
   if (ABSL_PREDICT_FALSE(!header_writer->Write(std::move(subtype_to_write)))) {
     return Fail(*header_writer);
   }
-  for (auto v : buffer_index_to_write) {
-    if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, v))) {
+  for (const uint32_t value : buffer_index_to_write) {
+    if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, value))) {
       return Fail(*header_writer);
     }
   }
@@ -945,12 +968,13 @@ inline void TransposeEncoder::ComputeBaseIndices(
   // destination and "min_pos" of the state that is used in any such transition.
 
   // Compute "base" indices for NoOp states.
-  for (auto tag_index_and_state_index : public_list_noops) {
+  for (const std::pair<uint32_t, uint32_t> tag_index_and_state_index :
+       public_list_noops) {
     // Start of block that can reach all required destinations.
     uint32_t base = kInvalidPos;
     // Smallest position of node used in transition.
     uint32_t min_pos = kInvalidPos;
-    for (const auto& dest_info :
+    for (const std::pair<const uint32_t, DestInfo>& dest_info :
          tags_list_[tag_index_and_state_index.first].dest_info) {
       uint32_t pos = dest_info.second.pos;
       if (pos != kInvalidPos) {
@@ -1026,14 +1050,14 @@ inline void TransposeEncoder::ComputeBaseIndices(
   }
 
   // The same as above for tags without private list.
-  for (auto& tag : tags_list_) {
+  for (EncodedTagInfo& tag : tags_list_) {
     if (tag.base != kInvalidPos) {
       // Skip tags with private list.
       continue;
     }
     uint32_t base = kInvalidPos;
     uint32_t min_pos = kInvalidPos;
-    for (const auto& dest_info : tag.dest_info) {
+    for (const std::pair<const uint32_t, DestInfo>& dest_info : tag.dest_info) {
       uint32_t pos = dest_info.second.pos;
       if (pos != kInvalidPos) {
         // Skip destinations in the private list.
@@ -1089,7 +1113,8 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
   // in the private list for the node.
   constexpr uint32_t kInListPos = 0;
   for (EncodedTagInfo& tag_info : tags_list_) {
-    for (auto& dest_and_count : tag_info.dest_info) {
+    for (std::pair<const uint32_t, DestInfo>& dest_and_count :
+         tag_info.dest_info) {
       if (dest_and_count.second.num_transitions >= min_count_for_state) {
         // Subtract transitions so we have the right estimate of the remaining
         // transitions into each node.
@@ -1126,7 +1151,8 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
     PriorityQueueEntry excluded_state;
     // Number of transitions into public list states.
     uint32_t num_excluded_transitions = 0;
-    for (const auto& dest_info : tag_info.dest_info) {
+    for (const std::pair<const uint32_t, DestInfo>& dest_info :
+         tag_info.dest_info) {
       // If destination was marked as "kInListPos" or all transitions into it go
       // from this node.
       if (dest_info.second.pos == kInListPos ||
@@ -1312,7 +1338,7 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *num_records = num_records_;
   *decoded_data_size = decoded_data_size_;
-  for (const auto& entry : message_nodes_) {
+  for (const std::pair<const NodeId, MessageNode>& entry : message_nodes_) {
     if (entry.second.writer != nullptr) {
       if (ABSL_PREDICT_FALSE(!entry.second.writer->Close())) {
         return Fail(*entry.second.writer);

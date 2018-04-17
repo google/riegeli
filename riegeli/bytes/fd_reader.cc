@@ -381,9 +381,9 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
     }
     contents_.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
     start_ = iter()->data();
-    cursor_ = iter()->data();
-    limit_ = iter()->data() + iter()->size();
-    limit_pos_ = iter()->size();
+    cursor_ = start_;
+    limit_ = start_ + iter()->size();
+    limit_pos_ = buffer_size();
   }
   const int error_code = owned_fd.Close();
   if (ABSL_PREDICT_FALSE(error_code != 0)) {

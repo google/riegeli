@@ -69,7 +69,8 @@ inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
 
 void FutureRecordPosition::FutureChunkBegin::Resolve() const {
   Position pos = pos_before_chunks_;
-  for (const auto& chunk_header : chunk_headers_) {
+  for (const std::shared_future<ChunkHeader>& chunk_header :
+       chunk_headers_) {
     pos = internal::ChunkEnd(chunk_header.get(), pos);
   }
   pos_before_chunks_ = pos;
@@ -483,7 +484,7 @@ FutureRecordPosition RecordWriter::ParallelImpl::ChunkBegin() {
   absl::MutexLock lock(&mutex_);
   std::vector<std::shared_future<ChunkHeader>> chunk_headers;
   chunk_headers.reserve(chunk_writer_requests_.size());
-  for (const auto& pending_request : chunk_writer_requests_) {
+  for (const ChunkWriterRequest& pending_request : chunk_writer_requests_) {
     RIEGELI_ASSERT(pending_request.request_type ==
                    RequestType::kWriteChunkRequest)
         << "Unexpected type of request in the queue: "

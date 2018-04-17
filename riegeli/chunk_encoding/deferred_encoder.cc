@@ -129,7 +129,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
     limits_ = std::move(limits);
   } else {
     const size_t base = limits_.back();
-    for (auto& limit : limits) limit += base;
+    for (size_t& limit : limits) limit += base;
     limits_.insert(limits_.cend(), limits.begin(), limits.end());
   }
   return true;

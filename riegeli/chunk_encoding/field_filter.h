@@ -96,7 +96,7 @@ class FieldFilter {
 // Implementation details follow.
 
 inline Field::Field(std::initializer_list<uint32_t> path) : path_(path) {
-  for (const auto tag : path_) AssertValid(tag);
+  for (const uint32_t tag : path_) AssertValid(tag);
 }
 
 inline void Field::AssertValid(uint32_t tag) {
@@ -161,7 +161,7 @@ inline FieldFilter&& FieldFilter::AddField(Field field) && {
 }
 
 inline bool FieldFilter::include_all() const {
-  for (const auto& field : fields_) {
+  for (const Field& field : fields_) {
     if (field.path().empty()) return true;
   }
   return false;
