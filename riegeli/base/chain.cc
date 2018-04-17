@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <atomic>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -34,6 +35,55 @@
 namespace riegeli {
 
 namespace {
+
+struct ExternalMemoryRef {
+  ExternalMemoryRef(void* arg, void (*deleter)(void*))
+      : arg_(arg), deleter_(deleter) {}
+
+  ExternalMemoryRef(ExternalMemoryRef&& src) noexcept;
+  ExternalMemoryRef& operator=(ExternalMemoryRef&& src) noexcept;
+
+  ~ExternalMemoryRef();
+
+  void AddUniqueTo(absl::string_view data,
+                   MemoryEstimator* memory_estimator) const;
+  void DumpStructure(absl::string_view data, std::ostream& out) const;
+
+ private:
+  void* arg_;
+  void (*deleter_)(void*);
+};
+
+ExternalMemoryRef::ExternalMemoryRef(ExternalMemoryRef&& src) noexcept
+    : arg_(riegeli::exchange(src.arg_, nullptr)),
+      deleter_(riegeli::exchange(src.deleter_, nullptr)) {}
+
+ExternalMemoryRef& ExternalMemoryRef::operator=(
+    ExternalMemoryRef&& src) noexcept {
+  // Exchange src.deleter_ early to support self-assignment.
+  void (*const deleter)(void*) = riegeli::exchange(src.deleter_, nullptr);
+  if (deleter_ != nullptr) deleter_(arg_);
+  arg_ = riegeli::exchange(src.arg_, nullptr);
+  deleter_ = deleter;
+  return *this;
+}
+
+ExternalMemoryRef::~ExternalMemoryRef() {
+  if (deleter_ != nullptr) deleter_(arg_);
+}
+
+void ExternalMemoryRef::AddUniqueTo(absl::string_view data,
+                                    MemoryEstimator* memory_estimator) const {
+  memory_estimator->AddMemory(sizeof *this);
+  if (memory_estimator->AddObject(data.data())) {
+    memory_estimator->AddMemory(data.size());
+  }
+}
+
+void ExternalMemoryRef::DumpStructure(absl::string_view data,
+                                      std::ostream& out) const {
+  out << "ExternalMemory";
+}
 
 void WritePadding(std::ostream& out, size_t pad) {
   char buf[64];
@@ -437,6 +487,10 @@ constexpr size_t Chain::kMaxShortDataSize;
 // the size of allocations.
 
 Chain::Chain(absl::string_view src) { Append(src, src.size()); }
+
+Chain::Chain(absl::string_view src, void* arg, void (*deleter)(void*)) {
+  AppendExternal(ExternalMemoryRef(arg, deleter), src, src.size());
+}
 
 Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
 
