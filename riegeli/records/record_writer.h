@@ -125,7 +125,7 @@ class RecordWriter final : public Object {
     //   chunk_size ::=
     //     integer expressed as real with optional suffix [BkKMGTPE], 1..
     //   bucket_fraction ::= real 0..1
-    //   parallelism ::= integer 1..
+    //   parallelism ::= integer 0..
     //
     // Return values:
     //  * true  - success
