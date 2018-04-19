@@ -321,7 +321,7 @@ std::ostream& operator<<(std::ostream& out, const Chain& str);
 
 class Chain::BlockIterator {
  public:
-  using iterator_category = std::random_access_iterator_tag;
+  using iterator_category = std::input_iterator_tag;
   using value_type = absl::string_view;
   using reference = value_type;
   using difference_type = ptrdiff_t;
