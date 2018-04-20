@@ -54,15 +54,16 @@ useful only for seeking and for error recovery.
 
 A chunk must not begin inside nor immediately after a block header.
 
-*   Chunk header (40 bytes):
+*   Chunk header (48 bytes):
     *   `header_hash` (8 bytes) — hash of the rest of the header (`data_size` up
         to and including `decoded_data_size`)
     *   `data_size` (8 bytes) — size of `data` (excluding intervening block
         headers)
     *   `data_hash` (8 bytes) — hash of `data`
+    *   `chunk_type` (8 bytes) — determines how to interpret `data`
     *   `num_records` (8 bytes) — number of records after decoding
     *   `decoded_data_size` (8 bytes) — sum of record sizes after decoding
-*   `data` (`data_size` bytes) — encoded records
+*   `data` (`data_size` bytes) — encoded records or other data
 *   `padding` — ignored (usually filled with zeros by the encoder)
 
 If `header_hash` does not match, header contents cannot be trusted; if skipping
@@ -88,55 +89,65 @@ ahead.*
 
 ## Chunk data
 
-If `data` is empty, it serves as a file signature.
+Some parts of chunk data are compressed. The compression format is generally
+specified as `compression_type` (byte):
 
-If `data` is not empty, it begins with `chunk_type` (byte) which determines how
-to interpret the rest of `data`. Chunk types:
+*   0 — none
+*   0x62 ('b') — [Brotli](https://github.com/google/brotli)
+*   0x7a ('z') — [Zstd](http://www.zstd.net)
 
-*   0 — padding chunk: no records
-*   0x73 ('s') — simple chunk: a sequence of records, possibly compressed
-*   0x74 ('t') — transposed chunk: a sequence of proto message records,
-    transposed and compressed
+Any compressed block is prefixed with its decompressed size (varint64) unless
+`compression_type` is 0.
+
+*Rationale:*
+
+*Knowing the decompressed size can make easier for the decoder to decompress
+data into a preallocated array.*
 
 ### File signature
 
+`chunk_type` is 0x73 ('s').
+
 A file signature chunk must be present at the beginning of the file. It may also
 be present elsewhere, in which case it encodes no records and is ignored.
+
 `data_size`, `num_records`, and `decoded_data_size` must be 0.
 
-This makes the first 64 bytes of a Riegeli/records file fixed:
+This makes the first 72 bytes of a Riegeli/records file fixed:
 
 ```
-83 af 70 d1 0d 88 4a 3f 00 00 00 00 00 00 00 00
-40 00 00 00 00 00 00 00 be b0 08 ba 7d 42 51 8d
+d3 b1 89 43 af a8 66 53 00 00 00 00 00 00 00 00
+48 00 00 00 00 00 00 00 b8 cf 4a db 40 9f 5d b6
 00 00 00 00 00 00 00 00 e1 9f 13 c0 e9 b1 c3 72
-00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+73 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
 ```
 
 ### Padding chunk
 
-This chunk encodes no records and only occupies file space. `num_records` and
-`decoded_data_size` must be 0. `data` is ignored (usually filled with zeros by
-the encoder).
+`chunk_type` is 0x70 ('p').
+
+A padding chunk encodes no records and only occupies file space.
+
+`num_records` and `decoded_data_size` must be 0. `data` is ignored (usually
+filled with zeros by the encoder).
 
 This can be used for more efficient file concatenation (bringing the file offset
 modulo `kBlockSize` to 0 allows for physical concatenation of files without
 examining their contents), or for syncing to a file system which requires a
-particular file offset granularity in order for the sync to be effective (e.g.
-Reed-Solomon encoded files on Colossus).
+particular file offset granularity in order for the sync to be
+effective.
 
-### Simple chunk
+### Simple chunk with records
+
+`chunk_type` is 0x72 ('r').
 
 Simple chunks store record sizes and concatenated record contents in two
 buffers, possibly compressed.
 
 The format:
 
-*   `chunk_type` (byte) — simple chunk marker: 0x73 ('s')
-*   `compression_type` (byte) — compression type for sizes and values, one of:
-    *   0 — none
-    *   0x62 ('b') — [Brotli](https://github.com/google/brotli)
-    *   0x7a ('z') — [Zstd](http://www.zstd.net)
+*   `compression_type` (byte) — compression type for sizes and values
 *   `compressed_sizes_size` (varint64) — size of `compressed_sizes`
 *   `compressed_sizes` (`compressed_sizes_size` bytes) - compressed buffer with
     record sizes
@@ -149,9 +160,11 @@ size of each record.
 `compressed_values`, after decompression, contains `decoded_data_size` bytes:
 concatenation of record values.
 
-### Transposed chunk
+### Transposed chunk with records
 
-TODO: Document this. 
+`chunk_type` is 0x74 ('t').
+
+TODO: Document this.
 
 ## Properties of the file format
 

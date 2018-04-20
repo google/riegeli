@@ -1321,8 +1321,10 @@ constexpr uint32_t kMaxTransition = 63;
 // appear in the private state list for node A.
 constexpr uint32_t kMinCountForState = 10;
 
-bool TransposeEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
+bool TransposeEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
+                                      uint64_t* num_records,
                                       uint64_t* decoded_data_size) {
+  *chunk_type = ChunkType::kTransposed;
   return EncodeAndCloseInternal(kMaxTransition, kMinCountForState, dest,
                                 num_records, decoded_data_size);
 }
@@ -1392,10 +1394,6 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   }
   if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) return Fail(*dest);
   return Close();
-}
-
-ChunkType TransposeEncoder::GetChunkType() const {
-  return ChunkType::kTransposed;
 }
 
 }  // namespace riegeli

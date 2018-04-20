@@ -22,13 +22,15 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/hash.h"
+#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 
-ChunkHeader::ChunkHeader(const Chain& data, uint64_t num_records,
-                         uint64_t decoded_data_size) {
+ChunkHeader::ChunkHeader(const Chain& data, ChunkType chunk_type,
+                         uint64_t num_records, uint64_t decoded_data_size) {
   set_data_size(data.size());
   set_data_hash(internal::Hash(data));
+  set_chunk_type(chunk_type);
   set_num_records(num_records);
   set_decoded_data_size(decoded_data_size);
   set_header_hash(computed_header_hash());

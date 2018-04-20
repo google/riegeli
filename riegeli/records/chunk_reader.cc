@@ -25,6 +25,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
+#include "riegeli/chunk_encoding/types.h"
 #include "riegeli/records/block.h"
 
 namespace riegeli {
@@ -139,6 +140,8 @@ again:
   if (pos_ == 0) {
     // Verify file signature.
     if (ABSL_PREDICT_FALSE(reading_.chunk.header.data_size() != 0 ||
+                           reading_.chunk.header.chunk_type() !=
+                               ChunkType::kFileSignature ||
                            reading_.chunk.header.num_records() != 0 ||
                            reading_.chunk.header.decoded_data_size() != 0)) {
       return Fail("Invalid Riegeli/records file: missing file signature");

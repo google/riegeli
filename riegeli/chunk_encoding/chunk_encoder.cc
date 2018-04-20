@@ -27,6 +27,7 @@
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 
@@ -54,17 +55,17 @@ bool ChunkEncoder::AddRecord(Chain&& record) {
 
 bool ChunkEncoder::EncodeAndClose(Chunk* chunk) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkType chunk_type;
   uint64_t num_records;
   uint64_t decoded_data_size;
   chunk->data.Clear();
   ChainWriter data_writer(&chunk->data);
-  WriteByte(&data_writer, static_cast<uint8_t>(GetChunkType()));
-  if (ABSL_PREDICT_FALSE(
-          !EncodeAndClose(&data_writer, &num_records, &decoded_data_size))) {
+  if (ABSL_PREDICT_FALSE(!EncodeAndClose(&data_writer, &chunk_type,
+                                         &num_records, &decoded_data_size))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
-  chunk->header = ChunkHeader(chunk->data, num_records,
+  chunk->header = ChunkHeader(chunk->data, chunk_type, num_records,
                               IntCast<uint64_t>(decoded_data_size));
   return true;
 }

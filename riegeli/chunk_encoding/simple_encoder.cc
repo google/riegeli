@@ -152,13 +152,15 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   return true;
 }
 
-bool SimpleEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
+bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
+                                   uint64_t* num_records,
                                    uint64_t* decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(values_compressor_.writer()->pos() >
                          std::numeric_limits<uint64_t>::max())) {
     return Fail("Decoded data size too large");
   }
+  *chunk_type = ChunkType::kSimple;
   *num_records = num_records_;
   *decoded_data_size = values_compressor_.writer()->pos();
 
@@ -187,7 +189,5 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
   }
   return Close();
 }
-
-ChunkType SimpleEncoder::GetChunkType() const { return ChunkType::kSimple; }
 
 }  // namespace riegeli

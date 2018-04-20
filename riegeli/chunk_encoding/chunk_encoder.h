@@ -71,14 +71,15 @@ class ChunkEncoder : public Object {
   // Returns the number of records added so far.
   uint64_t num_records() const { return num_records_; }
 
-  // Encodes the chunk to *dest, setting *num_records and *decoded_data_size.
-  // Closes the ChunkEncoder.
+  // Encodes the chunk to *dest, setting *chunk_type, *num_records, and
+  // *decoded_data_size. Closes the ChunkEncoder.
   //
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy());
   //            if !dest->healthy() then the problem was at dest
-  virtual bool EncodeAndClose(Writer* dest, uint64_t* num_records,
+  virtual bool EncodeAndClose(Writer* dest, ChunkType* chunk_type,
+                              uint64_t* num_records,
                               uint64_t* decoded_data_size) = 0;
 
   // Encodes the chunk to *chunk. Closes the ChunkEncoder.
@@ -87,9 +88,6 @@ class ChunkEncoder : public Object {
   //  * true  - success (healthy())
   //  * false - failure (!healthy());
   bool EncodeAndClose(Chunk* chunk);
-
-  // Returns the chunk type to write in a chunk header.
-  virtual ChunkType GetChunkType() const = 0;
 
  protected:
   void Done() override;

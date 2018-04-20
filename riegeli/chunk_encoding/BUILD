@@ -50,6 +50,7 @@ cc_library(
     hdrs = ["chunk.h"],
     deps = [
         ":hash",
+        ":types",
         "//riegeli/base:chain",
         "//riegeli/base:endian",
         "//riegeli/bytes:reader",

@@ -133,8 +133,7 @@ class ChunkDecoder : public Object {
   void Done() override;
 
  private:
-  bool Parse(ChunkType chunk_type, const ChunkHeader& header, ChainReader* src,
-             Chain* dest);
+  bool Parse(const ChunkHeader& header, ChainReader* src, Chain* dest);
 
   bool skip_errors_;
   FieldFilter field_filter_;

@@ -42,6 +42,7 @@
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
+#include "riegeli/chunk_encoding/types.h"
 #include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"
@@ -518,7 +519,8 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
   if (chunk_writer->pos() == 0) {
     // Write file signature.
     Chunk signature;
-    signature.header = ChunkHeader(signature.data, 0, 0);
+    signature.header =
+        ChunkHeader(signature.data, ChunkType::kFileSignature, 0, 0);
     if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(signature))) {
       Fail(*chunk_writer);
       return;

@@ -83,10 +83,6 @@ void ChunkDecoder::Reset() {
 bool ChunkDecoder::Reset(const Chunk& chunk) {
   Reset();
   ChainReader data_reader(&chunk.data);
-  uint8_t chunk_type_byte;
-  const ChunkType chunk_type = ReadByte(&data_reader, &chunk_type_byte)
-                                   ? static_cast<ChunkType>(chunk_type_byte)
-                                   : ChunkType::kPadding;
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail("Too many records");
   }
@@ -96,8 +92,7 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   }
   limits_.reserve(IntCast<size_t>(chunk.header.num_records()));
   Chain values;
-  if (ABSL_PREDICT_FALSE(
-          !Parse(chunk_type, chunk.header, &data_reader, &values))) {
+  if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
     limits_.clear();  // Ensure that index() == num_records().
     return false;
   }
@@ -116,11 +111,24 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   return true;
 }
 
-bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
-                         ChainReader* src, Chain* dest) {
-  switch (chunk_type) {
+bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
+                         Chain* dest) {
+  if (header.num_records() == 0) {
+    if (ABSL_PREDICT_FALSE(header.decoded_data_size() > 0)) {
+      return Fail("Invalid chunk: no records but nonzero decoded data size");
+    }
+    if (header.chunk_type() == ChunkType::kFileSignature &&
+        header.data_size() > 0) {
+      return Fail("Invalid file signature chunk: must have no data");
+    }
+    // Ignore chunks with no records, even if unknown.
+    return true;
+  }
+  switch (header.chunk_type()) {
+    case ChunkType::kFileSignature:
+      return Fail("Invalid file signature chunk: must have no records");
     case ChunkType::kPadding:
-      return true;
+      return Fail("Invalid padding chunk: must have no records");
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
       if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
@@ -161,8 +169,8 @@ bool ChunkDecoder::Parse(ChunkType chunk_type, const ChunkHeader& header,
       return true;
     }
   }
-  return Fail(
-      absl::StrCat("Unknown chunk type: ", static_cast<unsigned>(chunk_type)));
+  return Fail(absl::StrCat("Unknown chunk type: ",
+                           static_cast<uint64_t>(header.chunk_type())));
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {

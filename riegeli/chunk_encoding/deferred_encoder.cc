@@ -135,7 +135,8 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   return true;
 }
 
-bool DeferredEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
+bool DeferredEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
+                                     uint64_t* num_records,
                                      uint64_t* decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
@@ -143,15 +144,11 @@ bool DeferredEncoder::EncodeAndClose(Writer* dest, uint64_t* num_records,
   }
   if (ABSL_PREDICT_FALSE(!base_encoder_->AddRecords(std::move(records_),
                                                     std::move(limits_))) ||
-      ABSL_PREDICT_FALSE(!base_encoder_->EncodeAndClose(dest, num_records,
-                                                        decoded_data_size))) {
+      ABSL_PREDICT_FALSE(!base_encoder_->EncodeAndClose(
+          dest, chunk_type, num_records, decoded_data_size))) {
     Fail(*base_encoder_);
   }
   return Close();
-}
-
-ChunkType DeferredEncoder::GetChunkType() const {
-  return base_encoder_->GetChunkType();
 }
 
 }  // namespace riegeli
