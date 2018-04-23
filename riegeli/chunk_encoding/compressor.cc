@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
@@ -44,30 +45,10 @@ Compressor::Compressor(CompressorOptions options, uint64_t size_hint)
       writer_ = &compressed_writer_;
       return;
     case CompressionType::kBrotli:
-      new (&brotli_writer_)
-          BrotliWriter(&compressed_writer_, GetBrotliWriterOptions());
-      writer_ = &brotli_writer_;
+      writer_ = BrotliWriter(&compressed_writer_, GetBrotliWriterOptions());
       return;
     case CompressionType::kZstd:
-      new (&zstd_writer_)
-          ZstdWriter(&compressed_writer_, GetZstdWriterOptions());
-      writer_ = &zstd_writer_;
-      return;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown compression type: "
-      << static_cast<unsigned>(options_.compression_type());
-}
-
-Compressor::~Compressor() {
-  switch (options_.compression_type()) {
-    case CompressionType::kNone:
-      return;
-    case CompressionType::kBrotli:
-      brotli_writer_.~BrotliWriter();
-      return;
-    case CompressionType::kZstd:
-      zstd_writer_.~ZstdWriter();
+      writer_ = ZstdWriter(&compressed_writer_, GetZstdWriterOptions());
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
@@ -76,23 +57,22 @@ Compressor::~Compressor() {
 }
 
 void Compressor::Reset() {
+  struct Visitor {
+    void operator()(ChainWriter* writer) const {}
+    void operator()(BrotliWriter& writer) const {
+      writer = BrotliWriter(&self->compressed_writer_,
+                            self->GetBrotliWriterOptions());
+    }
+    void operator()(ZstdWriter& writer) const {
+      writer =
+          ZstdWriter(&self->compressed_writer_, self->GetZstdWriterOptions());
+    }
+    Compressor* self;
+  };
   MarkHealthy();
   compressed_.Clear();
   compressed_writer_ = ChainWriter(&compressed_, GetChainWriterOptions());
-  switch (options_.compression_type()) {
-    case CompressionType::kNone:
-      return;
-    case CompressionType::kBrotli:
-      brotli_writer_ =
-          BrotliWriter(&compressed_writer_, GetBrotliWriterOptions());
-      return;
-    case CompressionType::kZstd:
-      zstd_writer_ = ZstdWriter(&compressed_writer_, GetZstdWriterOptions());
-      return;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown compression type: "
-      << static_cast<unsigned>(options_.compression_type());
+  absl::visit(Visitor{this}, writer_);
 }
 
 inline ChainWriter::Options Compressor::GetChainWriterOptions() const {
@@ -116,31 +96,19 @@ inline ZstdWriter::Options Compressor::GetZstdWriterOptions() const {
 }
 
 void Compressor::Done() {
-  CloseCompressor();
-  if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) Fail(compressed_writer_);
-  compressed_ = Chain();
-}
-
-inline void Compressor::CloseCompressor() {
-  switch (options_.compression_type()) {
-    case CompressionType::kNone:
-      return;
-    case CompressionType::kBrotli:
-      if (ABSL_PREDICT_FALSE(!brotli_writer_.Close())) Fail(brotli_writer_);
-      return;
-    case CompressionType::kZstd:
-      if (ABSL_PREDICT_FALSE(!zstd_writer_.Close())) Fail(zstd_writer_);
-      return;
+  if (ABSL_PREDICT_FALSE(!writer()->Close())) Fail(*writer());
+  if (options_.compression_type() != CompressionType::kNone) {
+    if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
+      Fail(compressed_writer_);
+    }
   }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown compression type: "
-      << static_cast<unsigned>(options_.compression_type());
+  compressed_ = Chain();
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const Position uncompressed_size = writer_->pos();
-  if (ABSL_PREDICT_FALSE(!writer_->Close())) return Fail(*writer_);
+  const Position uncompressed_size = writer()->pos();
+  if (ABSL_PREDICT_FALSE(!writer()->Close())) return Fail(*writer());
   if (options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
       return Fail(compressed_writer_);

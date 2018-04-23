@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <utility>
 
+#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -42,15 +43,13 @@ class Compressor final : public Object {
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
 
-  ~Compressor();
-
   // Resets the Compressor back to empty.
   void Reset();
 
   // Returns the Writer to which uncompressed data should be written.
   //
   // Precondition: healthy()
-  Writer* writer() const;
+  Writer* writer();
 
   // Writes compressed data to *dest. Closes the Compressor.
   //
@@ -70,35 +69,30 @@ class Compressor final : public Object {
   BrotliWriter::Options GetBrotliWriterOptions() const;
   ZstdWriter::Options GetZstdWriterOptions() const;
 
-  void CloseCompressor();
-
   CompressorOptions options_;
   uint64_t size_hint_ = 0;
   Chain compressed_;
   // Invariant: compressed_writer_ writes to compressed_
   ChainWriter compressed_writer_;
-  // options_.compression_type() determines the active member of the union,
-  // if any.
-  union {
-    BrotliWriter brotli_writer_;
-    ZstdWriter zstd_writer_;
-  };
   // Invariants:
-  //   if options_.compression_type() == CompressionType::kNone
-  //       then writer_ == &compressed_writer_
-  //   if options_.compression_type() == CompressionType::kBrotli
-  //       then writer_ == &brotli_writer_
-  //   if options_.compression_type() == CompressionType::kZstd
-  //       then writer_ == &zstd_writer_
-  Writer* writer_;
+  //   options_.compression_type() is consistent with the active member of the
+  //       variant
+  //   if options_.compression_type() == CompressionType::kNone then
+  //       writer_ holds &compressed_writer_
+  absl::variant<ChainWriter*, BrotliWriter, ZstdWriter> writer_;
 };
 
 // Implementation details follow.
 
-inline Writer* Compressor::writer() const {
+inline Writer* Compressor::writer() {
+  struct Visitor {
+    Writer* operator()(ChainWriter* writer) const { return writer; }
+    Writer* operator()(BrotliWriter& writer) const { return &writer; }
+    Writer* operator()(ZstdWriter& writer) const { return &writer; }
+  };
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Compressor::writer(): " << message();
-  return writer_;
+  return absl::visit(Visitor(), writer_);
 }
 
 }  // namespace internal
