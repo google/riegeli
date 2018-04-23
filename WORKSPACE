@@ -1,10 +1,10 @@
 workspace(name = "com_google_riegeli")
 
-# Import Abseil (2018-03-27).
+# Import Abseil (2018-04-20).
 http_archive(
     name = "com_google_absl",
-    strip_prefix = "abseil-cpp-70b5fa948d920ccca86d143057497132f63a44f3",
-    urls = ["https://github.com/abseil/abseil-cpp/archive/70b5fa948d920ccca86d143057497132f63a44f3.zip"],
+    strip_prefix = "abseil-cpp-94ce52d46c171683b1ee22d14277a6d3bdfd7c4c",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/94ce52d46c171683b1ee22d14277a6d3bdfd7c4c.zip"],
 )
 
 # Import CCTZ needed for absl/time (2018-02-06).

@@ -31,6 +31,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -264,11 +265,6 @@ class RecordWriter::ParallelImpl final : public Impl {
   };
 
   // A request to the chunk writer thread.
-  enum class RequestType {
-    kWriteChunkRequest,
-    kFlushRequest,
-    kDoneRequest,
-  };
   struct WriteChunkRequest {
     std::shared_future<ChunkHeader> chunk_header;
     std::future<Chunk> chunk;
@@ -280,23 +276,8 @@ class RecordWriter::ParallelImpl final : public Impl {
   struct DoneRequest {
     std::promise<void> done;
   };
-  struct ChunkWriterRequest {
-    explicit ChunkWriterRequest(WriteChunkRequest write_chunk_request);
-    explicit ChunkWriterRequest(FlushRequest flush_request);
-    explicit ChunkWriterRequest(DoneRequest done_request);
-
-    ChunkWriterRequest(ChunkWriterRequest&& src) noexcept;
-    ChunkWriterRequest& operator=(ChunkWriterRequest&& src) noexcept;
-
-    ~ChunkWriterRequest();
-
-    RequestType request_type;
-    union {
-      WriteChunkRequest write_chunk_request;
-      FlushRequest flush_request;
-      DoneRequest done_request;
-    };
-  };
+  using ChunkWriterRequest =
+      absl::variant<WriteChunkRequest, FlushRequest, DoneRequest>;
 
   Options options_;
   ChunkWriter* chunk_writer_;
@@ -306,72 +287,48 @@ class RecordWriter::ParallelImpl final : public Impl {
   Position pos_before_chunks_ GUARDED_BY(mutex_);
 };
 
-inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
-    WriteChunkRequest write_chunk_request)
-    : request_type(RequestType::kWriteChunkRequest),
-      write_chunk_request(std::move(write_chunk_request)) {}
-
-inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
-    FlushRequest flush_request)
-    : request_type(RequestType::kFlushRequest),
-      flush_request(std::move(flush_request)) {}
-
-inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
-    DoneRequest done_request)
-    : request_type(RequestType::kDoneRequest),
-      done_request(std::move(done_request)) {}
-
-inline RecordWriter::ParallelImpl::ChunkWriterRequest::~ChunkWriterRequest() {
-  switch (request_type) {
-    case RequestType::kWriteChunkRequest:
-      write_chunk_request.~WriteChunkRequest();
-      return;
-    case RequestType::kFlushRequest:
-      flush_request.~FlushRequest();
-      return;
-    case RequestType::kDoneRequest:
-      done_request.~DoneRequest();
-      return;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown request type: " << static_cast<int>(request_type);
-}
-
-inline RecordWriter::ParallelImpl::ChunkWriterRequest::ChunkWriterRequest(
-    ChunkWriterRequest&& src) noexcept
-    : request_type(src.request_type) {
-  switch (request_type) {
-    case RequestType::kWriteChunkRequest:
-      new (&write_chunk_request)
-          WriteChunkRequest(std::move(src.write_chunk_request));
-      return;
-    case RequestType::kFlushRequest:
-      new (&flush_request) FlushRequest(std::move(src.flush_request));
-      return;
-    case RequestType::kDoneRequest:
-      new (&done_request) DoneRequest(std::move(src.done_request));
-      return;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown request type: " << static_cast<int>(request_type);
-}
-
-inline RecordWriter::ParallelImpl::ChunkWriterRequest&
-RecordWriter::ParallelImpl::ChunkWriterRequest::operator=(
-    ChunkWriterRequest&& src) noexcept {
-  if (&src != this) {
-    this->~ChunkWriterRequest();
-    new (this) ChunkWriterRequest(std::move(src));
-  }
-  return *this;
-}
-
 inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
                                                 const Options& options)
     : options_(options),
       chunk_writer_(chunk_writer),
       pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
+    struct Visitor {
+      bool operator()(WriteChunkRequest& request) const {
+        // If !healthy(), the chunk must still be waited for, to ensure that
+        // the chunk encoder thread exits before the chunk writer thread
+        // responds to DoneRequest.
+        const Chunk chunk = request.chunk.get();
+        if (ABSL_PREDICT_FALSE(!self->healthy())) return true;
+        if (ABSL_PREDICT_FALSE(!self->chunk_writer_->WriteChunk(chunk))) {
+          self->Fail(*self->chunk_writer_);
+        }
+        return true;
+      }
+
+      bool operator()(FlushRequest& request) const {
+        if (ABSL_PREDICT_FALSE(!self->healthy())) {
+          request.done.set_value(false);
+          return true;
+        }
+        if (ABSL_PREDICT_FALSE(
+                !self->chunk_writer_->Flush(request.flush_type))) {
+          if (!self->chunk_writer_->healthy()) self->Fail(*self->chunk_writer_);
+          request.done.set_value(false);
+          return true;
+        }
+        request.done.set_value(true);
+        return true;
+      }
+
+      bool operator()(DoneRequest& request) const {
+        request.done.set_value();
+        return false;
+      }
+
+      ParallelImpl* self;
+    };
+
     mutex_.Lock();
     for (;;) {
       mutex_.Await(absl::Condition(
@@ -381,40 +338,9 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
           &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
       mutex_.Unlock();
-      switch (request.request_type) {
-        case RequestType::kWriteChunkRequest: {
-          // If !healthy(), the chunk must still be waited for, to ensure that
-          // the chunk encoder thread exits before the chunk writer thread
-          // responds to DoneRequest.
-          const Chunk chunk = request.write_chunk_request.chunk.get();
-          if (ABSL_PREDICT_FALSE(!healthy())) goto handled;
-          if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
-            Fail(*chunk_writer_);
-          }
-          goto handled;
-        }
-        case RequestType::kFlushRequest: {
-          if (ABSL_PREDICT_FALSE(!healthy())) {
-            request.flush_request.done.set_value(false);
-            goto handled;
-          }
-          if (ABSL_PREDICT_FALSE(
-                  !chunk_writer_->Flush(request.flush_request.flush_type))) {
-            if (!chunk_writer_->healthy()) Fail(*chunk_writer_);
-            request.flush_request.done.set_value(false);
-            goto handled;
-          }
-          request.flush_request.done.set_value(true);
-          goto handled;
-        }
-        case RequestType::kDoneRequest: {
-          request.done_request.done.set_value();
-          return;
-        }
+      if (!ABSL_PREDICT_FALSE(absl::visit(Visitor{this}, request))) {
+        return;
       }
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Unknown request type: " << static_cast<int>(request.request_type);
-    handled:
       mutex_.Lock();
       chunk_writer_requests_.pop_front();
       pos_before_chunks_ = chunk_writer_->pos();
@@ -485,11 +411,15 @@ FutureRecordPosition RecordWriter::ParallelImpl::ChunkBegin() {
   std::vector<std::shared_future<ChunkHeader>> chunk_headers;
   chunk_headers.reserve(chunk_writer_requests_.size());
   for (const ChunkWriterRequest& pending_request : chunk_writer_requests_) {
-    RIEGELI_ASSERT(pending_request.request_type ==
-                   RequestType::kWriteChunkRequest)
-        << "Unexpected type of request in the queue: "
-        << static_cast<int>(pending_request.request_type);
-    chunk_headers.push_back(pending_request.write_chunk_request.chunk_header);
+    // Only requests of type WriteChunkRequest affect the position.
+    //
+    // Requests are kept in the queue while they are being handled, so a
+    // FlushRequest might not have been removed from the queue yet.
+    const WriteChunkRequest* const write_chunk_request =
+        absl::get_if<WriteChunkRequest>(&pending_request);
+    if (write_chunk_request != nullptr) {
+      chunk_headers.push_back(write_chunk_request->chunk_header);
+    }
   }
   return FutureRecordPosition(pos_before_chunks_, std::move(chunk_headers));
 }
