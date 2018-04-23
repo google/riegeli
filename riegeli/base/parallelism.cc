@@ -18,6 +18,7 @@
 #include <thread>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "riegeli/base/base.h"
@@ -47,14 +48,13 @@ void ThreadPool::Schedule(std::function<void()> task) {
     for (;;) {
       absl::ReleasableMutexLock lock(&mutex_);
       ++num_idle_threads_;
-      mutex_.AwaitWithTimeout(absl::Condition(
-                                  +[](ThreadPool* self) {
-                                    self->mutex_.AssertHeld();
-                                    return !self->tasks_.empty() ||
-                                           self->exiting_;
-                                  },
-                                  this),
-                              absl::Seconds(60));
+      mutex_.AwaitWithTimeout(
+          absl::Condition(
+              +[](ThreadPool* self) EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+                return !self->tasks_.empty() || self->exiting_;
+              },
+              this),
+          absl::Seconds(60));
       --num_idle_threads_;
       if (tasks_.empty() || exiting_) {
         --num_threads_;

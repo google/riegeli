@@ -446,8 +446,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   ChunkPromises* const chunk_promises = new ChunkPromises();
   {
     mutex_.LockWhen(absl::Condition(
-        +[](ParallelImpl* self) {
-          self->mutex_.AssertHeld();
+        +[](ParallelImpl* self) EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
           return self->chunk_writer_requests_.size() <
                  IntCast<size_t>(self->options_.parallelism_);
         },
