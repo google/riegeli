@@ -88,8 +88,7 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Object unhealthy";
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos_)) {
     return FailOverflow();

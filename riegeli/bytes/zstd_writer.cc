@@ -120,7 +120,7 @@ bool ZstdWriter::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "Object unhealthy";
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
@@ -159,8 +159,7 @@ template <typename Function>
 bool ZstdWriter::FlushInternal(Function function,
                                absl::string_view function_name) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ZstdWriter::FlushInternal(): "
-         "Object unhealthy";
+      << "Failed precondition of ZstdWriter::FlushInternal(): " << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriter::FlushInternal(): "
          "buffer not cleared";

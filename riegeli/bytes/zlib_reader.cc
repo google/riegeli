@@ -89,8 +89,7 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): "
-         "Object unhealthy";
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
   decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {

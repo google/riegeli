@@ -102,7 +102,7 @@ bool BrotliWriter::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "Object unhealthy";
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
@@ -112,8 +112,7 @@ bool BrotliWriter::WriteInternal(absl::string_view src) {
 inline bool BrotliWriter::WriteInternal(absl::string_view src,
                                         BrotliEncoderOperation op) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BrotliWriter::WriteInternal(): "
-         "Object unhealthy";
+      << "Failed precondition of BrotliWriter::WriteInternal(): " << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BrotliWriter::WriteInternal(): "
          "buffer not cleared";
