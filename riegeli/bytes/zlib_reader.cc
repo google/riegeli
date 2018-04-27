@@ -44,7 +44,7 @@ ZLibReader::ZLibReader(Reader* src, Options options)
 }
 
 void ZLibReader::Done() {
-  if (ABSL_PREDICT_FALSE(!Pull() && decompressor_present_)) {
+  if (!Pull() && ABSL_PREDICT_FALSE(decompressor_present_)) {
     Fail("Truncated zlib-compressed stream");
   }
   if (owned_src_ != nullptr) {
@@ -116,8 +116,7 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
                "space";
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
           limit_pos_ += length_read;
-          if (ABSL_PREDICT_TRUE(src_->HopeForMore())) return false;
-          if (src_->healthy()) return Fail("Truncated zlib-compressed stream");
+          if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
           return Fail(*src_);
         }
         continue;
@@ -133,14 +132,6 @@ bool ZLibReader::ReadInternal(char* dest, size_t min_length,
         return length_read >= min_length;
     }
   }
-}
-
-bool ZLibReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return decompressor_present_;
 }
 
 }  // namespace riegeli

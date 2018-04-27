@@ -120,19 +120,10 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
            "and output space";
     if (ABSL_PREDICT_FALSE(!src_->Pull())) {
       limit_pos_ += output.pos;
-      if (ABSL_PREDICT_TRUE(src_->HopeForMore())) return false;
-      if (src_->healthy()) return Fail("Truncated Zstd-compressed stream");
+      if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
       return Fail(*src_);
     }
   }
-}
-
-bool ZstdReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return decompressor_ != nullptr;
 }
 
 }  // namespace riegeli

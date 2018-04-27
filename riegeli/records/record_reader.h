@@ -138,11 +138,6 @@ class RecordReader final : public Object {
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
 
-  // Returns true if reading from the current position might succeed, possibly
-  // after some data is appended to the source. Returns false if reading from
-  // the current position will always return false.
-  bool HopeForMore() const;
-
   // Returns the current position.
   //
   // pos().numeric() returns the position as an integer of type Position.
@@ -290,11 +285,6 @@ inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
     return true;
   }
   return ReadRecordSlow(record, key);
-}
-
-inline bool RecordReader::HopeForMore() const {
-  return chunk_decoder_.index() < chunk_decoder_.num_records() ||
-         (healthy() && chunk_reader_->HopeForMore());
 }
 
 inline RecordPosition RecordReader::pos() const {

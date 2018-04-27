@@ -58,7 +58,6 @@ class LimitingReader final : public Reader {
   bool ReadSlow(Chain* dest, size_t length) override;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
-  bool HopeForMoreSlow() const override;
   bool SeekSlow(Position new_pos) override;
 
  private:

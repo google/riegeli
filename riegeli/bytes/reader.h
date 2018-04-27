@@ -134,15 +134,6 @@ class Reader : public Object {
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
 
-  // Returns true if reading from the current position might succeed, possibly
-  // after some data is appended to the source. Returns false if reading from
-  // the current position will always return false.
-  //
-  // Invariants:
-  //   if available() > 0 then HopeForMore()
-  //   if available() == 0 && !healthy() then !HopeForMore()
-  bool HopeForMore() const;
-
   // Returns the current position.
   //
   // This is often 0 after creating the Reader, but not necessarily if the
@@ -243,11 +234,6 @@ class Reader : public Object {
   virtual bool ReadSlow(Chain* dest, size_t length);
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
-
-  // Implementation of the slow part of HopeForMore().
-  //
-  // Precondition: available() == 0
-  virtual bool HopeForMoreSlow() const;
 
   // Implementation of the slow part of Seek() and Skip().
   //
@@ -372,10 +358,6 @@ inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
     return dest->Write(data);
   }
   return CopyToSlow(dest, length);
-}
-
-inline bool Reader::HopeForMore() const {
-  return available() > 0 || HopeForMoreSlow();
 }
 
 inline Position Reader::pos() const {

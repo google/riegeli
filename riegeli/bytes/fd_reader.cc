@@ -468,13 +468,6 @@ bool FdMMapReader::Size(Position* size) const {
   return true;
 }
 
-bool FdMMapReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  return false;
-}
-
 bool FdMMapReader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_pos(), 0u)
       << "Failed invariant of FdMMapReader: non-zero position of buffer start";

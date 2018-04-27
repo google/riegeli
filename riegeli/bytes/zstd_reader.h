@@ -74,7 +74,6 @@ class ZstdReader final : public BufferedReader {
   void Done() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
-  bool HopeForMoreSlow() const override;
 
  private:
   struct ZSTD_DStreamDeleter {

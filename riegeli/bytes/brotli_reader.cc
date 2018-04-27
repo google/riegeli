@@ -103,10 +103,7 @@ bool BrotliReader::PullSlow() {
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-          if (ABSL_PREDICT_TRUE(src_->HopeForMore())) return false;
-          if (src_->healthy()) {
-            return Fail("Truncated Brotli-compressed stream");
-          }
+          if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
           return Fail(*src_);
         }
         continue;
@@ -120,14 +117,6 @@ bool BrotliReader::PullSlow() {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
   }
-}
-
-bool BrotliReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return decompressor_ != nullptr;
 }
 
 }  // namespace riegeli

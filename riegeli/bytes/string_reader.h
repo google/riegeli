@@ -52,7 +52,6 @@ class StringReader final : public Reader {
  protected:
   void Done() override;
   bool PullSlow() override;
-  bool HopeForMoreSlow() const override;
   bool SeekSlow(Position new_pos) override;
 
   // Invariants:

@@ -51,7 +51,6 @@ class BrotliReader final : public Reader {
  protected:
   void Done() override;
   bool PullSlow() override;
-  bool HopeForMoreSlow() const override;
 
  private:
   struct BrotliDecoderStateDeleter {

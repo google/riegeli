@@ -99,11 +99,6 @@ class ChunkReader final : public Object {
   //  * false (when !healthy()) - failure
   bool ReadChunk(Chunk* chunk, Position* chunk_begin = nullptr);
 
-  // Returns true if reading from the current position might succeed, possibly
-  // after some data is appended to the source. Returns false if reading from
-  // the current position will always return false.
-  bool HopeForMore() const { return healthy() && byte_reader_->HopeForMore(); }
-
   // Returns the current position, which is a chunk boundary (or a block
   // boundary which should be interpreted as the nearest chunk boundary at or
   // after the block boundary).
@@ -236,8 +231,8 @@ class ChunkReader final : public Object {
   // If is_recovering_, this is a block boundary or end of file.
   Position pos_;
 
-  // If true, the current chunk is incomplete, but this was not reported yet as
-  // a truncated file because HopeForMore() is true.
+  // If true, the current chunk is incomplete. This will be reported in Done()
+  // unless reading is retried when the file grows.
   bool current_chunk_is_incomplete_ = false;
 
   // The number of bytes skipped because of corrupted regions.

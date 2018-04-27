@@ -75,10 +75,6 @@ ChunkReader::~ChunkReader() {
 void ChunkReader::Done() {
   if (ABSL_PREDICT_TRUE(healthy()) &&
       ABSL_PREDICT_FALSE(current_chunk_is_incomplete_)) {
-    // Current chunk is incomplete. This was not reported yet as a truncated
-    // file because HopeForMore() is true, so the caller could have retried
-    // reading a growing file. It turned out that the caller did not retry
-    // reading, so Close() reports the incomplete chunk as corruption.
     if (!skip_errors_) {
       Fail("Truncated Riegeli/records file");
     } else {
@@ -108,15 +104,8 @@ void ChunkReader::Done() {
 }
 
 inline bool ChunkReader::ReadingFailed() {
-  if (ABSL_PREDICT_TRUE(byte_reader_->HopeForMore())) {
+  if (ABSL_PREDICT_TRUE(byte_reader_->healthy())) {
     current_chunk_is_incomplete_ = true;
-    return false;
-  }
-  if (byte_reader_->healthy()) {
-    if (!skip_errors_) return Fail("Truncated Riegeli/records file");
-    PrepareForRecovering();
-    recovering_.corrupted = true;
-    SeekOverCorruption(byte_reader_->pos());
     return false;
   }
   return Fail(*byte_reader_);

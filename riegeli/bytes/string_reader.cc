@@ -28,13 +28,6 @@ bool StringReader::PullSlow() {
   return false;
 }
 
-bool StringReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  return false;
-}
-
 bool StringReader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_EQ(start_pos(), 0u)
       << "Failed invariant of StringReader: non-zero position of buffer start";

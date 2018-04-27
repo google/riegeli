@@ -135,13 +135,6 @@ bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   return ok;
 }
 
-bool LimitingReader::HopeForMoreSlow() const {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::HopeForMoreSlow(): "
-         "data available, use HopeForMore() instead";
-  return pos() < size_limit_ && src_->HopeForMore();
-}
-
 bool LimitingReader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
