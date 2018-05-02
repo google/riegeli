@@ -30,6 +30,7 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
+#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
@@ -64,9 +65,9 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
         "Failed to serialize message of type ", record.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
-  if (ABSL_PREDICT_FALSE(num_records_ ==
-                         UnsignedMin(limits_.max_size(),
-                                     std::numeric_limits<uint64_t>::max()))) {
+  if (ABSL_PREDICT_FALSE(
+          num_records_ ==
+          UnsignedMin(limits_.max_size(), ChunkHeader::kMaxNumRecords()))) {
     return Fail("Too many records");
   }
   ++num_records_;
@@ -96,9 +97,9 @@ bool DeferredEncoder::AddRecord(Chain&& record) {
 template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(num_records_ ==
-                         UnsignedMin(limits_.max_size(),
-                                     std::numeric_limits<uint64_t>::max()))) {
+  if (ABSL_PREDICT_FALSE(
+          num_records_ ==
+          UnsignedMin(limits_.max_size(), ChunkHeader::kMaxNumRecords()))) {
     return Fail("Too many records");
   }
   ++num_records_;
@@ -115,10 +116,10 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(limits.size() >
-                         UnsignedMin(limits_.max_size(),
-                                     std::numeric_limits<uint64_t>::max()) -
-                             num_records_)) {
+  if (ABSL_PREDICT_FALSE(
+          limits.size() >
+          UnsignedMin(limits_.max_size(), ChunkHeader::kMaxNumRecords()) -
+              num_records_)) {
     return Fail("Too many records");
   }
   num_records_ += IntCast<uint64_t>(limits.size());

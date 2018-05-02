@@ -18,7 +18,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <cstring>
+#include <limits>
 
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/bytes/reader.h"
@@ -29,6 +31,10 @@ namespace riegeli {
 
 class ChunkHeader {
  public:
+  static constexpr uint64_t kMaxNumRecords() {
+    return std::numeric_limits<uint64_t>::max() >> 8;
+  }
+
   ChunkHeader() noexcept {}
 
   ChunkHeader(const Chain& data, ChunkType chunk_type, uint64_t num_records,
@@ -52,10 +58,10 @@ class ChunkHeader {
   uint64_t data_size() const { return ReadLittleEndian64(words_[1]); }
   uint64_t data_hash() const { return ReadLittleEndian64(words_[2]); }
   ChunkType chunk_type() const {
-    return static_cast<ChunkType>(ReadLittleEndian64(words_[3]));
+    return static_cast<ChunkType>(ReadLittleEndian64(words_[3] & 0xff));
   }
-  uint64_t num_records() const { return ReadLittleEndian64(words_[4]); }
-  uint64_t decoded_data_size() const { return ReadLittleEndian64(words_[5]); }
+  uint64_t num_records() const { return ReadLittleEndian64(words_[3] >> 8); }
+  uint64_t decoded_data_size() const { return ReadLittleEndian64(words_[4]); }
 
  private:
   void set_header_hash(uint64_t value) {
@@ -63,17 +69,20 @@ class ChunkHeader {
   }
   void set_data_size(uint64_t value) { words_[1] = WriteLittleEndian64(value); }
   void set_data_hash(uint64_t value) { words_[2] = WriteLittleEndian64(value); }
-  void set_chunk_type(ChunkType value) {
-    words_[3] = WriteLittleEndian64(static_cast<uint64_t>(value));
-  }
-  void set_num_records(uint64_t value) {
-    words_[4] = WriteLittleEndian64(value);
+  void set_chunk_type_and_num_records(ChunkType chunk_type,
+                                      uint64_t num_records) {
+    RIEGELI_ASSERT_LE(num_records, kMaxNumRecords())
+        << "Failed precondition of "
+           "ChunkHeader::set_chunk_type_and_num_records(): "
+           "number of records out of range";
+    words_[3] = WriteLittleEndian64(static_cast<uint64_t>(chunk_type) |
+                                    (num_records << 8));
   }
   void set_decoded_data_size(uint64_t value) {
-    words_[5] = WriteLittleEndian64(value);
+    words_[4] = WriteLittleEndian64(value);
   }
 
-  uint64_t words_[6];
+  uint64_t words_[5];
 };
 
 struct Chunk {

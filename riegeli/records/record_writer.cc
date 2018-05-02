@@ -443,7 +443,12 @@ RecordWriter::RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
 }
 
 RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
-    : Object(State::kOpen), desired_chunk_size_(options.chunk_size_) {
+    : Object(State::kOpen),
+      // Ensure that num_records does not overflow when WriteRecordImpl() keeps
+      // num_records * sizeof(uint64_t) under desired_chunk_size_.
+      desired_chunk_size_(
+          UnsignedMin(options.chunk_size_,
+                      ChunkHeader::kMaxNumRecords() * sizeof(uint64_t))) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (chunk_writer->pos() == 0) {
     // Write file signature.

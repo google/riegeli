@@ -54,14 +54,14 @@ useful only for seeking and for error recovery.
 
 A chunk must not begin inside nor immediately after a block header.
 
-*   Chunk header (48 bytes):
+*   Chunk header (40 bytes):
     *   `header_hash` (8 bytes) — hash of the rest of the header (`data_size` up
         to and including `decoded_data_size`)
     *   `data_size` (8 bytes) — size of `data` (excluding intervening block
         headers)
     *   `data_hash` (8 bytes) — hash of `data`
-    *   `chunk_type` (8 bytes) — determines how to interpret `data`
-    *   `num_records` (8 bytes) — number of records after decoding
+    *   `chunk_type` (1 byte) — determines how to interpret `data`
+    *   `num_records` (7 bytes) — number of records after decoding
     *   `decoded_data_size` (8 bytes) — sum of record sizes after decoding
 *   `data` (`data_size` bytes) — encoded records or other data
 *   `padding` — ignored (usually filled with zeros by the encoder)
@@ -113,14 +113,13 @@ be present elsewhere, in which case it encodes no records and is ignored.
 
 `data_size`, `num_records`, and `decoded_data_size` must be 0.
 
-This makes the first 72 bytes of a Riegeli/records file fixed:
+This makes the first 64 bytes of a Riegeli/records file fixed:
 
-```
-d3 b1 89 43 af a8 66 53 00 00 00 00 00 00 00 00
-48 00 00 00 00 00 00 00 b8 cf 4a db 40 9f 5d b6
+```data
+83 af 70 d1 0d 88 4a 3f 00 00 00 00 00 00 00 00
+40 00 00 00 00 00 00 00 91 ba c2 3c 92 87 e1 a9
 00 00 00 00 00 00 00 00 e1 9f 13 c0 e9 b1 c3 72
 73 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-00 00 00 00 00 00 00 00
 ```
 
 ### Padding chunk

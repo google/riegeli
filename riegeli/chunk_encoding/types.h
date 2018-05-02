@@ -20,7 +20,7 @@
 namespace riegeli {
 
 // These values are frozen in the file format.
-enum class ChunkType : uint64_t {
+enum class ChunkType : uint8_t {
   kFileSignature = 's',
   kPadding = 'p',
   kSimple = 'r',

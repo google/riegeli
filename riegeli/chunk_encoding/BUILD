@@ -51,6 +51,7 @@ cc_library(
     deps = [
         ":hash",
         ":types",
+        "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:endian",
         "//riegeli/bytes:reader",
@@ -137,6 +138,7 @@ cc_library(
     srcs = ["simple_encoder.cc"],
     hdrs = ["simple_encoder.h"],
     deps = [
+        ":chunk",
         ":chunk_encoder",
         ":compressor",
         ":compressor_options",
@@ -174,6 +176,7 @@ cc_library(
     srcs = ["transpose_encoder.cc"],
     hdrs = ["transpose_encoder.h"],
     deps = [
+        ":chunk",
         ":chunk_encoder",
         ":compressor",
         ":compressor_options",
@@ -248,6 +251,7 @@ cc_library(
     srcs = ["deferred_encoder.cc"],
     hdrs = ["deferred_encoder.h"],
     deps = [
+        ":chunk",
         ":chunk_encoder",
         ":types",
         "//riegeli/base",
