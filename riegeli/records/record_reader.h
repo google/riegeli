@@ -39,6 +39,8 @@ class MessageLite;
 
 namespace riegeli {
 
+class Chunk;
+
 // RecordReader reads records of a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
 //
@@ -62,6 +64,25 @@ namespace riegeli {
 //   if (!record_reader_.Close()) {
 //     ... Failed with reason: record_reader_.message()
 //   }
+//
+// For reading records while skipping errors:
+//
+//   Position skipped_bytes = 0;
+//   Position skipped_messages = 0;
+//   SomeProto record;
+//   for (;;) {
+//     if (!record_reader_.ReadRecord(&record)) {
+//       if (record_reader_.Recover(&skipped_bytes, &skipped_messages)) {
+//         continue;
+//       }
+//       break;
+//     }
+//     ... Process record.
+//   }
+//   if (!record_reader_.Close() && !record_reader_.Recover(&skipped_bytes)) {
+//     ... Failed with reason: record_reader_.message()
+//   }
+
 class RecordReader final : public Object {
  public:
   class Options {
@@ -69,18 +90,6 @@ class RecordReader final : public Object {
     // Not defaulted because of a C++ defect:
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
-
-    // If true, corrupted regions and unparsable records will be skipped.
-    // If false, they will cause reading to fail.
-    //
-    // Default: false
-    Options& set_skip_errors(bool skip_errors) & {
-      skip_errors_ = skip_errors;
-      return *this;
-    }
-    Options&& set_skip_errors(bool skip_errors) && {
-      return std::move(set_skip_errors(skip_errors));
-    }
 
     // Specifies the set of fields to be included in returned records, allowing
     // to exclude the remaining fields (but does not guarantee that they will be
@@ -100,7 +109,6 @@ class RecordReader final : public Object {
    private:
     friend class RecordReader;
 
-    bool skip_errors_ = false;
     FieldFilter field_filter_ = FieldFilter::All();
   };
 
@@ -120,6 +128,17 @@ class RecordReader final : public Object {
   RecordReader(RecordReader&& src) noexcept;
   RecordReader& operator=(RecordReader&& src) noexcept;
 
+  // Ensures that the file looks like a valid Riegeli/Records file.
+  //
+  // Reading the file already checks whether it is valid. CheckFileFormat() can
+  // verify this before (or instead of) performing other operations.
+  //
+  // Return values:
+  //  * true                    - success
+  //  * false (when healthy())  - source ends
+  //  * false (when !healthy()) - failure
+  bool CheckFileFormat();
+
   // Reads the next record.
   //
   // ReadRecord(MessageLite*) parses raw bytes to a proto message after reading.
@@ -137,6 +156,31 @@ class RecordReader final : public Object {
   bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
+
+  // If !healthy() and the failure was caused by invalid file contents, then
+  // Recover() tries to recover from the failure and allow reading again by
+  // skipping over the invalid region.
+  //
+  // If Close() failed and the failure was caused by truncated file contents,
+  // then Recover() increments *skipped_bytes and returns true. The RecordReader
+  // remains closed.
+  //
+  // If healthy(), or if !healthy() but the failure was not caused by invalid
+  // file contents, then Recover() returns false.
+  //
+  // If skipped_bytes != nullptr, *skipped_bytes is incremented by the number of
+  // bytes skipped (by the amount of the file which could not be decoded).
+  //
+  // If skipped_messages != nullptr, *skipped_messages is incremented by the
+  // number of records skipped by ReadRecord(MessageLite*) when the proto
+  // message could not be parsed (by 0 or 1). Skipped messages do not count
+  // towards skipped bytes.
+  //
+  // Return values:
+  //  * true  - success
+  //  * false - failure not caused by invalid file contents
+  bool Recover(Position* skipped_bytes = nullptr,
+               Position* skipped_messages = nullptr);
 
   // Returns the current position.
   //
@@ -187,24 +231,21 @@ class RecordReader final : public Object {
   bool Search(std::function<bool(int*)>, bool* found);
 #endif
 
-  // Returns the number of bytes skipped because of corrupted regions or
-  // unparsable records.
-  //
-  // An unparsable record counts as the number of bytes between the canonical
-  // record position of that record and the next record, i.e. it counts as one
-  // byte, except that the last record of a chunk counts as the rest of the
-  // chunk size.
-  Position skipped_bytes() const;
-
  protected:
   void Done() override;
 
  private:
+  enum class Recoverable {
+    kNo,
+    kRecoverChunkReader,
+    kRecoverChunkDecoder,
+    kReportSkippedBytes
+  };
+
   RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
 
-  // Precondition: chunk_decoder_.index() == chunk_decoder_.num_records()
-  bool ReadRecordSlow(google::protobuf::MessageLite* record, RecordPosition* key,
-                      uint64_t index_before);
+  // Precondition: !chunk_decoder_.healthy() ||
+  //               chunk_decoder_.index() == chunk_decoder_.num_records()
   template <typename Record>
   bool ReadRecordSlow(Record* record, RecordPosition* key);
 
@@ -212,50 +253,69 @@ class RecordReader final : public Object {
   // and chunk_begin_. On failure resets chunk_decoder_.
   bool ReadChunk();
 
+  // Recognize known types of chunks with no records. On failure resets
+  // chunk_decoder_.
+  bool ParseChunkIfMeta(const Chunk& chunk);
+
   // Invariant: if healthy() then chunk_reader_ != nullptr
   std::unique_ptr<ChunkReader> chunk_reader_;
-  bool skip_errors_ = false;
+
   // Position of the beginning of the current chunk or end of file, except when
   // Seek(Position) failed to locate the chunk containing the position, in which
   // case this is that position.
   Position chunk_begin_ = 0;
+
   // Current chunk if a chunk has been read, empty otherwise.
   //
   // Invariants:
   //   if healthy() then chunk_decoder_.healthy()
-  //   if !healthy() then chunk_decoder_.index() == chunk_decoder_.num_records()
+  //   if !healthy() then !chunk_decoder_.healthy() ||
+  //                      chunk_decoder_.index() == chunk_decoder_.num_records()
   ChunkDecoder chunk_decoder_;
-  // The number of bytes skipped because of corrupted regions or unparsable
-  // records, in addition to chunk_reader_->skipped_bytes().
-  Position skipped_bytes_ = 0;
+
+  // Whether Recover() is applicable, and if so, how it should be performed:
+  //
+  //  * Recoverable::kNo                  - Recover() is not applicable
+  //  * Recoverable::kRecoverChunkReader  - Recover() tries to recover
+  //                                        chunk_reader_
+  //  * Recoverable::kRecoverChunkDecoder - Recover() tries to recover
+  //                                        chunk_decoder_
+  //  * Recoverable::kReportSkippedBytes  - Recover() only reports
+  //                                        recoverable_length_ as the number of
+  //                                        skipped bytes
+  //
+  // Invariants:
+  //   if healthy() then recoverable_ == Recoverable::kNo
+  //   if closed() then recoverable_ == Recoverable::kNo ||
+  //                    recoverable_ == Recoverable::kReportSkippedBytes
+  Recoverable recoverable_ = Recoverable::kNo;
+
+  // If recoverable_ == Recoverable::kReportSkippedBytes, the number of skipped
+  // bytes to report.
+  Position recoverable_length_ = 0;
 };
 
 // Implementation details follow.
 
 inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
                                      RecordPosition* key) {
-  const uint64_t index_before = chunk_decoder_.index();
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
-    RIEGELI_ASSERT_GT(chunk_decoder_.index(), index_before)
-        << "ChunkDecoder::ReadRecord() did not increment record index";
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+        << "ChunkDecoder::ReadRecord() left record index at 0";
     if (key != nullptr) {
       *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
     }
-    const uint64_t skipped_records = chunk_decoder_.index() - index_before - 1;
-    if (ABSL_PREDICT_FALSE(skipped_records > 0)) {
-      skipped_bytes_ = SaturatingAdd(skipped_bytes_, skipped_records);
-    }
     return true;
   }
-  return ReadRecordSlow(record, key, index_before);
+  return ReadRecordSlow(record, key);
 }
 
 inline bool RecordReader::ReadRecord(absl::string_view* record,
                                      RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+        << "ChunkDecoder::ReadRecord() left record index at 0";
     if (key != nullptr) {
-      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
-          << "ChunkDecoder::ReadRecord() left record index at 0";
       *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
     }
     return true;
@@ -265,9 +325,9 @@ inline bool RecordReader::ReadRecord(absl::string_view* record,
 
 inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+        << "ChunkDecoder::ReadRecord() left record index at 0";
     if (key != nullptr) {
-      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
-          << "ChunkDecoder::ReadRecord() left record index at 0";
       *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
     }
     return true;
@@ -277,9 +337,9 @@ inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
 
 inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+        << "ChunkDecoder::ReadRecord() left record index at 0";
     if (key != nullptr) {
-      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
-          << "ChunkDecoder::ReadRecord() left record index at 0";
       *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
     }
     return true;
@@ -298,11 +358,6 @@ inline RecordPosition RecordReader::pos() const {
 inline bool RecordReader::Size(Position* size) const {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return chunk_reader_->Size(size);
-}
-
-inline Position RecordReader::skipped_bytes() const {
-  if (ABSL_PREDICT_FALSE(chunk_reader_ == nullptr)) return 0;
-  return SaturatingAdd(chunk_reader_->skipped_bytes(), skipped_bytes_);
 }
 
 }  // namespace riegeli

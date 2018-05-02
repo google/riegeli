@@ -104,15 +104,29 @@ inline size_t RemainingInBlockHeader(Position pos) {
                        IntCast<size_t>(pos % kBlockSize()));
 }
 
-// For a given data size beginning at the given position, the position after
-// the data which includes intervening block headers.
-inline Position AddWithOverhead(Position pos, Position size) {
-  RIEGELI_ASSERT_LT(RemainingInBlock(pos), kUsableBlockSize())
+// For a chunk beginning at the given position, the position after the given
+// length, adding intervening block headers.
+inline Position AddWithOverhead(Position chunk_begin, Position length) {
+  RIEGELI_ASSERT_LT(RemainingInBlock(chunk_begin), kUsableBlockSize())
       << "Failed precondition of AddWithOverhead(): invalid chunk boundary";
   const Position num_overhead_blocks =
-      (size + (pos + kUsableBlockSize() - 1) % kBlockSize()) /
+      (length + (chunk_begin + kUsableBlockSize() - 1) % kBlockSize()) /
       kUsableBlockSize();
-  return pos + size + num_overhead_blocks * BlockHeader::size();
+  return chunk_begin + length + num_overhead_blocks * BlockHeader::size();
+}
+
+// For a chunk beginning at the given position, the length until another
+// position, subtracting intervening block headers.
+inline Position DistanceWithoutOverhead(Position chunk_begin, Position pos) {
+  RIEGELI_ASSERT_LE(chunk_begin, pos)
+      << "Failed precondition of DistanceWithoutOverhead(): "
+         "positions in the wrong order";
+  const Position num_overhead_blocks =
+      pos / kBlockSize() - chunk_begin / kBlockSize();
+  return (pos - UnsignedMin(pos % kBlockSize(), BlockHeader::size())) -
+         (chunk_begin -
+          UnsignedMin(chunk_begin % kBlockSize(), BlockHeader::size())) -
+         num_overhead_blocks * BlockHeader::size();
 }
 
 // The position after a chunk which begins at the given position.

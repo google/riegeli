@@ -95,6 +95,7 @@ cc_library(
         "//riegeli/chunk_encoding:hash",
         "//riegeli/chunk_encoding:types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
     ],
 )
 

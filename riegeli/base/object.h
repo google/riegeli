@@ -153,6 +153,14 @@ class Object {
   // Object before MarkHealthy() is called.
   void MarkHealthy();
 
+  // Marks the Object as not failed, keeping its closed() status unchanged.
+  // This can be used if the Object supports recovery after some failures.
+  //
+  // If a derived class uses background threads, its methods which call
+  // MarkNotFailed() should cause background threads to stop interacting with
+  // the Object before MarkNotFailed() is called.
+  void MarkNotFailed();
+
   // Implementation of Close(), called if the Object is not closed yet.
   //
   // Close() returns early if closed(), otherwise calls Done() and marks the
@@ -304,6 +312,11 @@ inline absl::string_view Object::message() const {
 
 inline void Object::MarkHealthy() {
   DeleteStatus(status_.exchange(kHealthy(), std::memory_order_relaxed));
+}
+
+inline void Object::MarkNotFailed() {
+  DeleteStatus(status_.exchange(closed() ? kClosedSuccessfully() : kHealthy(),
+                                std::memory_order_relaxed));
 }
 
 }  // namespace riegeli

@@ -53,21 +53,6 @@ class ChunkDecoder : public Object {
     // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
-    // If true, unparsable records will be skipped. If false, they will cause
-    // reading to fail.
-    //
-    // This affects ReadRecord() but not Reset(Chunk) which still fails when the
-    // chunk cannot be decoded.
-    //
-    // Default: false
-    Options& set_skip_errors(bool skip_errors) & {
-      skip_errors_ = skip_errors;
-      return *this;
-    }
-    Options&& set_skip_errors(bool skip_errors) && {
-      return std::move(set_skip_errors(skip_errors));
-    }
-
     // Specifies the set of fields to be included in returned records, allowing
     // to exclude the remaining fields (but does not guarantee exclusion).
     // Excluding data makes reading faster.
@@ -82,7 +67,6 @@ class ChunkDecoder : public Object {
    private:
     friend class ChunkDecoder;
 
-    bool skip_errors_ = false;
     FieldFilter field_filter_ = FieldFilter::All();
   };
 
@@ -96,6 +80,9 @@ class ChunkDecoder : public Object {
   void Reset();
 
   // Resets the ChunkDecoder and parses the chunk.
+  //
+  // chunk.header.chunk_type() must not be ChunkType::kFileSignature or
+  // ChunkType::kPadding.
   //
   // Return values:
   //  * true  - success (healthy())
@@ -114,20 +101,26 @@ class ChunkDecoder : public Object {
   // Return values:
   //  * true                    - success (*record is set, healthy())
   //  * false (when healthy())  - chunk ends
-  //  * false (when !healthy()) - failure (only for ReadRecord(MessageLite*)
-  //                              when skip_errors is false, or if !healthy()
-  //                              on entry)
+  //  * false (when !healthy()) - failure
   bool ReadRecord(google::protobuf::MessageLite* record);
   bool ReadRecord(absl::string_view* record);
   bool ReadRecord(std::string* record);
   bool ReadRecord(Chain* record);
 
+  // If !healthy() and the failure was caused by an unparsable message, then
+  // Recover() allows reading again by skipping the unparsable message.
+  //
+  // If healthy(), or if !healthy() but the failure was not caused by an
+  // unparsable message, then Recover() does nothing and returns false.
+  //
+  // Return values:
+  //  * true  - success
+  //  * false - failure not caused by an unparsable message
+  bool Recover();
+
   uint64_t index() const { return index_; }
   void SetIndex(uint64_t index);
   uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
-
-  // Returns the number of records skipped because they could not be parsed.
-  Position skipped_records() const { return skipped_records_; }
 
  protected:
   void Done() override;
@@ -135,7 +128,6 @@ class ChunkDecoder : public Object {
  private:
   bool Parse(const ChunkHeader& header, ChainReader* src, Chain* dest);
 
-  bool skip_errors_;
   FieldFilter field_filter_;
   // Invariants:
   //   limits_ are sorted
@@ -143,19 +135,19 @@ class ChunkDecoder : public Object {
   //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()
   std::vector<size_t> limits_;
   ChainReader values_reader_;
-  // Invariants:
-  //   index_ <= num_records()
-  //   if !healthy() then index_ == num_records()
+  // Invariant: index_ <= num_records()
   uint64_t index_ = 0;
   std::string record_scratch_;
-  // Number of records skipped because they could not be parsed.
-  Position skipped_records_ = 0;
+  // Whether Recover() is applicable.
+  //
+  // Invariant: if recoverable_ then !healthy()
+  bool recoverable_ = false;
 };
 
 // Implementation details follow.
 
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
-  if (ABSL_PREDICT_FALSE(index_ == limits_.size())) return false;
+  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -168,7 +160,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string* record) {
-  if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
+  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -182,7 +174,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record) {
-  if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
+  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_++)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -196,6 +188,8 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of ChunkDecoder::SetIndex(): " << message();
   index_ = UnsignedMin(index, num_records());
   const size_t start =
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];

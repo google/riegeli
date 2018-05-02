@@ -38,49 +38,22 @@ namespace riegeli {
 // together with a default implementation, analogously to ChunkWriter.
 class ChunkReader final : public Object {
  public:
-  class Options {
-   public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
-
-    // If true, corrupted regions will be skipped. If false, they will cause
-    // reading to fail.
-    //
-    // Default: false
-    Options& set_skip_errors(bool skip_errors) & {
-      skip_errors_ = skip_errors;
-      return *this;
-    }
-    Options&& set_skip_errors(bool skip_errors) && {
-      return std::move(set_skip_errors(skip_errors));
-    }
-
-   private:
-    friend class ChunkReader;
-
-    bool skip_errors_ = false;
-  };
-
   // Will read chunks from the byte Reader which is owned by this ChunkReader
   // and will be closed and deleted when the ChunkReader is closed.
-  explicit ChunkReader(std::unique_ptr<Reader> byte_reader,
-                       Options options = Options());
+  explicit ChunkReader(std::unique_ptr<Reader> byte_reader);
 
   // Will read chunks from the byte Reader which is not owned by this
   // ChunkReader and must be kept alive but not accessed until closing the
   // ChunkReader.
-  explicit ChunkReader(Reader* byte_reader, Options options = Options());
+  explicit ChunkReader(Reader* byte_reader);
 
   ChunkReader(const ChunkReader&) = delete;
   ChunkReader& operator=(const ChunkReader&) = delete;
 
-  ~ChunkReader();
-
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
-  // options.set_skip_errors(true) should not be used, otherwise the whole
-  // file will be scanned for a valid chunk.
+  // Reading the file already checks whether it is valid. CheckFileFormat() can
+  // verify this before (or instead of) performing other operations.
   //
   // Return values:
   //  * true                    - success
@@ -90,30 +63,55 @@ class ChunkReader final : public Object {
 
   // Reads the next chunk.
   //
-  // If chunk_begin != nullptr, *chunk_begin is set to the chunk beginning
-  // position on success.
-  //
   // Return values:
   //  * true                    - success (*chunk is set)
   //  * false (when healthy())  - source ends
   //  * false (when !healthy()) - failure
-  bool ReadChunk(Chunk* chunk, Position* chunk_begin = nullptr);
+  bool ReadChunk(Chunk* chunk);
 
-  // Returns the current position, which is a chunk boundary (or a block
-  // boundary which should be interpreted as the nearest chunk boundary at or
-  // after the block boundary).
-  Position pos() const { return pos_; }
-
-  // Seeks to new_pos, which should be a chunk boundary (or a block boundary
-  // which is interpreted as the nearest chunk boundary at or after the block
-  // boundary).
+  // Reads the next chunk header, from same chunk which will be read by an
+  // immediately following ReadChunk().
+  //
+  // If chunk_header != nullptr, *chunk_header is set to the chunk header, valid
+  // until the next non-const function of the ChunkReader.
   //
   // Return values:
-  //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos (position is set to
-  //                              the end) or seeking backwards is not supported
-  //                              (position is unchanged)
+  //  * true                    - success (*chunk_header is set)
+  //  * false (when healthy())  - source ends
   //  * false (when !healthy()) - failure
+  bool PullChunkHeader(const ChunkHeader** chunk_header);
+
+  // If !healthy() and the failure was caused by invalid file contents, then
+  // Recover() tries to recover from the failure and allow reading again by
+  // skipping over the invalid region.
+  //
+  // If Close() failed and the failure was caused by truncated file contents,
+  // then Recover() increments *skipped_bytes and returns true. The ChunkReader
+  // remains closed.
+  //
+  // If healthy(), or if !healthy() but the failure was not caused by invalid
+  // file contents, then Recover() returns false.
+  //
+  // If skipped_bytes != nullptr, *skipped_bytes is incremented by the number of
+  // bytes skipped.
+  //
+  // Return values:
+  //  * true  - success
+  //  * false - failure not caused by invalid file contents
+  bool Recover(Position* skipped_bytes = nullptr);
+
+  // Returns the current position, which is a chunk boundary (unless file
+  // contents are invalid and no chunk could be found until the end of file).
+  //
+  // ReadChunk() and PullChunkHeader() return a chunk beginning at pos() if they
+  // succeed.
+  Position pos() const { return pos_; }
+
+  // Seeks to new_pos, which should be a chunk boundary.
+  //
+  // Return values:
+  //  * true  - success (position is set to new_pos)
+  //  * false - failure (!healthy())
   bool Seek(Position new_pos);
 
   // Seeks to the nearest chunk boundary before or at new_pos if the position
@@ -146,73 +144,23 @@ class ChunkReader final : public Object {
   //  * false - failure (healthy() is unchanged)
   bool Size(Position* size) const;
 
-  // Returns the number of bytes skipped because of corrupted regions.
-  Position skipped_bytes() const { return skipped_bytes_; }
-
  protected:
   void Done() override;
 
  private:
-  struct Reading {
-    void Reset();
+  enum class Recoverable { kNo, kHaveChunk, kFindChunk, kReportSkippedBytes };
 
-    // Chunk header, filled up to chunk_header_read, and chunk data read so far.
-    Chunk chunk;
-    // Length of chunk.header read so far.
-    size_t chunk_header_read = 0;
-  };
-
-  struct Recovering {
-    void Reset();
-
-    // If true, recovery is caused by corruption.
-    bool corrupted = false;
-    // If true, chunk_begin is known since the block header has been read.
-    bool chunk_begin_known = false;
-    // Target position after recovery is complete.
-    Position chunk_begin = 0;
-  };
-
-  // Interprets a false result from a byte_reader_ reading function. Always
-  // returns false.
+  // Interprets a false result from a byte_reader_ reading function.
+  //
+  // Always returns false.
   bool ReadingFailed();
 
-  // Reads or continues reading a chunk header into state_.
-  //
-  // Precondition: !is_recovering_
+  // Reads or continues reading chunk_.header.
   bool ReadChunkHeader();
 
   // Reads or continues reading block_header_ if the current position is
   // immediately before or inside a block header, otherwise does nothing.
-  //
-  // If the block header is invalid, this is treated as corruption and pos_ is
-  // changed to begin a new recovery past this block header.
   bool ReadBlockHeader();
-
-  // Prepares for reading a new chunk.
-  void PrepareForReading();
-
-  // Prepares for recovery (locating a chunk using block headers).
-  void PrepareForRecovering();
-
-  // Increases pos_ over a region which should be counted as corrupted if
-  // recovering because of corruption.
-  //
-  // Preconditions:
-  //   is_recovering_
-  //   new_pos >= pos_
-  void SeekOverCorruption(Position new_pos);
-
-  // Begins or continues recovery by reading block headers and looking for a
-  // chunk beginning. Scans forwards only so that it does not require the Reader
-  // to support random access.
-  //
-  // Precondition: is_recovering_
-  bool Recover();
-
-  // Reports an invalid chunk boundary. Returns true if recovery should be
-  // attempted.
-  bool InvalidChunkBoundary();
 
   // Shared implementation of SeekToChunkContaining() (containing = true) and
   // SeekToChunkAfter() (containing = false).
@@ -221,39 +169,54 @@ class ChunkReader final : public Object {
   std::unique_ptr<Reader> owned_byte_reader_;
   // Invariant: if healthy() then byte_reader_ != nullptr
   Reader* byte_reader_;
-  bool skip_errors_;
 
-  // Current position, excluding data buffered in reading_ or implied by
-  // recovering_.
+  // Beginning of the current chunk.
   //
-  // If !is_recovering_, this is a chunk boundary.
-  //
-  // If is_recovering_, this is a block boundary or end of file.
+  // Invariant: if closed() then pos_ == 0
   Position pos_;
 
-  // If true, the current chunk is incomplete. This will be reported in Done()
-  // unless reading is retried when the file grows.
+  // Chunk header and chunk data, filled to the point derived from pos_ and
+  // byte_reader_->pos().
+  Chunk chunk_;
+
+  // Block header, filled to the point derived from byte_reader_->pos().
+  internal::BlockHeader block_header_;
+
+  // If true, the current chunk could be partially read but could not be
+  // completely read because the file ended too early.
+  //
+  // This is reset to false at the beginning of public functions and
+  // conditionally set to true by ReadingFailed() which is ultimately called
+  // by these functions if reading failed.
+  //
+  // Invariant: if current_chunk_is_incomplete_ then byte_reader_->pos() > pos_
   bool current_chunk_is_incomplete_ = false;
 
-  // The number of bytes skipped because of corrupted regions.
-  Position skipped_bytes_ = 0;
-
-  // If true, recovery is needed (a chunk must be located using block headers),
-  // either because corruption was detected and skip_errors_ is true, or
-  // after seeking to a block boundary.
+  // Whether Recover() is applicable, and if so, how it should be performed:
   //
-  // If false, the next chunk can be read from byte_reader_, or a truncated
-  // chunk can resume reading.
-  bool is_recovering_;
+  //  * Recoverable::kNo                 - Recover() is not applicable
+  //  * Recoverable::kHaveChunk          - Recover() seeks to recoverable_pos_
+  //                                       which should be a chunk boundary
+  //  * Recoverable::kFindChunk          - Recover() finds a block after
+  //                                       recoverable_pos_, and a chunk after
+  //                                       the block
+  //  * Recoverable::kReportSkippedBytes - Recover() only reports
+  //                                       recoverable_pos_ as the number of
+  //                                       skipped bytes
+  //
+  // Invariants:
+  //   if healthy() then recoverable_ == Recoverable::kNo
+  //   if recoverable_ == Recoverable::kReportSkippedBytes then closed()
+  //   if closed() then recoverable_ == Recoverable::kNo ||
+  //                    recoverable_ == Recoverable::kReportSkippedBytes
+  Recoverable recoverable_ = Recoverable::kNo;
 
-  union {
-    Reading reading_;        // State if !is_recovering_.
-    Recovering recovering_;  // State if is_recovering_.
-  };
-
-  // The block header, partially filled to the point derived from the current
-  // position, if a block header is being read (which is determined by state_).
-  internal::BlockHeader block_header_;
+  // If recoverable_ != Recoverable::kNo, the position to start recovery from
+  // (or the number of skipped bytes for Recoverable::kReportSkippedBytes).
+  //
+  // Invariant:
+  //   if recoverable_ != Recoverable::kNo then recoverable_pos_ >= pos_
+  Position recoverable_pos_ = 0;
 };
 
 // Implementation details follow.

@@ -14,6 +14,7 @@
 
 #include "riegeli/records/record_reader.h"
 
+#include <stdint.h>
 #include <memory>
 #include <string>
 #include <utility>
@@ -21,6 +22,7 @@
 #include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -36,130 +38,85 @@ namespace riegeli {
 RecordReader::RecordReader() noexcept : Object(State::kClosed) {}
 
 RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
-    : RecordReader(
-          absl::make_unique<ChunkReader>(
-              std::move(byte_reader),
-              ChunkReader::Options().set_skip_errors(options.skip_errors_)),
-          std::move(options)) {}
+    : RecordReader(absl::make_unique<ChunkReader>(std::move(byte_reader)),
+                   std::move(options)) {}
 
 RecordReader::RecordReader(Reader* byte_reader, Options options)
-    : RecordReader(absl::make_unique<ChunkReader>(
-                       byte_reader, ChunkReader::Options().set_skip_errors(
-                                        options.skip_errors_)),
+    : RecordReader(absl::make_unique<ChunkReader>(byte_reader),
                    std::move(options)) {}
 
 inline RecordReader::RecordReader(std::unique_ptr<ChunkReader> chunk_reader,
                                   Options options)
     : Object(State::kOpen),
       chunk_reader_(std::move(chunk_reader)),
-      skip_errors_(options.skip_errors_),
       chunk_begin_(chunk_reader_->pos()),
-      chunk_decoder_(ChunkDecoder::Options()
-                         .set_skip_errors(options.skip_errors_)
-                         .set_field_filter(std::move(options.field_filter_))) {
-  if (chunk_begin_ == 0 && !skip_errors_) {
-    // Verify file signature before any records are read, done proactively here
-    // in case the caller calls Seek() before ReadRecord(). This is not done if
-    // skip_errors_ is true because in this case invalid file beginning would
-    // cause scanning the file until a valid chunk is found, which might not be
-    // intended.
-    ReadChunk();
-  }
-}
+      chunk_decoder_(ChunkDecoder::Options().set_field_filter(
+          std::move(options.field_filter_))) {}
 
 RecordReader::RecordReader(RecordReader&& src) noexcept
     : Object(std::move(src)),
       chunk_reader_(std::move(src.chunk_reader_)),
-      skip_errors_(riegeli::exchange(src.skip_errors_, false)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
       chunk_decoder_(std::move(src.chunk_decoder_)),
-      skipped_bytes_(riegeli::exchange(src.skipped_bytes_, 0)) {}
+      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)),
+      recoverable_length_(riegeli::exchange(src.recoverable_length_, 0)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   Object::operator=(std::move(src));
   chunk_reader_ = std::move(src.chunk_reader_);
-  skip_errors_ = riegeli::exchange(src.skip_errors_, false);
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
-  skipped_bytes_ = riegeli::exchange(src.skipped_bytes_, 0);
+  recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
+  recoverable_length_ = riegeli::exchange(src.recoverable_length_, 0);
   return *this;
 }
 
 void RecordReader::Done() {
-  if (chunk_reader_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) Fail(*chunk_reader_);
-    // Do not reset chunk_reader_ so that skipped_bytes() remains
-    // available.
+  recoverable_ = Recoverable::kNo;
+  recoverable_length_ = 0;
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) {
+      Fail(*chunk_reader_);
+      if (chunk_reader_->Recover(&recoverable_length_)) {
+        recoverable_ = Recoverable::kReportSkippedBytes;
+      }
+    }
   }
-  skip_errors_ = false;
+  chunk_reader_.reset();
   chunk_begin_ = 0;
   chunk_decoder_ = ChunkDecoder();
 }
 
-bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
-                                  RecordPosition* key, uint64_t index_before) {
-  RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
-      << "Failed precondition of RecordReader::ReadRecordSlow(): "
-         "records available, use ReadRecord() instead";
+bool RecordReader::CheckFileFormat() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  for (;;) {
-    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
-      RIEGELI_ASSERT(!skip_errors_)
-          << "ChunkDecoder::ReadRecord() made ChunkDecoder unhealthy "
-             "but skip_errors is true";
-      return Fail(chunk_decoder_);
-    }
-    if (skip_errors_) {
-      RIEGELI_ASSERT_GE(chunk_decoder_.index(), index_before)
-          << "ChunkDecoder::ReadRecord() decremented record index";
-      if (ABSL_PREDICT_FALSE(chunk_decoder_.index() > index_before)) {
-        // Last records of the chunk were skipped. In skipped_bytes_, account
-        // for them as the rest of the chunk size.
-        RIEGELI_ASSERT_GE(chunk_reader_->pos(), chunk_begin_)
-            << "Failed invariant of RecordReader: negative chunk size";
-        const Position chunk_size = chunk_reader_->pos() - chunk_begin_;
-        RIEGELI_ASSERT_LE(chunk_decoder_.index(), chunk_size)
-            << "Failed invariant of RecordReader: "
-               "number of records greater than chunk size";
-        skipped_bytes_ =
-            SaturatingAdd(skipped_bytes_, chunk_size - index_before);
-      }
-    }
-    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
-    index_before = chunk_decoder_.index();
-    if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
-      RIEGELI_ASSERT_GT(chunk_decoder_.index(), index_before)
-          << "ChunkDecoder::ReadRecord() did not increment record index";
-      if (key != nullptr) {
-        *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
-      }
-      const uint64_t skipped_records =
-          chunk_decoder_.index() - index_before - 1;
-      if (ABSL_PREDICT_FALSE(skipped_records > 0)) {
-        // Records other than last records of the chunk were skipped.
-        // In skipped_bytes_, account for them as one byte each.
-        skipped_bytes_ = SaturatingAdd(skipped_bytes_, skipped_records);
-      }
-      return true;
-    }
+  if (chunk_decoder_.index() < chunk_decoder_.num_records()) return true;
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->CheckFileFormat())) {
+    chunk_decoder_.Reset();
+    if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    return Fail(*chunk_reader_);
   }
+  return true;
 }
 
 template <typename Record>
 bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
-  RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
-      << "Failed precondition of RecordReader::ReadRecordSlow(): "
-         "records available, use ReadRecord() instead";
+  if (chunk_decoder_.healthy()) {
+    RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
+        << "Failed precondition of RecordReader::ReadRecordSlow(): "
+           "records available, use ReadRecord() instead";
+  }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   for (;;) {
-    RIEGELI_ASSERT(chunk_decoder_.healthy())
-        << "ChunkDecoder::ReadRecord() made ChunkDecoder unhealthy "
-           "but record was not being parsed to a proto message";
+    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
+      recoverable_ = Recoverable::kRecoverChunkDecoder;
+      return Fail(chunk_decoder_);
+    }
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+          << "ChunkDecoder::ReadRecord() left record index at 0";
       if (key != nullptr) {
-        RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
-            << "ChunkDecoder::ReadRecord() left record index at 0";
         *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
       }
       return true;
@@ -167,18 +124,59 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
   }
 }
 
+template bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
+                                           RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(absl::string_view* record,
                                            RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
 
+bool RecordReader::Recover(Position* skipped_bytes,
+                           Position* skipped_messages) {
+  if (recoverable_ == Recoverable::kNo) return false;
+  RIEGELI_ASSERT(!healthy()) << "Failed invariant of RecordReader: "
+                                "recovery applicable but RecordReader healthy";
+  const Recoverable recoverable = recoverable_;
+  recoverable_ = Recoverable::kNo;
+  if (recoverable != Recoverable::kReportSkippedBytes) {
+    RIEGELI_ASSERT(!closed()) << "Failed invariant of RecordReader: "
+                                 "recovery does not only report skipped bytes "
+                                 "but RecordReader is closed";
+  }
+  MarkNotFailed();
+  switch (recoverable) {
+    case Recoverable::kNo:
+      RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
+    case Recoverable::kRecoverChunkReader:
+      if (ABSL_PREDICT_FALSE(!chunk_reader_->Recover(skipped_bytes))) {
+        return Fail(*chunk_reader_);
+      }
+      return true;
+    case Recoverable::kRecoverChunkDecoder:
+      if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) {
+        return Fail(chunk_decoder_);
+      }
+      if (skipped_messages != nullptr) {
+        *skipped_messages = SaturatingAdd(*skipped_messages, Position{1});
+      }
+      return true;
+    case Recoverable::kReportSkippedBytes:
+      if (skipped_bytes != nullptr) {
+        *skipped_bytes = SaturatingAdd(*skipped_bytes, recoverable_length_);
+      }
+      recoverable_length_ = 0;
+      return true;
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown recoverable method: " << static_cast<int>(recoverable);
+}
+
 bool RecordReader::Seek(RecordPosition new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_pos.chunk_begin() == chunk_begin_) {
     if (new_pos.record_index() == 0 || chunk_reader_->pos() > chunk_begin_) {
-      // Seeking to the beginning of a chunk does not need reading the chunk nor
-      // checking its size, which is important because it may be non-existent at
-      // end of file, corrupted, or empty.
+      // Seeking to the beginning of a chunk does not need reading the chunk,
+      // which is important because it may be non-existent at end of file.
       //
       // If chunk_reader_->pos() > chunk_begin_, the chunk is already read.
       goto skip_reading_chunk;
@@ -188,26 +186,18 @@ bool RecordReader::Seek(RecordPosition new_pos) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+      recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*chunk_reader_);
     }
-    if (new_pos.record_index() == 0 ||
-        ABSL_PREDICT_FALSE(chunk_reader_->pos() > new_pos.chunk_begin())) {
-      // Seeking to the beginning of a chunk does not need reading the chunk nor
-      // checking its size, which is important because it may be non-existent at
-      // end of file, corrupted, or empty.
-      //
-      // If chunk_reader_->pos() > new_pos.chunk_begin(), corruption was
-      // skipped.
+    if (new_pos.record_index() == 0) {
+      // Seeking to the beginning of a chunk does not need reading the chunk,
+      // which is important because it may be non-existent at end of file.
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       return true;
     }
   }
   if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
-  if (ABSL_PREDICT_FALSE(chunk_begin_ > new_pos.chunk_begin())) {
-    // Corruption was skipped. Leave the position after the corruption.
-    return true;
-  }
 skip_reading_chunk:
   chunk_decoder_.SetIndex(new_pos.record_index());
   return true;
@@ -224,23 +214,17 @@ bool RecordReader::Seek(Position new_pos) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+      recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*chunk_reader_);
     }
-    if (chunk_reader_->pos() >= new_pos) {
-      // If chunk_reader_->pos() == new_pos, seeking to the beginning of a
-      // chunk. This does not need reading the chunk, which is important because
-      // it may be non-existent at end of file or corrupted.
-      //
-      // If chunk_reader_->pos() > new_pos, corruption was skipped.
+    if (chunk_reader_->pos() == new_pos) {
+      // Seeking to the beginning of a chunk does not need reading the chunk,
+      // which is important because it may be non-existent at end of file.
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       return true;
     }
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
-    if (ABSL_PREDICT_FALSE(chunk_begin_ > new_pos)) {
-      // Corruption was skipped. Leave the position after the corruption.
-      return true;
-    }
   }
   chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
   return true;
@@ -248,29 +232,76 @@ bool RecordReader::Seek(Position new_pos) {
 
 inline bool RecordReader::ReadChunk() {
   Chunk chunk;
-  for (;;) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk, &chunk_begin_))) {
-      chunk_begin_ = chunk_reader_->pos();
-      chunk_decoder_.Reset();
-      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
-      return Fail(*chunk_reader_);
-    }
-    if (chunk_begin_ == 0) {
-      // Verify file signature.
-      if (ABSL_PREDICT_FALSE(chunk.header.data_size() != 0 ||
-                             chunk.header.num_records() != 0 ||
-                             chunk.header.decoded_data_size() != 0)) {
-        chunk_decoder_.Reset();
-        return Fail("Invalid Riegeli/records file: missing file signature");
-      }
-      // Decoding this chunk will yield no records and ReadChunk() will be
-      // called again if needed.
-    }
-    if (ABSL_PREDICT_TRUE(chunk_decoder_.Reset(chunk))) return true;
-    if (!skip_errors_) return Fail(chunk_decoder_);
+  chunk_begin_ = chunk_reader_->pos();
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
     chunk_decoder_.Reset();
-    skipped_bytes_ =
-        SaturatingAdd(skipped_bytes_, chunk_reader_->pos() - chunk_begin_);
+    if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    return Fail(*chunk_reader_);
+  }
+  if (ABSL_PREDICT_FALSE(!ParseChunkIfMeta(chunk))) {
+    chunk_decoder_.Reset();
+    recoverable_ = Recoverable::kReportSkippedBytes;
+    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
+    return false;
+  }
+  if (chunk.header.num_records() == 0) {
+    if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
+      chunk_decoder_.Reset();
+      recoverable_ = Recoverable::kReportSkippedBytes;
+      recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
+      return Fail(
+          absl::StrCat("Invalid chunk of type ",
+                       static_cast<uint64_t>(chunk.header.chunk_type()),
+                       ": no records but decoded data size is not zero: ",
+                       chunk.header.decoded_data_size()));
+    }
+    // Ignore chunks with no records, even if the type is unknown.
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Reset(chunk))) {
+    Fail(chunk_decoder_);
+    chunk_decoder_.Reset();
+    recoverable_ = Recoverable::kReportSkippedBytes;
+    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
+    return false;
+  }
+  return true;
+}
+
+inline bool RecordReader::ParseChunkIfMeta(const Chunk& chunk) {
+  switch (chunk.header.chunk_type()) {
+    case ChunkType::kFileSignature:
+      if (ABSL_PREDICT_FALSE(chunk.header.data_size() > 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: data size is not zero: ",
+            chunk.header.data_size()));
+      }
+      if (ABSL_PREDICT_FALSE(chunk.header.num_records() > 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: number of records is not zero: ",
+            chunk.header.num_records()));
+      }
+      if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: decoded data size is not zero: ",
+            chunk.header.decoded_data_size()));
+      }
+      return true;
+    case ChunkType::kPadding:
+      if (ABSL_PREDICT_FALSE(chunk.header.num_records() > 0)) {
+        return Fail(absl::StrCat(
+            "Invalid padding chunk: number of records is not zero: ",
+            chunk.header.num_records()));
+      }
+      if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
+        return Fail(absl::StrCat(
+            "Invalid padding chunk: decoded data size is not zero: ",
+            chunk.header.decoded_data_size()));
+      }
+      return true;
+    default:
+      return true;
   }
 }
 

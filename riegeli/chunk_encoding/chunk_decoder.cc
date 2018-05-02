@@ -39,30 +39,27 @@ namespace riegeli {
 
 ChunkDecoder::ChunkDecoder(Options options)
     : Object(State::kOpen),
-      skip_errors_(options.skip_errors_),
       field_filter_(std::move(options.field_filter_)),
       values_reader_(Chain()) {}
 
 ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
     : Object(std::move(src)),
-      skip_errors_(src.skip_errors_),
       field_filter_(std::move(src.field_filter_)),
       limits_(std::move(src.limits_)),
       values_reader_(
           riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
       index_(riegeli::exchange(src.index_, 0)),
       record_scratch_(riegeli::exchange(src.record_scratch_, std::string())),
-      skipped_records_(riegeli::exchange(src.skipped_records_, 0)) {}
+      recoverable_(riegeli::exchange(src.recoverable_, false)) {}
 
 ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
-  skip_errors_ = src.skip_errors_;
   field_filter_ = std::move(src.field_filter_);
   limits_ = std::move(src.limits_);
   values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
   index_ = riegeli::exchange(src.index_, 0);
   record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
-  skipped_records_ = riegeli::exchange(src.skipped_records_, 0);
+  recoverable_ = riegeli::exchange(src.recoverable_, false);
   return *this;
 }
 
@@ -71,13 +68,15 @@ void ChunkDecoder::Done() {
   values_reader_ = ChainReader();
   index_ = 0;
   record_scratch_ = std::string();
+  recoverable_ = false;
 }
 
 void ChunkDecoder::Reset() {
+  MarkHealthy();
   limits_.clear();
   values_reader_ = ChainReader(Chain());
   index_ = 0;
-  MarkHealthy();
+  recoverable_ = false;
 }
 
 bool ChunkDecoder::Reset(const Chunk& chunk) {
@@ -113,22 +112,15 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
 
 bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
                          Chain* dest) {
-  if (header.num_records() == 0) {
-    if (ABSL_PREDICT_FALSE(header.decoded_data_size() > 0)) {
-      return Fail("Invalid chunk: no records but nonzero decoded data size");
-    }
-    if (header.chunk_type() == ChunkType::kFileSignature &&
-        header.data_size() > 0) {
-      return Fail("Invalid file signature chunk: must have no data");
-    }
-    // Ignore chunks with no records, even if unknown.
-    return true;
-  }
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
-      return Fail("Invalid file signature chunk: must have no records");
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Failed precondition of ChunkDecoder::Reset(): "
+             "file signature chunk";
     case ChunkType::kPadding:
-      return Fail("Invalid padding chunk: must have no records");
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Failed precondition of ChunkDecoder::Reset(): "
+              "padding chunk";
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
       if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
@@ -174,42 +166,45 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
-  for (;;) {
-    if (ABSL_PREDICT_FALSE(index_ == num_records())) return false;
-    const size_t start = IntCast<size_t>(values_reader_.pos());
-    const size_t limit = limits_[IntCast<size_t>(index_++)];
-    RIEGELI_ASSERT_LE(start, limit)
-        << "Failed invariant of ChunkDecoder: record end positions not sorted";
-    LimitingReader message_reader(&values_reader_, limit);
-    if (ABSL_PREDICT_TRUE(ParsePartialFromReader(record, &message_reader))) {
-      RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
-          << "Record was not read up to its end";
-      if (!message_reader.Close()) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Closing message reader failed: " << message_reader.message();
-      }
-      if (ABSL_PREDICT_TRUE(record->IsInitialized())) return true;
-      if (!skip_errors_) {
-        index_ = num_records();
-        return Fail(absl::StrCat("Failed to parse message of type ",
-                                 record->GetTypeName(),
-                                 " because it is missing required fields: ",
-                                 record->InitializationErrorString()));
-      }
-    } else {
-      message_reader.Close();
-      if (!values_reader_.Seek(limit)) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "Seeking record values failed: " << values_reader_.message();
-      }
-      if (!skip_errors_) {
-        index_ = num_records();
-        return Fail(absl::StrCat("Failed to parse message of type ",
-                                 record->GetTypeName()));
-      }
+  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
+  const size_t start = IntCast<size_t>(values_reader_.pos());
+  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  RIEGELI_ASSERT_LE(start, limit)
+      << "Failed invariant of ChunkDecoder: record end positions not sorted";
+  LimitingReader message_reader(&values_reader_, limit);
+  if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(record, &message_reader))) {
+    message_reader.Close();
+    if (!values_reader_.Seek(limit)) {
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Seeking record values failed: " << values_reader_.message();
     }
-    skipped_records_ = SaturatingAdd(skipped_records_, Position{1});
+    recoverable_ = true;
+    return Fail(absl::StrCat("Failed to parse message of type ",
+                             record->GetTypeName()));
   }
+  RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
+      << "Record was not read up to its end";
+  if (!message_reader.Close()) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Closing message reader failed: " << message_reader.message();
+  }
+  if (ABSL_PREDICT_FALSE(!record->IsInitialized())) {
+    recoverable_ = true;
+    return Fail(absl::StrCat("Failed to parse message of type ",
+                             record->GetTypeName(),
+                             " because it is missing required fields: ",
+                             record->InitializationErrorString()));
+  }
+  return true;
+}
+
+bool ChunkDecoder::Recover() {
+  if (!recoverable_) return false;
+  RIEGELI_ASSERT(!healthy()) << "Failed invariant of ChunkDecoder: "
+                                "recovery applicable but ChunkDecoder healthy";
+  recoverable_ = false;
+  MarkNotFailed();
+  return true;
 }
 
 }  // namespace riegeli

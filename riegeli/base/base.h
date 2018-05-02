@@ -326,7 +326,8 @@ A IntCast(B value) {
 // first <= last.
 template <typename A>
 size_t PtrDistance(const A* first, const A* last) {
-  RIEGELI_ASSERT(first <= last) << "Pointers in the wrong order";
+  RIEGELI_ASSERT(first <= last)
+      << "Failed invariant of PtrDistance(): pointers in the wrong order";
   return static_cast<size_t>(last - first);
 }
 
