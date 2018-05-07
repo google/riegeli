@@ -350,7 +350,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
     Position size;
     if (ABSL_PREDICT_TRUE(byte_reader_->Size(&size))) {
       Position max_block_begin =
-          SaturatingSub(size, internal::BlockHeader::size());
+          SaturatingSub(size, Position{internal::BlockHeader::size()});
       block_begin = UnsignedMin(
           block_begin,
           max_block_begin - max_block_begin % internal::kBlockSize());
