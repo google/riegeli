@@ -158,8 +158,9 @@ class ChunkReader final : public Object {
   // Reads or continues reading chunk_.header.
   bool ReadChunkHeader();
 
-  // Reads or continues reading block_header_ if the current position is
-  // immediately before or inside a block header, otherwise does nothing.
+  // Reads or continues reading block_header_.
+  //
+  // Precondition: internal::RemainingInBlockHeader(byte_reader_->pos()) > 0
   bool ReadBlockHeader();
 
   // Shared implementation of SeekToChunkContaining() (containing = true) and

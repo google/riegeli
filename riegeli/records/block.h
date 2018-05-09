@@ -82,6 +82,11 @@ constexpr Position kUsableBlockSize() {
 // Whether pos is a block boundary (immediately before a block header).
 inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize() == 0; }
 
+// The nearest block boundary at or before pos.
+inline Position RoundDownToBlockBoundary(Position pos) {
+  return pos - pos % kBlockSize();
+}
+
 // How many bytes remain until the end of the block (0 at a block boundary).
 inline Position RemainingInBlock(Position pos) { return (-pos) % kBlockSize(); }
 
@@ -93,7 +98,7 @@ inline bool IsPossibleChunkBoundary(Position pos) {
 
 // The nearest possible chunk boundary at or after pos (chunk boundaries are not
 // valid inside or immediately after a block header).
-inline Position RoundToPossibleChunkBoundary(Position pos) {
+inline Position RoundUpToPossibleChunkBoundary(Position pos) {
   return pos + SaturatingSub(RemainingInBlock(pos), kUsableBlockSize() - 1);
 }
 
@@ -133,7 +138,7 @@ inline Position DistanceWithoutOverhead(Position chunk_begin, Position pos) {
 inline Position ChunkEnd(const ChunkHeader& header, Position chunk_begin) {
   return UnsignedMax(
       AddWithOverhead(chunk_begin, header.size() + header.data_size()),
-      RoundToPossibleChunkBoundary(chunk_begin + header.num_records()));
+      RoundUpToPossibleChunkBoundary(chunk_begin + header.num_records()));
 }
 
 }  // namespace internal

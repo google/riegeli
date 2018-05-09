@@ -211,11 +211,11 @@ AddWithOverhead(pos, size) =
 RemainingInBlock(pos) = kBlockSize - 1 - (pos + kBlockSize - 1) % kBlockSize;
 SaturatingSub(a, b) = a > b ? a - b : 0;
 // 0 -> 0, 1..25 -> 25, 26 -> 26, ..., 64K -> 64K, 64K+1..64K+25 -> 64K+25 etc.
-RoundToPossibleChunkBoundary(pos) =
+RoundUpToPossibleChunkBoundary(pos) =
     pos + SaturatingSub(RemainingInBlock(pos), kUsableBlockSize - 1);
 
 chunk_end = max(AddWithOverhead(chunk_begin, kChunkHeaderSize + data_size),
-                RoundToPossibleChunkBoundary(chunk_begin + num_records));
+                RoundUpToPossibleChunkBoundary(chunk_begin + num_records));
 ```
 
 Fields of a block header at `block_begin` which interrupts a chunk at

@@ -88,23 +88,36 @@ bool ChunkReader::CheckFileFormat() { return PullChunkHeader(nullptr); }
 
 bool ChunkReader::ReadChunk(Chunk* chunk) {
   if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) return false;
+  const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
 
   while (chunk_.data.size() < chunk_.header.data_size()) {
-    const Position pos_before = byte_reader_->pos();
-    if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
-    if (internal::IsBlockBoundary(pos_before) &&
-        ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
-                           pos_before - pos_)) {
-      recoverable_ = Recoverable::kFindChunk;
-      recoverable_pos_ = byte_reader_->pos();
-      return Fail(absl::StrCat(
-          "Invalid Riegeli/records file: chunk boundary is ", pos_,
-          " but block header at ", pos_before,
-          " implies a different previous chunk boundary: ",
-          pos_before >= block_header_.previous_chunk()
-              ? absl::StrCat(pos_before - block_header_.previous_chunk())
-              : absl::StrCat("-",
-                             block_header_.previous_chunk() - pos_before)));
+    if (internal::RemainingInBlockHeader(byte_reader_->pos()) > 0) {
+      const Position block_begin =
+          internal::RoundDownToBlockBoundary(byte_reader_->pos());
+      if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
+      if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
+                             block_begin - pos_)) {
+        recoverable_ = Recoverable::kFindChunk;
+        recoverable_pos_ = byte_reader_->pos();
+        return Fail(absl::StrCat(
+            "Invalid Riegeli/records file: chunk boundary is ", pos_,
+            " but block header at ", block_begin,
+            " implies a different previous chunk boundary: ",
+            block_begin >= block_header_.previous_chunk()
+                ? absl::StrCat(block_begin - block_header_.previous_chunk())
+                : absl::StrCat("-",
+                               block_header_.previous_chunk() - block_begin)));
+      }
+      if (ABSL_PREDICT_FALSE(block_header_.next_chunk() !=
+                             chunk_end - block_begin)) {
+        recoverable_ = Recoverable::kFindChunk;
+        recoverable_pos_ = byte_reader_->pos();
+        return Fail(
+            absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
+                         chunk_end, " but block header at ", block_begin,
+                         " implies a different next chunk boundary: ",
+                         block_begin + block_header_.next_chunk()));
+      }
     }
     if (ABSL_PREDICT_FALSE(!byte_reader_->Read(
             &chunk_.data,
@@ -114,8 +127,6 @@ bool ChunkReader::ReadChunk(Chunk* chunk) {
       return ReadingFailed();
     }
   }
-
-  const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
 
   const uint64_t computed_data_hash = internal::Hash(chunk_.data);
   if (ABSL_PREDICT_FALSE(computed_data_hash != chunk_.header.data_hash())) {
@@ -165,21 +176,23 @@ inline bool ChunkReader::ReadChunkHeader() {
   size_t remaining_length;
   size_t length_to_read;
   do {
-    const Position pos_before = byte_reader_->pos();
-    if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
-    if (internal::IsBlockBoundary(pos_before) &&
-        ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
-                           pos_before - pos_)) {
-      recoverable_ = Recoverable::kFindChunk;
-      recoverable_pos_ = byte_reader_->pos();
-      return Fail(absl::StrCat(
-          "Invalid Riegeli/records file: chunk boundary is ", pos_,
-          " but block header at ", pos_before,
-          " implies a different previous chunk boundary: ",
-          pos_before >= block_header_.previous_chunk()
-              ? absl::StrCat(pos_before - block_header_.previous_chunk())
-              : absl::StrCat("-",
-                             block_header_.previous_chunk() - pos_before)));
+    if (internal::RemainingInBlockHeader(byte_reader_->pos()) > 0) {
+      const Position block_begin =
+          internal::RoundDownToBlockBoundary(byte_reader_->pos());
+      if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
+      if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
+                             block_begin - pos_)) {
+        recoverable_ = Recoverable::kFindChunk;
+        recoverable_pos_ = byte_reader_->pos();
+        return Fail(absl::StrCat(
+            "Invalid Riegeli/records file: chunk boundary is ", pos_,
+            " but block header at ", block_begin,
+            " implies a different previous chunk boundary: ",
+            block_begin >= block_header_.previous_chunk()
+                ? absl::StrCat(block_begin - block_header_.previous_chunk())
+                : absl::StrCat("-",
+                               block_header_.previous_chunk() - block_begin)));
+      }
     }
     const size_t chunk_header_read = IntCast<size_t>(
         internal::DistanceWithoutOverhead(pos_, byte_reader_->pos()));
@@ -206,6 +219,21 @@ inline bool ChunkReader::ReadChunkHeader() {
                   absl::PadSpec::kZeroPad16),
         "), chunk at ", pos_));
   }
+  if (internal::RemainingInBlock(pos_) < chunk_.header.size()) {
+    // The chunk header was interrupted by a block header.
+    const Position block_begin = pos_ + internal::RemainingInBlock(pos_);
+    const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    if (ABSL_PREDICT_FALSE(block_header_.next_chunk() !=
+                           chunk_end - block_begin)) {
+      recoverable_ = Recoverable::kFindChunk;
+      recoverable_pos_ = byte_reader_->pos();
+      return Fail(
+          absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
+                       chunk_end, " but block header at ", block_begin,
+                       " implies a different next chunk boundary: ",
+                       block_begin + block_header_.next_chunk()));
+    }
+  }
   if (pos_ == 0) {
     // Verify file signature.
     if (ABSL_PREDICT_FALSE(chunk_.header.data_size() != 0 ||
@@ -224,7 +252,9 @@ inline bool ChunkReader::ReadChunkHeader() {
 inline bool ChunkReader::ReadBlockHeader() {
   const size_t remaining_length =
       internal::RemainingInBlockHeader(byte_reader_->pos());
-  if (remaining_length == 0) return true;
+  RIEGELI_ASSERT_GT(remaining_length, 0u)
+      << "Failed precondition of ChunkReader::ReadBlockHeader(): "
+         "not before nor inside a block header";
   if (ABSL_PREDICT_FALSE(!byte_reader_->Read(
           block_header_.bytes() + block_header_.size() - remaining_length,
           remaining_length))) {
@@ -242,8 +272,7 @@ inline bool ChunkReader::ReadBlockHeader() {
         ", stored 0x",
         absl::Hex(block_header_.stored_header_hash(),
                   absl::PadSpec::kZeroPad16),
-        "), block at ",
-        recoverable_pos_ - recoverable_pos_ % internal::kBlockSize()));
+        "), block at ", internal::RoundDownToBlockBoundary(recoverable_pos_)));
   }
   return true;
 }
@@ -345,15 +374,14 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   chunk_.Reset();
   current_chunk_is_incomplete_ = false;
-  Position block_begin = new_pos - new_pos % internal::kBlockSize();
+  Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   if (block_begin > 0) {
     Position size;
     if (ABSL_PREDICT_TRUE(byte_reader_->Size(&size))) {
       Position max_block_begin =
           SaturatingSub(size, Position{internal::BlockHeader::size()});
       block_begin = UnsignedMin(
-          block_begin,
-          max_block_begin - max_block_begin % internal::kBlockSize());
+          block_begin, internal::RoundDownToBlockBoundary(max_block_begin));
     }
   }
   if (pos_ <= new_pos) {
