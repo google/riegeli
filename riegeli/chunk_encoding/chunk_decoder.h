@@ -49,8 +49,6 @@ class ChunkDecoder : public Object {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // Specifies the set of fields to be included in returned records, allowing

@@ -32,8 +32,6 @@ class ZstdWriter final : public BufferedWriter {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // Tunes the tradeoff between compression density and compression speed

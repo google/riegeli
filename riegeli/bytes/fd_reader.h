@@ -83,8 +83,6 @@ class FdReader final : public internal::FdReaderBase {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // If true, the fd will be owned by the FdReader and will be closed when the
@@ -176,8 +174,6 @@ class FdStreamReader final : public internal::FdReaderBase {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // There is no set_owns_fd() because it is impossible to unread what has
@@ -249,8 +245,6 @@ class FdMMapReader final : public Reader {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // If true, the fd will be owned by the FdMMapReader and will be closed

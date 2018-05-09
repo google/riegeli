@@ -32,8 +32,6 @@ class ZLibReader : public BufferedReader {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // Parameter interpreted by inflateInit2() which specifies the acceptable

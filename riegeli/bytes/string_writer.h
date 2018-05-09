@@ -31,8 +31,6 @@ class StringWriter final : public Writer {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // Announce in advance the destination size. This may improve performance

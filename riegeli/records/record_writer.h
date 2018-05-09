@@ -102,9 +102,7 @@ class RecordWriter final : public Object {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
-    constexpr Options() noexcept {}
+    Options() noexcept {}
 
     // Parses options from text:
     //

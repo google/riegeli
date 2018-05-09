@@ -32,8 +32,6 @@ class ZstdReader final : public BufferedReader {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     static size_t kDefaultBufferSize() { return ZSTD_DStreamOutSize(); }

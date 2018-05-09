@@ -28,9 +28,7 @@ namespace riegeli {
 
 class CompressorOptions {
  public:
-  // Not defaulted because of a C++ defect:
-  // https://stackoverflow.com/questions/17430377
-  constexpr CompressorOptions() noexcept {}
+  CompressorOptions() noexcept {}
 
   // Parses options from text:
   //

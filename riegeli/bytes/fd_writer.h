@@ -83,8 +83,6 @@ class FdWriter final : public internal::FdWriterBase {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // If true, the fd will be owned by the FdWriter and will be closed when the
@@ -193,8 +191,6 @@ class FdStreamWriter final : public internal::FdWriterBase {
  public:
   class Options {
    public:
-    // Not defaulted because of a C++ defect:
-    // https://stackoverflow.com/questions/17430377
     Options() noexcept {}
 
     // If true, the fd will be owned by the FdStreamWriter and will be closed
