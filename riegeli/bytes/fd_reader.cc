@@ -65,8 +65,8 @@ class MMapRef {
   absl::string_view data() const {
     return absl::string_view(static_cast<const char*>(data_), size_);
   }
-  void AddUniqueTo(absl::string_view data,
-                   MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(absl::string_view data,
+                          MemoryEstimator* memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -97,10 +97,8 @@ MMapRef::~MMapRef() {
   }
 }
 
-void MMapRef::AddUniqueTo(absl::string_view data,
-                          MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof(*this));
-}
+void MMapRef::RegisterSubobjects(absl::string_view data,
+                                 MemoryEstimator* memory_estimator) const {}
 
 void MMapRef::DumpStructure(absl::string_view data, std::ostream& out) const {
   out << "mmap";

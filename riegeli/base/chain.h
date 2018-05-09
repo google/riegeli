@@ -89,8 +89,7 @@ class Chain {
   // Estimates the amount of memory used by this Chain.
   size_t EstimateMemory() const;
   // Registers this Chain with MemoryEstimator.
-  void AddUniqueTo(MemoryEstimator* memory_estimator) const;
-  void AddSharedTo(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
@@ -146,16 +145,16 @@ class Chain {
   // T must also support:
   //
   //   // Registers this object with MemoryEstimator.
-  //   void AddUniqueTo(absl::string_view data,
-  //                    MemoryEstimator* memory_estimator) const;
+  //   void RegisterSubobjects(absl::string_view data,
+  //                           MemoryEstimator* memory_estimator) const;
   //   // Shows internal structure in a human-readable way, for debugging
   //   // (a type name is enough).
   //   void DumpStructure(absl::string_view data, std::ostream& out) const;
   //
-  // where the data parameter of AddUniqueTo() and DumpStructure() will get the
-  // original value of the data parameter of AppendExternal()/PrependExternal()
-  // (if given) or data() (otherwise). Having data available in these functions
-  // might avoid storing it in the external object.
+  // where the data parameter of RegisterSubobjects() and DumpStructure()
+  // will get the original value of the data parameter of AppendExternal()/
+  // PrependExternal() (if given) or data() (otherwise). Having data available
+  // in these functions might avoid storing it in the external object.
   //
   // AppendExternal()/PrependExternal() can decide to copy data instead. This is
   // always the case if data.size() <= kMaxBytesToCopy().
@@ -537,8 +536,7 @@ class Chain::Block {
   bool wasteful(size_t extra_size = 0) const;
 
   // Registers this Block with MemoryEstimator.
-  void AddUniqueTo(MemoryEstimator* memory_estimator) const;
-  void AddSharedTo(MemoryEstimator* memory_estimator) const;
+  void RegisterShared(MemoryEstimator* memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
@@ -607,7 +605,8 @@ class Chain::Block {
 
 struct Chain::ExternalMethods {
   void (*delete_block)(Block* block);
-  void (*add_unique_to)(const Block* block, MemoryEstimator* memory_estimator);
+  void (*register_unique)(const Block* block,
+                          MemoryEstimator* memory_estimator);
   void (*dump_structure)(const Block* block, std::ostream& out);
 };
 
@@ -627,8 +626,8 @@ struct Chain::ExternalMethodsFor {
 
  private:
   static void DeleteBlock(Block* block);
-  static void AddUniqueTo(const Block* block,
-                          MemoryEstimator* memory_estimator);
+  static void RegisterUnique(const Block* block,
+                             MemoryEstimator* memory_estimator);
   static void DumpStructure(const Block* block, std::ostream& out);
 };
 
@@ -649,7 +648,7 @@ Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
 
 template <typename T>
 const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
-    DeleteBlock, AddUniqueTo, DumpStructure};
+    DeleteBlock, RegisterUnique, DumpStructure};
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(Block* block) {
@@ -659,11 +658,12 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(Block* block) {
 }
 
 template <typename T>
-void Chain::ExternalMethodsFor<T>::AddUniqueTo(
+void Chain::ExternalMethodsFor<T>::RegisterUnique(
     const Block* block, MemoryEstimator* memory_estimator) {
-  memory_estimator->AddMemory(Block::kExternalObjectOffset<T>());
-  block->unchecked_external_object<T>()->AddUniqueTo(block->data(),
-                                                     memory_estimator);
+  memory_estimator->RegisterDynamicMemory(Block::kExternalObjectOffset<T>() +
+                                          sizeof(T));
+  block->unchecked_external_object<T>()->RegisterSubobjects(block->data(),
+                                                            memory_estimator);
 }
 
 template <typename T>

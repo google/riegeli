@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "riegeli/base/base.h"
+#include "riegeli/base/memory.h"
 
 namespace riegeli {
 
@@ -29,23 +30,42 @@ namespace riegeli {
 // This is done by traversing the objects and their subobjects, skipping objects
 // which were already seen.
 //
-// By convention an object unconditionally registers itself, adding its memory
-// (sizeof(*this)) and its subobjects to a MemoryEstimator, by a member
-// function:
+// By convention an object registers itself with a member function with the name
+// and meaning depending on whether the object is typically held by value or by
+// pointer, and whether object ownership can be shared:
 //
-//   void AddUniqueTo(MemoryEstimator* memory_estimator) const;
+//   // Registers subobjects of this object with MemoryEstimator, but does not
+//   // include this object (sizeof(*this)).
+//   //
+//   // This is applicable to objects held by value and thus with their exact
+//   // type known statically.
+//   void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
 //
-// By convention an objects registers itself if it was not seen yet by a member
-// function:
-//
-//   void AddSharedTo(MemoryEstimator* memory_estimator) const {
-//     if (memory_estimator->AddObject(this)) AddUniqueTo(memory_estimator);
+//   // Registers this object (sizeof(*this)) and its subobjects with
+//   // MemoryEstimator.
+//   //
+//   // This is applicable to objects held by pointer, possibly with only their
+//   // base class known statically (it makes sense for RegisterUnique() to be
+//   // virtual).
+//   void RegisterUnique(MemoryEstimator* memory_estimator) const {
+//     memory_estimator->RegisterDynamicMemory(sizeof(*this));
+//     RegisterSubobjects(memory_estimator);
 //   }
 //
-// Context which estimates its memory and stores a pointer to an object should
-// call AddSharedTo() on that object if there is a possibility of sharing it,
-// and AddUniqueTo() if it stores a unique pointer. If the object does not
-// support this convention, these calls should be approximated externally.
+//   // If this object was not seen yet, registers this object (sizeof(*this))
+//   // and its subobjects with MemoryEstimator.
+//   //
+//   // This is applicable to objects held by pointer if object ownership can be
+//   // shared between multiple pointers.
+//   void RegisterShared(MemoryEstimator* memory_estimator) const {
+//     if (memory_estimator->RegisterNode(this)) {
+//       RegisterUnique(memory_estimator);
+//     }
+//   }
+//
+// For objects which do not support these conventions, their owner estimates
+// their memory usage and possible sharing with whatever means have been found.
+// The estimation can thus be inexact.
 class MemoryEstimator {
  public:
   MemoryEstimator() {}
@@ -57,7 +77,12 @@ class MemoryEstimator {
   MemoryEstimator& operator=(MemoryEstimator&& src) noexcept;
 
   // Registers the given amount of memory as used.
-  void AddMemory(size_t memory);
+  void RegisterMemory(size_t memory);
+
+  // Registers the given length of a block of dynamically allocated memory as
+  // used. The length should correspond to a single allocation. The actual
+  // registered amount includes estimated overhead of the memory allocator.
+  void RegisterDynamicMemory(size_t memory);
 
   // Registers an object which might be shared by other objects.
   //
@@ -68,7 +93,7 @@ class MemoryEstimator {
   //
   // Returns true if this object was not seen yet; only in this case the caller
   // should register its memory and subobjects.
-  bool AddObject(const void* object);
+  bool RegisterNode(const void* ptr);
 
   // Returns the total amount of memory added.
   size_t TotalMemory() const { return total_memory_; }
@@ -80,13 +105,16 @@ class MemoryEstimator {
 
 // Implementation details follow.
 
-inline void MemoryEstimator::AddMemory(size_t memory) {
-  total_memory_ +=
-      UnsignedMin(memory, std::numeric_limits<size_t>::max() - total_memory_);
+inline void MemoryEstimator::RegisterMemory(size_t memory) {
+  total_memory_ = SaturatingAdd(total_memory_, memory);
 }
 
-inline bool MemoryEstimator::AddObject(const void* object) {
-  return objects_seen_.insert(object).second;
+inline void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
+  return RegisterMemory(EstimatedAllocatedSize(memory));
+}
+
+inline bool MemoryEstimator::RegisterNode(const void* ptr) {
+  return objects_seen_.insert(ptr).second;
 }
 
 }  // namespace riegeli

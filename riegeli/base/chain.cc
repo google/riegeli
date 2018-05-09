@@ -45,8 +45,8 @@ struct ExternalMemoryRef {
 
   ~ExternalMemoryRef();
 
-  void AddUniqueTo(absl::string_view data,
-                   MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(absl::string_view data,
+                          MemoryEstimator* memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -72,11 +72,10 @@ ExternalMemoryRef::~ExternalMemoryRef() {
   if (deleter_ != nullptr) deleter_(arg_);
 }
 
-void ExternalMemoryRef::AddUniqueTo(absl::string_view data,
-                                    MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof *this);
-  if (memory_estimator->AddObject(data.data())) {
-    memory_estimator->AddMemory(data.size());
+void ExternalMemoryRef::RegisterSubobjects(
+    absl::string_view data, MemoryEstimator* memory_estimator) const {
+  if (memory_estimator->RegisterNode(data.data())) {
+    memory_estimator->RegisterDynamicMemory(data.size());
   }
 }
 
@@ -106,8 +105,8 @@ class Chain::BlockRef {
 
   ~BlockRef();
 
-  void AddUniqueTo(absl::string_view data,
-                   MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(absl::string_view data,
+                          MemoryEstimator* memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -144,10 +143,9 @@ inline Chain::BlockRef::~BlockRef() {
   if (block_ != nullptr) block_->Unref();
 }
 
-inline void Chain::BlockRef::AddUniqueTo(
+inline void Chain::BlockRef::RegisterSubobjects(
     absl::string_view data, MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof(*this));
-  block_->AddSharedTo(memory_estimator);
+  block_->RegisterShared(memory_estimator);
 }
 
 inline void Chain::BlockRef::DumpStructure(absl::string_view data,
@@ -164,8 +162,8 @@ class Chain::StringRef {
   StringRef& operator=(StringRef&& src) noexcept;
 
   absl::string_view data() const { return src_; }
-  void AddUniqueTo(absl::string_view data,
-                   MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(absl::string_view data,
+                          MemoryEstimator* memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -182,9 +180,9 @@ inline Chain::StringRef& Chain::StringRef::operator=(StringRef&& src) noexcept {
   return *this;
 }
 
-inline void Chain::StringRef::AddUniqueTo(
+inline void Chain::StringRef::RegisterSubobjects(
     absl::string_view data, MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof(*this) + src_.capacity() + 1);
+  memory_estimator->RegisterDynamicMemory(src_.capacity() + 1);
 }
 
 inline void Chain::StringRef::DumpStructure(absl::string_view data,
@@ -309,16 +307,16 @@ inline bool Chain::Block::wasteful(size_t extra_size) const {
   return capacity() - final_size > UnsignedMax(final_size, kMinBufferSize());
 }
 
-inline void Chain::Block::AddUniqueTo(MemoryEstimator* memory_estimator) const {
-  if (is_internal()) {
-    memory_estimator->AddMemory(kInternalAllocatedOffset() + capacity());
-  } else {
-    external_.methods->add_unique_to(this, memory_estimator);
+inline void Chain::Block::RegisterShared(
+    MemoryEstimator* memory_estimator) const {
+  if (memory_estimator->RegisterNode(this)) {
+    if (is_internal()) {
+      memory_estimator->RegisterDynamicMemory(kInternalAllocatedOffset() +
+                                              capacity());
+    } else {
+      external_.methods->register_unique(this, memory_estimator);
+    }
   }
-}
-
-inline void Chain::Block::AddSharedTo(MemoryEstimator* memory_estimator) const {
-  if (memory_estimator->AddObject(this)) AddUniqueTo(memory_estimator);
 }
 
 inline void Chain::Block::DumpStructure(std::ostream& out) const {
@@ -609,24 +607,20 @@ Chain::operator std::string() && {
 
 size_t Chain::EstimateMemory() const {
   MemoryEstimator memory_estimator;
-  AddUniqueTo(&memory_estimator);
+  memory_estimator.RegisterMemory(sizeof(Chain));
+  RegisterSubobjects(&memory_estimator);
   return memory_estimator.TotalMemory();
 }
 
-void Chain::AddUniqueTo(MemoryEstimator* memory_estimator) const {
-  memory_estimator->AddMemory(sizeof(Chain));
+void Chain::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
   if (has_allocated()) {
-    memory_estimator->AddMemory(
+    memory_estimator->RegisterMemory(
         sizeof(Block*) *
         PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end));
   }
   for (Block* const* iter = begin_; iter != end_; ++iter) {
-    (*iter)->AddSharedTo(memory_estimator);
+    (*iter)->RegisterShared(memory_estimator);
   }
-}
-
-void Chain::AddSharedTo(MemoryEstimator* memory_estimator) const {
-  if (memory_estimator->AddObject(this)) AddUniqueTo(memory_estimator);
 }
 
 void Chain::DumpStructure(std::ostream& out) const {
