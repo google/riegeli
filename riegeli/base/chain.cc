@@ -211,8 +211,10 @@ inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
 }
 
 inline Chain::Block::Block(size_t capacity, size_t space_before)
-    : data_(absl::string_view(allocated_begin_ + space_before, 0)),
-      allocated_end_(allocated_begin_ + capacity) {
+    // Redundant casts are needed for -fsanitize=bounds.
+    : data_(absl::string_view(
+          static_cast<const char*>(allocated_begin_) + space_before, 0)),
+      allocated_end_(static_cast<const char*>(allocated_begin_) + capacity) {
   RIEGELI_ASSERT_LE(space_before, capacity)
       << "Failed precondition of Chain::Block::Block(): "
          "space before data is larger than capacity";
