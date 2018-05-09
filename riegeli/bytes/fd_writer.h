@@ -166,7 +166,8 @@ class FdWriter final : public internal::FdWriterBase {
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) const override;
-  bool Truncate() override;
+  bool SupportsTruncate() const override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   void Done() override;

@@ -63,6 +63,8 @@ class StringWriter final : public Writer {
   StringWriter& operator=(StringWriter&& src) noexcept;
 
   bool Flush(FlushType flush_type) override;
+  bool SupportsTruncate() const override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   void Done() override;

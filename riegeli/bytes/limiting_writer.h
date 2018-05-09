@@ -49,7 +49,8 @@ class LimitingWriter final : public Writer {
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override;
   bool Size(Position* size) const override;
-  bool Truncate() override;
+  bool SupportsTruncate() const override;
+  bool Truncate(Position new_size) override;
 
  protected:
   void Done() override;
@@ -102,6 +103,10 @@ inline bool LimitingWriter::Size(Position* size) const {
   if (ABSL_PREDICT_FALSE(!dest_->Size(size))) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
+}
+
+inline bool LimitingWriter::SupportsTruncate() const {
+  return dest_ != nullptr && dest_->SupportsTruncate();
 }
 
 }  // namespace riegeli

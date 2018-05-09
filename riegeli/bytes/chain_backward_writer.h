@@ -63,6 +63,9 @@ class ChainBackwardWriter final : public BackwardWriter {
   ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
   ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
 
+  bool SupportsTruncate() const override { return true; }
+  bool Truncate(Position new_size) override;
+
  protected:
   void Done() override;
   bool PushSlow() override;

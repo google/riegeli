@@ -138,6 +138,20 @@ bool ChainWriter::Flush(FlushType flush_type) {
   return true;
 }
 
+bool ChainWriter::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
+      << "ChainWriter destination changed unexpectedly";
+  if (new_size >= start_pos_) {
+    if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
+    cursor_ = start_ + (new_size - start_pos_);
+    return true;
+  }
+  dest_->RemoveSuffix(IntCast<size_t>(dest_->size() - new_size));
+  MakeBuffer();
+  return true;
+}
+
 inline void ChainWriter::DiscardBuffer() { dest_->RemoveSuffix(available()); }
 
 inline void ChainWriter::MakeBuffer() {

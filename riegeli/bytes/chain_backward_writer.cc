@@ -126,6 +126,20 @@ bool ChainBackwardWriter::WriteSlow(Chain&& src) {
   return true;
 }
 
+bool ChainBackwardWriter::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
+      << "ChainBackwardWriter destination changed unexpectedly";
+  if (new_size >= start_pos_) {
+    if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
+    cursor_ = start_ - (new_size - start_pos_);
+    return true;
+  }
+  dest_->RemovePrefix(IntCast<size_t>(dest_->size() - new_size));
+  MakeBuffer();
+  return true;
+}
+
 inline void ChainBackwardWriter::DiscardBuffer() {
   dest_->RemovePrefix(available());
 }

@@ -107,6 +107,14 @@ bool LimitingBackwardWriter::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool LimitingBackwardWriter::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  dest_->set_cursor(cursor_);
+  const bool ok = dest_->Truncate(new_size);
+  SyncBuffer();
+  return ok;
+}
+
 inline void LimitingBackwardWriter::SyncBuffer() {
   start_ = dest_->start();
   cursor_ = dest_->cursor();

@@ -65,6 +65,8 @@ class ChainWriter final : public Writer {
   ChainWriter& operator=(ChainWriter&& src) noexcept;
 
   bool Flush(FlushType flush_type) override;
+  bool SupportsTruncate() const override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   void Done() override;

@@ -1712,9 +1712,6 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of Chain::RemoveSuffixSlow(): "
          "zero length, use RemoveSuffix() instead";
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of Chain::RemoveSuffixSlow(): "
-      << "length to remove greater than current size";
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemoveSuffixSlow(): "
          "no blocks, use RemoveSuffix() instead";
@@ -1754,9 +1751,6 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of Chain::RemovePrefixSlow(): "
          "zero length, use RemovePrefix() instead";
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of Chain::RemovePrefixSlow(): "
-      << "length to remove greater than current size";
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemovePrefixSlow(): "
          "no blocks, use RemovePrefix() instead";

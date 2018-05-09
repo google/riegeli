@@ -135,10 +135,10 @@ bool LimitingWriter::Flush(FlushType flush_type) {
   return ok;
 }
 
-bool LimitingWriter::Truncate() {
+bool LimitingWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);
-  const bool ok = dest_->Truncate();
+  const bool ok = dest_->Truncate(new_size);
   SyncBuffer();
   return ok;
 }

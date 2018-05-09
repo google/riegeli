@@ -107,6 +107,20 @@ class BackwardWriter : public Object {
   // Invariant: if closed() then pos() == 0
   Position pos() const;
 
+  // Returns true if this BackwardWriter supports Truncate().
+  virtual bool SupportsTruncate() const { return false; }
+
+  // Discards the part of the destination after the given position. Sets the
+  // current position to the new end.
+  //
+  // Return values:
+  //  * true                    - success (destination truncated, healthy())
+  //  * false (when healthy())  - destination is smaller than new_size
+  //                              (position is set to end) or truncation is not
+  //                              supported (position is unchanged)
+  //  * false (when !healthy()) - failure (!healthy())
+  virtual bool Truncate(Position new_size) { return false; }
+
  protected:
   // Creates a BackwardWriter with the given initial state.
   explicit BackwardWriter(State state) noexcept : Object(state) {}

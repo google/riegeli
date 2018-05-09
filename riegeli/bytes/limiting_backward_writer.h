@@ -47,6 +47,9 @@ class LimitingBackwardWriter final : public BackwardWriter {
   LimitingBackwardWriter(LimitingBackwardWriter&& src) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& src) noexcept;
 
+  bool SupportsTruncate() const override;
+  bool Truncate(Position new_size) override;
+
  protected:
   void Done() override;
   bool PushSlow() override;
@@ -87,6 +90,10 @@ inline LimitingBackwardWriter& LimitingBackwardWriter::operator=(
   dest_ = riegeli::exchange(src.dest_, nullptr);
   size_limit_ = riegeli::exchange(src.size_limit_, 0);
   return *this;
+}
+
+inline bool LimitingBackwardWriter::SupportsTruncate() const {
+  return dest_ != nullptr && dest_->SupportsTruncate();
 }
 
 }  // namespace riegeli

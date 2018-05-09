@@ -101,6 +101,15 @@ bool StringWriter::Flush(FlushType flush_type) {
   return true;
 }
 
+bool StringWriter::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
+  cursor_ = start_ + new_size;
+  return true;
+}
+
 inline void StringWriter::DiscardBuffer() {
   dest_->resize(written_to_buffer());
 }

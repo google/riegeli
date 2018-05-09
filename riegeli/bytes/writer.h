@@ -164,13 +164,19 @@ class Writer : public Object {
   //  * false - failure (healthy() is unchanged)
   virtual bool Size(Position* size) const { return false; }
 
-  // Discards the part of the destination after the current position.
+  // Returns true if this Writer supports Truncate().
+  virtual bool SupportsTruncate() const { return false; }
+
+  // Discards the part of the destination after the given position. Sets the
+  // current position to the new end.
   //
   // Return values:
   //  * true                    - success (destination truncated, healthy())
-  //  * false (when healthy())  - truncation is not supported
+  //  * false (when healthy())  - destination is smaller than new_size
+  //                              (position is set to end) or truncation is not
+  //                              supported (position is unchanged)
   //  * false (when !healthy()) - failure (!healthy())
-  virtual bool Truncate() { return false; }
+  virtual bool Truncate(Position new_size) { return false; }
 
  protected:
   // Creates a Writer with the given initial state.

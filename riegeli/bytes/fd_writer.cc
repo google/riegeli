@@ -240,17 +240,32 @@ bool FdWriter::Size(Position* size) const {
   return true;
 }
 
-bool FdWriter::Truncate() {
+bool FdWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
+  if (new_size >= start_pos_) {
+    // Seeking forwards.
+    struct stat stat_info;
+    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+      const int error_code = errno;
+      limit_ = start_;
+      return FailOperation("fstat()", error_code);
+    }
+    if (ABSL_PREDICT_FALSE(new_size > IntCast<Position>(stat_info.st_size))) {
+      // File ends.
+      start_pos_ = IntCast<Position>(stat_info.st_size);
+      return false;
+    }
+  }
 again:
-  if (ABSL_PREDICT_FALSE(ftruncate(fd_, IntCast<off_t>(start_pos_)) < 0)) {
+  if (ABSL_PREDICT_FALSE(ftruncate(fd_, IntCast<off_t>(new_size)) < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     limit_ = start_;
     return FailOperation("ftruncate()", error_code);
   }
+  start_pos_ = new_size;
   return true;
 }
 
