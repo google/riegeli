@@ -15,7 +15,6 @@
 #ifndef RIEGELI_RECORDS_RECORD_WRITER_H_
 #define RIEGELI_RECORDS_RECORD_WRITER_H_
 
-#include <stddef.h>
 #include <stdint.h>
 #include <future>
 #include <memory>

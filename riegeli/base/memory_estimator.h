@@ -16,7 +16,6 @@
 #define RIEGELI_BASE_MEMORY_STATS_H_
 
 #include <stddef.h>
-#include <limits>
 #include <unordered_set>
 
 #include "riegeli/base/base.h"

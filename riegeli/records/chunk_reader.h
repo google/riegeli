@@ -15,9 +15,7 @@
 #ifndef RIEGELI_RECORDS_CHUNK_READER_H_
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
-#include <stddef.h>
 #include <memory>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"

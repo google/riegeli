@@ -20,7 +20,6 @@
 #include <future>
 #include <limits>
 #include <memory>
-#include <new>
 #include <string>
 #include <utility>
 #include <vector>

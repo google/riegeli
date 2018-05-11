@@ -15,8 +15,8 @@
 #include "riegeli/records/chunk_reader.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <memory>
-#include <new>
 #include <utility>
 
 #include "absl/base/optimization.h"

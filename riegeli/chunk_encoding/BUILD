@@ -167,7 +167,6 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
     ],
 )
 

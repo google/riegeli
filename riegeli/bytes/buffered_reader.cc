@@ -30,13 +30,13 @@
 
 namespace riegeli {
 
-inline bool BufferedReader::TooSmall(absl::Span<char> flat_buffer) const {
+inline bool BufferedReader::TooSmall(size_t flat_buffer_size) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
   const size_t buffer_size = UnsignedMax(buffer_size_, buffer_.size());
-  RIEGELI_ASSERT_LE(flat_buffer.size(), buffer_size)
+  RIEGELI_ASSERT_LE(flat_buffer_size, buffer_size)
       << "Failed precondition of BufferedReader::TooSmall(): "
          "flat buffer larger than buffer size";
-  return buffer_size - flat_buffer.size() > flat_buffer.size();
+  return buffer_size - flat_buffer_size > flat_buffer_size;
 }
 
 inline Chain::BlockIterator BufferedReader::iter() const {
@@ -51,7 +51,7 @@ bool BufferedReader::PullSlow() {
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Span<char> flat_buffer = buffer_.AppendBuffer();
-  if (TooSmall(flat_buffer)) {
+  if (TooSmall(flat_buffer.size())) {
     // Make a new buffer.
     RIEGELI_ASSERT_GT(buffer_size_, 0u)
         << "Failed invariant of BufferedReader: no buffer size specified";
@@ -141,7 +141,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   bool ok = true;
   while (length > available()) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer();
-    if (TooSmall(flat_buffer)) {
+    if (TooSmall(flat_buffer.size())) {
       // Append a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
           << "Failed invariant of BufferedReader: no buffer size specified";
@@ -202,7 +202,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   bool read_ok = true;
   while (length > available()) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer();
-    if (TooSmall(flat_buffer)) {
+    if (TooSmall(flat_buffer.size())) {
       // Write a part of buffer_ to dest and make a new buffer.
       RIEGELI_ASSERT_GT(buffer_size_, 0u)
           << "Failed invariant of BufferedReader: no buffer size specified";

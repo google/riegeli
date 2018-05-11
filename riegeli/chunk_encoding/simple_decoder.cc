@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits>
-#include <memory>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"

@@ -15,7 +15,6 @@
 #ifndef RIEGELI_RECORDS_RECORD_READER_H_
 #define RIEGELI_RECORDS_RECORD_READER_H_
 
-#include <stdint.h>
 #include <memory>
 #include <string>
 #include <utility>
