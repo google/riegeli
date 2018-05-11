@@ -84,13 +84,40 @@ class ChunkWriter : public Object {
 // with block headers at multiples of the Riegeli/records block size.
 class DefaultChunkWriter final : public ChunkWriter {
  public:
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Sets the file position assumed initially.
+    //
+    // This can be used to prepare a file fragment which can be appended to the
+    // target file at the given position.
+    //
+    // Default: byte_writer->pos()
+    Options& set_assumed_pos(Position assumed_pos) & {
+      has_assumed_pos_ = true;
+      assumed_pos_ = assumed_pos;
+      return *this;
+    }
+    Options&& set_assumed_pos(Position assumed_pos) && {
+      return std::move(set_assumed_pos(assumed_pos));
+    }
+
+   private:
+    friend class DefaultChunkWriter;
+
+    bool has_assumed_pos_ = false;
+    Position assumed_pos_ = 0;
+  };
+
   // Will write chunks to the byte Writer which is owned by this ChunkWriter and
   // will be closed and deleted when the ChunkWriter is closed.
-  explicit DefaultChunkWriter(std::unique_ptr<Writer> byte_writer);
+  explicit DefaultChunkWriter(std::unique_ptr<Writer> byte_writer,
+                              Options options = Options());
 
   // Will write chunks to the byte Writer which is not owned by this ChunkWriter
   // and must be kept alive but not accessed until closing the ChunkWriter.
-  explicit DefaultChunkWriter(Writer* byte_writer);
+  explicit DefaultChunkWriter(Writer* byte_writer, Options options = Options());
 
   bool WriteChunk(const Chunk& chunk) override;
   bool Flush(FlushType flush_type) override;

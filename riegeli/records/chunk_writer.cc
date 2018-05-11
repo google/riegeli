@@ -35,15 +35,16 @@ namespace riegeli {
 
 ChunkWriter::~ChunkWriter() {}
 
-DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer)
-    : DefaultChunkWriter(byte_writer.get()) {
+DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer,
+                                       Options options)
+    : DefaultChunkWriter(byte_writer.get(), options) {
   owned_byte_writer_ = std::move(byte_writer);
 }
 
-DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer)
+DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer, Options options)
     : ChunkWriter(State::kOpen),
       byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {
-  pos_ = byte_writer_->pos();
+  pos_ = options.has_assumed_pos_ ? options.assumed_pos_ : byte_writer_->pos();
 }
 
 void DefaultChunkWriter::Done() {
@@ -67,8 +68,6 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   ChainReader data_reader(&chunk.data);
   const Position chunk_begin = pos_;
   const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
-  RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_begin)
-      << "Unexpected position before writing chunk";
   if (ABSL_PREDICT_FALSE(
           !WriteSection(&header_reader, chunk_begin, chunk_end))) {
     return false;
@@ -79,29 +78,35 @@ bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!WritePadding(chunk_begin, chunk_end))) {
     return false;
   }
-  RIEGELI_ASSERT_EQ(byte_writer_->pos(), chunk_end)
+  RIEGELI_ASSERT_EQ(pos_, chunk_end)
       << "Unexpected position after writing chunk";
-  pos_ = chunk_end;
   return true;
 }
 
 inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
                                              Position chunk_end) {
-  while (src->Pull()) {
-    if (internal::IsBlockBoundary(IntCast<uint64_t>(byte_writer_->pos()))) {
-      internal::BlockHeader block_header(
-          IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
-          IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
+  Position size;
+  if (!src->Size(&size)) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Getting section size failed: " << src->message();
+  }
+  RIEGELI_ASSERT_EQ(src->pos(), 0u) << "Non-zero section reader position";
+  while (src->pos() < size) {
+    if (internal::IsBlockBoundary(pos_)) {
+      internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
+                                         IntCast<uint64_t>(chunk_end - pos_));
       if (ABSL_PREDICT_FALSE(!byte_writer_->Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
+      pos_ += block_header.size();
     }
-    if (!src->CopyTo(byte_writer_, internal::RemainingInBlock(IntCast<uint64_t>(
-                                       byte_writer_->pos())))) {
-      if (ABSL_PREDICT_TRUE(byte_writer_->healthy())) break;
+    const Position length =
+        UnsignedMin(size - src->pos(), internal::RemainingInBlock(pos_));
+    if (ABSL_PREDICT_FALSE(!src->CopyTo(byte_writer_, length))) {
       return Fail(*byte_writer_);
     }
+    pos_ += length;
   }
   if (!src->Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
@@ -112,22 +117,22 @@ inline bool DefaultChunkWriter::WriteSection(Reader* src, Position chunk_begin,
 
 inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
                                              Position chunk_end) {
-  while (byte_writer_->pos() < chunk_end) {
-    if (internal::IsBlockBoundary(IntCast<uint64_t>(byte_writer_->pos()))) {
-      internal::BlockHeader block_header(
-          IntCast<uint64_t>(byte_writer_->pos() - chunk_begin),
-          IntCast<uint64_t>(chunk_end - byte_writer_->pos()));
+  while (pos_ < chunk_end) {
+    if (internal::IsBlockBoundary(pos_)) {
+      internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
+                                         IntCast<uint64_t>(chunk_end - pos_));
       if (ABSL_PREDICT_FALSE(!byte_writer_->Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
         return Fail(*byte_writer_);
       }
+      pos_ += block_header.size();
     }
-    const Position slice_size = UnsignedMin(
-        chunk_end - byte_writer_->pos(),
-        internal::RemainingInBlock(IntCast<uint64_t>(byte_writer_->pos())));
-    if (ABSL_PREDICT_FALSE(!WriteZeros(byte_writer_, slice_size))) {
+    const Position length =
+        UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
+    if (ABSL_PREDICT_FALSE(!WriteZeros(byte_writer_, length))) {
       return Fail(*byte_writer_);
     }
+    pos_ += length;
   }
   return true;
 }
