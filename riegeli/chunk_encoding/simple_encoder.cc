@@ -35,7 +35,6 @@
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

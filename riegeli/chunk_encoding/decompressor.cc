@@ -28,7 +28,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/zstd_reader.h"
-#include "riegeli/chunk_encoding/types.h"
+#include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
 namespace internal {

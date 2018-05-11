@@ -33,7 +33,6 @@
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/simple_decoder.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

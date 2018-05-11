@@ -25,8 +25,8 @@
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
+#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/decompressor.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

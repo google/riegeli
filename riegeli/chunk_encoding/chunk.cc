@@ -23,7 +23,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/hash.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

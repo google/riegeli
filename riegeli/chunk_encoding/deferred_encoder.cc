@@ -31,7 +31,6 @@
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/chunk_encoding/chunk.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

@@ -23,7 +23,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/chunk_encoding/types.h"
+#include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
 namespace internal {

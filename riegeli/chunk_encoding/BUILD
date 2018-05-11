@@ -8,7 +8,6 @@ cc_library(
     hdrs = ["chunk_encoder.h"],
     deps = [
         ":chunk",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_writer",
@@ -30,7 +29,6 @@ cc_library(
         ":field_filter",
         ":simple_decoder",
         ":transpose_decoder",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_backward_writer",
@@ -50,7 +48,6 @@ cc_library(
     hdrs = ["chunk.h"],
     deps = [
         ":hash",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:endian",
@@ -59,11 +56,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
-)
-
-cc_library(
-    name = "types",
-    hdrs = ["types.h"],
 )
 
 cc_library(
@@ -85,7 +77,7 @@ cc_library(
     srcs = ["compressor_options.cc"],
     hdrs = ["compressor_options.h"],
     deps = [
-        ":types",
+        ":chunk",
         "//riegeli/base",
         "//riegeli/base:options_parser",
         "//riegeli/bytes:brotli_writer",
@@ -100,8 +92,8 @@ cc_library(
     srcs = ["compressor.cc"],
     hdrs = ["compressor.h"],
     deps = [
+        ":chunk",
         ":compressor_options",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:brotli_writer",
@@ -119,7 +111,7 @@ cc_library(
     srcs = ["decompressor.cc"],
     hdrs = ["decompressor.h"],
     deps = [
-        ":types",
+        ":chunk",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:brotli_reader",
@@ -142,7 +134,6 @@ cc_library(
         ":chunk_encoder",
         ":compressor",
         ":compressor_options",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_writer",
@@ -160,8 +151,8 @@ cc_library(
     srcs = ["simple_decoder.cc"],
     hdrs = ["simple_decoder.h"],
     deps = [
+        ":chunk",
         ":decompressor",
-        ":types",
         "//riegeli/base",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
@@ -180,7 +171,6 @@ cc_library(
         ":compressor",
         ":compressor_options",
         ":transpose_internal",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",
@@ -205,10 +195,10 @@ cc_library(
     srcs = ["transpose_decoder.cc"],
     hdrs = ["transpose_decoder.h"],
     deps = [
+        ":chunk",
         ":decompressor",
         ":field_filter",
         ":transpose_internal",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:backward_writer",
@@ -252,7 +242,6 @@ cc_library(
     deps = [
         ":chunk",
         ":chunk_encoder",
-        ":types",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_reader",

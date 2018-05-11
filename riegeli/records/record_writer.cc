@@ -42,7 +42,6 @@
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
-#include "riegeli/chunk_encoding/types.h"
 #include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"

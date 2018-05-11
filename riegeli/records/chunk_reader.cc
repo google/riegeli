@@ -26,7 +26,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
-#include "riegeli/chunk_encoding/types.h"
 #include "riegeli/records/block.h"
 
 namespace riegeli {

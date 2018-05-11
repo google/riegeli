@@ -26,7 +26,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

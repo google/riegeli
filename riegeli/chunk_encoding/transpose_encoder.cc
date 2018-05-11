@@ -44,7 +44,6 @@
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
-#include "riegeli/chunk_encoding/types.h"
 
 namespace riegeli {
 

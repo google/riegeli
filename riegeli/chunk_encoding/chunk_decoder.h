@@ -27,8 +27,8 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/field_filter.h"
-#include "riegeli/chunk_encoding/types.h"
 
 // Forward declarations to reduce the amount of includes going into public
 // record_reader.h.
@@ -39,11 +39,6 @@ class MessageLite;
 }  // namespace google
 
 namespace riegeli {
-
-// Forward declarations to reduce the amount of includes going into public
-// record_reader.h.
-class Chunk;
-class ChunkHeader;
 
 class ChunkDecoder : public Object {
  public:
