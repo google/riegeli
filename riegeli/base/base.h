@@ -39,7 +39,11 @@ namespace riegeli {
 // By default it follows NDEBUG.
 
 #ifndef RIEGELI_DEBUG
-#define RIEGELI_DEBUG !defined(NDEBUG)
+#ifdef NDEBUG
+#define RIEGELI_DEBUG 0
+#else
+#define RIEGELI_DEBUG 1
+#endif
 #endif
 
 namespace internal {
