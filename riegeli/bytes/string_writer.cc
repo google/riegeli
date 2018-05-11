@@ -71,6 +71,29 @@ bool StringWriter::WriteSlow(absl::string_view src) {
   return true;
 }
 
+bool StringWriter::WriteSlow(std::string&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+      << "Failed precondition of Writer::WriteSlow(string&&): "
+         "length too small, use Write(string&&) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         dest_->max_size() - written_to_buffer())) {
+    cursor_ = start_;
+    limit_ = start_;
+    return FailOverflow();
+  }
+  DiscardBuffer();
+  if (dest_->empty() && dest_->capacity() <= src.capacity()) {
+    *dest_ = std::move(src);
+  } else {
+    dest_->append(src);
+  }
+  MakeBuffer(dest_->size());
+  return true;
+}
+
 bool StringWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "

@@ -70,6 +70,7 @@ class StringWriter final : public Writer {
  protected:
   void Done() override;
   bool PushSlow() override;
+  bool WriteSlow(std::string&& src) override;
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
 
