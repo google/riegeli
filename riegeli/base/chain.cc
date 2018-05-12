@@ -659,9 +659,10 @@ inline void Chain::PopFront() {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
-    // Use memcpy() instead of assignment because the pointer being copied might
-    // be invalid if end_ == block_ptrs_.here + 1. It is cheaper to copy
-    // unconditionally.
+    // Shift the remaining 0 or 1 block pointers to the left by 1 because begin_
+    // must remain at block_ptrs_.here. Use memcpy() instead of assignment
+    // because the pointer being copied might be invalid if there are 0 block
+    // pointers; it is cheaper to copy unconditionally.
     std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(Block*));
     --end_;
   } else {
@@ -719,6 +720,9 @@ inline void Chain::ReserveFront(size_t extra_capacity) {
 }
 
 inline void Chain::ReserveBackSlow(size_t extra_capacity) {
+  RIEGELI_ASSERT_GT(extra_capacity, 0u)
+      << "Failed precondition of Chain::ReserveBackSlow(): "
+         "nothing to do, use ReserveBack() instead";
   Block** old_allocated_begin;
   Block** old_allocated_end;
   if (has_here()) {
@@ -773,18 +777,20 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
 }
 
 inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
+  RIEGELI_ASSERT_GT(extra_capacity, 0u)
+      << "Failed precondition of Chain::ReserveFrontSlow(): "
+         "nothing to do, use ReserveFront() instead";
   Block** old_allocated_begin;
   Block** old_allocated_end;
   if (has_here()) {
     if (ABSL_PREDICT_TRUE(extra_capacity <=
                           PtrDistance(end_, block_ptrs_.here + 2))) {
-      // There is space without reallocation. Shift old blocks by extra_capacity
-      // to the right because the new begin_ must remain at block_ptrs_.here.
-      if (end_ != block_ptrs_.here) {
-        // Shift just 1 block. It is never needed to shift 2 blocks because if
-        // end_ - block_ptrs_.here == 2 then extra_capacity == 0.
-        block_ptrs_.here[extra_capacity] = block_ptrs_.here[0];
-      }
+      // There is space without reallocation. Shift 1 block pointer to the right
+      // by 1, or 0 block pointers by 1 or 2, because begin_ must remain at
+      // block_ptrs_.here. Use memcpy() instead of assignment because the
+      // pointer being copied might be invalid if there are 0 block pointers;
+      // it is cheaper to copy unconditionally.
+      std::memcpy(block_ptrs_.here + 1, block_ptrs_.here, sizeof(Block*));
       begin_ += extra_capacity;
       end_ += extra_capacity;
       return;
@@ -1711,7 +1717,7 @@ void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
 void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of Chain::RemoveSuffixSlow(): "
-         "zero length, use RemoveSuffix() instead";
+         "nothing to do, use RemoveSuffix() instead";
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemoveSuffixSlow(): "
          "no blocks, use RemoveSuffix() instead";
@@ -1750,7 +1756,7 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
 void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of Chain::RemovePrefixSlow(): "
-         "zero length, use RemovePrefix() instead";
+         "nothing to do, use RemovePrefix() instead";
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemovePrefixSlow(): "
          "no blocks, use RemovePrefix() instead";
@@ -1764,12 +1770,28 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
              "sum of block sizes smaller than Chain size";
     } while (length > iter[0]->size());
     if (iter[0]->TryRemovePrefix(length)) {
-      begin_ = iter;
+      if (has_here()) {
+        // Shift 1 block pointer to the left by 1 because begin_ must remain at
+        // block_ptrs_.here.
+        block_ptrs_.here[0] = block_ptrs_.here[1];
+        --end_;
+      } else {
+        begin_ = iter;
+      }
       return;
     }
   }
   Block* const block = *iter++;
-  begin_ = iter;
+  if (has_here()) {
+    // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
+    // because begin_ must remain at block_ptrs_.here. Use memcpy() instead of
+    // assignment because the pointer being copied might be invalid if there are
+    // 0 block pointers; it is cheaper to copy unconditionally.
+    std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(Block*));
+    end_ -= PtrDistance(block_ptrs_.here, iter);
+  } else {
+    begin_ = iter;
+  }
   if (length == block->size()) {
     block->Unref();
     return;
