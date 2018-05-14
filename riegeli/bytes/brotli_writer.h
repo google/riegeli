@@ -86,17 +86,6 @@ class BrotliWriter final : public BufferedWriter {
       return std::move(set_window_log(window_log));
     }
 
-    Options& set_buffer_size(size_t buffer_size) & {
-      RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of BrotliWriter::Options::set_buffer_size(): "
-             "zero buffer size";
-      buffer_size_ = buffer_size;
-      return *this;
-    }
-    Options&& set_buffer_size(size_t buffer_size) && {
-      return std::move(set_buffer_size(buffer_size));
-    }
-
     // Announce in advance the destination size. This may improve compression
     // density.
     //
@@ -109,13 +98,24 @@ class BrotliWriter final : public BufferedWriter {
       return std::move(set_size_hint(size_hint));
     }
 
+    Options& set_buffer_size(size_t buffer_size) & {
+      RIEGELI_ASSERT_GT(buffer_size, 0u)
+          << "Failed precondition of BrotliWriter::Options::set_buffer_size(): "
+             "zero buffer size";
+      buffer_size_ = buffer_size;
+      return *this;
+    }
+    Options&& set_buffer_size(size_t buffer_size) && {
+      return std::move(set_buffer_size(buffer_size));
+    }
+
    private:
     friend class BrotliWriter;
 
     int compression_level_ = kDefaultCompressionLevel();
     int window_log_ = kDefaultWindowLog();
-    size_t buffer_size_ = kDefaultBufferSize();
     Position size_hint_ = 0;
+    size_t buffer_size_ = kDefaultBufferSize();
   };
 
   // Creates a closed BrotliWriter.
