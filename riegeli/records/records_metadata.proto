@@ -1,0 +1,33 @@
+syntax = "proto2";
+
+package riegeli;
+
+import "google/protobuf/descriptor.proto";
+
+// Information about a Riegeli/records file, which may be helpful to interpret
+// file contents.
+message RecordsMetadata {
+  // Human-readable explanation of what the file contains.
+  optional string file_comment = 1;
+
+  // If records are proto messages of a fixed type, the full name of their type.
+  optional string record_type_name = 2;
+
+  // If record_type_name is set, proto file descriptors which should contain the
+  // definition of that type and their dependencies (each file comes after all
+  // its dependencies).
+  //
+  // If file_descriptor is empty but record_type_name is set (not recommended),
+  // record_type_name can be interpreted in the context of an unspecified proto
+  // descriptor database.
+  repeated google.protobuf.FileDescriptorProto file_descriptor = 3;
+
+  // Options originally used to encode the file, as for
+  // RecordWriter::Options::Parse().
+  //
+  // They are informative here, they are never necessary to decode the file.
+  optional string record_writer_options = 4;
+
+  // Clients can define custom metadata in extensions of this message.
+  extensions 1000 to max;
+}

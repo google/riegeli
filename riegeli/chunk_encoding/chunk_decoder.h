@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -29,14 +30,6 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/field_filter.h"
-
-// Forward declarations to reduce the amount of includes going into public
-// record_reader.h.
-namespace google {
-namespace protobuf {
-class MessageLite;
-}  // namespace protobuf
-}  // namespace google
 
 namespace riegeli {
 
@@ -73,9 +66,6 @@ class ChunkDecoder : public Object {
   void Reset();
 
   // Resets the ChunkDecoder and parses the chunk.
-  //
-  // chunk.header.chunk_type() must not be ChunkType::kFileSignature or
-  // ChunkType::kPadding.
   //
   // Return values:
   //  * true  - success (healthy())

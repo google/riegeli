@@ -21,11 +21,15 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "google/protobuf/descriptor.pb.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
+#include "google/protobuf/repeated_field.h"
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
@@ -50,6 +54,25 @@ namespace riegeli {
 
 namespace {
 
+class FileDescriptorCollector {
+ public:
+  FileDescriptorCollector(
+      google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>* file_descriptors)
+      : file_descriptors_(RIEGELI_ASSERT_NOTNULL(file_descriptors)) {}
+
+  void AddFile(const google::protobuf::FileDescriptor* file_descriptor) {
+    if (!files_seen_.insert(file_descriptor->name()).second) return;
+    for (int i = 0; i < file_descriptor->dependency_count(); ++i) {
+      AddFile(file_descriptor->dependency(i));
+    }
+    file_descriptor->CopyTo(file_descriptors_->Add());
+  }
+
+ private:
+  google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>* file_descriptors_;
+  std::unordered_set<std::string> files_seen_;
+};
+
 template <typename Record>
 size_t RecordSize(const Record& record) {
   return record.size();
@@ -60,6 +83,14 @@ size_t RecordSize(const google::protobuf::MessageLite& record) {
 }
 
 }  // namespace
+
+void SetRecordType(RecordsMetadata* metadata,
+                   const google::protobuf::Descriptor* descriptor) {
+  metadata->set_record_type_name(descriptor->full_name());
+  metadata->clear_file_descriptor();
+  FileDescriptorCollector collector(metadata->mutable_file_descriptor());
+  collector.AddFile(descriptor->file());
+}
 
 inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
     Position pos_before_chunks,
@@ -424,23 +455,23 @@ FutureRecordPosition RecordWriter::ParallelImpl::ChunkBegin() {
 
 RecordWriter::RecordWriter() noexcept : Object(State::kClosed) {}
 
-RecordWriter::RecordWriter(std::unique_ptr<Writer> chunk_writer,
-                           Options options)
+RecordWriter::RecordWriter(std::unique_ptr<Writer> byte_writer,
+                           const Options& options)
     : RecordWriter(
-          absl::make_unique<DefaultChunkWriter>(std::move(chunk_writer)),
+          absl::make_unique<DefaultChunkWriter>(std::move(byte_writer)),
           options) {}
 
-RecordWriter::RecordWriter(Writer* chunk_writer, Options options)
-    : RecordWriter(absl::make_unique<DefaultChunkWriter>(chunk_writer),
+RecordWriter::RecordWriter(Writer* byte_writer, const Options& options)
+    : RecordWriter(absl::make_unique<DefaultChunkWriter>(byte_writer),
                    options) {}
 
 RecordWriter::RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
-                           Options options)
+                           const Options& options)
     : RecordWriter(chunk_writer.get(), options) {
   owned_chunk_writer_ = std::move(chunk_writer);
 }
 
-RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
+RecordWriter::RecordWriter(ChunkWriter* chunk_writer, const Options& options)
     : Object(State::kOpen),
       // Ensure that num_records does not overflow when WriteRecordImpl() keeps
       // num_records * sizeof(uint64_t) under desired_chunk_size_.
@@ -449,14 +480,8 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, Options options)
                       ChunkHeader::kMaxNumRecords() * sizeof(uint64_t))) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (chunk_writer->pos() == 0) {
-    // Write file signature.
-    Chunk signature;
-    signature.header =
-        ChunkHeader(signature.data, ChunkType::kFileSignature, 0, 0);
-    if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(signature))) {
-      Fail(*chunk_writer);
-      return;
-    }
+    if (ABSL_PREDICT_FALSE(!WriteSignature(chunk_writer))) return;
+    if (ABSL_PREDICT_FALSE(!WriteMetadata(chunk_writer, options))) return;
   }
   if (options.parallelism_ == 0) {
     impl_ = absl::make_unique<SerialImpl>(chunk_writer, options);
@@ -506,6 +531,43 @@ void RecordWriter::Done() {
   }
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
+}
+
+bool RecordWriter::WriteSignature(ChunkWriter* chunk_writer) {
+  Chunk chunk;
+  chunk.header = ChunkHeader(chunk.data, ChunkType::kFileSignature, 0, 0);
+  if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(chunk))) {
+    Fail(*chunk_writer);
+    return false;
+  }
+  return true;
+}
+
+bool RecordWriter::WriteMetadata(ChunkWriter* chunk_writer,
+                                 const Options& options) {
+  const size_t size = options.metadata_.ByteSizeLong();
+  if (size == 0) return true;
+  TransposeEncoder transpose_encoder(options.compressor_options_, size);
+  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options.metadata_))) {
+    return Fail(transpose_encoder);
+  }
+  Chunk chunk;
+  ChainWriter data_writer(&chunk.data);
+  ChunkType chunk_type;
+  uint64_t num_records;
+  uint64_t decoded_data_size;
+  if (ABSL_PREDICT_FALSE(!transpose_encoder.EncodeAndClose(
+          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
+    return Fail(transpose_encoder);
+  }
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  chunk.header =
+      ChunkHeader(chunk.data, ChunkType::kFileMetadata, 0, decoded_data_size);
+  if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(chunk))) {
+    Fail(*chunk_writer);
+    return false;
+  }
+  return true;
 }
 
 template <typename Record>

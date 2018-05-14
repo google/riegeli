@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message_lite.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -31,17 +33,20 @@
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/record_position.h"
-
-namespace google {
-namespace protobuf {
-class MessageLite;
-}  // namespace protobuf
-}  // namespace google
+#include "riegeli/records/records_metadata.pb.h"
 
 namespace riegeli {
 
 class ChunkEncoder;
 class ChunkWriter;
+
+// Sets record_type_name and file_descriptor in metadata, based on the message
+// descriptor of the type of records.
+//
+// TODO: This currently includes whole file descriptors. It would be
+// better to prune them to keep only what is needed for the message descriptor.
+void SetRecordType(RecordsMetadata* metadata,
+                   const google::protobuf::Descriptor* descriptor);
 
 // FutureRecordPosition is similar to shared_future<RecordPosition>.
 //
@@ -275,6 +280,23 @@ class RecordWriter final : public Object {
       return std::move(set_bucket_fraction(fraction));
     }
 
+    // Sets file metadata to be written at the beginning (if metadata has any
+    // fields set).
+    //
+    // Metadata are written only when the file is written from the beginning,
+    // not when it is appended to.
+    //
+    // Record type in metadata can be conveniently set by SetRecordType().
+    //
+    // Default: no fields set
+    Options& set_metadata(RecordsMetadata metadata) & {
+      metadata_ = std::move(metadata);
+      return *this;
+    }
+    Options&& set_metadata(RecordsMetadata metadata) && {
+      return std::move(set_metadata(std::move(metadata)));
+    }
+
     // Sets the maximum number of chunks being encoded in parallel in
     // background. Larger parallelism can increase throughput, up to a point
     // where it no longer matters; smaller parallelism reduces memory usage.
@@ -301,6 +323,7 @@ class RecordWriter final : public Object {
     CompressorOptions compressor_options_;
     uint64_t chunk_size_ = uint64_t{1} << 20;
     double bucket_fraction_ = 1.0;
+    RecordsMetadata metadata_;
     int parallelism_ = 0;
   };
 
@@ -310,12 +333,13 @@ class RecordWriter final : public Object {
   // Will write records to the byte Writer which is owned by this RecordWriter
   // and will be closed and deleted when the RecordWriter is closed.
   explicit RecordWriter(std::unique_ptr<Writer> byte_writer,
-                        Options options = Options());
+                        const Options& options = Options());
 
   // Will write records to the byte Writer which is not owned by this
   // RecordWriter and must be kept alive but not accessed until closing the
   // RecordWriter.
-  explicit RecordWriter(Writer* byte_writer, Options options = Options());
+  explicit RecordWriter(Writer* byte_writer,
+                        const Options& options = Options());
 
   // Will write records to the ChunkWriter which is owned by this RecordWriter
   // and will be closed and deleted when the RecordWriter is closed.
@@ -324,7 +348,7 @@ class RecordWriter final : public Object {
   // chunks are stored, e.g. by forwarding them to another ChunkWriter running
   // elsewhere.
   explicit RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
-                        Options options = Options());
+                        const Options& options = Options());
 
   // Will write records to the ChunkWriter which is not owned by this
   // RecordWriter and must be kept alive but not accessed until closing the
@@ -333,7 +357,8 @@ class RecordWriter final : public Object {
   // Specifying a ChunkWriter instead of a byte Writer allows to customize how
   // chunks are stored, e.g. by forwarding them to another ChunkWriter running
   // elsewhere.
-  explicit RecordWriter(ChunkWriter* chunk_writer, Options options = Options());
+  explicit RecordWriter(ChunkWriter* chunk_writer,
+                        const Options& options = Options());
 
   RecordWriter(RecordWriter&& src) noexcept;
   RecordWriter& operator=(RecordWriter&& src) noexcept;
@@ -398,6 +423,9 @@ class RecordWriter final : public Object {
   class DummyImpl;
 
   static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
+
+  bool WriteSignature(ChunkWriter* chunk_writer);
+  bool WriteMetadata(ChunkWriter* chunk_writer, const Options& options);
 
   template <typename Record>
   bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);

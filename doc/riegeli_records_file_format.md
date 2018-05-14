@@ -78,6 +78,9 @@ constraints:
     headers) has at least as many bytes as `num_records`.
 *   The chunk does not end inside nor immediately after a block header.
 
+If `num_records` is 0, `decoded_data_size` has a meaning depending on the chunk
+type.
+
 *Rationale:*
 
 *The presence of `padding` allows to assign unique numbers resembling file
@@ -121,6 +124,20 @@ This makes the first 64 bytes of a Riegeli/records file fixed:
 00 00 00 00 00 00 00 00 e1 9f 13 c0 e9 b1 c3 72
 73 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 ```
+
+### File metadata
+
+`chunk_type` is 0x6d ('m').
+
+A file metadata chunk provides information describing the records. Metadata are
+not necessary to read the records but might be helpful to interpret their
+contents.
+
+If present, metadata should be written immediately after file signature.
+
+The chunk is encoded like a transposed chunk with a single record containing a
+serialized `RecordsMetadata` proto message, except that `chunk_type` is
+different and `num_records` is 0.
 
 ### Padding chunk
 

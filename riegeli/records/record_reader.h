@@ -19,6 +19,8 @@
 #include <string>
 #include <utility>
 
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -29,16 +31,38 @@
 #include "riegeli/chunk_encoding/field_filter.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"
-
-namespace google {
-namespace protobuf {
-class MessageLite;
-}  // namespace protobuf
-}  // namespace google
+#include "riegeli/records/records_metadata.pb.h"
 
 namespace riegeli {
 
 class Chunk;
+
+// Interprets record_type_name and file_descriptor from metadata.
+class RecordsMetadataDescriptors : public Object {
+ public:
+  explicit RecordsMetadataDescriptors(const RecordsMetadata& metadata);
+
+  RecordsMetadataDescriptors(RecordsMetadataDescriptors&& src) noexcept;
+  RecordsMetadataDescriptors& operator=(RecordsMetadataDescriptors&& src);
+
+  // Returns message descriptor of the record type, or nullptr if not available.
+  //
+  // The message descriptor is valid as long as the RecordsMetadataDescriptors
+  // object is valid.
+  const google::protobuf::Descriptor* descriptor() const;
+
+  // Returns record type full name, or an empty string if not available.
+  const std::string& record_type_name() const { return record_type_name_; }
+
+ protected:
+  void Done() override;
+
+ private:
+  class ErrorCollector;
+
+  std::string record_type_name_;
+  std::unique_ptr<google::protobuf::DescriptorPool> pool_;
+};
 
 // RecordReader reads records of a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
@@ -81,7 +105,6 @@ class Chunk;
 //   if (!record_reader_.Close() && !record_reader_.Recover(&skipped_bytes)) {
 //     ... Failed with reason: record_reader_.message()
 //   }
-
 class RecordReader final : public Object {
  public:
   class Options {
@@ -127,14 +150,29 @@ class RecordReader final : public Object {
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
-  // Reading the file already checks whether it is valid. CheckFileFormat() can
-  // verify this before (or instead of) performing other operations.
+  // ReadMetadata() and ReadRecord() already check the file format.
+  // CheckFileFormat() can verify the file format before (or instead of)
+  // performing other operations.
   //
   // Return values:
   //  * true                    - success
   //  * false (when healthy())  - source ends
   //  * false (when !healthy()) - failure
   bool CheckFileFormat();
+
+  // Returns file metadata.
+  //
+  // ReadMetadata() must be called while the RecordReader is at the beginning of
+  // the file (calling CheckFileFormat() before is allowed).
+  //
+  // Record type in metadata can be conveniently interpreted by
+  // RecordsMetadataDescriptors.
+  //
+  // Return values:
+  //  * true                    - success (*metadata is set)
+  //  * false (when healthy())  - source ends
+  //  * false (when !healthy()) - failure
+  bool ReadMetadata(RecordsMetadata* metadata);
 
   // Reads the next record.
   //
@@ -241,6 +279,8 @@ class RecordReader final : public Object {
 
   RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
 
+  bool ParseMetadata(const Chunk& chunk, RecordsMetadata* metadata);
+
   // Precondition: !chunk_decoder_.healthy() ||
   //               chunk_decoder_.index() == chunk_decoder_.num_records()
   template <typename Record>
@@ -249,10 +289,6 @@ class RecordReader final : public Object {
   // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
   // and chunk_begin_. On failure resets chunk_decoder_.
   bool ReadChunk();
-
-  // Recognize known types of chunks with no records. On failure resets
-  // chunk_decoder_.
-  bool ParseChunkIfMeta(const Chunk& chunk);
 
   // Invariant: if healthy() then chunk_reader_ != nullptr
   std::unique_ptr<ChunkReader> chunk_reader_;
@@ -293,6 +329,20 @@ class RecordReader final : public Object {
 };
 
 // Implementation details follow.
+
+inline RecordsMetadataDescriptors::RecordsMetadataDescriptors(
+    RecordsMetadataDescriptors&& src) noexcept
+    : Object(std::move(src)),
+      record_type_name_(riegeli::exchange(src.record_type_name_, std::string())),
+      pool_(std::move(src.pool_)) {}
+
+inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
+    RecordsMetadataDescriptors&& src) {
+  Object::operator=(std::move(src));
+  record_type_name_ = riegeli::exchange(src.record_type_name_, std::string()),
+  pool_ = std::move(src.pool_);
+  return *this;
+}
 
 inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
                                      RecordPosition* key) {

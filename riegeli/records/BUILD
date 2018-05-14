@@ -10,6 +10,7 @@ cc_library(
         ":block",
         ":chunk_writer",
         ":record_position",
+        ":records_metadata_cc_proto",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:options_parser",
@@ -27,7 +28,8 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:variant",
-        "@protobuf_archive//:protobuf_lite",
+        "@protobuf_archive//:cc_wkt_protos",
+        "@protobuf_archive//:protobuf",
     ],
 )
 
@@ -38,17 +40,32 @@ cc_library(
     deps = [
         ":chunk_reader",
         ":record_position",
+        ":records_metadata_cc_proto",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/bytes:chain_backward_writer",
+        "//riegeli/bytes:message_parse",
         "//riegeli/bytes:reader",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_decoder",
         "//riegeli/chunk_encoding:field_filter",
+        "//riegeli/chunk_encoding:transpose_decoder",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@protobuf_archive//:protobuf",
     ],
+)
+
+proto_library(
+    name = "records_metadata_proto",
+    srcs = ["records_metadata.proto"],
+    deps = ["@protobuf_archive//:descriptor_proto"],
+)
+
+cc_proto_library(
+    name = "records_metadata_cc_proto",
+    deps = [":records_metadata_proto"],
 )
 
 cc_library(

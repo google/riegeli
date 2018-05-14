@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
@@ -27,13 +28,65 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/chain_backward_writer.h"
+#include "riegeli/bytes/message_parse.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
+#include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"
+#include "riegeli/records/records_metadata.pb.h"
 
 namespace riegeli {
+
+class RecordsMetadataDescriptors::ErrorCollector
+    : public google::protobuf::DescriptorPool::ErrorCollector {
+ public:
+  void AddError(const std::string& filename, const std::string& element_name,
+                const google::protobuf::Message* descriptor, ErrorLocation location,
+                const std::string& message) override {
+    descriptors_->Fail(absl::StrCat("Error in file ", filename, ", element ",
+                                    element_name, ": ", message));
+  }
+
+  void AddWarning(const std::string& filename, const std::string& element_name,
+                  const google::protobuf::Message* descriptor, ErrorLocation location,
+                  const std::string& message) override {}
+
+ private:
+  friend class RecordsMetadataDescriptors;
+
+  explicit ErrorCollector(RecordsMetadataDescriptors* descriptors)
+      : descriptors_(descriptors) {}
+
+  RecordsMetadataDescriptors* descriptors_;
+};
+
+RecordsMetadataDescriptors::RecordsMetadataDescriptors(
+    const RecordsMetadata& metadata)
+    : Object(State::kOpen), record_type_name_(metadata.record_type_name()) {
+  if (record_type_name_.empty() || metadata.file_descriptor().empty()) return;
+  pool_ = absl::make_unique<google::protobuf::DescriptorPool>();
+  ErrorCollector error_collector(this);
+  for (const google::protobuf::FileDescriptorProto& file_descriptor :
+       metadata.file_descriptor()) {
+    if (ABSL_PREDICT_FALSE(pool_->BuildFileCollectingErrors(
+                               file_descriptor, &error_collector) == nullptr)) {
+      return;
+    }
+  }
+}
+
+void RecordsMetadataDescriptors::Done() {
+  record_type_name_ = std::string();
+  pool_.reset();
+}
+
+const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor() const {
+  if (pool_ == nullptr) return nullptr;
+  return pool_->FindMessageTypeByName(record_type_name_);
+}
 
 RecordReader::RecordReader() noexcept : Object(State::kClosed) {}
 
@@ -95,6 +148,93 @@ bool RecordReader::CheckFileFormat() {
     if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
     recoverable_ = Recoverable::kRecoverChunkReader;
     return Fail(*chunk_reader_);
+  }
+  return true;
+}
+
+bool RecordReader::ReadMetadata(RecordsMetadata* metadata) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(chunk_reader_->pos() != 0)) {
+    return Fail(
+        "RecordReader::ReadMetadata() must be called while the RecordReader is "
+        "at the beginning of the file");
+  }
+
+  chunk_begin_ = chunk_reader_->pos();
+  Chunk chunk;
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
+    if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    return Fail(*chunk_reader_);
+  }
+  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature);
+
+  chunk_begin_ = chunk_reader_->pos();
+  const ChunkHeader* chunk_header;
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->PullChunkHeader(&chunk_header))) {
+    if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    return Fail(*chunk_reader_);
+  }
+  if (chunk_header->chunk_type() != ChunkType::kFileMetadata) {
+    // Missing file metadata chunk, assume empty RecordMetadata.
+    metadata->Clear();
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
+    if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    return Fail(*chunk_reader_);
+  }
+  if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
+    metadata->Clear();
+    recoverable_ = Recoverable::kReportSkippedBytes;
+    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
+    return false;
+  }
+  return true;
+}
+
+inline bool RecordReader::ParseMetadata(const Chunk& chunk,
+                                        RecordsMetadata* metadata) {
+  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileMetadata)
+      << "Failed precondition of RecordReader::ParseMetadata(): "
+         "wrong chunk type";
+  if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
+    return Fail(absl::StrCat(
+        "Invalid file metadata chunk: number of records is not zero: ",
+        chunk.header.num_records()));
+  }
+  ChainReader data_reader(&chunk.data);
+  TransposeDecoder transpose_decoder;
+  Chain serialized_metadata;
+  ChainBackwardWriter serialized_metadata_writer(&serialized_metadata);
+  std::vector<size_t> limits;
+  const bool ok = transpose_decoder.Reset(
+      &data_reader, 1, chunk.header.decoded_data_size(), FieldFilter::All(),
+      &serialized_metadata_writer, &limits);
+  if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
+    return Fail(serialized_metadata_writer);
+  }
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    return Fail("Invalid metadata chunk", transpose_decoder);
+  }
+  if (ABSL_PREDICT_FALSE(!data_reader.VerifyEndAndClose())) {
+    return Fail("Invalid metadata chunk", data_reader);
+  }
+  RIEGELI_ASSERT_EQ(limits.size(), 1u)
+      << "Metadata chunk has unexpected record limits";
+  RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata.size())
+      << "Metadata chunk has unexpected record limits";
+  if (ABSL_PREDICT_FALSE(
+          !ParsePartialFromChain(metadata, serialized_metadata))) {
+    return Fail("Failed to parse message of type riegeli.RecordsMetadata");
+  }
+  if (ABSL_PREDICT_FALSE(!metadata->IsInitialized())) {
+    return Fail(
+        absl::StrCat("Failed to parse message of type riegeli.RecordsMetadata"
+                     " because it is missing required fields: ",
+                     metadata->InitializationErrorString()));
   }
   return true;
 }
@@ -231,33 +371,13 @@ bool RecordReader::Seek(Position new_pos) {
 }
 
 inline bool RecordReader::ReadChunk() {
-  Chunk chunk;
   chunk_begin_ = chunk_reader_->pos();
+  Chunk chunk;
   if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
     chunk_decoder_.Reset();
     if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
     recoverable_ = Recoverable::kRecoverChunkReader;
     return Fail(*chunk_reader_);
-  }
-  if (ABSL_PREDICT_FALSE(!ParseChunkIfMeta(chunk))) {
-    chunk_decoder_.Reset();
-    recoverable_ = Recoverable::kReportSkippedBytes;
-    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
-    return false;
-  }
-  if (chunk.header.num_records() == 0) {
-    if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
-      chunk_decoder_.Reset();
-      recoverable_ = Recoverable::kReportSkippedBytes;
-      recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
-      return Fail(
-          absl::StrCat("Invalid chunk of type ",
-                       static_cast<uint64_t>(chunk.header.chunk_type()),
-                       ": no records but decoded data size is not zero: ",
-                       chunk.header.decoded_data_size()));
-    }
-    // Ignore chunks with no records, even if the type is unknown.
-    return true;
   }
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Reset(chunk))) {
     Fail(chunk_decoder_);
@@ -267,42 +387,6 @@ inline bool RecordReader::ReadChunk() {
     return false;
   }
   return true;
-}
-
-inline bool RecordReader::ParseChunkIfMeta(const Chunk& chunk) {
-  switch (chunk.header.chunk_type()) {
-    case ChunkType::kFileSignature:
-      if (ABSL_PREDICT_FALSE(chunk.header.data_size() > 0)) {
-        return Fail(absl::StrCat(
-            "Invalid file signature chunk: data size is not zero: ",
-            chunk.header.data_size()));
-      }
-      if (ABSL_PREDICT_FALSE(chunk.header.num_records() > 0)) {
-        return Fail(absl::StrCat(
-            "Invalid file signature chunk: number of records is not zero: ",
-            chunk.header.num_records()));
-      }
-      if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
-        return Fail(absl::StrCat(
-            "Invalid file signature chunk: decoded data size is not zero: ",
-            chunk.header.decoded_data_size()));
-      }
-      return true;
-    case ChunkType::kPadding:
-      if (ABSL_PREDICT_FALSE(chunk.header.num_records() > 0)) {
-        return Fail(absl::StrCat(
-            "Invalid padding chunk: number of records is not zero: ",
-            chunk.header.num_records()));
-      }
-      if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() > 0)) {
-        return Fail(absl::StrCat(
-            "Invalid padding chunk: decoded data size is not zero: ",
-            chunk.header.decoded_data_size()));
-      }
-      return true;
-    default:
-      return true;
-  }
 }
 
 }  // namespace riegeli

@@ -98,7 +98,9 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
       << "Wrong number of record end positions";
   RIEGELI_ASSERT_EQ(limits_.empty() ? size_t{0} : limits_.back(), values.size())
       << "Wrong last record end position";
-  if (field_filter_.include_all()) {
+  if (chunk.header.num_records() == 0) {
+    RIEGELI_ASSERT_EQ(values.size(), 0u) << "Wrong decoded data size";
+  } else if (field_filter_.include_all()) {
     RIEGELI_ASSERT_EQ(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   } else {
@@ -113,13 +115,41 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
                          Chain* dest) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Failed precondition of ChunkDecoder::Reset(): "
-             "file signature chunk";
+      if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: data size is not zero: ",
+            header.data_size()));
+      }
+      if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: number of records is not zero: ",
+            header.num_records()));
+      }
+      if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file signature chunk: decoded data size is not zero: ",
+            header.decoded_data_size()));
+      }
+      return true;
+    case ChunkType::kFileMetadata:
+      if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid file metadata chunk: number of records is not zero: ",
+            header.num_records()));
+      }
+      return true;
     case ChunkType::kPadding:
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Failed precondition of ChunkDecoder::Reset(): "
-              "padding chunk";
+      if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid padding chunk: number of records is not zero: ",
+            header.num_records()));
+      }
+      if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
+        return Fail(absl::StrCat(
+            "Invalid padding chunk: decoded data size is not zero: ",
+            header.decoded_data_size()));
+      }
+      return true;
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
       if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
@@ -159,6 +189,10 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
       }
       return true;
     }
+  }
+  if (header.num_records() == 0) {
+    // Ignore chunks with no records, even if the type is unknown.
+    return true;
   }
   return Fail(absl::StrCat("Unknown chunk type: ",
                            static_cast<uint64_t>(header.chunk_type())));
