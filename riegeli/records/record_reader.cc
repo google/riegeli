@@ -357,9 +357,13 @@ bool RecordReader::Seek(Position new_pos) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*chunk_reader_);
     }
-    if (chunk_reader_->pos() == new_pos) {
+    if (chunk_reader_->pos() >= new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
+      //
+      // It is possible that the chunk position is greater than new_pos if
+      // new_pos falls after all records of the previous chunk. This also seeks
+      // to the beginning of the chunk.
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
       return true;
