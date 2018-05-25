@@ -19,12 +19,12 @@
 #include <string>
 #include <utility>
 
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -44,15 +44,16 @@ class RecordsMetadataDescriptors::ErrorCollector
     : public google::protobuf::DescriptorPool::ErrorCollector {
  public:
   void AddError(const std::string& filename, const std::string& element_name,
-                const google::protobuf::Message* descriptor, ErrorLocation location,
-                const std::string& message) override {
+                const google::protobuf::Message* descriptor,
+                ErrorLocation location, const std::string& message) override {
     descriptors_->Fail(absl::StrCat("Error in file ", filename, ", element ",
                                     element_name, ": ", message));
   }
 
   void AddWarning(const std::string& filename, const std::string& element_name,
-                  const google::protobuf::Message* descriptor, ErrorLocation location,
-                  const std::string& message) override {}
+                  const google::protobuf::Message* descriptor,
+                  ErrorLocation location, const std::string& message) override {
+  }
 
  private:
   friend class RecordsMetadataDescriptors;
@@ -83,7 +84,8 @@ void RecordsMetadataDescriptors::Done() {
   pool_.reset();
 }
 
-const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor() const {
+const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
+    const {
   if (pool_ == nullptr) return nullptr;
   return pool_->FindMessageTypeByName(record_type_name_);
 }
@@ -264,11 +266,12 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
   }
 }
 
-template bool RecordReader::ReadRecordSlow(google::protobuf::MessageLite* record,
-                                           RecordPosition* key);
+template bool RecordReader::ReadRecordSlow(
+    google::protobuf::MessageLite* record, RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(absl::string_view* record,
                                            RecordPosition* key);
-template bool RecordReader::ReadRecordSlow(std::string* record, RecordPosition* key);
+template bool RecordReader::ReadRecordSlow(std::string* record,
+                                           RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
 
 bool RecordReader::Recover(Position* skipped_bytes,

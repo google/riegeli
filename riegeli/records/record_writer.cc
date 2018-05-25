@@ -25,16 +25,16 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/thread_annotations.h"
-#include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message_lite.h"
-#include "google/protobuf/repeated_field.h"
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/variant.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/descriptor.pb.h"
+#include "google/protobuf/message_lite.h"
+#include "google/protobuf/repeated_field.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -57,7 +57,8 @@ namespace {
 class FileDescriptorCollector {
  public:
   FileDescriptorCollector(
-      google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>* file_descriptors)
+      google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>*
+          file_descriptors)
       : file_descriptors_(RIEGELI_ASSERT_NOTNULL(file_descriptors)) {}
 
   void AddFile(const google::protobuf::FileDescriptor* file_descriptor) {
@@ -69,7 +70,8 @@ class FileDescriptorCollector {
   }
 
  private:
-  google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>* file_descriptors_;
+  google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>*
+      file_descriptors_;
   std::unordered_set<std::string> files_seen_;
 };
 
@@ -100,8 +102,7 @@ inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
 
 void FutureRecordPosition::FutureChunkBegin::Resolve() const {
   Position pos = pos_before_chunks_;
-  for (const std::shared_future<ChunkHeader>& chunk_header :
-       chunk_headers_) {
+  for (const std::shared_future<ChunkHeader>& chunk_header : chunk_headers_) {
     pos = internal::ChunkEnd(chunk_header.get(), pos);
   }
   pos_before_chunks_ = pos;
@@ -121,7 +122,8 @@ inline FutureRecordPosition::FutureRecordPosition(
                                                     std::move(chunk_headers))),
       chunk_begin_(pos_before_chunks) {}
 
-bool RecordWriter::Options::Parse(absl::string_view text, std::string* message) {
+bool RecordWriter::Options::Parse(absl::string_view text,
+                                  std::string* message) {
   std::string compressor_text;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
@@ -594,8 +596,8 @@ bool RecordWriter::WriteRecordImpl(Record&& record, FutureRecordPosition* key) {
   return true;
 }
 
-template bool RecordWriter::WriteRecordImpl(const google::protobuf::MessageLite& record,
-                                            FutureRecordPosition* key);
+template bool RecordWriter::WriteRecordImpl(
+    const google::protobuf::MessageLite& record, FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(const absl::string_view& record,
                                             FutureRecordPosition* key);
 template bool RecordWriter::WriteRecordImpl(std::string&& record,

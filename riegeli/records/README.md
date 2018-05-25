@@ -7,4 +7,3 @@ sequential reading, and seeking while reading. Data are optionally compressed,
 with special support for the case when records are proto messages. Data
 corruption is detected and a reading can be resumed after skipping over a
 corrupted region.
-

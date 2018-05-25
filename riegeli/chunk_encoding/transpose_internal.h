@@ -42,8 +42,8 @@ inline MessageId& operator++(MessageId& a) { return a = a + 1; }
 static_assert(static_cast<uint32_t>(MessageId::kRoot) <= 8,
               "Reserved ids must not overlap valid proto tags");
 
-// This matches google::protobuf::internal::WireFormatLite::WireType, except for an
-// addition of kSubmessage.
+// This matches google::protobuf::internal::WireFormatLite::WireType, except for
+// an addition of kSubmessage.
 enum class WireType : uint32_t {
   kVarint = 0,
   kFixed64 = 1,

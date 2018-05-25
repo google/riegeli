@@ -22,8 +22,8 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/message_lite.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"

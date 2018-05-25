@@ -23,8 +23,8 @@ record index.
 Numbers in block headers and chunk headers are encoded as unsigned Little-Endian
 integers.
 
-Hashes are 64-bit [HighwayHash](https://github.com/google/highwayhash)
-values with the key {0x2f696c6567656952, 0x0a7364726f636572, 0x2f696c6567656952,
+Hashes are 64-bit [HighwayHash](https://github.com/google/highwayhash) values
+with the key {0x2f696c6567656952, 0x0a7364726f636572, 0x2f696c6567656952,
 0x0a7364726f636572} ('Riegeli/', 'records\n', 'Riegeli/', 'records\n').
 
 ## Block header
@@ -151,8 +151,7 @@ filled with zeros by the encoder).
 This can be used for more efficient file concatenation (bringing the file offset
 modulo `kBlockSize` to 0 allows for physical concatenation of files without
 examining their contents), or for syncing to a file system which requires a
-particular file offset granularity in order for the sync to be
-effective.
+particular file offset granularity in order for the sync to be effective.
 
 ### Simple chunk with records
 

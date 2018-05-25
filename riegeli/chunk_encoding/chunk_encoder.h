@@ -20,8 +20,8 @@
 #include <string>
 #include <vector>
 
-#include "google/protobuf/message_lite.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"

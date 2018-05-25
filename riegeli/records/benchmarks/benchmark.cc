@@ -37,8 +37,8 @@
 #include <utility>
 #include <vector>
 
-#include "absl/strings/numbers.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
@@ -102,10 +102,11 @@ double Stats::Median() {
 
 class Benchmarks {
  public:
-  static bool ReadFile(const std::string& filename, std::vector<std::string>* records,
-                       size_t* max_size);
+  static bool ReadFile(const std::string& filename,
+                       std::vector<std::string>* records, size_t* max_size);
 
-  Benchmarks(std::vector<std::string> records, std::string output_dir, int repetitions);
+  Benchmarks(std::vector<std::string> records, std::string output_dir,
+             int repetitions);
 
   void RegisterTFRecord(std::string tfrecord_options);
   void RegisterRiegeli(std::string riegeli_options);
@@ -134,7 +135,8 @@ class Benchmarks {
       const std::string& name,
       std::function<void(const std::string&, const std::vector<std::string>&)>
           write_records,
-      std::function<void(const std::string&, std::vector<std::string>*)> read_records);
+      std::function<void(const std::string&, std::vector<std::string>*)>
+          read_records);
 
   static std::string Filename(std::string name);
 
@@ -148,8 +150,8 @@ class Benchmarks {
   int max_name_width_ = 0;
 };
 
-bool Benchmarks::ReadFile(const std::string& filename, std::vector<std::string>* records,
-                          size_t* max_size) {
+bool Benchmarks::ReadFile(const std::string& filename,
+                          std::vector<std::string>* records, size_t* max_size) {
   riegeli::FdReader file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
     std::cerr << "Could not open file: " << file_reader.message() << std::endl;
@@ -340,7 +342,8 @@ void Benchmarks::RunAll() {
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
     RunOne(absl::StrCat("tfrecord ", tfrecord_options.first),
-           [&](const std::string& filename, const std::vector<std::string>& records) {
+           [&](const std::string& filename,
+               const std::vector<std::string>& records) {
              WriteTFRecord(
                  filename,
                  tensorflow::io::RecordWriterOptions::CreateRecordWriterOptions(
@@ -358,7 +361,8 @@ void Benchmarks::RunAll() {
   for (const std::pair<std::string, riegeli::RecordWriter::Options>&
            riegeli_options : riegeli_benchmarks_) {
     RunOne(absl::StrCat("riegeli ", riegeli_options.first),
-           [&](const std::string& filename, const std::vector<std::string>& records) {
+           [&](const std::string& filename,
+               const std::vector<std::string>& records) {
              WriteRiegeli(filename, riegeli_options.second, records);
            },
            [&](const std::string& filename, std::vector<std::string>* records) {
@@ -372,7 +376,8 @@ void Benchmarks::RunOne(
     const std::string& name,
     std::function<void(const std::string&, const std::vector<std::string>&)>
         write_records,
-    std::function<void(const std::string&, std::vector<std::string>*)> read_records) {
+    std::function<void(const std::string&, std::vector<std::string>*)>
+        read_records) {
   const std::string filename =
       absl::StrCat(output_dir_, "/record_benchmark_", Filename(name));
 

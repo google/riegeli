@@ -24,16 +24,19 @@
 namespace riegeli {
 
 // Writes the message to the given Writer. All required fields must be set.
-bool SerializeToWriter(const google::protobuf::MessageLite& message, Writer* output);
+bool SerializeToWriter(const google::protobuf::MessageLite& message,
+                       Writer* output);
 // Like SerializeToWriter(), but allows missing required fields.
 bool SerializePartialToWriter(const google::protobuf::MessageLite& message,
                               Writer* output);
 
 // Serializes the message and store it in the given Chain. All required fields
 // must be set. The Chain is cleared on failure.
-bool SerializeToChain(const google::protobuf::MessageLite& message, Chain* output);
+bool SerializeToChain(const google::protobuf::MessageLite& message,
+                      Chain* output);
 // Like SerializeToChain(), but allows missing required fields.
-bool SerializePartialToChain(const google::protobuf::MessageLite& message, Chain* output);
+bool SerializePartialToChain(const google::protobuf::MessageLite& message,
+                             Chain* output);
 
 // Makes a Chain encoding the message. Is equivalent to calling
 // SerializeToChain() on a Chain and using that. Returns an empty Chain
@@ -47,8 +50,8 @@ Chain SerializePartialAsChain(const google::protobuf::MessageLite& message);
 bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
                    size_t size_hint = 0);
 // Like AppendToChain(), but allows missing required fields.
-bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output,
-                          size_t size_hint = 0);
+bool AppendPartialToChain(const google::protobuf::MessageLite& message,
+                          Chain* output, size_t size_hint = 0);
 
 }  // namespace riegeli
 

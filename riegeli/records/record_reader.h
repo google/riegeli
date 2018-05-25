@@ -19,10 +19,10 @@
 #include <string>
 #include <utility>
 
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -187,7 +187,8 @@ class RecordReader final : public Object {
   //  * true                    - success (*record is set)
   //  * false (when healthy())  - source ends
   //  * false (when !healthy()) - failure
-  bool ReadRecord(google::protobuf::MessageLite* record, RecordPosition* key = nullptr);
+  bool ReadRecord(google::protobuf::MessageLite* record,
+                  RecordPosition* key = nullptr);
   bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
@@ -333,7 +334,8 @@ class RecordReader final : public Object {
 inline RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     RecordsMetadataDescriptors&& src) noexcept
     : Object(std::move(src)),
-      record_type_name_(riegeli::exchange(src.record_type_name_, std::string())),
+      record_type_name_(
+          riegeli::exchange(src.record_type_name_, std::string())),
       pool_(std::move(src.pool_)) {}
 
 inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(

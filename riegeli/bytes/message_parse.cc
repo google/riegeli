@@ -17,10 +17,10 @@
 #include <stddef.h>
 #include <limits>
 
-#include "google/protobuf/io/zero_copy_stream.h"
-#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/io/zero_copy_stream.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -47,7 +47,8 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   Reader* src_;
   // Invariants:
   //   src_->pos() >= initial_pos_
-  //   src_->pos() - initial_pos_ <= numeric_limits<google::protobuf::int64>::max()
+  //   src_->pos() - initial_pos_ <=
+  //   numeric_limits<google::protobuf::int64>::max()
   Position initial_pos_;
 };
 
@@ -56,7 +57,8 @@ inline Position ReaderInputStream::relative_pos() const {
       << "Failed invariant of ReaderInputStream: "
          "current position smaller than initial position";
   const Position pos = src_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+  RIEGELI_ASSERT_LE(
+      pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
       << "Failed invariant of ReaderInputStream: "
          "relative position overflow";
   return pos;
@@ -64,14 +66,16 @@ inline Position ReaderInputStream::relative_pos() const {
 
 bool ReaderInputStream::Next(const void** data, int* size) {
   const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(
+          pos ==
+          Position{std::numeric_limits<google::protobuf::int64>::max()})) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!src_->Pull())) return false;
   *data = src_->cursor();
-  *size = IntCast<int>(
-      UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
-                  Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  *size = IntCast<int>(UnsignedMin(
+      src_->available(), size_t{std::numeric_limits<int>::max()},
+      Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
   src_->set_cursor(src_->cursor() + *size);
   return true;
 }
@@ -90,7 +94,8 @@ bool ReaderInputStream::Skip(int length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
   const Position max_length =
-      Position{std::numeric_limits<google::protobuf::int64>::max()} - relative_pos();
+      Position{std::numeric_limits<google::protobuf::int64>::max()} -
+      relative_pos();
   if (ABSL_PREDICT_FALSE(IntCast<size_t>(length) > max_length)) {
     src_->Skip(max_length);
     return false;
@@ -109,12 +114,14 @@ bool ParseFromReader(google::protobuf::MessageLite* message, Reader* input) {
   return message->ParseFromZeroCopyStream(&input_stream);
 }
 
-bool ParsePartialFromReader(google::protobuf::MessageLite* message, Reader* input) {
+bool ParsePartialFromReader(google::protobuf::MessageLite* message,
+                            Reader* input) {
   ReaderInputStream input_stream(input);
   return message->ParsePartialFromZeroCopyStream(&input_stream);
 }
 
-bool ParseFromStringView(google::protobuf::MessageLite* message, absl::string_view data) {
+bool ParseFromStringView(google::protobuf::MessageLite* message,
+                         absl::string_view data) {
   if (ABSL_PREDICT_FALSE(data.size() >
                          size_t{std::numeric_limits<int>::max()})) {
     return false;
@@ -137,7 +144,8 @@ bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data) {
   return data_reader.Close();
 }
 
-bool ParsePartialFromChain(google::protobuf::MessageLite* message, const Chain& data) {
+bool ParsePartialFromChain(google::protobuf::MessageLite* message,
+                           const Chain& data) {
   ChainReader data_reader(&data);
   if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(message, &data_reader))) {
     return false;

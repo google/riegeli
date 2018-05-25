@@ -80,7 +80,8 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
   return true;
 }
 
-bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch, size_t length) {
+bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch,
+                      size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(string_view*): "
          "length too small, use Read(string_view*) instead";

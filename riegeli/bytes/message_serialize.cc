@@ -17,9 +17,9 @@
 #include <stddef.h>
 #include <limits>
 
+#include "absl/base/optimization.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
-#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -45,7 +45,8 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
   Writer* dest_;
   // Invariants:
   //   dest_->pos() >= initial_pos_
-  //   dest_->pos() - initial_pos_ <= numeric_limits<google::protobuf::int64>::max()
+  //   dest_->pos() - initial_pos_ <=
+  //   numeric_limits<google::protobuf::int64>::max()
   Position initial_pos_;
 };
 
@@ -54,21 +55,24 @@ inline Position WriterOutputStream::relative_pos() const {
       << "Failed invariant of WriterOutputStream: "
          "current position smaller than initial position";
   const Position pos = dest_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+  RIEGELI_ASSERT_LE(
+      pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
       << "Failed invariant of WriterOutputStream: relative position overflow";
   return pos;
 }
 
 bool WriterOutputStream::Next(void** data, int* size) {
   const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(pos == Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(
+          pos ==
+          Position{std::numeric_limits<google::protobuf::int64>::max()})) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest_->Push())) return false;
   *data = dest_->cursor();
-  *size = IntCast<int>(
-      UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
-                  Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  *size = IntCast<int>(UnsignedMin(
+      dest_->available(), size_t{std::numeric_limits<int>::max()},
+      Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
   dest_->set_cursor(dest_->cursor() + *size);
   return true;
 }
@@ -89,7 +93,8 @@ google::protobuf::int64 WriterOutputStream::ByteCount() const {
 
 }  // namespace
 
-bool SerializeToWriter(const google::protobuf::MessageLite& message, Writer* output) {
+bool SerializeToWriter(const google::protobuf::MessageLite& message,
+                       Writer* output) {
   WriterOutputStream output_stream(output);
   return message.SerializeToZeroCopyStream(&output_stream);
 }
@@ -100,7 +105,8 @@ bool SerializePartialToWriter(const google::protobuf::MessageLite& message,
   return message.SerializePartialToZeroCopyStream(&output_stream);
 }
 
-bool SerializeToChain(const google::protobuf::MessageLite& message, Chain* output) {
+bool SerializeToChain(const google::protobuf::MessageLite& message,
+                      Chain* output) {
   output->Clear();
   return AppendToChain(message, output, message.ByteSizeLong());
 }
@@ -136,8 +142,8 @@ bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
   return output_writer.Close();
 }
 
-bool AppendPartialToChain(const google::protobuf::MessageLite& message, Chain* output,
-                          size_t size_hint) {
+bool AppendPartialToChain(const google::protobuf::MessageLite& message,
+                          Chain* output, size_t size_hint) {
   RIEGELI_CHECK_LE(message.ByteSizeLong(),
                    std::numeric_limits<size_t>::max() - output->size())
       << "Failed precondition of AppendPartialToChain(): Chain size overflow";

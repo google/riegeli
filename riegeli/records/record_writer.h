@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message_lite.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -445,9 +445,8 @@ class RecordWriter final : public Object {
 
 class FutureRecordPosition::FutureChunkBegin {
  public:
-  FutureChunkBegin(
-      Position pos_before_chunks,
-      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+  FutureChunkBegin(Position pos_before_chunks,
+                   std::vector<std::shared_future<ChunkHeader>> chunk_headers);
 
   FutureChunkBegin(const FutureChunkBegin&) = delete;
   FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
@@ -510,8 +509,8 @@ inline RecordPosition FutureRecordPosition::get() const {
                         record_index_);
 }
 
-inline bool RecordWriter::WriteRecord(const google::protobuf::MessageLite& record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriter::WriteRecord(
+    const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);
 }
 

@@ -19,9 +19,9 @@
 #include <string>
 #include <utility>
 
-#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"

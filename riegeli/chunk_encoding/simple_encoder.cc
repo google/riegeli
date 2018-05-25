@@ -21,10 +21,10 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/message_lite.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
