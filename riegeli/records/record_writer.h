@@ -122,7 +122,7 @@ class RecordWriter final : public Object {
     //     "bucket_fraction" ":" bucket_fraction |
     //     "parallelism" ":" parallelism
     //   brotli_level ::= integer 0..11 (default 9)
-    //   zstd_level ::= integer 1..22 (default 9)
+    //   zstd_level ::= integer -32..22 (default 9)
     //   window_log ::= "auto" or integer 10..31
     //   chunk_size ::=
     //     integer expressed as real with optional suffix [BkKMGTPE], 1..
@@ -186,9 +186,9 @@ class RecordWriter final : public Object {
     // the tradeoff between compression density and compression speed (higher =
     // better density but slower).
     //
-    // compression_level must be between kMinZstd() (1) and kMaxZstd() (22).
-    // Default: kDefaultZstd() (9).
-    static constexpr int kMinZstd() { return CompressorOptions::kMinZstd(); }
+    // compression_level must be between kMinZstd() (-32) and kMaxZstd() (22).
+    // Level 0 is currently equivalent to 3. Default: kDefaultZstd() (9).
+    static int kMinZstd() { return CompressorOptions::kMinZstd(); }
     static int kMaxZstd() { return CompressorOptions::kMaxZstd(); }
     static constexpr int kDefaultZstd() {
       return CompressorOptions::kDefaultZstd();
