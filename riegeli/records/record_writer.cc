@@ -382,7 +382,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
 RecordWriter::ParallelImpl::~ParallelImpl() {
   if (ABSL_PREDICT_FALSE(!closed())) {
     // Ask the chunk writer thread to stop working and exit.
-    Fail("Cancelled");
+    Fail("Canceled");
     Done();
   }
 }
