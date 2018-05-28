@@ -22,7 +22,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
-#include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 

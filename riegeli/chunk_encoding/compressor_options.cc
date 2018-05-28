@@ -22,6 +22,7 @@
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
+#include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 

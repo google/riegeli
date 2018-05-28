@@ -31,6 +31,7 @@
 #include "riegeli/bytes/message_parse.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/simple_decoder.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 

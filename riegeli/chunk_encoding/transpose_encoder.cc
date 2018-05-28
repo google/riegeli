@@ -40,9 +40,9 @@
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 
 namespace riegeli {
@@ -305,7 +305,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   RIEGELI_ASSERT_LE(pos_before, size)
       << "Current position after the end of record";
   size -= pos_before;
-  if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -

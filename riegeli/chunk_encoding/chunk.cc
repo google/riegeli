@@ -22,6 +22,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/hash.h"
 
 namespace riegeli {

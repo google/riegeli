@@ -38,7 +38,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 

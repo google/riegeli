@@ -15,18 +15,13 @@
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 
 #include <stddef.h>
-#include <stdint.h>
 #include <limits>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
-#include "riegeli/bytes/writer_utils.h"
-#include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
 
@@ -50,23 +45,6 @@ bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
 bool ChunkEncoder::AddRecord(Chain&& record) {
   // Not std::move(record): forward to AddRecord(const Chain&).
   return AddRecord(record);
-}
-
-bool ChunkEncoder::EncodeAndClose(Chunk* chunk) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  ChunkType chunk_type;
-  uint64_t num_records;
-  uint64_t decoded_data_size;
-  chunk->data.Clear();
-  ChainWriter data_writer(&chunk->data);
-  if (ABSL_PREDICT_FALSE(!EncodeAndClose(&data_writer, &chunk_type,
-                                         &num_records, &decoded_data_size))) {
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
-  chunk->header = ChunkHeader(chunk->data, chunk_type, num_records,
-                              IntCast<uint64_t>(decoded_data_size));
-  return true;
 }
 
 }  // namespace riegeli

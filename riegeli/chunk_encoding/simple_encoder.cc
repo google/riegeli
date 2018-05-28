@@ -33,8 +33,8 @@
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
+#include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 
@@ -69,7 +69,7 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
         "Failed to serialize message of type ", record.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
-  if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
@@ -108,7 +108,7 @@ bool SimpleEncoder::AddRecord(Chain&& record) {
 template <typename Record>
 bool SimpleEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
@@ -133,8 +133,7 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(limits.size() >
-                         ChunkHeader::kMaxNumRecords() - num_records_)) {
+  if (ABSL_PREDICT_FALSE(limits.size() > kMaxNumRecords() - num_records_)) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(records.size() > std::numeric_limits<uint64_t>::max() -

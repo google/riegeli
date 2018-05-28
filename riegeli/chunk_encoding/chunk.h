@@ -18,38 +18,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <cstring>
-#include <limits>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 
-// These values are frozen in the file format.
-enum class ChunkType : uint8_t {
-  kFileSignature = 's',
-  kFileMetadata = 'm',
-  kPadding = 'p',
-  kSimple = 'r',
-  kTransposed = 't',
-};
-
-// These values are frozen in the file format.
-enum class CompressionType : uint8_t {
-  kNone = 0,
-  kBrotli = 'b',
-  kZstd = 'z',
-};
-
 class ChunkHeader {
  public:
-  static constexpr uint64_t kMaxNumRecords() {
-    return std::numeric_limits<uint64_t>::max() >> 8;
-  }
-
   ChunkHeader() noexcept {}
 
   ChunkHeader(const Chain& data, ChunkType chunk_type, uint64_t num_records,

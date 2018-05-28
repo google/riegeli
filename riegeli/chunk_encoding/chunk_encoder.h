@@ -25,7 +25,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 
@@ -83,13 +83,6 @@ class ChunkEncoder : public Object {
   virtual bool EncodeAndClose(Writer* dest, ChunkType* chunk_type,
                               uint64_t* num_records,
                               uint64_t* decoded_data_size) = 0;
-
-  // Encodes the chunk to *chunk. Closes the ChunkEncoder.
-  //
-  // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy());
-  bool EncodeAndClose(Chunk* chunk);
 
  protected:
   void Done() override;

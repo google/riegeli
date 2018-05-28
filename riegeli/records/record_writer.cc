@@ -15,6 +15,7 @@
 #include "riegeli/records/record_writer.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <cmath>
 #include <deque>
 #include <future>
@@ -40,9 +41,11 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
+#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
@@ -210,6 +213,8 @@ class RecordWriter::Impl : public Object {
  protected:
   virtual FutureRecordPosition ChunkBegin() = 0;
 
+  bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
+
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
@@ -229,6 +234,24 @@ inline FutureRecordPosition RecordWriter::Impl::Pos() {
   FutureRecordPosition pos = ChunkBegin();
   pos.record_index_ = chunk_encoder_->num_records();
   return pos;
+}
+
+bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
+                                     Chunk* chunk) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkType chunk_type;
+  uint64_t num_records;
+  uint64_t decoded_data_size;
+  chunk->data.Clear();
+  ChainWriter data_writer(&chunk->data);
+  if (ABSL_PREDICT_FALSE(!chunk_encoder->EncodeAndClose(
+          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
+    return Fail(*chunk_encoder);
+  }
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  chunk->header = ChunkHeader(chunk->data, chunk_type, num_records,
+                              IntCast<uint64_t>(decoded_data_size));
+  return true;
 }
 
 class RecordWriter::SerialImpl final : public Impl {
@@ -251,8 +274,8 @@ class RecordWriter::SerialImpl final : public Impl {
 bool RecordWriter::SerialImpl::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
-  if (ABSL_PREDICT_FALSE(!chunk_encoder_->EncodeAndClose(&chunk))) {
-    return Fail("Encoding chunk failed", *chunk_encoder_);
+  if (ABSL_PREDICT_FALSE(!EncodeChunk(chunk_encoder_.get(), &chunk))) {
+    return false;
   }
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
     return Fail(*chunk_writer_);
@@ -415,9 +438,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   }
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promises] {
     Chunk chunk;
-    if (ABSL_PREDICT_FALSE(!chunk_encoder->EncodeAndClose(&chunk))) {
-      Fail("Encoding chunk failed", *chunk_encoder);
-    }
+    EncodeChunk(chunk_encoder, &chunk);
     delete chunk_encoder;
     chunk_promises->chunk_header.set_value(chunk.header);
     chunk_promises->chunk.set_value(std::move(chunk));
@@ -477,9 +498,8 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, const Options& options)
     : Object(State::kOpen),
       // Ensure that num_records does not overflow when WriteRecordImpl() keeps
       // num_records * sizeof(uint64_t) under desired_chunk_size_.
-      desired_chunk_size_(
-          UnsignedMin(options.chunk_size_,
-                      ChunkHeader::kMaxNumRecords() * sizeof(uint64_t))) {
+      desired_chunk_size_(UnsignedMin(options.chunk_size_,
+                                      kMaxNumRecords() * sizeof(uint64_t))) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (chunk_writer->pos() == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature(chunk_writer))) return;
