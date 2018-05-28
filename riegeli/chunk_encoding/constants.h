@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_CHUNK_ENCODING_TYPES_H_
-#define RIEGELI_CHUNK_ENCODING_TYPES_H_
+#ifndef RIEGELI_CHUNK_ENCODING_CONSTANTS_H_
+#define RIEGELI_CHUNK_ENCODING_CONSTANTS_H_
 
 #include <stdint.h>
 #include <limits>
@@ -42,4 +42,4 @@ constexpr uint64_t kMaxNumRecords() {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_CHUNK_ENCODING_TYPES_H_
+#endif  // RIEGELI_CHUNK_ENCODING_CONSTANTS_H_
