@@ -72,7 +72,12 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
     return Fail("Too many records");
   }
+  if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
+                                    decoded_data_size_)) {
+    return Fail("Decoded data size too large");
+  }
   ++num_records_;
+  decoded_data_size_ += IntCast<uint64_t>(size);
   if (ABSL_PREDICT_FALSE(!WriteVarint64(sizes_compressor_.writer(),
                                         IntCast<uint64_t>(size)))) {
     return Fail(*sizes_compressor_.writer());
@@ -106,7 +111,12 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
     return Fail("Too many records");
   }
+  if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
+                                             decoded_data_size_)) {
+    return Fail("Decoded data size too large");
+  }
   ++num_records_;
+  decoded_data_size_ += IntCast<uint64_t>(record.size());
   if (ABSL_PREDICT_FALSE(!WriteVarint64(sizes_compressor_.writer(),
                                         IntCast<uint64_t>(record.size())))) {
     return Fail(*sizes_compressor_.writer());
@@ -127,7 +137,12 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
                          ChunkHeader::kMaxNumRecords() - num_records_)) {
     return Fail("Too many records");
   }
+  if (ABSL_PREDICT_FALSE(records.size() > std::numeric_limits<uint64_t>::max() -
+                                              decoded_data_size_)) {
+    return Fail("Decoded data size too large");
+  }
   num_records_ += IntCast<uint64_t>(limits.size());
+  decoded_data_size_ += IntCast<uint64_t>(records.size());
   size_t start = 0;
   for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, start)
@@ -153,13 +168,9 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
                                    uint64_t* num_records,
                                    uint64_t* decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(values_compressor_.writer()->pos() >
-                         std::numeric_limits<uint64_t>::max())) {
-    return Fail("Decoded data size too large");
-  }
   *chunk_type = ChunkType::kSimple;
   *num_records = num_records_;
-  *decoded_data_size = values_compressor_.writer()->pos();
+  *decoded_data_size = decoded_data_size_;
 
   if (ABSL_PREDICT_FALSE(
           !WriteByte(dest, static_cast<uint8_t>(compression_type_)))) {

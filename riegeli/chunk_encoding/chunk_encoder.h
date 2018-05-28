@@ -70,6 +70,9 @@ class ChunkEncoder : public Object {
   // Returns the number of records added so far.
   uint64_t num_records() const { return num_records_; }
 
+  // Returns the sum of record sizes added so far.
+  uint64_t decoded_data_size() const { return decoded_data_size_; }
+
   // Encodes the chunk to *dest, setting *chunk_type, *num_records, and
   // *decoded_data_size. Closes the ChunkEncoder.
   //
@@ -92,15 +95,20 @@ class ChunkEncoder : public Object {
   void Done() override;
 
   uint64_t num_records_ = 0;
+  uint64_t decoded_data_size_ = 0;
 };
 
 // Implementation details follow.
 
-inline void ChunkEncoder::Done() { num_records_ = 0; }
+inline void ChunkEncoder::Done() {
+  num_records_ = 0;
+  decoded_data_size_ = 0;
+}
 
 inline void ChunkEncoder::Reset() {
   MarkHealthy();
   num_records_ = 0;
+  decoded_data_size_ = 0;
 }
 
 // Implementation details follow.

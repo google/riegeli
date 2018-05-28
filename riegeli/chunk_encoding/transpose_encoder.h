@@ -294,7 +294,6 @@ class TransposeEncoder : public ChunkEncoder {
   // but makes field filtering more effective.
   uint64_t bucket_size_;
 
-  uint64_t decoded_data_size_ = 0;
   internal::Compressor compressor_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;

@@ -201,7 +201,6 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
 TransposeEncoder::~TransposeEncoder() {}
 
 void TransposeEncoder::Done() {
-  decoded_data_size_ = 0;
   if (ABSL_PREDICT_FALSE(!compressor_.Close())) Fail(compressor_);
   tags_list_ = std::vector<EncodedTagInfo>();
   encoded_tags_ = std::vector<uint32_t>();
@@ -222,7 +221,6 @@ void TransposeEncoder::Done() {
 
 void TransposeEncoder::Reset() {
   ChunkEncoder::Reset();
-  decoded_data_size_ = 0;
   compressor_.Reset();
   tags_list_.clear();
   encoded_tags_.clear();
@@ -310,12 +308,12 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   if (ABSL_PREDICT_FALSE(num_records_ == ChunkHeader::kMaxNumRecords())) {
     return Fail("Too many records");
   }
-  if (ABSL_PREDICT_FALSE(decoded_data_size_ >
-                         std::numeric_limits<uint64_t>::max() - size)) {
+  if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
+                                    decoded_data_size_)) {
     return Fail("Decoded data size too large");
   }
   ++num_records_;
-  decoded_data_size_ += size;
+  decoded_data_size_ += IntCast<uint64_t>(size);
   const bool is_proto = IsProtoMessage(record);
   if (!record->Seek(pos_before)) {
     RIEGELI_ASSERT_UNREACHABLE()

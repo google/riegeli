@@ -69,7 +69,12 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
           UnsignedMin(limits_.max_size(), ChunkHeader::kMaxNumRecords()))) {
     return Fail("Too many records");
   }
+  if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
+                                    decoded_data_size_)) {
+    return Fail("Decoded data size too large");
+  }
   ++num_records_;
+  decoded_data_size_ += IntCast<uint64_t>(size);
   if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(record, &records_writer_))) {
     return Fail(records_writer_);
   }
@@ -101,7 +106,12 @@ bool DeferredEncoder::AddRecordImpl(Record&& record) {
           UnsignedMin(limits_.max_size(), ChunkHeader::kMaxNumRecords()))) {
     return Fail("Too many records");
   }
+  if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
+                                             decoded_data_size_)) {
+    return Fail("Decoded data size too large");
+  }
   ++num_records_;
+  decoded_data_size_ += IntCast<uint64_t>(record.size());
   if (ABSL_PREDICT_FALSE(
           !records_writer_.Write(std::forward<Record>(record)))) {
     return Fail(records_writer_);
@@ -122,6 +132,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
     return Fail("Too many records");
   }
   num_records_ += IntCast<uint64_t>(limits.size());
+  decoded_data_size_ += IntCast<uint64_t>(records.size());
   if (ABSL_PREDICT_FALSE(!records_writer_.Write(std::move(records)))) {
     return Fail(records_writer_);
   }
