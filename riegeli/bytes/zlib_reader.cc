@@ -29,7 +29,7 @@
 
 namespace riegeli {
 
-ZLibReader::ZLibReader(Reader* src, Options options)
+ZlibReader::ZlibReader(Reader* src, Options options)
     : BufferedReader(options.buffer_size_), src_(RIEGELI_ASSERT_NOTNULL(src)) {
   decompressor_present_ = true;
   decompressor_.next_in = nullptr;
@@ -43,7 +43,7 @@ ZLibReader::ZLibReader(Reader* src, Options options)
   }
 }
 
-void ZLibReader::Done() {
+void ZlibReader::Done() {
   if (!Pull() && ABSL_PREDICT_FALSE(decompressor_present_)) {
     Fail("Truncated zlib-compressed stream");
   }
@@ -62,7 +62,7 @@ void ZLibReader::Done() {
   BufferedReader::Done();
 }
 
-inline bool ZLibReader::FailOperation(absl::string_view operation) {
+inline bool ZlibReader::FailOperation(absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_.msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_.msg);
@@ -70,7 +70,7 @@ inline bool ZLibReader::FailOperation(absl::string_view operation) {
   return Fail(message);
 }
 
-bool ZLibReader::PullSlow() {
+bool ZlibReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
@@ -80,7 +80,7 @@ bool ZLibReader::PullSlow() {
   return BufferedReader::PullSlow();
 }
 
-bool ZLibReader::ReadInternal(char* dest, size_t min_length,
+bool ZlibReader::ReadInternal(char* dest, size_t min_length,
                               size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "

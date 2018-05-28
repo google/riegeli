@@ -28,7 +28,7 @@
 
 namespace riegeli {
 
-class ZLibReader : public BufferedReader {
+class ZlibReader : public BufferedReader {
  public:
   class Options {
    public:
@@ -58,7 +58,7 @@ class ZLibReader : public BufferedReader {
 
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of ZLibReader::Options::set_buffer_size(): "
+          << "Failed precondition of ZlibReader::Options::set_buffer_size(): "
              "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
@@ -68,29 +68,29 @@ class ZLibReader : public BufferedReader {
     }
 
    private:
-    friend class ZLibReader;
+    friend class ZlibReader;
 
     int window_bits_ = 32;
     size_t buffer_size_ = kDefaultBufferSize();
   };
 
-  // Creates a closed ZLibReader.
-  ZLibReader() noexcept {}
+  // Creates a closed ZlibReader.
+  ZlibReader() noexcept {}
 
   // Will read zlib-compressed stream from the byte Reader which is owned by
-  // this ZLibReader and will be closed and deleted when the ZLibReader is
+  // this ZlibReader and will be closed and deleted when the ZlibReader is
   // closed.
-  explicit ZLibReader(std::unique_ptr<Reader> src, Options options = Options());
+  explicit ZlibReader(std::unique_ptr<Reader> src, Options options = Options());
 
   // Will read zlib-compressed stream from the byte Reader which is not owned by
-  // this ZLibReader and must be kept alive but not accessed until closing the
-  // ZLibReader.
-  explicit ZLibReader(Reader* src, Options options = Options());
+  // this ZlibReader and must be kept alive but not accessed until closing the
+  // ZlibReader.
+  explicit ZlibReader(Reader* src, Options options = Options());
 
-  ZLibReader(ZLibReader&&) noexcept;
-  ZLibReader& operator=(ZLibReader&&) noexcept;
+  ZlibReader(ZlibReader&&) noexcept;
+  ZlibReader& operator=(ZlibReader&&) noexcept;
 
-  ~ZLibReader();
+  ~ZlibReader();
 
  protected:
   void Done() override;
@@ -109,12 +109,12 @@ class ZLibReader : public BufferedReader {
 
 // Implementation details follow.
 
-inline ZLibReader::ZLibReader(std::unique_ptr<Reader> src, Options options)
-    : ZLibReader(src.get(), options) {
+inline ZlibReader::ZlibReader(std::unique_ptr<Reader> src, Options options)
+    : ZlibReader(src.get(), options) {
   owned_src_ = std::move(src);
 }
 
-inline ZLibReader::ZLibReader(ZLibReader&& src) noexcept
+inline ZlibReader::ZlibReader(ZlibReader&& src) noexcept
     : BufferedReader(std::move(src)),
       owned_src_(std::move(src.owned_src_)),
       src_(riegeli::exchange(src.src_, nullptr)),
@@ -122,7 +122,7 @@ inline ZLibReader::ZLibReader(ZLibReader&& src) noexcept
           riegeli::exchange(src.decompressor_present_, false)),
       decompressor_(src.decompressor_) {}
 
-inline ZLibReader& ZLibReader::operator=(ZLibReader&& src) noexcept {
+inline ZlibReader& ZlibReader::operator=(ZlibReader&& src) noexcept {
   // Exchange decompressor_present_ early to support self-assignment.
   const bool decompressor_present =
       riegeli::exchange(src.decompressor_present_, false);
@@ -138,7 +138,7 @@ inline ZLibReader& ZLibReader::operator=(ZLibReader&& src) noexcept {
   return *this;
 }
 
-inline ZLibReader::~ZLibReader() {
+inline ZlibReader::~ZlibReader() {
   if (decompressor_present_) {
     const int result = inflateEnd(&decompressor_);
     RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
