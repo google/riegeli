@@ -96,8 +96,7 @@ inline ChainReader::ChainReader(const Chain* src)
 }
 
 inline ChainReader::ChainReader(ChainReader&& src) noexcept
-    : ChainReader(std::move(src),
-                  static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin()),
+    : ChainReader(std::move(src), src.iter_.block_index(),
                   src.read_from_buffer()) {}
 
 // block_index and cursor_index are computed early because if src.src_ ==
@@ -111,7 +110,7 @@ inline ChainReader::ChainReader(ChainReader&& src, size_t block_index,
       src_(src.src_ == &src.owned_src_
                ? &owned_src_
                : riegeli::exchange(src.src_, &src.owned_src_)),
-      iter_(src_->blocks().cbegin() + block_index) {
+      iter_(src_, block_index) {
   src.iter_ = src.src_->blocks().cbegin();
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
@@ -125,8 +124,7 @@ inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
   // &src.owned_src_ then *src.src_ is moved, which invalidates src.iter_ and
   // src.cursor_, but block_index and cursor_index depend on src.iter_ and
   // src.cursor_.
-  const size_t block_index =
-      static_cast<size_t>(src.iter_ - src.src_->blocks().cbegin());
+  const size_t block_index = src.iter_.block_index();
   const size_t cursor_index = src.read_from_buffer();
   Reader::operator=(std::move(src));
   owned_src_ = std::move(src.owned_src_);
@@ -135,7 +133,7 @@ inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
              : riegeli::exchange(src.src_, &src.owned_src_);
   // Set src.iter_ before iter_ to support self-assignment.
   src.iter_ = src.src_->blocks().cbegin();
-  iter_ = src_->blocks().cbegin() + block_index;
+  iter_ = Chain::BlockIterator(src_, block_index);
   if (iter_ != src_->blocks().cend()) {
     start_ = iter_->data();
     cursor_ = start_ + cursor_index;

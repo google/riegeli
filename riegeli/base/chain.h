@@ -339,8 +339,13 @@ class Chain::BlockIterator {
 
   BlockIterator() noexcept {}
 
+  BlockIterator(const Chain* chain, size_t block_index);
+
   BlockIterator(const BlockIterator& src) noexcept;
   BlockIterator& operator=(const BlockIterator& src) noexcept;
+
+  const Chain* chain() const { return chain_; }
+  size_t block_index() const;
 
   reference operator*() const;
   pointer operator->() const;
@@ -770,6 +775,17 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
 }
 
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
+                                           size_t block_index)
+    : chain_(chain),
+      ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr)
+                ? nullptr
+                : chain_->begin_ == chain_->end_
+                      ? chain_->empty() ? BlockIterator::kEndShortData()
+                                        : BlockIterator::kBeginShortData()
+                      : chain_->begin_) +
+           block_index) {}
+
+inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            Block* const* ptr) noexcept
     : chain_(chain), ptr_(ptr) {}
 
@@ -781,6 +797,17 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator=(
   chain_ = src.chain_;
   ptr_ = src.ptr_;
   return *this;
+}
+
+inline size_t Chain::BlockIterator::block_index() const {
+  return PtrDistance(ABSL_PREDICT_FALSE(chain_ == nullptr)
+                         ? nullptr
+                         : chain_->begin_ == chain_->end_
+                               ? chain_->empty()
+                                     ? BlockIterator::kEndShortData()
+                                     : BlockIterator::kBeginShortData()
+                               : chain_->begin_,
+                     ptr_);
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
