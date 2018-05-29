@@ -119,7 +119,7 @@ inline FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
          "negative file descriptor";
 }
 
-inline FdReaderBase::FdReaderBase(std::string filename, int flags,
+inline FdReaderBase::FdReaderBase(std::string filename, int flags, bool owns_fd,
                                   size_t buffer_size)
     : BufferedReader(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
@@ -136,16 +136,18 @@ again:
     FailOperation("open()", error_code);
     return;
   }
-  owned_fd_ = FdHolder(fd_);
+  if (owns_fd) owned_fd_ = FdHolder(fd_);
 }
 
 void FdReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) MaybeSyncPos();
-  const int error_code = owned_fd_.Close();
-  if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-    FailOperation(FdHolder::CloseFunctionName(), error_code);
+  if (owned_fd_.fd() >= 0) {
+    const int error_code = owned_fd_.Close();
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(FdHolder::CloseFunctionName(), error_code);
+    }
+    fd_ = -1;
   }
-  // filename_ and error_code_ are not cleared.
   BufferedReader::Done();
 }
 
@@ -165,17 +167,10 @@ FdReader::FdReader(int fd, Options options)
 }
 
 FdReader::FdReader(std::string filename, int flags, Options options)
-    : FdReaderBase(std::move(filename), flags, options.buffer_size_),
+    : FdReaderBase(std::move(filename), flags, options.owns_fd_,
+                   options.buffer_size_),
       sync_pos_(options.sync_pos_) {
-  RIEGELI_ASSERT(options.owns_fd_)
-      << "Failed precondition of FdReader::FdReader(string): "
-         "file must be owned if FdReader opens it";
   if (ABSL_PREDICT_TRUE(healthy())) InitializePos();
-}
-
-void FdReader::Done() {
-  internal::FdReaderBase::Done();
-  sync_pos_ = false;
 }
 
 inline void FdReader::InitializePos() {
@@ -278,7 +273,7 @@ FdStreamReader::FdStreamReader(int fd, Options options)
 }
 
 FdStreamReader::FdStreamReader(std::string filename, int flags, Options options)
-    : FdReaderBase(std::move(filename), flags, options.buffer_size_) {
+    : FdReaderBase(std::move(filename), flags, true, options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   limit_pos_ = options.assumed_pos_;
 }
@@ -321,11 +316,14 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
 
 FdMMapReader::FdMMapReader(int fd, Options options)
     : Reader(State::kOpen),
-      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)) {
+      owned_fd_(options.owns_fd_ ? fd : -1),
+      fd_(fd),
+      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)),
+      sync_pos_(options.sync_pos_) {
   RIEGELI_ASSERT_GE(fd, 0)
       << "Failed precondition of FdMMapReader::FdMMapReader(int): "
          "negative file descriptor";
-  Initialize(fd, options);
+  Initialize(options);
 }
 
 FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
@@ -334,30 +332,39 @@ FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
                  (flags & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdMMapReader::FdMMapReader(string): "
          "flags must include O_RDONLY or O_RDWR";
-  RIEGELI_ASSERT(options.owns_fd_)
-      << "Failed precondition of FdMMapReader::FdMMapReader(string): "
-         "file must be owned if FdMMapReader opens it";
 again:
-  const int fd = open(filename_.c_str(), flags, 0666);
-  if (ABSL_PREDICT_FALSE(fd < 0)) {
+  fd_ = open(filename_.c_str(), flags, 0666);
+  if (ABSL_PREDICT_FALSE(fd_ < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     FailOperation("open()", error_code);
     return;
   }
-  Initialize(fd, options);
+  if (options.owns_fd_) owned_fd_ = internal::FdHolder(fd_);
+  Initialize(options);
 }
 
 void FdMMapReader::Done() {
+  if (ABSL_PREDICT_TRUE(healthy()) && sync_pos_) {
+    if (ABSL_PREDICT_FALSE(lseek(fd_, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+      FailOperation("lseek()", errno);
+    }
+  }
+  limit_pos_ = pos();
   contents_ = Chain();
-  // filename_ and error_code_ are not cleared.
+  if (owned_fd_.fd() >= 0) {
+    const int error_code = owned_fd_.Close();
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::FdHolder::CloseFunctionName(), error_code);
+    }
+    fd_ = -1;
+  }
   Reader::Done();
 }
 
-inline void FdMMapReader::Initialize(int fd, Options options) {
-  internal::FdHolder owned_fd(options.owns_fd_ ? fd : -1);
+inline void FdMMapReader::Initialize(Options options) {
   struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(fd, &stat_info) < 0)) {
+  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
     const int error_code = errno;
     FailOperation("fstat()", error_code);
     return;
@@ -369,7 +376,7 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
   }
   if (stat_info.st_size != 0) {
     void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
-                            PROT_READ, MAP_SHARED, fd, 0);
+                            PROT_READ, MAP_SHARED, fd_, 0);
     if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
       const int error_code = errno;
       FailOperation("mmap()", error_code);
@@ -380,10 +387,14 @@ inline void FdMMapReader::Initialize(int fd, Options options) {
     cursor_ = start_;
     limit_ = start_ + iter()->size();
     limit_pos_ = buffer_size();
-  }
-  const int error_code = owned_fd.Close();
-  if (ABSL_PREDICT_FALSE(error_code != 0)) {
-    FailOperation(internal::FdHolder::CloseFunctionName(), error_code);
+    if (sync_pos_) {
+      const off_t result = lseek(fd_, 0, SEEK_CUR);
+      if (ABSL_PREDICT_FALSE(result < 0)) {
+        FailOperation("lseek()", errno);
+        return;
+      }
+      cursor_ += UnsignedMin(IntCast<Position>(result), available());
+    }
   }
 }
 
@@ -467,11 +478,12 @@ bool FdMMapReader::Size(Position* size) const {
 }
 
 bool FdMMapReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_EQ(start_pos(), 0u)
-      << "Failed invariant of FdMMapReader: non-zero position of buffer start";
-  RIEGELI_ASSERT(new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(start_pos(), 0u)
+      << "Failed invariant of FdMMapReader: non-zero position of buffer start";
   // Seeking forwards. Source ends.
   cursor_ = limit_;
   return false;

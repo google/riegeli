@@ -35,8 +35,16 @@ namespace internal {
 // Implementation shared between FdWriter and FdStreamWriter.
 class FdWriterBase : public BufferedWriter {
  public:
+  // Returns the file descriptor being written to. Unchanged by Close() if the
+  // fd was not owned, -1 if it was owned.
+  int fd() const { return fd_; }
+  // Returns the original name of the file being written to (or /dev/stdout,
+  // /dev/stderr, or /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
+  // Returns the errno value of the last fd operation, or 0 if none.
+  // Unchanged by Close().
   int error_code() const { return error_code_; }
+
   bool Flush(FlushType flush_type) override;
 
  protected:
@@ -48,7 +56,7 @@ class FdWriterBase : public BufferedWriter {
 
   // Opens a file for writing.
   FdWriterBase(std::string filename, int flags, mode_t permissions,
-               size_t buffer_size);
+               bool owns_fd, size_t buffer_size);
 
   FdWriterBase(FdWriterBase&& src) noexcept;
   FdWriterBase& operator=(FdWriterBase&& src) noexcept;
@@ -61,7 +69,7 @@ class FdWriterBase : public BufferedWriter {
   FdHolder owned_fd_;
   int fd_ = -1;
   std::string filename_;
-  // errno value from a failed operation, or 0 if none.
+  // errno value of the last fd operation, or 0 if none.
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
@@ -158,7 +166,6 @@ class FdWriter final : public internal::FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  // options.set_owns_fd(false) must not be used.
   FdWriter(std::string filename, int flags, Options options = Options());
 
   FdWriter(FdWriter&& src) noexcept;
@@ -170,7 +177,6 @@ class FdWriter final : public internal::FdWriterBase {
   bool Truncate(Position new_size) override;
 
  protected:
-  void Done() override;
   bool MaybeSyncPos() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
@@ -270,7 +276,6 @@ class FdStreamWriter final : public internal::FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  // options.set_owns_fd(false) must not be used.
   FdStreamWriter(std::string filename, int flags, Options options = Options());
 
   FdStreamWriter(FdStreamWriter&& src) noexcept;

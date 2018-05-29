@@ -19,7 +19,10 @@
 
 namespace riegeli {
 
-void StringReader::Done() { Reader::Done(); }
+void StringReader::Done() {
+  limit_pos_ = pos();
+  Reader::Done();
+}
 
 bool StringReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
@@ -29,11 +32,12 @@ bool StringReader::PullSlow() {
 }
 
 bool StringReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_EQ(start_pos(), 0u)
-      << "Failed invariant of StringReader: non-zero position of buffer start";
-  RIEGELI_ASSERT_GT(new_pos, limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(start_pos(), 0u)
+      << "Failed invariant of StringReader: non-zero position of buffer start";
   // Seeking forwards. Source ends.
   cursor_ = limit_;
   return false;

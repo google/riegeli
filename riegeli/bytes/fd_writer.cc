@@ -61,7 +61,8 @@ inline FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
 }
 
 inline FdWriterBase::FdWriterBase(std::string filename, int flags,
-                                  mode_t permissions, size_t buffer_size)
+                                  mode_t permissions, bool owns_fd,
+                                  size_t buffer_size)
     : BufferedWriter(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
       filename_(std::move(filename)) {
@@ -77,16 +78,18 @@ again:
     FailOperation("open()", error_code);
     return;
   }
-  owned_fd_ = FdHolder(fd_);
+  if (owns_fd) owned_fd_ = FdHolder(fd_);
 }
 
 void FdWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(PushInternal())) MaybeSyncPos();
-  const int error_code = owned_fd_.Close();
-  if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-    FailOperation(FdHolder::CloseFunctionName(), error_code);
+  if (owned_fd_.fd() >= 0) {
+    const int error_code = owned_fd_.Close();
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(FdHolder::CloseFunctionName(), error_code);
+    }
+    fd_ = -1;
   }
-  // filename_ and error_code_ are not cleared.
   BufferedWriter::Done();
 }
 
@@ -123,17 +126,9 @@ FdWriter::FdWriter(int fd, Options options)
 
 FdWriter::FdWriter(std::string filename, int flags, Options options)
     : FdWriterBase(std::move(filename), flags, options.permissions_,
-                   options.buffer_size_),
+                   options.owns_fd_, options.buffer_size_),
       sync_pos_(options.sync_pos_) {
-  RIEGELI_ASSERT(options.owns_fd_)
-      << "Failed precondition of FdWriter::FdWriter(string): "
-         "file must be owned if FdWriter opens it";
   if (ABSL_PREDICT_TRUE(healthy())) InitializePos(flags);
-}
-
-void FdWriter::Done() {
-  internal::FdWriterBase::Done();
-  sync_pos_ = false;
 }
 
 inline void FdWriter::InitializePos(int flags) {
@@ -280,10 +275,7 @@ FdStreamWriter::FdStreamWriter(int fd, Options options)
 
 FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
     : FdWriterBase(std::move(filename), flags, options.permissions_,
-                   options.buffer_size_) {
-  RIEGELI_ASSERT(options.owns_fd_)
-      << "Failed precondition of FdStreamWriter::FdStreamWriter(string): "
-         "file must be owned if FdStreamWriter opens it";
+                   options.owns_fd_, options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (options.has_assumed_pos_) {
     start_pos_ = options.assumed_pos_;

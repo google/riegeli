@@ -90,6 +90,10 @@ class ZlibReader : public BufferedReader {
   ZlibReader(ZlibReader&&) noexcept;
   ZlibReader& operator=(ZlibReader&&) noexcept;
 
+  // Returns the Reader the compressed stream is being read from. Unchanged by
+  // Close().
+  Reader* src() const { return src_; }
+
   ~ZlibReader();
 
  protected:

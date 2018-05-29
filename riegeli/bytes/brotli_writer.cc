@@ -69,12 +69,8 @@ void BrotliWriter::Done() {
                   BROTLI_OPERATION_FINISH);
   }
   if (owned_dest_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_dest_->Close())) Fail(*owned_dest_);
-    }
-    owned_dest_.reset();
+    if (ABSL_PREDICT_FALSE(!owned_dest_->Close())) Fail(*owned_dest_);
   }
-  dest_ = nullptr;
   compressor_.reset();
   BufferedWriter::Done();
 }

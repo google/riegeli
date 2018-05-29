@@ -39,13 +39,17 @@ class LimitingBackwardWriter final : public BackwardWriter {
 
   // Will write to the BackwardWriter which is not owned by this
   // LimitingBackwardWriter and must be kept alive but not accessed until
-  // closing the LimitingBackwardWriter.
+  // closing the LimitingBackwardWriter, except that it is allowed to read its
+  // destination directly after Flush().
   //
   // Precondition: size_limit >= dest->pos()
   LimitingBackwardWriter(BackwardWriter* dest, Position size_limit);
 
   LimitingBackwardWriter(LimitingBackwardWriter&& src) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& src) noexcept;
+
+  // Returns the BackwardWriter being written to. Unchanged by Close().
+  BackwardWriter* dest() const { return dest_; }
 
   bool SupportsTruncate() const override;
   bool Truncate(Position new_size) override;

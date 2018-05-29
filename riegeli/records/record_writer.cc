@@ -184,10 +184,8 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
 
 class RecordWriter::Impl : public Object {
  public:
-  Impl() : Object(State::kOpen) {}
-
-  explicit Impl(std::unique_ptr<ChunkEncoder> chunk_encoder)
-      : Object(State::kOpen), chunk_encoder_(std::move(chunk_encoder)) {}
+  explicit Impl(const Options& options)
+      : Object(State::kOpen), chunk_encoder_(MakeChunkEncoder(options)) {}
 
   ~Impl();
 
@@ -215,6 +213,7 @@ class RecordWriter::Impl : public Object {
 
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
 
+  // Invariant: chunk_encoder_ != nullptr
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
@@ -257,17 +256,17 @@ bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
 class RecordWriter::SerialImpl final : public Impl {
  public:
   SerialImpl(ChunkWriter* chunk_writer, const Options& options)
-      : Impl(MakeChunkEncoder(options)), chunk_writer_(chunk_writer) {}
+      : Impl(options), chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)) {}
 
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
 
  protected:
-  void Done() override {}
   FutureRecordPosition ChunkBegin() override;
 
  private:
+  // Invariant: chunk_writer_ != nullptr
   ChunkWriter* chunk_writer_;
 };
 
@@ -334,6 +333,7 @@ class RecordWriter::ParallelImpl final : public Impl {
       absl::variant<WriteChunkRequest, FlushRequest, DoneRequest>;
 
   Options options_;
+  // Invariant: chunk_writer_ != nullptr
   ChunkWriter* chunk_writer_;
   absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
@@ -343,8 +343,9 @@ class RecordWriter::ParallelImpl final : public Impl {
 
 inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
                                                 const Options& options)
-    : options_(options),
-      chunk_writer_(chunk_writer),
+    : Impl(options),
+      options_(options),
+      chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
       pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
     struct Visitor {
@@ -510,7 +511,6 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, const Options& options)
   } else {
     impl_ = absl::make_unique<ParallelImpl>(chunk_writer, options);
   }
-  impl_->OpenChunk();
 }
 
 RecordWriter::RecordWriter(RecordWriter&& src) noexcept
@@ -538,20 +538,13 @@ void RecordWriter::Done() {
     if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) Fail(*impl_);
   }
   if (ABSL_PREDICT_TRUE(impl_ != nullptr)) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!impl_->Close())) Fail(*impl_);
-    }
-    impl_.reset();
+    if (ABSL_PREDICT_FALSE(!impl_->Close())) Fail(*impl_);
   }
   if (owned_chunk_writer_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_chunk_writer_->Close())) {
-        Fail(*owned_chunk_writer_);
-      }
+    if (ABSL_PREDICT_FALSE(!owned_chunk_writer_->Close())) {
+      Fail(*owned_chunk_writer_);
     }
-    owned_chunk_writer_.reset();
   }
-  desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
 }
 

@@ -53,8 +53,7 @@ void LimitingReader::Done() {
     wrapped_->SyncBuffer();
     wrapped_ = nullptr;
   }
-  src_ = nullptr;
-  size_limit_ = 0;
+  limit_pos_ = pos();
   Reader::Done();
 }
 

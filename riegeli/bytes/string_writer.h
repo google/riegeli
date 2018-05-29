@@ -55,6 +55,10 @@ class StringWriter final : public Writer {
   // Creates a closed StringWriter.
   StringWriter() noexcept : Writer(State::kClosed) {}
 
+  // Will write to a string which is owned by this StringWriter, available as
+  // dest().
+  explicit StringWriter(OwnsDest, Options options = Options());
+
   // Will write to the string which is not owned by this StringWriter and must
   // be kept alive but not accessed until closing the StringWriter, except that
   // it is allowed to read it directly after Flush().
@@ -62,6 +66,9 @@ class StringWriter final : public Writer {
 
   StringWriter(StringWriter&& src) noexcept;
   StringWriter& operator=(StringWriter&& src) noexcept;
+
+  // Returns the string being written to. Unchanged by Close().
+  std::string& dest() const { return *dest_; }
 
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
@@ -82,12 +89,14 @@ class StringWriter final : public Writer {
   // Appends some uninitialized space to *dest_ if this can be done without
   // reallocation. Sets buffer pointers to the uninitialized space.
   void MakeBuffer(size_t cursor_pos);
+  void MakeBuffer() { return MakeBuffer(dest_->size()); }
 
-  // If healthy(), the string being written to, with uninitialized space
-  // appended (possibly empty); cursor_ points to the uninitialized space.
+  std::string owned_dest_;
+  // The string being written to, with uninitialized space appended (possibly
+  // empty); cursor_ points to the uninitialized space.
   //
-  // Invariant: if healthy() then dest_ != nullptr
-  std::string* dest_ = nullptr;
+  // Invariant: dest_ != nullptr
+  std::string* dest_ = &owned_dest_;
 
   // Invariants if healthy():
   //   start_ == &(*dest_)[0]
@@ -96,6 +105,9 @@ class StringWriter final : public Writer {
 };
 
 // Implementation details follow.
+
+inline StringWriter::StringWriter(OwnsDest, Options options)
+    : StringWriter(&owned_dest_, options) {}
 
 inline StringWriter::StringWriter(std::string* dest, Options options)
     : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
@@ -107,11 +119,35 @@ inline StringWriter::StringWriter(std::string* dest, Options options)
 }
 
 inline StringWriter::StringWriter(StringWriter&& src) noexcept
-    : Writer(std::move(src)), dest_(riegeli::exchange(src.dest_, nullptr)) {}
+    : Writer(std::move(src)),
+      owned_dest_(riegeli::exchange(src.owned_dest_, std::string())),
+      dest_(src.dest_ == &src.owned_dest_
+                ? &owned_dest_
+                : riegeli::exchange(src.dest_, &src.owned_dest_)) {
+  if (dest_ == &owned_dest_ && ABSL_PREDICT_TRUE(start_ != nullptr)) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    const size_t limit_index = buffer_size();
+    start_ = &owned_dest_[0];
+    cursor_ = start_ + cursor_index;
+    limit_ = start_ + limit_index;
+  }
+}
 
 inline StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
   Writer::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
+  owned_dest_ = riegeli::exchange(src.owned_dest_, std::string());
+  dest_ = src.dest_ == &src.owned_dest_
+              ? &owned_dest_
+              : riegeli::exchange(src.dest_, &src.owned_dest_);
+  if (dest_ == &owned_dest_ && ABSL_PREDICT_TRUE(start_ != nullptr)) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    const size_t limit_index = buffer_size();
+    start_ = &owned_dest_[0];
+    cursor_ = start_ + cursor_index;
+    limit_ = start_ + limit_index;
+  }
   return *this;
 }
 

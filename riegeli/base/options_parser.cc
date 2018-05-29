@@ -65,13 +65,6 @@ ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
       key_(key),
       value_(value) {}
 
-void ValueParser::Done() {
-  options_parser_ = nullptr;
-  key_ = absl::string_view();
-  value_ = absl::string_view();
-  valid_values_ = std::string();
-}
-
 ValueParser::Function ValueParser::Int(int* out, int min_value, int max_value) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of OptionsParser::IntOption(): "

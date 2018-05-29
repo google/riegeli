@@ -38,7 +38,14 @@ namespace internal {
 // Implementation shared between FdReader and FdStreamReader.
 class FdReaderBase : public BufferedReader {
  public:
+  // Returns the file descriptor being read from. Unchanged by Close() if the fd
+  // was not owned, -1 if it was owned.
+  int fd() const { return fd_; }
+  // Returns the original name of the file being read from (or /dev/stdin or
+  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
+  // Returns the errno value of the last fd operation, or 0 if none.
+  // Unchanged by Close().
   int error_code() const { return error_code_; }
 
  protected:
@@ -49,7 +56,8 @@ class FdReaderBase : public BufferedReader {
   FdReaderBase(int fd, bool owns_fd, size_t buffer_size);
 
   // Opens a file for reading.
-  FdReaderBase(std::string filename, int flags, size_t buffer_size);
+  FdReaderBase(std::string filename, int flags, bool owns_fd,
+               size_t buffer_size);
 
   FdReaderBase(FdReaderBase&& src) noexcept;
   FdReaderBase& operator=(FdReaderBase&& src) noexcept;
@@ -62,7 +70,7 @@ class FdReaderBase : public BufferedReader {
   FdHolder owned_fd_;
   int fd_ = -1;
   std::string filename_;
-  // errno value from a failed operation, or 0 if none.
+  // errno value of the last fd operation, or 0 if none.
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
@@ -144,7 +152,6 @@ class FdReader final : public internal::FdReaderBase {
   // flags is the second argument of open, typically O_RDONLY.
   //
   // flags must include O_RDONLY or O_RDWR.
-  // options.set_owns_fd(false) must not be used.
   FdReader(std::string filename, int flags, Options options = Options());
 
   FdReader(FdReader&& src) noexcept;
@@ -154,7 +161,6 @@ class FdReader final : public internal::FdReaderBase {
   bool Size(Position* size) const override;
 
  protected:
-  void Done() override;
   bool MaybeSyncPos() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
   bool SeekSlow(Position new_pos) override;
@@ -264,10 +270,26 @@ class FdMMapReader final : public Reader {
       return std::move(set_owns_fd(owns_fd));
     }
 
+    // If true, FdMMapReader will initially get the current file position, and
+    // will set the final file position on Close().
+    //
+    // If false, file position is irrelevant for FdMMapReader, and reading will
+    // start at the beginning of file.
+    //
+    // Default: false.
+    Options& set_sync_pos(bool sync_pos) & {
+      sync_pos_ = sync_pos;
+      return *this;
+    }
+    Options&& set_sync_pos(bool sync_pos) && {
+      return std::move(set_sync_pos(sync_pos));
+    }
+
    private:
     friend class FdMMapReader;
 
     bool owns_fd_ = true;
+    bool sync_pos_ = false;
   };
 
   // Creates a closed FdMMapReader.
@@ -287,7 +309,14 @@ class FdMMapReader final : public Reader {
   FdMMapReader(FdMMapReader&& src) noexcept;
   FdMMapReader& operator=(FdMMapReader&& src) noexcept;
 
+  // Returns the file descriptor being read from. Unchanged by Close() if the fd
+  // was not owned, -1 if it owned.
+  int fd() const { return fd_; }
+  // Returns the original name of the file being read from (or /dev/stdin or
+  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
+  // Returns the errno value of the last fd operation, or 0 if none.
+  // Unchanged by Close().
   int error_code() const { return error_code_; }
 
   bool SupportsRandomAccess() const override { return true; }
@@ -302,7 +331,7 @@ class FdMMapReader final : public Reader {
   bool SeekSlow(Position new_pos) override;
 
  private:
-  void Initialize(int fd, Options options);
+  void Initialize(Options options);
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int error_code);
@@ -312,14 +341,17 @@ class FdMMapReader final : public Reader {
   // Precondition: contents_.blocks().size() == 1
   Chain::BlockIterator iter() const;
 
+  internal::FdHolder owned_fd_;
+  int fd_ = -1;
   std::string filename_;
-  // errno value from a failed operation, or 0 if none.
+  bool sync_pos_ = false;
+  // errno value of the last fd operation, or 0 if none.
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
   Chain contents_;
 
-  // Invariants:
+  // Invariants if healthy():
   //   start_ == (contents_.blocks().empty() ? nullptr : iter()->data())
   //   buffer_size() == (contents_.blocks().empty() ? 0 : iter()->size())
   //   start_pos() == 0

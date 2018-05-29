@@ -103,6 +103,8 @@ class ChunkReader final : public Object {
   //
   // ReadChunk() and PullChunkHeader() return a chunk beginning at pos() if they
   // succeed.
+  //
+  // pos() is unchanged by Close().
   Position pos() const { return pos_; }
 
   // Seeks to new_pos, which should be a chunk boundary.
@@ -170,8 +172,6 @@ class ChunkReader final : public Object {
   Reader* byte_reader_;
 
   // Beginning of the current chunk.
-  //
-  // Invariant: if closed() then pos_ == 0
   Position pos_;
 
   // Chunk header and chunk data, filled to the point derived from pos_ and

@@ -61,12 +61,8 @@ void ZstdWriter::Done() {
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()");
   }
   if (owned_dest_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_dest_->Close())) Fail(*owned_dest_);
-    }
-    owned_dest_.reset();
+    if (ABSL_PREDICT_FALSE(!owned_dest_->Close())) Fail(*owned_dest_);
   }
-  dest_ = nullptr;
   // Do not reset compressor_. It might be reused if a fresh ZstdWriter is
   // assigned to *this.
   BufferedWriter::Done();

@@ -104,7 +104,7 @@ class BackwardWriter : public Object {
   // This may decrease when the BackwardWriter becomes unhealthy (due to
   // buffering, previously written but unflushed data may be lost).
   //
-  // Invariant: if closed() then pos() == 0
+  // pos() is unchanged by Close().
   Position pos() const;
 
   // Returns true if this BackwardWriter supports Truncate().
@@ -132,10 +132,9 @@ class BackwardWriter : public Object {
   BackwardWriter(BackwardWriter&& src) noexcept;
   BackwardWriter& operator=(BackwardWriter&& src) noexcept;
 
-  // BackwardWriter provides a partial override of Object::Done().
-  // Derived classes must override it further and include a call to
-  // BackwardWriter::Done().
-  virtual void Done() override = 0;
+  // BackwardWriter overrides Object::Done(). Derived classes which override it
+  // further should include a call to BackwardWriter::Done().
+  virtual void Done() override;
 
   // Marks the BackwardWriter as failed with message "BackwardWriter position
   // overflow". Always returns false.
@@ -205,7 +204,6 @@ inline void BackwardWriter::Done() {
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
-  start_pos_ = 0;
 }
 
 inline bool BackwardWriter::Push() {

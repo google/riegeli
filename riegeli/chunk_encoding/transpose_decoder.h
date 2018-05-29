@@ -55,9 +55,6 @@ class TransposeDecoder final : public Object {
              const FieldFilter& field_filter, BackwardWriter* dest,
              std::vector<size_t>* limits);
 
- protected:
-  void Done() override;
-
  private:
   // Information about one proto tag.
   struct TagData {

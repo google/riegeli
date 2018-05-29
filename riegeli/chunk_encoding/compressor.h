@@ -69,8 +69,6 @@ class Compressor final : public Object {
 
   CompressorOptions options_;
   uint64_t size_hint_ = 0;
-  Chain compressed_;
-  // Invariant: compressed_writer_ writes to compressed_
   ChainWriter compressed_writer_;
   // Invariants:
   //   options_.compression_type() is consistent with the active member of the

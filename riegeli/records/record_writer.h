@@ -409,8 +409,9 @@ class RecordWriter final : public Object {
   // the canonical position returned by WriteRecord() in *key for that record,
   // but seeking to either position will read the same record.
   //
-  // After Flush(), Pos() is equal to the canonical position returned by the
-  // following WriteRecord() in *key.
+  // After Close() or Flush(), Pos() is equal to the canonical position returned
+  // by the following WriteRecord() in *key (after reopening the file for
+  // appending in the case of Close()).
   FutureRecordPosition Pos() const;
 
  protected:
@@ -435,7 +436,7 @@ class RecordWriter final : public Object {
   std::unique_ptr<ChunkWriter> owned_chunk_writer_;
   // impl_ must be defined after owned_chunk_writer_ so that it is destroyed
   // before owned_chunk_writer_, because background work of impl_ may need
-  // owned_chunk_writer_
+  // owned_chunk_writer_.
   //
   // Invariant: if healthy() them impl_ != nullptr
   std::unique_ptr<Impl> impl_;

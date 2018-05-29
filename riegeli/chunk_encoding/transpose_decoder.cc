@@ -379,8 +379,6 @@ struct TransposeDecoder::Context {
   std::vector<StateMachineNodeTemplate> node_templates;
 };
 
-void TransposeDecoder::Done() {}
-
 bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
                              uint64_t decoded_data_size,
                              const FieldFilter& field_filter,

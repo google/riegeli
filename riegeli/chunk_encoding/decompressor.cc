@@ -80,16 +80,10 @@ Decompressor::Decompressor(Reader* src, CompressionType compression_type)
 
 void Decompressor::Done() {
   if (owned_reader_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_reader_->Close())) Fail(*owned_reader_);
-    }
-    owned_reader_.reset();
+    if (ABSL_PREDICT_FALSE(!owned_reader_->Close())) Fail(*owned_reader_);
   }
   if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
-    }
-    owned_src_.reset();
+    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
   }
   reader_ = nullptr;
 }

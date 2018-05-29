@@ -38,13 +38,17 @@ class LimitingWriter final : public Writer {
   LimitingWriter() noexcept : Writer(State::kClosed) {}
 
   // Will write to the Writer which is not owned by this LimitingWriter and
-  // must be kept alive but not accessed until closing the LimitingWriter.
+  // must be kept alive but not accessed until closing the LimitingWriter,
+  // except that it is allowed to read its destination directly after Flush().
   //
   // Precondition: size_limit >= dest->pos()
   LimitingWriter(Writer* dest, Position size_limit);
 
   LimitingWriter(LimitingWriter&& src) noexcept;
   LimitingWriter& operator=(LimitingWriter&& src) noexcept;
+
+  // Returns the Writer being written to. Unchanged by Close().
+  Writer* dest() const { return dest_; }
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override;

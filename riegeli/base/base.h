@@ -492,6 +492,12 @@ constexpr size_t kDefaultBufferSize() { return size_t{64} << 10; }
 // advantage of sharing instead of copying.
 constexpr size_t kMaxBytesToCopy() { return 511; }
 
+// Marker of a constructor of a writer object, so that it will write to a
+// destination which is owned by this writer. This disambiguates the constructor
+// from the default constructor which creates a closed writer.
+struct OwnsDest {};
+constexpr OwnsDest kOwnsDest() { return OwnsDest(); }
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_BASE_H_

@@ -225,6 +225,8 @@ class RecordReader final : public Object {
   // A position returned by pos() before reading a record is not greater than
   // the canonical position returned by ReadRecord() in *key for that record,
   // but seeking to either position will read the same record.
+  //
+  // pos() is unchanged by Close().
   RecordPosition pos() const;
 
   // Seeks to a position.
@@ -321,7 +323,7 @@ class RecordReader final : public Object {
   // Invariants:
   //   if healthy() then recoverable_ == Recoverable::kNo
   //   if closed() then recoverable_ == Recoverable::kNo ||
-  //                    recoverable_ == Recoverable::kReportSkippedBytes
+  //                    recoverable_ == Recoverable::kRecoverChunkReader
   Recoverable recoverable_ = Recoverable::kNo;
 
   // If recoverable_ == Recoverable::kReportSkippedBytes, the number of skipped

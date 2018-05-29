@@ -140,7 +140,7 @@ class Writer : public Object {
   // This may decrease when the Writer becomes unhealthy (due to buffering,
   // previously written but unflushed data may be lost).
   //
-  // Invariant: if closed() then pos() == 0
+  // pos() is unchanged by Close().
   Position pos() const;
 
   // Returns true if this Writer supports Seek(), Size(), and Truncate().
@@ -189,9 +189,9 @@ class Writer : public Object {
   Writer(Writer&& src) noexcept;
   Writer& operator=(Writer&& src) noexcept;
 
-  // Writer provides a partial override of Object::Done(). Derived classes must
-  // override it further and include a call to Writer::Done().
-  virtual void Done() override = 0;
+  // Writer overrides Object::Done(). Derived classes which override it further
+  // should include a call to Writer::Done().
+  virtual void Done() override;
 
   // Marks the Writer as failed with message "Writer position overflow".
   // Always returns false.
@@ -265,7 +265,6 @@ inline void Writer::Done() {
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
-  start_pos_ = 0;
 }
 
 inline bool Writer::Push() {

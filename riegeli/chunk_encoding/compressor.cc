@@ -38,7 +38,7 @@ Compressor::Compressor(CompressorOptions options, uint64_t size_hint)
     : Object(State::kOpen),
       options_(std::move(options)),
       size_hint_(size_hint),
-      compressed_writer_(&compressed_, GetChainWriterOptions()) {
+      compressed_writer_(kOwnsDest(), GetChainWriterOptions()) {
   switch (options_.compression_type()) {
     case CompressionType::kNone:
       writer_ = &compressed_writer_;
@@ -69,8 +69,7 @@ void Compressor::Reset() {
     Compressor* self;
   };
   MarkHealthy();
-  compressed_.Clear();
-  compressed_writer_ = ChainWriter(&compressed_, GetChainWriterOptions());
+  compressed_writer_ = ChainWriter(kOwnsDest(), GetChainWriterOptions());
   absl::visit(Visitor{this}, writer_);
 }
 
@@ -100,8 +99,8 @@ void Compressor::Done() {
     if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
       Fail(compressed_writer_);
     }
+    compressed_writer_.dest() = Chain();
   }
-  compressed_ = Chain();
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
@@ -117,7 +116,7 @@ bool Compressor::EncodeAndClose(Writer* dest) {
       return Fail(*dest);
     }
   }
-  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_)))) {
+  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_writer_.dest())))) {
     return Fail(*dest);
   }
   return Close();

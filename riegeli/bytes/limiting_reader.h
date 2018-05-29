@@ -47,6 +47,9 @@ class LimitingReader final : public Reader {
   LimitingReader(LimitingReader&& src) noexcept;
   LimitingReader& operator=(LimitingReader&& src) noexcept;
 
+  // Returns the Reader being read from. Unchanged by Close().
+  Reader* src() const { return src_; }
+
   TypeId GetTypeId() const override;
   bool SupportsRandomAccess() const override;
   bool Size(Position* size) const override;

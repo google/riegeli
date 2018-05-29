@@ -125,19 +125,23 @@ class ZstdWriter final : public BufferedWriter {
   // Creates a closed ZstdWriter.
   ZstdWriter() noexcept {}
 
-  // Will write Zstd-compressed stream to the byte Writer which is owned by this
+  // Will write Zstd-compressed stream to the Writer which is owned by this
   // ZstdWriter and will be closed and deleted when the ZstdWriter is closed.
   explicit ZstdWriter(std::unique_ptr<Writer> dest,
                       Options options = Options());
 
-  // Will write Zstd-compressed stream to the byte Writer which is not owned by
-  // this ZstdWriter and must be kept alive but not accessed until closing the
+  // Will write Zstd-compressed stream to the Writer which is not owned by this
+  // ZstdWriter and must be kept alive but not accessed until closing the
   // ZstdWriter, except that it is allowed to read its destination directly
   // after Flush().
   explicit ZstdWriter(Writer* dest, Options options = Options());
 
   ZstdWriter(ZstdWriter&& src) noexcept;
   ZstdWriter& operator=(ZstdWriter&& src) noexcept;
+
+  // Returns the Writer the compressed stream is being written to. Unchanged by
+  // Close().
+  Writer* dest() const { return dest_; }
 
   bool Flush(FlushType flush_type) override;
 

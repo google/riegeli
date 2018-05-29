@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -46,6 +47,9 @@ class StringReader final : public Reader {
   StringReader(StringReader&& src) noexcept;
   StringReader& operator=(StringReader&& src) noexcept;
 
+  // Returns the array being read from. Unchanged by Close().
+  absl::string_view src() const { return src_; }
+
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) const override;
 
@@ -54,15 +58,15 @@ class StringReader final : public Reader {
   bool PullSlow() override;
   bool SeekSlow(Position new_pos) override;
 
-  // Invariants:
-  //   if !healthy() then start_ == nullptr
-  //   start_pos() == 0
+  absl::string_view src_;
+
+  // Invariant: if healthy() then start_pos() == 0
 };
 
 // Implementation details follow.
 
 inline StringReader::StringReader(const char* src, size_t size)
-    : Reader(State::kOpen) {
+    : Reader(State::kOpen), src_(src, size) {
   start_ = src;
   cursor_ = src;
   limit_ = src + size;
@@ -73,10 +77,12 @@ inline StringReader::StringReader(const std::string* src)
     : StringReader(src->data(), src->size()) {}
 
 inline StringReader::StringReader(StringReader&& src) noexcept
-    : Reader(std::move(src)) {}
+    : Reader(std::move(src)),
+      src_(riegeli::exchange(src.src_, absl::string_view())) {}
 
 inline StringReader& StringReader::operator=(StringReader&& src) noexcept {
   Reader::operator=(std::move(src));
+  src_ = riegeli::exchange(src.src_, absl::string_view());
   return *this;
 }
 

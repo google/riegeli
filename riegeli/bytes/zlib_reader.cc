@@ -48,12 +48,8 @@ void ZlibReader::Done() {
     Fail("Truncated zlib-compressed stream");
   }
   if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
-    }
-    owned_src_.reset();
+    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
   }
-  src_ = nullptr;
   if (decompressor_present_) {
     decompressor_present_ = false;
     const int result = inflateEnd(&decompressor_);

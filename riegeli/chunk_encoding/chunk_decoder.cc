@@ -64,9 +64,7 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
 }
 
 void ChunkDecoder::Done() {
-  limits_ = std::vector<size_t>();
   values_reader_ = ChainReader();
-  index_ = 0;
   record_scratch_ = std::string();
   recoverable_ = false;
 }

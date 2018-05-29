@@ -33,8 +33,8 @@ void ChainBackwardWriter::Done() {
     RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
         << "ChainBackwardWriter destination changed unexpectedly";
     DiscardBuffer();
+    start_pos_ = dest_->size();
   }
-  dest_ = nullptr;
   BackwardWriter::Done();
 }
 

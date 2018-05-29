@@ -55,18 +55,21 @@ class ZstdReader final : public BufferedReader {
   // Creates a closed ZstdReader.
   ZstdReader() noexcept {}
 
-  // Will read Zstd-compressed stream from the byte Reader which is owned by
-  // this ZstdReader and will be closed and deleted when the ZstdReader is
-  // closed.
+  // Will read Zstd-compressed stream from the Reader which is owned by this
+  // ZstdReader and will be closed and deleted when the ZstdReader is closed.
   explicit ZstdReader(std::unique_ptr<Reader> src, Options options = Options());
 
-  // Will read Zstd-compressed stream from the byte Reader which is not owned by
-  // this ZstdReader and must be kept alive but not accessed until closing the
+  // Will read Zstd-compressed stream from the Reader which is not owned by this
+  // ZstdReader and must be kept alive but not accessed until closing the
   // ZstdReader.
   explicit ZstdReader(Reader* src, Options options = Options());
 
   ZstdReader(ZstdReader&& src) noexcept;
   ZstdReader& operator=(ZstdReader&& src) noexcept;
+
+  // Returns the Reader the compressed stream is being read from. Unchanged by
+  // Close().
+  Reader* src() const { return src_; }
 
  protected:
   void Done() override;

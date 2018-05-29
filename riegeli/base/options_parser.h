@@ -119,9 +119,6 @@ class ValueParser : public Object {
   // Always returns false.
   bool InvalidValue(absl::string_view valid_values);
 
- protected:
-  void Done() override;
-
  private:
   friend class OptionsParser;
 

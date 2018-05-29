@@ -25,6 +25,9 @@ class FdHolder {
 
   ~FdHolder();
 
+  // Returns the owned file descriptor, or -1 if none, including after Close().
+  int fd() const { return fd_; }
+
   // Return value:
   //  * 0     - success
   //  * errno - failure (fd is closed anyway)

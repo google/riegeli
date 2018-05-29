@@ -35,9 +35,10 @@
 namespace riegeli {
 
 void DeferredEncoder::Done() {
-  base_encoder_.reset();
-  records_ = Chain();
-  records_writer_ = ChainWriter();
+  if (base_encoder_ != nullptr) {
+    if (ABSL_PREDICT_FALSE(!base_encoder_->Close())) Fail(*base_encoder_);
+  }
+  if (ABSL_PREDICT_FALSE(!records_writer_.Close())) Fail(records_writer_);
   limits_ = std::vector<size_t>();
   ChunkEncoder::Done();
 }
@@ -45,8 +46,7 @@ void DeferredEncoder::Done() {
 void DeferredEncoder::Reset() {
   ChunkEncoder::Reset();
   base_encoder_->Reset();
-  records_.Clear();
-  records_writer_ = ChainWriter(&records_);
+  records_writer_ = ChainWriter(kOwnsDest());
   limits_.clear();
 }
 
@@ -150,8 +150,8 @@ bool DeferredEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
   if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
     return Fail(records_writer_);
   }
-  if (ABSL_PREDICT_FALSE(!base_encoder_->AddRecords(std::move(records_),
-                                                    std::move(limits_))) ||
+  if (ABSL_PREDICT_FALSE(!base_encoder_->AddRecords(
+          std::move(records_writer_.dest()), std::move(limits_))) ||
       ABSL_PREDICT_FALSE(!base_encoder_->EncodeAndClose(
           dest, chunk_type, num_records, decoded_data_size))) {
     Fail(*base_encoder_);

@@ -71,12 +71,10 @@ class ChunkWriter : public Object {
   //  * false (when !healthy()) - failure to push
   virtual bool Flush(FlushType flush_type) = 0;
 
-  // Returns the current byte position.
+  // Returns the current byte position. Unchanged by Close().
   Position pos() const { return pos_; }
 
  protected:
-  void Done() override;
-
   Position pos_ = 0;
 };
 
@@ -133,10 +131,6 @@ class DefaultChunkWriter final : public ChunkWriter {
   // Invariant: if healthy() then byte_writer_ != nullptr
   Writer* byte_writer_;
 };
-
-// Implementation details follow.
-
-inline void ChunkWriter::Done() { pos_ = 0; }
 
 }  // namespace riegeli
 

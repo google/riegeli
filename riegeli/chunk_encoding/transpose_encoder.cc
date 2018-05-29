@@ -1355,10 +1355,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   const std::vector<StateInfo> state_machine =
       CreateStateMachine(max_transition, min_count_for_state);
 
-  Chain header;
-  ChainWriter header_writer(&header);
-  Chain data;
-  ChainWriter data_writer(&data);
+  ChainWriter header_writer(kOwnsDest());
+  ChainWriter data_writer(kOwnsDest());
   if (ABSL_PREDICT_FALSE(!WriteStatesAndData(max_transition, state_machine,
                                              &header_writer, &data_writer))) {
     return false;
@@ -1366,14 +1364,14 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!header_writer.Close())) return Fail(header_writer);
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
-  Chain compressed_header;
-  ChainWriter compressed_header_writer(&compressed_header);
+  ChainWriter compressed_header_writer(kOwnsDest());
   // Uncompressed header size is known before compression, but a size hint
   // cannot be passed to compressor_ because it is reused for compressing
   // buckets and transitions. Reusing the compressor brings more benefits
   // (memory saving) than passing a size hint.
   compressor_.Reset();
-  if (ABSL_PREDICT_FALSE(!compressor_.writer()->Write(std::move(header)))) {
+  if (ABSL_PREDICT_FALSE(
+          !compressor_.writer()->Write(std::move(header_writer.dest())))) {
     return Fail(*compressor_.writer());
   }
   if (ABSL_PREDICT_FALSE(
@@ -1383,12 +1381,15 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!compressed_header_writer.Close())) {
     return Fail(compressed_header_writer);
   }
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint64(dest, IntCast<uint64_t>(compressed_header.size()))) ||
-      ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_header)))) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(
+          dest, IntCast<uint64_t>(compressed_header_writer.dest().size()))) ||
+      ABSL_PREDICT_FALSE(
+          !dest->Write(std::move(compressed_header_writer.dest())))) {
     return Fail(*dest);
   }
-  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data_writer.dest())))) {
+    return Fail(*dest);
+  }
   return Close();
 }
 

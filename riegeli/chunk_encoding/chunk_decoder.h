@@ -101,8 +101,17 @@ class ChunkDecoder : public Object {
   //  * false - failure not caused by an unparsable message
   bool Recover();
 
+  // Returns the current record index. Unchanged by Close().
   uint64_t index() const { return index_; }
+
+  // Sets the current record index.
+  //
+  // If index > num_records(), the current index is set to num_records().
+  //
+  // Precondition: healthy()
   void SetIndex(uint64_t index);
+
+  // Returns the number of records. Unchanged by Close().
   uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
 
  protected:
@@ -112,7 +121,7 @@ class ChunkDecoder : public Object {
   bool Parse(const ChunkHeader& header, ChainReader* src, Chain* dest);
 
   FieldFilter field_filter_;
-  // Invariants:
+  // Invariants if healthy():
   //   limits_ are sorted
   //   (limits_.empty() ? 0 : limits_.back()) == size of values_reader_
   //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()

@@ -29,8 +29,8 @@ void StringWriter::Done() {
     RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
         << "StringWriter destination changed unexpectedly";
     DiscardBuffer();
+    start_pos_ = dest_->size();
   }
-  dest_ = nullptr;
   Writer::Done();
 }
 
@@ -67,7 +67,7 @@ bool StringWriter::WriteSlow(absl::string_view src) {
   }
   DiscardBuffer();
   dest_->append(src.data(), src.size());
-  MakeBuffer(dest_->size());
+  MakeBuffer();
   return true;
 }
 
@@ -90,7 +90,7 @@ bool StringWriter::WriteSlow(std::string&& src) {
   } else {
     dest_->append(src);
   }
-  MakeBuffer(dest_->size());
+  MakeBuffer();
   return true;
 }
 
@@ -109,7 +109,7 @@ bool StringWriter::WriteSlow(const Chain& src) {
   }
   DiscardBuffer();
   src.AppendTo(dest_);
-  MakeBuffer(dest_->size());
+  MakeBuffer();
   return true;
 }
 

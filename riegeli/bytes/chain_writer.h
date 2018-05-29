@@ -56,6 +56,10 @@ class ChainWriter final : public Writer {
   // Creates a closed ChainWriter.
   ChainWriter() noexcept : Writer(State::kClosed) {}
 
+  // Will write to a Chain which is owned by this ChainWriter, available as
+  // dest().
+  explicit ChainWriter(OwnsDest, Options options = Options());
+
   // Will write to the Chain which is not owned by this ChainWriter and must be
   // kept alive but not accessed until closing the ChainWriter, except that it
   // is allowed to read it directly after Flush().
@@ -63,6 +67,9 @@ class ChainWriter final : public Writer {
 
   ChainWriter(ChainWriter&& src) noexcept;
   ChainWriter& operator=(ChainWriter&& src) noexcept;
+
+  // Returns the Chain being written to. Unchanged by Close().
+  Chain& dest() const { return *dest_; }
 
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
@@ -86,12 +93,13 @@ class ChainWriter final : public Writer {
   // start_pos_.
   void MakeBuffer();
 
-  // If healthy(), the Chain being written to, with uninitialized space appended
-  // (possibly empty); cursor_ points to the uninitialized space, except that it
-  // can be nullptr if the uninitialized space is empty.
+  Chain owned_dest_;
+  // The Chain being written to, with uninitialized space appended (possibly
+  // empty); cursor_ points to the uninitialized space, except that it can be
+  // nullptr if the uninitialized space is empty.
   //
-  // Invariant: if healthy() then dest_ != nullptr
-  Chain* dest_ = nullptr;
+  // Invariant: dest_ != nullptr
+  Chain* dest_ = &owned_dest_;
   size_t size_hint_ = 0;
 
   // Invariants if healthy():
@@ -101,6 +109,9 @@ class ChainWriter final : public Writer {
 };
 
 // Implementation details follow.
+
+inline ChainWriter::ChainWriter(OwnsDest, Options options)
+    : ChainWriter(&owned_dest_, options) {}
 
 inline ChainWriter::ChainWriter(Chain* dest, Options options)
     : Writer(State::kOpen),
@@ -112,13 +123,36 @@ inline ChainWriter::ChainWriter(Chain* dest, Options options)
 
 inline ChainWriter::ChainWriter(ChainWriter&& src) noexcept
     : Writer(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+      owned_dest_(std::move(src.owned_dest_)),
+      dest_(src.dest_ == &src.owned_dest_
+                ? &owned_dest_
+                : riegeli::exchange(src.dest_, &src.owned_dest_)),
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {
+  if (dest_ == &owned_dest_ && start_ != nullptr) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    limit_ = const_cast<char*>(owned_dest_.blocks().back().data() +
+                               owned_dest_.blocks().back().size());
+    start_ = limit_ - (owned_dest_.size() - IntCast<size_t>(start_pos_));
+    cursor_ = start_ + cursor_index;
+  }
+}
 
 inline ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
   Writer::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = src.dest_ == &src.owned_dest_
+              ? &owned_dest_
+              : riegeli::exchange(src.dest_, &src.owned_dest_);
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  if (dest_ == &owned_dest_ && start_ != nullptr) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    limit_ = const_cast<char*>(owned_dest_.blocks().back().data() +
+                               owned_dest_.blocks().back().size());
+    start_ = limit_ - (owned_dest_.size() - IntCast<size_t>(start_pos_));
+    cursor_ = start_ + cursor_index;
+  }
   return *this;
 }
 

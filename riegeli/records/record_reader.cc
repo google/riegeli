@@ -129,17 +129,11 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
 void RecordReader::Done() {
   recoverable_ = Recoverable::kNo;
   recoverable_length_ = 0;
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) {
-      Fail(*chunk_reader_);
-      if (chunk_reader_->Recover(&recoverable_length_)) {
-        recoverable_ = Recoverable::kReportSkippedBytes;
-      }
-    }
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) {
+    recoverable_ = Recoverable::kRecoverChunkReader;
+    Fail(*chunk_reader_);
   }
-  chunk_reader_.reset();
-  chunk_begin_ = 0;
-  chunk_decoder_ = ChunkDecoder();
+  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) Fail(chunk_decoder_);
 }
 
 bool RecordReader::CheckFileFormat() {
@@ -281,9 +275,9 @@ bool RecordReader::Recover(Position* skipped_bytes,
                                 "recovery applicable but RecordReader healthy";
   const Recoverable recoverable = recoverable_;
   recoverable_ = Recoverable::kNo;
-  if (recoverable != Recoverable::kReportSkippedBytes) {
+  if (recoverable != Recoverable::kRecoverChunkReader) {
     RIEGELI_ASSERT(!closed()) << "Failed invariant of RecordReader: "
-                                 "recovery does not only report skipped bytes "
+                                 "recovery does not apply to chunk reader "
                                  "but RecordReader is closed";
   }
   MarkNotFailed();

@@ -45,10 +45,9 @@ class BufferedWriter : public Writer {
 
   ~BufferedWriter() { DeleteBuffer(); }
 
-  // BufferedWriter provides a partial override of Writer::Done().
-  // Derived classes must override it further and include a call to
-  // BufferedWriter::Done().
-  virtual void Done() override = 0;
+  // BufferedWriter overrides Writer::Done(). Derived classes which override it
+  // further should include a call to BufferedWriter::Done().
+  virtual void Done() override;
 
   bool PushSlow() override;
   bool WriteSlow(absl::string_view src) override;
@@ -81,8 +80,8 @@ class BufferedWriter : public Writer {
   // If the buffer is allocated, deletes it.
   void DeleteBuffer();
 
-  // Invariant if healthy():
-  //   buffer_size() == (start_ == nullptr ? 0 : buffer_size_)
+  // Invariant:
+  //   if healthy() then buffer_size() == (start_ == nullptr ? 0 : buffer_size_)
 };
 
 // Implementation details follow.
@@ -109,8 +108,8 @@ inline BufferedWriter& BufferedWriter::operator=(
 }
 
 inline void BufferedWriter::Done() {
+  start_pos_ = pos();
   DeleteBuffer();
-  buffer_size_ = 0;
   Writer::Done();
 }
 

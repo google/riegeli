@@ -39,8 +39,7 @@ LimitingWriter::LimitingWriter(Writer* dest, Position size_limit)
 
 void LimitingWriter::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) dest_->set_cursor(cursor_);
-  dest_ = nullptr;
-  size_limit_ = 0;
+  start_pos_ = pos();
   Writer::Done();
 }
 

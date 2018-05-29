@@ -139,7 +139,7 @@ class Reader : public Object {
   // This is often 0 after creating the Reader, but not necessarily if the
   // Reader wraps another reader or input stream propagating its position.
   //
-  // Invariant: if closed() then pos() == 0
+  // pos() is unchanged by Close().
   Position pos() const;
 
   // Returns true if this Reader supports Seek() backwards (Seek() forwards is
@@ -189,9 +189,9 @@ class Reader : public Object {
   Reader(Reader&& src) noexcept;
   Reader& operator=(Reader&& src) noexcept;
 
-  // Reader provides a partial override of Object::Done(). Derived classes must
-  // override it further and include a call to Reader::Done().
-  virtual void Done() override = 0;
+  // Reader overrides Object::Done(). Derived classes which override it further
+  // should include a call to Reader::Done().
+  virtual void Done() override;
 
   // Marks the Reader as failed with message "Reader position overflow".
   // Always returns false.
@@ -275,7 +275,6 @@ inline void Reader::Done() {
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
-  limit_pos_ = 0;
 }
 
 inline bool Reader::Pull() {

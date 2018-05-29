@@ -62,8 +62,7 @@ class DeferredEncoder : public ChunkEncoder {
   bool AddRecordImpl(Record&& record);
 
   std::unique_ptr<ChunkEncoder> base_encoder_;
-  // Concatenated record values.
-  Chain records_;
+  // Writer of concatenated record values.
   ChainWriter records_writer_;
   // Sorted record end positions.
   //
@@ -77,7 +76,7 @@ class DeferredEncoder : public ChunkEncoder {
 
 inline DeferredEncoder::DeferredEncoder(
     std::unique_ptr<ChunkEncoder> base_encoder)
-    : base_encoder_(std::move(base_encoder)), records_writer_(&records_) {}
+    : base_encoder_(std::move(base_encoder)), records_writer_(kOwnsDest()) {}
 
 }  // namespace riegeli
 

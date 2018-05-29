@@ -56,12 +56,19 @@ class ChainBackwardWriter final : public BackwardWriter {
   // Creates a closed ChainBackwardWriter.
   ChainBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}
 
+  // Will write to a Chain which is owned by this ChainBackwardWriter, available
+  // as dest().
+  explicit ChainBackwardWriter(OwnsDest, Options options = Options());
+
   // Will write to the Chain which is not owned by this ChainBackwardWriter and
   // must be kept alive but not accessed until closing the ChainBackwardWriter.
   explicit ChainBackwardWriter(Chain* dest, Options options = Options());
 
   ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
   ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
+
+  // Returns the Chain being written to.
+  Chain& dest() const { return *dest_; }
 
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
@@ -85,12 +92,13 @@ class ChainBackwardWriter final : public BackwardWriter {
   // start_pos_.
   void MakeBuffer();
 
-  // If healthy(), the Chain being written to, with uninitialized space
-  // prepended (possibly empty); cursor_ points to the end of the uninitialized
-  // space, except that it can be nullptr if the uninitialized space is empty.
+  Chain owned_dest_;
+  // The Chain being written to, with uninitialized space prepended (possibly
+  // empty); cursor_ points to the end of the uninitialized space, except that
+  // it can be nullptr if the uninitialized space is empty.
   //
-  // Invariant: if healthy() then dest_ != nullptr
-  Chain* dest_ = nullptr;
+  // Invariant: dest_ != nullptr
+  Chain* dest_ = &owned_dest_;
   size_t size_hint_ = 0;
 
   // Invariants if healthy():
@@ -99,6 +107,9 @@ class ChainBackwardWriter final : public BackwardWriter {
 };
 
 // Implementation details follow.
+
+inline ChainBackwardWriter::ChainBackwardWriter(OwnsDest, Options options)
+    : ChainBackwardWriter(&owned_dest_, options) {}
 
 inline ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
     : BackwardWriter(State::kOpen),
@@ -111,14 +122,35 @@ inline ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
 inline ChainBackwardWriter::ChainBackwardWriter(
     ChainBackwardWriter&& src) noexcept
     : BackwardWriter(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+      owned_dest_(std::move(src.owned_dest_)),
+      dest_(src.dest_ == &src.owned_dest_
+                ? &owned_dest_
+                : riegeli::exchange(src.dest_, &src.owned_dest_)),
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {
+  if (dest_ == &owned_dest_ && start_ != nullptr) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    limit_ = const_cast<char*>(owned_dest_.blocks().front().data());
+    start_ = limit_ + (owned_dest_.size() - IntCast<size_t>(start_pos_));
+    cursor_ = start_ - cursor_index;
+  }
+}
 
 inline ChainBackwardWriter& ChainBackwardWriter::operator=(
     ChainBackwardWriter&& src) noexcept {
   BackwardWriter::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
+  owned_dest_ = std::move(src.owned_dest_);
+  dest_ = src.dest_ == &src.owned_dest_
+              ? &owned_dest_
+              : riegeli::exchange(src.dest_, &src.owned_dest_);
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  if (dest_ == &owned_dest_ && start_ != nullptr) {
+    // *dest_ was moved, which invalidated buffer pointers.
+    const size_t cursor_index = written_to_buffer();
+    limit_ = const_cast<char*>(owned_dest_.blocks().front().data());
+    start_ = limit_ + (owned_dest_.size() - IntCast<size_t>(start_pos_));
+    cursor_ = start_ - cursor_index;
+  }
   return *this;
 }
 

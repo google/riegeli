@@ -86,10 +86,7 @@ class Object {
   // position, i.e. that it either has more data or ends cleanly (for sources
   // where truncation can be distinguished from a clean end).
   //
-  // If the Object is healthy and owns a resource which is itself an Object,
-  // closes the resource.
-  //
-  // Frees all owned resources.
+  // Closes owned resources.
   //
   // Returns true if the Object did not fail, i.e. if it was healthy just before
   // becoming closed.
@@ -170,7 +167,7 @@ class Object {
   // threads to stop interacting with the Object.
   //
   // Precondition: !closed()
-  virtual void Done() = 0;
+  virtual void Done() {}
 
   // Marks the Object as failed with the specified message.
   //

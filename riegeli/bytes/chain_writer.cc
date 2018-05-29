@@ -33,8 +33,8 @@ void ChainWriter::Done() {
     RIEGELI_ASSERT_EQ(limit_pos(), dest_->size())
         << "ChainWriter destination changed unexpectedly";
     DiscardBuffer();
+    start_pos_ = dest_->size();
   }
-  dest_ = nullptr;
   Writer::Done();
 }
 

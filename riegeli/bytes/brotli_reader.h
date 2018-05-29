@@ -34,19 +34,23 @@ class BrotliReader final : public Reader {
   // Creates a closed BrotliReader.
   BrotliReader() noexcept : Reader(State::kClosed) {}
 
-  // Will read Brotli-compressed stream from the byte Reader which is owned by
-  // this BrotliReader and will be closed and deleted when the BrotliReader is
+  // Will read Brotli-compressed stream from the Reader which is owned by this
+  // BrotliReader and will be closed and deleted when the BrotliReader is
   // closed.
   explicit BrotliReader(std::unique_ptr<Reader> src,
                         Options options = Options());
 
-  // Will read Brotli-compressed stream from the byte Reader which is not owned
-  // by this BrotliReader and must be kept alive but not accessed until closing
-  // the BrotliReader.
+  // Will read Brotli-compressed stream from the Reader which is not owned by
+  // this BrotliReader and must be kept alive but not accessed until closing the
+  // BrotliReader.
   explicit BrotliReader(Reader* src, Options options = Options());
 
   BrotliReader(BrotliReader&& src) noexcept;
   BrotliReader& operator=(BrotliReader&& src) noexcept;
+
+  // Returns the Reader the compressed stream is being read from. Unchanged by
+  // Close().
+  Reader* src() const { return src_; }
 
  protected:
   void Done() override;

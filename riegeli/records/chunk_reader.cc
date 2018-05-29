@@ -55,20 +55,15 @@ void ChunkReader::Done() {
         << "Failed invariant of ChunkReader: a chunk beginning must have been "
            "read for the chunk to be considered incomplete";
     recoverable_ = Recoverable::kReportSkippedBytes;
-    recoverable_pos_ = byte_reader_->pos() - pos_;
+    recoverable_pos_ = byte_reader_->pos();
     Fail(absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
-                      pos_, " with length ", recoverable_pos_));
+                      pos_, " with length ", recoverable_pos_ - pos_));
   }
   if (owned_byte_reader_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_byte_reader_->Close())) {
-        Fail(*owned_byte_reader_);
-      }
+    if (ABSL_PREDICT_FALSE(!owned_byte_reader_->Close())) {
+      Fail(*owned_byte_reader_);
     }
-    owned_byte_reader_.reset();
   }
-  byte_reader_ = nullptr;
-  pos_ = 0;
   chunk_.Close();
   current_chunk_is_incomplete_ = false;
 }
@@ -298,9 +293,6 @@ again:
     RIEGELI_ASSERT(closed()) << "Failed invariant of ChunkReader: "
                                 "recovery only reports skipped bytes "
                                 "but ChunkReader is not closed";
-    RIEGELI_ASSERT_EQ(pos_, 0u) << "Failed invariant of ChunkReader: "
-                                   "ChunkReader is closed "
-                                   "but the current position is not 0";
     return true;
   }
   RIEGELI_ASSERT(!closed()) << "Failed invariant of ChunkReader: "

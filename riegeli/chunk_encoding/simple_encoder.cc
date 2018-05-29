@@ -176,8 +176,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
     return Fail(*dest);
   }
 
-  Chain compressed_sizes;
-  ChainWriter compressed_sizes_writer(&compressed_sizes);
+  ChainWriter compressed_sizes_writer(kOwnsDest());
   if (ABSL_PREDICT_FALSE(
           !sizes_compressor_.EncodeAndClose(&compressed_sizes_writer))) {
     return Fail(sizes_compressor_);
@@ -185,9 +184,10 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
   if (ABSL_PREDICT_FALSE(!compressed_sizes_writer.Close())) {
     return Fail(compressed_sizes_writer);
   }
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint64(dest, IntCast<uint64_t>(compressed_sizes.size()))) ||
-      ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_sizes)))) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(
+          dest, IntCast<uint64_t>(compressed_sizes_writer.dest().size()))) ||
+      ABSL_PREDICT_FALSE(
+          !dest->Write(std::move(compressed_sizes_writer.dest())))) {
     return Fail(*dest);
   }
 

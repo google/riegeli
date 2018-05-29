@@ -49,15 +49,10 @@ DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer, Options options)
 
 void DefaultChunkWriter::Done() {
   if (owned_byte_writer_ != nullptr) {
-    if (ABSL_PREDICT_TRUE(healthy())) {
-      if (ABSL_PREDICT_FALSE(!owned_byte_writer_->Close())) {
-        Fail(*owned_byte_writer_);
-      }
+    if (ABSL_PREDICT_FALSE(!owned_byte_writer_->Close())) {
+      Fail(*owned_byte_writer_);
     }
-    owned_byte_writer_.reset();
   }
-  byte_writer_ = nullptr;
-  ChunkWriter::Done();
 }
 
 bool DefaultChunkWriter::WriteChunk(const Chunk& chunk) {

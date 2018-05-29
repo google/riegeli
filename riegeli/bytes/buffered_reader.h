@@ -44,10 +44,9 @@ class BufferedReader : public Reader {
   BufferedReader(BufferedReader&& src) noexcept;
   BufferedReader& operator=(BufferedReader&& src) noexcept;
 
-  // BufferedReader provides a partial override of Reader::Done().
-  // Derived classes must override it further and include a call to
-  // BufferedReader::Done().
-  virtual void Done() override = 0;
+  // BufferedReader overrides Reader::Done(). Derived classes which override it
+  // further should include a call to BufferedReader::Done().
+  virtual void Done() override;
 
   bool PullSlow() override;
   bool ReadSlow(char* dest, size_t length) override;
@@ -117,7 +116,7 @@ inline BufferedReader& BufferedReader::operator=(
 }
 
 inline void BufferedReader::Done() {
-  buffer_size_ = 0;
+  limit_pos_ = pos();
   buffer_ = Chain();
   Reader::Done();
 }

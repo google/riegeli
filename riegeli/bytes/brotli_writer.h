@@ -121,20 +121,24 @@ class BrotliWriter final : public BufferedWriter {
   // Creates a closed BrotliWriter.
   BrotliWriter() noexcept {}
 
-  // Will write Brotli-compressed stream to the byte Writer which is owned by
-  // this BrotliWriter and will be closed and deleted when the BrotliWriter is
+  // Will write Brotli-compressed stream to the Writer which is owned by this
+  // BrotliWriter and will be closed and deleted when the BrotliWriter is
   // closed.
   explicit BrotliWriter(std::unique_ptr<Writer> dest,
                         Options options = Options());
 
-  // Will write Brotli-compressed stream to the byte Writer which is not owned
-  // by this BrotliWriter and must be kept alive but not accessed until closing
-  // the BrotliWriter, except that it is allowed to read its destination
-  // directly after Flush().
+  // Will write Brotli-compressed stream to the Writer which is not owned by
+  // this BrotliWriter and must be kept alive but not accessed until closing the
+  // BrotliWriter, except that it is allowed to read its destination directly
+  // after Flush().
   explicit BrotliWriter(Writer* dest, Options options = Options());
 
   BrotliWriter(BrotliWriter&& src) noexcept;
   BrotliWriter& operator=(BrotliWriter&& src) noexcept;
+
+  // Returns the Writer the compressed stream is being written to. Unchanged by
+  // Close().
+  Writer* dest() const { return dest_; }
 
   bool Flush(FlushType flush_type) override;
 
