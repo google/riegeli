@@ -37,7 +37,6 @@
 
 namespace riegeli {
 
-class ChunkEncoder;
 class ChunkWriter;
 
 // Sets record_type_name and file_descriptor in metadata, based on the message
@@ -422,11 +421,6 @@ class RecordWriter final : public Object {
   class SerialImpl;
   class ParallelImpl;
   class DummyImpl;
-
-  static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
-
-  bool WriteSignature(ChunkWriter* chunk_writer);
-  bool WriteMetadata(ChunkWriter* chunk_writer, const Options& options);
 
   template <typename Record>
   bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);

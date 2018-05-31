@@ -154,34 +154,6 @@ bool RecordWriter::Options::Parse(absl::string_view text,
   return compressor_options_.Parse(compressor_text, message);
 }
 
-inline std::unique_ptr<ChunkEncoder> RecordWriter::MakeChunkEncoder(
-    const Options& options) {
-  std::unique_ptr<ChunkEncoder> chunk_encoder;
-  if (options.transpose_) {
-    const long double long_double_bucket_size =
-        std::round(static_cast<long double>(options.chunk_size_) *
-                   static_cast<long double>(options.bucket_fraction_));
-    const uint64_t bucket_size =
-        ABSL_PREDICT_FALSE(
-            long_double_bucket_size >=
-            static_cast<long double>(std::numeric_limits<uint64_t>::max()))
-            ? std::numeric_limits<uint64_t>::max()
-            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
-                  ? static_cast<uint64_t>(long_double_bucket_size)
-                  : uint64_t{1};
-    chunk_encoder = absl::make_unique<TransposeEncoder>(
-        options.compressor_options_, bucket_size);
-  } else {
-    chunk_encoder = absl::make_unique<SimpleEncoder>(
-        options.compressor_options_, options.chunk_size_);
-  }
-  if (options.parallelism_ == 0) {
-    return chunk_encoder;
-  } else {
-    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
-  }
-}
-
 class RecordWriter::Impl : public Object {
  public:
   explicit Impl(const Options& options)
@@ -209,6 +181,11 @@ class RecordWriter::Impl : public Object {
   FutureRecordPosition Pos();
 
  protected:
+  void EncodeSignature(Chunk* chunk);
+  bool EncodeMetadata(const Options& options, Chunk* chunk);
+
+  static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
+
   virtual FutureRecordPosition ChunkBegin() = 0;
 
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
@@ -218,6 +195,58 @@ class RecordWriter::Impl : public Object {
 };
 
 RecordWriter::Impl::~Impl() {}
+
+void RecordWriter::Impl::EncodeSignature(Chunk* chunk) {
+  chunk->header = ChunkHeader(chunk->data, ChunkType::kFileSignature, 0, 0);
+}
+
+bool RecordWriter::Impl::EncodeMetadata(const Options& options, Chunk* chunk) {
+  TransposeEncoder transpose_encoder(options.compressor_options_,
+                                     options.metadata_.ByteSizeLong());
+  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options.metadata_))) {
+    return Fail(transpose_encoder);
+  }
+  ChainWriter data_writer(&chunk->data);
+  ChunkType chunk_type;
+  uint64_t num_records;
+  uint64_t decoded_data_size;
+  if (ABSL_PREDICT_FALSE(!transpose_encoder.EncodeAndClose(
+          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
+    return Fail(transpose_encoder);
+  }
+  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
+  chunk->header =
+      ChunkHeader(chunk->data, ChunkType::kFileMetadata, 0, decoded_data_size);
+  return true;
+}
+
+inline std::unique_ptr<ChunkEncoder> RecordWriter::Impl::MakeChunkEncoder(
+    const Options& options) {
+  std::unique_ptr<ChunkEncoder> chunk_encoder;
+  if (options.transpose_) {
+    const long double long_double_bucket_size =
+        std::round(static_cast<long double>(options.chunk_size_) *
+                   static_cast<long double>(options.bucket_fraction_));
+    const uint64_t bucket_size =
+        ABSL_PREDICT_FALSE(
+            long_double_bucket_size >=
+            static_cast<long double>(std::numeric_limits<uint64_t>::max()))
+            ? std::numeric_limits<uint64_t>::max()
+            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
+                  ? static_cast<uint64_t>(long_double_bucket_size)
+                  : uint64_t{1};
+    chunk_encoder = absl::make_unique<TransposeEncoder>(
+        options.compressor_options_, bucket_size);
+  } else {
+    chunk_encoder = absl::make_unique<SimpleEncoder>(
+        options.compressor_options_, options.chunk_size_);
+  }
+  if (options.parallelism_ == 0) {
+    return chunk_encoder;
+  } else {
+    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
+  }
+}
 
 template <typename Record>
 bool RecordWriter::Impl::AddRecord(Record&& record) {
@@ -255,8 +284,7 @@ bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
 
 class RecordWriter::SerialImpl final : public Impl {
  public:
-  SerialImpl(ChunkWriter* chunk_writer, const Options& options)
-      : Impl(options), chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)) {}
+  SerialImpl(ChunkWriter* chunk_writer, const Options& options);
 
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
@@ -266,9 +294,42 @@ class RecordWriter::SerialImpl final : public Impl {
   FutureRecordPosition ChunkBegin() override;
 
  private:
+  bool WriteSignature();
+  bool WriteMetadata(const Options& options);
+
   // Invariant: chunk_writer_ != nullptr
   ChunkWriter* chunk_writer_;
 };
+
+inline RecordWriter::SerialImpl::SerialImpl(ChunkWriter* chunk_writer,
+                                            const Options& options)
+    : Impl(options), chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)) {
+  if (chunk_writer_->pos() == 0) {
+    if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
+    if (ABSL_PREDICT_FALSE(!WriteMetadata(options))) return;
+  }
+}
+
+inline bool RecordWriter::SerialImpl::WriteSignature() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chunk chunk;
+  EncodeSignature(&chunk);
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
+    return Fail(*chunk_writer_);
+  }
+  return true;
+}
+
+inline bool RecordWriter::SerialImpl::WriteMetadata(const Options& options) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (options.metadata_.ByteSizeLong() == 0) return true;
+  Chunk chunk;
+  if (ABSL_PREDICT_FALSE(!EncodeMetadata(options, &chunk))) return false;
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
+    return Fail(*chunk_writer_);
+  }
+  return true;
+}
 
 bool RecordWriter::SerialImpl::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -318,6 +379,9 @@ class RecordWriter::ParallelImpl final : public Impl {
   };
 
   // A request to the chunk writer thread.
+  struct DoneRequest {
+    std::promise<void> done;
+  };
   struct WriteChunkRequest {
     std::shared_future<ChunkHeader> chunk_header;
     std::future<Chunk> chunk;
@@ -326,11 +390,12 @@ class RecordWriter::ParallelImpl final : public Impl {
     FlushType flush_type;
     std::promise<bool> done;
   };
-  struct DoneRequest {
-    std::promise<void> done;
-  };
   using ChunkWriterRequest =
-      absl::variant<WriteChunkRequest, FlushRequest, DoneRequest>;
+      absl::variant<DoneRequest, WriteChunkRequest, FlushRequest>;
+
+  bool WriteSignature();
+  bool WriteMetadata();
+  bool HasCapacityForRequest() const;
 
   Options options_;
   // Invariant: chunk_writer_ != nullptr
@@ -349,6 +414,11 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
     struct Visitor {
+      bool operator()(DoneRequest& request) const {
+        request.done.set_value();
+        return false;
+      }
+
       bool operator()(WriteChunkRequest& request) const {
         // If !healthy(), the chunk must still be waited for, to ensure that
         // the chunk encoder thread exits before the chunk writer thread
@@ -376,11 +446,6 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
         return true;
       }
 
-      bool operator()(DoneRequest& request) const {
-        request.done.set_value();
-        return false;
-      }
-
       ParallelImpl* self;
     };
 
@@ -401,6 +466,11 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
       pos_before_chunks_ = chunk_writer_->pos();
     }
   });
+
+  if (chunk_writer_->pos() == 0) {
+    if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
+    if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
+  }
 }
 
 RecordWriter::ParallelImpl::~ParallelImpl() {
@@ -421,22 +491,54 @@ void RecordWriter::ParallelImpl::Done() {
   done_future.get();
 }
 
+bool RecordWriter::ParallelImpl::HasCapacityForRequest() const
+    EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+  return chunk_writer_requests_.size() < IntCast<size_t>(options_.parallelism_);
+}
+
+inline bool RecordWriter::ParallelImpl::WriteSignature() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chunk chunk;
+  EncodeSignature(&chunk);
+  ChunkPromises chunk_promises;
+  chunk_promises.chunk_header.set_value(chunk.header);
+  chunk_promises.chunk.set_value(std::move(chunk));
+  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  chunk_writer_requests_.emplace_back(
+      WriteChunkRequest{chunk_promises.chunk_header.get_future(),
+                        chunk_promises.chunk.get_future()});
+  mutex_.Unlock();
+  return true;
+}
+
+inline bool RecordWriter::ParallelImpl::WriteMetadata() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (options_.metadata_.ByteSizeLong() == 0) return true;
+  ChunkPromises* const chunk_promises = new ChunkPromises();
+  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  chunk_writer_requests_.emplace_back(
+      WriteChunkRequest{chunk_promises->chunk_header.get_future(),
+                        chunk_promises->chunk.get_future()});
+  mutex_.Unlock();
+  internal::DefaultThreadPool().Schedule([this, chunk_promises] {
+    Chunk chunk;
+    EncodeMetadata(options_, &chunk);
+    chunk_promises->chunk_header.set_value(chunk.header);
+    chunk_promises->chunk.set_value(std::move(chunk));
+    delete chunk_promises;
+  });
+  return true;
+}
+
 bool RecordWriter::ParallelImpl::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkEncoder* const chunk_encoder = chunk_encoder_.release();
   ChunkPromises* const chunk_promises = new ChunkPromises();
-  {
-    mutex_.LockWhen(absl::Condition(
-        +[](ParallelImpl* self) EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-          return self->chunk_writer_requests_.size() <
-                 IntCast<size_t>(self->options_.parallelism_);
-        },
-        this));
-    chunk_writer_requests_.emplace_back(
-        WriteChunkRequest{chunk_promises->chunk_header.get_future(),
-                          chunk_promises->chunk.get_future()});
-    mutex_.Unlock();
-  }
+  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  chunk_writer_requests_.emplace_back(
+      WriteChunkRequest{chunk_promises->chunk_header.get_future(),
+                        chunk_promises->chunk.get_future()});
+  mutex_.Unlock();
   internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promises] {
     Chunk chunk;
     EncodeChunk(chunk_encoder, &chunk);
@@ -502,10 +604,6 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, const Options& options)
       desired_chunk_size_(UnsignedMin(options.chunk_size_,
                                       kMaxNumRecords() * sizeof(uint64_t))) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
-  if (chunk_writer->pos() == 0) {
-    if (ABSL_PREDICT_FALSE(!WriteSignature(chunk_writer))) return;
-    if (ABSL_PREDICT_FALSE(!WriteMetadata(chunk_writer, options))) return;
-  }
   if (options.parallelism_ == 0) {
     impl_ = absl::make_unique<SerialImpl>(chunk_writer, options);
   } else {
@@ -546,43 +644,6 @@ void RecordWriter::Done() {
     }
   }
   chunk_size_so_far_ = 0;
-}
-
-bool RecordWriter::WriteSignature(ChunkWriter* chunk_writer) {
-  Chunk chunk;
-  chunk.header = ChunkHeader(chunk.data, ChunkType::kFileSignature, 0, 0);
-  if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(chunk))) {
-    Fail(*chunk_writer);
-    return false;
-  }
-  return true;
-}
-
-bool RecordWriter::WriteMetadata(ChunkWriter* chunk_writer,
-                                 const Options& options) {
-  const size_t size = options.metadata_.ByteSizeLong();
-  if (size == 0) return true;
-  TransposeEncoder transpose_encoder(options.compressor_options_, size);
-  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options.metadata_))) {
-    return Fail(transpose_encoder);
-  }
-  Chunk chunk;
-  ChainWriter data_writer(&chunk.data);
-  ChunkType chunk_type;
-  uint64_t num_records;
-  uint64_t decoded_data_size;
-  if (ABSL_PREDICT_FALSE(!transpose_encoder.EncodeAndClose(
-          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
-    return Fail(transpose_encoder);
-  }
-  if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
-  chunk.header =
-      ChunkHeader(chunk.data, ChunkType::kFileMetadata, 0, decoded_data_size);
-  if (ABSL_PREDICT_FALSE(!chunk_writer->WriteChunk(chunk))) {
-    Fail(*chunk_writer);
-    return false;
-  }
-  return true;
 }
 
 template <typename Record>
