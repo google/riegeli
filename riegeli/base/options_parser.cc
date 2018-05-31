@@ -167,8 +167,9 @@ ValueParser::Function ValueParser::And(Function function1, Function function2) {
 
 ValueParser::Function ValueParser::CopyTo(std::string* text) {
   return [text](ValueParser* value_parser) {
-    StrAppend(text, text->empty() ? "" : ",", value_parser->key(),
-              value_parser->value().empty() ? "" : ":", value_parser->value());
+    absl::StrAppend(text, text->empty() ? "" : ",", value_parser->key(),
+                    value_parser->value().empty() ? "" : ":",
+                    value_parser->value());
     return true;
   };
 }
@@ -206,7 +207,8 @@ bool ValueParser::InvalidValue(absl::string_view valid_values) {
   RIEGELI_ASSERT(!valid_values.empty())
       << "Failed precondition of OptionsParser::InvalidValue(): "
          "empty valid values";
-  StrAppend(&valid_values_, valid_values_.empty() ? "" : ", ", valid_values);
+  absl::StrAppend(&valid_values_, valid_values_.empty() ? "" : ", ",
+                  valid_values);
   return false;
 }
 
