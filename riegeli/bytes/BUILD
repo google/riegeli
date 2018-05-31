@@ -159,6 +159,30 @@ cc_library(
 )
 
 cc_library(
+    name = "array_writer",
+    srcs = ["array_writer.cc"],
+    hdrs = ["array_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "array_backward_writer",
+    srcs = ["array_backward_writer.cc"],
+    hdrs = ["array_backward_writer.h"],
+    deps = [
+        ":backward_writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "string_writer",
     srcs = ["string_writer.cc"],
     hdrs = ["string_writer.h"],
