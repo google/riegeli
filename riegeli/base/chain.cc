@@ -565,18 +565,12 @@ void Chain::CopyTo(char* dest) const {
 }
 
 void Chain::AppendTo(std::string* dest) const {
-  RIEGELI_CHECK_LE(size_, dest->max_size() - dest->size())
+  const size_t size_before = dest->size();
+  RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
       << "Failed precondition of Chain::AppendTo(string*): "
          "string size overflow";
-  Block* const* iter = begin_;
-  if (iter == end_) {
-    dest->append(block_ptrs_.short_data, size_);
-  } else {
-    do {
-      dest->append((*iter)->data_begin(), (*iter)->size());
-      ++iter;
-    } while (iter != end_);
-  }
+  dest->resize(size_before + size_);
+  CopyTo(&(*dest)[size_before]);
 }
 
 Chain::operator std::string() const& {
