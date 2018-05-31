@@ -171,6 +171,12 @@ class ChunkReader final : public Object {
   // Invariant: if healthy() then byte_reader_ != nullptr
   Reader* byte_reader_;
 
+  // If true, the source is truncated (in the middle of a chunk) at the current
+  // position. If the source does not grow, Close() will fail.
+  //
+  // Invariant: if truncated_ then byte_reader_->pos() > pos_
+  bool truncated_ = false;
+
   // Beginning of the current chunk.
   Position pos_;
 
@@ -180,16 +186,6 @@ class ChunkReader final : public Object {
 
   // Block header, filled to the point derived from byte_reader_->pos().
   internal::BlockHeader block_header_;
-
-  // If true, the current chunk could be partially read but could not be
-  // completely read because the file ended too early.
-  //
-  // This is reset to false at the beginning of public functions and
-  // conditionally set to true by ReadingFailed() which is ultimately called
-  // by these functions if reading failed.
-  //
-  // Invariant: if current_chunk_is_incomplete_ then byte_reader_->pos() > pos_
-  bool current_chunk_is_incomplete_ = false;
 
   // Whether Recover() is applicable, and if so, how it should be performed:
   //

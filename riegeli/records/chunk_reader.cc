@@ -49,8 +49,7 @@ ChunkReader::ChunkReader(Reader* byte_reader)
 void ChunkReader::Done() {
   recoverable_ = Recoverable::kNo;
   recoverable_pos_ = 0;
-  if (ABSL_PREDICT_TRUE(healthy()) &&
-      ABSL_PREDICT_FALSE(current_chunk_is_incomplete_)) {
+  if (ABSL_PREDICT_FALSE(truncated_)) {
     RIEGELI_ASSERT_GT(byte_reader_->pos(), pos_)
         << "Failed invariant of ChunkReader: a chunk beginning must have been "
            "read for the chunk to be considered incomplete";
@@ -65,13 +64,12 @@ void ChunkReader::Done() {
     }
   }
   chunk_.Close();
-  current_chunk_is_incomplete_ = false;
 }
 
 inline bool ChunkReader::ReadingFailed() {
   if (ABSL_PREDICT_TRUE(byte_reader_->healthy())) {
     if (ABSL_PREDICT_FALSE(byte_reader_->pos() > pos_)) {
-      current_chunk_is_incomplete_ = true;
+      truncated_ = true;
     }
     return false;
   }
@@ -144,7 +142,7 @@ bool ChunkReader::ReadChunk(Chunk* chunk) {
 
 bool ChunkReader::PullChunkHeader(const ChunkHeader** chunk_header) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  current_chunk_is_incomplete_ = false;
+  truncated_ = false;
 
   if (ABSL_PREDICT_FALSE(byte_reader_->pos() < pos_)) {
     if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_))) return ReadingFailed();
@@ -337,9 +335,9 @@ find_chunk:
 
 bool ChunkReader::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  truncated_ = false;
   pos_ = new_pos;
   chunk_.Reset();
-  current_chunk_is_incomplete_ = false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_))) {
     if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
       return Fail(*byte_reader_);
@@ -363,8 +361,8 @@ bool ChunkReader::SeekToChunkAfter(Position new_pos) {
 
 inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  truncated_ = false;
   chunk_.Reset();
-  current_chunk_is_incomplete_ = false;
   Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   if (block_begin > 0) {
     Position size;

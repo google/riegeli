@@ -43,7 +43,7 @@ BrotliReader::BrotliReader(Reader* src, Options options)
 }
 
 void BrotliReader::Done() {
-  if (!Pull() && ABSL_PREDICT_FALSE(decompressor_ != nullptr)) {
+  if (ABSL_PREDICT_FALSE(truncated_)) {
     Fail("Truncated Brotli-compressed stream");
   }
   if (owned_src_ != nullptr) {
@@ -60,6 +60,7 @@ bool BrotliReader::PullSlow() {
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
+  truncated_ = false;
   size_t available_out = 0;
   for (;;) {
     size_t available_in = src_->available();
@@ -100,7 +101,10 @@ bool BrotliReader::PullSlow() {
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-          if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
+          if (ABSL_PREDICT_TRUE(src_->healthy())) {
+            truncated_ = true;
+            return false;
+          }
           return Fail(*src_);
         }
         continue;

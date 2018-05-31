@@ -55,9 +55,7 @@ ZstdReader::ZstdReader(Reader* src, Options options)
 }
 
 void ZstdReader::Done() {
-  if (!Pull() && ABSL_PREDICT_FALSE(decompressor_ != nullptr)) {
-    Fail("Truncated Zstd-compressed stream");
-  }
+  if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated Zstd-compressed stream");
   if (owned_src_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
   }
@@ -85,11 +83,12 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
+  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
+  truncated_ = false;
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos_)) {
     return FailOverflow();
   }
-  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
     ZSTD_inBuffer input = {src_->cursor(), src_->available(), 0};
@@ -116,7 +115,10 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
            "and output space";
     if (ABSL_PREDICT_FALSE(!src_->Pull())) {
       limit_pos_ += output.pos;
-      if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
+      if (ABSL_PREDICT_TRUE(src_->healthy())) {
+        truncated_ = true;
+        return false;
+      }
       return Fail(*src_);
     }
   }

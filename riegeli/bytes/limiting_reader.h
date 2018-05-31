@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_LIMITING_READER_H_
 
 #include <stddef.h>
+#include <limits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -35,6 +36,9 @@ namespace riegeli {
 // source.
 class LimitingReader final : public Reader {
  public:
+  // An infinite size limit.
+  static constexpr Position kNoSizeLimit();
+
   // Creates a closed LimitingReader.
   LimitingReader() noexcept : Reader(State::kClosed) {}
 
@@ -49,6 +53,12 @@ class LimitingReader final : public Reader {
 
   // Returns the Reader being read from. Unchanged by Close().
   Reader* src() const { return src_; }
+
+  // Change the size limit after construction.
+  //
+  // Precondition: size_limit >= pos()
+  void SetSizeLimit(Position size_limit);
+  Position size_limit() const { return size_limit_; }
 
   TypeId GetTypeId() const override;
   bool SupportsRandomAccess() const override;
@@ -70,7 +80,6 @@ class LimitingReader final : public Reader {
 
   // Invariant: if healthy() then src_ != nullptr
   Reader* src_ = nullptr;
-  // Invariant: if src_ == nullptr then size_limit_ == 0
   Position size_limit_ = 0;
   // If not nullptr, the original constructor argument (in this case src_ is
   // wrapped_->src_), remembered here to synchronize the position in Done().
@@ -83,6 +92,10 @@ class LimitingReader final : public Reader {
 };
 
 // Implementation details follow.
+
+inline constexpr Position LimitingReader::kNoSizeLimit() {
+  return std::numeric_limits<Position>::max();
+}
 
 inline LimitingReader::LimitingReader(LimitingReader&& src) noexcept
     : Reader(std::move(src)),
@@ -97,6 +110,17 @@ inline LimitingReader& LimitingReader::operator=(
   size_limit_ = riegeli::exchange(src.size_limit_, 0);
   wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
   return *this;
+}
+
+inline void LimitingReader::SetSizeLimit(Position size_limit) {
+  RIEGELI_ASSERT_GE(size_limit, pos())
+      << "Failed precondition of LimitingReader::SetSizeLimit(): "
+         "size limit smaller than current position";
+  size_limit_ = size_limit;
+  if (ABSL_PREDICT_FALSE(limit_pos_ > size_limit_)) {
+    limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
+    limit_pos_ = size_limit_;
+  }
 }
 
 inline bool LimitingReader::SupportsRandomAccess() const {

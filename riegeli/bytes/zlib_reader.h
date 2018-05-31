@@ -107,6 +107,10 @@ class ZlibReader : public BufferedReader {
   std::unique_ptr<Reader> owned_src_;
   // Invariant: if healthy() then src_ != nullptr
   Reader* src_ = nullptr;
+  // If true, the source is truncated (without a clean end of the compressed
+  // stream) at the current position. If the source does not grow, Close() will
+  // fail.
+  bool truncated_ = false;
   bool decompressor_present_ = false;
   z_stream decompressor_;
 };
@@ -122,6 +126,7 @@ inline ZlibReader::ZlibReader(ZlibReader&& src) noexcept
     : BufferedReader(std::move(src)),
       owned_src_(std::move(src.owned_src_)),
       src_(riegeli::exchange(src.src_, nullptr)),
+      truncated_(riegeli::exchange(src.truncated_, false)),
       decompressor_present_(
           riegeli::exchange(src.decompressor_present_, false)),
       decompressor_(src.decompressor_) {}
@@ -137,6 +142,7 @@ inline ZlibReader& ZlibReader::operator=(ZlibReader&& src) noexcept {
   BufferedReader::operator=(std::move(src));
   owned_src_ = std::move(src.owned_src_);
   src_ = riegeli::exchange(src.src_, nullptr);
+  truncated_ = riegeli::exchange(src.truncated_, false);
   decompressor_present_ = decompressor_present;
   decompressor_ = src.decompressor_;
   return *this;

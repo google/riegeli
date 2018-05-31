@@ -44,9 +44,7 @@ ZlibReader::ZlibReader(Reader* src, Options options)
 }
 
 void ZlibReader::Done() {
-  if (!Pull() && ABSL_PREDICT_FALSE(decompressor_present_)) {
-    Fail("Truncated zlib-compressed stream");
-  }
+  if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated zlib-compressed stream");
   if (owned_src_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
   }
@@ -87,6 +85,7 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
+  truncated_ = false;
   decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
     decompressor_.avail_out =
@@ -112,7 +111,10 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
                "space";
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
           limit_pos_ += length_read;
-          if (ABSL_PREDICT_TRUE(src_->healthy())) return false;
+          if (ABSL_PREDICT_TRUE(src_->healthy())) {
+            truncated_ = true;
+            return false;
+          }
           return Fail(*src_);
         }
         continue;
