@@ -134,6 +134,16 @@ bool LimitingWriter::Flush(FlushType flush_type) {
   return ok;
 }
 
+bool LimitingWriter::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  dest_->set_cursor(cursor_);
+  const bool ok = dest_->Size(size);
+  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(!ok)) return false;
+  *size = UnsignedMin(*size, size_limit_);
+  return true;
+}
+
 bool LimitingWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);

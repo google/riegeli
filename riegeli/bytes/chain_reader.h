@@ -48,7 +48,7 @@ class ChainReader final : public Reader {
   const Chain& src() const { return *src_; }
 
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
 
  protected:
   void Done() override;
@@ -152,7 +152,7 @@ inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
   return *this;
 }
 
-inline bool ChainReader::Size(Position* size) const {
+inline bool ChainReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *size = src_->size();
   return true;

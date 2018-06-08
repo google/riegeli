@@ -254,11 +254,13 @@ bool FdReader::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdReader::Size(Position* size) const {
+bool FdReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   struct stat stat_info;
-  const int result = fstat(fd_, &stat_info);
-  if (ABSL_PREDICT_FALSE(result < 0)) return false;
+  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    const int error_code = errno;
+    return FailOperation("fstat()", error_code);
+  }
   *size = IntCast<Position>(stat_info.st_size);
   return true;
 }
@@ -471,7 +473,7 @@ bool FdMMapReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   return dest->Write(std::move(data));
 }
 
-bool FdMMapReader::Size(Position* size) const {
+bool FdMMapReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *size = contents_.size();
   return true;

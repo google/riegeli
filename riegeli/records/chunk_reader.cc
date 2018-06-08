@@ -366,12 +366,13 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
   Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   if (block_begin > 0) {
     Position size;
-    if (ABSL_PREDICT_TRUE(byte_reader_->Size(&size))) {
-      Position max_block_begin =
-          SaturatingSub(size, Position{internal::BlockHeader::size()});
-      block_begin = UnsignedMin(
-          block_begin, internal::RoundDownToBlockBoundary(max_block_begin));
+    if (ABSL_PREDICT_FALSE(!byte_reader_->Size(&size))) {
+      return Fail(*byte_reader_);
     }
+    Position max_block_begin =
+        SaturatingSub(size, Position{internal::BlockHeader::size()});
+    block_begin = UnsignedMin(
+        block_begin, internal::RoundDownToBlockBoundary(max_block_begin));
   }
   if (pos_ <= new_pos) {
     // The current chunk begins at or before new_pos. If it also ends at or

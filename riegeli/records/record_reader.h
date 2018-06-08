@@ -229,6 +229,9 @@ class RecordReader final : public Object {
   // pos() is unchanged by Close().
   RecordPosition pos() const;
 
+  // Returns true if this RecordReader supports Seek() and Size().
+  bool SupportsRandomAccess() const;
+
   // Seeks to a position.
   //
   // In Seek(RecordPosition) the position should have been obtained by pos() for
@@ -239,9 +242,8 @@ class RecordReader final : public Object {
   //
   // Return values:
   //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos (position is set to
-  //                              the end) or seeking backwards is not supported
-  //                              (position is unchanged)
+  //  * false (when healthy())  - source ends before new_pos
+  //                              (position is set to the end)
   //  * false (when !healthy()) - failure
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
@@ -250,8 +252,8 @@ class RecordReader final : public Object {
   //
   // Return values:
   //  * true  - success (*size is set, healthy())
-  //  * false - failure (healthy() is unchanged)
-  bool Size(Position* size) const;
+  //  * false - failure (!healthy())
+  bool Size(Position* size);
 
 #if 0
   // Searches the region between the current position and end of file for a
@@ -406,9 +408,16 @@ inline RecordPosition RecordReader::pos() const {
   return RecordPosition(chunk_reader_->pos(), 0);
 }
 
-inline bool RecordReader::Size(Position* size) const {
+inline bool RecordReader::SupportsRandomAccess() const {
+  return chunk_reader_ != nullptr && chunk_reader_->SupportsRandomAccess();
+}
+
+inline bool RecordReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return chunk_reader_->Size(size);
+  if (ABSL_PREDICT_FALSE(!chunk_reader_->Size(size))) {
+    return Fail(*chunk_reader_);
+  }
+  return true;
 }
 
 }  // namespace riegeli

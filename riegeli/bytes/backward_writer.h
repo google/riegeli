@@ -116,10 +116,9 @@ class BackwardWriter : public Object {
   // Return values:
   //  * true                    - success (destination truncated, healthy())
   //  * false (when healthy())  - destination is smaller than new_size
-  //                              (position is set to end) or truncation is not
-  //                              supported (position is unchanged)
-  //  * false (when !healthy()) - failure (!healthy())
-  virtual bool Truncate(Position new_size) { return false; }
+  //                              (position is set to end)
+  //  * false (when !healthy()) - failure
+  virtual bool Truncate(Position new_size);
 
  protected:
   // Creates a BackwardWriter with the given initial state.

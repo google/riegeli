@@ -74,4 +74,22 @@ bool Writer::WriteSlow(Chain&& src) {
   return WriteSlow(src);
 }
 
+bool Writer::SeekSlow(Position new_pos) {
+  cursor_ = start_;
+  limit_ = start_;
+  return Fail("Writer::Seek() not supported");
+}
+
+bool Writer::Size(Position* size) {
+  cursor_ = start_;
+  limit_ = start_;
+  return Fail("Writer::Size() not supported");
+}
+
+bool Writer::Truncate(Position new_size) {
+  cursor_ = start_;
+  limit_ = start_;
+  return Fail("Writer::Truncate() not supported");
+}
+
 }  // namespace riegeli

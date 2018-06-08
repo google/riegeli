@@ -226,11 +226,15 @@ bool FdWriter::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdWriter::Size(Position* size) const {
+bool FdWriter::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   struct stat stat_info;
-  const int result = fstat(fd_, &stat_info);
-  if (ABSL_PREDICT_FALSE(result < 0)) return false;
+  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    const int error_code = errno;
+    cursor_ = start_;
+    limit_ = start_;
+    return FailOperation("fstat()", error_code);
+  }
   *size = UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
   return true;
 }

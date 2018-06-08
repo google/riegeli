@@ -300,7 +300,8 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   const Position pos_before = record->pos();
   Position size;
   if (!record->Size(&size)) {
-    RIEGELI_ASSERT_UNREACHABLE() << "Getting record size failed";
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Getting record size failed: " << record->message();
   }
   RIEGELI_ASSERT_LE(pos_before, size)
       << "Current position after the end of record";

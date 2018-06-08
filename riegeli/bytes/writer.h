@@ -161,8 +161,8 @@ class Writer : public Object {
   //
   // Return values:
   //  * true  - success (*size is set, healthy())
-  //  * false - failure (healthy() is unchanged)
-  virtual bool Size(Position* size) const { return false; }
+  //  * false - failure (!healthy())
+  virtual bool Size(Position* size);
 
   // Returns true if this Writer supports Truncate().
   virtual bool SupportsTruncate() const { return false; }
@@ -173,10 +173,9 @@ class Writer : public Object {
   // Return values:
   //  * true                    - success (destination truncated, healthy())
   //  * false (when healthy())  - destination is smaller than new_size
-  //                              (position is set to end) or truncation is not
-  //                              supported (position is unchanged)
-  //  * false (when !healthy()) - failure (!healthy())
-  virtual bool Truncate(Position new_size) { return false; }
+  //                              (position is set to end)
+  //  * false (when !healthy()) - failure
+  virtual bool Truncate(Position new_size);
 
  protected:
   // Creates a Writer with the given initial state.
@@ -228,7 +227,7 @@ class Writer : public Object {
   // Implementation of the slow part of Seek().
   //
   // Precondition: new_pos < start_pos_ || new_pos > pos()
-  virtual bool SeekSlow(Position new_pos) { return false; }
+  virtual bool SeekSlow(Position new_pos);
 
   // Destination position corresponding to limit_.
   Position limit_pos() const;

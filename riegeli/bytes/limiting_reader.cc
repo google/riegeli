@@ -146,6 +146,16 @@ bool LimitingReader::SeekSlow(Position new_pos) {
   return ok && pos_to_seek == new_pos;
 }
 
+bool LimitingReader::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  src_->set_cursor(cursor_);
+  const bool ok = src_->Size(size);
+  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(!ok)) return false;
+  *size = UnsignedMin(*size, size_limit_);
+  return true;
+}
+
 inline void LimitingReader::SyncBuffer() {
   start_ = src_->start();
   cursor_ = src_->cursor();

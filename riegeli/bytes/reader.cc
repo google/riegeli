@@ -169,7 +169,9 @@ bool Reader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos_)) return false;
+  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos_)) {
+    return Fail("Reader::Seek() backwards not supported");
+  }
   // Seeking forwards.
   do {
     cursor_ = limit_;
@@ -180,6 +182,10 @@ bool Reader::SeekSlow(Position new_pos) {
       << "Reader::PullSlow() skipped some data";
   cursor_ = limit_ - available_length;
   return true;
+}
+
+bool Reader::Size(Position* size) {
+  return Fail("Reader::Size() not supported");
 }
 
 }  // namespace riegeli

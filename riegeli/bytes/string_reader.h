@@ -51,7 +51,7 @@ class StringReader final : public Reader {
   absl::string_view src() const { return src_; }
 
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
 
  protected:
   void Done() override;
@@ -86,7 +86,7 @@ inline StringReader& StringReader::operator=(StringReader&& src) noexcept {
   return *this;
 }
 
-inline bool StringReader::Size(Position* size) const {
+inline bool StringReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   *size = limit_pos_;
   return true;

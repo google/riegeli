@@ -172,7 +172,7 @@ class FdWriter final : public internal::FdWriterBase {
   FdWriter& operator=(FdWriter&& src) noexcept;
 
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 

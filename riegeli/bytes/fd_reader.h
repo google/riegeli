@@ -158,7 +158,7 @@ class FdReader final : public internal::FdReaderBase {
   FdReader& operator=(FdReader&& src) noexcept;
 
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
 
  protected:
   bool MaybeSyncPos() override;
@@ -320,7 +320,7 @@ class FdMMapReader final : public Reader {
   int error_code() const { return error_code_; }
 
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
 
  protected:
   void Done() override;

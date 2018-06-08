@@ -78,4 +78,10 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
   return WriteSlow(src);
 }
 
+bool BackwardWriter::Truncate(Position new_size) {
+  cursor_ = start_;
+  limit_ = start_;
+  return Fail("BackwardWriter::Truncate() not supported");
+}
+
 }  // namespace riegeli

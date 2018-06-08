@@ -156,9 +156,8 @@ class Reader : public Object {
   //
   // Return values:
   //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos (position is set to
-  //                              the end) or seeking backwards is not supported
-  //                              (position is unchanged)
+  //  * false (when healthy())  - source ends before new_pos
+  //                              (position is set to the end)
   //  * false (when !healthy()) - failure
   bool Seek(Position new_pos);
 
@@ -175,8 +174,8 @@ class Reader : public Object {
   //
   // Return values:
   //  * true  - success (*size is set, healthy())
-  //  * false - failure (healthy() is unchanged)
-  virtual bool Size(Position* size) const { return false; }
+  //  * false - failure (!healthy())
+  virtual bool Size(Position* size);
 
  protected:
   // Creates a Reader with the given initial state.

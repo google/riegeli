@@ -52,7 +52,7 @@ class LimitingWriter final : public Writer {
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override;
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
   bool SupportsTruncate() const override;
   bool Truncate(Position new_size) override;
 
@@ -100,13 +100,6 @@ inline LimitingWriter& LimitingWriter::operator=(
 
 inline bool LimitingWriter::SupportsRandomAccess() const {
   return dest_ != nullptr && dest_->SupportsRandomAccess();
-}
-
-inline bool LimitingWriter::Size(Position* size) const {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!dest_->Size(size))) return false;
-  *size = UnsignedMin(*size, size_limit_);
-  return true;
 }
 
 inline bool LimitingWriter::SupportsTruncate() const {

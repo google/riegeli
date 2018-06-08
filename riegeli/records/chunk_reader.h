@@ -107,6 +107,10 @@ class ChunkReader final : public Object {
   // pos() is unchanged by Close().
   Position pos() const { return pos_; }
 
+  // Returns true if this ChunkReader supports Seek(), SeekToChunkContaining(),
+  // SeekToChunkAfter(), and Size().
+  bool SupportsRandomAccess() const;
+
   // Seeks to new_pos, which should be a chunk boundary.
   //
   // Return values:
@@ -121,9 +125,8 @@ class ChunkReader final : public Object {
   //
   // Return values:
   //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos (position is set to
-  //                              the end) or seeking backwards is not supported
-  //                              (position is unchanged)
+  //  * false (when healthy())  - source ends before new_pos
+  //                              (position is set to the end)
   //  * false (when !healthy()) - failure
   bool SeekToChunkContaining(Position new_pos);
 
@@ -131,9 +134,8 @@ class ChunkReader final : public Object {
   //
   // Return values:
   //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos (position is set to
-  //                              the end) or seeking backwards is not supported
-  //                              (position is unchanged)
+  //  * false (when healthy())  - source ends before new_pos
+  //                              (position is set to the end)
   //  * false (when !healthy()) - failure
   bool SeekToChunkAfter(Position new_pos);
 
@@ -141,8 +143,8 @@ class ChunkReader final : public Object {
   //
   // Return values:
   //  * true  - success (*size is set, healthy())
-  //  * false - failure (healthy() is unchanged)
-  bool Size(Position* size) const;
+  //  * false - failure (!healthy())
+  bool Size(Position* size);
 
  protected:
   void Done() override;
@@ -216,9 +218,14 @@ class ChunkReader final : public Object {
 
 // Implementation details follow.
 
-inline bool ChunkReader::Size(Position* size) const {
+inline bool ChunkReader::SupportsRandomAccess() const {
+  return byte_reader_ != nullptr && byte_reader_->SupportsRandomAccess();
+}
+
+inline bool ChunkReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return byte_reader_->Size(size);
+  if (ABSL_PREDICT_FALSE(!byte_reader_->Size(size))) return Fail(*byte_reader_);
+  return true;
 }
 
 }  // namespace riegeli

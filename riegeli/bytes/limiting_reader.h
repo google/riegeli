@@ -62,7 +62,7 @@ class LimitingReader final : public Reader {
 
   TypeId GetTypeId() const override;
   bool SupportsRandomAccess() const override;
-  bool Size(Position* size) const override;
+  bool Size(Position* size) override;
 
  protected:
   void Done() override;
@@ -125,13 +125,6 @@ inline void LimitingReader::SetSizeLimit(Position size_limit) {
 
 inline bool LimitingReader::SupportsRandomAccess() const {
   return src_ != nullptr && src_->SupportsRandomAccess();
-}
-
-inline bool LimitingReader::Size(Position* size) const {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!src_->Size(size))) return false;
-  *size = UnsignedMin(*size, size_limit_);
-  return true;
 }
 
 }  // namespace riegeli
