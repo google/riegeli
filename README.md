@@ -9,4 +9,8 @@ See [documentation](doc/index.md).
 
 # Status
 
-You are welcome to try Riegeli out. The file format is not frozen yet though.
+Riegeli file format will only change in a backward compatible way (i.e. future
+readers will understand current files, but current readers might not understand
+files using future features).
+
+Riegeli C++ API might change in incompatible ways.
