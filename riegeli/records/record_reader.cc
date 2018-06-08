@@ -302,15 +302,6 @@ bool RecordReader::Recover(SkippedRegion* skipped_region) {
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
 }
 
-bool RecordReader::Recover(Position* skipped_bytes) {
-  SkippedRegion skipped_region;
-  if (ABSL_PREDICT_FALSE(!Recover(&skipped_region))) return false;
-  if (skipped_bytes != nullptr) {
-    *skipped_bytes = SaturatingAdd(*skipped_bytes, skipped_region.length());
-  }
-  return true;
-}
-
 bool RecordReader::Seek(RecordPosition new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_pos.chunk_begin() == chunk_begin_) {

@@ -19,7 +19,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
@@ -218,8 +217,6 @@ class RecordReader final : public Object {
   //  * true  - success
   //  * false - failure not caused by invalid file contents
   bool Recover(SkippedRegion* skipped_region = nullptr);
-  ABSL_DEPRECATED("Use Recover(SkippedRegion*) instead")
-  bool Recover(Position* skipped_bytes);
 
   // Returns the current position.
   //
