@@ -37,6 +37,7 @@
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
+#include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
 
@@ -113,8 +114,7 @@ RecordReader::RecordReader(RecordReader&& src) noexcept
       chunk_reader_(std::move(src.chunk_reader_)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
       chunk_decoder_(std::move(src.chunk_decoder_)),
-      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)),
-      recoverable_length_(riegeli::exchange(src.recoverable_length_, 0)) {}
+      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)) {}
 
 RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   Object::operator=(std::move(src));
@@ -122,13 +122,11 @@ RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
   recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
-  recoverable_length_ = riegeli::exchange(src.recoverable_length_, 0);
   return *this;
 }
 
 void RecordReader::Done() {
   recoverable_ = Recoverable::kNo;
-  recoverable_length_ = 0;
   if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) {
     recoverable_ = Recoverable::kRecoverChunkReader;
     Fail(*chunk_reader_);
@@ -184,8 +182,7 @@ bool RecordReader::ReadMetadata(RecordsMetadata* metadata) {
   }
   if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
     metadata->Clear();
-    recoverable_ = Recoverable::kReportSkippedBytes;
-    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
+    recoverable_ = Recoverable::kRecoverChunkDecoder;
     return false;
   }
   return true;
@@ -268,8 +265,7 @@ template bool RecordReader::ReadRecordSlow(std::string* record,
                                            RecordPosition* key);
 template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
 
-bool RecordReader::Recover(Position* skipped_bytes,
-                           Position* skipped_messages) {
+bool RecordReader::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
   RIEGELI_ASSERT(!healthy()) << "Failed invariant of RecordReader: "
                                 "recovery applicable but RecordReader healthy";
@@ -285,27 +281,34 @@ bool RecordReader::Recover(Position* skipped_bytes,
     case Recoverable::kNo:
       RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
     case Recoverable::kRecoverChunkReader:
-      if (ABSL_PREDICT_FALSE(!chunk_reader_->Recover(skipped_bytes))) {
+      if (ABSL_PREDICT_FALSE(!chunk_reader_->Recover(skipped_region))) {
         return Fail(*chunk_reader_);
       }
       return true;
-    case Recoverable::kRecoverChunkDecoder:
+    case Recoverable::kRecoverChunkDecoder: {
+      const uint64_t index_before = chunk_decoder_.index();
       if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) {
-        return Fail(chunk_decoder_);
+        chunk_decoder_.Reset();
       }
-      if (skipped_messages != nullptr) {
-        *skipped_messages = SaturatingAdd(*skipped_messages, Position{1});
+      if (skipped_region != nullptr) {
+        const Position region_begin = chunk_begin_ + index_before;
+        const Position region_end = pos().numeric();
+        *skipped_region = SkippedRegion(region_begin, region_end);
       }
       return true;
-    case Recoverable::kReportSkippedBytes:
-      if (skipped_bytes != nullptr) {
-        *skipped_bytes = SaturatingAdd(*skipped_bytes, recoverable_length_);
-      }
-      recoverable_length_ = 0;
-      return true;
+    }
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
+}
+
+bool RecordReader::Recover(Position* skipped_bytes) {
+  SkippedRegion skipped_region;
+  if (ABSL_PREDICT_FALSE(!Recover(&skipped_region))) return false;
+  if (skipped_bytes != nullptr) {
+    *skipped_bytes = SaturatingAdd(*skipped_bytes, skipped_region.length());
+  }
+  return true;
 }
 
 bool RecordReader::Seek(RecordPosition new_pos) {
@@ -322,7 +325,6 @@ bool RecordReader::Seek(RecordPosition new_pos) {
     if (ABSL_PREDICT_FALSE(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
       recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*chunk_reader_);
     }
@@ -350,7 +352,6 @@ bool RecordReader::Seek(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!chunk_reader_->SeekToChunkContaining(new_pos))) {
       chunk_begin_ = chunk_reader_->pos();
       chunk_decoder_.Reset();
-      if (ABSL_PREDICT_TRUE(chunk_reader_->healthy())) return false;
       recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*chunk_reader_);
     }
@@ -381,11 +382,8 @@ inline bool RecordReader::ReadChunk() {
     return Fail(*chunk_reader_);
   }
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Reset(chunk))) {
-    Fail(chunk_decoder_);
-    chunk_decoder_.Reset();
-    recoverable_ = Recoverable::kReportSkippedBytes;
-    recoverable_length_ = chunk_reader_->pos() - chunk_begin_;
-    return false;
+    recoverable_ = Recoverable::kRecoverChunkDecoder;
+    return Fail(chunk_decoder_);
   }
   return true;
 }

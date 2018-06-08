@@ -23,6 +23,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/records/block.h"
+#include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
 
@@ -84,25 +85,25 @@ class ChunkReader final : public Object {
   // skipping over the invalid region.
   //
   // If Close() failed and the failure was caused by truncated file contents,
-  // then Recover() increments *skipped_bytes and returns true. The ChunkReader
-  // remains closed.
+  // then Recover() returns true. The ChunkReader remains closed.
   //
   // If healthy(), or if !healthy() but the failure was not caused by invalid
   // file contents, then Recover() returns false.
   //
-  // If skipped_bytes != nullptr, *skipped_bytes is incremented by the number of
-  // bytes skipped.
+  // If skipped_region != nullptr, *skipped_region is set to the position of the
+  // skipped region on success.
   //
   // Return values:
   //  * true  - success
   //  * false - failure not caused by invalid file contents
-  bool Recover(Position* skipped_bytes = nullptr);
+  bool Recover(SkippedRegion* skipped_region = nullptr);
 
-  // Returns the current position, which is a chunk boundary (unless file
-  // contents are invalid and no chunk could be found until the end of file).
+  // Returns the current position, which is a chunk boundary (except that if
+  // the source ends in a skipped region, it can be greater than file size and
+  // it can be a block boundary).
   //
-  // ReadChunk() and PullChunkHeader() return a chunk beginning at pos() if they
-  // succeed.
+  // ReadChunk() and PullChunkHeader() return a chunk which begins at pos() if
+  // they succeed.
   //
   // pos() is unchanged by Close().
   Position pos() const { return pos_; }
@@ -114,7 +115,7 @@ class ChunkReader final : public Object {
   // Seeks to new_pos, which should be a chunk boundary.
   //
   // Return values:
-  //  * true  - success (position is set to new_pos)
+  //  * true  - success
   //  * false - failure (!healthy())
   bool Seek(Position new_pos);
 
@@ -124,19 +125,15 @@ class ChunkReader final : public Object {
   // nearest chunk boundary at or after the given position.
   //
   // Return values:
-  //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos
-  //                              (position is set to the end)
-  //  * false (when !healthy()) - failure
+  //  * true  - success
+  //  * false - failure (!healthy())
   bool SeekToChunkContaining(Position new_pos);
 
   // Seeks to the nearest chunk boundary at or after new_pos.
   //
   // Return values:
-  //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos
-  //                              (position is set to the end)
-  //  * false (when !healthy()) - failure
+  //  * true  - success
+  //  * false - failure (!healthy())
   bool SeekToChunkAfter(Position new_pos);
 
   // Returns the size of the file, i.e. the position corresponding to its end.
@@ -150,12 +147,22 @@ class ChunkReader final : public Object {
   void Done() override;
 
  private:
-  enum class Recoverable { kNo, kHaveChunk, kFindChunk, kReportSkippedBytes };
+  enum class Recoverable { kNo, kHaveChunk, kFindChunk };
 
-  // Interprets a false result from a byte_reader_ reading function.
+  // Interprets a false result from a byte_reader_ reading or seeking function.
+  //
+  // End of file (i.e. if healthy()) is propagated, setting truncated_ if it was
+  // in the middle of a chunk.
   //
   // Always returns false.
   bool ReadingFailed();
+
+  // Interprets a false result from a byte_reader_ reading or seeking function.
+  //
+  // End of file (i.e. if healthy()) fails the ChunkReader.
+  //
+  // Always returns false.
+  bool SeekingFailed(Position new_pos);
 
   // Reads or continues reading chunk_.header.
   bool ReadChunkHeader();
@@ -180,6 +187,9 @@ class ChunkReader final : public Object {
   bool truncated_ = false;
 
   // Beginning of the current chunk.
+  //
+  // If pos_ > byte_reader_->pos(), the source ends in a skipped region. In this
+  // case pos_ can be a block boundary instead of a chunk boundary.
   Position pos_;
 
   // Chunk header and chunk data, filled to the point derived from pos_ and
@@ -191,25 +201,19 @@ class ChunkReader final : public Object {
 
   // Whether Recover() is applicable, and if so, how it should be performed:
   //
-  //  * Recoverable::kNo                 - Recover() is not applicable
-  //  * Recoverable::kHaveChunk          - Recover() seeks to recoverable_pos_
-  //                                       which should be a chunk boundary
-  //  * Recoverable::kFindChunk          - Recover() finds a block after
-  //                                       recoverable_pos_, and a chunk after
-  //                                       the block
-  //  * Recoverable::kReportSkippedBytes - Recover() only reports
-  //                                       recoverable_pos_ as the number of
-  //                                       skipped bytes
+  //  * Recoverable::kNo        - Recover() is not applicable
+  //  * Recoverable::kHaveChunk - Recover() assumes that a chunk starts
+  //                              at recoverable_pos_
+  //  * Recoverable::kFindChunk - Recover() finds a block after recoverable_pos_
+  //                              and a chunk after the block
   //
   // Invariants:
   //   if healthy() then recoverable_ == Recoverable::kNo
-  //   if recoverable_ == Recoverable::kReportSkippedBytes then closed()
   //   if closed() then recoverable_ == Recoverable::kNo ||
-  //                    recoverable_ == Recoverable::kReportSkippedBytes
+  //                    recoverable_ == Recoverable::kHaveChunk
   Recoverable recoverable_ = Recoverable::kNo;
 
-  // If recoverable_ != Recoverable::kNo, the position to start recovery from
-  // (or the number of skipped bytes for Recoverable::kReportSkippedBytes).
+  // If recoverable_ != Recoverable::kNo, the position to start recovery from.
   //
   // Invariant:
   //   if recoverable_ != Recoverable::kNo then recoverable_pos_ >= pos_

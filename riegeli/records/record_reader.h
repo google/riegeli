@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
@@ -32,6 +33,7 @@
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
+#include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
 
@@ -91,19 +93,25 @@ class RecordsMetadataDescriptors : public Object {
 // For reading records while skipping errors:
 //
 //   Position skipped_bytes = 0;
-//   Position skipped_messages = 0;
 //   SomeProto record;
 //   for (;;) {
 //     if (!record_reader_.ReadRecord(&record)) {
-//       if (record_reader_.Recover(&skipped_bytes, &skipped_messages)) {
+//       SkippedRegion skipped_region;
+//       if (record_reader_.Recover(&skipped_region)) {
+//         skipped_bytes += skipped_region.length();
 //         continue;
 //       }
 //       break;
 //     }
 //     ... Process record.
 //   }
-//   if (!record_reader_.Close() && !record_reader_.Recover(&skipped_bytes)) {
-//     ... Failed with reason: record_reader_.message()
+//   if (!record_reader_.Close()) {
+//     SkippedRegion skipped_region;
+//     if (record_reader_.Recover(&skipped_region)) {
+//       skipped_bytes += skipped_region.length();
+//     } else {
+//       ... Failed with reason: record_reader_.message()
+//     }
 //   }
 class RecordReader final : public Object {
  public:
@@ -198,25 +206,20 @@ class RecordReader final : public Object {
   // skipping over the invalid region.
   //
   // If Close() failed and the failure was caused by truncated file contents,
-  // then Recover() increments *skipped_bytes and returns true. The RecordReader
-  // remains closed.
+  // then Recover() returns true. The RecordReader remains closed.
   //
   // If healthy(), or if !healthy() but the failure was not caused by invalid
   // file contents, then Recover() returns false.
   //
-  // If skipped_bytes != nullptr, *skipped_bytes is incremented by the number of
-  // bytes skipped (by the amount of the file which could not be decoded).
-  //
-  // If skipped_messages != nullptr, *skipped_messages is incremented by the
-  // number of records skipped by ReadRecord(MessageLite*) when the proto
-  // message could not be parsed (by 0 or 1). Skipped messages do not count
-  // towards skipped bytes.
+  // If skipped_region != nullptr, *skipped_region is set to the position of the
+  // skipped region on success.
   //
   // Return values:
   //  * true  - success
   //  * false - failure not caused by invalid file contents
-  bool Recover(Position* skipped_bytes = nullptr,
-               Position* skipped_messages = nullptr);
+  bool Recover(SkippedRegion* skipped_region = nullptr);
+  ABSL_DEPRECATED("Use Recover(SkippedRegion*) instead")
+  bool Recover(Position* skipped_bytes);
 
   // Returns the current position.
   //
@@ -241,10 +244,8 @@ class RecordReader final : public Object {
   // If it points between records, it is interpreted as the next record.
   //
   // Return values:
-  //  * true                    - success (position is set to new_pos)
-  //  * false (when healthy())  - source ends before new_pos
-  //                              (position is set to the end)
-  //  * false (when !healthy()) - failure
+  //  * true  - success
+  //  * false - failure (!healthy())
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
 
@@ -275,12 +276,7 @@ class RecordReader final : public Object {
   void Done() override;
 
  private:
-  enum class Recoverable {
-    kNo,
-    kRecoverChunkReader,
-    kRecoverChunkDecoder,
-    kReportSkippedBytes
-  };
+  enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
 
   RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
 
@@ -317,20 +313,14 @@ class RecordReader final : public Object {
   //  * Recoverable::kRecoverChunkReader  - Recover() tries to recover
   //                                        chunk_reader_
   //  * Recoverable::kRecoverChunkDecoder - Recover() tries to recover
-  //                                        chunk_decoder_
-  //  * Recoverable::kReportSkippedBytes  - Recover() only reports
-  //                                        recoverable_length_ as the number of
-  //                                        skipped bytes
+  //                                        chunk_decoder_, skips the chunk if
+  //                                        that failed
   //
   // Invariants:
   //   if healthy() then recoverable_ == Recoverable::kNo
   //   if closed() then recoverable_ == Recoverable::kNo ||
   //                    recoverable_ == Recoverable::kRecoverChunkReader
   Recoverable recoverable_ = Recoverable::kNo;
-
-  // If recoverable_ == Recoverable::kReportSkippedBytes, the number of skipped
-  // bytes to report.
-  Position recoverable_length_ = 0;
 };
 
 // Implementation details follow.
@@ -402,7 +392,8 @@ inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
 
 inline RecordPosition RecordReader::pos() const {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
-                        chunk_decoder_.num_records())) {
+                        chunk_decoder_.num_records()) ||
+      ABSL_PREDICT_FALSE(recoverable_ == Recoverable::kRecoverChunkDecoder)) {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());
   }
   return RecordPosition(chunk_reader_->pos(), 0);

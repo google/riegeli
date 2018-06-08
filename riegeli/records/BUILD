@@ -43,6 +43,7 @@ cc_library(
         ":chunk_reader",
         ":record_position",
         ":records_metadata_cc_proto",
+        ":skipped_region",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:chain_backward_writer",
@@ -83,6 +84,12 @@ cc_library(
 )
 
 cc_library(
+    name = "skipped_region",
+    hdrs = ["skipped_region.h"],
+    deps = ["//riegeli/base"],
+)
+
+cc_library(
     name = "chunk_writer",
     srcs = ["chunk_writer.cc"],
     hdrs = ["chunk_writer.h"],
@@ -107,6 +114,7 @@ cc_library(
     hdrs = ["chunk_reader.h"],
     deps = [
         ":block",
+        ":skipped_region",
         "//riegeli/base",
         "//riegeli/bytes:reader",
         "//riegeli/chunk_encoding:chunk",

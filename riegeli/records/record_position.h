@@ -32,21 +32,10 @@ class RecordPosition {
 
   // Creates a RecordPosition corresponding to the given record of the chunk
   // at the given file position.
-  RecordPosition(uint64_t chunk_begin, uint64_t record_index)
-      : chunk_begin_(chunk_begin), record_index_(record_index) {
-    RIEGELI_ASSERT_LE(record_index,
-                      std::numeric_limits<uint64_t>::max() - chunk_begin)
-        << "RecordPosition overflow";
-  }
+  RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
-  RecordPosition(const RecordPosition& src) noexcept
-      : chunk_begin_(src.chunk_begin_), record_index_(src.record_index_) {}
-
-  RecordPosition& operator=(const RecordPosition& src) noexcept {
-    chunk_begin_ = src.chunk_begin_;
-    record_index_ = src.record_index_;
-    return *this;
-  }
+  RecordPosition(const RecordPosition& src) noexcept;
+  RecordPosition& operator=(const RecordPosition& src) noexcept;
 
   uint64_t chunk_begin() const { return chunk_begin_; }
   uint64_t record_index() const { return record_index_; }
@@ -76,6 +65,24 @@ bool operator>=(RecordPosition a, RecordPosition b);
 std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
 // Implementation details follow.
+
+inline RecordPosition::RecordPosition(uint64_t chunk_begin,
+                                      uint64_t record_index)
+    : chunk_begin_(chunk_begin), record_index_(record_index) {
+  RIEGELI_ASSERT_LE(record_index,
+                    std::numeric_limits<uint64_t>::max() - chunk_begin)
+      << "RecordPosition overflow";
+}
+
+inline RecordPosition::RecordPosition(const RecordPosition& src) noexcept
+    : chunk_begin_(src.chunk_begin_), record_index_(src.record_index_) {}
+
+inline RecordPosition& RecordPosition::operator=(
+    const RecordPosition& src) noexcept {
+  chunk_begin_ = src.chunk_begin_;
+  record_index_ = src.record_index_;
+  return *this;
+}
 
 inline bool operator==(RecordPosition a, RecordPosition b) {
   return a.chunk_begin() == b.chunk_begin() &&

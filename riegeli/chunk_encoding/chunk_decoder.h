@@ -141,20 +141,21 @@ class ChunkDecoder : public Object {
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
-  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.message();
   }
+  ++index_;
   return true;
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string* record) {
   if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
-  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->clear();
@@ -162,13 +163,14 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.message();
   }
+  ++index_;
   return true;
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record) {
   if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
-  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   record->Clear();
@@ -176,6 +178,7 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.message();
   }
+  ++index_;
   return true;
 }
 

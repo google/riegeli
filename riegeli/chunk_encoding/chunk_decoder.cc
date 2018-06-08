@@ -200,7 +200,7 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
-  const size_t limit = limits_[IntCast<size_t>(index_++)];
+  const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   LimitingReader message_reader(&values_reader_, limit);
@@ -227,6 +227,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
                              " because it is missing required fields: ",
                              record->InitializationErrorString()));
   }
+  ++index_;
   return true;
 }
 
@@ -236,6 +237,7 @@ bool ChunkDecoder::Recover() {
                                 "recovery applicable but ChunkDecoder healthy";
   recoverable_ = false;
   MarkNotFailed();
+  ++index_;
   return true;
 }
 
