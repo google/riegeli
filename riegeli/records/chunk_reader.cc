@@ -391,14 +391,19 @@ bool ChunkReader::Seek(Position new_pos) {
 }
 
 bool ChunkReader::SeekToChunkContaining(Position new_pos) {
-  return SeekToChunk(new_pos, true);
+  return SeekToChunk<WhichChunk::kContaining>(new_pos);
+}
+
+bool ChunkReader::SeekToChunkBefore(Position new_pos) {
+  return SeekToChunk<WhichChunk::kBefore>(new_pos);
 }
 
 bool ChunkReader::SeekToChunkAfter(Position new_pos) {
-  return SeekToChunk(new_pos, false);
+  return SeekToChunk<WhichChunk::kAfter>(new_pos);
 }
 
-inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
+template <ChunkReader::WhichChunk which_chunk>
+bool ChunkReader::SeekToChunk(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   truncated_ = false;
   chunk_.Reset();
@@ -413,13 +418,17 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
       truncated_ = false;
       return SeekingFailed(new_pos);
     }
+    if (which_chunk == WhichChunk::kContaining &&
+        pos_ + chunk_.header.num_records() > new_pos) {
+      return true;
+    }
     const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) {
+      return true;
+    }
     if (chunk_end < block_begin) {
       // The current chunk ends too early. Skip to block_begin.
       goto read_block_header;
-    }
-    if (containing && pos_ + chunk_.header.num_records() > new_pos) {
-      return true;
     }
     chunk_begin = chunk_end;
   } else {
@@ -439,7 +448,7 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
       goto check_current_chunk;
     }
     chunk_begin = block_begin + block_header_.next_chunk();
-    if (containing && chunk_begin > new_pos) {
+    if (which_chunk != WhichChunk::kAfter && chunk_begin > new_pos) {
       // new_pos is inside the chunk which contains this block boundary, so
       // start the search from this chunk instead of the next chunk.
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() > block_begin)) {
@@ -472,10 +481,15 @@ inline bool ChunkReader::SeekToChunk(Position new_pos, bool containing) {
       truncated_ = false;
       return SeekingFailed(new_pos);
     }
-    if (containing && pos_ + chunk_.header.num_records() > new_pos) {
+    if (which_chunk == WhichChunk::kContaining &&
+        pos_ + chunk_.header.num_records() > new_pos) {
       return true;
     }
-    chunk_begin = internal::ChunkEnd(chunk_.header, pos_);
+    const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
+    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) {
+      return true;
+    }
+    chunk_begin = chunk_end;
   }
 }
 

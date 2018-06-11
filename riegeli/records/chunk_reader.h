@@ -129,6 +129,13 @@ class ChunkReader final : public Object {
   //  * false - failure (!healthy())
   bool SeekToChunkContaining(Position new_pos);
 
+  // Seeks to the nearest chunk boundary at or before new_pos.
+  //
+  // Return values:
+  //  * true  - success
+  //  * false - failure (!healthy())
+  bool SeekToChunkBefore(Position new_pos);
+
   // Seeks to the nearest chunk boundary at or after new_pos.
   //
   // Return values:
@@ -148,6 +155,7 @@ class ChunkReader final : public Object {
 
  private:
   enum class Recoverable { kNo, kHaveChunk, kFindChunk };
+  enum class WhichChunk { kContaining, kBefore, kAfter };
 
   // Interprets a false result from a byte_reader_ reading or seeking function.
   //
@@ -172,9 +180,10 @@ class ChunkReader final : public Object {
   // Precondition: internal::RemainingInBlockHeader(byte_reader_->pos()) > 0
   bool ReadBlockHeader();
 
-  // Shared implementation of SeekToChunkContaining() (containing = true) and
-  // SeekToChunkAfter() (containing = false).
-  bool SeekToChunk(Position new_pos, bool containing);
+  // Shared implementation of SeekToChunkContaining(), SeekToChunkBefore(), and
+  // SeekToChunkAfter().
+  template <WhichChunk which_chunk>
+  bool SeekToChunk(Position new_pos);
 
   std::unique_ptr<Reader> owned_byte_reader_;
   // Invariant: if healthy() then byte_reader_ != nullptr
