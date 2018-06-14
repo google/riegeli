@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_holder.h"
@@ -243,7 +244,6 @@ class FdStreamWriter final : public internal::FdWriterBase {
     // Default for constructor from filename: 0 when opening for writing, or
     // file size when opening for appending.
     Options& set_assumed_pos(Position assumed_pos) & {
-      has_assumed_pos_ = true;
       assumed_pos_ = assumed_pos;
       return *this;
     }
@@ -257,8 +257,7 @@ class FdStreamWriter final : public internal::FdWriterBase {
     bool owns_fd_ = true;
     mode_t permissions_ = 0666;
     size_t buffer_size_ = kDefaultBufferSize();
-    bool has_assumed_pos_ = false;
-    Position assumed_pos_ = 0;
+    absl::optional<Position> assumed_pos_;
   };
 
   // Creates a closed FdStreamWriter.

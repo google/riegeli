@@ -27,6 +27,7 @@
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -812,8 +813,7 @@ inline bool TransposeEncoder::WriteTransitions(
   // needed for optimal max_transition == 63.
   constexpr size_t kWriteBufSize = 32;
   uint8_t write[kWriteBufSize];
-  bool have_last_transition = false;
-  uint8_t last_transition;
+  absl::optional<uint8_t> last_transition;
   // Go through all transitions and encode them.
   for (uint32_t i = IntCast<uint32_t>(encoded_tags_.size() - 1); i > 0; --i) {
     // There are multiple options how transition may be encoded:
@@ -860,17 +860,16 @@ inline bool TransposeEncoder::WriteTransitions(
           write[--write_start] = IntCast<uint8_t>(pos - current_base);
 
           for (size_t j = write_start; j < kWriteBufSize; ++j) {
-            if (write[j] == 0 && have_last_transition &&
-                (last_transition & 3) < 3) {
-              ++last_transition;
+            if (write[j] == 0 && last_transition.has_value() &&
+                (*last_transition & 3) < 3) {
+              ++*last_transition;
             } else {
-              if (have_last_transition) {
+              if (last_transition.has_value()) {
                 if (ABSL_PREDICT_FALSE(
-                        !WriteByte(compressor_.writer(), last_transition))) {
+                        !WriteByte(compressor_.writer(), *last_transition))) {
                   return Fail(*compressor_.writer());
                 }
               }
-              have_last_transition = true;
               last_transition = IntCast<uint8_t>(write[j] << 2);
             }
           }
@@ -903,17 +902,16 @@ inline bool TransposeEncoder::WriteTransitions(
       RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
       write[--write_start] = IntCast<uint8_t>(pos - current_base);
       for (size_t j = write_start; j < kWriteBufSize; ++j) {
-        if (write[j] == 0 && have_last_transition &&
-            (last_transition & 3) < 3) {
-          ++last_transition;
+        if (write[j] == 0 && last_transition.has_value() &&
+            (*last_transition & 3) < 3) {
+          ++*last_transition;
         } else {
-          if (have_last_transition) {
+          if (last_transition.has_value()) {
             if (ABSL_PREDICT_FALSE(
-                    !WriteByte(compressor_.writer(), last_transition))) {
+                    !WriteByte(compressor_.writer(), *last_transition))) {
               return Fail(*compressor_.writer());
             }
           }
-          have_last_transition = true;
           last_transition = IntCast<uint8_t>(write[j] << 2);
         }
       }
@@ -925,8 +923,9 @@ inline bool TransposeEncoder::WriteTransitions(
     prev_etag = tag;
     current_base = tags_list_[prev_etag].base;
   }
-  if (have_last_transition) {
-    if (ABSL_PREDICT_FALSE(!WriteByte(compressor_.writer(), last_transition))) {
+  if (last_transition.has_value()) {
+    if (ABSL_PREDICT_FALSE(
+            !WriteByte(compressor_.writer(), *last_transition))) {
       return Fail(*compressor_.writer());
     }
   }

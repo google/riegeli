@@ -22,6 +22,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -203,7 +204,6 @@ class FdStreamReader final : public internal::FdReaderBase {
     //
     // Default for constructor from filename: 0.
     Options& set_assumed_pos(Position assumed_pos) & {
-      has_assumed_pos_ = true;
       assumed_pos_ = assumed_pos;
       return *this;
     }
@@ -215,8 +215,7 @@ class FdStreamReader final : public internal::FdReaderBase {
     friend class FdStreamReader;
 
     size_t buffer_size_ = kDefaultBufferSize();
-    bool has_assumed_pos_ = false;
-    Position assumed_pos_ = 0;
+    absl::optional<Position> assumed_pos_;
   };
 
   // Creates a closed FdStreamReader.

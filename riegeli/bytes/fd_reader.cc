@@ -267,17 +267,17 @@ bool FdReader::Size(Position* size) {
 
 FdStreamReader::FdStreamReader(int fd, Options options)
     : FdReaderBase(fd, true, options.buffer_size_) {
-  RIEGELI_ASSERT(options.has_assumed_pos_)
+  RIEGELI_ASSERT(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamReader::FdStreamReader(int): "
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
-  limit_pos_ = options.assumed_pos_;
+  limit_pos_ = *options.assumed_pos_;
 }
 
 FdStreamReader::FdStreamReader(std::string filename, int flags, Options options)
     : FdReaderBase(std::move(filename), flags, true, options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
-  limit_pos_ = options.assumed_pos_;
+  limit_pos_ = options.assumed_pos_.value_or(0);
 }
 
 bool FdStreamReader::ReadInternal(char* dest, size_t min_length,

@@ -44,7 +44,7 @@ DefaultChunkWriter::DefaultChunkWriter(std::unique_ptr<Writer> byte_writer,
 DefaultChunkWriter::DefaultChunkWriter(Writer* byte_writer, Options options)
     : ChunkWriter(State::kOpen),
       byte_writer_(RIEGELI_ASSERT_NOTNULL(byte_writer)) {
-  pos_ = options.has_assumed_pos_ ? options.assumed_pos_ : byte_writer_->pos();
+  pos_ = options.assumed_pos_.value_or(byte_writer_->pos());
 }
 
 void DefaultChunkWriter::Done() {

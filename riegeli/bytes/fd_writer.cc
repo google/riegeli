@@ -270,19 +270,19 @@ again:
 
 FdStreamWriter::FdStreamWriter(int fd, Options options)
     : FdWriterBase(fd, options.owns_fd_, options.buffer_size_) {
-  RIEGELI_ASSERT(options.has_assumed_pos_)
+  RIEGELI_ASSERT(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamWriter::FdStreamWriter(int): "
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
-  start_pos_ = options.assumed_pos_;
+  start_pos_ = *options.assumed_pos_;
 }
 
 FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
     : FdWriterBase(std::move(filename), flags, options.permissions_,
                    options.owns_fd_, options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
-  if (options.has_assumed_pos_) {
-    start_pos_ = options.assumed_pos_;
+  if (options.assumed_pos_.has_value()) {
+    start_pos_ = *options.assumed_pos_;
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
