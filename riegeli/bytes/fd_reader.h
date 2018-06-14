@@ -400,12 +400,16 @@ inline FdStreamReader& FdStreamReader::operator=(
 
 inline FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
     : Reader(std::move(src)),
+      owned_fd_(std::move(src.owned_fd_)),
+      fd_(riegeli::exchange(src.fd_, -1)),
       filename_(riegeli::exchange(src.filename_, std::string())),
       error_code_(riegeli::exchange(src.error_code_, 0)),
       contents_(riegeli::exchange(src.contents_, Chain())) {}
 
 inline FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
-  Reader::operator=(std::move(src)),
+  Reader::operator=(std::move(src));
+  owned_fd_ = std::move(src.owned_fd_);
+  fd_ = riegeli::exchange(src.fd_, -1);
   filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
   contents_ = riegeli::exchange(src.contents_, Chain());
