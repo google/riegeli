@@ -346,8 +346,10 @@ bool RecordWriter::SerialImpl::CloseChunk() {
 bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
-    if (chunk_writer_->healthy()) return false;
-    return Fail(*chunk_writer_);
+    if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) {
+      return Fail(*chunk_writer_);
+    }
+    return false;
   }
   return true;
 }
@@ -687,8 +689,8 @@ bool RecordWriter::Flush(FlushType flush_type) {
     if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) return Fail(*impl_);
   }
   if (ABSL_PREDICT_FALSE(!impl_->Flush(flush_type))) {
-    if (impl_->healthy()) return false;
-    return Fail(*impl_);
+    if (ABSL_PREDICT_FALSE(!impl_->healthy())) return Fail(*impl_);
+    return false;
   }
   if (chunk_size_so_far_ != 0) {
     impl_->OpenChunk();

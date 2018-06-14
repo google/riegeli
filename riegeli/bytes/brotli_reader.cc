@@ -101,11 +101,9 @@ bool BrotliReader::PullSlow() {
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-          if (ABSL_PREDICT_TRUE(src_->healthy())) {
-            truncated_ = true;
-            return false;
-          }
-          return Fail(*src_);
+          if (ABSL_PREDICT_FALSE(!src_->healthy())) return Fail(*src_);
+          truncated_ = true;
+          return false;
         }
         continue;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:

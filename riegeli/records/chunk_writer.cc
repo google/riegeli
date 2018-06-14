@@ -134,8 +134,10 @@ inline bool DefaultChunkWriter::WritePadding(Position chunk_begin,
 
 bool DefaultChunkWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!byte_writer_->Flush(flush_type))) {
-    if (byte_writer_->healthy()) return false;
-    return Fail(*byte_writer_);
+    if (ABSL_PREDICT_FALSE(!byte_writer_->healthy())) {
+      return Fail(*byte_writer_);
+    }
+    return false;
   }
   return true;
 }

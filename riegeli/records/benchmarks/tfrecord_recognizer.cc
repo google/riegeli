@@ -32,12 +32,11 @@ bool TFRecordDetector::CheckFileFormat(
     tensorflow::io::RecordReaderOptions* record_reader_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
-    if (ABSL_PREDICT_TRUE(byte_reader_->healthy())) {
-      // Empty file: return false but leave healthy() as true. This mimics the
-      // behavior of reading functions at end of file.
-      return false;
-    }
-    return Fail(*byte_reader_);
+    if (ABSL_PREDICT_FALSE(!byte_reader_->healthy()))
+      return Fail(*byte_reader_);
+    // Empty file: return false but leave healthy() as true. This mimics the
+    // behavior of reading functions at end of file.
+    return false;
   }
 
   const Position pos_before = byte_reader_->pos();
@@ -46,8 +45,10 @@ bool TFRecordDetector::CheckFileFormat(
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;
     if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_before))) {
-      if (byte_reader_->healthy()) return Fail("Seeking failed");
-      return Fail(*byte_reader_);
+      if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
+        return Fail(*byte_reader_);
+      }
+      return Fail("Seeking failed");
     }
     record_reader_options->compression_type =
         tensorflow::io::RecordReaderOptions::NONE;
@@ -66,8 +67,8 @@ bool TFRecordDetector::CheckFileFormat(
   if (ABSL_PREDICT_FALSE(!reader->Read(header, sizeof(header))) ||
       ABSL_PREDICT_FALSE(!reader->Read(reinterpret_cast<char*>(&masked_crc),
                                        sizeof(masked_crc)))) {
-    if (reader->healthy()) return Fail("Truncated TFRecord file");
-    return Fail(*reader);
+    if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(*reader);
+    return Fail("Truncated TFRecord file");
   }
   if (tensorflow::crc32c::Unmask(ReadLittleEndian32(masked_crc)) !=
       tensorflow::crc32c::Value(header, sizeof(header))) {
