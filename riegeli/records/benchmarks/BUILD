@@ -18,6 +18,7 @@ cc_binary(
         "//riegeli/records:record_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@org_tensorflow//tensorflow/core:lib",
     ],
 )

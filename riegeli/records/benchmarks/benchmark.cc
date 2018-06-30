@@ -28,7 +28,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <functional>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -40,6 +39,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/str_error.h"
@@ -324,20 +324,14 @@ void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
 }
 
 void Benchmarks::RunAll() {
-  std::cout << "Original uncompressed size: " << std::fixed
-            << std::setprecision(3)
-            << (static_cast<double>(original_size_) / 1000000.0) << " MB"
-            << std::endl;
-  std::cout << "Creating files " << output_dir_ << "/record_benchmark_*"
-            << std::endl;
-  std::cout << std::left << std::setw(max_name_width_) << ""
-            << "  Compr.    Write       Read" << std::endl;
-  std::cout << std::left << std::setw(max_name_width_) << ""
-            << "  ratio    CPU Real   CPU Real" << std::endl;
-  std::cout << std::setw(max_name_width_) << "Format"
-            << "    %     MB/s MB/s  MB/s MB/s" << std::endl;
-  std::cout << std::setfill('-') << std::setw(max_name_width_ + 30) << ""
-            << std::setfill(' ') << std::endl;
+  absl::PrintF("Original uncompressed size: %.3f MB\n",
+               static_cast<double>(original_size_) / 1000000.0);
+  absl::PrintF("Creating files %s/record_benchmark_*\n", output_dir_);
+  absl::PrintF("%-*s  Compr.    Write       Read\n", max_name_width_, "");
+  absl::PrintF("%-*s  ratio    CPU Real   CPU Real\n", max_name_width_, "");
+  absl::PrintF("%-*s    %%     MB/s MB/s  MB/s MB/s\n", max_name_width_,
+               "Format");
+  absl::PrintF("%s\n", std::string(max_name_width_ + 30, '-'));
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
@@ -428,16 +422,13 @@ void Benchmarks::RunOne(
     }
   }
 
-  std::cout << std::left << std::setw(max_name_width_) << name << ' '
-            << std::right << std::setw(7) << std::fixed << std::setprecision(3)
-            << compression.Median();
+  absl::PrintF("%-*s %7.3f", max_name_width_, name, compression.Median());
   for (const std::array<Stats*, 2>& stats_cpu_real :
        {std::array<Stats*, 2>{&writing_cpu_speed, &writing_real_speed},
         std::array<Stats*, 2>{&reading_cpu_speed, &reading_real_speed}}) {
-    std::cout << ' ';
+    absl::PrintF(" ");
     for (Stats* const stats : stats_cpu_real) {
-      std::cout << ' ' << std::right << std::setw(4) << std::setprecision(0)
-                << stats->Median();
+      absl::PrintF(" %4.0f", stats->Median());
     }
   }
   std::cout << std::endl;
