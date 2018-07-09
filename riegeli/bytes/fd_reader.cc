@@ -317,7 +317,7 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
 }
 
 FdMMapReader::FdMMapReader(int fd, Options options)
-    : Reader(State::kOpen),
+    : ChainReader(Chain()),
       owned_fd_(options.owns_fd_ ? fd : -1),
       fd_(fd),
       filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)),
@@ -329,7 +329,7 @@ FdMMapReader::FdMMapReader(int fd, Options options)
 }
 
 FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
-    : Reader(State::kOpen), filename_(std::move(filename)) {
+    : ChainReader(Chain()), filename_(std::move(filename)) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdMMapReader::FdMMapReader(string): "
@@ -353,7 +353,9 @@ void FdMMapReader::Done() {
     }
   }
   limit_pos_ = pos();
-  contents_ = Chain();
+  // TODO: Do it without const_cast by providing a non-const accessor
+  // to the source of an owning ChainReader.
+  const_cast<Chain&>(src()) = Chain();
   if (owned_fd_.fd() >= 0) {
     const int error_code = owned_fd_.Close();
     if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
@@ -384,11 +386,9 @@ inline void FdMMapReader::Initialize(Options options) {
       FailOperation("mmap()", error_code);
       return;
     }
-    contents_.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
-    start_ = iter()->data();
-    cursor_ = start_;
-    limit_ = start_ + iter()->size();
-    limit_pos_ = buffer_size();
+    Chain contents;
+    contents.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
+    ChainReader::operator=(ChainReader(std::move(contents)));
     if (sync_pos_) {
       const off_t result = lseek(fd_, 0, SEEK_CUR);
       if (ABSL_PREDICT_FALSE(result < 0)) {
@@ -405,90 +405,6 @@ inline bool FdMMapReader::FailOperation(absl::string_view operation,
   error_code_ = error_code;
   return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
                            ", reading ", filename_));
-}
-
-inline Chain::BlockIterator FdMMapReader::iter() const {
-  RIEGELI_ASSERT_EQ(contents_.blocks().size(), 1u)
-      << "Failed precondition of FdMMapReader::iter(): single block expected";
-  return contents_.blocks().begin();
-}
-
-bool FdMMapReader::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
-  return false;
-}
-
-bool FdMMapReader::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  const size_t length_to_read = UnsignedMin(length, available());
-  if (ABSL_PREDICT_TRUE(length_to_read > 0)) {  // iter() is undefined if
-                                                // contents_.blocks().size()
-                                                //     != 1.
-    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_read), dest);
-    cursor_ += length_to_read;
-  }
-  return length_to_read == length;
-}
-
-bool FdMMapReader::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
-  const size_t length_to_copy = UnsignedMin(length, available());
-  bool ok = true;
-  if (length_to_copy == contents_.size()) {
-    cursor_ = limit_;
-    ok = dest->Write(contents_);
-  } else if (ABSL_PREDICT_TRUE(length_to_copy > 0)) {  // iter() is undefined if
-                                                       // contents_.blocks()
-                                                       //     .size() != 1.
-    Chain data;
-    iter().AppendSubstrTo(absl::string_view(cursor_, length_to_copy), &data,
-                          length_to_copy);
-    cursor_ += length_to_copy;
-    ok = dest->Write(std::move(data));
-  }
-  return ok && length_to_copy == length;
-}
-
-bool FdMMapReader::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "length too small, use CopyTo(BackwardWriter*) instead";
-  if (ABSL_PREDICT_FALSE(length > available())) {
-    cursor_ = limit_;
-    return false;
-  }
-  if (length == contents_.size()) {
-    cursor_ = limit_;
-    return dest->Write(contents_);
-  }
-  Chain data;
-  iter().AppendSubstrTo(absl::string_view(cursor_, length), &data, length);
-  cursor_ += length;
-  return dest->Write(std::move(data));
-}
-
-bool FdMMapReader::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *size = contents_.size();
-  return true;
-}
-
-bool FdMMapReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
-      << "Failed precondition of Reader::SeekSlow(): "
-         "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(start_pos(), 0u)
-      << "Failed invariant of FdMMapReader: non-zero position of buffer start";
-  // Seeking forwards. Source ends.
-  cursor_ = limit_;
-  return false;
 }
 
 }  // namespace riegeli

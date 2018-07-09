@@ -30,7 +30,7 @@
 namespace riegeli {
 namespace internal {
 
-class Compressor final : public Object {
+class Compressor : public Object {
  public:
   // Creates a closed Compressor.
   Compressor() noexcept : Object(State::kClosed) {}

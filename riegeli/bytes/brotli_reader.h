@@ -27,7 +27,7 @@ namespace riegeli {
 
 // A Reader which decompresses data with Brotli after getting it from another
 // Reader.
-class BrotliReader final : public Reader {
+class BrotliReader : public Reader {
  public:
   class Options {};
 

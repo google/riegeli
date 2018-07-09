@@ -282,7 +282,7 @@ bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
   return true;
 }
 
-class RecordWriter::SerialImpl final : public Impl {
+class RecordWriter::SerialImpl : public Impl {
  public:
   SerialImpl(ChunkWriter* chunk_writer, const Options& options);
 
@@ -360,7 +360,7 @@ FutureRecordPosition RecordWriter::SerialImpl::ChunkBegin() {
 
 // ParallelImpl uses parallelism internally, but the class is still only
 // thread-compatible, not thread-safe.
-class RecordWriter::ParallelImpl final : public Impl {
+class RecordWriter::ParallelImpl : public Impl {
  public:
   ParallelImpl(ChunkWriter* chunk_writer, const Options& options);
 

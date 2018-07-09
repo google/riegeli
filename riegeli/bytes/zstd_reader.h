@@ -28,7 +28,7 @@ namespace riegeli {
 
 // A Reader which decompresses data with Zstd after getting it from another
 // Reader.
-class ZstdReader final : public BufferedReader {
+class ZstdReader : public BufferedReader {
  public:
   class Options {
    public:

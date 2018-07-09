@@ -133,7 +133,7 @@ inline bool HasSubtype(uint32_t tag) {
   }
 }
 
-// Murmur3 final mix variant:
+// Murmur3 mix variant:
 // http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html
 inline uint64_t Murmur3_64(uint64_t x) {
   x ^= x >> 31;

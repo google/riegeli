@@ -34,7 +34,7 @@ namespace riegeli {
 //
 // When a LimitingReader is closed, its position is synchronized back to its
 // source.
-class LimitingReader final : public Reader {
+class LimitingReader : public Reader {
  public:
   // An infinite size limit.
   static constexpr Position kNoSizeLimit();

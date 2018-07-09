@@ -112,7 +112,7 @@ class RecordsMetadataDescriptors : public Object {
 //       ... Failed with reason: record_reader_.message()
 //     }
 //   }
-class RecordReader final : public Object {
+class RecordReader : public Object {
  public:
   class Options {
    public:

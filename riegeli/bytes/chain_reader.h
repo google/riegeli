@@ -29,7 +29,7 @@
 namespace riegeli {
 
 // A Reader which reads from a Chain. It supports random access.
-class ChainReader final : public Reader {
+class ChainReader : public Reader {
  public:
   // Creates a closed ChainReader.
   ChainReader() noexcept : Reader(State::kClosed) {}

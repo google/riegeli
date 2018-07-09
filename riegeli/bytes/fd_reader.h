@@ -28,6 +28,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
+#include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_holder.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -88,7 +89,7 @@ class FdReaderBase : public BufferedReader {
 //
 // Multiple FdReaders can read concurrently from the same fd. Reads occur at the
 // position managed by the FdReader (using pread()).
-class FdReader final : public internal::FdReaderBase {
+class FdReader : public internal::FdReaderBase {
  public:
   class Options {
    public:
@@ -177,7 +178,7 @@ class FdReader final : public internal::FdReaderBase {
 //
 // Multiple FdStreamReaders may not be used with the same fd at the same time.
 // Reads occur at the current file position (using read()).
-class FdStreamReader final : public internal::FdReaderBase {
+class FdStreamReader : public internal::FdReaderBase {
  public:
   class Options {
    public:
@@ -246,7 +247,7 @@ class FdStreamReader final : public internal::FdReaderBase {
 // accessed.
 //
 // Multiple FdMMapReaders can read concurrently from the same fd.
-class FdMMapReader final : public Reader {
+class FdMMapReader : public ChainReader {
  public:
   class Options {
    public:
@@ -292,7 +293,7 @@ class FdMMapReader final : public Reader {
   };
 
   // Creates a closed FdMMapReader.
-  FdMMapReader() noexcept : Reader(State::kClosed) {}
+  FdMMapReader() noexcept {}
 
   // Will read from fd, starting at its beginning.
   explicit FdMMapReader(int fd, Options options = Options());
@@ -318,27 +319,14 @@ class FdMMapReader final : public Reader {
   // Unchanged by Close().
   int error_code() const { return error_code_; }
 
-  bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) override;
-
  protected:
   void Done() override;
-  bool PullSlow() override;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
-  bool SeekSlow(Position new_pos) override;
 
  private:
   void Initialize(Options options);
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int error_code);
-
-  // Iterator pointing to the block of contents_ which holds the actual data.
-  //
-  // Precondition: contents_.blocks().size() == 1
-  Chain::BlockIterator iter() const;
 
   internal::FdHolder owned_fd_;
   int fd_ = -1;
@@ -348,12 +336,6 @@ class FdMMapReader final : public Reader {
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
-  Chain contents_;
-
-  // Invariants if healthy():
-  //   start_ == (contents_.blocks().empty() ? nullptr : iter()->data())
-  //   buffer_size() == (contents_.blocks().empty() ? 0 : iter()->size())
-  //   start_pos() == 0
 };
 
 // Implementation details follow.
@@ -398,20 +380,18 @@ inline FdStreamReader& FdStreamReader::operator=(
 }
 
 inline FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
-    : Reader(std::move(src)),
+    : ChainReader(std::move(src)),
       owned_fd_(std::move(src.owned_fd_)),
       fd_(riegeli::exchange(src.fd_, -1)),
       filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)),
-      contents_(riegeli::exchange(src.contents_, Chain())) {}
+      error_code_(riegeli::exchange(src.error_code_, 0)) {}
 
 inline FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
-  Reader::operator=(std::move(src));
+  ChainReader::operator=(std::move(src));
   owned_fd_ = std::move(src.owned_fd_);
   fd_ = riegeli::exchange(src.fd_, -1);
   filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
-  contents_ = riegeli::exchange(src.contents_, Chain());
   return *this;
 }
 

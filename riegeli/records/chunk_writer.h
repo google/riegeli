@@ -81,7 +81,7 @@ class ChunkWriter : public Object {
 
 // The default ChunkWriter. Writes chunks to a byte Writer, interleaving them
 // with block headers at multiples of the Riegeli/records block size.
-class DefaultChunkWriter final : public ChunkWriter {
+class DefaultChunkWriter : public ChunkWriter {
  public:
   class Options {
    public:

@@ -32,7 +32,7 @@ namespace riegeli {
 //
 // When a LimitingWriter is closed, its position is synchronized back to its
 // destination.
-class LimitingWriter final : public Writer {
+class LimitingWriter : public Writer {
  public:
   // Creates a closed LimitingWriter.
   LimitingWriter() noexcept : Writer(State::kClosed) {}

@@ -33,7 +33,7 @@ namespace internal {
 enum class CallbackType : uint8_t;
 }  // namespace internal
 
-class TransposeDecoder final : public Object {
+class TransposeDecoder : public Object {
  public:
   TransposeDecoder() noexcept : Object(State::kClosed) {}
 

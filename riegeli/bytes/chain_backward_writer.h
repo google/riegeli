@@ -29,7 +29,7 @@
 namespace riegeli {
 
 // A BackwardWriter which prepends to a Chain.
-class ChainBackwardWriter final : public BackwardWriter {
+class ChainBackwardWriter : public BackwardWriter {
  public:
   class Options {
    public:

@@ -28,7 +28,7 @@
 namespace riegeli {
 
 // A Writer which compresses data with Zstd before passing it to another Writer.
-class ZstdWriter final : public BufferedWriter {
+class ZstdWriter : public BufferedWriter {
  public:
   class Options {
    public:

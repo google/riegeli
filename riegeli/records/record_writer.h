@@ -101,7 +101,7 @@ class FutureRecordPosition {
 //   if (!record_writer_.Close()) {
 //     ... Failed with reason: record_writer_.message()
 //   }
-class RecordWriter final : public Object {
+class RecordWriter : public Object {
  public:
   class Options {
    public:

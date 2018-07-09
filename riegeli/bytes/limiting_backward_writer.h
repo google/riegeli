@@ -32,7 +32,7 @@ namespace riegeli {
 //
 // When a LimitingBackwardWriter is closed, its position is synchronized back to
 // its destination.
-class LimitingBackwardWriter final : public BackwardWriter {
+class LimitingBackwardWriter : public BackwardWriter {
  public:
   // Creates a closed LimitingBackwardWriter.
   LimitingBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}

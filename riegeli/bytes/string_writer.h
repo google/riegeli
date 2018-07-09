@@ -28,7 +28,7 @@
 namespace riegeli {
 
 // A Writer which appends to a string, resizing it as necessary.
-class StringWriter final : public Writer {
+class StringWriter : public Writer {
  public:
   class Options {
    public:

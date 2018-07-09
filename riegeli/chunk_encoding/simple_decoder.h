@@ -26,7 +26,7 @@
 
 namespace riegeli {
 
-class SimpleDecoder final : public Object {
+class SimpleDecoder : public Object {
  public:
   SimpleDecoder() noexcept : Object(State::kClosed) {}
 

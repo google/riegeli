@@ -35,7 +35,7 @@ namespace riegeli {
 //
 // TODO: If use cases arise, this could be made an abstract class,
 // together with a default implementation, analogously to ChunkWriter.
-class ChunkReader final : public Object {
+class ChunkReader : public Object {
  public:
   // Will read chunks from the byte Reader which is owned by this ChunkReader
   // and will be closed and deleted when the ChunkReader is closed.

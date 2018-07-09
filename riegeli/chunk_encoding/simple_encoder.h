@@ -42,7 +42,7 @@ namespace riegeli {
 //
 // If compression is used, a compressed block is prefixed by its varint-encoded
 // uncompressed size.
-class SimpleEncoder final : public ChunkEncoder {
+class SimpleEncoder : public ChunkEncoder {
  public:
   // Creates an empty SimpleEncoder.
   SimpleEncoder(CompressorOptions options, uint64_t size_hint);

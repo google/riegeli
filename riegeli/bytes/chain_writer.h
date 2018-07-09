@@ -29,7 +29,7 @@
 namespace riegeli {
 
 // A Writer which appends to a Chain.
-class ChainWriter final : public Writer {
+class ChainWriter : public Writer {
  public:
   class Options {
    public:

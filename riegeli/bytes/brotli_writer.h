@@ -29,7 +29,7 @@ namespace riegeli {
 
 // A Writer which compresses data with Brotli before passing it to another
 // Writer.
-class BrotliWriter final : public BufferedWriter {
+class BrotliWriter : public BufferedWriter {
  public:
   class Options {
    public:

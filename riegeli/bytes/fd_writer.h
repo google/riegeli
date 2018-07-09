@@ -88,7 +88,7 @@ class FdWriterBase : public BufferedWriter {
 // Multiple FdWriters can write concurrently to the same fd, although this is
 // rarely useful because they would need to write to disjoint regions. Writes
 // occur at the position managed by the FdWriter (using pwrite()).
-class FdWriter final : public internal::FdWriterBase {
+class FdWriter : public internal::FdWriterBase {
  public:
   class Options {
    public:
@@ -195,7 +195,7 @@ class FdWriter final : public internal::FdWriterBase {
 // rarely useful because they would need to avoid writing concurrently, and to
 // Flush() before allowing another FdStreamWriter to write. Writes occur at the
 // current file position (using write()).
-class FdStreamWriter final : public internal::FdWriterBase {
+class FdStreamWriter : public internal::FdWriterBase {
  public:
   class Options {
    public:

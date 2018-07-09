@@ -28,7 +28,7 @@
 namespace riegeli {
 namespace internal {
 
-class Decompressor final : public Object {
+class Decompressor : public Object {
  public:
   // Sets *uncompressed_size to uncompressed size of compressed_data.
   //

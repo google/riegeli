@@ -278,6 +278,7 @@ cc_library(
     deps = [
         ":backward_writer",
         ":buffered_reader",
+        ":chain_reader",
         ":reader",
         ":writer",
         "//riegeli/base",

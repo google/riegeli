@@ -28,7 +28,7 @@
 namespace riegeli {
 
 // A Reader which reads from a char array. It supports random access.
-class StringReader final : public Reader {
+class StringReader : public Reader {
  public:
   // Creates a closed StringReader.
   StringReader() noexcept : Reader(State::kClosed) {}
