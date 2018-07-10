@@ -71,11 +71,6 @@ cc_proto_library(
     deps = [":records_metadata_proto"],
 )
 
-go_proto_library(
-    name = "records_metadata_go_proto",
-    deps = [":records_metadata_proto"],
-)
-
 cc_library(
     name = "record_position",
     srcs = ["record_position.cc"],
