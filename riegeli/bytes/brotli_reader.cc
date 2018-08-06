@@ -33,12 +33,12 @@ BrotliReader::BrotliReader(Reader* src, Options options)
       decompressor_(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr)) {
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");
+    return;
   }
   if (ABSL_PREDICT_FALSE(!BrotliDecoderSetParameter(
           decompressor_.get(), BROTLI_DECODER_PARAM_LARGE_WINDOW,
           uint32_t{true}))) {
     Fail("BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed");
-    return;
   }
 }
 

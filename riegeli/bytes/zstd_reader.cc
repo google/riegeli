@@ -42,6 +42,7 @@ ZstdReader::ZstdReader(Reader* src, Options options)
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::StrCat("ZSTD_initDStream() failed: ",
                         ZSTD_getErrorName(result)));
+      return;
     }
   }
   {
