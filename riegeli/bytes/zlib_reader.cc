@@ -111,11 +111,9 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
                "space";
         if (ABSL_PREDICT_FALSE(!src_->Pull())) {
           limit_pos_ += length_read;
-          if (ABSL_PREDICT_TRUE(src_->healthy())) {
-            truncated_ = true;
-            return false;
-          }
-          return Fail(*src_);
+          if (ABSL_PREDICT_FALSE(!src_->healthy())) return Fail(*src_);
+          truncated_ = true;
+          return false;
         }
         continue;
       case Z_STREAM_END:
