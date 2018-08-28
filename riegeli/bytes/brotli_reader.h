@@ -54,6 +54,7 @@ class BrotliReader : public Reader {
 
  protected:
   void Done() override;
+  void VerifyEnd() override;
   bool PullSlow() override;
 
  private:

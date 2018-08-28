@@ -31,8 +31,12 @@
 namespace riegeli {
 
 bool Reader::VerifyEndAndClose() {
-  if (ABSL_PREDICT_FALSE(Pull())) Fail("End of data expected");
+  VerifyEnd();
   return Close();
+}
+
+void Reader::VerifyEnd() {
+  if (ABSL_PREDICT_FALSE(Pull())) Fail("End of data expected");
 }
 
 bool Reader::FailOverflow() { return Fail("Reader position overflow"); }

@@ -64,6 +64,11 @@ void ZstdReader::Done() {
   BufferedReader::Done();
 }
 
+void ZstdReader::VerifyEnd() {
+  BufferedReader::VerifyEnd();
+  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
+}
+
 bool ZstdReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "

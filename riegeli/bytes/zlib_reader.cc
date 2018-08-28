@@ -56,6 +56,11 @@ void ZlibReader::Done() {
   BufferedReader::Done();
 }
 
+void ZlibReader::VerifyEnd() {
+  BufferedReader::VerifyEnd();
+  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
+}
+
 inline bool ZlibReader::FailOperation(absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_.msg != nullptr) {

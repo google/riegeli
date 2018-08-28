@@ -54,6 +54,11 @@ void BrotliReader::Done() {
   Reader::Done();
 }
 
+void BrotliReader::VerifyEnd() {
+  Reader::VerifyEnd();
+  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
+}
+
 bool BrotliReader::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "

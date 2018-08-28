@@ -105,9 +105,7 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
 }
 
 bool SimpleDecoder::VerifyEndAndClose() {
-  if (ABSL_PREDICT_FALSE(!values_decompressor_.VerifyEndAndClose())) {
-    return Fail(values_decompressor_);
-  }
+  values_decompressor_.VerifyEnd();
   return Close();
 }
 

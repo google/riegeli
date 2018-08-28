@@ -80,6 +80,11 @@ class Decompressor : public Object {
   //                     or the Decompressor was not healthy before closing)
   bool VerifyEndAndClose();
 
+  // Verifies that the source ends at the current position (i.e. has no more
+  // compressed data and has no data after the compressed stream), failing the
+  // Decompressor if not.
+  void VerifyEnd();
+
  protected:
   void Done() override;
 

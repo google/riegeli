@@ -73,6 +73,7 @@ class ZstdReader : public BufferedReader {
 
  protected:
   void Done() override;
+  void VerifyEnd() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 

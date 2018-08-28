@@ -89,17 +89,13 @@ void Decompressor::Done() {
 }
 
 bool Decompressor::VerifyEndAndClose() {
-  if (owned_reader_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_reader_->VerifyEndAndClose())) {
-      return Fail(*owned_reader_);
-    }
-  }
-  if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_src_->VerifyEndAndClose())) {
-      return Fail(*owned_src_);
-    }
-  }
+  VerifyEnd();
   return Close();
+}
+
+void Decompressor::VerifyEnd() {
+  if (owned_reader_ != nullptr) owned_reader_->VerifyEnd();
+  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
 }
 
 }  // namespace internal

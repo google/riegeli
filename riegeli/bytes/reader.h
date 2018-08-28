@@ -56,6 +56,10 @@ class Reader : public Object {
   //                     or the Reader was not healthy before closing)
   bool VerifyEndAndClose();
 
+  // Verifies that the source ends at the current position, failing the Reader
+  // if not.
+  virtual void VerifyEnd();
+
   // Ensures that some data available for reading: pulls more data from the
   // source, and points cursor() and limit() to non-empty data. If some data
   // were already buffered, does nothing.
@@ -190,7 +194,7 @@ class Reader : public Object {
 
   // Reader overrides Object::Done(). Derived classes which override it further
   // should include a call to Reader::Done().
-  virtual void Done() override;
+  void Done() override;
 
   // Marks the Reader as failed with message "Reader position overflow".
   // Always returns false.
