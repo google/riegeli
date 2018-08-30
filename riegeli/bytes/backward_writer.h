@@ -133,7 +133,7 @@ class BackwardWriter : public Object {
 
   // BackwardWriter overrides Object::Done(). Derived classes which override it
   // further should include a call to BackwardWriter::Done().
-  virtual void Done() override;
+  void Done() override;
 
   // Marks the BackwardWriter as failed with message "BackwardWriter position
   // overflow". Always returns false.

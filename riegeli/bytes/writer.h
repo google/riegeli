@@ -190,7 +190,7 @@ class Writer : public Object {
 
   // Writer overrides Object::Done(). Derived classes which override it further
   // should include a call to Writer::Done().
-  virtual void Done() override;
+  void Done() override;
 
   // Marks the Writer as failed with message "Writer position overflow".
   // Always returns false.
