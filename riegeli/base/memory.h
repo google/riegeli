@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 #include <limits>
-#include <memory>
 #include <new>
 #include <utility>
 

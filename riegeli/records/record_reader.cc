@@ -14,25 +14,31 @@
 
 #include "riegeli/records/record_reader.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/descriptor.pb.h"
+#include "google/protobuf/message.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_backward_writer.h"
+#include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/message_parse.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"

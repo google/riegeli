@@ -25,6 +25,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/hash.h"
 #include "riegeli/records/block.h"
 
