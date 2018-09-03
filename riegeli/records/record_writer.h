@@ -417,10 +417,9 @@ class RecordWriter : public Object {
   void Done() override;
 
  private:
-  class Impl;
-  class SerialImpl;
-  class ParallelImpl;
-  class DummyImpl;
+  class Worker;
+  class SerialWorker;
+  class ParallelWorker;
 
   template <typename Record>
   bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);
@@ -428,12 +427,12 @@ class RecordWriter : public Object {
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
   std::unique_ptr<ChunkWriter> owned_chunk_writer_;
-  // impl_ must be defined after owned_chunk_writer_ so that it is destroyed
-  // before owned_chunk_writer_, because background work of impl_ may need
+  // worker_ must be defined after owned_chunk_writer_ so that it is destroyed
+  // before owned_chunk_writer_, because background work of worker_ may need
   // owned_chunk_writer_.
   //
-  // Invariant: if healthy() them impl_ != nullptr
-  std::unique_ptr<Impl> impl_;
+  // Invariant: if healthy() them worker_ != nullptr
+  std::unique_ptr<Worker> worker_;
 };
 
 // Implementation details follow.

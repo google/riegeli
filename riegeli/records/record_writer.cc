@@ -154,12 +154,14 @@ bool RecordWriter::Options::Parse(absl::string_view text,
   return compressor_options_.Parse(compressor_text, message);
 }
 
-class RecordWriter::Impl : public Object {
+class RecordWriter::Worker : public Object {
  public:
-  explicit Impl(const Options& options)
-      : Object(State::kOpen), chunk_encoder_(MakeChunkEncoder(options)) {}
+  Worker(ChunkWriter* chunk_writer, const Options& options)
+      : Object(State::kOpen),
+        chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
+        chunk_encoder_(MakeChunkEncoder(options)) {}
 
-  ~Impl();
+  ~Worker();
 
   // Precondition for Close(): chunk is not open.
 
@@ -190,17 +192,20 @@ class RecordWriter::Impl : public Object {
 
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
 
+  // Invariant: chunk_writer_ != nullptr
+  ChunkWriter* chunk_writer_;
   // Invariant: chunk_encoder_ != nullptr
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
-RecordWriter::Impl::~Impl() {}
+RecordWriter::Worker::~Worker() {}
 
-void RecordWriter::Impl::EncodeSignature(Chunk* chunk) {
+void RecordWriter::Worker::EncodeSignature(Chunk* chunk) {
   chunk->header = ChunkHeader(chunk->data, ChunkType::kFileSignature, 0, 0);
 }
 
-bool RecordWriter::Impl::EncodeMetadata(const Options& options, Chunk* chunk) {
+bool RecordWriter::Worker::EncodeMetadata(const Options& options,
+                                          Chunk* chunk) {
   TransposeEncoder transpose_encoder(options.compressor_options_,
                                      options.metadata_.ByteSizeLong());
   if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options.metadata_))) {
@@ -220,7 +225,7 @@ bool RecordWriter::Impl::EncodeMetadata(const Options& options, Chunk* chunk) {
   return true;
 }
 
-inline std::unique_ptr<ChunkEncoder> RecordWriter::Impl::MakeChunkEncoder(
+inline std::unique_ptr<ChunkEncoder> RecordWriter::Worker::MakeChunkEncoder(
     const Options& options) {
   std::unique_ptr<ChunkEncoder> chunk_encoder;
   if (options.transpose_) {
@@ -249,7 +254,7 @@ inline std::unique_ptr<ChunkEncoder> RecordWriter::Impl::MakeChunkEncoder(
 }
 
 template <typename Record>
-bool RecordWriter::Impl::AddRecord(Record&& record) {
+bool RecordWriter::Worker::AddRecord(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
@@ -258,14 +263,14 @@ bool RecordWriter::Impl::AddRecord(Record&& record) {
   return true;
 }
 
-inline FutureRecordPosition RecordWriter::Impl::Pos() {
+inline FutureRecordPosition RecordWriter::Worker::Pos() {
   FutureRecordPosition pos = ChunkBegin();
   pos.record_index_ = chunk_encoder_->num_records();
   return pos;
 }
 
-bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
-                                     Chunk* chunk) {
+bool RecordWriter::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
+                                       Chunk* chunk) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkType chunk_type;
   uint64_t num_records;
@@ -282,9 +287,9 @@ bool RecordWriter::Impl::EncodeChunk(ChunkEncoder* chunk_encoder,
   return true;
 }
 
-class RecordWriter::SerialImpl : public Impl {
+class RecordWriter::SerialWorker : public Worker {
  public:
-  SerialImpl(ChunkWriter* chunk_writer, const Options& options);
+  SerialWorker(ChunkWriter* chunk_writer, const Options& options);
 
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
@@ -296,21 +301,18 @@ class RecordWriter::SerialImpl : public Impl {
  private:
   bool WriteSignature();
   bool WriteMetadata(const Options& options);
-
-  // Invariant: chunk_writer_ != nullptr
-  ChunkWriter* chunk_writer_;
 };
 
-inline RecordWriter::SerialImpl::SerialImpl(ChunkWriter* chunk_writer,
-                                            const Options& options)
-    : Impl(options), chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)) {
+inline RecordWriter::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
+                                                const Options& options)
+    : Worker(chunk_writer, options) {
   if (chunk_writer_->pos() == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
     if (ABSL_PREDICT_FALSE(!WriteMetadata(options))) return;
   }
 }
 
-inline bool RecordWriter::SerialImpl::WriteSignature() {
+inline bool RecordWriter::SerialWorker::WriteSignature() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
   EncodeSignature(&chunk);
@@ -320,7 +322,7 @@ inline bool RecordWriter::SerialImpl::WriteSignature() {
   return true;
 }
 
-inline bool RecordWriter::SerialImpl::WriteMetadata(const Options& options) {
+inline bool RecordWriter::SerialWorker::WriteMetadata(const Options& options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (options.metadata_.ByteSizeLong() == 0) return true;
   Chunk chunk;
@@ -331,7 +333,7 @@ inline bool RecordWriter::SerialImpl::WriteMetadata(const Options& options) {
   return true;
 }
 
-bool RecordWriter::SerialImpl::CloseChunk() {
+bool RecordWriter::SerialWorker::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!EncodeChunk(chunk_encoder_.get(), &chunk))) {
@@ -343,7 +345,7 @@ bool RecordWriter::SerialImpl::CloseChunk() {
   return true;
 }
 
-bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
+bool RecordWriter::SerialWorker::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
     if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) {
@@ -354,17 +356,17 @@ bool RecordWriter::SerialImpl::Flush(FlushType flush_type) {
   return true;
 }
 
-FutureRecordPosition RecordWriter::SerialImpl::ChunkBegin() {
+FutureRecordPosition RecordWriter::SerialWorker::ChunkBegin() {
   return FutureRecordPosition(chunk_writer_->pos());
 }
 
-// ParallelImpl uses parallelism internally, but the class is still only
+// ParallelWorker uses parallelism internally, but the class is still only
 // thread-compatible, not thread-safe.
-class RecordWriter::ParallelImpl : public Impl {
+class RecordWriter::ParallelWorker : public Worker {
  public:
-  ParallelImpl(ChunkWriter* chunk_writer, const Options& options);
+  ParallelWorker(ChunkWriter* chunk_writer, const Options& options);
 
-  ~ParallelImpl();
+  ~ParallelWorker();
 
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(options_); }
   bool CloseChunk() override;
@@ -400,19 +402,16 @@ class RecordWriter::ParallelImpl : public Impl {
   bool HasCapacityForRequest() const;
 
   Options options_;
-  // Invariant: chunk_writer_ != nullptr
-  ChunkWriter* chunk_writer_;
   absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
   // Position before handling chunk_writer_requests_.
   Position pos_before_chunks_ GUARDED_BY(mutex_);
 };
 
-inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
-                                                const Options& options)
-    : Impl(options),
+inline RecordWriter::ParallelWorker::ParallelWorker(ChunkWriter* chunk_writer,
+                                                    const Options& options)
+    : Worker(chunk_writer, options),
       options_(options),
-      chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
       pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
     struct Visitor {
@@ -448,7 +447,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
         return true;
       }
 
-      ParallelImpl* self;
+      ParallelWorker* self;
     };
 
     mutex_.Lock();
@@ -475,7 +474,7 @@ inline RecordWriter::ParallelImpl::ParallelImpl(ChunkWriter* chunk_writer,
   }
 }
 
-RecordWriter::ParallelImpl::~ParallelImpl() {
+RecordWriter::ParallelWorker::~ParallelWorker() {
   if (ABSL_PREDICT_FALSE(!closed())) {
     // Ask the chunk writer thread to stop working and exit.
     Fail("Canceled");
@@ -483,7 +482,7 @@ RecordWriter::ParallelImpl::~ParallelImpl() {
   }
 }
 
-void RecordWriter::ParallelImpl::Done() {
+void RecordWriter::ParallelWorker::Done() {
   std::promise<void> done_promise;
   std::future<void> done_future = done_promise.get_future();
   {
@@ -493,19 +492,20 @@ void RecordWriter::ParallelImpl::Done() {
   done_future.get();
 }
 
-bool RecordWriter::ParallelImpl::HasCapacityForRequest() const
+bool RecordWriter::ParallelWorker::HasCapacityForRequest() const
     EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
   return chunk_writer_requests_.size() < IntCast<size_t>(options_.parallelism_);
 }
 
-inline bool RecordWriter::ParallelImpl::WriteSignature() {
+inline bool RecordWriter::ParallelWorker::WriteSignature() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
   EncodeSignature(&chunk);
   ChunkPromises chunk_promises;
   chunk_promises.chunk_header.set_value(chunk.header);
   chunk_promises.chunk.set_value(std::move(chunk));
-  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  mutex_.LockWhen(
+      absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
   chunk_writer_requests_.emplace_back(
       WriteChunkRequest{chunk_promises.chunk_header.get_future(),
                         chunk_promises.chunk.get_future()});
@@ -513,11 +513,12 @@ inline bool RecordWriter::ParallelImpl::WriteSignature() {
   return true;
 }
 
-inline bool RecordWriter::ParallelImpl::WriteMetadata() {
+inline bool RecordWriter::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (options_.metadata_.ByteSizeLong() == 0) return true;
   ChunkPromises* const chunk_promises = new ChunkPromises();
-  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  mutex_.LockWhen(
+      absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
   chunk_writer_requests_.emplace_back(
       WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                         chunk_promises->chunk.get_future()});
@@ -532,11 +533,12 @@ inline bool RecordWriter::ParallelImpl::WriteMetadata() {
   return true;
 }
 
-bool RecordWriter::ParallelImpl::CloseChunk() {
+bool RecordWriter::ParallelWorker::CloseChunk() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkEncoder* const chunk_encoder = chunk_encoder_.release();
   ChunkPromises* const chunk_promises = new ChunkPromises();
-  mutex_.LockWhen(absl::Condition(this, &ParallelImpl::HasCapacityForRequest));
+  mutex_.LockWhen(
+      absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
   chunk_writer_requests_.emplace_back(
       WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                         chunk_promises->chunk.get_future()});
@@ -552,7 +554,7 @@ bool RecordWriter::ParallelImpl::CloseChunk() {
   return true;
 }
 
-bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
+bool RecordWriter::ParallelWorker::Flush(FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
   {
@@ -563,7 +565,7 @@ bool RecordWriter::ParallelImpl::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-FutureRecordPosition RecordWriter::ParallelImpl::ChunkBegin() {
+FutureRecordPosition RecordWriter::ParallelWorker::ChunkBegin() {
   absl::MutexLock lock(&mutex_);
   std::vector<std::shared_future<ChunkHeader>> chunk_headers;
   chunk_headers.reserve(chunk_writer_requests_.size());
@@ -607,9 +609,9 @@ RecordWriter::RecordWriter(ChunkWriter* chunk_writer, const Options& options)
                                       kMaxNumRecords() * sizeof(uint64_t))) {
   RIEGELI_ASSERT_NOTNULL(chunk_writer);
   if (options.parallelism_ == 0) {
-    impl_ = absl::make_unique<SerialImpl>(chunk_writer, options);
+    worker_ = absl::make_unique<SerialWorker>(chunk_writer, options);
   } else {
-    impl_ = absl::make_unique<ParallelImpl>(chunk_writer, options);
+    worker_ = absl::make_unique<ParallelWorker>(chunk_writer, options);
   }
 }
 
@@ -618,15 +620,15 @@ RecordWriter::RecordWriter(RecordWriter&& src) noexcept
       desired_chunk_size_(riegeli::exchange(src.desired_chunk_size_, 0)),
       chunk_size_so_far_(riegeli::exchange(src.chunk_size_so_far_, 0)),
       owned_chunk_writer_(std::move(src.owned_chunk_writer_)),
-      impl_(std::move(src.impl_)) {}
+      worker_(std::move(src.worker_)) {}
 
 RecordWriter& RecordWriter::operator=(RecordWriter&& src) noexcept {
   Object::operator=(std::move(src));
   desired_chunk_size_ = riegeli::exchange(src.desired_chunk_size_, 0);
   chunk_size_so_far_ = riegeli::exchange(src.chunk_size_so_far_, 0);
-  // impl_ must be assigned before owned_chunk_writer_ because background work
-  // of impl_ may need owned_chunk_writer_.
-  impl_ = std::move(src.impl_);
+  // worker_ must be assigned before owned_chunk_writer_ because background work
+  // of worker_ may need owned_chunk_writer_.
+  worker_ = std::move(src.worker_);
   owned_chunk_writer_ = std::move(src.owned_chunk_writer_);
   return *this;
 }
@@ -635,10 +637,10 @@ RecordWriter::~RecordWriter() {}
 
 void RecordWriter::Done() {
   if (ABSL_PREDICT_TRUE(healthy()) && chunk_size_so_far_ != 0) {
-    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) Fail(*impl_);
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) Fail(*worker_);
   }
-  if (ABSL_PREDICT_TRUE(impl_ != nullptr)) {
-    if (ABSL_PREDICT_FALSE(!impl_->Close())) Fail(*impl_);
+  if (ABSL_PREDICT_TRUE(worker_ != nullptr)) {
+    if (ABSL_PREDICT_FALSE(!worker_->Close())) Fail(*worker_);
   }
   if (owned_chunk_writer_ != nullptr) {
     if (ABSL_PREDICT_FALSE(!owned_chunk_writer_->Close())) {
@@ -660,14 +662,14 @@ bool RecordWriter::WriteRecordImpl(Record&& record, FutureRecordPosition* key) {
                          added_size >
                              desired_chunk_size_ - chunk_size_so_far_) &&
       chunk_size_so_far_ > 0) {
-    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) return Fail(*impl_);
-    impl_->OpenChunk();
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) return Fail(*worker_);
+    worker_->OpenChunk();
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
-  if (key != nullptr) *key = impl_->Pos();
-  if (ABSL_PREDICT_FALSE(!impl_->AddRecord(std::forward<Record>(record)))) {
-    return Fail(*impl_);
+  if (key != nullptr) *key = worker_->Pos();
+  if (ABSL_PREDICT_FALSE(!worker_->AddRecord(std::forward<Record>(record)))) {
+    return Fail(*worker_);
   }
   return true;
 }
@@ -686,22 +688,22 @@ template bool RecordWriter::WriteRecordImpl(Chain&& record,
 bool RecordWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (chunk_size_so_far_ != 0) {
-    if (ABSL_PREDICT_FALSE(!impl_->CloseChunk())) return Fail(*impl_);
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) return Fail(*worker_);
   }
-  if (ABSL_PREDICT_FALSE(!impl_->Flush(flush_type))) {
-    if (ABSL_PREDICT_FALSE(!impl_->healthy())) return Fail(*impl_);
+  if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) {
+    if (ABSL_PREDICT_FALSE(!worker_->healthy())) return Fail(*worker_);
     return false;
   }
   if (chunk_size_so_far_ != 0) {
-    impl_->OpenChunk();
+    worker_->OpenChunk();
     chunk_size_so_far_ = 0;
   }
   return true;
 }
 
 FutureRecordPosition RecordWriter::Pos() const {
-  if (ABSL_PREDICT_FALSE(impl_ == nullptr)) return FutureRecordPosition();
-  return impl_->Pos();
+  if (ABSL_PREDICT_FALSE(worker_ == nullptr)) return FutureRecordPosition();
+  return worker_->Pos();
 }
 
 }  // namespace riegeli
