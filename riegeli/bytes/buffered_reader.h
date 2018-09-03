@@ -46,7 +46,7 @@ class BufferedReader : public Reader {
 
   // BufferedReader overrides Reader::Done(). Derived classes which override it
   // further should include a call to BufferedReader::Done().
-  virtual void Done() override;
+  void Done() override;
 
   bool PullSlow() override;
   bool ReadSlow(char* dest, size_t length) override;

@@ -47,7 +47,7 @@ class BufferedWriter : public Writer {
 
   // BufferedWriter overrides Writer::Done(). Derived classes which override it
   // further should include a call to BufferedWriter::Done().
-  virtual void Done() override;
+  void Done() override;
 
   bool PushSlow() override;
   bool WriteSlow(absl::string_view src) override;
