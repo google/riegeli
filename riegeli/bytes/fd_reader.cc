@@ -119,14 +119,14 @@ inline FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
          "negative file descriptor";
 }
 
-inline FdReaderBase::FdReaderBase(std::string filename, int flags, bool owns_fd,
-                                  size_t buffer_size)
+inline FdReaderBase::FdReaderBase(absl::string_view filename, int flags,
+                                  bool owns_fd, size_t buffer_size)
     : BufferedReader(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
-      filename_(std::move(filename)) {
+      filename_(filename) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdReaderBase::FdReaderBase(string): "
+      << "Failed precondition of FdReaderBase::FdReaderBase(string_view): "
          "flags must include O_RDONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, 0666);
@@ -166,9 +166,8 @@ FdReader::FdReader(int fd, Options options)
   InitializePos();
 }
 
-FdReader::FdReader(std::string filename, int flags, Options options)
-    : FdReaderBase(std::move(filename), flags, options.owns_fd_,
-                   options.buffer_size_),
+FdReader::FdReader(absl::string_view filename, int flags, Options options)
+    : FdReaderBase(filename, flags, options.owns_fd_, options.buffer_size_),
       sync_pos_(options.sync_pos_) {
   if (ABSL_PREDICT_TRUE(healthy())) InitializePos();
 }
@@ -274,8 +273,9 @@ FdStreamReader::FdStreamReader(int fd, Options options)
   limit_pos_ = *options.assumed_pos_;
 }
 
-FdStreamReader::FdStreamReader(std::string filename, int flags, Options options)
-    : FdReaderBase(std::move(filename), flags, true, options.buffer_size_) {
+FdStreamReader::FdStreamReader(absl::string_view filename, int flags,
+                               Options options)
+    : FdReaderBase(filename, flags, true, options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   limit_pos_ = options.assumed_pos_.value_or(0);
 }
@@ -328,11 +328,12 @@ FdMMapReader::FdMMapReader(int fd, Options options)
   Initialize(options);
 }
 
-FdMMapReader::FdMMapReader(std::string filename, int flags, Options options)
-    : ChainReader(Chain()), filename_(std::move(filename)) {
+FdMMapReader::FdMMapReader(absl::string_view filename, int flags,
+                           Options options)
+    : ChainReader(Chain()), filename_(filename) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdMMapReader::FdMMapReader(string): "
+      << "Failed precondition of FdMMapReader::FdMMapReader(string_view): "
          "flags must include O_RDONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, 0666);

@@ -60,15 +60,15 @@ inline FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
          "negative file descriptor";
 }
 
-inline FdWriterBase::FdWriterBase(std::string filename, int flags,
+inline FdWriterBase::FdWriterBase(absl::string_view filename, int flags,
                                   mode_t permissions, bool owns_fd,
                                   size_t buffer_size)
     : BufferedWriter(UnsignedMin(buffer_size,
                                  Position{std::numeric_limits<off_t>::max()})),
-      filename_(std::move(filename)) {
+      filename_(filename) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdWriterBase::FdWriterBase(string): "
+      << "Failed precondition of FdWriterBase::FdWriterBase(string_view): "
          "flags must include O_WRONLY or O_RDWR";
 again:
   fd_ = open(filename_.c_str(), flags, permissions);
@@ -124,9 +124,9 @@ FdWriter::FdWriter(int fd, Options options)
   InitializePos(O_WRONLY | O_APPEND);
 }
 
-FdWriter::FdWriter(std::string filename, int flags, Options options)
-    : FdWriterBase(std::move(filename), flags, options.permissions_,
-                   options.owns_fd_, options.buffer_size_),
+FdWriter::FdWriter(absl::string_view filename, int flags, Options options)
+    : FdWriterBase(filename, flags, options.permissions_, options.owns_fd_,
+                   options.buffer_size_),
       sync_pos_(options.sync_pos_) {
   if (ABSL_PREDICT_TRUE(healthy())) InitializePos(flags);
 }
@@ -277,9 +277,10 @@ FdStreamWriter::FdStreamWriter(int fd, Options options)
   start_pos_ = *options.assumed_pos_;
 }
 
-FdStreamWriter::FdStreamWriter(std::string filename, int flags, Options options)
-    : FdWriterBase(std::move(filename), flags, options.permissions_,
-                   options.owns_fd_, options.buffer_size_) {
+FdStreamWriter::FdStreamWriter(absl::string_view filename, int flags,
+                               Options options)
+    : FdWriterBase(filename, flags, options.permissions_, options.owns_fd_,
+                   options.buffer_size_) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (options.assumed_pos_.has_value()) {
     start_pos_ = *options.assumed_pos_;

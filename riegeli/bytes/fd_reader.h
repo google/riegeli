@@ -58,7 +58,7 @@ class FdReaderBase : public BufferedReader {
   FdReaderBase(int fd, bool owns_fd, size_t buffer_size);
 
   // Opens a file for reading.
-  FdReaderBase(std::string filename, int flags, bool owns_fd,
+  FdReaderBase(absl::string_view filename, int flags, bool owns_fd,
                size_t buffer_size);
 
   FdReaderBase(FdReaderBase&& src) noexcept;
@@ -154,7 +154,7 @@ class FdReader : public internal::FdReaderBase {
   // flags is the second argument of open, typically O_RDONLY.
   //
   // flags must include O_RDONLY or O_RDWR.
-  FdReader(std::string filename, int flags, Options options = Options());
+  FdReader(absl::string_view filename, int flags, Options options = Options());
 
   FdReader(FdReader&& src) noexcept;
   FdReader& operator=(FdReader&& src) noexcept;
@@ -232,7 +232,8 @@ class FdStreamReader : public internal::FdReaderBase {
   // flags is the second argument of open, typically O_RDONLY.
   //
   // flags must include O_RDONLY or O_RDWR.
-  FdStreamReader(std::string filename, int flags, Options options = Options());
+  FdStreamReader(absl::string_view filename, int flags,
+                 Options options = Options());
 
   FdStreamReader(FdStreamReader&& src) noexcept;
   FdStreamReader& operator=(FdStreamReader&& src) noexcept;
@@ -304,7 +305,8 @@ class FdMMapReader : public ChainReader {
   //
   // flags must include O_RDONLY or O_RDWR.
   // options.set_owns_fd(false) must not be used.
-  FdMMapReader(std::string filename, int flags, Options options = Options());
+  FdMMapReader(absl::string_view filename, int flags,
+               Options options = Options());
 
   FdMMapReader(FdMMapReader&& src) noexcept;
   FdMMapReader& operator=(FdMMapReader&& src) noexcept;

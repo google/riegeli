@@ -56,7 +56,7 @@ class FdWriterBase : public BufferedWriter {
   FdWriterBase(int fd, bool owns_fd, size_t buffer_size);
 
   // Opens a file for writing.
-  FdWriterBase(std::string filename, int flags, mode_t permissions,
+  FdWriterBase(absl::string_view filename, int flags, mode_t permissions,
                bool owns_fd, size_t buffer_size);
 
   FdWriterBase(FdWriterBase&& src) noexcept;
@@ -167,7 +167,7 @@ class FdWriter : public internal::FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  FdWriter(std::string filename, int flags, Options options = Options());
+  FdWriter(absl::string_view filename, int flags, Options options = Options());
 
   FdWriter(FdWriter&& src) noexcept;
   FdWriter& operator=(FdWriter&& src) noexcept;
@@ -275,7 +275,8 @@ class FdStreamWriter : public internal::FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  FdStreamWriter(std::string filename, int flags, Options options = Options());
+  FdStreamWriter(absl::string_view filename, int flags,
+                 Options options = Options());
 
   FdStreamWriter(FdStreamWriter&& src) noexcept;
   FdStreamWriter& operator=(FdStreamWriter&& src) noexcept;
