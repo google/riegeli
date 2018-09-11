@@ -206,13 +206,18 @@ cc_library(
         ":hh_types",
         ":hh_portable",
     ] + select({
-        "//tools/target_cpu:ppc": [":hh_vsx"],
+        ":cpu_ppc": [":hh_vsx"],
         "//conditions:default": [
             ":hh_avx2",
             ":hh_sse41",
             ":iaca",
         ],
     }),
+)
+
+config_setting(
+    name = "cpu_ppc",
+    values = {"cpu": "ppc"},
 )
 
 # For users of InstructionSets<HighwayHash> runtime dispatch
