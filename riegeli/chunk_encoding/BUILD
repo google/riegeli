@@ -69,11 +69,8 @@ cc_library(
     hdrs = ["hash.h"],
     deps = [
         "//riegeli/base:chain",
-        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
-        "@com_google_highwayhash//:hh_types",
-        "@com_google_highwayhash//:highwayhash_dynamic",
-        "@com_google_highwayhash//:instruction_sets",
+        "@com_google_highwayhash//:highwayhash",
     ],
 )
 
