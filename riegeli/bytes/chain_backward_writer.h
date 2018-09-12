@@ -183,7 +183,7 @@ void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& src) {
     const size_t cursor_index = written_to_buffer();
     dest_ = std::move(src.dest_);
     if (start_ != nullptr) {
-      limit_ = const_cast<char*>(dest_->blocks().back().data());
+      limit_ = const_cast<char*>(dest_->blocks().front().data());
       start_ = limit_ + (dest_->size() - IntCast<size_t>(start_pos_));
       cursor_ = start_ - cursor_index;
     }
