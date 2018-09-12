@@ -18,9 +18,9 @@
 #include <stddef.h>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -28,29 +28,22 @@
 
 namespace riegeli {
 
-// A Reader which reads from a Chain. It supports random access.
-class ChainReader : public Reader {
+// Template parameter invariant part of ChainReader.
+class ChainReaderBase : public Reader {
  public:
-  // Creates a closed ChainReader.
-  ChainReader() noexcept : Reader(State::kClosed) {}
-
-  // Will read from the Chain which is owned by this ChainReader.
-  explicit ChainReader(Chain src);
-
-  // Will read from the Chain which is not owned by this ChainReader and must be
-  // kept alive but not changed until the ChainReader is closed.
-  explicit ChainReader(const Chain* src);
-
-  ChainReader(ChainReader&& src) noexcept;
-  ChainReader& operator=(ChainReader&& src) noexcept;
-
   // Returns the Chain being read from. Unchanged by Close().
-  const Chain& src() const { return *src_; }
+  virtual const Chain* src_chain() const = 0;
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) override;
 
  protected:
+  explicit ChainReaderBase(State state) noexcept : Reader(state) {}
+
+  ChainReaderBase(ChainReaderBase&& src) noexcept;
+  ChainReaderBase& operator=(ChainReaderBase&& src) noexcept;
+
+  void Initialize(const Chain* src);
   void Done() override;
   bool PullSlow() override;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -58,18 +51,44 @@ class ChainReader : public Reader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
- private:
-  ChainReader(ChainReader&& src, size_t block_index);
-
-  Chain owned_src_;
-  // Invariant: src_ != nullptr
-  const Chain* src_ = &owned_src_;
-  // Invariant:
-  //   if healthy() then iter_.chain() == src_
-  //                else iter_ == Chain::BlockIterator()
   Chain::BlockIterator iter_;
+};
+
+// A Reader which reads from a Chain. It supports random access.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the Chain being read from. Src must support
+// Dependency<const Chain*, Src>, e.g. const Chain* (not owned, default),
+// Chain (owned).
+//
+// The Chain must not be changed until the ChainReader is closed or no longer
+// used.
+template <typename Src = const Chain*>
+class ChainReader : public ChainReaderBase {
+ public:
+  // Creates a closed ChainReader.
+  ChainReader() noexcept : ChainReaderBase(State::kClosed) {}
+
+  // Will read from the Chain provided by src.
+  explicit ChainReader(Src src);
+
+  ChainReader(ChainReader&& src) noexcept;
+  ChainReader& operator=(ChainReader&& src) noexcept;
+
+  // Returns the object providing and possibly owning the Chain being read from.
+  // Unchanged by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  const Chain* src_chain() const override { return src_.ptr(); }
+
+ private:
+  void MoveSrc(ChainReader&& src);
+
+  // The object providing and possibly owning the Chain being read from.
+  Dependency<const Chain*, Src> src_;
 
   // Invariants if healthy():
+  //   iter_.chain() == src_.ptr()
   //   start_ == (iter_ == src_->blocks().cend() ? nullptr : iter_->data())
   //   buffer_size() == (iter_ == src_->blocks().cend() ? 0 : iter_->size())
   //   start_pos() is the position of iter_ in *src_
@@ -77,86 +96,60 @@ class ChainReader : public Reader {
 
 // Implementation details follow.
 
-inline ChainReader::ChainReader(Chain src)
-    : Reader(State::kOpen),
-      owned_src_(std::move(src)),
-      iter_(src_->blocks().cbegin()) {
-  if (iter_ != src_->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = start_;
-    limit_ = start_ + iter_->size();
-    limit_pos_ = buffer_size();
-  }
-}
-
-inline ChainReader::ChainReader(const Chain* src)
-    : Reader(State::kOpen),
-      src_(RIEGELI_ASSERT_NOTNULL(src)),
-      iter_(src_->blocks().cbegin()) {
-  if (iter_ != src_->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = start_;
-    limit_ = start_ + iter_->size();
-    limit_pos_ = buffer_size();
-  }
-}
-
-inline ChainReader::ChainReader(ChainReader&& src) noexcept
-    : ChainReader(std::move(src), src.iter_.block_index()) {}
-
-// block_index is computed early because if src.src_ == &src.owned_src_ then
-// *src.src_ is moved, which invalidates src.iter_.
-inline ChainReader::ChainReader(ChainReader&& src, size_t block_index)
+inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& src) noexcept
     : Reader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(src.src_ == &src.owned_src_
-               ? &owned_src_
-               : riegeli::exchange(src.src_, &src.owned_src_)) {
-  src.iter_ = Chain::BlockIterator();
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    // If src_ == &owned_src_ then *src_ was moved, which invalidated iter_ and
-    // buffer pointers.
-    iter_ = Chain::BlockIterator(src_, block_index);
-    if (src_ == &owned_src_ && start_ != nullptr) {
-      const size_t cursor_index = read_from_buffer();
-      start_ = iter_->data();
-      cursor_ = start_ + cursor_index;
-      limit_ = start_ + iter_->size();
-    }
-  }
-}
+      iter_(riegeli::exchange(src.iter_, Chain::BlockIterator())) {}
 
-inline ChainReader& ChainReader::operator=(ChainReader&& src) noexcept {
-  // block_index is computed early because if src.src_ == &src.owned_src_ then
-  // *src.src_ is moved, which invalidates src.iter_.
-  const size_t block_index = src.iter_.block_index();
+inline ChainReaderBase& ChainReaderBase::operator=(
+    ChainReaderBase&& src) noexcept {
   Reader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = src.src_ == &src.owned_src_
-             ? &owned_src_
-             : riegeli::exchange(src.src_, &src.owned_src_);
-  // Set src.iter_ before iter_ to support self-assignment.
-  src.iter_ = Chain::BlockIterator();
-  iter_ = Chain::BlockIterator();
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    // If src_ == &owned_src_ then *src_ was moved, which invalidated iter_ and
-    // buffer pointers.
-    iter_ = Chain::BlockIterator(src_, block_index);
-    if (src_ == &owned_src_ && start_ != nullptr) {
-      const size_t cursor_index = read_from_buffer();
-      start_ = iter_->data();
-      cursor_ = start_ + cursor_index;
-      limit_ = start_ + iter_->size();
-    }
-  }
+  iter_ = riegeli::exchange(src.iter_, Chain::BlockIterator());
   return *this;
 }
 
-inline bool ChainReader::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *size = src_->size();
-  return true;
+template <typename Src>
+ChainReader<Src>::ChainReader(Src src)
+    : ChainReaderBase(State::kOpen), src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.ptr() != nullptr)
+      << "Failed precondition of ChainReader<Src>::ChainReader(Src): "
+         "null Chain pointer";
+  Initialize(src_.ptr());
 }
+
+template <typename Src>
+ChainReader<Src>::ChainReader(ChainReader&& src) noexcept
+    : ChainReaderBase(std::move(src)) {
+  MoveSrc(std::move(src));
+}
+
+template <typename Src>
+ChainReader<Src>& ChainReader<Src>::operator=(ChainReader&& src) noexcept {
+  ChainReaderBase::operator=(std::move(src));
+  MoveSrc(std::move(src));
+  return *this;
+}
+
+template <typename Src>
+void ChainReader<Src>::MoveSrc(ChainReader&& src) {
+  if (src_.kIsStable()) {
+    src_ = std::move(src.src_);
+  } else {
+    const size_t block_index = iter_.block_index();
+    const size_t cursor_index = read_from_buffer();
+    src_ = std::move(src.src_);
+    if (iter_.chain() != nullptr) {
+      iter_ = Chain::BlockIterator(src_.ptr(), block_index);
+      if (start_ != nullptr) {
+        start_ = iter_->data();
+        cursor_ = start_ + cursor_index;
+        limit_ = start_ + iter_->size();
+      }
+    }
+  }
+}
+
+extern template class ChainReader<const Chain*>;
+extern template class ChainReader<Chain>;
 
 }  // namespace riegeli
 

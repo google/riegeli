@@ -16,9 +16,12 @@
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
 #include <memory>
+#include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -28,12 +31,7 @@ namespace riegeli {
 class Reader;
 
 // A ChunkWriter writes chunks of a Riegeli/records file (rather than individual
-// records, as RecordWriter does) to a destination. The nature of the
-// destination depends on the particular class derived from ChunkWriter.
-//
-// Specifying a ChunkWriter instead of a byte Writer as the destination of a
-// RecordWriter allows to customize how chunks are stored, e.g. by forwarding
-// them to a DefaultChunkWriter running elsewhere.
+// records, as RecordWriter does) to a destination.
 //
 // A ChunkWriter object can manage a buffer of data to be pushed to the
 // destination, which amortizes the overhead of pushing data over multiple
@@ -42,8 +40,8 @@ class ChunkWriter : public Object {
  public:
   explicit ChunkWriter(State state) noexcept : Object(state) {}
 
-  ChunkWriter(const ChunkWriter&) = delete;
-  ChunkWriter& operator=(const ChunkWriter&) = delete;
+  ChunkWriter(ChunkWriter&& src) noexcept;
+  ChunkWriter& operator=(ChunkWriter&& src) noexcept;
 
   ~ChunkWriter() override;
 
@@ -76,12 +74,13 @@ class ChunkWriter : public Object {
   Position pos() const { return pos_; }
 
  protected:
+  void Initialize(Position pos) { pos_ = pos; }
+
   Position pos_ = 0;
 };
 
-// The default ChunkWriter. Writes chunks to a byte Writer, interleaving them
-// with block headers at multiples of the Riegeli/records block size.
-class DefaultChunkWriter : public ChunkWriter {
+// Template parameter invariant part of DefaultChunkWriter.
+class DefaultChunkWriterBase : public ChunkWriter {
  public:
   class Options {
    public:
@@ -102,34 +101,122 @@ class DefaultChunkWriter : public ChunkWriter {
     }
 
    private:
+    template <typename Dest>
     friend class DefaultChunkWriter;
 
     absl::optional<Position> assumed_pos_;
   };
 
-  // Will write chunks to the byte Writer which is owned by this ChunkWriter and
-  // will be closed and deleted when the ChunkWriter is closed.
-  explicit DefaultChunkWriter(std::unique_ptr<Writer> byte_writer,
-                              Options options = Options());
-
-  // Will write chunks to the byte Writer which is not owned by this ChunkWriter
-  // and must be kept alive but not accessed until closing the ChunkWriter.
-  explicit DefaultChunkWriter(Writer* byte_writer, Options options = Options());
+  // Returns the Riegeli/records file being written to. Unchanged by Close().
+  virtual Writer* dest_writer() = 0;
+  virtual const Writer* dest_writer() const = 0;
 
   bool WriteChunk(const Chunk& chunk) override;
   bool Flush(FlushType flush_type) override;
 
  protected:
+  explicit DefaultChunkWriterBase(State state) noexcept : ChunkWriter(state) {}
+
+  DefaultChunkWriterBase(DefaultChunkWriterBase&& src) noexcept;
+  DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& src) noexcept;
+
+ private:
+  bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end,
+                    Writer* dest);
+  bool WritePadding(Position chunk_begin, Position chunk_end, Writer* dest);
+};
+
+// The default ChunkWriter. Writes chunks to a byte Writer, interleaving them
+// with block headers at multiples of the Riegeli/records block size.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the byte Writer. Dest must support Dependency<Writer*, Dest>,
+// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
+// ChainWriter<> (owned).
+//
+// The byte Writer must not be accessed until the DefaultChunkWriter is closed
+// or no longer used, except that it is allowed to read the destination of the
+// byte Writer immediately after Flush().
+template <typename Dest = Writer*>
+class DefaultChunkWriter : public DefaultChunkWriterBase {
+ public:
+  DefaultChunkWriter() noexcept : DefaultChunkWriterBase(State::kClosed) {}
+
+  // Will write to the byte Writer provided by dest.
+  explicit DefaultChunkWriter(Dest dest, Options options = Options());
+
+  DefaultChunkWriter(DefaultChunkWriter&& src) noexcept;
+  DefaultChunkWriter& operator=(DefaultChunkWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the byte Writer. Unchanged
+  // by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  Writer* dest_writer() override { return dest_.ptr(); }
+  const Writer* dest_writer() const override { return dest_.ptr(); }
+
+ protected:
   void Done() override;
 
  private:
-  bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end);
-  bool WritePadding(Position chunk_begin, Position chunk_end);
-
-  std::unique_ptr<Writer> owned_byte_writer_;
-  // Invariant: if healthy() then byte_writer_ != nullptr
-  Writer* byte_writer_;
+  // The object providing and possibly owning the Riegeli/records file being
+  // written to.
+  Dependency<Writer*, Dest> dest_;
 };
+
+// Implementation details follow.
+
+inline ChunkWriter::ChunkWriter(ChunkWriter&& src) noexcept
+    : Object(std::move(src)), pos_(riegeli::exchange(src.pos_, 0)) {}
+
+inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& src) noexcept {
+  Object::operator=(std::move(src));
+  pos_ = riegeli::exchange(src.pos_, 0);
+  return *this;
+}
+
+inline DefaultChunkWriterBase::DefaultChunkWriterBase(
+    DefaultChunkWriterBase&& src) noexcept
+    : ChunkWriter(std::move(src)) {}
+
+inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
+    DefaultChunkWriterBase&& src) noexcept {
+  ChunkWriter::operator=(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
+    : DefaultChunkWriterBase(State::kOpen), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of "
+         "DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest): "
+         "null Writer pointer";
+  Initialize(options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
+DefaultChunkWriter<Dest>::DefaultChunkWriter(DefaultChunkWriter&& src) noexcept
+    : DefaultChunkWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+
+template <typename Dest>
+DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
+    DefaultChunkWriter&& src) noexcept {
+  DefaultChunkWriterBase::operator=(std::move(src));
+  dest_ = std::move(src.dest_);
+  return *this;
+}
+
+template <typename Dest>
+void DefaultChunkWriter<Dest>::Done() {
+  DefaultChunkWriterBase::Done();
+  if (dest_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+  }
+}
+
+extern template class DefaultChunkWriter<Writer*>;
+extern template class DefaultChunkWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli
 

@@ -37,17 +37,37 @@ namespace internal {
 Compressor::Compressor(CompressorOptions options, uint64_t size_hint)
     : Object(State::kOpen),
       options_(std::move(options)),
-      size_hint_(size_hint),
-      compressed_writer_(kOwnsDest(), GetChainWriterOptions()) {
+      size_hint_(size_hint) {
+  Reset();
+}
+
+void Compressor::Reset() {
+  MarkHealthy();
+  compressed_.Clear();
+  ChainWriter<> compressed_writer(
+      &compressed_,
+      ChainWriterBase::Options().set_size_hint(
+          options_.compression_type() == CompressionType::kNone ? size_hint_
+                                                                : uint64_t{0}));
   switch (options_.compression_type()) {
     case CompressionType::kNone:
-      writer_ = &compressed_writer_;
+      writer_ = std::move(compressed_writer);
       return;
     case CompressionType::kBrotli:
-      writer_ = BrotliWriter(&compressed_writer_, GetBrotliWriterOptions());
+      writer_ = BrotliWriter<ChainWriter<>>(
+          std::move(compressed_writer),
+          BrotliWriterBase::Options()
+              .set_compression_level(options_.compression_level())
+              .set_window_log(options_.window_log())
+              .set_size_hint(size_hint_));
       return;
     case CompressionType::kZstd:
-      writer_ = ZstdWriter(&compressed_writer_, GetZstdWriterOptions());
+      writer_ = ZstdWriter<ChainWriter<>>(
+          std::move(compressed_writer),
+          ZstdWriterBase::Options()
+              .set_compression_level(options_.compression_level())
+              .set_window_log(options_.window_log())
+              .set_size_hint(size_hint_));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
@@ -55,52 +75,9 @@ Compressor::Compressor(CompressorOptions options, uint64_t size_hint)
       << static_cast<unsigned>(options_.compression_type());
 }
 
-void Compressor::Reset() {
-  struct Visitor {
-    void operator()(ChainWriter* writer) const {}
-    void operator()(BrotliWriter& writer) const {
-      writer = BrotliWriter(&self->compressed_writer_,
-                            self->GetBrotliWriterOptions());
-    }
-    void operator()(ZstdWriter& writer) const {
-      writer =
-          ZstdWriter(&self->compressed_writer_, self->GetZstdWriterOptions());
-    }
-    Compressor* self;
-  };
-  MarkHealthy();
-  compressed_writer_ = ChainWriter(kOwnsDest(), GetChainWriterOptions());
-  absl::visit(Visitor{this}, writer_);
-}
-
-inline ChainWriter::Options Compressor::GetChainWriterOptions() const {
-  return ChainWriter::Options().set_size_hint(
-      options_.compression_type() == CompressionType::kNone ? size_hint_
-                                                            : uint64_t{0});
-}
-
-inline BrotliWriter::Options Compressor::GetBrotliWriterOptions() const {
-  return BrotliWriter::Options()
-      .set_compression_level(options_.compression_level())
-      .set_window_log(options_.window_log())
-      .set_size_hint(size_hint_);
-}
-
-inline ZstdWriter::Options Compressor::GetZstdWriterOptions() const {
-  return ZstdWriter::Options()
-      .set_compression_level(options_.compression_level())
-      .set_window_log(options_.window_log())
-      .set_size_hint(size_hint_);
-}
-
 void Compressor::Done() {
   if (ABSL_PREDICT_FALSE(!writer()->Close())) Fail(*writer());
-  if (options_.compression_type() != CompressionType::kNone) {
-    if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
-      Fail(compressed_writer_);
-    }
-    compressed_writer_.dest() = Chain();
-  }
+  compressed_ = Chain();
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
@@ -108,15 +85,12 @@ bool Compressor::EncodeAndClose(Writer* dest) {
   const Position uncompressed_size = writer()->pos();
   if (ABSL_PREDICT_FALSE(!writer()->Close())) return Fail(*writer());
   if (options_.compression_type() != CompressionType::kNone) {
-    if (ABSL_PREDICT_FALSE(!compressed_writer_.Close())) {
-      return Fail(compressed_writer_);
-    }
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(dest, IntCast<uint64_t>(uncompressed_size)))) {
       return Fail(*dest);
     }
   }
-  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_writer_.dest())))) {
+  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_)))) {
     return Fail(*dest);
   }
   return Close();

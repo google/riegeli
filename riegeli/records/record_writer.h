@@ -23,21 +23,23 @@
 #include <vector>
 
 #include "absl/base/call_once.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/stable_dependency.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
+#include "riegeli/records/chunk_writer.h"
+#include "riegeli/records/chunk_writer_dependency.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
 
 namespace riegeli {
-
-class ChunkWriter;
 
 // Sets record_type_name and file_descriptor in metadata, based on the message
 // descriptor of the type of records.
@@ -68,7 +70,7 @@ class FutureRecordPosition {
   RecordPosition get() const;
 
  private:
-  friend class RecordWriter;
+  friend class RecordWriterBase;
 
   class FutureChunkBegin;
 
@@ -85,23 +87,7 @@ class FutureRecordPosition {
   uint64_t record_index_ = 0;
 };
 
-// RecordWriter writes records to a Riegeli/records file. A record is
-// conceptually a binary string; usually it is a serialized proto message.
-//
-// For writing records, this kind of loop can be used:
-//
-//   SomeProto record;
-//   while (more records to write) {
-//     ... Compute record.
-//     if (!record_writer_.Write(record)) {
-//       // record_writer_.Close() will fail below.
-//       break;
-//     }
-//   }
-//   if (!record_writer_.Close()) {
-//     ... Failed with reason: record_writer_.message()
-//   }
-class RecordWriter : public Object {
+class RecordWriterBase : public Object {
  public:
   class Options {
    public:
@@ -210,13 +196,13 @@ class RecordWriter : public Object {
     // For uncompressed, window_log must be kDefaultWindowLog() (-1).
     //
     // For brotli, window_log must be kDefaultWindowLog() (-1) or between
-    // BrotliWriter::Options::kMinWindowLog() (10) and
-    // BrotliWriter::Options::kMaxWindowLog() (30).
+    // BrotliWriterBase::Options::kMinWindowLog() (10) and
+    // BrotliWriterBase::Options::kMaxWindowLog() (30).
     //
     // For zstd, window_log must be kDefaultWindowLog() (-1) or between
-    // ZstdWriter::Options::kMinWindowLog() (10) and
-    // ZstdWriter::Options::kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit
-    // build).
+    // ZstdWriterBase::Options::kMinWindowLog() (10) and
+    // ZstdWriterBase::Options::kMaxWindowLog() (30 in 32-bit build, 31 in
+    // 64-bit build).
     //
     // Default: kDefaultWindowLog() (-1).
     static int kMinWindowLog() { return CompressorOptions::kMinWindowLog(); }
@@ -242,7 +228,8 @@ class RecordWriter : public Object {
     // Default: 1 << 20
     Options& set_chunk_size(uint64_t size) & {
       RIEGELI_ASSERT_GT(size, 0u)
-          << "Failed precondition of RecordWriter::Options::set_chunk_size(): "
+          << "Failed precondition of "
+             "RecordWriterBase::Options::set_chunk_size(): "
              "zero chunk size";
       chunk_size_ = size;
       return *this;
@@ -266,11 +253,11 @@ class RecordWriter : public Object {
     Options& set_bucket_fraction(double fraction) & {
       RIEGELI_ASSERT_GE(fraction, 0.0)
           << "Failed precondition of "
-             "RecordWriter::Options::set_bucket_fraction(): "
+             "RecordWriterBase::Options::set_bucket_fraction(): "
              "negative bucket fraction";
       RIEGELI_ASSERT_LE(fraction, 1.0)
           << "Failed precondition of "
-             "RecordWriter::Options::set_bucket_fraction(): "
+             "RecordWriterBase::Options::set_bucket_fraction(): "
              "fraction larger than 1";
       bucket_fraction_ = fraction;
       return *this;
@@ -306,7 +293,8 @@ class RecordWriter : public Object {
     // Default: 0
     Options& set_parallelism(int parallelism) & {
       RIEGELI_ASSERT_GE(parallelism, 0)
-          << "Failed precondition of RecordWriter::Options::set_parallelism(): "
+          << "Failed precondition of "
+             "RecordWriterBase::Options::set_parallelism(): "
              "negative parallelism";
       parallelism_ = parallelism;
       return *this;
@@ -316,7 +304,7 @@ class RecordWriter : public Object {
     }
 
    private:
-    friend class RecordWriter;
+    friend class RecordWriterBase;
 
     bool transpose_ = false;
     CompressorOptions compressor_options_;
@@ -326,43 +314,11 @@ class RecordWriter : public Object {
     int parallelism_ = 0;
   };
 
-  // Creates a closed RecordWriter.
-  RecordWriter() noexcept;
+  ~RecordWriterBase();
 
-  // Will write records to the byte Writer which is owned by this RecordWriter
-  // and will be closed and deleted when the RecordWriter is closed.
-  explicit RecordWriter(std::unique_ptr<Writer> byte_writer,
-                        const Options& options = Options());
-
-  // Will write records to the byte Writer which is not owned by this
-  // RecordWriter and must be kept alive but not accessed until closing the
-  // RecordWriter.
-  explicit RecordWriter(Writer* byte_writer,
-                        const Options& options = Options());
-
-  // Will write records to the ChunkWriter which is owned by this RecordWriter
-  // and will be closed and deleted when the RecordWriter is closed.
-  //
-  // Specifying a ChunkWriter instead of a byte Writer allows to customize how
-  // chunks are stored, e.g. by forwarding them to another ChunkWriter running
-  // elsewhere.
-  explicit RecordWriter(std::unique_ptr<ChunkWriter> chunk_writer,
-                        const Options& options = Options());
-
-  // Will write records to the ChunkWriter which is not owned by this
-  // RecordWriter and must be kept alive but not accessed until closing the
-  // RecordWriter.
-  //
-  // Specifying a ChunkWriter instead of a byte Writer allows to customize how
-  // chunks are stored, e.g. by forwarding them to another ChunkWriter running
-  // elsewhere.
-  explicit RecordWriter(ChunkWriter* chunk_writer,
-                        const Options& options = Options());
-
-  RecordWriter(RecordWriter&& src) noexcept;
-  RecordWriter& operator=(RecordWriter&& src) noexcept;
-
-  ~RecordWriter();
+  // Returns the Riegeli/records file being written to. Unchanged by Close().
+  virtual ChunkWriter* dest_chunk_writer() = 0;
+  virtual const ChunkWriter* dest_chunk_writer() const = 0;
 
   // Writes the next record.
   //
@@ -414,7 +370,16 @@ class RecordWriter : public Object {
   FutureRecordPosition Pos() const;
 
  protected:
+  explicit RecordWriterBase(State state) noexcept;
+
+  RecordWriterBase(RecordWriterBase&& src) noexcept;
+  RecordWriterBase& operator=(RecordWriterBase&& src) noexcept;
+
+  void Initialize(ChunkWriter* chunk_writer, Options&& options);
+
   void Done() override;
+
+  void DoneBackground();
 
  private:
   class Worker;
@@ -426,13 +391,65 @@ class RecordWriter : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
-  std::unique_ptr<ChunkWriter> owned_chunk_writer_;
-  // worker_ must be defined after owned_chunk_writer_ so that it is destroyed
-  // before owned_chunk_writer_, because background work of worker_ may need
-  // owned_chunk_writer_.
-  //
-  // Invariant: if healthy() them worker_ != nullptr
   std::unique_ptr<Worker> worker_;
+};
+
+// RecordWriter writes records to a Riegeli/records file. A record is
+// conceptually a binary string; usually it is a serialized proto message.
+//
+// For writing records, this kind of loop can be used:
+//
+//   SomeProto record;
+//   while (more records to write) {
+//     ... Compute record.
+//     if (!record_writer_.Write(record)) {
+//       // record_writer_.Close() will fail below.
+//       break;
+//     }
+//   }
+//   if (!record_writer_.Close()) {
+//     ... Failed with reason: record_writer_.message()
+//   }
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the byte Writer. Dest must support Dependency<Writer*, Dest>,
+// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
+// ChainWriter<> (owned).
+//
+// Dest can also specify a ChunkWriter instead of a byte Writer. In this case
+// Dest must support Dependency<ChunkWriter*, Dest>, e.g.
+// ChunkWriter* (not owned), unique_ptr<ChunkWriter> (owned),
+// DefaultChunkWriter<> (owned).
+//
+// The byte Writer or ChunkWriter must not be accessed until the RecordWriter is
+// closed or (when options.set_parallelism(true) is not used) no longer used.
+template <typename Dest = Writer*>
+class RecordWriter : public RecordWriterBase {
+ public:
+  // Creates a closed RecordWriter.
+  RecordWriter() noexcept : RecordWriterBase(State::kClosed) {}
+
+  // Will write to the byte Writer or ChunkWriter provided by dest.
+  explicit RecordWriter(Dest dest, Options options = Options());
+
+  RecordWriter(RecordWriter&& src) noexcept;
+  RecordWriter& operator=(RecordWriter&& src) noexcept;
+
+  ~RecordWriter() { DoneBackground(); }
+
+  // Returns the object providing and possibly owning the byte Writer or
+  // ChunkWriter. Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  ChunkWriter* dest_chunk_writer() override { return dest_.ptr(); }
+  const ChunkWriter* dest_chunk_writer() const override { return dest_.ptr(); }
+
+ protected:
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the byte Writer or ChunkWriter.
+  StableDependency<ChunkWriter*, Dest> dest_;
 };
 
 // Implementation details follow.
@@ -503,35 +520,71 @@ inline RecordPosition FutureRecordPosition::get() const {
                         record_index_);
 }
 
-inline bool RecordWriter::WriteRecord(
+inline bool RecordWriterBase::WriteRecord(
     const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(absl::string_view record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecord(absl::string_view record,
+                                          FutureRecordPosition* key) {
   return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(std::string&& record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecord(std::string&& record,
+                                          FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
 }
 
-inline bool RecordWriter::WriteRecord(const char* record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecord(const char* record,
+                                          FutureRecordPosition* key) {
   return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(const Chain& record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecord(const Chain& record,
+                                          FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);
 }
 
-inline bool RecordWriter::WriteRecord(Chain&& record,
-                                      FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecord(Chain&& record,
+                                          FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
 }
+
+template <typename Dest>
+RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
+    : RecordWriterBase(State::kOpen), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of RecordWriter<Dest>::RecordWriter(Dest): "
+         "null ChunkWriter pointer";
+  Initialize(dest_.ptr(), std::move(options));
+}
+
+template <typename Dest>
+RecordWriter<Dest>::RecordWriter(RecordWriter&& src) noexcept
+    : RecordWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+
+template <typename Dest>
+RecordWriter<Dest>& RecordWriter<Dest>::operator=(RecordWriter&& src) noexcept {
+  DoneBackground();
+  RecordWriterBase::operator=(std::move(src));
+  dest_ = std::move(src.dest_);
+  return *this;
+}
+
+template <typename Dest>
+void RecordWriter<Dest>::Done() {
+  RecordWriterBase::Done();
+  if (dest_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+  }
+}
+
+extern template class RecordWriter<Writer*>;
+extern template class RecordWriter<std::unique_ptr<Writer>>;
+extern template class RecordWriter<ChunkWriter*>;
+extern template class RecordWriter<std::unique_ptr<ChunkWriter>>;
+extern template class RecordWriter<DefaultChunkWriter<Writer*>>;
+extern template class RecordWriter<DefaultChunkWriter<std::unique_ptr<Writer>>>;
 
 }  // namespace riegeli
 

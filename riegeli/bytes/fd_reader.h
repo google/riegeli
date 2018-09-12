@@ -21,15 +21,17 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/fd_holder.h"
+#include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -38,39 +40,33 @@ namespace riegeli {
 namespace internal {
 
 // Implementation shared between FdReader and FdStreamReader.
-class FdReaderBase : public BufferedReader {
+class FdReaderCommon : public BufferedReader {
  public:
-  // Returns the file descriptor being read from. Unchanged by Close() if the fd
-  // was not owned, -1 if it was owned.
-  int fd() const { return fd_; }
+  // Returns the fd being read from. If the fd is owned then changed to -1 by
+  // Close(), otherwise unchanged.
+  virtual int src_fd() const = 0;
+
   // Returns the original name of the file being read from (or /dev/stdin or
   // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
+
   // Returns the errno value of the last fd operation, or 0 if none.
   // Unchanged by Close().
   int error_code() const { return error_code_; }
 
  protected:
-  // Creates a closed FdReaderBase.
-  FdReaderBase() noexcept {}
+  FdReaderCommon() noexcept {}
 
-  // Will read from fd.
-  FdReaderBase(int fd, bool owns_fd, size_t buffer_size);
+  explicit FdReaderCommon(size_t buffer_size);
 
-  // Opens a file for reading.
-  FdReaderBase(absl::string_view filename, int flags, bool owns_fd,
-               size_t buffer_size);
+  FdReaderCommon(FdReaderCommon&& src) noexcept;
+  FdReaderCommon& operator=(FdReaderCommon&& src) noexcept;
 
-  FdReaderBase(FdReaderBase&& src) noexcept;
-  FdReaderBase& operator=(FdReaderBase&& src) noexcept;
-
-  void Done() override;
+  void SetFilename(int src);
+  int OpenFd(absl::string_view filename, int flags);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int error_code);
-  virtual bool MaybeSyncPos() { return true; }
 
-  FdHolder owned_fd_;
-  int fd_ = -1;
   std::string filename_;
   // errno value of the last fd operation, or 0 if none.
   //
@@ -84,34 +80,16 @@ class FdReaderBase : public BufferedReader {
 
 }  // namespace internal
 
-// A Reader which reads from a file descriptor. It supports random access; the
-// file descriptor must support pread(), lseek(), and fstat().
-//
-// Multiple FdReaders can read concurrently from the same fd. Reads occur at the
-// position managed by the FdReader (using pread()).
-class FdReader : public internal::FdReaderBase {
+// Template parameter invariant part of FdReader.
+class FdReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If true, the fd will be owned by the FdReader and will be closed when the
-    // FdReader is closed.
-    //
-    // If false, the fd must be kept alive until closing the FdReader.
-    //
-    // Default: true.
-    Options& set_owns_fd(bool owns_fd) & {
-      owns_fd_ = owns_fd;
-      return *this;
-    }
-    Options&& set_owns_fd(bool owns_fd) && {
-      return std::move(set_owns_fd(owns_fd));
-    }
-
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of FdReader::Options::set_buffer_size()";
+          << "Failed precondition of FdReaderBase::Options::set_buffer_size()";
       buffer_size_ = buffer_size;
       return *this;
     }
@@ -135,63 +113,44 @@ class FdReader : public internal::FdReaderBase {
     }
 
    private:
+    template <typename Src>
     friend class FdReader;
 
-    bool owns_fd_ = true;
     size_t buffer_size_ = kDefaultBufferSize();
     bool sync_pos_ = false;
   };
-
-  // Creates a closed FdReader.
-  FdReader() noexcept {}
-
-  // Will read from fd, starting at its beginning (or current file position if
-  // options.set_sync_pos(true) is used).
-  explicit FdReader(int fd, Options options = Options());
-
-  // Opens a file for reading.
-  //
-  // flags is the second argument of open, typically O_RDONLY.
-  //
-  // flags must include O_RDONLY or O_RDWR.
-  FdReader(absl::string_view filename, int flags, Options options = Options());
-
-  FdReader(FdReader&& src) noexcept;
-  FdReader& operator=(FdReader&& src) noexcept;
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) override;
 
  protected:
-  bool MaybeSyncPos() override;
+  FdReaderBase() noexcept {}
+
+  FdReaderBase(size_t buffer_size, bool sync_pos)
+      : FdReaderCommon(buffer_size), sync_pos_(sync_pos) {}
+
+  FdReaderBase(FdReaderBase&& src) noexcept;
+  FdReaderBase& operator=(FdReaderBase&& src) noexcept;
+
+  void Initialize(int src);
+  void SyncPos(int src);
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
   bool SeekSlow(Position new_pos) override;
-
- private:
-  void InitializePos();
 
   bool sync_pos_ = false;
 };
 
-// A Reader which reads from a file descriptor which does not have to support
-// random access.
-//
-// Multiple FdStreamReaders may not be used with the same fd at the same time.
-// Reads occur at the current file position (using read()).
-class FdStreamReader : public internal::FdReaderBase {
+// Template parameter invariant part of FdStreamReader.
+class FdStreamReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // There is no set_owns_fd() because it is impossible to unread what has
-    // been buffered, so a non-owned fd would be left having an unpredictable
-    // amount of extra data consumed, which would not be useful.
-
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
-             "FdStreamReader::Options::set_buffer_size()";
+             "FdStreamReaderBase::Options::set_buffer_size()";
       buffer_size_ = buffer_size;
       return *this;
     }
@@ -213,63 +172,31 @@ class FdStreamReader : public internal::FdReaderBase {
     }
 
    private:
+    template <typename Src>
     friend class FdStreamReader;
 
     size_t buffer_size_ = kDefaultBufferSize();
     absl::optional<Position> assumed_pos_;
   };
 
-  // Creates a closed FdStreamReader.
-  FdStreamReader() noexcept {}
-
-  // Will read from fd, starting at its current position.
-  //
-  // options.set_assumed_pos() must be used.
-  FdStreamReader(int fd, Options options);
-
-  // Opens a file for reading.
-  //
-  // flags is the second argument of open, typically O_RDONLY.
-  //
-  // flags must include O_RDONLY or O_RDWR.
-  FdStreamReader(absl::string_view filename, int flags,
-                 Options options = Options());
-
-  FdStreamReader(FdStreamReader&& src) noexcept;
-  FdStreamReader& operator=(FdStreamReader&& src) noexcept;
-
  protected:
+  FdStreamReaderBase() noexcept {}
+
+  explicit FdStreamReaderBase(size_t buffer_size)
+      : FdReaderCommon(buffer_size) {}
+
+  FdStreamReaderBase(FdStreamReaderBase&& src) noexcept;
+  FdStreamReaderBase& operator=(FdStreamReaderBase&& src) noexcept;
+
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
 
-// A Reader which reads from a file descriptor by mapping the whole file to
-// memory. It supports random access; the file descriptor must support mmap()
-// and fstat(). The file must not be changed while data read from the file is
-// accessed.
-//
-// Multiple FdMMapReaders can read concurrently from the same fd.
-class FdMMapReader : public ChainReader {
+// Template parameter invariant part of FdMMapReader.
+class FdMMapReaderBase : public ChainReader<Chain> {
  public:
   class Options {
    public:
     Options() noexcept {}
-
-    // If true, the fd will be owned by the FdMMapReader and will be closed
-    // after construction.
-    //
-    // If false, the fd will not be closed by the FdMMapReader.
-    //
-    // In any case, the memory mapped region is usable even after the fd is
-    // closed.
-    //
-    // Default: true.
-    Options& set_owns_fd(bool owns_fd) & {
-      owns_fd_ = owns_fd;
-      return *this;
-    }
-    Options&& set_owns_fd(bool owns_fd) && {
-      return std::move(set_owns_fd(owns_fd));
-    }
 
     // If true, FdMMapReader will initially get the current file position, and
     // will set the final file position on Close().
@@ -287,17 +214,172 @@ class FdMMapReader : public ChainReader {
     }
 
    private:
+    template <typename Src>
     friend class FdMMapReader;
 
-    bool owns_fd_ = true;
     bool sync_pos_ = false;
   };
 
+  // Returns the fd being read from. If the fd is owned then changed to -1 by
+  // Close(), otherwise unchanged.
+  virtual int src_fd() const = 0;
+
+  // Returns the original name of the file being read from (or /dev/stdin or
+  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
+  const std::string& filename() const { return filename_; }
+
+  // Returns the errno value of the last fd operation, or 0 if none.
+  // Unchanged by Close().
+  int error_code() const { return error_code_; }
+
+ protected:
+  FdMMapReaderBase() noexcept {}
+
+  explicit FdMMapReaderBase(bool sync_pos)
+      : ChainReader(Chain()), sync_pos_(sync_pos) {}
+
+  FdMMapReaderBase(FdMMapReaderBase&& src) noexcept;
+  FdMMapReaderBase& operator=(FdMMapReaderBase&& src) noexcept;
+
+  void SetFilename(int src);
+  int OpenFd(absl::string_view filename, int flags);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         int error_code);
+  void Initialize(int src);
+  void SyncPos(int src);
+
+  std::string filename_;
+  // errno value of the last fd operation, or 0 if none.
+  //
+  // Invariant: if healthy() then error_code_ == 0
+  int error_code_ = 0;
+  bool sync_pos_ = false;
+};
+
+// A Reader which reads from a file descriptor. It supports random access; the
+// fd must support pread(), lseek(), and fstat(). Reads occur at the position
+// managed by FdReader.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the fd being read from. Src must support
+// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+//
+// The fd must not be closed until the FdReader is closed or no longer used.
+template <typename Src = OwnedFd>
+class FdReader : public FdReaderBase {
+ public:
+  // Creates a closed FdReader.
+  FdReader() noexcept {}
+
+  // Will read from the fd provided by src, starting at its beginning
+  // (or current file position if options.set_sync_pos(true) is used).
+  //
+  // type_identity_t<Src> disables template parameter deduction (C++17), letting
+  // FdReader(fd) mean FdReader<OwnedFd>(fd) rather than FdReader<int>(fd).
+  explicit FdReader(type_identity_t<Src> src, Options options = Options());
+
+  // Opens a file for reading.
+  //
+  // flags is the second argument of open, typically O_RDONLY.
+  //
+  // flags must include O_RDONLY or O_RDWR.
+  FdReader(absl::string_view filename, int flags, Options options = Options());
+
+  FdReader(FdReader&& src) noexcept;
+  FdReader& operator=(FdReader&& src) noexcept;
+
+  // Returns the object providing and possibly owning the fd being read from. If
+  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  int src_fd() const override { return src_.ptr(); }
+
+ protected:
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the fd being read from.
+  Dependency<int, Src> src_;
+};
+
+// A Reader which reads from a file descriptor which does not have to support
+// random access. The fd must support read(). Reads occur at the current fd
+// position.
+//
+// The Src template parameter specifies the type of the object providing and
+// owning the fd being read from. Src must support Dependency<int, Src>, e.g.
+// OwnedFd (owned, default). The fd must be owned because it is impossible to
+// unread what has been buffered, so a non-owned fd would be left having an
+// unpredictable amount of extra data consumed, which would not be useful.
+//
+// The fd must not be closed nor have its position changed until the
+// FdStreamReader is closed or no longer used.
+template <typename Src = OwnedFd>
+class FdStreamReader : public FdStreamReaderBase {
+ public:
+  static_assert(Dependency<int, Src>::kIsOwning(),
+                "FdStreamReader must own the fd");
+
+  // Creates a closed FdStreamReader.
+  FdStreamReader() noexcept {}
+
+  // Will read from the fd provided by src, starting at its current position.
+  //
+  // options.set_assumed_pos() must be used.
+  //
+  // type_identity_t<Src> disables template parameter deduction (C++17),
+  // letting FdStreamReader(fd) mean FdStreamReader<OwnedFd>(fd) rather than
+  // FdStreamReader<int>(fd).
+  FdStreamReader(type_identity_t<Src> src, Options options);
+
+  // Opens a file for reading.
+  //
+  // flags is the second argument of open, typically O_RDONLY.
+  //
+  // flags must include O_RDONLY or O_RDWR.
+  FdStreamReader(absl::string_view filename, int flags,
+                 Options options = Options());
+
+  FdStreamReader(FdStreamReader&& src) noexcept;
+  FdStreamReader& operator=(FdStreamReader&& src) noexcept;
+
+  // Returns the object providing and owning the fd being read from. Changed to
+  // -1 by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  int src_fd() const override { return src_.ptr(); }
+
+ protected:
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the fd being read from.
+  Dependency<int, Src> src_;
+};
+
+// A Reader which reads from a file descriptor by mapping the whole file to
+// memory. It supports random access; the fd must support mmap() and fstat().
+// Reads occur at the position managed by FdMMapReader.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the fd being read from. Src must support
+// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+//
+// The fd must not be closed until the FdMMapReader is closed or no longer used.
+// File contents must not be changed while data read from the file is accessed
+// without a memory copy.
+template <typename Src = OwnedFd>
+class FdMMapReader : public FdMMapReaderBase {
+ public:
   // Creates a closed FdMMapReader.
   FdMMapReader() noexcept {}
 
-  // Will read from fd, starting at its beginning.
-  explicit FdMMapReader(int fd, Options options = Options());
+  // Will read from the fd provided by Src, starting at its beginning.
+  //
+  // type_identity_t<Src> disables template parameter deduction (C++17),
+  // letting FdMMapReader(fd) mean FdMMapReader<OwnedFd>(fd) instead of
+  // FdMMapReader<int>(fd).
+  explicit FdMMapReader(type_identity_t<Src> src, Options options = Options());
 
   // Opens a file for reading.
   //
@@ -311,50 +393,32 @@ class FdMMapReader : public ChainReader {
   FdMMapReader(FdMMapReader&& src) noexcept;
   FdMMapReader& operator=(FdMMapReader&& src) noexcept;
 
-  // Returns the file descriptor being read from. Unchanged by Close() if the fd
-  // was not owned, -1 if it owned.
-  int fd() const { return fd_; }
-  // Returns the original name of the file being read from (or /dev/stdin or
-  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
-  const std::string& filename() const { return filename_; }
-  // Returns the errno value of the last fd operation, or 0 if none.
-  // Unchanged by Close().
-  int error_code() const { return error_code_; }
+  // Returns the object providing and possibly owning the fd being read from. If
+  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  int src_fd() const override { return src_.ptr(); }
 
  protected:
   void Done() override;
 
  private:
-  void Initialize(Options options);
-
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                         int error_code);
-
-  internal::FdHolder owned_fd_;
-  int fd_ = -1;
-  std::string filename_;
-  bool sync_pos_ = false;
-  // errno value of the last fd operation, or 0 if none.
-  //
-  // Invariant: if healthy() then error_code_ == 0
-  int error_code_ = 0;
+  // The object providing and possibly owning the fd being read from.
+  Dependency<int, Src> src_;
 };
 
 // Implementation details follow.
 
 namespace internal {
 
-inline FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
+inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& src) noexcept
     : BufferedReader(std::move(src)),
-      owned_fd_(std::move(src.owned_fd_)),
-      fd_(riegeli::exchange(src.fd_, -1)),
       filename_(riegeli::exchange(src.filename_, std::string())),
       error_code_(riegeli::exchange(src.error_code_, 0)) {}
 
-inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
+inline FdReaderCommon& FdReaderCommon::operator=(
+    FdReaderCommon&& src) noexcept {
   BufferedReader::operator=(std::move(src));
-  owned_fd_ = std::move(src.owned_fd_);
-  fd_ = riegeli::exchange(src.fd_, -1);
   filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
   return *this;
@@ -362,40 +426,197 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
 
 }  // namespace internal
 
-inline FdReader::FdReader(FdReader&& src) noexcept
-    : internal::FdReaderBase(std::move(src)),
+inline FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
+    : FdReaderCommon(std::move(src)),
       sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
 
-inline FdReader& FdReader::operator=(FdReader&& src) noexcept {
-  internal::FdReaderBase::operator=(std::move(src));
+inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
+  FdReaderCommon::operator=(std::move(src));
   sync_pos_ = riegeli::exchange(src.sync_pos_, false);
   return *this;
 }
 
-inline FdStreamReader::FdStreamReader(FdStreamReader&& src) noexcept
-    : internal::FdReaderBase(std::move(src)) {}
+inline FdStreamReaderBase::FdStreamReaderBase(FdStreamReaderBase&& src) noexcept
+    : FdReaderCommon(std::move(src)) {}
 
-inline FdStreamReader& FdStreamReader::operator=(
-    FdStreamReader&& src) noexcept {
-  internal::FdReaderBase::operator=(std::move(src));
+inline FdStreamReaderBase& FdStreamReaderBase::operator=(
+    FdStreamReaderBase&& src) noexcept {
+  FdReaderCommon::operator=(std::move(src));
   return *this;
 }
 
-inline FdMMapReader::FdMMapReader(FdMMapReader&& src) noexcept
+inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& src) noexcept
     : ChainReader(std::move(src)),
-      owned_fd_(std::move(src.owned_fd_)),
-      fd_(riegeli::exchange(src.fd_, -1)),
       filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {}
+      error_code_(riegeli::exchange(src.error_code_, 0)),
+      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
 
-inline FdMMapReader& FdMMapReader::operator=(FdMMapReader&& src) noexcept {
+inline FdMMapReaderBase& FdMMapReaderBase::operator=(
+    FdMMapReaderBase&& src) noexcept {
   ChainReader::operator=(std::move(src));
-  owned_fd_ = std::move(src.owned_fd_);
-  fd_ = riegeli::exchange(src.fd_, -1);
   filename_ = riegeli::exchange(src.filename_, std::string());
   error_code_ = riegeli::exchange(src.error_code_, 0);
+  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
   return *this;
 }
+
+template <typename Src>
+FdReader<Src>::FdReader(type_identity_t<Src> src, Options options)
+    : FdReaderBase(options.buffer_size_, options.sync_pos_),
+      src_(std::move(src)) {
+  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+      << "Failed precondition of FdReader<Src>::FdReader(Src): "
+         "negative file descriptor";
+  SetFilename(src_.ptr());
+  Initialize(src_.ptr());
+}
+
+template <typename Src>
+FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
+    : FdReaderBase(options.buffer_size_, options.sync_pos_) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdReader::FdReader(string_view): "
+         "flags must include O_RDONLY or O_RDWR";
+  const int src = OpenFd(filename, flags);
+  if (ABSL_PREDICT_TRUE(src >= 0)) {
+    src_ = Dependency<int, Src>(Src(src));
+    Initialize(src_.ptr());
+  }
+}
+
+template <typename Src>
+FdReader<Src>::FdReader(FdReader&& src) noexcept
+    : FdReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+FdReader<Src>& FdReader<Src>::operator=(FdReader&& src) noexcept {
+  FdReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void FdReader<Src>::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
+  FdReaderBase::Done();
+  if (src_.kIsOwning() && src_.ptr() >= 0) {
+    const int src = src_.Release();
+    const int error_code = internal::CloseFd(src);
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName(), error_code);
+    }
+  }
+}
+
+template <typename Src>
+FdStreamReader<Src>::FdStreamReader(type_identity_t<Src> src, Options options)
+    : FdStreamReaderBase(options.buffer_size_), src_(std::move(src)) {
+  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+      << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
+         "negative file descriptor";
+  RIEGELI_ASSERT(options.assumed_pos_.has_value())
+      << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
+         "assumed file position must be specified "
+         "if FdStreamReader does not open the file";
+  SetFilename(src_.ptr());
+  limit_pos_ = *options.assumed_pos_;
+}
+
+template <typename Src>
+FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
+                                    Options options)
+    : FdStreamReaderBase(options.buffer_size_) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdStreamReader::FdStreamReader(string_view): "
+         "flags must include O_RDONLY or O_RDWR";
+  const int src = OpenFd(filename, flags);
+  if (ABSL_PREDICT_TRUE(src >= 0)) {
+    src_ = Dependency<int, Src>(Src(src));
+    limit_pos_ = options.assumed_pos_.value_or(0);
+  }
+}
+
+template <typename Src>
+FdStreamReader<Src>::FdStreamReader(FdStreamReader&& src) noexcept
+    : FdStreamReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+FdStreamReader<Src>& FdStreamReader<Src>::operator=(
+    FdStreamReader&& src) noexcept {
+  FdStreamReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void FdStreamReader<Src>::Done() {
+  FdStreamReaderBase::Done();
+  if (src_.ptr() >= 0) {
+    const int src = src_.Release();
+    const int error_code = internal::CloseFd(src);
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName(), error_code);
+    }
+  }
+}
+
+template <typename Src>
+FdMMapReader<Src>::FdMMapReader(type_identity_t<Src> src, Options options)
+    : FdMMapReaderBase(options.sync_pos_), src_(std::move(src)) {
+  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+      << "Failed precondition of FdMMapReader<Src>::FdMMapReader(Src): "
+         "negative file descriptor";
+  SetFilename(src_.ptr());
+  Initialize(src_.ptr());
+}
+
+template <typename Src>
+FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
+                                Options options)
+    : FdMMapReaderBase(options.sync_pos_) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdMMapReader::FdMMapReader(string_view): "
+         "flags must include O_RDONLY or O_RDWR";
+  const int src = OpenFd(filename, flags);
+  if (ABSL_PREDICT_TRUE(src >= 0)) {
+    src_ = Dependency<int, Src>(Src(src));
+    Initialize(src_.ptr());
+  }
+}
+
+template <typename Src>
+FdMMapReader<Src>::FdMMapReader(FdMMapReader&& src) noexcept
+    : FdMMapReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+FdMMapReader<Src>& FdMMapReader<Src>::operator=(FdMMapReader&& src) noexcept {
+  FdMMapReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void FdMMapReader<Src>::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
+  FdMMapReaderBase::Done();
+  ChainReader::src() = Chain();
+  if (src_.kIsOwning() && src_.ptr() >= 0) {
+    const int src = src_.Release();
+    const int error_code = internal::CloseFd(src);
+    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName(), error_code);
+    }
+  }
+}
+
+extern template class FdReader<OwnedFd>;
+extern template class FdReader<int>;
+extern template class FdStreamReader<OwnedFd>;
+extern template class FdMMapReader<OwnedFd>;
+extern template class FdMMapReader<int>;
 
 }  // namespace riegeli
 

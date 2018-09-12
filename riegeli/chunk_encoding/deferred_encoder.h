@@ -63,7 +63,7 @@ class DeferredEncoder : public ChunkEncoder {
 
   std::unique_ptr<ChunkEncoder> base_encoder_;
   // Writer of concatenated record values.
-  ChainWriter records_writer_;
+  ChainWriter<Chain> records_writer_;
   // Sorted record end positions.
   //
   // Invariant: limits_.size() == num_records_
@@ -76,7 +76,7 @@ class DeferredEncoder : public ChunkEncoder {
 
 inline DeferredEncoder::DeferredEncoder(
     std::unique_ptr<ChunkEncoder> base_encoder)
-    : base_encoder_(std::move(base_encoder)), records_writer_(kOwnsDest()) {}
+    : base_encoder_(std::move(base_encoder)), records_writer_(Chain()) {}
 
 }  // namespace riegeli
 

@@ -97,88 +97,74 @@ const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
   return pool_->FindMessageTypeByName(record_type_name_);
 }
 
-RecordReader::RecordReader() noexcept : Object(State::kClosed) {}
+RecordReaderBase::RecordReaderBase(State state) noexcept : Object(state) {}
 
-RecordReader::RecordReader(std::unique_ptr<Reader> byte_reader, Options options)
-    : RecordReader(absl::make_unique<ChunkReader>(std::move(byte_reader)),
-                   std::move(options)) {}
-
-RecordReader::RecordReader(Reader* byte_reader, Options options)
-    : RecordReader(absl::make_unique<ChunkReader>(byte_reader),
-                   std::move(options)) {}
-
-inline RecordReader::RecordReader(std::unique_ptr<ChunkReader> chunk_reader,
-                                  Options options)
-    : Object(State::kOpen),
-      chunk_reader_(std::move(chunk_reader)),
-      chunk_begin_(chunk_reader_->pos()),
-      chunk_decoder_(ChunkDecoder::Options().set_field_filter(
-          std::move(options.field_filter_))) {}
-
-RecordReader::RecordReader(RecordReader&& src) noexcept
+RecordReaderBase::RecordReaderBase(RecordReaderBase&& src) noexcept
     : Object(std::move(src)),
-      chunk_reader_(std::move(src.chunk_reader_)),
       chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
       chunk_decoder_(std::move(src.chunk_decoder_)),
       recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)) {}
 
-RecordReader& RecordReader::operator=(RecordReader&& src) noexcept {
+RecordReaderBase& RecordReaderBase::operator=(RecordReaderBase&& src) noexcept {
   Object::operator=(std::move(src));
-  chunk_reader_ = std::move(src.chunk_reader_);
   chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
   chunk_decoder_ = std::move(src.chunk_decoder_);
   recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
   return *this;
 }
 
-void RecordReader::Done() {
+void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
+  chunk_begin_ = src->pos();
+  chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_filter(
+      std::move(options.field_filter_)));
+}
+
+void RecordReaderBase::Done() {
   recoverable_ = Recoverable::kNo;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->Close())) {
-    recoverable_ = Recoverable::kRecoverChunkReader;
-    Fail(*chunk_reader_);
-  }
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) Fail(chunk_decoder_);
 }
 
-bool RecordReader::CheckFileFormat() {
+bool RecordReaderBase::CheckFileFormat() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkReader* const src = src_chunk_reader();
   if (chunk_decoder_.index() < chunk_decoder_.num_records()) return true;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->CheckFileFormat())) {
+  if (ABSL_PREDICT_FALSE(!src->CheckFileFormat())) {
     chunk_decoder_.Reset();
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->healthy())) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     return false;
   }
   return true;
 }
 
-bool RecordReader::ReadMetadata(RecordsMetadata* metadata) {
+bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(chunk_reader_->pos() != 0)) {
+  ChunkReader* const src = src_chunk_reader();
+  if (ABSL_PREDICT_FALSE(src->pos() != 0)) {
     return Fail(
-        "RecordReader::ReadMetadata() must be called while the RecordReader is "
-        "at the beginning of the file");
+        "RecordReaderBase::ReadMetadata() must be called "
+        "while the RecordReader is at the beginning of the file");
   }
 
-  chunk_begin_ = chunk_reader_->pos();
+  chunk_begin_ = src->pos();
   Chunk chunk;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     return false;
   }
   RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature);
 
-  chunk_begin_ = chunk_reader_->pos();
+  chunk_begin_ = src->pos();
   const ChunkHeader* chunk_header;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->PullChunkHeader(&chunk_header))) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->PullChunkHeader(&chunk_header))) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     return false;
   }
@@ -187,10 +173,10 @@ bool RecordReader::ReadMetadata(RecordsMetadata* metadata) {
     metadata->Clear();
     return true;
   }
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     return false;
   }
@@ -202,20 +188,19 @@ bool RecordReader::ReadMetadata(RecordsMetadata* metadata) {
   return true;
 }
 
-inline bool RecordReader::ParseMetadata(const Chunk& chunk,
-                                        RecordsMetadata* metadata) {
+inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
+                                            RecordsMetadata* metadata) {
   RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileMetadata)
-      << "Failed precondition of RecordReader::ParseMetadata(): "
+      << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
     return Fail(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records()));
   }
-  ChainReader data_reader(&chunk.data);
+  ChainReader<> data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
-  Chain serialized_metadata;
-  ChainBackwardWriter serialized_metadata_writer(&serialized_metadata);
+  ChainBackwardWriter<Chain> serialized_metadata_writer((Chain()));
   std::vector<size_t> limits;
   const bool ok = transpose_decoder.Reset(
       &data_reader, 1, chunk.header.decoded_data_size(), FieldFilter::All(),
@@ -231,10 +216,10 @@ inline bool RecordReader::ParseMetadata(const Chunk& chunk,
   }
   RIEGELI_ASSERT_EQ(limits.size(), 1u)
       << "Metadata chunk has unexpected record limits";
-  RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata.size())
+  RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata_writer.dest().size())
       << "Metadata chunk has unexpected record limits";
-  if (ABSL_PREDICT_FALSE(
-          !ParsePartialFromChain(metadata, serialized_metadata))) {
+  if (ABSL_PREDICT_FALSE(!ParsePartialFromChain(
+          metadata, serialized_metadata_writer.dest()))) {
     return Fail("Failed to parse message of type riegeli.RecordsMetadata");
   }
   if (ABSL_PREDICT_FALSE(!metadata->IsInitialized())) {
@@ -247,10 +232,10 @@ inline bool RecordReader::ParseMetadata(const Chunk& chunk,
 }
 
 template <typename Record>
-bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
+bool RecordReaderBase::ReadRecordSlow(Record* record, RecordPosition* key) {
   if (chunk_decoder_.healthy()) {
     RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
-        << "Failed precondition of RecordReader::ReadRecordSlow(): "
+        << "Failed precondition of RecordReaderBase::ReadRecordSlow(): "
            "records available, use ReadRecord() instead";
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -271,16 +256,18 @@ bool RecordReader::ReadRecordSlow(Record* record, RecordPosition* key) {
   }
 }
 
-template bool RecordReader::ReadRecordSlow(
+template bool RecordReaderBase::ReadRecordSlow(
     google::protobuf::MessageLite* record, RecordPosition* key);
-template bool RecordReader::ReadRecordSlow(absl::string_view* record,
-                                           RecordPosition* key);
-template bool RecordReader::ReadRecordSlow(std::string* record,
-                                           RecordPosition* key);
-template bool RecordReader::ReadRecordSlow(Chain* record, RecordPosition* key);
+template bool RecordReaderBase::ReadRecordSlow(absl::string_view* record,
+                                               RecordPosition* key);
+template bool RecordReaderBase::ReadRecordSlow(std::string* record,
+                                               RecordPosition* key);
+template bool RecordReaderBase::ReadRecordSlow(Chain* record,
+                                               RecordPosition* key);
 
-bool RecordReader::Recover(SkippedRegion* skipped_region) {
+bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
+  ChunkReader* const src = src_chunk_reader();
   RIEGELI_ASSERT(!healthy()) << "Failed invariant of RecordReader: "
                                 "recovery applicable but RecordReader healthy";
   const Recoverable recoverable = recoverable_;
@@ -295,8 +282,8 @@ bool RecordReader::Recover(SkippedRegion* skipped_region) {
     case Recoverable::kNo:
       RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
     case Recoverable::kRecoverChunkReader:
-      if (ABSL_PREDICT_FALSE(!chunk_reader_->Recover(skipped_region))) {
-        return Fail(*chunk_reader_);
+      if (ABSL_PREDICT_FALSE(!src->Recover(skipped_region))) {
+        return Fail(*src);
       }
       return true;
     case Recoverable::kRecoverChunkDecoder: {
@@ -316,27 +303,40 @@ bool RecordReader::Recover(SkippedRegion* skipped_region) {
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
 }
 
-bool RecordReader::Seek(RecordPosition new_pos) {
+bool RecordReaderBase::SupportsRandomAccess() const {
+  const ChunkReader* const src = src_chunk_reader();
+  return src != nullptr && src->SupportsRandomAccess();
+}
+
+bool RecordReaderBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkReader* const src = src_chunk_reader();
+  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
+  return true;
+}
+
+bool RecordReaderBase::Seek(RecordPosition new_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkReader* const src = src_chunk_reader();
   if (new_pos.chunk_begin() == chunk_begin_) {
-    if (new_pos.record_index() == 0 || chunk_reader_->pos() > chunk_begin_) {
+    if (new_pos.record_index() == 0 || src->pos() > chunk_begin_) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
       //
-      // If chunk_reader_->pos() > chunk_begin_, the chunk is already read.
+      // If src->pos() > chunk_begin_, the chunk is already read.
       goto skip_reading_chunk;
     }
   } else {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->Seek(new_pos.chunk_begin()))) {
-      chunk_begin_ = chunk_reader_->pos();
+    if (ABSL_PREDICT_FALSE(!src->Seek(new_pos.chunk_begin()))) {
+      chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     if (new_pos.record_index() == 0) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
-      chunk_begin_ = chunk_reader_->pos();
+      chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       return true;
     }
@@ -347,27 +347,28 @@ skip_reading_chunk:
   return true;
 }
 
-bool RecordReader::Seek(Position new_pos) {
+bool RecordReaderBase::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (new_pos >= chunk_begin_ && new_pos <= chunk_reader_->pos()) {
+  ChunkReader* const src = src_chunk_reader();
+  if (new_pos >= chunk_begin_ && new_pos <= src->pos()) {
     // Seeking inside or just after the current chunk which has been read,
     // or to the beginning of the current chunk which has been located,
     // or to the end of file which has been reached.
   } else {
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->SeekToChunkContaining(new_pos))) {
-      chunk_begin_ = chunk_reader_->pos();
+    if (ABSL_PREDICT_FALSE(!src->SeekToChunkContaining(new_pos))) {
+      chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
-    if (chunk_reader_->pos() >= new_pos) {
+    if (src->pos() >= new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
       //
       // It is possible that the chunk position is greater than new_pos if
       // new_pos falls after all records of the previous chunk. This also seeks
       // to the beginning of the chunk.
-      chunk_begin_ = chunk_reader_->pos();
+      chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       return true;
     }
@@ -377,14 +378,15 @@ bool RecordReader::Seek(Position new_pos) {
   return true;
 }
 
-inline bool RecordReader::ReadChunk() {
-  chunk_begin_ = chunk_reader_->pos();
+inline bool RecordReaderBase::ReadChunk() {
+  ChunkReader* const src = src_chunk_reader();
+  chunk_begin_ = src->pos();
   Chunk chunk;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->ReadChunk(&chunk))) {
+  if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
     chunk_decoder_.Reset();
-    if (ABSL_PREDICT_FALSE(!chunk_reader_->healthy())) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*chunk_reader_);
+      return Fail(*src);
     }
     return false;
   }
@@ -394,5 +396,12 @@ inline bool RecordReader::ReadChunk() {
   }
   return true;
 }
+
+template class RecordReader<Reader*>;
+template class RecordReader<std::unique_ptr<Reader>>;
+template class RecordReader<ChunkReader*>;
+template class RecordReader<std::unique_ptr<ChunkReader>>;
+template class RecordReader<DefaultChunkReader<Reader*>>;
+template class RecordReader<DefaultChunkReader<std::unique_ptr<Reader>>>;
 
 }  // namespace riegeli

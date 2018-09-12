@@ -32,8 +32,9 @@ namespace riegeli {
 // A Reader which reads from another Reader up to the specified size limit,
 // then pretends that the source ends.
 //
-// When a LimitingReader is closed, its position is synchronized back to its
-// source.
+// The original Reader must not be accessed until the LimitingReader is closed
+// or no longer used. When the LimitingReader is closed, its position is
+// synchronized back to the original Reader.
 class LimitingReader : public Reader {
  public:
   // An infinite size limit.
@@ -42,8 +43,7 @@ class LimitingReader : public Reader {
   // Creates a closed LimitingReader.
   LimitingReader() noexcept : Reader(State::kClosed) {}
 
-  // Will read from the Reader which is not owned by this LimitingReader and
-  // must be kept alive but not accessed until closing the LimitingReader.
+  // Will read from src.
   //
   // Precondition: size_limit >= src->pos()
   LimitingReader(Reader* src, Position size_limit);
@@ -51,7 +51,7 @@ class LimitingReader : public Reader {
   LimitingReader(LimitingReader&& src) noexcept;
   LimitingReader& operator=(LimitingReader&& src) noexcept;
 
-  // Returns the Reader being read from. Unchanged by Close().
+  // Returns the original Reader. Unchanged by Close().
   Reader* src() const { return src_; }
 
   // Change the size limit after construction.

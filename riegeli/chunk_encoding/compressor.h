@@ -63,32 +63,23 @@ class Compressor : public Object {
   void Done() override;
 
  private:
-  ChainWriter::Options GetChainWriterOptions() const;
-  BrotliWriter::Options GetBrotliWriterOptions() const;
-  ZstdWriter::Options GetZstdWriterOptions() const;
-
   CompressorOptions options_;
   uint64_t size_hint_ = 0;
-  ChainWriter compressed_writer_;
-  // Invariants:
-  //   options_.compression_type() is consistent with the active member of the
-  //       variant
-  //   if options_.compression_type() == CompressionType::kNone then
-  //       writer_ holds &compressed_writer_
-  absl::variant<ChainWriter*, BrotliWriter, ZstdWriter> writer_;
+  Chain compressed_;
+  // Invariant:
+  //   options_.compression_type() is consistent with
+  //       the active member of writer_
+  absl::variant<ChainWriter<>, BrotliWriter<ChainWriter<>>,
+                ZstdWriter<ChainWriter<>>>
+      writer_;
 };
 
 // Implementation details follow.
 
 inline Writer* Compressor::writer() {
-  struct Visitor {
-    Writer* operator()(ChainWriter* writer) const { return writer; }
-    Writer* operator()(BrotliWriter& writer) const { return &writer; }
-    Writer* operator()(ZstdWriter& writer) const { return &writer; }
-  };
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Compressor::writer(): " << message();
-  return absl::visit(Visitor(), writer_);
+  return absl::visit([](Writer& writer) { return &writer; }, writer_);
 }
 
 }  // namespace internal

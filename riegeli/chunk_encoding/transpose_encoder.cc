@@ -197,7 +197,7 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
       compressor_(options),
-      nonproto_lengths_writer_(&nonproto_lengths_) {}
+      nonproto_lengths_writer_(Chain()) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
@@ -215,7 +215,6 @@ void TransposeEncoder::Done() {
   if (ABSL_PREDICT_FALSE(!nonproto_lengths_writer_.Close())) {
     Fail(nonproto_lengths_writer_);
   }
-  nonproto_lengths_ = Chain();
   next_message_id_ = internal::MessageId::kRoot + 1;
   ChunkEncoder::Done();
 }
@@ -229,8 +228,7 @@ void TransposeEncoder::Reset() {
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   group_stack_.clear();
   message_nodes_.clear();
-  nonproto_lengths_.Clear();
-  nonproto_lengths_writer_ = ChainBackwardWriter(&nonproto_lengths_);
+  nonproto_lengths_writer_ = ChainBackwardWriter<Chain>(Chain());
   next_message_id_ = internal::MessageId::kRoot + 1;
 }
 
@@ -251,7 +249,7 @@ inline size_t TransposeEncoder::EncodedTagHasher::operator()(
 }
 
 bool TransposeEncoder::AddRecord(absl::string_view record) {
-  StringReader reader(record.data(), record.size());
+  StringReader<> reader(record);
   return AddRecordInternal(&reader);
 }
 
@@ -264,7 +262,7 @@ bool TransposeEncoder::AddRecord(std::string&& record) {
 }
 
 bool TransposeEncoder::AddRecord(const Chain& record) {
-  ChainReader reader(&record);
+  ChainReader<> reader(&record);
   return AddRecordInternal(&reader);
 }
 
@@ -272,7 +270,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  ChainReader records_reader(&records);
+  ChainReader<> records_reader(&records);
   for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, records_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
@@ -328,7 +326,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   } else {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kNonProto, 0, internal::Subtype::kTrivial)));
-    ChainBackwardWriter* const buffer =
+    BackwardWriter* const buffer =
         GetBuffer(internal::MessageId::kNonProto, 0, BufferType::kNonProto);
     if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, IntCast<size_t>(size)))) {
       return Fail(*buffer);
@@ -341,7 +339,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   }
 }
 
-inline ChainBackwardWriter* TransposeEncoder::GetBuffer(
+inline BackwardWriter* TransposeEncoder::GetBuffer(
     internal::MessageId parent_message_id, uint32_t field, BufferType type) {
   const std::pair<
       std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator, bool>
@@ -357,7 +355,7 @@ inline ChainBackwardWriter* TransposeEncoder::GetBuffer(
         data_[static_cast<uint32_t>(type)];
     buffers.emplace_back(parent_message_id, field);
     node.writer =
-        absl::make_unique<ChainBackwardWriter>(buffers.back().buffer.get());
+        absl::make_unique<ChainBackwardWriter<>>(buffers.back().buffer.get());
   }
   return node.writer.get();
 }
@@ -414,7 +412,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
                              IntCast<uint8_t>(value_length - 1))));
           // Clear high bit of each byte.
           for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
-          ChainBackwardWriter* const buffer =
+          BackwardWriter* const buffer =
               GetBuffer(parent_message_id, field, BufferType::kVarint);
           if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
                   reinterpret_cast<const char*>(value), value_length)))) {
@@ -425,7 +423,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
       case internal::WireType::kFixed32: {
         encoded_tags_.push_back(GetPosInTagsList(
             EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        ChainBackwardWriter* const buffer =
+        BackwardWriter* const buffer =
             GetBuffer(parent_message_id, field, BufferType::kFixed32);
         if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, sizeof(uint32_t)))) {
           return Fail(*buffer);
@@ -434,7 +432,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
       case internal::WireType::kFixed64: {
         encoded_tags_.push_back(GetPosInTagsList(
             EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        ChainBackwardWriter* const buffer =
+        BackwardWriter* const buffer =
             GetBuffer(parent_message_id, field, BufferType::kFixed64);
         if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, sizeof(uint64_t)))) {
           return Fail(*buffer);
@@ -493,7 +491,7 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
             RIEGELI_ASSERT_UNREACHABLE()
                 << "Seeking message reader failed: " << record->message();
           }
-          ChainBackwardWriter* const buffer =
+          BackwardWriter* const buffer =
               GetBuffer(parent_message_id, field, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!record->CopyTo(
                   buffer, IntCast<size_t>(value_pos - length_pos) + length))) {
@@ -579,7 +577,8 @@ inline bool TransposeEncoder::WriteBuffers(
               });
     num_buffers += data_[i].size();
   }
-  if (!nonproto_lengths_.empty()) ++num_buffers;
+  const Chain& nonproto_lengths = nonproto_lengths_writer_.dest();
+  if (!nonproto_lengths.empty()) ++num_buffers;
 
   std::vector<size_t> buffer_lengths;
   buffer_lengths.reserve(num_buffers);
@@ -605,14 +604,14 @@ inline bool TransposeEncoder::WriteBuffers(
           << static_cast<uint32_t>(buffer.message_id) << "/" << buffer.field;
     }
   }
-  if (!nonproto_lengths_.empty()) {
+  if (!nonproto_lengths.empty()) {
     // nonproto_lengths_ is the last buffer if non-empty.
     if (ABSL_PREDICT_FALSE(!AddBuffer(
-            /*force_new_bucket=*/true, nonproto_lengths_, data_writer,
+            /*force_new_bucket=*/true, nonproto_lengths, data_writer,
             &bucket_lengths, &buffer_lengths))) {
       return false;
     }
-    // Note: nonproto_lengths_ needs no buffer_pos.
+    // Note: nonproto_lengths needs no buffer_pos.
   }
 
   if (compressor_.writer()->pos() > 0) {
@@ -1355,8 +1354,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   const std::vector<StateInfo> state_machine =
       CreateStateMachine(max_transition, min_count_for_state);
 
-  ChainWriter header_writer(kOwnsDest());
-  ChainWriter data_writer(kOwnsDest());
+  ChainWriter<Chain> header_writer((Chain()));
+  ChainWriter<Chain> data_writer((Chain()));
   if (ABSL_PREDICT_FALSE(!WriteStatesAndData(max_transition, state_machine,
                                              &header_writer, &data_writer))) {
     return false;
@@ -1364,7 +1363,7 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!header_writer.Close())) return Fail(header_writer);
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
-  ChainWriter compressed_header_writer(kOwnsDest());
+  ChainWriter<Chain> compressed_header_writer((Chain()));
   // Uncompressed header size is known before compression, but a size hint
   // cannot be passed to compressor_ because it is reused for compressing
   // buckets and transitions. Reusing the compressor brings more benefits

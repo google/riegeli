@@ -28,23 +28,34 @@
 
 namespace riegeli {
 
-void ChainReader::Done() {
+void ChainReaderBase::Initialize(const Chain* src) {
+  iter_ = src->blocks().cbegin();
+  if (iter_ != src->blocks().cend()) {
+    start_ = iter_->data();
+    cursor_ = start_;
+    limit_ = start_ + iter_->size();
+    limit_pos_ = buffer_size();
+  }
+}
+
+void ChainReaderBase::Done() {
   iter_ = Chain::BlockIterator();
   limit_pos_ = pos();
   Reader::Done();
 }
 
-bool ChainReader::PullSlow() {
+bool ChainReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_LE(limit_pos_, src_->size())
+  const Chain* const src = src_chain();
+  RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(iter_ == src_->blocks().cend())) return false;
-  while (++iter_ != src_->blocks().cend()) {
+  if (ABSL_PREDICT_FALSE(iter_ == src->blocks().cend())) return false;
+  while (++iter_ != src->blocks().cend()) {
     if (ABSL_PREDICT_TRUE(!iter_->empty())) {
-      RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
+      RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos_)
           << "ChainReader source changed unexpectedly";
       start_ = iter_->data();
       cursor_ = start_;
@@ -59,7 +70,7 @@ bool ChainReader::PullSlow() {
   return false;
 }
 
-bool ChainReader::ReadSlow(Chain* dest, size_t length) {
+bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
@@ -67,24 +78,25 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_LE(limit_pos_, src_->size())
+  const Chain* const src = src_chain();
+  RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
   if (length <= available()) {
     iter_.AppendSubstrTo(absl::string_view(cursor_, length), dest);
     cursor_ += length;
     return true;
   }
-  if (ABSL_PREDICT_FALSE(iter_ == src_->blocks().cend())) return false;
+  if (ABSL_PREDICT_FALSE(iter_ == src->blocks().cend())) return false;
   iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest);
   length -= available();
   for (;;) {
-    if (ABSL_PREDICT_FALSE(++iter_ == src_->blocks().cend())) {
+    if (ABSL_PREDICT_FALSE(++iter_ == src->blocks().cend())) {
       start_ = nullptr;
       cursor_ = nullptr;
       limit_ = nullptr;
       return false;
     }
-    RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
+    RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos_)
         << "ChainReader source changed unexpectedly";
     limit_pos_ += iter_->size();
     if (length <= iter_->size()) {
@@ -99,20 +111,21 @@ bool ChainReader::ReadSlow(Chain* dest, size_t length) {
   }
 }
 
-bool ChainReader::CopyToSlow(Writer* dest, Position length) {
+bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_LE(limit_pos_, src_->size())
+  const Chain* const src = src_chain();
+  RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
-  const Position length_to_copy = UnsignedMin(length, src_->size() - pos());
+  const Position length_to_copy = UnsignedMin(length, src->size() - pos());
   bool ok;
-  if (length_to_copy == src_->size()) {
+  if (length_to_copy == src->size()) {
     if (!Skip(length_to_copy)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
-    ok = dest->Write(*src_);
+    ok = dest->Write(*src);
   } else if (length_to_copy <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
     if (!Read(buffer, IntCast<size_t>(length_to_copy))) {
@@ -130,24 +143,25 @@ bool ChainReader::CopyToSlow(Writer* dest, Position length) {
   return ok && length_to_copy == length;
 }
 
-bool ChainReader::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool ChainReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_LE(limit_pos_, src_->size())
+  const Chain* const src = src_chain();
+  RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(length > src_->size() - pos())) {
-    if (!Seek(src_->size())) {
+  if (ABSL_PREDICT_FALSE(length > src->size() - pos())) {
+    if (!Seek(src->size())) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Seek() failed";
     }
     return false;
   }
-  if (length == src_->size()) {
+  if (length == src->size()) {
     if (!Skip(length)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
-    return dest->Write(*src_);
+    return dest->Write(*src);
   }
   if (length <= kMaxBytesToCopy()) {
     char buffer[kMaxBytesToCopy()];
@@ -163,35 +177,36 @@ bool ChainReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   return dest->Write(std::move(data));
 }
 
-bool ChainReader::SeekSlow(Position new_pos) {
+bool ChainReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_LE(limit_pos_, src_->size())
+  const Chain* const src = src_chain();
+  RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
   if (new_pos > limit_pos_) {
     // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(new_pos > src_->size())) {
+    if (ABSL_PREDICT_FALSE(new_pos > src->size())) {
       // Source ends.
-      iter_ = src_->blocks().cend();
+      iter_ = src->blocks().cend();
       start_ = nullptr;
       cursor_ = nullptr;
       limit_ = nullptr;
-      limit_pos_ = src_->size();
+      limit_pos_ = src->size();
       return false;
     }
-    if (src_->size() - new_pos < new_pos - limit_pos_) {
+    if (src->size() - new_pos < new_pos - limit_pos_) {
       // Iterate backwards from the end, it is closer.
-      iter_ = src_->blocks().cend();
-      limit_pos_ = src_->size();
-      RIEGELI_ASSERT(iter_ != src_->blocks().cbegin()) << "Malformed Chain";
+      iter_ = src->blocks().cend();
+      limit_pos_ = src->size();
+      RIEGELI_ASSERT(iter_ != src->blocks().cbegin()) << "Malformed Chain";
       --iter_;
       RIEGELI_ASSERT_LE(iter_->size(), limit_pos_) << "Malformed Chain";
       Position block_begin = limit_pos_ - iter_->size();
       while (new_pos < block_begin) {
         limit_pos_ = block_begin;
-        RIEGELI_ASSERT(iter_ != src_->blocks().cbegin()) << "Malformed Chain";
+        RIEGELI_ASSERT(iter_ != src->blocks().cbegin()) << "Malformed Chain";
         --iter_;
         RIEGELI_ASSERT_LE(iter_->size(), block_begin) << "Malformed Chain";
         block_begin -= iter_->size();
@@ -199,10 +214,10 @@ bool ChainReader::SeekSlow(Position new_pos) {
     } else {
       // Iterate forwards from the current position, it is closer.
       do {
-        RIEGELI_ASSERT(iter_ != src_->blocks().cend())
+        RIEGELI_ASSERT(iter_ != src->blocks().cend())
             << "ChainReader source changed unexpectedly or is malformed";
         ++iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
+        RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos_)
             << "ChainReader source changed unexpectedly or is malformed";
         limit_pos_ += iter_->size();
       } while (new_pos > limit_pos_);
@@ -212,12 +227,12 @@ bool ChainReader::SeekSlow(Position new_pos) {
     Position block_begin = start_pos();
     if (new_pos < block_begin - new_pos) {
       // Iterate forwards from the beginning, it is closer.
-      iter_ = src_->blocks().cbegin();
+      iter_ = src->blocks().cbegin();
       limit_pos_ = iter_->size();
       while (new_pos > limit_pos_) {
-        RIEGELI_ASSERT(iter_ != src_->blocks().cend()) << "Malformed Chain";
+        RIEGELI_ASSERT(iter_ != src->blocks().cend()) << "Malformed Chain";
         ++iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), src_->size() - limit_pos_)
+        RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos_)
             << "Malformed Chain";
         limit_pos_ += iter_->size();
       }
@@ -225,7 +240,7 @@ bool ChainReader::SeekSlow(Position new_pos) {
       // Iterate backwards from the current position, it is closer.
       do {
         limit_pos_ = block_begin;
-        RIEGELI_ASSERT(iter_ != src_->blocks().cbegin())
+        RIEGELI_ASSERT(iter_ != src->blocks().cbegin())
             << "ChainReader source changed unexpectedly or is malformed";
         --iter_;
         RIEGELI_ASSERT_LE(iter_->size(), block_begin)
@@ -244,5 +259,15 @@ bool ChainReader::SeekSlow(Position new_pos) {
   cursor_ = limit_ - available_length;
   return true;
 }
+
+bool ChainReaderBase::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const Chain* const src = src_chain();
+  *size = src->size();
+  return true;
+}
+
+template class ChainReader<const Chain*>;
+template class ChainReader<Chain>;
 
 }  // namespace riegeli

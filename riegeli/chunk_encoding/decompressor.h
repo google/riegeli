@@ -19,48 +19,46 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/reader_utils.h"
+#include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 namespace internal {
 
+// Sets *uncompressed_size to uncompressed size of compressed_data.
+//
+// If compression_type is kNone, uncompressed size is the same as compressed
+// size, otherwise reads uncompressed size as a varint from the beginning of
+// compressed_data.
+//
+// Return values:
+//  * true  - success
+//  * false - failure
+bool UncompressedSize(const Chain& compressed_data,
+                      CompressionType compression_type,
+                      uint64_t* uncompressed_size);
+
+template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
-  // Sets *uncompressed_size to uncompressed size of compressed_data.
-  //
-  // If compression_type is kNone, uncompressed size is the same as compressed
-  // size, otherwise reads uncompressed size as a varint from the beginning of
-  // compressed_data.
-  //
-  // Return values:
-  //  * true  - success
-  //  * false - failure
-  static bool UncompressedSize(const Chain& compressed_data,
-                               CompressionType compression_type,
-                               uint64_t* uncompressed_size);
-
   // Creates a closed Decompressor.
   Decompressor() noexcept : Object(State::kClosed) {}
 
-  // Will read compressed stream from the byte Reader which is owned by this
-  // Decompressor and will be closed and deleted when the Decompressor is
-  // closed.
+  // Will read from the compressed stream provided by src.
   //
   // If compression_type is not kNone, reads uncompressed size as a varint from
   // the beginning of compressed data.
-  Decompressor(std::unique_ptr<Reader> src, CompressionType compression_type);
-
-  // Will read compressed stream from the byte Reader which is not owned by this
-  // Decompressor and must be kept alive but not accessed until closing the
-  // Decompressor.
-  //
-  // If compression_type is not kNone, reads uncompressed size as a varint from
-  // the beginning of compressed data.
-  Decompressor(Reader* src, CompressionType compression_type);
+  Decompressor(Src src, CompressionType compression_type);
 
   Decompressor(Decompressor&& src) noexcept;
   Decompressor& operator=(Decompressor&& src) noexcept;
@@ -68,7 +66,7 @@ class Decompressor : public Object {
   // Returns the Reader from which uncompressed data should be read.
   //
   // Precondition: healthy()
-  Reader* reader() const;
+  Reader* reader();
 
   // Verifies that the source ends at the current position (i.e. has no more
   // compressed data and has no data after the compressed stream), failing the
@@ -89,32 +87,99 @@ class Decompressor : public Object {
   void Done() override;
 
  private:
-  std::unique_ptr<Reader> owned_src_;
-  std::unique_ptr<Reader> owned_reader_;
-  Reader* reader_ = nullptr;
+  absl::variant<Dependency<Reader*, Src>, BrotliReader<Src>, ZstdReader<Src>>
+      reader_;
 };
 
 // Implementation details follow.
 
-inline Decompressor::Decompressor(Decompressor&& src) noexcept
-    : Object(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      owned_reader_(std::move(src.owned_reader_)),
-      reader_(riegeli::exchange(src.reader_, nullptr)) {}
+template <typename Src>
+Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
+    : Object(State::kOpen) {
+  Dependency<Reader*, Src> compressed_reader(std::move(src));
+  if (compression_type == CompressionType::kNone) {
+    reader_ = std::move(compressed_reader);
+    return;
+  }
+  uint64_t decompressed_size;
+  if (ABSL_PREDICT_FALSE(
+          !ReadVarint64(compressed_reader.ptr(), &decompressed_size))) {
+    Fail("Reading decompressed size failed");
+    return;
+  }
+  switch (compression_type) {
+    case CompressionType::kNone:
+      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
+    case CompressionType::kBrotli:
+      reader_ = BrotliReader<Src>(std::move(compressed_reader.manager()));
+      return;
+    case CompressionType::kZstd:
+      reader_ = ZstdReader<Src>(std::move(compressed_reader.manager()));
+      return;
+  }
+  Fail(absl::StrCat("Unknown compression type: ",
+                    static_cast<unsigned>(compression_type)));
+}
 
-inline Decompressor& Decompressor::operator=(Decompressor&& src) noexcept {
+template <typename Src>
+Decompressor<Src>::Decompressor(Decompressor&& src) noexcept
+    : Object(std::move(src)), reader_(std::move(src.reader_)) {}
+
+template <typename Src>
+Decompressor<Src>& Decompressor<Src>::operator=(Decompressor&& src) noexcept {
   Object::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  owned_reader_ = std::move(src.owned_reader_);
-  reader_ = riegeli::exchange(src.reader_, nullptr);
+  reader_ = std::move(src.reader_);
   return *this;
 }
 
-inline Reader* Decompressor::reader() const {
+template <typename Src>
+Reader* Decompressor<Src>::reader() {
+  struct Visitor {
+    Reader* operator()(Dependency<Reader*, Src>& reader) const {
+      return reader.ptr();
+    }
+    Reader* operator()(Reader& reader) const { return &reader; }
+  };
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Decompressor::reader(): " << message();
-  return reader_;
+  return absl::visit(Visitor(), reader_);
 }
+
+template <typename Src>
+void Decompressor<Src>::Done() {
+  struct Visitor {
+    void operator()(Dependency<Reader*, Src>& reader) const {
+      if (reader.kIsOwning()) {
+        if (ABSL_PREDICT_FALSE(!reader->Close())) self->Fail(*reader);
+      }
+    }
+    void operator()(Reader& reader) const {
+      if (ABSL_PREDICT_FALSE(!reader.Close())) self->Fail(reader);
+    }
+    Decompressor* self;
+  };
+  absl::visit(Visitor{this}, reader_);
+}
+
+template <typename Src>
+bool Decompressor<Src>::VerifyEndAndClose() {
+  VerifyEnd();
+  return Close();
+}
+
+template <typename Src>
+void Decompressor<Src>::VerifyEnd() {
+  struct Visitor {
+    void operator()(Dependency<Reader*, Src>& reader) const {
+      if (reader.kIsOwning()) reader->VerifyEnd();
+    }
+    void operator()(Reader& reader) const { reader.VerifyEnd(); }
+  };
+  absl::visit(Visitor(), reader_);
+}
+
+extern template class Decompressor<Reader*>;
+extern template class Decompressor<std::unique_ptr<Reader>>;
 
 }  // namespace internal
 }  // namespace riegeli

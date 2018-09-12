@@ -29,6 +29,7 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/message_parse.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -47,7 +48,7 @@ ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
       field_filter_(std::move(src.field_filter_)),
       limits_(std::move(src.limits_)),
       values_reader_(
-          riegeli::exchange(src.values_reader_, ChainReader(Chain()))),
+          riegeli::exchange(src.values_reader_, ChainReader<Chain>(Chain()))),
       index_(riegeli::exchange(src.index_, 0)),
       record_scratch_(riegeli::exchange(src.record_scratch_, std::string())),
       recoverable_(riegeli::exchange(src.recoverable_, false)) {}
@@ -56,7 +57,8 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
   Object::operator=(std::move(src));
   field_filter_ = std::move(src.field_filter_);
   limits_ = std::move(src.limits_);
-  values_reader_ = riegeli::exchange(src.values_reader_, ChainReader(Chain()));
+  values_reader_ =
+      riegeli::exchange(src.values_reader_, ChainReader<Chain>(Chain()));
   index_ = riegeli::exchange(src.index_, 0);
   record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
   recoverable_ = riegeli::exchange(src.recoverable_, false);
@@ -64,7 +66,7 @@ ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
 }
 
 void ChunkDecoder::Done() {
-  values_reader_ = ChainReader();
+  values_reader_ = ChainReader<Chain>();
   record_scratch_ = std::string();
   recoverable_ = false;
 }
@@ -72,14 +74,14 @@ void ChunkDecoder::Done() {
 void ChunkDecoder::Reset() {
   MarkHealthy();
   limits_.clear();
-  values_reader_ = ChainReader(Chain());
+  values_reader_ = ChainReader<Chain>(Chain());
   index_ = 0;
   recoverable_ = false;
 }
 
 bool ChunkDecoder::Reset(const Chunk& chunk) {
   Reset();
-  ChainReader data_reader(&chunk.data);
+  ChainReader<> data_reader(&chunk.data);
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail("Too many records");
   }
@@ -106,12 +108,11 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
     RIEGELI_ASSERT_LE(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   }
-  values_reader_ = ChainReader(std::move(values));
+  values_reader_ = ChainReader<Chain>(std::move(values));
   return true;
 }
 
-bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
-                         Chain* dest) {
+bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
@@ -172,8 +173,8 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, ChainReader* src,
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
       dest->Clear();
-      ChainBackwardWriter dest_writer(
-          dest, ChainBackwardWriter::Options().set_size_hint(
+      ChainBackwardWriter<> dest_writer(
+          dest, ChainBackwardWriterBase::Options().set_size_hint(
                     field_filter_.include_all() ? header.decoded_data_size()
                                                 : uint64_t{0}));
       const bool ok = transpose_decoder.Reset(

@@ -16,82 +16,145 @@
 #define RIEGELI_BYTES_ARRAY_BACKWARD_WRITER_H_
 
 #include <stddef.h>
-#include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/span_dependency.h"
 
 namespace riegeli {
 
-// A BackwardWriter which writes to an array with a known size limit.
-class ArrayBackwardWriter : public BackwardWriter {
+// Template parameter invariant part of ArrayBackwardWriter.
+class ArrayBackwardWriterBase : public BackwardWriter {
  public:
-  // Creates a closed ArrayBackwardWriter.
-  ArrayBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}
+  // Returns the array being written to. Unchanged by Close().
+  virtual absl::Span<char> dest_span() = 0;
+  virtual absl::Span<const char> dest_span() const = 0;
 
-  // Will write to an array which is owned by this ArrayBackwardWriter,
-  // available as dest().
-  ArrayBackwardWriter(OwnsDest, size_t max_size);
-
-  // Will write to the array which is not owned by this ArrayBackwardWriter and
-  // must be kept alive but not accessed until closing the ArrayBackwardWriter.
-  // dest points to the beginning of the array.
-  ArrayBackwardWriter(char* dest, size_t max_size);
-
-  ArrayBackwardWriter(ArrayBackwardWriter&& src) noexcept;
-  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& src) noexcept;
-
-  // Returns written data in a prefix of the original array. Valid only after
-  // Close().
-  absl::Span<char> dest() const { return dest_; }
+  // Returns written data in a suffix of the original array. Valid only after
+  // Close() or Flush().
+  absl::Span<char> written() { return written_; }
+  absl::Span<const char> written() const { return written_; }
 
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:
+  explicit ArrayBackwardWriterBase(State state) noexcept
+      : BackwardWriter(state) {}
+
+  ArrayBackwardWriterBase(ArrayBackwardWriterBase&& src) noexcept;
+  ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& src) noexcept;
+
   void Done() override;
   bool PushSlow() override;
 
+  // Written data. Valid only after Close() or Flush().
+  absl::Span<char> written_;
+};
+
+// A BackwardWriter which writes to a preallocated array with a known size
+// limit.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the array being written to. Dest must support
+// Dependency<Span<char>, Src>, e.g. Span<char> (not owned, default),
+// string* (not owned), string (owned).
+//
+// The array must not be destroyed until the ArrayBackwardWriter is closed or no
+// longer used.
+template <typename Dest = absl::Span<char>>
+class ArrayBackwardWriter : public ArrayBackwardWriterBase {
+ public:
+  // Creates a closed ArrayBackwardWriter.
+  ArrayBackwardWriter() noexcept : ArrayBackwardWriterBase(State::kClosed) {}
+
+  // Will write to the array provided by dest.
+  explicit ArrayBackwardWriter(Dest dest);
+
+  ArrayBackwardWriter(ArrayBackwardWriter&& src) noexcept;
+  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the array being written
+  // to. Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  absl::Span<char> dest_span() override { return dest_.ptr(); }
+  absl::Span<const char> dest_span() const override { return dest_.ptr(); }
+
  private:
-  std::unique_ptr<char[]> owned_dest_;
-  // Written data. Valid only after Close().
-  absl::Span<char> dest_;
+  void MoveDest(ArrayBackwardWriter&& src);
+
+  // The object providing and possibly owning the array being written to.
+  Dependency<absl::Span<char>, Dest> dest_;
 
   // Invariant: if healthy() then start_pos_ == 0
 };
 
 // Implementation details follow.
 
-inline ArrayBackwardWriter::ArrayBackwardWriter(OwnsDest, size_t max_size)
-    : BackwardWriter(State::kOpen), owned_dest_(new char[max_size]) {
-  limit_ = owned_dest_.get();
-  start_ = limit_ + max_size;
-  cursor_ = start_;
-}
-
-inline ArrayBackwardWriter::ArrayBackwardWriter(char* dest, size_t max_size)
-    : BackwardWriter(State::kOpen) {
-  limit_ = dest;
-  start_ = limit_ + max_size;
-  cursor_ = start_;
-}
-
-inline ArrayBackwardWriter::ArrayBackwardWriter(
-    ArrayBackwardWriter&& src) noexcept
+inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
+    ArrayBackwardWriterBase&& src) noexcept
     : BackwardWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(riegeli::exchange(src.dest_, absl::Span<char>())) {}
+      written_(riegeli::exchange(src.written_, absl::Span<char>())) {}
 
-inline ArrayBackwardWriter& ArrayBackwardWriter::operator=(
-    ArrayBackwardWriter&& src) noexcept {
+inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
+    ArrayBackwardWriterBase&& src) noexcept {
   BackwardWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, absl::Span<char>());
+  written_ = riegeli::exchange(src.written_, absl::Span<char>());
   return *this;
 }
+
+template <typename Dest>
+ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
+    : ArrayBackwardWriterBase(State::kOpen), dest_(std::move(dest)) {
+  limit_ = dest_.ptr().data();
+  start_ = limit_ + dest_.ptr().size();
+  cursor_ = start_;
+}
+
+template <typename Dest>
+ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
+    ArrayBackwardWriter&& src) noexcept
+    : ArrayBackwardWriterBase(std::move(src)) {
+  MoveDest(std::move(src));
+}
+
+template <typename Dest>
+ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
+    ArrayBackwardWriter&& src) noexcept {
+  ArrayBackwardWriterBase::operator=(std::move(src));
+  MoveDest(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& src) {
+  if (dest_.kIsStable()) {
+    dest_ = std::move(src.dest_);
+  } else {
+    const size_t cursor_index = written_to_buffer();
+    const size_t written_size = written_.size();
+    dest_ = std::move(src.dest_);
+    if (start_ != nullptr) {
+      limit_ = dest_.ptr().data();
+      start_ = limit_ + dest_.ptr().size();
+      cursor_ = start_ - cursor_index;
+    }
+    if (written_.data() != nullptr) {
+      written_ = absl::Span<char>(
+          dest_.ptr().data() + dest_.ptr().size() - written_size, written_size);
+    }
+  }
+}
+
+extern template class ArrayBackwardWriter<absl::Span<char>>;
+extern template class ArrayBackwardWriter<std::string*>;
+extern template class ArrayBackwardWriter<std::string>;
 
 }  // namespace riegeli
 

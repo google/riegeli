@@ -134,8 +134,8 @@ bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
   RIEGELI_CHECK_LE(message.ByteSizeLong(),
                    std::numeric_limits<size_t>::max() - output->size())
       << "Failed precondition of AppendToChain(): Chain size overflow";
-  ChainWriter output_writer(output,
-                            ChainWriter::Options().set_size_hint(size_hint));
+  ChainWriter<> output_writer(
+      output, ChainWriterBase::Options().set_size_hint(size_hint));
   if (ABSL_PREDICT_FALSE(!SerializeToWriter(message, &output_writer))) {
     return false;
   }
@@ -147,8 +147,8 @@ bool AppendPartialToChain(const google::protobuf::MessageLite& message,
   RIEGELI_CHECK_LE(message.ByteSizeLong(),
                    std::numeric_limits<size_t>::max() - output->size())
       << "Failed precondition of AppendPartialToChain(): Chain size overflow";
-  ChainWriter output_writer(output,
-                            ChainWriter::Options().set_size_hint(size_hint));
+  ChainWriter<> output_writer(
+      output, ChainWriterBase::Options().set_size_hint(size_hint));
   if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(message, &output_writer))) {
     return false;
   }

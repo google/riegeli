@@ -25,11 +25,13 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/field_filter.h"
 #include "riegeli/records/chunk_reader.h"
+#include "riegeli/records/chunk_reader_dependency.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
 #include "riegeli/records/skipped_region.h"
@@ -65,54 +67,7 @@ class RecordsMetadataDescriptors : public Object {
   std::unique_ptr<google::protobuf::DescriptorPool> pool_;
 };
 
-// RecordReader reads records of a Riegeli/records file. A record is
-// conceptually a binary string; usually it is a serialized proto message.
-//
-// RecordReader supports reading records sequentially, querying for the current
-// position, and seeking to continue reading from another position. There are
-// two ways of expressing positions, both strictly monotonic:
-//  * RecordPosition (a class) - Faster for seeking.
-//  * Position (an integer)    - Scaled between 0 and file size.
-//
-// Working with RecordPosition is recommended, unless it is needed to seek to an
-// approximate position interpolated along the file, e.g. for splitting the file
-// into shards, or unless the position must be expressed as an integer from the
-// range [0, file_size] in order to fit into a preexisting API.
-//
-// For reading records sequentially, this kind of loop can be used:
-//
-//   SomeProto record;
-//   while (record_reader_.ReadRecord(&record)) {
-//     ... Process record.
-//   }
-//   if (!record_reader_.Close()) {
-//     ... Failed with reason: record_reader_.message()
-//   }
-//
-// For reading records while skipping errors:
-//
-//   Position skipped_bytes = 0;
-//   SomeProto record;
-//   for (;;) {
-//     if (!record_reader_.ReadRecord(&record)) {
-//       SkippedRegion skipped_region;
-//       if (record_reader_.Recover(&skipped_region)) {
-//         skipped_bytes += skipped_region.length();
-//         continue;
-//       }
-//       break;
-//     }
-//     ... Process record.
-//   }
-//   if (!record_reader_.Close()) {
-//     SkippedRegion skipped_region;
-//     if (record_reader_.Recover(&skipped_region)) {
-//       skipped_bytes += skipped_region.length();
-//     } else {
-//       ... Failed with reason: record_reader_.message()
-//     }
-//   }
-class RecordReader : public Object {
+class RecordReaderBase : public Object {
  public:
   class Options {
    public:
@@ -134,26 +89,14 @@ class RecordReader : public Object {
     }
 
    private:
-    friend class RecordReader;
+    friend class RecordReaderBase;
 
     FieldFilter field_filter_ = FieldFilter::All();
   };
 
-  // Creates a closed RecordReader.
-  RecordReader() noexcept;
-
-  // Will read records from the byte Reader which is owned by this RecordReader
-  // and will be closed and deleted when the RecordReader is closed.
-  explicit RecordReader(std::unique_ptr<Reader> byte_reader,
-                        Options options = Options());
-
-  // Will read records from the byte Reader which is not owned by this
-  // RecordReader and must be kept alive but not accessed until closing the
-  // RecordReader.
-  explicit RecordReader(Reader* byte_reader, Options options = Options());
-
-  RecordReader(RecordReader&& src) noexcept;
-  RecordReader& operator=(RecordReader&& src) noexcept;
+  // Returns the Riegeli/records file being read from. Unchanged by Close().
+  virtual ChunkReader* src_chunk_reader() = 0;
+  virtual const ChunkReader* src_chunk_reader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -270,26 +213,15 @@ class RecordReader : public Object {
 #endif
 
  protected:
-  void Done() override;
-
- private:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
 
-  RecordReader(std::unique_ptr<ChunkReader> chunk_reader, Options options);
+  explicit RecordReaderBase(State state) noexcept;
 
-  bool ParseMetadata(const Chunk& chunk, RecordsMetadata* metadata);
+  RecordReaderBase(RecordReaderBase&& src) noexcept;
+  RecordReaderBase& operator=(RecordReaderBase&& src) noexcept;
 
-  // Precondition: !chunk_decoder_.healthy() ||
-  //               chunk_decoder_.index() == chunk_decoder_.num_records()
-  template <typename Record>
-  bool ReadRecordSlow(Record* record, RecordPosition* key);
-
-  // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
-  // and chunk_begin_. On failure resets chunk_decoder_.
-  bool ReadChunk();
-
-  // Invariant: if healthy() then chunk_reader_ != nullptr
-  std::unique_ptr<ChunkReader> chunk_reader_;
+  void Initialize(ChunkReader* src, Options&& options);
+  void Done() override;
 
   // Position of the beginning of the current chunk or end of file, except when
   // Seek(Position) failed to locate the chunk containing the position, in which
@@ -318,6 +250,107 @@ class RecordReader : public Object {
   //   if closed() then recoverable_ == Recoverable::kNo ||
   //                    recoverable_ == Recoverable::kRecoverChunkReader
   Recoverable recoverable_ = Recoverable::kNo;
+
+ private:
+  bool ParseMetadata(const Chunk& chunk, RecordsMetadata* metadata);
+
+  // Precondition: !chunk_decoder_.healthy() ||
+  //               chunk_decoder_.index() == chunk_decoder_.num_records()
+  template <typename Record>
+  bool ReadRecordSlow(Record* record, RecordPosition* key);
+
+  // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
+  // and chunk_begin_. On failure resets chunk_decoder_.
+  bool ReadChunk();
+};
+
+// RecordReader reads records of a Riegeli/records file. A record is
+// conceptually a binary string; usually it is a serialized proto message.
+//
+// RecordReader supports reading records sequentially, querying for the current
+// position, and seeking to continue reading from another position. There are
+// two ways of expressing positions, both strictly monotonic:
+//  * RecordPosition (a class) - Faster for seeking.
+//  * Position (an integer)    - Scaled between 0 and file size.
+//
+// Working with RecordPosition is recommended, unless it is needed to seek to an
+// approximate position interpolated along the file, e.g. for splitting the file
+// into shards, or unless the position must be expressed as an integer from the
+// range [0, file_size] in order to fit into a preexisting API.
+//
+// For reading records sequentially, this kind of loop can be used:
+//
+//   SomeProto record;
+//   while (record_reader_.ReadRecord(&record)) {
+//     ... Process record.
+//   }
+//   if (!record_reader_.Close()) {
+//     ... Failed with reason: record_reader_.message()
+//   }
+//
+// For reading records while skipping errors:
+//
+//   Position skipped_bytes = 0;
+//   SomeProto record;
+//   for (;;) {
+//     if (!record_reader_.ReadRecord(&record)) {
+//       SkippedRegion skipped_region;
+//       if (record_reader_.Recover(&skipped_region)) {
+//         skipped_bytes += skipped_region.length();
+//         continue;
+//       }
+//       break;
+//     }
+//     ... Process record.
+//   }
+//   if (!record_reader_.Close()) {
+//     SkippedRegion skipped_region;
+//     if (record_reader_.Recover(&skipped_region)) {
+//       skipped_bytes += skipped_region.length();
+//     } else {
+//       ... Failed with reason: record_reader_.message()
+//     }
+//   }
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the byte Reader. Src must support Dependency<Reader*, Src>,
+// e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
+// ChainReader<> (owned).
+//
+// Src may also specify a ChunkReader instead of a byte Reader. In this case Src
+// must support Dependency<ChunkReader*, Src>, e.g. ChunkReader* (not owned),
+// unique_ptr<ChunkReader> (owned), DefaultChunkReader<> (owned).
+//
+// The byte Reader or ChunkReader must not be accessed until the RecordReader is
+// closed or no longer used.
+template <typename Src = Reader*>
+class RecordReader : public RecordReaderBase {
+ public:
+  // Creates a closed RecordReader.
+  RecordReader() noexcept : RecordReaderBase(State::kClosed) {}
+
+  // Will read from the byte Reader or ChunkReader provided by src.
+  explicit RecordReader(Src src, Options options = Options());
+
+  RecordReader(RecordReader&& src) noexcept;
+  RecordReader& operator=(RecordReader&& src) noexcept;
+
+  // Returns the object providing and possibly owning the byte Reader or
+  // ChunkReader. Unchanged by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  ChunkReader* src_chunk_reader() override { return src_.ptr(); }
+  const ChunkReader* src_chunk_reader() const override { return src_.ptr(); }
+
+  // An optimized implementation in a derived class, avoiding a virtual call.
+  RecordPosition pos() const;
+
+ protected:
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the byte Reader or ChunkReader.
+  Dependency<ChunkReader*, Src> src_;
 };
 
 // Implementation details follow.
@@ -337,8 +370,8 @@ inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
   return *this;
 }
 
-inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
-                                     RecordPosition* key) {
+inline bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite* record,
+                                         RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
     RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
         << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -350,8 +383,8 @@ inline bool RecordReader::ReadRecord(google::protobuf::MessageLite* record,
   return ReadRecordSlow(record, key);
 }
 
-inline bool RecordReader::ReadRecord(absl::string_view* record,
-                                     RecordPosition* key) {
+inline bool RecordReaderBase::ReadRecord(absl::string_view* record,
+                                         RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
     RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
         << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -363,7 +396,8 @@ inline bool RecordReader::ReadRecord(absl::string_view* record,
   return ReadRecordSlow(record, key);
 }
 
-inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
+inline bool RecordReaderBase::ReadRecord(std::string* record,
+                                         RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
     RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
         << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -375,7 +409,7 @@ inline bool RecordReader::ReadRecord(std::string* record, RecordPosition* key) {
   return ReadRecordSlow(record, key);
 }
 
-inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
+inline bool RecordReaderBase::ReadRecord(Chain* record, RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
     RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
         << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -387,26 +421,62 @@ inline bool RecordReader::ReadRecord(Chain* record, RecordPosition* key) {
   return ReadRecordSlow(record, key);
 }
 
-inline RecordPosition RecordReader::pos() const {
+inline RecordPosition RecordReaderBase::pos() const {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
                         chunk_decoder_.num_records()) ||
       ABSL_PREDICT_FALSE(recoverable_ == Recoverable::kRecoverChunkDecoder)) {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());
   }
-  return RecordPosition(chunk_reader_->pos(), 0);
+  return RecordPosition(src_chunk_reader()->pos(), 0);
 }
 
-inline bool RecordReader::SupportsRandomAccess() const {
-  return chunk_reader_ != nullptr && chunk_reader_->SupportsRandomAccess();
+template <typename Src>
+RecordReader<Src>::RecordReader(Src src, Options options)
+    : RecordReaderBase(State::kOpen), src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.ptr() != nullptr)
+      << "Failed precondition of RecordReader<Src>::RecordReader(Src): "
+         "null ChunkReader pointer";
+  Initialize(src_.ptr(), std::move(options));
 }
 
-inline bool RecordReader::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!chunk_reader_->Size(size))) {
-    return Fail(*chunk_reader_);
+template <typename Src>
+RecordReader<Src>::RecordReader(RecordReader&& src) noexcept
+    : RecordReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+RecordReader<Src>& RecordReader<Src>::operator=(RecordReader&& src) noexcept {
+  RecordReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void RecordReader<Src>::Done() {
+  RecordReaderBase::Done();
+  if (src_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!src_->Close())) {
+      recoverable_ = Recoverable::kRecoverChunkReader;
+      Fail(*src_);
+    }
   }
-  return true;
 }
+
+template <typename Src>
+RecordPosition RecordReader<Src>::pos() const {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
+                        chunk_decoder_.num_records()) ||
+      ABSL_PREDICT_FALSE(recoverable_ == Recoverable::kRecoverChunkDecoder)) {
+    return RecordPosition(chunk_begin_, chunk_decoder_.index());
+  }
+  return RecordPosition(src_->pos(), 0);
+}
+
+extern template class RecordReader<Reader*>;
+extern template class RecordReader<std::unique_ptr<Reader>>;
+extern template class RecordReader<ChunkReader*>;
+extern template class RecordReader<std::unique_ptr<ChunkReader>>;
+extern template class RecordReader<DefaultChunkReader<Reader*>>;
+extern template class RecordReader<DefaultChunkReader<std::unique_ptr<Reader>>>;
 
 }  // namespace riegeli
 

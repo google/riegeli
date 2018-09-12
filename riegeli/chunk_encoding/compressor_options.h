@@ -66,13 +66,13 @@ class CompressorOptions {
   //
   // This is the default compression algorithm.
   static constexpr int kMinBrotli() {
-    return BrotliWriter::Options::kMinCompressionLevel();
+    return BrotliWriterBase::Options::kMinCompressionLevel();
   }
   static constexpr int kMaxBrotli() {
-    return BrotliWriter::Options::kMaxCompressionLevel();
+    return BrotliWriterBase::Options::kMaxCompressionLevel();
   }
   static constexpr int kDefaultBrotli() {
-    return BrotliWriter::Options::kDefaultCompressionLevel();
+    return BrotliWriterBase::Options::kDefaultCompressionLevel();
   }
   CompressorOptions& set_brotli(int compression_level = kDefaultBrotli()) & {
     RIEGELI_ASSERT_GE(compression_level, kMinBrotli())
@@ -95,10 +95,14 @@ class CompressorOptions {
   //
   // compression_level must be between kMinZstd() (-32) and kMaxZstd() (22).
   // Level 0 is currently equivalent to 3. Default: kDefaultZstd() (9).
-  static int kMinZstd() { return ZstdWriter::Options::kMinCompressionLevel(); }
-  static int kMaxZstd() { return ZstdWriter::Options::kMaxCompressionLevel(); }
+  static int kMinZstd() {
+    return ZstdWriterBase::Options::kMinCompressionLevel();
+  }
+  static int kMaxZstd() {
+    return ZstdWriterBase::Options::kMaxCompressionLevel();
+  }
   static constexpr int kDefaultZstd() {
-    return ZstdWriter::Options::kDefaultCompressionLevel();
+    return ZstdWriterBase::Options::kDefaultCompressionLevel();
   }
   CompressorOptions& set_zstd(int compression_level = kDefaultZstd()) & {
     RIEGELI_ASSERT_GE(compression_level, kMinZstd())
@@ -129,22 +133,22 @@ class CompressorOptions {
   // For uncompressed, window_log must be kDefaultWindowLog() (-1).
   //
   // For brotli, window_log must be kDefaultWindowLog() (-1) or between
-  // BrotliWriter::Options::kMinWindowLog() (10) and
-  // BrotliWriter::Options::kMaxWindowLog() (30).
+  // BrotliWriterBase::Options::kMinWindowLog() (10) and
+  // BrotliWriterBase::Options::kMaxWindowLog() (30).
   //
   // For zstd, window_log must be kDefaultWindowLog() (-1) or between
-  // ZstdWriter::Options::kMinWindowLog() (10) and
-  // ZstdWriter::Options::kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit
+  // ZstdWriterBase::Options::kMinWindowLog() (10) and
+  // ZstdWriterBase::Options::kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit
   // build).
   //
   // Default: kDefaultWindowLog() (-1).
   static int kMinWindowLog() {
-    return SignedMin(BrotliWriter::Options::kMinWindowLog(),
-                     ZstdWriter::Options::kMinWindowLog());
+    return SignedMin(BrotliWriterBase::Options::kMinWindowLog(),
+                     ZstdWriterBase::Options::kMinWindowLog());
   }
   static int kMaxWindowLog() {
-    return SignedMax(BrotliWriter::Options::kMaxWindowLog(),
-                     ZstdWriter::Options::kMaxWindowLog());
+    return SignedMax(BrotliWriterBase::Options::kMaxWindowLog(),
+                     ZstdWriterBase::Options::kMaxWindowLog());
   }
   static constexpr int kDefaultWindowLog() { return -1; }
   CompressorOptions& set_window_log(int window_log) & {

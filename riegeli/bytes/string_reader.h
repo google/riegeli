@@ -19,78 +19,133 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/string_view_dependency.h"
 
 namespace riegeli {
 
-// A Reader which reads from a char array. It supports random access.
-class StringReader : public Reader {
+namespace internal {
+
+// Template parameter invariant part of StringReader.
+class StringReaderBase : public Reader {
  public:
-  // Creates a closed StringReader.
-  StringReader() noexcept : Reader(State::kClosed) {}
-
-  // Will read from the array which is not owned by this StringReader and must
-  // be kept alive but not changed until the StringReader is closed.
-  StringReader(const char* src, size_t size);
-
-  // Will read from the string which is not owned by this StringReader and must
-  // be kept alive but not changed until the StringReader is closed.
-  //
-  // In order to read from an owned string, use ChainReader(Chain(*src)) or
-  // ChainReader(Chain(std::move(*src))) instead.
-  explicit StringReader(const std::string* src);
-
-  StringReader(StringReader&& src) noexcept;
-  StringReader& operator=(StringReader&& src) noexcept;
-
-  // Returns the array being read from. Unchanged by Close().
-  absl::string_view src() const { return src_; }
+  // Returns the string or array being read from. Unchanged by Close().
+  virtual absl::string_view src_string_view() const = 0;
 
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) override;
 
  protected:
+  explicit StringReaderBase(State state) noexcept : Reader(state) {}
+
+  StringReaderBase(StringReaderBase&& src) noexcept;
+  StringReaderBase& operator=(StringReaderBase&& src) noexcept;
+
   void Done() override;
   bool PullSlow() override;
   bool SeekSlow(Position new_pos) override;
+};
 
-  absl::string_view src_;
+}  // namespace internal
 
-  // Invariant: if healthy() then start_pos() == 0
+// A Reader which reads from a string. It supports random access.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the string or array being read from. Src must support
+// Dependency<string_view, Src>, e.g. string_view (not owned, default),
+// const string* (not owned), string (owned).
+//
+// It might be better to use ChainReader<Chain> instead of StringReader<string>
+// to allow sharing the data (Chain blocks are reference counted, string data
+// have a single owner).
+//
+// The string or array must not be changed until the StringReader is closed or
+// no longer used.
+template <typename Src = absl::string_view>
+class StringReader : public internal::StringReaderBase {
+ public:
+  // Creates a closed StringReader.
+  StringReader() noexcept : StringReaderBase(State::kClosed) {}
+
+  // Will read from the string or array provided by src.
+  explicit StringReader(Src src);
+
+  StringReader(StringReader&& src) noexcept;
+  StringReader& operator=(StringReader&& src) noexcept;
+
+  // Returns the object providing and possibly owning the string or array being
+  // read from. Unchanged by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  absl::string_view src_string_view() const override { return src_.ptr(); }
+
+ private:
+  void MoveSrc(StringReader&& src);
+
+  // The object providing and possibly owning the string or array being read
+  // from.
+  Dependency<absl::string_view, Src> src_;
 };
 
 // Implementation details follow.
 
-inline StringReader::StringReader(const char* src, size_t size)
-    : Reader(State::kOpen), src_(src, size) {
-  start_ = src;
-  cursor_ = src;
-  limit_ = src + size;
-  limit_pos_ = size;
-}
+namespace internal {
 
-inline StringReader::StringReader(const std::string* src)
-    : StringReader(src->data(), src->size()) {}
+inline StringReaderBase::StringReaderBase(StringReaderBase&& src) noexcept
+    : Reader(std::move(src)) {}
 
-inline StringReader::StringReader(StringReader&& src) noexcept
-    : Reader(std::move(src)),
-      src_(riegeli::exchange(src.src_, absl::string_view())) {}
-
-inline StringReader& StringReader::operator=(StringReader&& src) noexcept {
+inline StringReaderBase& StringReaderBase::operator=(
+    StringReaderBase&& src) noexcept {
   Reader::operator=(std::move(src));
-  src_ = riegeli::exchange(src.src_, absl::string_view());
   return *this;
 }
 
-inline bool StringReader::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *size = limit_pos_;
-  return true;
+}  // namespace internal
+
+template <typename Src>
+StringReader<Src>::StringReader(Src src)
+    : StringReaderBase(State::kOpen), src_(std::move(src)) {
+  start_ = src_.ptr().data();
+  cursor_ = start_;
+  limit_ = start_ + src_.ptr().size();
+  limit_pos_ = src_.ptr().size();
 }
+
+template <typename Src>
+StringReader<Src>::StringReader(StringReader&& src) noexcept
+    : StringReaderBase(std::move(src)) {
+  MoveSrc(std::move(src));
+}
+
+template <typename Src>
+StringReader<Src>& StringReader<Src>::operator=(StringReader&& src) noexcept {
+  StringReaderBase::operator=(std::move(src));
+  MoveSrc(std::move(src));
+  return *this;
+}
+
+template <typename Src>
+void StringReader<Src>::MoveSrc(StringReader&& src) {
+  if (src_.kIsStable()) {
+    src_ = std::move(src.src_);
+  } else {
+    const size_t cursor_index = read_from_buffer();
+    src_ = std::move(src.src_);
+    if (start_ != nullptr) {
+      start_ = src_.ptr().data();
+      cursor_ = start_ + cursor_index;
+      limit_ = start_ + src_.ptr().size();
+    }
+  }
+}
+
+extern template class StringReader<absl::string_view>;
+extern template class StringReader<const std::string*>;
+extern template class StringReader<std::string>;
 
 }  // namespace riegeli
 

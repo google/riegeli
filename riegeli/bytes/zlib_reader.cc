@@ -29,25 +29,20 @@
 
 namespace riegeli {
 
-ZlibReader::ZlibReader(Reader* src, Options options)
-    : BufferedReader(options.buffer_size_), src_(RIEGELI_ASSERT_NOTNULL(src)) {
+void ZlibReaderBase::Initialize(int window_bits) {
   decompressor_present_ = true;
   decompressor_.next_in = nullptr;
   decompressor_.avail_in = 0;
   decompressor_.zalloc = nullptr;
   decompressor_.zfree = nullptr;
   decompressor_.opaque = nullptr;
-  if (ABSL_PREDICT_FALSE(inflateInit2(&decompressor_, options.window_bits_) !=
-                         Z_OK)) {
+  if (ABSL_PREDICT_FALSE(inflateInit2(&decompressor_, window_bits) != Z_OK)) {
     FailOperation("inflateInit2()");
   }
 }
 
-void ZlibReader::Done() {
+void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated zlib-compressed stream");
-  if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
-  }
   if (decompressor_present_) {
     decompressor_present_ = false;
     const int result = inflateEnd(&decompressor_);
@@ -56,12 +51,7 @@ void ZlibReader::Done() {
   BufferedReader::Done();
 }
 
-void ZlibReader::VerifyEnd() {
-  BufferedReader::VerifyEnd();
-  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
-}
-
-inline bool ZlibReader::FailOperation(absl::string_view operation) {
+inline bool ZlibReaderBase::FailOperation(absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_.msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_.msg);
@@ -69,7 +59,7 @@ inline bool ZlibReader::FailOperation(absl::string_view operation) {
   return Fail(message);
 }
 
-bool ZlibReader::PullSlow() {
+bool ZlibReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
@@ -79,8 +69,8 @@ bool ZlibReader::PullSlow() {
   return BufferedReader::PullSlow();
 }
 
-bool ZlibReader::ReadInternal(char* dest, size_t min_length,
-                              size_t max_length) {
+bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
+                                  size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -90,6 +80,7 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
+  Reader* const src = src_reader();
   truncated_ = false;
   decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
@@ -98,11 +89,11 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
                                              decompressor_.next_out),
                     std::numeric_limits<uInt>::max());
     decompressor_.next_in = const_cast<z_const Bytef*>(
-        reinterpret_cast<const Bytef*>(src_->cursor()));
+        reinterpret_cast<const Bytef*>(src->cursor()));
     decompressor_.avail_in =
-        UnsignedMin(src_->available(), std::numeric_limits<uInt>::max());
+        UnsignedMin(src->available(), std::numeric_limits<uInt>::max());
     int result = inflate(&decompressor_, Z_NO_FLUSH);
-    src_->set_cursor(reinterpret_cast<const char*>(decompressor_.next_in));
+    src->set_cursor(reinterpret_cast<const char*>(decompressor_.next_in));
     const size_t length_read =
         PtrDistance(dest, reinterpret_cast<char*>(decompressor_.next_out));
     switch (result) {
@@ -114,9 +105,9 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
         RIEGELI_ASSERT_EQ(decompressor_.avail_in, 0u)
             << "inflate() returned but there are still input data and output "
                "space";
-        if (ABSL_PREDICT_FALSE(!src_->Pull())) {
+        if (ABSL_PREDICT_FALSE(!src->Pull())) {
           limit_pos_ += length_read;
-          if (ABSL_PREDICT_FALSE(!src_->healthy())) return Fail(*src_);
+          if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
           truncated_ = true;
           return false;
         }
@@ -134,5 +125,8 @@ bool ZlibReader::ReadInternal(char* dest, size_t min_length,
     }
   }
 }
+
+template class ZlibReader<Reader*>;
+template class ZlibReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

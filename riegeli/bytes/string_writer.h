@@ -22,13 +22,14 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// A Writer which appends to a string, resizing it as necessary.
-class StringWriter : public Writer {
+// Template parameter invariant part of StringWriter.
+class StringWriterBase : public Writer {
  public:
   class Options {
    public:
@@ -47,34 +48,26 @@ class StringWriter : public Writer {
     }
 
    private:
+    template <typename Dest>
     friend class StringWriter;
 
     Position size_hint_ = 0;
   };
 
-  // Creates a closed StringWriter.
-  StringWriter() noexcept : Writer(State::kClosed) {}
-
-  // Will write to a string which is owned by this StringWriter, available as
-  // dest().
-  explicit StringWriter(OwnsDest, Options options = Options());
-
-  // Will write to the string which is not owned by this StringWriter and must
-  // be kept alive but not accessed until closing the StringWriter, except that
-  // it is allowed to read it directly after Flush().
-  explicit StringWriter(std::string* dest, Options options = Options());
-
-  StringWriter(StringWriter&& src) noexcept;
-  StringWriter& operator=(StringWriter&& src) noexcept;
-
   // Returns the string being written to. Unchanged by Close().
-  std::string& dest() const { return *dest_; }
+  virtual std::string* dest_string() = 0;
+  virtual const std::string* dest_string() const = 0;
 
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:
+  explicit StringWriterBase(State state) noexcept : Writer(state) {}
+
+  StringWriterBase(StringWriterBase&& src) noexcept;
+  StringWriterBase& operator=(StringWriterBase&& src) noexcept;
+
   void Done() override;
   bool PushSlow() override;
   bool WriteSlow(std::string&& src) override;
@@ -82,21 +75,50 @@ class StringWriter : public Writer {
   bool WriteSlow(const Chain& src) override;
 
  private:
-  // Discards uninitialized space from the end of *dest_, so that it contains
+  // Discards uninitialized space from the end of *dest, so that it contains
   // only actual data written. Invalidates buffer pointers.
-  void DiscardBuffer();
+  void DiscardBuffer(std::string* dest);
 
-  // Appends some uninitialized space to *dest_ if this can be done without
+  // Appends some uninitialized space to *dest if this can be done without
   // reallocation. Sets buffer pointers to the uninitialized space.
-  void MakeBuffer(size_t cursor_pos);
-  void MakeBuffer() { return MakeBuffer(dest_->size()); }
+  void MakeBuffer(std::string* dest, size_t cursor_pos);
+  void MakeBuffer(std::string* dest) { return MakeBuffer(dest, dest->size()); }
+};
 
-  std::string owned_dest_;
-  // The string being written to, with uninitialized space appended (possibly
-  // empty); cursor_ points to the uninitialized space.
-  //
-  // Invariant: dest_ != nullptr
-  std::string* dest_ = &owned_dest_;
+// A Writer which appends to a string, resizing it as necessary.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the string being written to. Dest must support
+// Dependency<string*, Src>, e.g. string* (not owned, default), string (owned).
+//
+// The string must not be accessed until the StringWriter is closed or no longer
+// used, except that it is allowed to read the string immediately after Flush().
+template <typename Dest = std::string*>
+class StringWriter : public StringWriterBase {
+ public:
+  // Creates a closed StringWriter.
+  StringWriter() noexcept : StringWriterBase(State::kClosed) {}
+
+  // Will append to the string provided by dest.
+  explicit StringWriter(Dest dest, Options options = Options());
+
+  StringWriter(StringWriter&& src) noexcept;
+  StringWriter& operator=(StringWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the string being written
+  // to. Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  std::string* dest_string() override { return dest_.ptr(); }
+  const std::string* dest_string() const override { return dest_.ptr(); }
+
+ private:
+  void MoveDest(StringWriter&& src);
+
+  // The object providing and possibly owning the string being written to, with
+  // uninitialized space appended (possibly empty); cursor_ points to the
+  // uninitialized space.
+  Dependency<std::string*, Dest> dest_;
 
   // Invariants if healthy():
   //   start_ == &(*dest_)[0]
@@ -106,50 +128,58 @@ class StringWriter : public Writer {
 
 // Implementation details follow.
 
-inline StringWriter::StringWriter(OwnsDest, Options options)
-    : StringWriter(&owned_dest_, options) {}
+inline StringWriterBase::StringWriterBase(StringWriterBase&& src) noexcept
+    : Writer(std::move(src)) {}
 
-inline StringWriter::StringWriter(std::string* dest, Options options)
-    : Writer(State::kOpen), dest_(RIEGELI_ASSERT_NOTNULL(dest)) {
-  const size_t size_hint = UnsignedMin(options.size_hint_, dest->max_size());
-  if (dest->capacity() < size_hint) dest_->reserve(size_hint);
+inline StringWriterBase& StringWriterBase::operator=(
+    StringWriterBase&& src) noexcept {
+  Writer::operator=(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+StringWriter<Dest>::StringWriter(Dest dest, Options options)
+    : StringWriterBase(State::kOpen), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of StringWriter<Dest>::StringWriter(Dest): "
+         "null string pointer";
+  const size_t size_hint = UnsignedMin(options.size_hint_, dest_->max_size());
+  if (dest_->capacity() < size_hint) dest_->reserve(size_hint);
   start_ = &(*dest_)[0];
   cursor_ = start_ + dest_->size();
   limit_ = cursor_;
 }
 
-inline StringWriter::StringWriter(StringWriter&& src) noexcept
-    : Writer(std::move(src)),
-      owned_dest_(riegeli::exchange(src.owned_dest_, std::string())),
-      dest_(src.dest_ == &src.owned_dest_
-                ? &owned_dest_
-                : riegeli::exchange(src.dest_, &src.owned_dest_)) {
-  if (dest_ == &owned_dest_ && ABSL_PREDICT_TRUE(start_ != nullptr)) {
-    // *dest_ was moved, which invalidated buffer pointers.
+template <typename Dest>
+StringWriter<Dest>::StringWriter(StringWriter&& src) noexcept
+    : StringWriterBase(std::move(src)) {
+  MoveDest(std::move(src));
+}
+
+template <typename Dest>
+StringWriter<Dest>& StringWriter<Dest>::operator=(StringWriter&& src) noexcept {
+  StringWriterBase::operator=(std::move(src));
+  MoveDest(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+void StringWriter<Dest>::MoveDest(StringWriter&& src) {
+  if (dest_.kIsStable()) {
+    dest_ = std::move(src.dest_);
+  } else {
     const size_t cursor_index = written_to_buffer();
-    const size_t limit_index = buffer_size();
-    start_ = &owned_dest_[0];
-    cursor_ = start_ + cursor_index;
-    limit_ = start_ + limit_index;
+    dest_ = std::move(src.dest_);
+    if (start_ != nullptr) {
+      start_ = &(*dest_)[0];
+      cursor_ = start_ + cursor_index;
+      limit_ = start_ + dest_->size();
+    }
   }
 }
 
-inline StringWriter& StringWriter::operator=(StringWriter&& src) noexcept {
-  Writer::operator=(std::move(src));
-  owned_dest_ = riegeli::exchange(src.owned_dest_, std::string());
-  dest_ = src.dest_ == &src.owned_dest_
-              ? &owned_dest_
-              : riegeli::exchange(src.dest_, &src.owned_dest_);
-  if (dest_ == &owned_dest_ && ABSL_PREDICT_TRUE(start_ != nullptr)) {
-    // *dest_ was moved, which invalidated buffer pointers.
-    const size_t cursor_index = written_to_buffer();
-    const size_t limit_index = buffer_size();
-    start_ = &owned_dest_[0];
-    cursor_ = start_ + cursor_index;
-    limit_ = start_ + limit_index;
-  }
-  return *this;
-}
+extern template class StringWriter<std::string*>;
+extern template class StringWriter<std::string>;
 
 }  // namespace riegeli
 

@@ -250,6 +250,16 @@ T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
+// riegeli::type_identity_t<T> is T, but does not deduce the T in templates.
+
+template <typename T>
+struct type_identity {
+  using type = T;
+};
+
+template <typename T>
+using type_identity_t = typename type_identity<T>::type;
+
 // riegeli::exchange() is the same as std::exchange() from C++14, but is
 // available since C++11.
 
@@ -491,12 +501,6 @@ constexpr size_t kDefaultBufferSize() { return size_t{64} << 10; }
 // falling back to a virtual slow path instead. The virtual function might take
 // advantage of sharing instead of copying.
 constexpr size_t kMaxBytesToCopy() { return 511; }
-
-// Marker of a constructor of a writer object, so that it will write to a
-// destination which is owned by this writer. This disambiguates the constructor
-// from the default constructor which creates a closed writer.
-struct OwnsDest {};
-constexpr OwnsDest kOwnsDest() { return OwnsDest(); }
 
 }  // namespace riegeli
 

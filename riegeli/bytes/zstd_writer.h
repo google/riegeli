@@ -19,16 +19,18 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
 
 namespace riegeli {
 
-// A Writer which compresses data with Zstd before passing it to another Writer.
-class ZstdWriter : public BufferedWriter {
+// Template parameter invariant part of ZstdWriter.
+class ZstdWriterBase : public BufferedWriter {
  public:
   class Options {
    public:
@@ -46,11 +48,11 @@ class ZstdWriter : public BufferedWriter {
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
           << "Failed precondition of "
-             "ZstdWriter::Options::set_compression_level(): "
+             "ZstdWriterBase::Options::set_compression_level(): "
              "compression level out of range";
       RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
           << "Failed precondition of "
-             "ZstdWriter::Options::set_compression_level()"
+             "ZstdWriterBase::Options::set_compression_level()"
              "compression level out of range";
       compression_level_ = compression_level;
       return *this;
@@ -75,10 +77,12 @@ class ZstdWriter : public BufferedWriter {
     Options& set_window_log(int window_log) & {
       if (window_log != kDefaultWindowLog()) {
         RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
-            << "Failed precondition of ZstdWriter::Options::set_window_log(): "
+            << "Failed precondition of "
+               "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
         RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
-            << "Failed precondition of ZstdWriter::Options::set_window_log(): "
+            << "Failed precondition of "
+               "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
       }
       window_log_ = window_log;
@@ -104,7 +108,8 @@ class ZstdWriter : public BufferedWriter {
     static size_t kDefaultBufferSize() { return ZSTD_CStreamInSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of ZstdWriter::Options::set_buffer_size(): "
+          << "Failed precondition of "
+             "ZstdWriterBase::Options::set_buffer_size(): "
              "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
@@ -114,6 +119,7 @@ class ZstdWriter : public BufferedWriter {
     }
 
    private:
+    template <typename Dest>
     friend class ZstdWriter;
 
     int compression_level_ = kDefaultCompressionLevel();
@@ -122,30 +128,25 @@ class ZstdWriter : public BufferedWriter {
     size_t buffer_size_ = kDefaultBufferSize();
   };
 
-  // Creates a closed ZstdWriter.
-  ZstdWriter() noexcept {}
-
-  // Will write Zstd-compressed stream to the Writer which is owned by this
-  // ZstdWriter and will be closed and deleted when the ZstdWriter is closed.
-  explicit ZstdWriter(std::unique_ptr<Writer> dest,
-                      Options options = Options());
-
-  // Will write Zstd-compressed stream to the Writer which is not owned by this
-  // ZstdWriter and must be kept alive but not accessed until closing the
-  // ZstdWriter, except that it is allowed to read its destination directly
-  // after Flush().
-  explicit ZstdWriter(Writer* dest, Options options = Options());
-
-  ZstdWriter(ZstdWriter&& src) noexcept;
-  ZstdWriter& operator=(ZstdWriter&& src) noexcept;
-
-  // Returns the Writer the compressed stream is being written to. Unchanged by
-  // Close().
-  Writer* dest() const { return dest_; }
+  // Returns the compressed Writer. Unchanged by Close().
+  virtual Writer* dest_writer() = 0;
+  virtual const Writer* dest_writer() const = 0;
 
   bool Flush(FlushType flush_type) override;
 
  protected:
+  ZstdWriterBase() noexcept {}
+
+  ZstdWriterBase(int compression_level, int window_log, Position size_hint,
+                 size_t buffer_size) noexcept
+      : BufferedWriter(buffer_size),
+        compression_level_(compression_level),
+        window_log_(window_log),
+        size_hint_(size_hint) {}
+
+  ZstdWriterBase(ZstdWriterBase&& src) noexcept;
+  ZstdWriterBase& operator=(ZstdWriterBase&& src) noexcept;
+
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -158,11 +159,9 @@ class ZstdWriter : public BufferedWriter {
   bool InitializeCStream();
 
   template <typename Function>
-  bool FlushInternal(Function function, absl::string_view function_name);
+  bool FlushInternal(Function function, absl::string_view function_name,
+                     Writer* dest);
 
-  std::unique_ptr<Writer> owned_dest_;
-  // Invariant: if healthy() then dest_ != nullptr
-  Writer* dest_ = nullptr;
   int compression_level_ = 0;
   int window_log_ = 0;
   Position size_hint_ = 0;
@@ -171,28 +170,82 @@ class ZstdWriter : public BufferedWriter {
   std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
 };
 
+// A Writer which compresses data with Zstd before passing it to another Writer.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the compressed Writer. Dest must support
+// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
+// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+//
+// The compressed Writer must not be accessed until the ZstdWriter is closed or
+// no longer used, except that it is allowed to read the destination of the
+// compressed Writer immediately after Flush().
+template <typename Dest = Writer*>
+class ZstdWriter : public ZstdWriterBase {
+ public:
+  // Creates a closed ZstdWriter.
+  ZstdWriter() noexcept {}
+
+  // Will write to the compressed Writer provided by dest.
+  explicit ZstdWriter(Dest dest, Options options = Options());
+
+  ZstdWriter(ZstdWriter&& src) noexcept;
+  ZstdWriter& operator=(ZstdWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the compressed Writer.
+  // Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  Writer* dest_writer() override { return dest_.ptr(); }
+  const Writer* dest_writer() const override { return dest_.ptr(); }
+
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the compressed Writer.
+  Dependency<Writer*, Dest> dest_;
+};
+
 // Implementation details follow.
 
-inline ZstdWriter::ZstdWriter(std::unique_ptr<Writer> dest, Options options)
-    : ZstdWriter(dest.get(), options) {
-  owned_dest_ = std::move(dest);
-}
-
-inline ZstdWriter::ZstdWriter(Writer* dest, Options options)
-    : BufferedWriter(options.buffer_size_),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      compression_level_(options.compression_level_),
-      window_log_(options.window_log_),
-      size_hint_(options.size_hint_) {}
-
-inline ZstdWriter::ZstdWriter(ZstdWriter&& src) noexcept
+inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& src) noexcept
     : BufferedWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
       compression_level_(riegeli::exchange(src.compression_level_, 0)),
       window_log_(riegeli::exchange(src.window_log_, 0)),
       size_hint_(riegeli::exchange(src.size_hint_, 0)),
       compressor_(std::move(src.compressor_)) {}
+
+template <typename Dest>
+ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
+    : ZstdWriterBase(options.compression_level_, options.window_log_,
+                     options.size_hint_, options.buffer_size_),
+      dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
+         "null Writer pointer";
+}
+
+template <typename Dest>
+ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& src) noexcept
+    : ZstdWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+
+template <typename Dest>
+ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(ZstdWriter&& src) noexcept {
+  ZstdWriterBase::operator=(std::move(src));
+  dest_ = std::move(src.dest_);
+  return *this;
+}
+
+template <typename Dest>
+void ZstdWriter<Dest>::Done() {
+  ZstdWriterBase::Done();
+  if (dest_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+  }
+}
+
+extern template class ZstdWriter<Writer*>;
+extern template class ZstdWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli
 

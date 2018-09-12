@@ -29,10 +29,8 @@
 
 namespace riegeli {
 
-ZstdReader::ZstdReader(Reader* src, Options options)
-    : BufferedReader(options.buffer_size_),
-      src_(RIEGELI_ASSERT_NOTNULL(src)),
-      decompressor_(ZSTD_createDStream()) {
+void ZstdReaderBase::Initialize() {
+  decompressor_.reset(ZSTD_createDStream());
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("ZSTD_createDStream() failed");
     return;
@@ -55,21 +53,13 @@ ZstdReader::ZstdReader(Reader* src, Options options)
   }
 }
 
-void ZstdReader::Done() {
+void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated Zstd-compressed stream");
-  if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
-  }
   decompressor_.reset();
   BufferedReader::Done();
 }
 
-void ZstdReader::VerifyEnd() {
-  BufferedReader::VerifyEnd();
-  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
-}
-
-bool ZstdReader::PullSlow() {
+bool ZstdReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
@@ -79,8 +69,8 @@ bool ZstdReader::PullSlow() {
   return BufferedReader::PullSlow();
 }
 
-bool ZstdReader::ReadInternal(char* dest, size_t min_length,
-                              size_t max_length) {
+bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
+                                  size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -90,6 +80,7 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
+  Reader* const src = src_reader();
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos_)) {
@@ -97,10 +88,10 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
   }
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
-    ZSTD_inBuffer input = {src_->cursor(), src_->available(), 0};
+    ZSTD_inBuffer input = {src->cursor(), src->available(), 0};
     const size_t result =
         ZSTD_decompressStream(decompressor_.get(), &output, &input);
-    src_->set_cursor(static_cast<const char*>(input.src) + input.pos);
+    src->set_cursor(static_cast<const char*>(input.src) + input.pos);
     if (ABSL_PREDICT_FALSE(result == 0)) {
       decompressor_.reset();
       limit_pos_ += output.pos;
@@ -119,13 +110,16 @@ bool ZstdReader::ReadInternal(char* dest, size_t min_length,
     RIEGELI_ASSERT_EQ(input.pos, input.size)
         << "ZSTD_decompressStream() returned but there are still input data "
            "and output space";
-    if (ABSL_PREDICT_FALSE(!src_->Pull())) {
+    if (ABSL_PREDICT_FALSE(!src->Pull())) {
       limit_pos_ += output.pos;
-      if (ABSL_PREDICT_FALSE(!src_->healthy())) return Fail(*src_);
+      if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       truncated_ = true;
       return false;
     }
   }
 }
+
+template class ZstdReader<Reader*>;
+template class ZstdReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

@@ -28,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/field_filter.h"
 
@@ -118,7 +119,7 @@ class ChunkDecoder : public Object {
   void Done() override;
 
  private:
-  bool Parse(const ChunkHeader& header, ChainReader* src, Chain* dest);
+  bool Parse(const ChunkHeader& header, Reader* src, Chain* dest);
 
   FieldFilter field_filter_;
   // Invariants if healthy():
@@ -126,7 +127,7 @@ class ChunkDecoder : public Object {
   //   (limits_.empty() ? 0 : limits_.back()) == size of values_reader_
   //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()
   std::vector<size_t> limits_;
-  ChainReader values_reader_;
+  ChainReader<Chain> values_reader_;
   // Invariant: index_ <= num_records()
   uint64_t index_ = 0;
   std::string record_scratch_;

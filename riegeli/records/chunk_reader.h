@@ -16,9 +16,11 @@
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -27,27 +29,12 @@
 
 namespace riegeli {
 
-// A ChunkReader reads chunks of a Riegeli/records file (rather than individual
-// records, as RecordReader does).
-//
-// ChunkReader can be used together with ChunkWriter to rewrite Riegeli/records
-// files without recompressing chunks, e.g. to concatenate files.
-//
-// TODO: If use cases arise, this could be made an abstract class,
-// together with a default implementation, analogously to ChunkWriter.
-class ChunkReader : public Object {
+// Template parameter invariant part of DefaultChunkReader.
+class DefaultChunkReaderBase : public Object {
  public:
-  // Will read chunks from the byte Reader which is owned by this ChunkReader
-  // and will be closed and deleted when the ChunkReader is closed.
-  explicit ChunkReader(std::unique_ptr<Reader> byte_reader);
-
-  // Will read chunks from the byte Reader which is not owned by this
-  // ChunkReader and must be kept alive but not accessed until closing the
-  // ChunkReader.
-  explicit ChunkReader(Reader* byte_reader);
-
-  ChunkReader(const ChunkReader&) = delete;
-  ChunkReader& operator=(const ChunkReader&) = delete;
+  // Returns the Riegeli/records file being read from. Unchanged by Close().
+  virtual Reader* src_reader() = 0;
+  virtual const Reader* src_reader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
@@ -151,33 +138,39 @@ class ChunkReader : public Object {
   bool Size(Position* size);
 
  protected:
+  explicit DefaultChunkReaderBase(State state) : Object(state) {}
+
+  DefaultChunkReaderBase(DefaultChunkReaderBase&& src) noexcept;
+  DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& src) noexcept;
+
+  void Initialize(Reader* src);
   void Done() override;
 
  private:
   enum class Recoverable { kNo, kHaveChunk, kFindChunk };
   enum class WhichChunk { kContaining, kBefore, kAfter };
 
-  // Interprets a false result from a byte_reader_ reading or seeking function.
+  // Interprets a false result from src reading or seeking function.
   //
   // End of file (i.e. if healthy()) is propagated, setting truncated_ if it was
   // in the middle of a chunk.
   //
   // Always returns false.
-  bool ReadingFailed();
+  bool ReadingFailed(Reader* src);
 
-  // Interprets a false result from a byte_reader_ reading or seeking function.
+  // Interprets a false result from src reading or seeking function.
   //
   // End of file (i.e. if healthy()) fails the ChunkReader.
   //
   // Always returns false.
-  bool SeekingFailed(Position new_pos);
+  bool SeekingFailed(Reader* src, Position new_pos);
 
   // Reads or continues reading chunk_.header.
   bool ReadChunkHeader();
 
   // Reads or continues reading block_header_.
   //
-  // Precondition: internal::RemainingInBlockHeader(byte_reader_->pos()) > 0
+  // Precondition: internal::RemainingInBlockHeader(src_reader()->pos()) > 0
   bool ReadBlockHeader();
 
   // Shared implementation of SeekToChunkContaining(), SeekToChunkBefore(), and
@@ -185,27 +178,23 @@ class ChunkReader : public Object {
   template <WhichChunk which_chunk>
   bool SeekToChunk(Position new_pos);
 
-  std::unique_ptr<Reader> owned_byte_reader_;
-  // Invariant: if healthy() then byte_reader_ != nullptr
-  Reader* byte_reader_;
-
   // If true, the source is truncated (in the middle of a chunk) at the current
   // position. If the source does not grow, Close() will fail.
   //
-  // Invariant: if truncated_ then byte_reader_->pos() > pos_
+  // Invariant: if truncated_ then src_reader()->pos() > pos_
   bool truncated_ = false;
 
   // Beginning of the current chunk.
   //
-  // If pos_ > byte_reader_->pos(), the source ends in a skipped region. In this
+  // If pos_ > src_reader()->pos(), the source ends in a skipped region. In this
   // case pos_ can be a block boundary instead of a chunk boundary.
-  Position pos_;
+  Position pos_ = 0;
 
   // Chunk header and chunk data, filled to the point derived from pos_ and
-  // byte_reader_->pos().
+  // src_reader()->pos().
   Chunk chunk_;
 
-  // Block header, filled to the point derived from byte_reader_->pos().
+  // Block header, filled to the point derived from src_reader()->pos().
   internal::BlockHeader block_header_;
 
   // Whether Recover() is applicable, and if so, how it should be performed:
@@ -229,17 +218,111 @@ class ChunkReader : public Object {
   Position recoverable_pos_ = 0;
 };
 
+// A ChunkReader reads chunks of a Riegeli/records file (rather than individual
+// records, as RecordReader does).
+//
+// TODO: If the need arises, ChunkReader can be made more abstract than
+// DefaultChunkReaderBase, similarly to ChunkWriter.
+using ChunkReader = DefaultChunkReaderBase;
+
+// The default ChunkReader. Reads chunks from a byte Reader, expecting them to
+// be interleaved with block headers at multiples of the Riegeli/records block
+// size.
+//
+// DefaultChunkReader can be used together with DefaultChunkWriter to rewrite
+// Riegeli/records files without recompressing chunks, e.g. to concatenate
+// files.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the byte Reader. Src must support Dependency<Reader*, Src>,
+// e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
+// ChainReader<> (owned).
+//
+// The byte Reader must not be accessed until the DefaultChunkReader is closed
+// or no longer used.
+template <typename Src = Reader*>
+class DefaultChunkReader : public DefaultChunkReaderBase {
+ public:
+  DefaultChunkReader() : DefaultChunkReaderBase(State::kClosed) {}
+
+  // Will read from the byte Reader provided by src.
+  explicit DefaultChunkReader(Src src);
+
+  DefaultChunkReader(DefaultChunkReader&& src) noexcept;
+  DefaultChunkReader& operator=(DefaultChunkReader&& src) noexcept;
+
+  // Returns the object providing and possibly owning the byte Reader. Unchanged
+  // by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  Reader* src_reader() override { return src_.ptr(); }
+  const Reader* src_reader() const override { return src_.ptr(); }
+
+ protected:
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the Riegeli/records file being
+  // read from.
+  Dependency<Reader*, Src> src_;
+};
+
 // Implementation details follow.
 
-inline bool ChunkReader::SupportsRandomAccess() const {
-  return byte_reader_ != nullptr && byte_reader_->SupportsRandomAccess();
+inline DefaultChunkReaderBase::DefaultChunkReaderBase(
+    DefaultChunkReaderBase&& src) noexcept
+    : Object(std::move(src)),
+      truncated_(riegeli::exchange(src.truncated_, false)),
+      pos_(riegeli::exchange(src.pos_, 0)),
+      chunk_(riegeli::exchange(src.chunk_, Chunk())),
+      block_header_(src.block_header_),
+      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)),
+      recoverable_pos_(riegeli::exchange(src.recoverable_pos_, 0)) {}
+
+inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
+    DefaultChunkReaderBase&& src) noexcept {
+  Object::operator=(std::move(src));
+  truncated_ = riegeli::exchange(src.truncated_, false);
+  pos_ = riegeli::exchange(src.pos_, 0);
+  chunk_ = riegeli::exchange(src.chunk_, Chunk());
+  block_header_ = src.block_header_;
+  recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
+  recoverable_pos_ = riegeli::exchange(src.recoverable_pos_, 0);
+  return *this;
 }
 
-inline bool ChunkReader::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!byte_reader_->Size(size))) return Fail(*byte_reader_);
-  return true;
+template <typename Src>
+DefaultChunkReader<Src>::DefaultChunkReader(Src src)
+    : DefaultChunkReaderBase(State::kOpen), src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.ptr() != nullptr)
+      << "Failed precondition of "
+         "DefaultChunkReader<Src>::DefaultChunkReader(Src): "
+         "null Reader pointer";
+  Initialize(src_.ptr());
 }
+
+template <typename Src>
+DefaultChunkReader<Src>::DefaultChunkReader(DefaultChunkReader&& src) noexcept
+    : DefaultChunkReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
+    DefaultChunkReader&& src) noexcept {
+  DefaultChunkReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void DefaultChunkReader<Src>::Done() {
+  DefaultChunkReaderBase::Done();
+  if (src_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+  }
+}
+
+extern template class DefaultChunkReader<Reader*>;
+extern template class DefaultChunkReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli
 

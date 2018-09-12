@@ -23,13 +23,14 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
 
-// A BackwardWriter which prepends to a Chain.
-class ChainBackwardWriter : public BackwardWriter {
+// Template parameter invariant part of ChainBackwardWriter.
+class ChainBackwardWriterBase : public BackwardWriter {
  public:
   class Options {
    public:
@@ -48,32 +49,30 @@ class ChainBackwardWriter : public BackwardWriter {
     }
 
    private:
+    template <typename Dest>
     friend class ChainBackwardWriter;
 
     Position size_hint_ = 0;
   };
 
-  // Creates a closed ChainBackwardWriter.
-  ChainBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}
-
-  // Will write to a Chain which is owned by this ChainBackwardWriter, available
-  // as dest().
-  explicit ChainBackwardWriter(OwnsDest, Options options = Options());
-
-  // Will write to the Chain which is not owned by this ChainBackwardWriter and
-  // must be kept alive but not accessed until closing the ChainBackwardWriter.
-  explicit ChainBackwardWriter(Chain* dest, Options options = Options());
-
-  ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
-  ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
-
   // Returns the Chain being written to.
-  Chain& dest() const { return *dest_; }
+  virtual Chain* dest_chain() = 0;
+  virtual const Chain* dest_chain() const = 0;
 
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:
+  ChainBackwardWriterBase() noexcept : BackwardWriter(State::kClosed) {}
+
+  explicit ChainBackwardWriterBase(Position size_hint)
+      : BackwardWriter(State::kOpen),
+        size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
+  }
+
+  ChainBackwardWriterBase(ChainBackwardWriterBase&& src) noexcept;
+  ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& src) noexcept;
+
   void Done() override;
   bool PushSlow() override;
   bool WriteSlow(absl::string_view src) override;
@@ -82,24 +81,54 @@ class ChainBackwardWriter : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Discards uninitialized space from the beginning of *dest_, so that it
+  // Discards uninitialized space from the beginning of *dest, so that it
   // contains only actual data written. Invalidates buffer pointers and
   // start_pos_.
-  void DiscardBuffer();
+  void DiscardBuffer(Chain* dest);
 
-  // Prepends some uninitialized space to *dest_ if this can be done without
+  // Prepends some uninitialized space to *dest if this can be done without
   // allocation. Sets buffer pointers to the uninitialized space and restores
   // start_pos_.
-  void MakeBuffer();
+  void MakeBuffer(Chain* dest);
 
-  Chain owned_dest_;
-  // The Chain being written to, with uninitialized space prepended (possibly
-  // empty); cursor_ points to the end of the uninitialized space, except that
-  // it can be nullptr if the uninitialized space is empty.
-  //
-  // Invariant: dest_ != nullptr
-  Chain* dest_ = &owned_dest_;
   size_t size_hint_ = 0;
+};
+
+// A BackwardWriter which prepends to a Chain.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the Chain being written to. Dest must support
+// Dependency<Chain*, Src>, e.g. Chain* (not owned, default), Chain (owned).
+//
+// The Chain must not be accessed until the ChainBackwardWriter is closed or no
+// longer used.
+template <typename Dest = Chain*>
+class ChainBackwardWriter : public ChainBackwardWriterBase {
+ public:
+  // Creates a closed ChainBackwardWriter.
+  ChainBackwardWriter() noexcept {}
+
+  // Will prepend to the Chain provided by dest.
+  explicit ChainBackwardWriter(Dest dest, Options options = Options());
+
+  ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
+  ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the Chain being written
+  // to.
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  Chain* dest_chain() override { return dest_.ptr(); }
+  const Chain* dest_chain() const override { return dest_.ptr(); }
+
+ private:
+  void MoveDest(ChainBackwardWriter&& src);
+
+  // The object providing and possibly owning the Chain being written to, with
+  // uninitialized space prepended (possibly empty); cursor_ points to the end
+  // of the uninitialized space, except that it can be nullptr if the
+  // uninitialized space is empty.
+  Dependency<Chain*, Dest> dest_;
 
   // Invariants if healthy():
   //   limit_ == nullptr || limit_ == dest_->blocks().front().data()
@@ -108,51 +137,61 @@ class ChainBackwardWriter : public BackwardWriter {
 
 // Implementation details follow.
 
-inline ChainBackwardWriter::ChainBackwardWriter(OwnsDest, Options options)
-    : ChainBackwardWriter(&owned_dest_, options) {}
-
-inline ChainBackwardWriter::ChainBackwardWriter(Chain* dest, Options options)
-    : BackwardWriter(State::kOpen),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      size_hint_(
-          UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
-  start_pos_ = dest->size();
-}
-
-inline ChainBackwardWriter::ChainBackwardWriter(
-    ChainBackwardWriter&& src) noexcept
+inline ChainBackwardWriterBase::ChainBackwardWriterBase(
+    ChainBackwardWriterBase&& src) noexcept
     : BackwardWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(src.dest_ == &src.owned_dest_
-                ? &owned_dest_
-                : riegeli::exchange(src.dest_, &src.owned_dest_)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {
-  if (dest_ == &owned_dest_ && start_ != nullptr) {
-    // *dest_ was moved, which invalidated buffer pointers.
-    const size_t cursor_index = written_to_buffer();
-    limit_ = const_cast<char*>(owned_dest_.blocks().front().data());
-    start_ = limit_ + (owned_dest_.size() - IntCast<size_t>(start_pos_));
-    cursor_ = start_ - cursor_index;
-  }
-}
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
 
-inline ChainBackwardWriter& ChainBackwardWriter::operator=(
-    ChainBackwardWriter&& src) noexcept {
+inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
+    ChainBackwardWriterBase&& src) noexcept {
   BackwardWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = src.dest_ == &src.owned_dest_
-              ? &owned_dest_
-              : riegeli::exchange(src.dest_, &src.owned_dest_);
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  if (dest_ == &owned_dest_ && start_ != nullptr) {
-    // *dest_ was moved, which invalidated buffer pointers.
-    const size_t cursor_index = written_to_buffer();
-    limit_ = const_cast<char*>(owned_dest_.blocks().front().data());
-    start_ = limit_ + (owned_dest_.size() - IntCast<size_t>(start_pos_));
-    cursor_ = start_ - cursor_index;
-  }
   return *this;
 }
+
+template <typename Dest>
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest dest,
+                                                      Options options)
+    : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of "
+         "ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest): "
+         "null Chain pointer";
+  start_pos_ = dest_->size();
+}
+
+template <typename Dest>
+ChainBackwardWriter<Dest>::ChainBackwardWriter(
+    ChainBackwardWriter&& src) noexcept
+    : ChainBackwardWriterBase(std::move(src)) {
+  MoveDest(std::move(src));
+}
+
+template <typename Dest>
+ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
+    ChainBackwardWriter&& src) noexcept {
+  ChainBackwardWriterBase::operator=(std::move(src));
+  MoveDest(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& src) {
+  if (dest_.kIsStable()) {
+    dest_ = std::move(src.dest_);
+  } else {
+    const size_t cursor_index = written_to_buffer();
+    dest_ = std::move(src.dest_);
+    if (start_ != nullptr) {
+      limit_ = const_cast<char*>(dest_->blocks().back().data());
+      start_ = limit_ + (dest_->size() - IntCast<size_t>(start_pos_));
+      cursor_ = start_ - cursor_index;
+    }
+  }
+}
+
+extern template class ChainBackwardWriter<Chain*>;
+extern template class ChainBackwardWriter<Chain>;
 
 }  // namespace riegeli
 

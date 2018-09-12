@@ -34,6 +34,7 @@ cc_library(
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:message_parse",
+        "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -122,8 +123,8 @@ cc_library(
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:zstd_reader",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -210,9 +211,9 @@ cc_library(
         "//riegeli/bytes:limiting_backward_writer",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
+        "//riegeli/bytes:string_reader",
         "//riegeli/bytes:writer_utils",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
 )

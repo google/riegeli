@@ -24,125 +24,132 @@
 
 namespace riegeli {
 
-void StringWriter::Done() {
+void StringWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+    std::string* const dest = dest_string();
+    RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
         << "StringWriter destination changed unexpectedly";
-    DiscardBuffer();
-    start_pos_ = dest_->size();
+    DiscardBuffer(dest);
+    start_pos_ = dest->size();
   }
   Writer::Done();
 }
 
-bool StringWriter::PushSlow() {
+bool StringWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(dest_->size() == dest_->max_size())) {
+  if (ABSL_PREDICT_FALSE(dest->size() == dest->max_size())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  const size_t cursor_pos = dest_->size();
-  if (dest_->capacity() == dest_->size()) dest_->push_back('\0');
-  MakeBuffer(cursor_pos);
+  const size_t cursor_pos = dest->size();
+  if (dest->capacity() == dest->size()) dest->push_back('\0');
+  MakeBuffer(dest, cursor_pos);
   return true;
 }
 
-bool StringWriter::WriteSlow(absl::string_view src) {
+bool StringWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         dest_->max_size() - written_to_buffer())) {
+  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer();
-  dest_->append(src.data(), src.size());
-  MakeBuffer();
+  DiscardBuffer(dest);
+  dest->append(src.data(), src.size());
+  MakeBuffer(dest);
   return true;
 }
 
-bool StringWriter::WriteSlow(std::string&& src) {
+bool StringWriterBase::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(string&&): "
          "length too small, use Write(string&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         dest_->max_size() - written_to_buffer())) {
+  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer();
-  if (dest_->empty() && dest_->capacity() <= src.capacity()) {
-    *dest_ = std::move(src);
+  DiscardBuffer(dest);
+  if (dest->empty() && dest->capacity() <= src.capacity()) {
+    *dest = std::move(src);
   } else {
-    dest_->append(src);
+    dest->append(src);
   }
-  MakeBuffer();
+  MakeBuffer(dest);
   return true;
 }
 
-bool StringWriter::WriteSlow(const Chain& src) {
+bool StringWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         dest_->max_size() - written_to_buffer())) {
+  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer();
-  src.AppendTo(dest_);
-  MakeBuffer();
+  DiscardBuffer(dest);
+  src.AppendTo(dest);
+  MakeBuffer(dest);
   return true;
 }
 
-bool StringWriter::Flush(FlushType flush_type) {
+bool StringWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  DiscardBuffer();
-  start_ = &(*dest_)[0];
-  cursor_ = start_ + dest_->size();
+  DiscardBuffer(dest);
+  start_ = &(*dest)[0];
+  cursor_ = start_ + dest->size();
   limit_ = cursor_;
   return true;
 }
 
-bool StringWriter::Truncate(Position new_size) {
+bool StringWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_EQ(buffer_size(), dest_->size())
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   cursor_ = start_ + new_size;
   return true;
 }
 
-inline void StringWriter::DiscardBuffer() {
-  dest_->resize(written_to_buffer());
+inline void StringWriterBase::DiscardBuffer(std::string* dest) {
+  dest->resize(written_to_buffer());
 }
 
-inline void StringWriter::MakeBuffer(size_t cursor_pos) {
-  const size_t dest_size = dest_->capacity();
-  dest_->resize(dest_size);
-  start_ = &(*dest_)[0];
+inline void StringWriterBase::MakeBuffer(std::string* dest, size_t cursor_pos) {
+  const size_t dest_size = dest->capacity();
+  dest->resize(dest_size);
+  start_ = &(*dest)[0];
   cursor_ = start_ + cursor_pos;
   limit_ = start_ + dest_size;
 }
+
+template class StringWriter<std::string*>;
+template class StringWriter<std::string>;
 
 }  // namespace riegeli

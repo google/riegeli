@@ -50,7 +50,7 @@ class SimpleDecoder : public Object {
   // Returns the Reader from which concatenated record values should be read.
   //
   // Precondition: healthy()
-  Reader* reader() const;
+  Reader* reader();
 
   // Verifies that the concatenated record values end at the current position,
   // failing the SimpleDecoder if not. Closes the SimpleDecoder.
@@ -66,12 +66,12 @@ class SimpleDecoder : public Object {
   void Done() override;
 
  private:
-  internal::Decompressor values_decompressor_;
+  internal::Decompressor<> values_decompressor_;
 };
 
 // Implementation details follow.
 
-inline Reader* SimpleDecoder::reader() const {
+inline Reader* SimpleDecoder::reader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of SimpleDecoder::reader(): " << message();
   return values_decompressor_.reader();

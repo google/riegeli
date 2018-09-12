@@ -21,26 +21,30 @@
 
 namespace riegeli {
 
-void ArrayBackwardWriter::Done() {
+void ArrayBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    dest_ = absl::Span<char>(cursor_, written_to_buffer());
+    written_ = absl::Span<char>(cursor_, written_to_buffer());
     start_pos_ = pos();
   }
   BackwardWriter::Done();
 }
 
-bool ArrayBackwardWriter::PushSlow() {
+bool ArrayBackwardWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "space available, use Push() instead";
   return FailOverflow();
 }
 
-bool ArrayBackwardWriter::Truncate(Position new_size) {
+bool ArrayBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   cursor_ = start_ - new_size;
   return true;
 }
+
+template class ArrayBackwardWriter<absl::Span<char>>;
+template class ArrayBackwardWriter<std::string*>;
+template class ArrayBackwardWriter<std::string>;
 
 }  // namespace riegeli

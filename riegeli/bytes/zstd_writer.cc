@@ -33,13 +33,11 @@ namespace riegeli {
 
 // These methods are defined here instead of in zstd_writer.h because
 // ZSTD_WINDOWLOG_{MIN,MAX} require ZSTD_STATIC_LINKING_ONLY.
-int ZstdWriter::Options::kMinWindowLog() { return ZSTD_WINDOWLOG_MIN; }
-int ZstdWriter::Options::kMaxWindowLog() { return ZSTD_WINDOWLOG_MAX; }
+int ZstdWriterBase::Options::kMinWindowLog() { return ZSTD_WINDOWLOG_MIN; }
+int ZstdWriterBase::Options::kMaxWindowLog() { return ZSTD_WINDOWLOG_MAX; }
 
-ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
+ZstdWriterBase& ZstdWriterBase::operator=(ZstdWriterBase&& src) noexcept {
   BufferedWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, nullptr);
   compression_level_ = riegeli::exchange(src.compression_level_, 0);
   window_log_ = riegeli::exchange(src.window_log_, 0),
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
@@ -53,22 +51,19 @@ ZstdWriter& ZstdWriter::operator=(ZstdWriter&& src) noexcept {
   return *this;
 }
 
-void ZstdWriter::Done() {
-  PushInternal();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    FlushInternal(ZSTD_endStream, "ZSTD_endStream()");
-  }
-  if (owned_dest_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_dest_->Close())) Fail(*owned_dest_);
+void ZstdWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(PushInternal())) {
+    Writer* const dest = dest_writer();
+    RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+        << "BufferedWriter::PushInternal() did not empty the buffer";
+    FlushInternal(ZSTD_endStream, "ZSTD_endStream()", dest);
   }
   // Do not reset compressor_. It might be reused if a fresh ZstdWriter is
   // assigned to *this.
   BufferedWriter::Done();
 }
 
-inline bool ZstdWriter::EnsureCStreamCreated() {
+inline bool ZstdWriterBase::EnsureCStreamCreated() {
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     compressor_.reset(ZSTD_createCStream());
     if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
@@ -79,7 +74,7 @@ inline bool ZstdWriter::EnsureCStreamCreated() {
   return true;
 }
 
-inline bool ZstdWriter::InitializeCStream() {
+inline bool ZstdWriterBase::InitializeCStream() {
   ZSTD_parameters params = ZSTD_getParams(
       compression_level_, IntCast<unsigned long long>(size_hint_), 0);
   if (window_log_ >= 0) {
@@ -94,25 +89,7 @@ inline bool ZstdWriter::InitializeCStream() {
   return true;
 }
 
-bool ZstdWriter::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
-  if (ABSL_PREDICT_FALSE(
-          !FlushInternal(ZSTD_flushStream, "ZSTD_flushStream()"))) {
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) {
-    if (ABSL_PREDICT_FALSE(!dest_->healthy())) {
-      limit_ = start_;
-      return Fail(*dest_);
-    }
-    return false;
-  }
-  return true;
-}
-
-bool ZstdWriter::WriteInternal(absl::string_view src) {
+bool ZstdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -122,6 +99,7 @@ bool ZstdWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
+  Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
     limit_ = start_;
@@ -130,10 +108,10 @@ bool ZstdWriter::WriteInternal(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
-    ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
+    ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
     const size_t result =
         ZSTD_compressStream(compressor_.get(), &output, &input);
-    dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
+    dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       limit_ = start_;
       return Fail(absl::StrCat("ZSTD_compressStream() failed: ",
@@ -146,26 +124,47 @@ bool ZstdWriter::WriteInternal(absl::string_view src) {
       start_pos_ += input.pos;
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!dest_->Push())) {
+    if (ABSL_PREDICT_FALSE(!dest->Push())) {
       limit_ = start_;
-      return Fail(*dest_);
+      return Fail(*dest);
     }
   }
 }
 
-template <typename Function>
-bool ZstdWriter::FlushInternal(Function function,
-                               absl::string_view function_name) {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ZstdWriter::FlushInternal(): " << message();
+bool ZstdWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  Writer* const dest = dest_writer();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of ZstdWriter::FlushInternal(): "
+      << "BufferedWriter::PushInternal() did not empty the buffer";
+  if (ABSL_PREDICT_FALSE(
+          !FlushInternal(ZSTD_flushStream, "ZSTD_flushStream()", dest))) {
+    return false;
+  }
+  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) {
+    if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+      limit_ = start_;
+      return Fail(*dest);
+    }
+    return false;
+  }
+  return true;
+}
+
+template <typename Function>
+bool ZstdWriterBase::FlushInternal(Function function,
+                                   absl::string_view function_name,
+                                   Writer* dest) {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of ZstdWriterBase::FlushInternal(): "
+      << message();
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of ZstdWriterBase::FlushInternal(): "
          "buffer not cleared";
   if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
   for (;;) {
-    ZSTD_outBuffer output = {dest_->cursor(), dest_->available(), 0};
+    ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
     const size_t result = function(compressor_.get(), &output);
-    dest_->set_cursor(static_cast<char*>(output.dst) + output.pos);
+    dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) return true;
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       limit_ = start_;
@@ -174,11 +173,14 @@ bool ZstdWriter::FlushInternal(Function function,
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size)
         << function_name << " returned but there is still output space";
-    if (ABSL_PREDICT_FALSE(!dest_->Push())) {
+    if (ABSL_PREDICT_FALSE(!dest->Push())) {
       limit_ = start_;
-      return Fail(*dest_);
+      return Fail(*dest);
     }
   }
 }
+
+template class ZstdWriter<Writer*>;
+template class ZstdWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

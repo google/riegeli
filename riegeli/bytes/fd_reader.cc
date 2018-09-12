@@ -45,7 +45,7 @@
 #include "riegeli/base/str_error.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/fd_holder.h"
+#include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -108,51 +108,33 @@ void MMapRef::DumpStructure(absl::string_view data, std::ostream& out) const {
 
 namespace internal {
 
-inline FdReaderBase::FdReaderBase(int fd, bool owns_fd, size_t buffer_size)
-    : BufferedReader(UnsignedMin(buffer_size,
-                                 Position{std::numeric_limits<off_t>::max()})),
-      owned_fd_(owns_fd ? fd : -1),
-      fd_(fd),
-      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)) {
-  RIEGELI_ASSERT_GE(fd, 0)
-      << "Failed precondition of FdReaderBase::FdReaderBase(int): "
-         "negative file descriptor";
+FdReaderCommon::FdReaderCommon(size_t buffer_size)
+    : BufferedReader(UnsignedMin(
+          buffer_size, Position{std::numeric_limits<off_t>::max()})) {}
+
+void FdReaderCommon::SetFilename(int src) {
+  if (src == 0) {
+    filename_ = "/dev/stdin";
+  } else {
+    filename_ = absl::StrCat("/proc/self/fd/", src);
+  }
 }
 
-inline FdReaderBase::FdReaderBase(absl::string_view filename, int flags,
-                                  bool owns_fd, size_t buffer_size)
-    : BufferedReader(UnsignedMin(buffer_size,
-                                 Position{std::numeric_limits<off_t>::max()})),
-      filename_(filename) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdReaderBase::FdReaderBase(string_view): "
-         "flags must include O_RDONLY or O_RDWR";
+int FdReaderCommon::OpenFd(absl::string_view filename, int flags) {
+  filename_.assign(filename.data(), filename.size());
 again:
-  fd_ = open(filename_.c_str(), flags, 0666);
-  if (ABSL_PREDICT_FALSE(fd_ < 0)) {
+  const int src = open(filename_.c_str(), flags, 0666);
+  if (ABSL_PREDICT_FALSE(src < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     FailOperation("open()", error_code);
-    return;
+    return -1;
   }
-  if (owns_fd) owned_fd_ = FdHolder(fd_);
+  return src;
 }
 
-void FdReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) MaybeSyncPos();
-  if (owned_fd_.fd() >= 0) {
-    const int error_code = owned_fd_.Close();
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(FdHolder::CloseFunctionName(), error_code);
-    }
-    fd_ = -1;
-  }
-  BufferedReader::Done();
-}
-
-inline bool FdReaderBase::FailOperation(absl::string_view operation,
-                                        int error_code) {
+bool FdReaderCommon::FailOperation(absl::string_view operation,
+                                   int error_code) {
   error_code_ = error_code;
   return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
                            ", reading ", filename_));
@@ -160,21 +142,9 @@ inline bool FdReaderBase::FailOperation(absl::string_view operation,
 
 }  // namespace internal
 
-FdReader::FdReader(int fd, Options options)
-    : FdReaderBase(fd, options.owns_fd_, options.buffer_size_),
-      sync_pos_(options.sync_pos_) {
-  InitializePos();
-}
-
-FdReader::FdReader(absl::string_view filename, int flags, Options options)
-    : FdReaderBase(filename, flags, options.owns_fd_, options.buffer_size_),
-      sync_pos_(options.sync_pos_) {
-  if (ABSL_PREDICT_TRUE(healthy())) InitializePos();
-}
-
-inline void FdReader::InitializePos() {
+void FdReaderBase::Initialize(int src) {
   if (sync_pos_) {
-    const off_t result = lseek(fd_, 0, SEEK_CUR);
+    const off_t result = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(result < 0)) {
       FailOperation("lseek()", errno);
       return;
@@ -183,16 +153,16 @@ inline void FdReader::InitializePos() {
   }
 }
 
-bool FdReader::MaybeSyncPos() {
+void FdReaderBase::SyncPos(int src) {
   if (sync_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(fd_, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      return FailOperation("lseek()", errno);
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+      FailOperation("lseek()", errno);
     }
   }
-  return true;
 }
 
-bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
+bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
+                                size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -201,6 +171,7 @@ bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
+  const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
                              limit_pos_)) {
@@ -209,7 +180,7 @@ bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
   for (;;) {
   again:
     const ssize_t result = pread(
-        fd_, dest,
+        src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(limit_pos_));
     if (ABSL_PREDICT_FALSE(result < 0)) {
@@ -228,15 +199,16 @@ bool FdReader::ReadInternal(char* dest, size_t min_length, size_t max_length) {
   }
 }
 
-bool FdReader::SeekSlow(Position new_pos) {
+bool FdReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_pos > limit_pos_) {
     // Seeking forwards.
+    const int src = src_fd();
     struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
       const int error_code = errno;
       return FailOperation("fstat()", error_code);
     }
@@ -253,10 +225,11 @@ bool FdReader::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdReader::Size(Position* size) {
+bool FdReaderBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int src = src_fd();
   struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+  if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     const int error_code = errno;
     return FailOperation("fstat()", error_code);
   }
@@ -264,24 +237,8 @@ bool FdReader::Size(Position* size) {
   return true;
 }
 
-FdStreamReader::FdStreamReader(int fd, Options options)
-    : FdReaderBase(fd, true, options.buffer_size_) {
-  RIEGELI_ASSERT(options.assumed_pos_.has_value())
-      << "Failed precondition of FdStreamReader::FdStreamReader(int): "
-         "assumed file position must be specified "
-         "if FdStreamReader does not open the file";
-  limit_pos_ = *options.assumed_pos_;
-}
-
-FdStreamReader::FdStreamReader(absl::string_view filename, int flags,
-                               Options options)
-    : FdReaderBase(filename, flags, true, options.buffer_size_) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  limit_pos_ = options.assumed_pos_.value_or(0);
-}
-
-bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
-                                  size_t max_length) {
+bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
+                                      size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -290,6 +247,7 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
+  const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
                              limit_pos_)) {
@@ -298,7 +256,7 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
   for (;;) {
   again:
     const ssize_t result = read(
-        fd_, dest,
+        src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}));
     if (ABSL_PREDICT_FALSE(result < 0)) {
       const int error_code = errno;
@@ -316,60 +274,37 @@ bool FdStreamReader::ReadInternal(char* dest, size_t min_length,
   }
 }
 
-FdMMapReader::FdMMapReader(int fd, Options options)
-    : ChainReader(Chain()),
-      owned_fd_(options.owns_fd_ ? fd : -1),
-      fd_(fd),
-      filename_(fd == 0 ? "/dev/stdin" : absl::StrCat("/proc/self/fd/", fd)),
-      sync_pos_(options.sync_pos_) {
-  RIEGELI_ASSERT_GE(fd, 0)
-      << "Failed precondition of FdMMapReader::FdMMapReader(int): "
-         "negative file descriptor";
-  Initialize(options);
+void FdMMapReaderBase::SetFilename(int src) {
+  if (src == 0) {
+    filename_ = "/dev/stdin";
+  } else {
+    filename_ = absl::StrCat("/proc/self/fd/", src);
+  }
 }
 
-FdMMapReader::FdMMapReader(absl::string_view filename, int flags,
-                           Options options)
-    : ChainReader(Chain()), filename_(filename) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdMMapReader::FdMMapReader(string_view): "
-         "flags must include O_RDONLY or O_RDWR";
+int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
+  filename_.assign(filename.data(), filename.size());
 again:
-  fd_ = open(filename_.c_str(), flags, 0666);
-  if (ABSL_PREDICT_FALSE(fd_ < 0)) {
+  const int src = open(filename_.c_str(), flags, 0666);
+  if (ABSL_PREDICT_FALSE(src < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     FailOperation("open()", error_code);
-    return;
+    return -1;
   }
-  if (options.owns_fd_) owned_fd_ = internal::FdHolder(fd_);
-  Initialize(options);
+  return src;
 }
 
-void FdMMapReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && sync_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(fd_, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()", errno);
-    }
-  }
-  limit_pos_ = pos();
-  // TODO: Do it without const_cast by providing a non-const accessor
-  // to the source of an owning ChainReader.
-  const_cast<Chain&>(src()) = Chain();
-  if (owned_fd_.fd() >= 0) {
-    const int error_code = owned_fd_.Close();
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::FdHolder::CloseFunctionName(), error_code);
-    }
-    fd_ = -1;
-  }
-  Reader::Done();
+bool FdMMapReaderBase::FailOperation(absl::string_view operation,
+                                     int error_code) {
+  error_code_ = error_code;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+                           ", reading ", filename_));
 }
 
-inline void FdMMapReader::Initialize(Options options) {
+void FdMMapReaderBase::Initialize(int src) {
   struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+  if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     const int error_code = errno;
     FailOperation("fstat()", error_code);
     return;
@@ -381,7 +316,7 @@ inline void FdMMapReader::Initialize(Options options) {
   }
   if (stat_info.st_size != 0) {
     void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
-                            PROT_READ, MAP_SHARED, fd_, 0);
+                            PROT_READ, MAP_SHARED, src, 0);
     if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
       const int error_code = errno;
       FailOperation("mmap()", error_code);
@@ -391,7 +326,7 @@ inline void FdMMapReader::Initialize(Options options) {
     contents.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
     ChainReader::operator=(ChainReader(std::move(contents)));
     if (sync_pos_) {
-      const off_t result = lseek(fd_, 0, SEEK_CUR);
+      const off_t result = lseek(src, 0, SEEK_CUR);
       if (ABSL_PREDICT_FALSE(result < 0)) {
         FailOperation("lseek()", errno);
         return;
@@ -401,11 +336,18 @@ inline void FdMMapReader::Initialize(Options options) {
   }
 }
 
-inline bool FdMMapReader::FailOperation(absl::string_view operation,
-                                        int error_code) {
-  error_code_ = error_code;
-  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
-                           ", reading ", filename_));
+void FdMMapReaderBase::SyncPos(int src) {
+  if (sync_pos_) {
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+      FailOperation("lseek()", errno);
+    }
+  }
 }
+
+template class FdReader<OwnedFd>;
+template class FdReader<int>;
+template class FdStreamReader<OwnedFd>;
+template class FdMMapReader<OwnedFd>;
+template class FdMMapReader<int>;
 
 }  // namespace riegeli

@@ -40,7 +40,7 @@ bool TFRecordDetector::CheckFileFormat(
   }
 
   const Position pos_before = byte_reader_->pos();
-  ZlibReader decompressor(byte_reader_);
+  ZlibReader<> decompressor(byte_reader_);
   Reader* reader;
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;

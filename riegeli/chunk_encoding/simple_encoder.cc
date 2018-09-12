@@ -176,7 +176,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
     return Fail(*dest);
   }
 
-  ChainWriter compressed_sizes_writer(kOwnsDest());
+  ChainWriter<Chain> compressed_sizes_writer((Chain()));
   if (ABSL_PREDICT_FALSE(
           !sizes_compressor_.EncodeAndClose(&compressed_sizes_writer))) {
     return Fail(sizes_compressor_);

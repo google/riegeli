@@ -30,17 +30,16 @@ namespace riegeli {
 // size limit. An attempt to write more fails, leaving destination contents
 // unspecified.
 //
-// When a LimitingBackwardWriter is closed, its position is synchronized back to
-// its destination.
+// The original BackwardWriter must not be accessed until the
+// LimitingBackwardWriter is closed or no longer used. When the
+// LimitingBackwardWriter is closed, its position is synchronized back to the
+// original BackwardWriter.
 class LimitingBackwardWriter : public BackwardWriter {
  public:
   // Creates a closed LimitingBackwardWriter.
   LimitingBackwardWriter() noexcept : BackwardWriter(State::kClosed) {}
 
-  // Will write to the BackwardWriter which is not owned by this
-  // LimitingBackwardWriter and must be kept alive but not accessed until
-  // closing the LimitingBackwardWriter, except that it is allowed to read its
-  // destination directly after Flush().
+  // Will write to dest.
   //
   // Precondition: size_limit >= dest->pos()
   LimitingBackwardWriter(BackwardWriter* dest, Position size_limit);
@@ -48,7 +47,7 @@ class LimitingBackwardWriter : public BackwardWriter {
   LimitingBackwardWriter(LimitingBackwardWriter&& src) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& src) noexcept;
 
-  // Returns the BackwardWriter being written to. Unchanged by Close().
+  // Returns the original BackwardWriter. Unchanged by Close().
   BackwardWriter* dest() const { return dest_; }
 
   bool SupportsTruncate() const override;

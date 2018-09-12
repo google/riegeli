@@ -4,7 +4,10 @@ licenses(["notice"])  # Apache 2.0
 
 cc_library(
     name = "record_writer",
-    srcs = ["record_writer.cc"],
+    srcs = [
+        "chunk_writer_dependency.h",
+        "record_writer.cc",
+    ],
     hdrs = ["record_writer.h"],
     deps = [
         ":block",
@@ -37,7 +40,10 @@ cc_library(
 
 cc_library(
     name = "record_reader",
-    srcs = ["record_reader.cc"],
+    srcs = [
+        "chunk_reader_dependency.h",
+        "record_reader.cc",
+    ],
     hdrs = ["record_reader.h"],
     deps = [
         ":chunk_reader",

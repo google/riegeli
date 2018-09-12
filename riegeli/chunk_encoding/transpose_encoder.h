@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -122,7 +123,7 @@ class TransposeEncoder : public ChunkEncoder {
     explicit MessageNode(internal::MessageId message_id);
     // Some nodes (such as STARTGROUP) contain no data. Buffer is assigned in
     // the first GetBuffer call when we have data to write.
-    std::unique_ptr<ChainBackwardWriter> writer;
+    std::unique_ptr<BackwardWriter> writer;
     // Unique ID for every instance of this class within Encoder.
     internal::MessageId message_id;
   };
@@ -143,11 +144,11 @@ class TransposeEncoder : public ChunkEncoder {
     size_t operator()(NodeId node_id) const;
   };
 
-  // Get ChainBackwardWriter for field "field" in message "parent_message_id".
+  // Get BackwardWriter for field "field" in message "parent_message_id".
   // "type" is used to select the right category for the buffer if not created
   // yet.
-  ChainBackwardWriter* GetBuffer(internal::MessageId parent_message_id,
-                                 uint32_t field, BufferType type);
+  BackwardWriter* GetBuffer(internal::MessageId parent_message_id,
+                            uint32_t field, BufferType type);
 
   // Add message recursively to the internal data structures.
   // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
@@ -308,8 +309,7 @@ class TransposeEncoder : public ChunkEncoder {
   std::vector<internal::MessageId> group_stack_;
   // Tree of message nodes.
   std::unordered_map<NodeId, MessageNode, NodeIdHasher> message_nodes_;
-  Chain nonproto_lengths_;
-  ChainBackwardWriter nonproto_lengths_writer_;
+  ChainBackwardWriter<Chain> nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
   internal::MessageId next_message_id_ = internal::MessageId::kRoot + 1;
 };

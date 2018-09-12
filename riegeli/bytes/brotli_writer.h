@@ -19,17 +19,18 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// A Writer which compresses data with Brotli before passing it to another
-// Writer.
-class BrotliWriter : public BufferedWriter {
+// Template parameter invariant part of BrotliWriter.
+class BrotliWriterBase : public BufferedWriter {
  public:
   class Options {
    public:
@@ -46,11 +47,11 @@ class BrotliWriter : public BufferedWriter {
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
           << "Failed precondition of "
-             "BrotliWriter::Options::set_compression_level(): "
+             "BrotliWriterBase::Options::set_compression_level(): "
              "compression level out of range";
       RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
           << "Failed precondition of "
-             "BrotliWriter::Options::set_compression_level(): "
+             "BrotliWriterBase::Options::set_compression_level(): "
              "compression level out of range";
       compression_level_ = compression_level;
       return *this;
@@ -73,11 +74,11 @@ class BrotliWriter : public BufferedWriter {
     Options& set_window_log(int window_log) & {
       RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
           << "Failed precondition of "
-             "BrotliWriter::Options::set_window_log(): "
+             "BrotliWriterBase::Options::set_window_log(): "
              "window log out of range";
       RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
           << "Failed precondition of "
-             "BrotliWriter::Options::set_window_log(): "
+             "BrotliWriterBase::Options::set_window_log(): "
              "window log out of range";
       window_log_ = window_log;
       return *this;
@@ -100,7 +101,8 @@ class BrotliWriter : public BufferedWriter {
 
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of BrotliWriter::Options::set_buffer_size(): "
+          << "Failed precondition of "
+             "BrotliWriterBase::Options::set_buffer_size(): "
              "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
@@ -110,6 +112,7 @@ class BrotliWriter : public BufferedWriter {
     }
 
    private:
+    template <typename Dest>
     friend class BrotliWriter;
 
     int compression_level_ = kDefaultCompressionLevel();
@@ -118,31 +121,22 @@ class BrotliWriter : public BufferedWriter {
     size_t buffer_size_ = kDefaultBufferSize();
   };
 
-  // Creates a closed BrotliWriter.
-  BrotliWriter() noexcept {}
-
-  // Will write Brotli-compressed stream to the Writer which is owned by this
-  // BrotliWriter and will be closed and deleted when the BrotliWriter is
-  // closed.
-  explicit BrotliWriter(std::unique_ptr<Writer> dest,
-                        Options options = Options());
-
-  // Will write Brotli-compressed stream to the Writer which is not owned by
-  // this BrotliWriter and must be kept alive but not accessed until closing the
-  // BrotliWriter, except that it is allowed to read its destination directly
-  // after Flush().
-  explicit BrotliWriter(Writer* dest, Options options = Options());
-
-  BrotliWriter(BrotliWriter&& src) noexcept;
-  BrotliWriter& operator=(BrotliWriter&& src) noexcept;
-
-  // Returns the Writer the compressed stream is being written to. Unchanged by
-  // Close().
-  Writer* dest() const { return dest_; }
+  // Returns the compressed Writer. Unchanged by Close().
+  virtual Writer* dest_writer() = 0;
+  virtual const Writer* dest_writer() const = 0;
 
   bool Flush(FlushType flush_type) override;
 
  protected:
+  BrotliWriterBase() noexcept {}
+
+  explicit BrotliWriterBase(size_t buffer_size) noexcept
+      : BufferedWriter(buffer_size) {}
+
+  BrotliWriterBase(BrotliWriterBase&& src) noexcept;
+  BrotliWriterBase& operator=(BrotliWriterBase&& src) noexcept;
+
+  void Initialize(int compression_level, int window_log, Position size_hint);
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -153,34 +147,92 @@ class BrotliWriter : public BufferedWriter {
     }
   };
 
-  bool WriteInternal(absl::string_view src, BrotliEncoderOperation op);
+  bool WriteInternal(absl::string_view src, Writer* dest,
+                     BrotliEncoderOperation op);
 
-  std::unique_ptr<Writer> owned_dest_;
-  // Invariant: if healthy() then dest_ != nullptr
-  Writer* dest_ = nullptr;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
+};
+
+// A Writer which compresses data with Brotli before passing it to another
+// Writer.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the compressed Writer. Dest must support
+// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
+// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+//
+// The compressed Writer must not be accessed until the BrotliWriter is closed
+// or no longer used, except that it is allowed to read the destination of the
+// compressed Writer immediately after Flush().
+template <typename Dest = Writer*>
+class BrotliWriter : public BrotliWriterBase {
+ public:
+  // Creates a closed BrotliWriter.
+  BrotliWriter() noexcept {}
+
+  // Will write to the compressed Writer provided by dest.
+  explicit BrotliWriter(Dest dest, Options options = Options());
+
+  BrotliWriter(BrotliWriter&& src) noexcept;
+  BrotliWriter& operator=(BrotliWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the compressed Writer.
+  // Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  Writer* dest_writer() override { return dest_.ptr(); }
+  const Writer* dest_writer() const override { return dest_.ptr(); }
+
+  void Done() override;
+
+ private:
+  // The object providing and possibly owning the compressed Writer.
+  Dependency<Writer*, Dest> dest_;
 };
 
 // Implementation details follow.
 
-inline BrotliWriter::BrotliWriter(std::unique_ptr<Writer> dest, Options options)
-    : BrotliWriter(dest.get(), options) {
-  owned_dest_ = std::move(dest);
-}
+inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& src) noexcept
+    : BufferedWriter(std::move(src)), compressor_(std::move(src.compressor_)) {}
 
-inline BrotliWriter::BrotliWriter(BrotliWriter&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      compressor_(std::move(src.compressor_)) {}
-
-inline BrotliWriter& BrotliWriter::operator=(BrotliWriter&& src) noexcept {
+inline BrotliWriterBase& BrotliWriterBase::operator=(
+    BrotliWriterBase&& src) noexcept {
   BufferedWriter::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = riegeli::exchange(src.dest_, nullptr);
   compressor_ = std::move(src.compressor_);
   return *this;
 }
+
+template <typename Dest>
+BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
+    : BrotliWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of BrotliWriter<Dest>::BrotliWriter(Dest): "
+         "null Writer pointer";
+  Initialize(options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
+BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& src) noexcept
+    : BrotliWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+
+template <typename Dest>
+BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(BrotliWriter&& src) noexcept {
+  BrotliWriterBase::operator=(std::move(src));
+  dest_ = std::move(src.dest_);
+  return *this;
+}
+
+template <typename Dest>
+void BrotliWriter<Dest>::Done() {
+  BrotliWriterBase::Done();
+  if (dest_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+  }
+}
+
+extern template class BrotliWriter<Writer*>;
+extern template class BrotliWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli
 

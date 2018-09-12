@@ -29,16 +29,16 @@ namespace riegeli {
 // A Writer which writes to another Writer up to the specified size limit.
 // An attempt to write more fails, leaving destination contents unspecified.
 //
-// When a LimitingWriter is closed, its position is synchronized back to its
-// destination.
+// The original Writer must not be accessed until the LimitingWriter is closed
+// or no longer used, except that it is allowed to read the destination of the
+// original Writer immediately after Flush(). When the LimitingWriter is closed,
+// its position is synchronized back to the original Writer.
 class LimitingWriter : public Writer {
  public:
   // Creates a closed LimitingWriter.
   LimitingWriter() noexcept : Writer(State::kClosed) {}
 
-  // Will write to the Writer which is not owned by this LimitingWriter and
-  // must be kept alive but not accessed until closing the LimitingWriter,
-  // except that it is allowed to read its destination directly after Flush().
+  // Will write to dest.
   //
   // Precondition: size_limit >= dest->pos()
   LimitingWriter(Writer* dest, Position size_limit);
@@ -46,7 +46,7 @@ class LimitingWriter : public Writer {
   LimitingWriter(LimitingWriter&& src) noexcept;
   LimitingWriter& operator=(LimitingWriter&& src) noexcept;
 
-  // Returns the Writer being written to. Unchanged by Close().
+  // Returns the original Writer. Unchanged by Close().
   Writer* dest() const { return dest_; }
 
   bool Flush(FlushType flush_type) override;

@@ -20,15 +20,18 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zlib.h"
 
 namespace riegeli {
 
-class ZlibReader : public BufferedReader {
+// Template parameter invariant part of ZlibReader.
+class ZlibReaderBase : public BufferedReader {
  public:
   class Options {
    public:
@@ -58,7 +61,8 @@ class ZlibReader : public BufferedReader {
 
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of ZlibReader::Options::set_buffer_size(): "
+          << "Failed precondition of "
+             "ZlibReaderBase::Options::set_buffer_size(): "
              "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
@@ -68,46 +72,36 @@ class ZlibReader : public BufferedReader {
     }
 
    private:
+    template <typename Src>
     friend class ZlibReader;
 
     int window_bits_ = 32;
     size_t buffer_size_ = kDefaultBufferSize();
   };
 
-  // Creates a closed ZlibReader.
-  ZlibReader() noexcept {}
-
-  // Will read zlib-compressed stream from the byte Reader which is owned by
-  // this ZlibReader and will be closed and deleted when the ZlibReader is
-  // closed.
-  explicit ZlibReader(std::unique_ptr<Reader> src, Options options = Options());
-
-  // Will read zlib-compressed stream from the byte Reader which is not owned by
-  // this ZlibReader and must be kept alive but not accessed until closing the
-  // ZlibReader.
-  explicit ZlibReader(Reader* src, Options options = Options());
-
-  ZlibReader(ZlibReader&&) noexcept;
-  ZlibReader& operator=(ZlibReader&&) noexcept;
-
-  // Returns the Reader the compressed stream is being read from. Unchanged by
-  // Close().
-  Reader* src() const { return src_; }
-
-  ~ZlibReader();
+  // Returns the compressed Reader. Unchanged by Close().
+  virtual Reader* src_reader() = 0;
+  virtual const Reader* src_reader() const = 0;
 
  protected:
+  ZlibReaderBase() noexcept {}
+
+  explicit ZlibReaderBase(size_t buffer_size) noexcept
+      : BufferedReader(buffer_size) {}
+
+  ZlibReaderBase(ZlibReaderBase&& src) noexcept;
+  ZlibReaderBase& operator=(ZlibReaderBase&& src) noexcept;
+
+  ~ZlibReaderBase();
+
+  void Initialize(int window_bits);
   void Done() override;
-  void VerifyEnd() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
-  std::unique_ptr<Reader> owned_src_;
-  // Invariant: if healthy() then src_ != nullptr
-  Reader* src_ = nullptr;
   // If true, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, Close() will
   // fail.
@@ -116,23 +110,55 @@ class ZlibReader : public BufferedReader {
   z_stream decompressor_;
 };
 
+// A Reader which decompresses data with zlib after getting it from another
+// Reader.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the compressed Reader. Src must support
+// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
+// unique_ptr<Reader> (owned), ChainReader<> (owned).
+//
+// The compressed Reader must not be accessed until the ZlibReader is closed or
+// no longer used.
+template <typename Src = Reader*>
+class ZlibReader : public ZlibReaderBase {
+ public:
+  // Creates a closed ZlibReader.
+  ZlibReader() noexcept {}
+
+  // Will read from the compressed Reader provided by src.
+  explicit ZlibReader(Src src, Options options = Options());
+
+  ZlibReader(ZlibReader&&) noexcept;
+  ZlibReader& operator=(ZlibReader&&) noexcept;
+
+  // Returns the object providing and possibly owning the compressed Reader.
+  // Unchanged by Close().
+  Src& src() { return src_.manager(); }
+  const Src& src() const { return src_.manager(); }
+  Reader* src_reader() override { return src_.ptr(); }
+  const Reader* src_reader() const override { return src_.ptr(); }
+
+ protected:
+  void Done() override;
+  void VerifyEnd() override;
+
+ private:
+  // The object providing and possibly owning the compressed Reader.
+  Dependency<Reader*, Src> src_;
+};
+
 // Implementation details follow.
 
-inline ZlibReader::ZlibReader(std::unique_ptr<Reader> src, Options options)
-    : ZlibReader(src.get(), options) {
-  owned_src_ = std::move(src);
-}
-
-inline ZlibReader::ZlibReader(ZlibReader&& src) noexcept
+inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& src) noexcept
     : BufferedReader(std::move(src)),
-      owned_src_(std::move(src.owned_src_)),
-      src_(riegeli::exchange(src.src_, nullptr)),
       truncated_(riegeli::exchange(src.truncated_, false)),
       decompressor_present_(
           riegeli::exchange(src.decompressor_present_, false)),
       decompressor_(src.decompressor_) {}
 
-inline ZlibReader& ZlibReader::operator=(ZlibReader&& src) noexcept {
+inline ZlibReaderBase& ZlibReaderBase::operator=(
+    ZlibReaderBase&& src) noexcept {
   // Exchange decompressor_present_ early to support self-assignment.
   const bool decompressor_present =
       riegeli::exchange(src.decompressor_present_, false);
@@ -141,20 +167,55 @@ inline ZlibReader& ZlibReader::operator=(ZlibReader&& src) noexcept {
     RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
   }
   BufferedReader::operator=(std::move(src));
-  owned_src_ = std::move(src.owned_src_);
-  src_ = riegeli::exchange(src.src_, nullptr);
   truncated_ = riegeli::exchange(src.truncated_, false);
   decompressor_present_ = decompressor_present;
   decompressor_ = src.decompressor_;
   return *this;
 }
 
-inline ZlibReader::~ZlibReader() {
+inline ZlibReaderBase::~ZlibReaderBase() {
   if (decompressor_present_) {
     const int result = inflateEnd(&decompressor_);
     RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
   }
 }
+
+template <typename Src>
+ZlibReader<Src>::ZlibReader(Src src, Options options)
+    : ZlibReaderBase(options.buffer_size_), src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.ptr() != nullptr)
+      << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
+         "null Reader pointer";
+  Initialize(options.window_bits_);
+}
+
+template <typename Src>
+ZlibReader<Src>::ZlibReader(ZlibReader&& src) noexcept
+    : ZlibReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+
+template <typename Src>
+ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& src) noexcept {
+  ZlibReaderBase::operator=(std::move(src));
+  src_ = std::move(src.src_);
+  return *this;
+}
+
+template <typename Src>
+void ZlibReader<Src>::Done() {
+  ZlibReaderBase::Done();
+  if (src_.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+  }
+}
+
+template <typename Src>
+void ZlibReader<Src>::VerifyEnd() {
+  ZlibReaderBase::VerifyEnd();
+  if (src_.kIsOwning()) src_->VerifyEnd();
+}
+
+extern template class ZlibReader<Reader*>;
+extern template class ZlibReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli
 

@@ -23,13 +23,14 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// A Writer which appends to a Chain.
-class ChainWriter : public Writer {
+// Template parameter invariant part of ChainWriter.
+class ChainWriterBase : public Writer {
  public:
   class Options {
    public:
@@ -48,34 +49,31 @@ class ChainWriter : public Writer {
     }
 
    private:
+    template <typename Dest>
     friend class ChainWriter;
 
     Position size_hint_ = 0;
   };
 
-  // Creates a closed ChainWriter.
-  ChainWriter() noexcept : Writer(State::kClosed) {}
-
-  // Will write to a Chain which is owned by this ChainWriter, available as
-  // dest().
-  explicit ChainWriter(OwnsDest, Options options = Options());
-
-  // Will write to the Chain which is not owned by this ChainWriter and must be
-  // kept alive but not accessed until closing the ChainWriter, except that it
-  // is allowed to read it directly after Flush().
-  explicit ChainWriter(Chain* dest, Options options = Options());
-
-  ChainWriter(ChainWriter&& src) noexcept;
-  ChainWriter& operator=(ChainWriter&& src) noexcept;
-
-  // Returns the Chain being written to. Unchanged by Close().
-  Chain& dest() const { return *dest_; }
+  // Returns the Chain being written to.
+  virtual Chain* dest_chain() = 0;
+  virtual const Chain* dest_chain() const = 0;
 
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:
+  ChainWriterBase() noexcept : Writer(State::kClosed) {}
+
+  explicit ChainWriterBase(Position size_hint)
+      : Writer(State::kOpen),
+        size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
+  }
+
+  ChainWriterBase(ChainWriterBase&& src) noexcept;
+  ChainWriterBase& operator=(ChainWriterBase&& src) noexcept;
+
   void Done() override;
   bool PushSlow() override;
   bool WriteSlow(absl::string_view src) override;
@@ -84,23 +82,53 @@ class ChainWriter : public Writer {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Discards uninitialized space from the end of *dest_, so that it contains
+  // Discards uninitialized space from the end of *dest, so that it contains
   // only actual data written. Invalidates buffer pointers and start_pos_.
-  void DiscardBuffer();
+  void DiscardBuffer(Chain* dest);
 
-  // Appends some uninitialized space to *dest_ if this can be done without
+  // Appends some uninitialized space to *dest if this can be done without
   // allocation. Sets buffer pointers to the uninitialized space and restores
   // start_pos_.
-  void MakeBuffer();
+  void MakeBuffer(Chain* dest);
 
-  Chain owned_dest_;
-  // The Chain being written to, with uninitialized space appended (possibly
-  // empty); cursor_ points to the uninitialized space, except that it can be
-  // nullptr if the uninitialized space is empty.
-  //
-  // Invariant: dest_ != nullptr
-  Chain* dest_ = &owned_dest_;
   size_t size_hint_ = 0;
+};
+
+// A Writer which appends to a Chain.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the Chain being written to. Dest must support
+// Dependency<Chain*, Src>, e.g. Chain* (not owned, default), Chain (owned).
+//
+// The Chain must not be accessed until the ChainWriter is closed or no longer
+// used, except that it is allowed to read the Chain immediately after Flush().
+template <typename Dest = Chain*>
+class ChainWriter : public ChainWriterBase {
+ public:
+  // Creates a closed ChainWriter.
+  ChainWriter() noexcept {}
+
+  // Will append to the Chain provided by dest.
+  explicit ChainWriter(Dest dest, Options options = Options());
+
+  ChainWriter(ChainWriter&& src) noexcept;
+  ChainWriter& operator=(ChainWriter&& src) noexcept;
+
+  // Returns the object providing and possibly owning the Chain being written
+  // to. Unchanged by Close().
+  Dest& dest() { return dest_.manager(); }
+  const Dest& dest() const { return dest_.manager(); }
+  Chain* dest_chain() override { return dest_.ptr(); }
+  const Chain* dest_chain() const override { return dest_.ptr(); }
+
+ private:
+  void MoveDest(ChainWriter&& src);
+
+  // The object providing and possibly owning the Chain being written to, with
+  // uninitialized space appended (possibly empty); cursor_ points to the
+  // uninitialized space, except that it can be nullptr if the uninitialized
+  // space is empty.
+  Dependency<Chain*, Dest> dest_;
 
   // Invariants if healthy():
   //   limit_ == nullptr || limit_ == dest_->blocks().back().data() +
@@ -110,51 +138,57 @@ class ChainWriter : public Writer {
 
 // Implementation details follow.
 
-inline ChainWriter::ChainWriter(OwnsDest, Options options)
-    : ChainWriter(&owned_dest_, options) {}
-
-inline ChainWriter::ChainWriter(Chain* dest, Options options)
-    : Writer(State::kOpen),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      size_hint_(
-          UnsignedMin(options.size_hint_, std::numeric_limits<size_t>::max())) {
-  start_pos_ = dest->size();
-}
-
-inline ChainWriter::ChainWriter(ChainWriter&& src) noexcept
+inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& src) noexcept
     : Writer(std::move(src)),
-      owned_dest_(std::move(src.owned_dest_)),
-      dest_(src.dest_ == &src.owned_dest_
-                ? &owned_dest_
-                : riegeli::exchange(src.dest_, &src.owned_dest_)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {
-  if (dest_ == &owned_dest_ && start_ != nullptr) {
-    // *dest_ was moved, which invalidated buffer pointers.
-    const size_t cursor_index = written_to_buffer();
-    limit_ = const_cast<char*>(owned_dest_.blocks().back().data() +
-                               owned_dest_.blocks().back().size());
-    start_ = limit_ - (owned_dest_.size() - IntCast<size_t>(start_pos_));
-    cursor_ = start_ + cursor_index;
-  }
-}
+      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
 
-inline ChainWriter& ChainWriter::operator=(ChainWriter&& src) noexcept {
+inline ChainWriterBase& ChainWriterBase::operator=(
+    ChainWriterBase&& src) noexcept {
   Writer::operator=(std::move(src));
-  owned_dest_ = std::move(src.owned_dest_);
-  dest_ = src.dest_ == &src.owned_dest_
-              ? &owned_dest_
-              : riegeli::exchange(src.dest_, &src.owned_dest_);
   size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  if (dest_ == &owned_dest_ && start_ != nullptr) {
-    // *dest_ was moved, which invalidated buffer pointers.
-    const size_t cursor_index = written_to_buffer();
-    limit_ = const_cast<char*>(owned_dest_.blocks().back().data() +
-                               owned_dest_.blocks().back().size());
-    start_ = limit_ - (owned_dest_.size() - IntCast<size_t>(start_pos_));
-    cursor_ = start_ + cursor_index;
-  }
   return *this;
 }
+
+template <typename Dest>
+ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
+    : ChainWriterBase(options.size_hint_), dest_(std::move(dest)) {
+  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+      << "Failed precondition of ChainWriter<Dest>::ChainWriter(Dest): "
+         "null Chain pointer";
+  start_pos_ = dest_->size();
+}
+
+template <typename Dest>
+ChainWriter<Dest>::ChainWriter(ChainWriter&& src) noexcept
+    : ChainWriterBase(std::move(src)) {
+  MoveDest(std::move(src));
+}
+
+template <typename Dest>
+ChainWriter<Dest>& ChainWriter<Dest>::operator=(ChainWriter&& src) noexcept {
+  ChainWriterBase::operator=(std::move(src));
+  MoveDest(std::move(src));
+  return *this;
+}
+
+template <typename Dest>
+void ChainWriter<Dest>::MoveDest(ChainWriter&& src) {
+  if (dest_.kIsStable()) {
+    dest_ = std::move(src.dest_);
+  } else {
+    const size_t cursor_index = written_to_buffer();
+    dest_ = std::move(src.dest_);
+    if (start_ != nullptr) {
+      limit_ = const_cast<char*>(dest_->blocks().back().data() +
+                                 dest_->blocks().back().size());
+      start_ = limit_ - (dest_->size() - IntCast<size_t>(start_pos_));
+      cursor_ = start_ + cursor_index;
+    }
+  }
+}
+
+extern template class ChainWriter<Chain*>;
+extern template class ChainWriter<Chain>;
 
 }  // namespace riegeli
 

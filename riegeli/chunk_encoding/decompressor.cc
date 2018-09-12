@@ -15,88 +15,29 @@
 #include "riegeli/chunk_encoding/decompressor.h"
 
 #include <stdint.h>
-#include <utility>
 
-#include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
-#include "absl/strings/str_cat.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
-#include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
-#include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
 namespace internal {
 
-bool Decompressor::UncompressedSize(const Chain& compressed_data,
-                                    CompressionType compression_type,
-                                    uint64_t* uncompressed_size) {
+bool UncompressedSize(const Chain& compressed_data,
+                      CompressionType compression_type,
+                      uint64_t* uncompressed_size) {
   if (compression_type == CompressionType::kNone) {
     *uncompressed_size = compressed_data.size();
     return true;
   }
-  ChainReader compressed_data_reader(&compressed_data);
+  ChainReader<> compressed_data_reader(&compressed_data);
   return ReadVarint64(&compressed_data_reader, uncompressed_size);
 }
 
-Decompressor::Decompressor(std::unique_ptr<Reader> src,
-                           CompressionType compression_type)
-    : Decompressor(src.get(), compression_type) {
-  owned_src_ = std::move(src);
-}
-
-Decompressor::Decompressor(Reader* src, CompressionType compression_type)
-    : Object(State::kOpen) {
-  RIEGELI_ASSERT_NOTNULL(src);
-  if (compression_type == CompressionType::kNone) {
-    reader_ = src;
-    return;
-  }
-  uint64_t decompressed_size;
-  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, &decompressed_size))) {
-    Fail("Reading decompressed size failed");
-    return;
-  }
-  switch (compression_type) {
-    case CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
-    case CompressionType::kBrotli:
-      owned_reader_ = absl::make_unique<BrotliReader>(src);
-      reader_ = owned_reader_.get();
-      return;
-    case CompressionType::kZstd:
-      owned_reader_ = absl::make_unique<ZstdReader>(src);
-      reader_ = owned_reader_.get();
-      return;
-  }
-  Fail(absl::StrCat("Unknown compression type: ",
-                    static_cast<unsigned>(compression_type)));
-}
-
-void Decompressor::Done() {
-  if (owned_reader_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_reader_->Close())) Fail(*owned_reader_);
-  }
-  if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
-  }
-  reader_ = nullptr;
-}
-
-bool Decompressor::VerifyEndAndClose() {
-  VerifyEnd();
-  return Close();
-}
-
-void Decompressor::VerifyEnd() {
-  if (owned_reader_ != nullptr) owned_reader_->VerifyEnd();
-  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
-}
+template class Decompressor<Reader*>;
+template class Decompressor<std::unique_ptr<Reader>>;
 
 }  // namespace internal
 }  // namespace riegeli

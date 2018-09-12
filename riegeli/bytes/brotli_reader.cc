@@ -27,10 +27,8 @@
 
 namespace riegeli {
 
-BrotliReader::BrotliReader(Reader* src, Options options)
-    : Reader(State::kOpen),
-      src_(RIEGELI_ASSERT_NOTNULL(src)),
-      decompressor_(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr)) {
+void BrotliReaderBase::Initialize() {
+  decompressor_.reset(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");
     return;
@@ -42,38 +40,31 @@ BrotliReader::BrotliReader(Reader* src, Options options)
   }
 }
 
-void BrotliReader::Done() {
+void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Fail("Truncated Brotli-compressed stream");
-  }
-  if (owned_src_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!owned_src_->Close())) Fail(*owned_src_);
   }
   decompressor_.reset();
   limit_pos_ = pos();
   Reader::Done();
 }
 
-void BrotliReader::VerifyEnd() {
-  Reader::VerifyEnd();
-  if (owned_src_ != nullptr) owned_src_->VerifyEnd();
-}
-
-bool BrotliReader::PullSlow() {
+bool BrotliReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
+  Reader* const src = src_reader();
   truncated_ = false;
   size_t available_out = 0;
   for (;;) {
-    size_t available_in = src_->available();
-    const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src_->cursor());
+    size_t available_in = src->available();
+    const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src->cursor());
     const BrotliDecoderResult result = BrotliDecoderDecompressStream(
         decompressor_.get(), &available_in, &next_in, &available_out, nullptr,
         nullptr);
-    src_->set_cursor(reinterpret_cast<const char*>(next_in));
+    src->set_cursor(reinterpret_cast<const char*>(next_in));
     if (ABSL_PREDICT_FALSE(result == BROTLI_DECODER_RESULT_ERROR)) {
       Fail(absl::StrCat("BrotliDecoderDecompressStream() failed: ",
                         BrotliDecoderErrorString(
@@ -105,8 +96,8 @@ bool BrotliReader::PullSlow() {
         return length > 0;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
         if (length > 0) return true;
-        if (ABSL_PREDICT_FALSE(!src_->Pull())) {
-          if (ABSL_PREDICT_FALSE(!src_->healthy())) return Fail(*src_);
+        if (ABSL_PREDICT_FALSE(!src->Pull())) {
+          if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
           truncated_ = true;
           return false;
         }
@@ -122,5 +113,8 @@ bool BrotliReader::PullSlow() {
         << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
   }
 }
+
+template class BrotliReader<Reader*>;
+template class BrotliReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

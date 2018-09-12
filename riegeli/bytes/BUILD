@@ -160,7 +160,10 @@ cc_library(
 
 cc_library(
     name = "array_writer",
-    srcs = ["array_writer.cc"],
+    srcs = [
+        "array_writer.cc",
+        "span_dependency.h",
+    ],
     hdrs = ["array_writer.h"],
     deps = [
         ":writer",
@@ -172,7 +175,10 @@ cc_library(
 
 cc_library(
     name = "array_backward_writer",
-    srcs = ["array_backward_writer.cc"],
+    srcs = [
+        "array_backward_writer.cc",
+        "span_dependency.h",
+    ],
     hdrs = ["array_backward_writer.h"],
     deps = [
         ":backward_writer",
@@ -197,7 +203,10 @@ cc_library(
 
 cc_library(
     name = "string_reader",
-    srcs = ["string_reader.cc"],
+    srcs = [
+        "string_reader.cc",
+        "string_view_dependency.h",
+    ],
     hdrs = ["string_reader.h"],
     deps = [
         ":reader",
@@ -253,7 +262,7 @@ cc_library(
 cc_library(
     name = "fd_writer",
     srcs = [
-        "fd_holder.h",
+        "fd_dependency.h",
         "fd_writer.cc",
     ],
     hdrs = ["fd_writer.h"],
@@ -271,7 +280,7 @@ cc_library(
 cc_library(
     name = "fd_reader",
     srcs = [
-        "fd_holder.h",
+        "fd_dependency.h",
         "fd_reader.cc",
     ],
     hdrs = ["fd_reader.h"],

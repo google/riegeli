@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -37,6 +36,7 @@
 #include "riegeli/bytes/limiting_backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
+#include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
@@ -46,11 +46,11 @@ namespace riegeli {
 
 namespace {
 
-ChainReader* kEmptyChainReader() {
-  static NoDestructor<ChainReader> kStaticEmptyChainReader((Chain()));
-  RIEGELI_ASSERT(kStaticEmptyChainReader->healthy())
-      << "kEmptyChainReader() has been closed";
-  return kStaticEmptyChainReader.get();
+Reader* kEmptyReader() {
+  static NoDestructor<StringReader<>> kStaticEmptyReader((absl::string_view()));
+  RIEGELI_ASSERT(kStaticEmptyReader->healthy())
+      << "kEmptyReader() has been closed";
+  return kStaticEmptyReader.get();
 }
 
 constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();
@@ -67,7 +67,7 @@ struct DataBucket {
   // Contains sizes of data buffers in the bucket if "decompressed" is false.
   std::vector<size_t> buffer_sizes;
   // Decompressed data buffers if "decompressed" is true.
-  std::vector<ChainReader> buffers;
+  std::vector<ChainReader<Chain>> buffers;
   // Raw bucket data.
   Chain compressed_data;
   // True if the bucket was already decompressed.
@@ -353,15 +353,15 @@ struct TransposeDecoder::Context {
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
   // Note: Used only when filtering is disabled.
-  std::vector<ChainReader> buffers;
+  std::vector<ChainReader<Chain>> buffers;
   // Buffer for lengths of nonproto messages.
-  ChainReader* nonproto_lengths = nullptr;
+  Reader* nonproto_lengths = nullptr;
   // State machine read from the input.
   std::vector<StateMachineNode> state_machine_nodes;
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
-  internal::Decompressor transitions;
+  internal::Decompressor<> transitions;
 
   // --- Fields used in filtering. ---
   // We number used fields with indices into "existence_only" vector below.
@@ -449,8 +449,8 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (ABSL_PREDICT_FALSE(!src->Read(&header, header_size))) {
     return Fail("Reading header failed", *src);
   }
-  internal::Decompressor header_decompressor(
-      absl::make_unique<ChainReader>(&header), context->compression_type);
+  internal::Decompressor<ChainReader<>> header_decompressor(
+      (ChainReader<>(&header)), context->compression_type);
   if (ABSL_PREDICT_FALSE(!header_decompressor.healthy())) {
     return Fail(header_decompressor);
   }
@@ -693,7 +693,8 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (ABSL_PREDICT_FALSE(!header_decompressor.VerifyEndAndClose())) {
     return Fail(header_decompressor);
   }
-  context->transitions = internal::Decompressor(src, context->compression_type);
+  context->transitions =
+      internal::Decompressor<>(src, context->compression_type);
   if (ABSL_PREDICT_FALSE(!context->transitions.healthy())) {
     return Fail(context->transitions);
   }
@@ -718,7 +719,7 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
     return true;
   }
   context->buffers.reserve(num_buffers);
-  std::vector<internal::Decompressor> bucket_decompressors;
+  std::vector<internal::Decompressor<ChainReader<Chain>>> bucket_decompressors;
   if (ABSL_PREDICT_FALSE(num_buckets > bucket_decompressors.max_size())) {
     return Fail("Too many buckets");
   }
@@ -737,9 +738,8 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
             !src->Read(&bucket, IntCast<size_t>(bucket_length)))) {
       return Fail("Reading bucket failed", *src);
     }
-    bucket_decompressors.emplace_back(
-        absl::make_unique<ChainReader>(std::move(bucket)),
-        context->compression_type);
+    bucket_decompressors.emplace_back(ChainReader<Chain>(std::move(bucket)),
+                                      context->compression_type);
     if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().healthy())) {
       return Fail(bucket_decompressors.back());
     }
@@ -827,7 +827,7 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   uint32_t bucket_index = 0;
   uint64_t remaining_bucket_size = 0;
   first_buffer_indices->push_back(0);
-  if (ABSL_PREDICT_FALSE(!internal::Decompressor::UncompressedSize(
+  if (ABSL_PREDICT_FALSE(!internal::UncompressedSize(
           context->buckets[0].compressed_data, context->compression_type,
           &remaining_bucket_size))) {
     return Fail("Reading uncompressed size failed");
@@ -851,7 +851,7 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
     while (remaining_bucket_size == 0 && bucket_index + 1 < num_buckets) {
       ++bucket_index;
       first_buffer_indices->push_back(buffer_index + 1);
-      if (ABSL_PREDICT_FALSE(!internal::Decompressor::UncompressedSize(
+      if (ABSL_PREDICT_FALSE(!internal::UncompressedSize(
               context->buckets[bucket_index].compressed_data,
               context->compression_type, &remaining_bucket_size))) {
         return Fail("Reading uncompressed size failed");
@@ -867,9 +867,9 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   return true;
 }
 
-inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
-                                                uint32_t bucket_index,
-                                                uint32_t index_within_bucket) {
+inline Reader* TransposeDecoder::GetBuffer(Context* context,
+                                           uint32_t bucket_index,
+                                           uint32_t index_within_bucket) {
   RIEGELI_ASSERT_LT(bucket_index, context->buckets.size())
       << "Bucket index out of range";
   DataBucket& bucket = context->buckets[bucket_index];
@@ -879,9 +879,8 @@ inline ChainReader* TransposeDecoder::GetBuffer(Context* context,
   } else {
     RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffer_sizes.size())
         << "Index within bucket out of range";
-    internal::Decompressor decompressor(
-        absl::make_unique<ChainReader>(&bucket.compressed_data),
-        context->compression_type);
+    internal::Decompressor<ChainReader<>> decompressor(
+        (ChainReader<>(&bucket.compressed_data)), context->compression_type);
     if (ABSL_PREDICT_FALSE(!decompressor.healthy())) {
       Fail(decompressor);
       return nullptr;
@@ -1356,14 +1355,14 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
           if (ABSL_PREDICT_FALSE(node->buffer == nullptr)) return false;
           break;
         case FieldIncluded::kNo:
-          node->buffer = kEmptyChainReader();
+          node->buffer = kEmptyReader();
           break;
         case FieldIncluded::kExistenceOnly:
-          node->buffer = kEmptyChainReader();
+          node->buffer = kEmptyReader();
           break;
       }
     } else {
-      node->buffer = kEmptyChainReader();
+      node->buffer = kEmptyReader();
     }
     node->callback_type = GetCallbackType(field_included, node_template->tag,
                                           node_template->subtype,

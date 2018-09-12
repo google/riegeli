@@ -40,100 +40,53 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/str_error.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/fd_holder.h"
+#include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 namespace internal {
 
-inline FdWriterBase::FdWriterBase(int fd, bool owns_fd, size_t buffer_size)
-    : BufferedWriter(UnsignedMin(buffer_size,
-                                 Position{std::numeric_limits<off_t>::max()})),
-      owned_fd_(owns_fd ? fd : -1),
-      fd_(fd),
-      filename_(fd == 1 ? "/dev/stdout"
-                        : fd == 2 ? "/dev/stderr"
-                                  : absl::StrCat("/proc/self/fd/", fd)) {
-  RIEGELI_ASSERT_GE(fd, 0)
-      << "Failed precondition of FdWriterBase::FdWriterBase(int): "
-         "negative file descriptor";
+FdWriterCommon::FdWriterCommon(size_t buffer_size)
+    : BufferedWriter(UnsignedMin(
+          buffer_size, Position{std::numeric_limits<off_t>::max()})) {}
+
+void FdWriterCommon::SetFilename(int dest) {
+  if (dest == 1) {
+    filename_ = "/dev/stdout";
+  } else if (dest == 2) {
+    filename_ = "/dev/stderr";
+  } else {
+    filename_ = absl::StrCat("/proc/self/fd/", dest);
+  }
 }
 
-inline FdWriterBase::FdWriterBase(absl::string_view filename, int flags,
-                                  mode_t permissions, bool owns_fd,
-                                  size_t buffer_size)
-    : BufferedWriter(UnsignedMin(buffer_size,
-                                 Position{std::numeric_limits<off_t>::max()})),
-      filename_(filename) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdWriterBase::FdWriterBase(string_view): "
-         "flags must include O_WRONLY or O_RDWR";
+int FdWriterCommon::OpenFd(absl::string_view filename, int flags,
+                           mode_t permissions) {
+  filename_.assign(filename.data(), filename.size());
 again:
-  fd_ = open(filename_.c_str(), flags, permissions);
-  if (ABSL_PREDICT_FALSE(fd_ < 0)) {
+  const int dest = open(filename_.c_str(), flags, permissions);
+  if (ABSL_PREDICT_FALSE(dest < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     FailOperation("open()", error_code);
-    return;
+    return -1;
   }
-  if (owns_fd) owned_fd_ = FdHolder(fd_);
+  return dest;
 }
 
-void FdWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(PushInternal())) MaybeSyncPos();
-  if (owned_fd_.fd() >= 0) {
-    const int error_code = owned_fd_.Close();
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(FdHolder::CloseFunctionName(), error_code);
-    }
-    fd_ = -1;
-  }
-  BufferedWriter::Done();
-}
-
-inline bool FdWriterBase::FailOperation(absl::string_view operation,
-                                        int error_code) {
+bool FdWriterCommon::FailOperation(absl::string_view operation,
+                                   int error_code) {
   error_code_ = error_code;
   return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
                            ", writing ", filename_));
 }
 
-bool FdWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  if (ABSL_PREDICT_FALSE(!MaybeSyncPos())) return false;
-  switch (flush_type) {
-    case FlushType::kFromObject:
-    case FlushType::kFromProcess:
-      return true;
-    case FlushType::kFromMachine: {
-      const int result = fsync(fd_);
-      return result == 0;
-    }
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
-}
-
 }  // namespace internal
 
-FdWriter::FdWriter(int fd, Options options)
-    : FdWriterBase(fd, options.owns_fd_, options.buffer_size_),
-      sync_pos_(options.sync_pos_) {
-  InitializePos(O_WRONLY | O_APPEND);
-}
-
-FdWriter::FdWriter(absl::string_view filename, int flags, Options options)
-    : FdWriterBase(filename, flags, options.permissions_, options.owns_fd_,
-                   options.buffer_size_),
-      sync_pos_(options.sync_pos_) {
-  if (ABSL_PREDICT_TRUE(healthy())) InitializePos(flags);
-}
-
-inline void FdWriter::InitializePos(int flags) {
+void FdWriterBase::Initialize(int flags, int dest) {
   if (sync_pos_) {
-    const off_t result = lseek(fd_, 0, SEEK_CUR);
+    const off_t result = lseek(dest, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(result < 0)) {
       FailOperation("lseek()", errno);
       return;
@@ -141,7 +94,7 @@ inline void FdWriter::InitializePos(int flags) {
     start_pos_ = IntCast<Position>(result);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
       const int error_code = errno;
       FailOperation("fstat()", error_code);
       return;
@@ -150,12 +103,11 @@ inline void FdWriter::InitializePos(int flags) {
   }
 }
 
-bool FdWriter::MaybeSyncPos() {
+bool FdWriterBase::SyncPos(int dest) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of FdWriterBase::MaybeSyncPos(): "
-         "buffer not cleared";
+      << "Failed precondition of FdWriterBase::SyncPos(): buffer not cleared";
   if (sync_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(fd_, IntCast<off_t>(start_pos_), SEEK_SET) <
+    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos_), SEEK_SET) <
                            0)) {
       limit_ = start_;
       return FailOperation("lseek()", errno);
@@ -164,7 +116,7 @@ bool FdWriter::MaybeSyncPos() {
   return true;
 }
 
-bool FdWriter::WriteInternal(absl::string_view src) {
+bool FdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -174,6 +126,7 @@ bool FdWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
+  const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos_)) {
@@ -183,7 +136,7 @@ bool FdWriter::WriteInternal(absl::string_view src) {
   do {
   again:
     const ssize_t result = pwrite(
-        fd_, src.data(),
+        dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(start_pos_));
     if (ABSL_PREDICT_FALSE(result < 0)) {
@@ -201,7 +154,24 @@ bool FdWriter::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool FdWriter::SeekSlow(Position new_pos) {
+bool FdWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  const int dest = dest_fd();
+  if (ABSL_PREDICT_FALSE(!SyncPos(dest))) return false;
+  switch (flush_type) {
+    case FlushType::kFromObject:
+    case FlushType::kFromProcess:
+      return true;
+    case FlushType::kFromMachine: {
+      const int result = fsync(dest);
+      return result == 0;
+    }
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown flush type: " << static_cast<int>(flush_type);
+}
+
+bool FdWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
@@ -210,8 +180,9 @@ bool FdWriter::SeekSlow(Position new_pos) {
       << "BufferedWriter::PushInternal() did not empty the buffer";
   if (new_pos >= start_pos_) {
     // Seeking forwards.
+    const int dest = dest_fd();
     struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
       const int error_code = errno;
       limit_ = start_;
       return FailOperation("fstat()", error_code);
@@ -226,10 +197,11 @@ bool FdWriter::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdWriter::Size(Position* size) {
+bool FdWriterBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int dest = dest_fd();
   struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+  if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
     const int error_code = errno;
     cursor_ = start_;
     limit_ = start_;
@@ -239,14 +211,15 @@ bool FdWriter::Size(Position* size) {
   return true;
 }
 
-bool FdWriter::Truncate(Position new_size) {
+bool FdWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
+  const int dest = dest_fd();
   if (new_size >= start_pos_) {
     // Seeking forwards.
     struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
       const int error_code = errno;
       limit_ = start_;
       return FailOperation("fstat()", error_code);
@@ -258,7 +231,7 @@ bool FdWriter::Truncate(Position new_size) {
     }
   }
 again:
-  if (ABSL_PREDICT_FALSE(ftruncate(fd_, IntCast<off_t>(new_size)) < 0)) {
+  if (ABSL_PREDICT_FALSE(ftruncate(dest, IntCast<off_t>(new_size)) < 0)) {
     const int error_code = errno;
     if (error_code == EINTR) goto again;
     limit_ = start_;
@@ -268,25 +241,10 @@ again:
   return true;
 }
 
-FdStreamWriter::FdStreamWriter(int fd, Options options)
-    : FdWriterBase(fd, options.owns_fd_, options.buffer_size_) {
-  RIEGELI_ASSERT(options.assumed_pos_.has_value())
-      << "Failed precondition of FdStreamWriter::FdStreamWriter(int): "
-         "assumed file position must be specified "
-         "if FdStreamWriter does not open the file";
-  start_pos_ = *options.assumed_pos_;
-}
-
-FdStreamWriter::FdStreamWriter(absl::string_view filename, int flags,
-                               Options options)
-    : FdWriterBase(filename, flags, options.permissions_, options.owns_fd_,
-                   options.buffer_size_) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  if (options.assumed_pos_.has_value()) {
-    start_pos_ = *options.assumed_pos_;
-  } else if ((flags & O_APPEND) != 0) {
+void FdStreamWriterBase::Initialize(int flags, int dest) {
+  if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(fd_, &stat_info) < 0)) {
+    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
       const int error_code = errno;
       FailOperation("fstat()", error_code);
       return;
@@ -295,7 +253,7 @@ FdStreamWriter::FdStreamWriter(absl::string_view filename, int flags,
   }
 }
 
-bool FdStreamWriter::WriteInternal(absl::string_view src) {
+bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -305,6 +263,7 @@ bool FdStreamWriter::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not cleared";
+  const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos_)) {
@@ -314,7 +273,7 @@ bool FdStreamWriter::WriteInternal(absl::string_view src) {
   do {
   again:
     const ssize_t result = write(
-        fd_, src.data(),
+        dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}));
     if (ABSL_PREDICT_FALSE(result < 0)) {
       const int error_code = errno;
@@ -330,5 +289,26 @@ bool FdStreamWriter::WriteInternal(absl::string_view src) {
   } while (!src.empty());
   return true;
 }
+
+bool FdStreamWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  const int dest = dest_fd();
+  switch (flush_type) {
+    case FlushType::kFromObject:
+    case FlushType::kFromProcess:
+      return true;
+    case FlushType::kFromMachine: {
+      const int result = fsync(dest);
+      return result == 0;
+    }
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown flush type: " << static_cast<int>(flush_type);
+}
+
+template class FdWriter<OwnedFd>;
+template class FdWriter<int>;
+template class FdStreamWriter<OwnedFd>;
+template class FdStreamWriter<int>;
 
 }  // namespace riegeli

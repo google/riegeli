@@ -21,32 +21,36 @@
 
 namespace riegeli {
 
-void ArrayWriter::Done() {
+void ArrayWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    dest_ = absl::Span<char>(start_, written_to_buffer());
+    written_ = absl::Span<char>(start_, written_to_buffer());
     start_pos_ = pos();
   }
   Writer::Done();
 }
 
-bool ArrayWriter::PushSlow() {
+bool ArrayWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
   return FailOverflow();
 }
 
-bool ArrayWriter::Flush(FlushType flush_type) {
+bool ArrayWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_ = absl::Span<char>(start_, written_to_buffer());
+  written_ = absl::Span<char>(start_, written_to_buffer());
   return true;
 }
 
-bool ArrayWriter::Truncate(Position new_size) {
+bool ArrayWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   cursor_ = start_ + new_size;
   return true;
 }
+
+template class ArrayWriter<absl::Span<char>>;
+template class ArrayWriter<std::string*>;
+template class ArrayWriter<std::string>;
 
 }  // namespace riegeli

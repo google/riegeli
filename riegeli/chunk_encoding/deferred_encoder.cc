@@ -46,7 +46,7 @@ void DeferredEncoder::Done() {
 void DeferredEncoder::Reset() {
   ChunkEncoder::Reset();
   base_encoder_->Reset();
-  records_writer_ = ChainWriter(kOwnsDest());
+  records_writer_ = ChainWriter<Chain>(Chain());
   limits_.clear();
 }
 

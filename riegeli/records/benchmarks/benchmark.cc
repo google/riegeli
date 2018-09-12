@@ -123,13 +123,14 @@ class Benchmarks {
       const tensorflow::io::RecordReaderOptions& record_reader_options,
       std::vector<std::string>* records, size_t* max_size = nullptr);
 
-  static void WriteRiegeli(const std::string& filename,
-                           riegeli::RecordWriter::Options record_writer_options,
-                           const std::vector<std::string>& records);
-  static bool ReadRiegeli(const std::string& filename,
-                          riegeli::RecordReader::Options record_reader_options,
-                          std::vector<std::string>* records,
-                          size_t* max_size = nullptr);
+  static void WriteRiegeli(
+      const std::string& filename,
+      riegeli::RecordWriterBase::Options record_writer_options,
+      const std::vector<std::string>& records);
+  static bool ReadRiegeli(
+      const std::string& filename,
+      riegeli::RecordReaderBase::Options record_reader_options,
+      std::vector<std::string>* records, size_t* max_size = nullptr);
 
   void RunOne(
       const std::string& name,
@@ -145,14 +146,14 @@ class Benchmarks {
   std::string output_dir_;
   int repetitions_;
   std::vector<std::pair<std::string, const char*>> tfrecord_benchmarks_;
-  std::vector<std::pair<std::string, riegeli::RecordWriter::Options>>
+  std::vector<std::pair<std::string, riegeli::RecordWriterBase::Options>>
       riegeli_benchmarks_;
   int max_name_width_ = 0;
 };
 
 bool Benchmarks::ReadFile(const std::string& filename,
                           std::vector<std::string>* records, size_t* max_size) {
-  riegeli::FdReader file_reader(filename, O_RDONLY);
+  riegeli::FdReader<> file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
     std::cerr << "Could not open file: " << file_reader.message() << std::endl;
     std::exit(1);
@@ -170,13 +171,13 @@ bool Benchmarks::ReadFile(const std::string& filename,
   }
   RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.message();
   {
-    riegeli::ChunkReader chunk_reader(&file_reader);
+    riegeli::DefaultChunkReader<> chunk_reader(&file_reader);
     if (chunk_reader.CheckFileFormat()) {
       RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.message();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
       std::cout << "Reading Riegeli/records: " << filename << std::endl;
-      return ReadRiegeli(filename, riegeli::RecordReader::Options(), records,
-                         max_size);
+      return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
+                         records, max_size);
     }
   }
   std::cerr << "Unknown file format: " << filename << std::endl;
@@ -237,25 +238,26 @@ bool Benchmarks::ReadTFRecord(
 
 void Benchmarks::WriteRiegeli(
     const std::string& filename,
-    riegeli::RecordWriter::Options record_writer_options,
+    riegeli::RecordWriterBase::Options record_writer_options,
     const std::vector<std::string>& records) {
-  riegeli::FdWriter file_writer(filename, O_WRONLY | O_CREAT | O_TRUNC);
-  riegeli::RecordWriter record_writer(&file_writer, record_writer_options);
+  riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
+      riegeli::FdWriter<>(filename, O_WRONLY | O_CREAT | O_TRUNC),
+      std::move(record_writer_options));
   for (const std::string& record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.message();
   }
   RIEGELI_CHECK(record_writer.Close()) << record_writer.message();
-  RIEGELI_CHECK(file_writer.Close()) << file_writer.message();
 }
 
 bool Benchmarks::ReadRiegeli(
     const std::string& filename,
-    riegeli::RecordReader::Options record_reader_options,
+    riegeli::RecordReaderBase::Options record_reader_options,
     std::vector<std::string>* records, size_t* max_size) {
   size_t max_size_storage = std::numeric_limits<size_t>::max();
   if (max_size == nullptr) max_size = &max_size_storage;
-  riegeli::FdReader file_reader(filename, O_RDONLY);
-  riegeli::RecordReader record_reader(&file_reader, record_reader_options);
+  riegeli::RecordReader<riegeli::FdReader<>> record_reader(
+      riegeli::FdReader<>(filename, O_RDONLY),
+      std::move(record_reader_options));
   std::string record;
   while (record_reader.ReadRecord(&record)) {
     const size_t memory =
@@ -265,7 +267,6 @@ bool Benchmarks::ReadRiegeli(
     records->push_back(std::move(record));
   }
   RIEGELI_CHECK(record_reader.Close()) << record_reader.message();
-  RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
   return true;
 }
 
@@ -316,7 +317,7 @@ void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
   max_name_width_ = std::max(
       max_name_width_,
       riegeli::IntCast<int>(absl::StrCat("riegeli ", riegeli_options).size()));
-  riegeli::RecordWriter::Options options;
+  riegeli::RecordWriterBase::Options options;
   std::string message;
   RIEGELI_CHECK(options.Parse(riegeli_options, &message)) << message;
   riegeli_benchmarks_.emplace_back(std::move(riegeli_options),
@@ -352,7 +353,7 @@ void Benchmarks::RunAll() {
                  records);
            });
   }
-  for (const std::pair<std::string, riegeli::RecordWriter::Options>&
+  for (const std::pair<std::string, riegeli::RecordWriterBase::Options>&
            riegeli_options : riegeli_benchmarks_) {
     RunOne(absl::StrCat("riegeli ", riegeli_options.first),
            [&](const std::string& filename,
@@ -360,7 +361,7 @@ void Benchmarks::RunAll() {
              WriteRiegeli(filename, riegeli_options.second, records);
            },
            [&](const std::string& filename, std::vector<std::string>* records) {
-             return ReadRiegeli(filename, riegeli::RecordReader::Options(),
+             return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
                                 records);
            });
   }

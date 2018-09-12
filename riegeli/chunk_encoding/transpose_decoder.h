@@ -109,7 +109,7 @@ class TransposeDecoder : public Object {
     internal::CallbackType callback_type;
     union {
       // Buffer to read data from.
-      ChainReader* buffer;
+      Reader* buffer;
       // In filtering mode, the node is updated in decoding phase based on the
       // current submessage stack and this template.
       StateMachineNodeTemplate* node_template;
@@ -143,8 +143,8 @@ class TransposeDecoder : public Object {
                                std::vector<uint32_t>* bucket_indices);
 
   // Precondition: filtering_enabled == true.
-  ChainReader* GetBuffer(Context* context, uint32_t bucket_index,
-                         uint32_t index_within_bucket);
+  Reader* GetBuffer(Context* context, uint32_t bucket_index,
+                    uint32_t index_within_bucket);
 
   static bool ContainsImplicitLoop(
       std::vector<StateMachineNode>* state_machine_nodes);

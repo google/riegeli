@@ -64,11 +64,9 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
                          std::numeric_limits<Position>::max() - src->pos())) {
     return Fail("Size of sizes too large");
   }
-  LimitingReader compressed_sizes_reader(src, src->pos() + sizes_size);
-  internal::Decompressor sizes_decompressor(&compressed_sizes_reader,
-                                            compression_type);
+  internal::Decompressor<LimitingReader> sizes_decompressor(
+      LimitingReader(src, src->pos() + sizes_size), compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
-    compressed_sizes_reader.Close();
     return Fail(sizes_decompressor);
   }
   limits->clear();
@@ -76,28 +74,22 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
   while (limits->size() != num_records) {
     uint64_t size;
     if (ABSL_PREDICT_FALSE(!ReadVarint64(sizes_decompressor.reader(), &size))) {
-      compressed_sizes_reader.Close();
       return Fail("Reading record size failed", *sizes_decompressor.reader());
     }
     if (ABSL_PREDICT_FALSE(size > decoded_data_size - limit)) {
-      compressed_sizes_reader.Close();
       return Fail("Decoded data size larger than expected");
     }
     limit += IntCast<size_t>(size);
     limits->push_back(limit);
   }
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.VerifyEndAndClose())) {
-    compressed_sizes_reader.Close();
     return Fail(sizes_decompressor);
-  }
-  if (ABSL_PREDICT_FALSE(!compressed_sizes_reader.VerifyEndAndClose())) {
-    return Fail(compressed_sizes_reader);
   }
   if (ABSL_PREDICT_FALSE(limit != decoded_data_size)) {
     return Fail("Decoded data size smaller than expected");
   }
 
-  values_decompressor_ = internal::Decompressor(src, compression_type);
+  values_decompressor_ = internal::Decompressor<>(src, compression_type);
   if (ABSL_PREDICT_FALSE(!values_decompressor_.healthy())) {
     return Fail(values_decompressor_);
   }

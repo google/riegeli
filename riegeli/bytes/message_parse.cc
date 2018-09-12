@@ -139,14 +139,14 @@ bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
 }
 
 bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data) {
-  ChainReader data_reader(&data);
+  ChainReader<> data_reader(&data);
   if (ABSL_PREDICT_FALSE(!ParseFromReader(message, &data_reader))) return false;
   return data_reader.Close();
 }
 
 bool ParsePartialFromChain(google::protobuf::MessageLite* message,
                            const Chain& data) {
-  ChainReader data_reader(&data);
+  ChainReader<> data_reader(&data);
   if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(message, &data_reader))) {
     return false;
   }

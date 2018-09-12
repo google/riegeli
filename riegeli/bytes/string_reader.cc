@@ -14,24 +14,29 @@
 
 #include "riegeli/bytes/string_reader.h"
 
+#include <string>
+
+#include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
-void StringReader::Done() {
+namespace internal {
+
+void StringReaderBase::Done() {
   limit_pos_ = pos();
   Reader::Done();
 }
 
-bool StringReader::PullSlow() {
+bool StringReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   return false;
 }
 
-bool StringReader::SeekSlow(Position new_pos) {
+bool StringReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
@@ -42,5 +47,17 @@ bool StringReader::SeekSlow(Position new_pos) {
   cursor_ = limit_;
   return false;
 }
+
+bool StringReaderBase::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  *size = limit_pos_;
+  return true;
+}
+
+}  // namespace internal
+
+template class StringReader<absl::string_view>;
+template class StringReader<const std::string*>;
+template class StringReader<std::string>;
 
 }  // namespace riegeli
