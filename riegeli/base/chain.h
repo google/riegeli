@@ -57,7 +57,6 @@ class Chain {
   constexpr Chain() noexcept {}
 
   explicit Chain(absl::string_view src);
-  Chain(absl::string_view src, void* arg, void (*deleter)(void*));
   explicit Chain(std::string&& src);
   explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
 
