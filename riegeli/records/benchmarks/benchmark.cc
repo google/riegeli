@@ -159,7 +159,7 @@ bool Benchmarks::ReadFile(const std::string& filename,
     std::exit(1);
   }
   {
-    riegeli::TFRecordDetector tfrecord_recognizer(&file_reader);
+    riegeli::TFRecordRecognizer tfrecord_recognizer(&file_reader);
     tensorflow::io::RecordReaderOptions record_reader_options;
     if (tfrecord_recognizer.CheckFileFormat(&record_reader_options)) {
       RIEGELI_CHECK(tfrecord_recognizer.Close())

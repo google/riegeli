@@ -22,9 +22,9 @@
 
 namespace riegeli {
 
-class TFRecordDetector : public Object {
+class TFRecordRecognizer : public Object {
  public:
-  explicit TFRecordDetector(Reader* byte_reader);
+  explicit TFRecordRecognizer(Reader* byte_reader);
 
   // Ensures that the file looks like a valid TFRecord file.
   //
@@ -46,7 +46,7 @@ class TFRecordDetector : public Object {
 
 // Implementation details follow.
 
-inline TFRecordDetector::TFRecordDetector(Reader* byte_reader)
+inline TFRecordRecognizer::TFRecordRecognizer(Reader* byte_reader)
     : Object(State::kOpen), byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)) {}
 
 }  // namespace riegeli
