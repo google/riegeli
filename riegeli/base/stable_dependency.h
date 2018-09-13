@@ -17,11 +17,11 @@
 
 #include <memory>
 #include <new>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -43,8 +43,7 @@ class StableDependency;
 
 // Specialization when Dependency<P*, M> is already stable.
 template <typename P, typename M>
-class StableDependency<
-    P*, M, typename std::enable_if<Dependency<P*, M>::kIsStable()>::type>
+class StableDependency<P*, M, absl::enable_if_t<Dependency<P*, M>::kIsStable()>>
     : public Dependency<P*, M> {
   using Dependency<P*, M>::Dependency;
 };
@@ -52,8 +51,8 @@ class StableDependency<
 // Specialization when Dependency<P*, M> is not stable: allocates the dependency
 // dynamically.
 template <typename P, typename M>
-class StableDependency<
-    P*, M, typename std::enable_if<!Dependency<P*, M>::kIsStable()>::type> {
+class StableDependency<P*, M,
+                       absl::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
  public:
   StableDependency() noexcept : dummy_() {}
 

@@ -18,6 +18,7 @@
 #include <memory>
 #include <type_traits>
 
+#include "absl/meta/type_traits.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
 
@@ -37,11 +38,10 @@ class Dependency<absl::Span<char>, absl::Span<char>>
 };
 
 template <typename M>
-class Dependency<absl::Span<char>, M*,
-                 typename std::enable_if<
-                     std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>::type>
-    : public DependencyBase<M*> {
+class Dependency<
+    absl::Span<char>, M*,
+    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                      !std::is_pointer<M>::value>> : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
 
@@ -51,11 +51,10 @@ class Dependency<absl::Span<char>, M*,
 };
 
 template <typename M>
-class Dependency<absl::Span<char>, M,
-                 typename std::enable_if<
-                     std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>::type>
-    : public DependencyBase<M> {
+class Dependency<
+    absl::Span<char>, M,
+    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                      !std::is_pointer<M>::value>> : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
 
@@ -68,10 +67,10 @@ class Dependency<absl::Span<char>, M,
 };
 
 template <typename M, typename Deleter>
-class Dependency<absl::Span<char>, std::unique_ptr<M, Deleter>,
-                 typename std::enable_if<
-                     std::is_constructible<absl::Span<char>, M&>::value &&
-                     !std::is_pointer<M>::value>::type>
+class Dependency<
+    absl::Span<char>, std::unique_ptr<M, Deleter>,
+    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                      !std::is_pointer<M>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;

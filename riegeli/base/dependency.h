@@ -116,8 +116,7 @@ class DependencyBase {
 
 // Specialization of Dependency<P*, M*> when M* is convertible to P*.
 template <typename P, typename M>
-class Dependency<
-    P*, M*, typename std::enable_if<std::is_convertible<M*, P*>::value>::type>
+class Dependency<P*, M*, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
@@ -132,8 +131,7 @@ class Dependency<
 
 // Specialization of Dependency<P*, M> when M* is convertible to P*.
 template <typename P, typename M>
-class Dependency<
-    P*, M, typename std::enable_if<std::is_convertible<M*, P*>::value>::type>
+class Dependency<P*, M, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
@@ -151,9 +149,8 @@ class Dependency<
 
 // Specialization of Dependency<P*, unique_ptr<M>> when M* is convertible to P*.
 template <typename P, typename M, typename Deleter>
-class Dependency<
-    P*, std::unique_ptr<M, Deleter>,
-    typename std::enable_if<std::is_convertible<M*, P*>::value>::type>
+class Dependency<P*, std::unique_ptr<M, Deleter>,
+                 absl::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;

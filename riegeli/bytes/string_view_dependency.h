@@ -18,6 +18,7 @@
 #include <memory>
 #include <type_traits>
 
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/dependency.h"
 
@@ -37,9 +38,9 @@ class Dependency<absl::string_view, absl::string_view>
 };
 
 template <typename M>
-class Dependency<absl::string_view, M*,
-                 typename std::enable_if<
-                     std::is_convertible<M, absl::string_view>::value>::type>
+class Dependency<
+    absl::string_view, M*,
+    absl::enable_if_t<std::is_convertible<M, absl::string_view>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
@@ -50,9 +51,9 @@ class Dependency<absl::string_view, M*,
 };
 
 template <typename M>
-class Dependency<absl::string_view, M,
-                 typename std::enable_if<
-                     std::is_convertible<M, absl::string_view>::value>::type>
+class Dependency<
+    absl::string_view, M,
+    absl::enable_if_t<std::is_convertible<M, absl::string_view>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
@@ -63,9 +64,9 @@ class Dependency<absl::string_view, M,
 };
 
 template <typename M, typename Deleter>
-class Dependency<absl::string_view, std::unique_ptr<M, Deleter>,
-                 typename std::enable_if<
-                     std::is_convertible<M, absl::string_view>::value>::type>
+class Dependency<
+    absl::string_view, std::unique_ptr<M, Deleter>,
+    absl::enable_if_t<std::is_convertible<M, absl::string_view>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
