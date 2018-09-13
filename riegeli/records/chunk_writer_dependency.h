@@ -36,10 +36,10 @@ class Dependency<
   explicit Dependency(const M& value) : chunk_writer_(value) {}
   explicit Dependency(M&& value) : chunk_writer_(std::move(value)) {}
 
-  Dependency(Dependency&& src) noexcept
-      : chunk_writer_(std::move(src.chunk_writer_)) {}
-  Dependency& operator=(Dependency&& src) noexcept {
-    chunk_writer_ = std::move(src.chunk_writer_);
+  Dependency(Dependency&& that) noexcept
+      : chunk_writer_(std::move(that.chunk_writer_)) {}
+  Dependency& operator=(Dependency&& that) noexcept {
+    chunk_writer_ = std::move(that.chunk_writer_);
     return *this;
   }
 

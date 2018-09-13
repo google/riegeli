@@ -65,8 +65,8 @@ class ZstdReaderBase : public BufferedReader {
   explicit ZstdReaderBase(size_t buffer_size) noexcept
       : BufferedReader(buffer_size) {}
 
-  ZstdReaderBase(ZstdReaderBase&& src) noexcept;
-  ZstdReaderBase& operator=(ZstdReaderBase&& src) noexcept;
+  ZstdReaderBase(ZstdReaderBase&& that) noexcept;
+  ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Initialize();
   void Done() override;
@@ -107,8 +107,8 @@ class ZstdReader : public ZstdReaderBase {
   // Will read from the compressed Reader provided by src.
   explicit ZstdReader(Src src, Options options = Options());
 
-  ZstdReader(ZstdReader&& src) noexcept;
-  ZstdReader& operator=(ZstdReader&& src) noexcept;
+  ZstdReader(ZstdReader&& that) noexcept;
+  ZstdReader& operator=(ZstdReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the compressed Reader.
   // Unchanged by Close().
@@ -128,16 +128,16 @@ class ZstdReader : public ZstdReaderBase {
 
 // Implementation details follow.
 
-inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& src) noexcept
-    : BufferedReader(std::move(src)),
-      truncated_(riegeli::exchange(src.truncated_, false)),
-      decompressor_(std::move(src.decompressor_)) {}
+inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
+    : BufferedReader(std::move(that)),
+      truncated_(riegeli::exchange(that.truncated_, false)),
+      decompressor_(std::move(that.decompressor_)) {}
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
-    ZstdReaderBase&& src) noexcept {
-  BufferedReader::operator=(std::move(src));
-  truncated_ = riegeli::exchange(src.truncated_, false);
-  decompressor_ = std::move(src.decompressor_);
+    ZstdReaderBase&& that) noexcept {
+  BufferedReader::operator=(std::move(that));
+  truncated_ = riegeli::exchange(that.truncated_, false);
+  decompressor_ = std::move(that.decompressor_);
   return *this;
 }
 
@@ -151,13 +151,13 @@ ZstdReader<Src>::ZstdReader(Src src, Options options)
 }
 
 template <typename Src>
-ZstdReader<Src>::ZstdReader(ZstdReader&& src) noexcept
-    : ZstdReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+ZstdReader<Src>::ZstdReader(ZstdReader&& that) noexcept
+    : ZstdReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& src) noexcept {
-  ZstdReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
+  ZstdReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

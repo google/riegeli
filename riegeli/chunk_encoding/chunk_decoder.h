@@ -60,8 +60,8 @@ class ChunkDecoder : public Object {
   // Creates an empty ChunkDecoder.
   explicit ChunkDecoder(Options options = Options());
 
-  ChunkDecoder(ChunkDecoder&& src) noexcept;
-  ChunkDecoder& operator=(ChunkDecoder&& src) noexcept;
+  ChunkDecoder(ChunkDecoder&& that) noexcept;
+  ChunkDecoder& operator=(ChunkDecoder&& that) noexcept;
 
   // Resets the ChunkDecoder to an empty chunk.
   void Reset();

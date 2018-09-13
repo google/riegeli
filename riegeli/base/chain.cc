@@ -51,8 +51,8 @@ class Chain::BlockRef {
  public:
   BlockRef(Block* block, bool add_ref);
 
-  BlockRef(BlockRef&& src) noexcept;
-  BlockRef& operator=(BlockRef&& src) noexcept;
+  BlockRef(BlockRef&& that) noexcept;
+  BlockRef& operator=(BlockRef&& that) noexcept;
 
   ~BlockRef();
 
@@ -79,12 +79,12 @@ inline Chain::BlockRef::BlockRef(Block* block, bool add_ref) {
   block_ = block;
 }
 
-inline Chain::BlockRef::BlockRef(BlockRef&& src) noexcept
-    : block_(riegeli::exchange(src.block_, nullptr)) {}
+inline Chain::BlockRef::BlockRef(BlockRef&& that) noexcept
+    : block_(riegeli::exchange(that.block_, nullptr)) {}
 
-inline Chain::BlockRef& Chain::BlockRef::operator=(BlockRef&& src) noexcept {
-  // Exchange src.block_ early to support self-assignment.
-  Block* const block = riegeli::exchange(src.block_, nullptr);
+inline Chain::BlockRef& Chain::BlockRef::operator=(BlockRef&& that) noexcept {
+  // Exchange that.block_ early to support self-assignment.
+  Block* const block = riegeli::exchange(that.block_, nullptr);
   if (block_ != nullptr) block_->Unref();
   block_ = block;
   return *this;
@@ -109,8 +109,8 @@ class Chain::StringRef {
  public:
   explicit StringRef(std::string src) : src_(std::move(src)) {}
 
-  StringRef(StringRef&& src) noexcept;
-  StringRef& operator=(StringRef&& src) noexcept;
+  StringRef(StringRef&& that) noexcept;
+  StringRef& operator=(StringRef&& that) noexcept;
 
   absl::string_view data() const { return src_; }
   void RegisterSubobjects(absl::string_view data,
@@ -123,11 +123,12 @@ class Chain::StringRef {
   std::string src_;
 };
 
-inline Chain::StringRef::StringRef(StringRef&& src) noexcept
-    : src_(std::move(src.src_)) {}
+inline Chain::StringRef::StringRef(StringRef&& that) noexcept
+    : src_(std::move(that.src_)) {}
 
-inline Chain::StringRef& Chain::StringRef::operator=(StringRef&& src) noexcept {
-  src_ = std::move(src.src_);
+inline Chain::StringRef& Chain::StringRef::operator=(
+    StringRef&& that) noexcept {
+  src_ = std::move(that.src_);
   return *this;
 }
 
@@ -441,26 +442,26 @@ Chain::Chain(absl::string_view src) { Append(src, src.size()); }
 
 Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
 
-Chain::Chain(const Chain& src) : size_(src.size_) {
-  if (src.begin_ == src.end_) {
-    std::memcpy(block_ptrs_.short_data, src.block_ptrs_.short_data,
+Chain::Chain(const Chain& that) : size_(that.size_) {
+  if (that.begin_ == that.end_) {
+    std::memcpy(block_ptrs_.short_data, that.block_ptrs_.short_data,
                 kMaxShortDataSize);
   } else {
-    RefAndAppendBlocks(src.begin_, src.end_);
+    RefAndAppendBlocks(that.begin_, that.end_);
   }
 }
 
-Chain& Chain::operator=(const Chain& src) {
-  if (&src != this) {
+Chain& Chain::operator=(const Chain& that) {
+  if (&that != this) {
     UnrefBlocks();
     end_ = begin_;
-    if (src.begin_ == src.end_) {
-      std::memcpy(block_ptrs_.short_data, src.block_ptrs_.short_data,
+    if (that.begin_ == that.end_) {
+      std::memcpy(block_ptrs_.short_data, that.block_ptrs_.short_data,
                   kMaxShortDataSize);
     } else {
-      RefAndAppendBlocks(src.begin_, src.end_);
+      RefAndAppendBlocks(that.begin_, that.end_);
     }
-    size_ = src.size_;
+    size_ = that.size_;
   }
   return *this;
 }
@@ -1749,80 +1750,81 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   PrependExternal(BlockRef(block, false), data, size_hint);
 }
 
-void Chain::Swap(Chain* b) {
+void Chain::Swap(Chain* that) {
   using std::swap;
   if (has_here()) {
-    begin_ = b->block_ptrs_.here + (begin_ - block_ptrs_.here);
-    end_ = b->block_ptrs_.here + (end_ - block_ptrs_.here);
+    begin_ = that->block_ptrs_.here + (begin_ - block_ptrs_.here);
+    end_ = that->block_ptrs_.here + (end_ - block_ptrs_.here);
   }
-  if (b->has_here()) {
-    b->begin_ = block_ptrs_.here + (b->begin_ - b->block_ptrs_.here);
-    b->end_ = block_ptrs_.here + (b->end_ - b->block_ptrs_.here);
+  if (that->has_here()) {
+    that->begin_ = block_ptrs_.here + (that->begin_ - that->block_ptrs_.here);
+    that->end_ = block_ptrs_.here + (that->end_ - that->block_ptrs_.here);
   }
-  swap(block_ptrs_, b->block_ptrs_);
-  swap(begin_, b->begin_);
-  swap(end_, b->end_);
-  swap(size_, b->size_);
+  swap(block_ptrs_, that->block_ptrs_);
+  swap(begin_, that->begin_);
+  swap(end_, that->end_);
+  swap(size_, that->size_);
 }
 
-int Chain::Compare(absl::string_view b) const {
-  Chain::BlockIterator a_iter = blocks().cbegin();
-  size_t a_pos = 0;
-  size_t b_pos = 0;
-  while (a_iter != blocks().cend()) {
-    if (b_pos == b.size()) {
+int Chain::Compare(absl::string_view that) const {
+  Chain::BlockIterator this_iter = blocks().cbegin();
+  size_t this_pos = 0;
+  size_t that_pos = 0;
+  while (this_iter != blocks().cend()) {
+    if (that_pos == that.size()) {
       do {
-        if (!a_iter->empty()) return 1;
-        ++a_iter;
-      } while (a_iter != blocks().cend());
-      return 0;
-    }
-    const size_t length = UnsignedMin(a_iter->size() - a_pos, b.size() - b_pos);
-    const int result =
-        std::memcmp(a_iter->data() + a_pos, b.data() + b_pos, length);
-    if (result != 0) return result;
-    a_pos += length;
-    if (a_pos == a_iter->size()) {
-      ++a_iter;
-      a_pos = 0;
-    }
-    b_pos += length;
-  }
-  return b_pos == b.size() ? 0 : -1;
-}
-
-int Chain::Compare(const Chain& b) const {
-  Chain::BlockIterator a_iter = blocks().cbegin();
-  Chain::BlockIterator b_iter = b.blocks().cbegin();
-  size_t a_pos = 0;
-  size_t b_pos = 0;
-  while (a_iter != blocks().cend()) {
-    if (b_iter == b.blocks().cend()) {
-      do {
-        if (!a_iter->empty()) return 1;
-        ++a_iter;
-      } while (a_iter != blocks().cend());
+        if (!this_iter->empty()) return 1;
+        ++this_iter;
+      } while (this_iter != blocks().cend());
       return 0;
     }
     const size_t length =
-        UnsignedMin(a_iter->size() - a_pos, b_iter->size() - b_pos);
-    const int result =
-        std::memcmp(a_iter->data() + a_pos, b_iter->data() + b_pos, length);
+        UnsignedMin(this_iter->size() - this_pos, that.size() - that_pos);
+    const int result = std::memcmp(this_iter->data() + this_pos,
+                                   that.data() + that_pos, length);
     if (result != 0) return result;
-    a_pos += length;
-    if (a_pos == a_iter->size()) {
-      ++a_iter;
-      a_pos = 0;
+    this_pos += length;
+    if (this_pos == this_iter->size()) {
+      ++this_iter;
+      this_pos = 0;
     }
-    b_pos += length;
-    if (b_pos == b_iter->size()) {
-      ++b_iter;
-      b_pos = 0;
+    that_pos += length;
+  }
+  return that_pos == that.size() ? 0 : -1;
+}
+
+int Chain::Compare(const Chain& that) const {
+  Chain::BlockIterator this_iter = blocks().cbegin();
+  Chain::BlockIterator that_iter = that.blocks().cbegin();
+  size_t this_pos = 0;
+  size_t that_pos = 0;
+  while (this_iter != blocks().cend()) {
+    if (that_iter == that.blocks().cend()) {
+      do {
+        if (!this_iter->empty()) return 1;
+        ++this_iter;
+      } while (this_iter != blocks().cend());
+      return 0;
+    }
+    const size_t length =
+        UnsignedMin(this_iter->size() - this_pos, that_iter->size() - that_pos);
+    const int result = std::memcmp(this_iter->data() + this_pos,
+                                   that_iter->data() + that_pos, length);
+    if (result != 0) return result;
+    this_pos += length;
+    if (this_pos == this_iter->size()) {
+      ++this_iter;
+      this_pos = 0;
+    }
+    that_pos += length;
+    if (that_pos == that_iter->size()) {
+      ++that_iter;
+      that_pos = 0;
     }
   }
-  while (b_iter != b.blocks().cend()) {
-    if (!b_iter->empty()) return -1;
-    ++b_iter;
+  while (that_iter != that.blocks().cend()) {
+    if (!that_iter->empty()) return -1;
+    ++that_iter;
   }
   return 0;
 }

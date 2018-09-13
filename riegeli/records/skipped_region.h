@@ -25,8 +25,8 @@ class SkippedRegion {
 
   SkippedRegion(Position begin, Position end);
 
-  SkippedRegion(const SkippedRegion& src) noexcept;
-  SkippedRegion& operator=(const SkippedRegion& src) noexcept;
+  SkippedRegion(const SkippedRegion& that) noexcept;
+  SkippedRegion& operator=(const SkippedRegion& that) noexcept;
 
   Position begin() const { return begin_; }
   Position end() const { return end_; }
@@ -47,13 +47,13 @@ inline SkippedRegion::SkippedRegion(Position begin, Position end)
          "positions in the wrong order";
 }
 
-inline SkippedRegion::SkippedRegion(const SkippedRegion& src) noexcept
-    : begin_(src.begin_), end_(src.end_) {}
+inline SkippedRegion::SkippedRegion(const SkippedRegion& that) noexcept
+    : begin_(that.begin_), end_(that.end_) {}
 
 inline SkippedRegion& SkippedRegion::operator=(
-    const SkippedRegion& src) noexcept {
-  begin_ = src.begin_;
-  end_ = src.end_;
+    const SkippedRegion& that) noexcept {
+  begin_ = that.begin_;
+  end_ = that.end_;
   return *this;
 }
 

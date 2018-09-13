@@ -34,8 +34,8 @@ class RecordPosition {
   // at the given file position.
   RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
-  RecordPosition(const RecordPosition& src) noexcept;
-  RecordPosition& operator=(const RecordPosition& src) noexcept;
+  RecordPosition(const RecordPosition& that) noexcept;
+  RecordPosition& operator=(const RecordPosition& that) noexcept;
 
   uint64_t chunk_begin() const { return chunk_begin_; }
   uint64_t record_index() const { return record_index_; }
@@ -74,13 +74,13 @@ inline RecordPosition::RecordPosition(uint64_t chunk_begin,
       << "RecordPosition overflow";
 }
 
-inline RecordPosition::RecordPosition(const RecordPosition& src) noexcept
-    : chunk_begin_(src.chunk_begin_), record_index_(src.record_index_) {}
+inline RecordPosition::RecordPosition(const RecordPosition& that) noexcept
+    : chunk_begin_(that.chunk_begin_), record_index_(that.record_index_) {}
 
 inline RecordPosition& RecordPosition::operator=(
-    const RecordPosition& src) noexcept {
-  chunk_begin_ = src.chunk_begin_;
-  record_index_ = src.record_index_;
+    const RecordPosition& that) noexcept {
+  chunk_begin_ = that.chunk_begin_;
+  record_index_ = that.record_index_;
   return *this;
 }
 

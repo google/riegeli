@@ -60,11 +60,11 @@ class FutureRecordPosition {
 
   explicit FutureRecordPosition(RecordPosition pos) noexcept;
 
-  FutureRecordPosition(FutureRecordPosition&& src) noexcept;
-  FutureRecordPosition& operator=(FutureRecordPosition&& src) noexcept;
+  FutureRecordPosition(FutureRecordPosition&& that) noexcept;
+  FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
 
-  FutureRecordPosition(const FutureRecordPosition& src);
-  FutureRecordPosition& operator=(const FutureRecordPosition& src);
+  FutureRecordPosition(const FutureRecordPosition& that);
+  FutureRecordPosition& operator=(const FutureRecordPosition& that);
 
   // May block if returned by RecordWriter with parallelism > 0.
   RecordPosition get() const;
@@ -372,8 +372,8 @@ class RecordWriterBase : public Object {
  protected:
   explicit RecordWriterBase(State state) noexcept;
 
-  RecordWriterBase(RecordWriterBase&& src) noexcept;
-  RecordWriterBase& operator=(RecordWriterBase&& src) noexcept;
+  RecordWriterBase(RecordWriterBase&& that) noexcept;
+  RecordWriterBase& operator=(RecordWriterBase&& that) noexcept;
 
   void Initialize(ChunkWriter* chunk_writer, Options&& options);
 
@@ -432,8 +432,8 @@ class RecordWriter : public RecordWriterBase {
   // Will write to the byte Writer or ChunkWriter provided by dest.
   explicit RecordWriter(Dest dest, Options options = Options());
 
-  RecordWriter(RecordWriter&& src) noexcept;
-  RecordWriter& operator=(RecordWriter&& src) noexcept;
+  RecordWriter(RecordWriter&& that) noexcept;
+  RecordWriter& operator=(RecordWriter&& that) noexcept;
 
   ~RecordWriter() { DoneBackground(); }
 
@@ -486,30 +486,30 @@ inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
     : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
 
 inline FutureRecordPosition::FutureRecordPosition(
-    FutureRecordPosition&& src) noexcept
-    : future_chunk_begin_(std::move(src.future_chunk_begin_)),
-      chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
-      record_index_(riegeli::exchange(src.record_index_, 0)) {}
+    FutureRecordPosition&& that) noexcept
+    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
+      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
+      record_index_(riegeli::exchange(that.record_index_, 0)) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
-    FutureRecordPosition&& src) noexcept {
-  future_chunk_begin_ = std::move(src.future_chunk_begin_);
-  chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
-  record_index_ = riegeli::exchange(src.record_index_, 0);
+    FutureRecordPosition&& that) noexcept {
+  future_chunk_begin_ = std::move(that.future_chunk_begin_);
+  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
+  record_index_ = riegeli::exchange(that.record_index_, 0);
   return *this;
 }
 
 inline FutureRecordPosition::FutureRecordPosition(
-    const FutureRecordPosition& src)
-    : future_chunk_begin_(src.future_chunk_begin_),
-      chunk_begin_(src.chunk_begin_),
-      record_index_(src.record_index_) {}
+    const FutureRecordPosition& that)
+    : future_chunk_begin_(that.future_chunk_begin_),
+      chunk_begin_(that.chunk_begin_),
+      record_index_(that.record_index_) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
-    const FutureRecordPosition& src) {
-  future_chunk_begin_ = src.future_chunk_begin_;
-  chunk_begin_ = src.chunk_begin_;
-  record_index_ = src.record_index_;
+    const FutureRecordPosition& that) {
+  future_chunk_begin_ = that.future_chunk_begin_;
+  chunk_begin_ = that.chunk_begin_;
+  record_index_ = that.record_index_;
   return *this;
 }
 
@@ -560,14 +560,15 @@ RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-RecordWriter<Dest>::RecordWriter(RecordWriter&& src) noexcept
-    : RecordWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
+    : RecordWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-RecordWriter<Dest>& RecordWriter<Dest>::operator=(RecordWriter&& src) noexcept {
+RecordWriter<Dest>& RecordWriter<Dest>::operator=(
+    RecordWriter&& that) noexcept {
   DoneBackground();
-  RecordWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+  RecordWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 

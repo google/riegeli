@@ -41,8 +41,8 @@ class BufferedReader : public Reader {
   // Creates a BufferedReader with the given buffer size.
   explicit BufferedReader(size_t buffer_size) noexcept;
 
-  BufferedReader(BufferedReader&& src) noexcept;
-  BufferedReader& operator=(BufferedReader&& src) noexcept;
+  BufferedReader(BufferedReader&& that) noexcept;
+  BufferedReader& operator=(BufferedReader&& that) noexcept;
 
   // BufferedReader overrides Reader::Done(). Derived classes which override it
   // further should include a call to BufferedReader::Done().
@@ -102,16 +102,16 @@ inline BufferedReader::BufferedReader(size_t buffer_size) noexcept
       << "Failed precondition of BufferedReader::BufferedReader(size_t)";
 }
 
-inline BufferedReader::BufferedReader(BufferedReader&& src) noexcept
-    : Reader(std::move(src)),
-      buffer_size_(riegeli::exchange(src.buffer_size_, 0)),
-      buffer_(riegeli::exchange(src.buffer_, Chain())) {}
+inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
+    : Reader(std::move(that)),
+      buffer_size_(riegeli::exchange(that.buffer_size_, 0)),
+      buffer_(riegeli::exchange(that.buffer_, Chain())) {}
 
 inline BufferedReader& BufferedReader::operator=(
-    BufferedReader&& src) noexcept {
-  Reader::operator=(std::move(src));
-  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
-  buffer_ = riegeli::exchange(src.buffer_, Chain());
+    BufferedReader&& that) noexcept {
+  Reader::operator=(std::move(that));
+  buffer_size_ = riegeli::exchange(that.buffer_size_, 0);
+  buffer_ = riegeli::exchange(that.buffer_, Chain());
   return *this;
 }
 

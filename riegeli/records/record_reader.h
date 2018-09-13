@@ -45,8 +45,8 @@ class RecordsMetadataDescriptors : public Object {
  public:
   explicit RecordsMetadataDescriptors(const RecordsMetadata& metadata);
 
-  RecordsMetadataDescriptors(RecordsMetadataDescriptors&& src) noexcept;
-  RecordsMetadataDescriptors& operator=(RecordsMetadataDescriptors&& src);
+  RecordsMetadataDescriptors(RecordsMetadataDescriptors&& that) noexcept;
+  RecordsMetadataDescriptors& operator=(RecordsMetadataDescriptors&& that);
 
   // Returns message descriptor of the record type, or nullptr if not available.
   //
@@ -217,8 +217,8 @@ class RecordReaderBase : public Object {
 
   explicit RecordReaderBase(State state) noexcept;
 
-  RecordReaderBase(RecordReaderBase&& src) noexcept;
-  RecordReaderBase& operator=(RecordReaderBase&& src) noexcept;
+  RecordReaderBase(RecordReaderBase&& that) noexcept;
+  RecordReaderBase& operator=(RecordReaderBase&& that) noexcept;
 
   void Initialize(ChunkReader* src, Options&& options);
   void Done() override;
@@ -332,8 +332,8 @@ class RecordReader : public RecordReaderBase {
   // Will read from the byte Reader or ChunkReader provided by src.
   explicit RecordReader(Src src, Options options = Options());
 
-  RecordReader(RecordReader&& src) noexcept;
-  RecordReader& operator=(RecordReader&& src) noexcept;
+  RecordReader(RecordReader&& that) noexcept;
+  RecordReader& operator=(RecordReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the byte Reader or
   // ChunkReader. Unchanged by Close().
@@ -356,17 +356,17 @@ class RecordReader : public RecordReaderBase {
 // Implementation details follow.
 
 inline RecordsMetadataDescriptors::RecordsMetadataDescriptors(
-    RecordsMetadataDescriptors&& src) noexcept
-    : Object(std::move(src)),
+    RecordsMetadataDescriptors&& that) noexcept
+    : Object(std::move(that)),
       record_type_name_(
-          riegeli::exchange(src.record_type_name_, std::string())),
-      pool_(std::move(src.pool_)) {}
+          riegeli::exchange(that.record_type_name_, std::string())),
+      pool_(std::move(that.pool_)) {}
 
 inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
-    RecordsMetadataDescriptors&& src) {
-  Object::operator=(std::move(src));
-  record_type_name_ = riegeli::exchange(src.record_type_name_, std::string()),
-  pool_ = std::move(src.pool_);
+    RecordsMetadataDescriptors&& that) {
+  Object::operator=(std::move(that));
+  record_type_name_ = riegeli::exchange(that.record_type_name_, std::string()),
+  pool_ = std::move(that.pool_);
   return *this;
 }
 
@@ -440,13 +440,13 @@ RecordReader<Src>::RecordReader(Src src, Options options)
 }
 
 template <typename Src>
-RecordReader<Src>::RecordReader(RecordReader&& src) noexcept
-    : RecordReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+RecordReader<Src>::RecordReader(RecordReader&& that) noexcept
+    : RecordReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-RecordReader<Src>& RecordReader<Src>::operator=(RecordReader&& src) noexcept {
-  RecordReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+RecordReader<Src>& RecordReader<Src>::operator=(RecordReader&& that) noexcept {
+  RecordReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

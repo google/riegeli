@@ -39,11 +39,11 @@ class Field {
   // Starts with the root message. Field tags can be added by AddTag().
   Field() noexcept {}
 
-  Field(Field&& src) noexcept;
-  Field& operator=(Field&& src) noexcept;
+  Field(Field&& that) noexcept;
+  Field& operator=(Field&& that) noexcept;
 
-  Field(const Field& src);
-  Field& operator=(const Field& src);
+  Field(const Field& that);
+  Field& operator=(const Field& that);
 
   // Adds a field tag to the end of the path.
   Field& AddTag(uint32_t tag) &;
@@ -104,17 +104,17 @@ inline void Field::AssertValid(uint32_t tag) {
   RIEGELI_ASSERT_LE(tag, (uint32_t{1} << 29) - 1) << "Field tag out of range";
 }
 
-inline Field::Field(Field&& src) noexcept : path_(std::move(src.path_)) {}
+inline Field::Field(Field&& that) noexcept : path_(std::move(that.path_)) {}
 
-inline Field& Field::operator=(Field&& src) noexcept {
-  path_ = std::move(src.path_);
+inline Field& Field::operator=(Field&& that) noexcept {
+  path_ = std::move(that.path_);
   return *this;
 }
 
-inline Field::Field(const Field& src) : path_(src.path_) {}
+inline Field::Field(const Field& that) : path_(that.path_) {}
 
-inline Field& Field::operator=(const Field& src) {
-  path_ = src.path_;
+inline Field& Field::operator=(const Field& that) {
+  path_ = that.path_;
   return *this;
 }
 
@@ -135,19 +135,19 @@ inline FieldFilter FieldFilter::All() {
 inline FieldFilter::FieldFilter(std::initializer_list<Field> fields)
     : fields_(fields) {}
 
-inline FieldFilter::FieldFilter(FieldFilter&& src) noexcept
-    : fields_(std::move(src.fields_)) {}
+inline FieldFilter::FieldFilter(FieldFilter&& that) noexcept
+    : fields_(std::move(that.fields_)) {}
 
-inline FieldFilter& FieldFilter::operator=(FieldFilter&& src) noexcept {
-  fields_ = std::move(src.fields_);
+inline FieldFilter& FieldFilter::operator=(FieldFilter&& that) noexcept {
+  fields_ = std::move(that.fields_);
   return *this;
 }
 
-inline FieldFilter::FieldFilter(const FieldFilter& src)
-    : fields_(src.fields_) {}
+inline FieldFilter::FieldFilter(const FieldFilter& that)
+    : fields_(that.fields_) {}
 
-inline FieldFilter& FieldFilter::operator=(const FieldFilter& src) {
-  fields_ = src.fields_;
+inline FieldFilter& FieldFilter::operator=(const FieldFilter& that) {
+  fields_ = that.fields_;
   return *this;
 }
 

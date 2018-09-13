@@ -42,8 +42,8 @@ class StringReaderBase : public Reader {
  protected:
   explicit StringReaderBase(State state) noexcept : Reader(state) {}
 
-  StringReaderBase(StringReaderBase&& src) noexcept;
-  StringReaderBase& operator=(StringReaderBase&& src) noexcept;
+  StringReaderBase(StringReaderBase&& that) noexcept;
+  StringReaderBase& operator=(StringReaderBase&& that) noexcept;
 
   void Done() override;
   bool PullSlow() override;
@@ -74,8 +74,8 @@ class StringReader : public internal::StringReaderBase {
   // Will read from the string or array provided by src.
   explicit StringReader(Src src);
 
-  StringReader(StringReader&& src) noexcept;
-  StringReader& operator=(StringReader&& src) noexcept;
+  StringReader(StringReader&& that) noexcept;
+  StringReader& operator=(StringReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the string or array being
   // read from. Unchanged by Close().
@@ -84,7 +84,7 @@ class StringReader : public internal::StringReaderBase {
   absl::string_view src_string_view() const override { return src_.ptr(); }
 
  private:
-  void MoveSrc(StringReader&& src);
+  void MoveSrc(StringReader&& that);
 
   // The object providing and possibly owning the string or array being read
   // from.
@@ -95,12 +95,12 @@ class StringReader : public internal::StringReaderBase {
 
 namespace internal {
 
-inline StringReaderBase::StringReaderBase(StringReaderBase&& src) noexcept
-    : Reader(std::move(src)) {}
+inline StringReaderBase::StringReaderBase(StringReaderBase&& that) noexcept
+    : Reader(std::move(that)) {}
 
 inline StringReaderBase& StringReaderBase::operator=(
-    StringReaderBase&& src) noexcept {
-  Reader::operator=(std::move(src));
+    StringReaderBase&& that) noexcept {
+  Reader::operator=(std::move(that));
   return *this;
 }
 
@@ -116,25 +116,25 @@ StringReader<Src>::StringReader(Src src)
 }
 
 template <typename Src>
-StringReader<Src>::StringReader(StringReader&& src) noexcept
-    : StringReaderBase(std::move(src)) {
-  MoveSrc(std::move(src));
+StringReader<Src>::StringReader(StringReader&& that) noexcept
+    : StringReaderBase(std::move(that)) {
+  MoveSrc(std::move(that));
 }
 
 template <typename Src>
-StringReader<Src>& StringReader<Src>::operator=(StringReader&& src) noexcept {
-  StringReaderBase::operator=(std::move(src));
-  MoveSrc(std::move(src));
+StringReader<Src>& StringReader<Src>::operator=(StringReader&& that) noexcept {
+  StringReaderBase::operator=(std::move(that));
+  MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
-void StringReader<Src>::MoveSrc(StringReader&& src) {
+void StringReader<Src>::MoveSrc(StringReader&& that) {
   if (src_.kIsStable()) {
-    src_ = std::move(src.src_);
+    src_ = std::move(that.src_);
   } else {
     const size_t cursor_index = read_from_buffer();
-    src_ = std::move(src.src_);
+    src_ = std::move(that.src_);
     if (start_ != nullptr) {
       start_ = src_.ptr().data();
       cursor_ = start_ + cursor_index;

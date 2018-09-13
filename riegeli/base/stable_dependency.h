@@ -66,16 +66,16 @@ class StableDependency<
     if (dep_ == nullptr) dummy_.~Dependency<P*, M>();
   }
 
-  StableDependency(StableDependency&& src) noexcept {
-    if (src.dep_ == nullptr) {
+  StableDependency(StableDependency&& that) noexcept {
+    if (that.dep_ == nullptr) {
       new (&dummy_) Dependency<P*, M>();
       return;
     }
-    dep_ = std::move(src.dep_);
-    new (&src.dummy_) Dependency<P*, M>();
+    dep_ = std::move(that.dep_);
+    new (&that.dummy_) Dependency<P*, M>();
   }
-  StableDependency& operator=(StableDependency&& src) noexcept {
-    if (src.dep_ == nullptr) {
+  StableDependency& operator=(StableDependency&& that) noexcept {
+    if (that.dep_ == nullptr) {
       if (dep_ != nullptr) {
         dep_.reset();
         new (&dummy_) Dependency<P*, M>();
@@ -83,8 +83,8 @@ class StableDependency<
       return *this;
     }
     if (dep_ == nullptr) dummy_.~Dependency<P*, M>();
-    dep_ = std::move(src.dep_);
-    new (&src.dummy_) Dependency<P*, M>();
+    dep_ = std::move(that.dep_);
+    new (&that.dummy_) Dependency<P*, M>();
     return *this;
   }
 

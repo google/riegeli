@@ -20,24 +20,24 @@
 
 namespace riegeli {
 
-MemoryEstimator::MemoryEstimator(const MemoryEstimator& src)
-    : total_memory_(src.total_memory_), objects_seen_(src.objects_seen_) {}
+MemoryEstimator::MemoryEstimator(const MemoryEstimator& that)
+    : total_memory_(that.total_memory_), objects_seen_(that.objects_seen_) {}
 
-MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& src) {
-  total_memory_ = src.total_memory_;
-  objects_seen_ = src.objects_seen_;
+MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& that) {
+  total_memory_ = that.total_memory_;
+  objects_seen_ = that.objects_seen_;
   return *this;
 }
 
-MemoryEstimator::MemoryEstimator(MemoryEstimator&& src) noexcept
-    : total_memory_(riegeli::exchange(src.total_memory_, 0)),
-      objects_seen_(riegeli::exchange(src.objects_seen_,
+MemoryEstimator::MemoryEstimator(MemoryEstimator&& that) noexcept
+    : total_memory_(riegeli::exchange(that.total_memory_, 0)),
+      objects_seen_(riegeli::exchange(that.objects_seen_,
                                       std::unordered_set<const void*>())) {}
 
-MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& src) noexcept {
-  total_memory_ = riegeli::exchange(src.total_memory_, 0);
+MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
+  total_memory_ = riegeli::exchange(that.total_memory_, 0);
   objects_seen_ =
-      riegeli::exchange(src.objects_seen_, std::unordered_set<const void*>());
+      riegeli::exchange(that.objects_seen_, std::unordered_set<const void*>());
   return *this;
 }
 

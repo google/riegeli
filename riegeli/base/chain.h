@@ -60,15 +60,15 @@ class Chain {
   explicit Chain(std::string&& src);
   explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
 
-  Chain(const Chain& src);
-  Chain& operator=(const Chain& src);
+  Chain(const Chain& that);
+  Chain& operator=(const Chain& that);
 
   // The source Chain is left cleared.
   //
   // Moving a Chain invalidates its BlockIterators and data pointers, but the
   // shape of blocks (their number and sizes) remains unchanged.
-  Chain(Chain&& src) noexcept;
-  Chain& operator=(Chain&& src) noexcept;
+  Chain(Chain&& that) noexcept;
+  Chain& operator=(Chain&& that) noexcept;
 
   ~Chain();
 
@@ -169,10 +169,10 @@ class Chain {
   void RemoveSuffix(size_t length, size_t size_hint = 0);
   void RemovePrefix(size_t length, size_t size_hint = 0);
 
-  void Swap(Chain* b);
+  void Swap(Chain* that);
 
-  int Compare(absl::string_view b) const;
-  int Compare(const Chain& b) const;
+  int Compare(absl::string_view that) const;
+  int Compare(const Chain& that) const;
 
  private:
   struct ExternalMethods;
@@ -340,8 +340,8 @@ class Chain::BlockIterator {
 
   BlockIterator(const Chain* chain, size_t block_index);
 
-  BlockIterator(const BlockIterator& src) noexcept;
-  BlockIterator& operator=(const BlockIterator& src) noexcept;
+  BlockIterator(const BlockIterator& that) noexcept;
+  BlockIterator& operator=(const BlockIterator& that) noexcept;
 
   const Chain* chain() const { return chain_; }
   size_t block_index() const;
@@ -433,8 +433,8 @@ class Chain::Blocks {
 
   Blocks() noexcept {}
 
-  Blocks(const Blocks& src) noexcept;
-  Blocks& operator=(const Blocks& src) noexcept;
+  Blocks(const Blocks& that) noexcept;
+  Blocks& operator=(const Blocks& that) noexcept;
 
   const_iterator begin() const;
   const_iterator end() const;
@@ -788,13 +788,13 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            Block* const* ptr) noexcept
     : chain_(chain), ptr_(ptr) {}
 
-inline Chain::BlockIterator::BlockIterator(const BlockIterator& src) noexcept
-    : chain_(src.chain_), ptr_(src.ptr_) {}
+inline Chain::BlockIterator::BlockIterator(const BlockIterator& that) noexcept
+    : chain_(that.chain_), ptr_(that.ptr_) {}
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator=(
-    const BlockIterator& src) noexcept {
-  chain_ = src.chain_;
-  ptr_ = src.ptr_;
+    const BlockIterator& that) noexcept {
+  chain_ = that.chain_;
+  ptr_ = that.ptr_;
   return *this;
 }
 
@@ -940,10 +940,11 @@ const T* Chain::BlockIterator::external_object() const {
   }
 }
 
-inline Chain::Blocks::Blocks(const Blocks& src) noexcept : chain_(src.chain_) {}
+inline Chain::Blocks::Blocks(const Blocks& that) noexcept
+    : chain_(that.chain_) {}
 
-inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& src) noexcept {
-  chain_ = src.chain_;
+inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& that) noexcept {
+  chain_ = that.chain_;
   return *this;
 }
 
@@ -1039,46 +1040,46 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   }
 }
 
-inline Chain::Chain(Chain&& src) noexcept
-    : block_ptrs_(src.block_ptrs_), size_(riegeli::exchange(src.size_, 0)) {
-  if (src.has_here()) {
-    // src.has_here() implies that src.begin_ == src.block_ptrs_.here
+inline Chain::Chain(Chain&& that) noexcept
+    : block_ptrs_(that.block_ptrs_), size_(riegeli::exchange(that.size_, 0)) {
+  if (that.has_here()) {
+    // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
     begin_ = block_ptrs_.here;
-    end_ =
-        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
-                            src.block_ptrs_.here);
+    end_ = block_ptrs_.here +
+           (riegeli::exchange(that.end_, that.block_ptrs_.here) -
+            that.block_ptrs_.here);
   } else {
-    begin_ = riegeli::exchange(src.begin_, src.block_ptrs_.here);
-    end_ = riegeli::exchange(src.end_, src.block_ptrs_.here);
+    begin_ = riegeli::exchange(that.begin_, that.block_ptrs_.here);
+    end_ = riegeli::exchange(that.end_, that.block_ptrs_.here);
   }
-  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
-  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
+  // It does not matter what is left in that.block_ptrs_ because that.begin_ and
+  // that.end_ point to the empty prefix of that.block_ptrs_.here[].
 }
 
-inline Chain& Chain::operator=(Chain&& src) noexcept {
-  // Exchange src.begin_ and src.end_ early to support self-assignment.
+inline Chain& Chain::operator=(Chain&& that) noexcept {
+  // Exchange that.begin_ and that.end_ early to support self-assignment.
   Block** begin;
   Block** end;
-  if (src.has_here()) {
-    // src.has_here() implies that src.begin_ == src.block_ptrs_.here
+  if (that.has_here()) {
+    // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
     begin = block_ptrs_.here;
-    end =
-        block_ptrs_.here + (riegeli::exchange(src.end_, src.block_ptrs_.here) -
-                            src.block_ptrs_.here);
+    end = block_ptrs_.here +
+          (riegeli::exchange(that.end_, that.block_ptrs_.here) -
+           that.block_ptrs_.here);
   } else {
-    begin = riegeli::exchange(src.begin_, src.block_ptrs_.here);
-    end = riegeli::exchange(src.end_, src.block_ptrs_.here);
+    begin = riegeli::exchange(that.begin_, that.block_ptrs_.here);
+    end = riegeli::exchange(that.end_, that.block_ptrs_.here);
   }
   UnrefBlocks();
   DeleteBlockPtrs();
-  // It does not matter what is left in src.block_ptrs_ because src.begin_ and
-  // src.end_ point to the empty prefix of src.block_ptrs_.here[].
-  block_ptrs_ = src.block_ptrs_;
+  // It does not matter what is left in that.block_ptrs_ because that.begin_ and
+  // that.end_ point to the empty prefix of that.block_ptrs_.here[].
+  block_ptrs_ = that.block_ptrs_;
   begin_ = begin;
   end_ = end;
-  size_ = riegeli::exchange(src.size_, 0);
+  size_ = riegeli::exchange(that.size_, 0);
   return *this;
 }
 

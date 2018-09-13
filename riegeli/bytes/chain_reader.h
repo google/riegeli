@@ -40,8 +40,8 @@ class ChainReaderBase : public Reader {
  protected:
   explicit ChainReaderBase(State state) noexcept : Reader(state) {}
 
-  ChainReaderBase(ChainReaderBase&& src) noexcept;
-  ChainReaderBase& operator=(ChainReaderBase&& src) noexcept;
+  ChainReaderBase(ChainReaderBase&& that) noexcept;
+  ChainReaderBase& operator=(ChainReaderBase&& that) noexcept;
 
   void Initialize(const Chain* src);
   void Done() override;
@@ -72,8 +72,8 @@ class ChainReader : public ChainReaderBase {
   // Will read from the Chain provided by src.
   explicit ChainReader(Src src);
 
-  ChainReader(ChainReader&& src) noexcept;
-  ChainReader& operator=(ChainReader&& src) noexcept;
+  ChainReader(ChainReader&& that) noexcept;
+  ChainReader& operator=(ChainReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the Chain being read from.
   // Unchanged by Close().
@@ -82,7 +82,7 @@ class ChainReader : public ChainReaderBase {
   const Chain* src_chain() const override { return src_.ptr(); }
 
  private:
-  void MoveSrc(ChainReader&& src);
+  void MoveSrc(ChainReader&& that);
 
   // The object providing and possibly owning the Chain being read from.
   Dependency<const Chain*, Src> src_;
@@ -96,14 +96,14 @@ class ChainReader : public ChainReaderBase {
 
 // Implementation details follow.
 
-inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& src) noexcept
-    : Reader(std::move(src)),
-      iter_(riegeli::exchange(src.iter_, Chain::BlockIterator())) {}
+inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& that) noexcept
+    : Reader(std::move(that)),
+      iter_(riegeli::exchange(that.iter_, Chain::BlockIterator())) {}
 
 inline ChainReaderBase& ChainReaderBase::operator=(
-    ChainReaderBase&& src) noexcept {
-  Reader::operator=(std::move(src));
-  iter_ = riegeli::exchange(src.iter_, Chain::BlockIterator());
+    ChainReaderBase&& that) noexcept {
+  Reader::operator=(std::move(that));
+  iter_ = riegeli::exchange(that.iter_, Chain::BlockIterator());
   return *this;
 }
 
@@ -117,26 +117,26 @@ ChainReader<Src>::ChainReader(Src src)
 }
 
 template <typename Src>
-ChainReader<Src>::ChainReader(ChainReader&& src) noexcept
-    : ChainReaderBase(std::move(src)) {
-  MoveSrc(std::move(src));
+ChainReader<Src>::ChainReader(ChainReader&& that) noexcept
+    : ChainReaderBase(std::move(that)) {
+  MoveSrc(std::move(that));
 }
 
 template <typename Src>
-ChainReader<Src>& ChainReader<Src>::operator=(ChainReader&& src) noexcept {
-  ChainReaderBase::operator=(std::move(src));
-  MoveSrc(std::move(src));
+ChainReader<Src>& ChainReader<Src>::operator=(ChainReader&& that) noexcept {
+  ChainReaderBase::operator=(std::move(that));
+  MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
-void ChainReader<Src>::MoveSrc(ChainReader&& src) {
+void ChainReader<Src>::MoveSrc(ChainReader&& that) {
   if (src_.kIsStable()) {
-    src_ = std::move(src.src_);
+    src_ = std::move(that.src_);
   } else {
     const size_t block_index = iter_.block_index();
     const size_t cursor_index = read_from_buffer();
-    src_ = std::move(src.src_);
+    src_ = std::move(that.src_);
     if (iter_.chain() != nullptr) {
       iter_ = Chain::BlockIterator(src_.ptr(), block_index);
       if (start_ != nullptr) {

@@ -133,8 +133,8 @@ class BrotliWriterBase : public BufferedWriter {
   explicit BrotliWriterBase(size_t buffer_size) noexcept
       : BufferedWriter(buffer_size) {}
 
-  BrotliWriterBase(BrotliWriterBase&& src) noexcept;
-  BrotliWriterBase& operator=(BrotliWriterBase&& src) noexcept;
+  BrotliWriterBase(BrotliWriterBase&& that) noexcept;
+  BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Initialize(int compression_level, int window_log, Position size_hint);
   void Done() override;
@@ -173,8 +173,8 @@ class BrotliWriter : public BrotliWriterBase {
   // Will write to the compressed Writer provided by dest.
   explicit BrotliWriter(Dest dest, Options options = Options());
 
-  BrotliWriter(BrotliWriter&& src) noexcept;
-  BrotliWriter& operator=(BrotliWriter&& src) noexcept;
+  BrotliWriter(BrotliWriter&& that) noexcept;
+  BrotliWriter& operator=(BrotliWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the compressed Writer.
   // Unchanged by Close().
@@ -192,13 +192,14 @@ class BrotliWriter : public BrotliWriterBase {
 
 // Implementation details follow.
 
-inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& src) noexcept
-    : BufferedWriter(std::move(src)), compressor_(std::move(src.compressor_)) {}
+inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
+    : BufferedWriter(std::move(that)),
+      compressor_(std::move(that.compressor_)) {}
 
 inline BrotliWriterBase& BrotliWriterBase::operator=(
-    BrotliWriterBase&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  compressor_ = std::move(src.compressor_);
+    BrotliWriterBase&& that) noexcept {
+  BufferedWriter::operator=(std::move(that));
+  compressor_ = std::move(that.compressor_);
   return *this;
 }
 
@@ -213,13 +214,14 @@ BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& src) noexcept
-    : BrotliWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
+    : BrotliWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(BrotliWriter&& src) noexcept {
-  BrotliWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
+    BrotliWriter&& that) noexcept {
+  BrotliWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 

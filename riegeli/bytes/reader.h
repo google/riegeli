@@ -189,8 +189,8 @@ class Reader : public Object {
   //
   // Buffer pointers do not need to satisfy their invariants during this part of
   // the move, here they are merely exchanged with nullptr and copied.
-  Reader(Reader&& src) noexcept;
-  Reader& operator=(Reader&& src) noexcept;
+  Reader(Reader&& that) noexcept;
+  Reader& operator=(Reader&& that) noexcept;
 
   // Reader overrides Object::Done(). Derived classes which override it further
   // should include a call to Reader::Done().
@@ -258,19 +258,19 @@ class Reader : public Object {
 
 // Implementation details follow.
 
-inline Reader::Reader(Reader&& src) noexcept
-    : Object(std::move(src)),
-      start_(riegeli::exchange(src.start_, nullptr)),
-      cursor_(riegeli::exchange(src.cursor_, nullptr)),
-      limit_(riegeli::exchange(src.limit_, nullptr)),
-      limit_pos_(riegeli::exchange(src.limit_pos_, 0)) {}
+inline Reader::Reader(Reader&& that) noexcept
+    : Object(std::move(that)),
+      start_(riegeli::exchange(that.start_, nullptr)),
+      cursor_(riegeli::exchange(that.cursor_, nullptr)),
+      limit_(riegeli::exchange(that.limit_, nullptr)),
+      limit_pos_(riegeli::exchange(that.limit_pos_, 0)) {}
 
-inline Reader& Reader::operator=(Reader&& src) noexcept {
-  Object::operator=(std::move(src));
-  start_ = riegeli::exchange(src.start_, nullptr);
-  cursor_ = riegeli::exchange(src.cursor_, nullptr);
-  limit_ = riegeli::exchange(src.limit_, nullptr);
-  limit_pos_ = riegeli::exchange(src.limit_pos_, 0);
+inline Reader& Reader::operator=(Reader&& that) noexcept {
+  Object::operator=(std::move(that));
+  start_ = riegeli::exchange(that.start_, nullptr);
+  cursor_ = riegeli::exchange(that.cursor_, nullptr);
+  limit_ = riegeli::exchange(that.limit_, nullptr);
+  limit_pos_ = riegeli::exchange(that.limit_pos_, 0);
   return *this;
 }
 

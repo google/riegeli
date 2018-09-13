@@ -147,8 +147,8 @@ inline TransposeEncoder::NodeId::NodeId(internal::MessageId parent_message_id,
                                         uint32_t field)
     : parent_message_id(parent_message_id), field(field) {}
 
-inline bool TransposeEncoder::NodeId::operator==(NodeId other) const {
-  return parent_message_id == other.parent_message_id && field == other.field;
+inline bool TransposeEncoder::NodeId::operator==(NodeId that) const {
+  return parent_message_id == that.parent_message_id && field == that.field;
 }
 
 inline size_t TransposeEncoder::NodeIdHasher::operator()(NodeId node_id) const {
@@ -171,9 +171,9 @@ inline TransposeEncoder::EncodedTag::EncodedTag(internal::MessageId message_id,
                                                 internal::Subtype subtype)
     : message_id(message_id), tag(tag), subtype(subtype) {}
 
-inline bool TransposeEncoder::EncodedTag::operator==(EncodedTag other) const {
-  return message_id == other.message_id && tag == other.tag &&
-         subtype == other.subtype;
+inline bool TransposeEncoder::EncodedTag::operator==(EncodedTag that) const {
+  return message_id == that.message_id && tag == that.tag &&
+         subtype == that.subtype;
 }
 
 inline TransposeEncoder::DestInfo::DestInfo() : pos(kInvalidPos) {}

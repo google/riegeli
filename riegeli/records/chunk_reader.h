@@ -140,8 +140,8 @@ class DefaultChunkReaderBase : public Object {
  protected:
   explicit DefaultChunkReaderBase(State state) : Object(state) {}
 
-  DefaultChunkReaderBase(DefaultChunkReaderBase&& src) noexcept;
-  DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& src) noexcept;
+  DefaultChunkReaderBase(DefaultChunkReaderBase&& that) noexcept;
+  DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& that) noexcept;
 
   void Initialize(Reader* src);
   void Done() override;
@@ -248,8 +248,8 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // Will read from the byte Reader provided by src.
   explicit DefaultChunkReader(Src src);
 
-  DefaultChunkReader(DefaultChunkReader&& src) noexcept;
-  DefaultChunkReader& operator=(DefaultChunkReader&& src) noexcept;
+  DefaultChunkReader(DefaultChunkReader&& that) noexcept;
+  DefaultChunkReader& operator=(DefaultChunkReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the byte Reader. Unchanged
   // by Close().
@@ -270,24 +270,24 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 // Implementation details follow.
 
 inline DefaultChunkReaderBase::DefaultChunkReaderBase(
-    DefaultChunkReaderBase&& src) noexcept
-    : Object(std::move(src)),
-      truncated_(riegeli::exchange(src.truncated_, false)),
-      pos_(riegeli::exchange(src.pos_, 0)),
-      chunk_(riegeli::exchange(src.chunk_, Chunk())),
-      block_header_(src.block_header_),
-      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)),
-      recoverable_pos_(riegeli::exchange(src.recoverable_pos_, 0)) {}
+    DefaultChunkReaderBase&& that) noexcept
+    : Object(std::move(that)),
+      truncated_(riegeli::exchange(that.truncated_, false)),
+      pos_(riegeli::exchange(that.pos_, 0)),
+      chunk_(riegeli::exchange(that.chunk_, Chunk())),
+      block_header_(that.block_header_),
+      recoverable_(riegeli::exchange(that.recoverable_, Recoverable::kNo)),
+      recoverable_pos_(riegeli::exchange(that.recoverable_pos_, 0)) {}
 
 inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
-    DefaultChunkReaderBase&& src) noexcept {
-  Object::operator=(std::move(src));
-  truncated_ = riegeli::exchange(src.truncated_, false);
-  pos_ = riegeli::exchange(src.pos_, 0);
-  chunk_ = riegeli::exchange(src.chunk_, Chunk());
-  block_header_ = src.block_header_;
-  recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
-  recoverable_pos_ = riegeli::exchange(src.recoverable_pos_, 0);
+    DefaultChunkReaderBase&& that) noexcept {
+  Object::operator=(std::move(that));
+  truncated_ = riegeli::exchange(that.truncated_, false);
+  pos_ = riegeli::exchange(that.pos_, 0);
+  chunk_ = riegeli::exchange(that.chunk_, Chunk());
+  block_header_ = that.block_header_;
+  recoverable_ = riegeli::exchange(that.recoverable_, Recoverable::kNo);
+  recoverable_pos_ = riegeli::exchange(that.recoverable_pos_, 0);
   return *this;
 }
 
@@ -302,14 +302,14 @@ DefaultChunkReader<Src>::DefaultChunkReader(Src src)
 }
 
 template <typename Src>
-DefaultChunkReader<Src>::DefaultChunkReader(DefaultChunkReader&& src) noexcept
-    : DefaultChunkReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+DefaultChunkReader<Src>::DefaultChunkReader(DefaultChunkReader&& that) noexcept
+    : DefaultChunkReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
 DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
-    DefaultChunkReader&& src) noexcept {
-  DefaultChunkReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+    DefaultChunkReader&& that) noexcept {
+  DefaultChunkReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

@@ -45,8 +45,8 @@ class OwnedFd {
   // Creates an OwnedFd which owns fd if fd >= 0.
   OwnedFd(int fd) noexcept : fd_(fd) {}
 
-  OwnedFd(OwnedFd&& src) noexcept;
-  OwnedFd& operator=(OwnedFd&& src) noexcept;
+  OwnedFd(OwnedFd&& that) noexcept;
+  OwnedFd& operator=(OwnedFd&& that) noexcept;
 
   ~OwnedFd() {
     if (fd_ >= 0) internal::CloseFd(fd_);
@@ -85,9 +85,10 @@ class Dependency<int, int> {
 
   explicit Dependency(int fd) : fd_(fd) {}
 
-  Dependency(Dependency&& src) noexcept : fd_(riegeli::exchange(src.fd_, -1)) {}
-  Dependency& operator=(Dependency&& src) noexcept {
-    fd_ = riegeli::exchange(src.fd_, -1);
+  Dependency(Dependency&& that) noexcept
+      : fd_(riegeli::exchange(that.fd_, -1)) {}
+  Dependency& operator=(Dependency&& that) noexcept {
+    fd_ = riegeli::exchange(that.fd_, -1);
     return *this;
   }
 
@@ -138,12 +139,12 @@ inline absl::string_view CloseFunctionName() {
 
 }  // namespace internal
 
-inline OwnedFd::OwnedFd(OwnedFd&& src) noexcept
-    : fd_(riegeli::exchange(src.fd_, -1)) {}
+inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
+    : fd_(riegeli::exchange(that.fd_, -1)) {}
 
-inline OwnedFd& OwnedFd::operator=(OwnedFd&& src) noexcept {
-  // Exchange src.fd_ early to support self-assignment.
-  const int fd = riegeli::exchange(src.fd_, -1);
+inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
+  // Exchange that.fd_ early to support self-assignment.
+  const int fd = riegeli::exchange(that.fd_, -1);
   if (fd_ >= 0) internal::CloseFd(fd_);
   fd_ = fd;
   return *this;

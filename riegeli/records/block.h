@@ -38,12 +38,12 @@ class BlockHeader {
     set_header_hash(computed_header_hash());
   }
 
-  BlockHeader(const BlockHeader& src) noexcept {
-    std::memcpy(words_, src.words_, sizeof(words_));
+  BlockHeader(const BlockHeader& that) noexcept {
+    std::memcpy(words_, that.words_, sizeof(words_));
   }
 
-  BlockHeader& operator=(const BlockHeader& src) noexcept {
-    std::memcpy(words_, src.words_, sizeof(words_));
+  BlockHeader& operator=(const BlockHeader& that) noexcept {
+    std::memcpy(words_, that.words_, sizeof(words_));
     return *this;
   }
 

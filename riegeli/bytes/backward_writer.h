@@ -128,8 +128,8 @@ class BackwardWriter : public Object {
   //
   // Buffer pointers do not need to satisfy their invariants during this part of
   // the move, here they are merely exchanged with nullptr and copied.
-  BackwardWriter(BackwardWriter&& src) noexcept;
-  BackwardWriter& operator=(BackwardWriter&& src) noexcept;
+  BackwardWriter(BackwardWriter&& that) noexcept;
+  BackwardWriter& operator=(BackwardWriter&& that) noexcept;
 
   // BackwardWriter overrides Object::Done(). Derived classes which override it
   // further should include a call to BackwardWriter::Done().
@@ -182,20 +182,20 @@ class BackwardWriter : public Object {
 
 // Implementation details follow.
 
-inline BackwardWriter::BackwardWriter(BackwardWriter&& src) noexcept
-    : Object(std::move(src)),
-      start_(riegeli::exchange(src.start_, nullptr)),
-      cursor_(riegeli::exchange(src.cursor_, nullptr)),
-      limit_(riegeli::exchange(src.limit_, nullptr)),
-      start_pos_(riegeli::exchange(src.start_pos_, 0)) {}
+inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
+    : Object(std::move(that)),
+      start_(riegeli::exchange(that.start_, nullptr)),
+      cursor_(riegeli::exchange(that.cursor_, nullptr)),
+      limit_(riegeli::exchange(that.limit_, nullptr)),
+      start_pos_(riegeli::exchange(that.start_pos_, 0)) {}
 
 inline BackwardWriter& BackwardWriter::operator=(
-    BackwardWriter&& src) noexcept {
-  Object::operator=(std::move(src));
-  start_ = riegeli::exchange(src.start_, nullptr);
-  cursor_ = riegeli::exchange(src.cursor_, nullptr);
-  limit_ = riegeli::exchange(src.limit_, nullptr);
-  start_pos_ = riegeli::exchange(src.start_pos_, 0);
+    BackwardWriter&& that) noexcept {
+  Object::operator=(std::move(that));
+  start_ = riegeli::exchange(that.start_, nullptr);
+  cursor_ = riegeli::exchange(that.cursor_, nullptr);
+  limit_ = riegeli::exchange(that.limit_, nullptr);
+  start_pos_ = riegeli::exchange(that.start_pos_, 0);
   return *this;
 }
 

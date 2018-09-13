@@ -185,8 +185,8 @@ class Writer : public Object {
   //
   // Buffer pointers do not need to satisfy their invariants during this part of
   // the move, here they are merely exchanged with nullptr and copied.
-  Writer(Writer&& src) noexcept;
-  Writer& operator=(Writer&& src) noexcept;
+  Writer(Writer&& that) noexcept;
+  Writer& operator=(Writer&& that) noexcept;
 
   // Writer overrides Object::Done(). Derived classes which override it further
   // should include a call to Writer::Done().
@@ -244,19 +244,19 @@ class Writer : public Object {
 
 // Implementation details follow.
 
-inline Writer::Writer(Writer&& src) noexcept
-    : Object(std::move(src)),
-      start_(riegeli::exchange(src.start_, nullptr)),
-      cursor_(riegeli::exchange(src.cursor_, nullptr)),
-      limit_(riegeli::exchange(src.limit_, nullptr)),
-      start_pos_(riegeli::exchange(src.start_pos_, 0)) {}
+inline Writer::Writer(Writer&& that) noexcept
+    : Object(std::move(that)),
+      start_(riegeli::exchange(that.start_, nullptr)),
+      cursor_(riegeli::exchange(that.cursor_, nullptr)),
+      limit_(riegeli::exchange(that.limit_, nullptr)),
+      start_pos_(riegeli::exchange(that.start_pos_, 0)) {}
 
-inline Writer& Writer::operator=(Writer&& src) noexcept {
-  Object::operator=(std::move(src));
-  start_ = riegeli::exchange(src.start_, nullptr);
-  cursor_ = riegeli::exchange(src.cursor_, nullptr);
-  limit_ = riegeli::exchange(src.limit_, nullptr);
-  start_pos_ = riegeli::exchange(src.start_pos_, 0);
+inline Writer& Writer::operator=(Writer&& that) noexcept {
+  Object::operator=(std::move(that));
+  start_ = riegeli::exchange(that.start_, nullptr);
+  cursor_ = riegeli::exchange(that.cursor_, nullptr);
+  limit_ = riegeli::exchange(that.limit_, nullptr);
+  start_pos_ = riegeli::exchange(that.start_pos_, 0);
   return *this;
 }
 

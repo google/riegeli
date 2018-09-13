@@ -40,8 +40,8 @@ class ChunkWriter : public Object {
  public:
   explicit ChunkWriter(State state) noexcept : Object(state) {}
 
-  ChunkWriter(ChunkWriter&& src) noexcept;
-  ChunkWriter& operator=(ChunkWriter&& src) noexcept;
+  ChunkWriter(ChunkWriter&& that) noexcept;
+  ChunkWriter& operator=(ChunkWriter&& that) noexcept;
 
   ~ChunkWriter() override;
 
@@ -117,8 +117,8 @@ class DefaultChunkWriterBase : public ChunkWriter {
  protected:
   explicit DefaultChunkWriterBase(State state) noexcept : ChunkWriter(state) {}
 
-  DefaultChunkWriterBase(DefaultChunkWriterBase&& src) noexcept;
-  DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& src) noexcept;
+  DefaultChunkWriterBase(DefaultChunkWriterBase&& that) noexcept;
+  DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& that) noexcept;
 
  private:
   bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end,
@@ -145,8 +145,8 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   // Will write to the byte Writer provided by dest.
   explicit DefaultChunkWriter(Dest dest, Options options = Options());
 
-  DefaultChunkWriter(DefaultChunkWriter&& src) noexcept;
-  DefaultChunkWriter& operator=(DefaultChunkWriter&& src) noexcept;
+  DefaultChunkWriter(DefaultChunkWriter&& that) noexcept;
+  DefaultChunkWriter& operator=(DefaultChunkWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the byte Writer. Unchanged
   // by Close().
@@ -166,22 +166,22 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
 // Implementation details follow.
 
-inline ChunkWriter::ChunkWriter(ChunkWriter&& src) noexcept
-    : Object(std::move(src)), pos_(riegeli::exchange(src.pos_, 0)) {}
+inline ChunkWriter::ChunkWriter(ChunkWriter&& that) noexcept
+    : Object(std::move(that)), pos_(riegeli::exchange(that.pos_, 0)) {}
 
-inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& src) noexcept {
-  Object::operator=(std::move(src));
-  pos_ = riegeli::exchange(src.pos_, 0);
+inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
+  Object::operator=(std::move(that));
+  pos_ = riegeli::exchange(that.pos_, 0);
   return *this;
 }
 
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(
-    DefaultChunkWriterBase&& src) noexcept
-    : ChunkWriter(std::move(src)) {}
+    DefaultChunkWriterBase&& that) noexcept
+    : ChunkWriter(std::move(that)) {}
 
 inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
-    DefaultChunkWriterBase&& src) noexcept {
-  ChunkWriter::operator=(std::move(src));
+    DefaultChunkWriterBase&& that) noexcept {
+  ChunkWriter::operator=(std::move(that));
   return *this;
 }
 
@@ -196,14 +196,14 @@ DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-DefaultChunkWriter<Dest>::DefaultChunkWriter(DefaultChunkWriter&& src) noexcept
-    : DefaultChunkWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+DefaultChunkWriter<Dest>::DefaultChunkWriter(DefaultChunkWriter&& that) noexcept
+    : DefaultChunkWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
-    DefaultChunkWriter&& src) noexcept {
-  DefaultChunkWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+    DefaultChunkWriter&& that) noexcept {
+  DefaultChunkWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 

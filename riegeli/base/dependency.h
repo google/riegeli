@@ -49,8 +49,8 @@ namespace riegeli {
 //   explicit Dependency(Manager&& manager);
 //
 //   // Moves the dependency. The moved from state contains a dummy Manager.
-//   Dependency(Dependency&& src);
-//   Dependency& operator=(Dependency&& src);
+//   Dependency(Dependency&& that);
+//   Dependency& operator=(Dependency&& that);
 //
 //   // Exposes the contained Manager.
 //   Manager& manager();
@@ -100,10 +100,10 @@ class DependencyBase {
   explicit DependencyBase(Manager&& manager) noexcept
       : manager_(std::move(manager)) {}
 
-  DependencyBase(DependencyBase&& src) noexcept
-      : manager_(riegeli::exchange(src.manager_, Manager())) {}
-  DependencyBase& operator=(DependencyBase&& src) noexcept {
-    manager_ = riegeli::exchange(src.manager_, Manager());
+  DependencyBase(DependencyBase&& that) noexcept
+      : manager_(riegeli::exchange(that.manager_, Manager())) {}
+  DependencyBase& operator=(DependencyBase&& that) noexcept {
+    manager_ = riegeli::exchange(that.manager_, Manager());
     return *this;
   }
 

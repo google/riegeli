@@ -60,8 +60,8 @@ class Decompressor : public Object {
   // the beginning of compressed data.
   Decompressor(Src src, CompressionType compression_type);
 
-  Decompressor(Decompressor&& src) noexcept;
-  Decompressor& operator=(Decompressor&& src) noexcept;
+  Decompressor(Decompressor&& that) noexcept;
+  Decompressor& operator=(Decompressor&& that) noexcept;
 
   // Returns the Reader from which uncompressed data should be read.
   //
@@ -122,13 +122,13 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
 }
 
 template <typename Src>
-Decompressor<Src>::Decompressor(Decompressor&& src) noexcept
-    : Object(std::move(src)), reader_(std::move(src.reader_)) {}
+Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
+    : Object(std::move(that)), reader_(std::move(that.reader_)) {}
 
 template <typename Src>
-Decompressor<Src>& Decompressor<Src>::operator=(Decompressor&& src) noexcept {
-  Object::operator=(std::move(src));
-  reader_ = std::move(src.reader_);
+Decompressor<Src>& Decompressor<Src>::operator=(Decompressor&& that) noexcept {
+  Object::operator=(std::move(that));
+  reader_ = std::move(that.reader_);
   return *this;
 }
 

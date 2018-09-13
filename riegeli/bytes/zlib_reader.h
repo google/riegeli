@@ -89,8 +89,8 @@ class ZlibReaderBase : public BufferedReader {
   explicit ZlibReaderBase(size_t buffer_size) noexcept
       : BufferedReader(buffer_size) {}
 
-  ZlibReaderBase(ZlibReaderBase&& src) noexcept;
-  ZlibReaderBase& operator=(ZlibReaderBase&& src) noexcept;
+  ZlibReaderBase(ZlibReaderBase&& that) noexcept;
+  ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   ~ZlibReaderBase();
 
@@ -150,26 +150,26 @@ class ZlibReader : public ZlibReaderBase {
 
 // Implementation details follow.
 
-inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& src) noexcept
-    : BufferedReader(std::move(src)),
-      truncated_(riegeli::exchange(src.truncated_, false)),
+inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
+    : BufferedReader(std::move(that)),
+      truncated_(riegeli::exchange(that.truncated_, false)),
       decompressor_present_(
-          riegeli::exchange(src.decompressor_present_, false)),
-      decompressor_(src.decompressor_) {}
+          riegeli::exchange(that.decompressor_present_, false)),
+      decompressor_(that.decompressor_) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
-    ZlibReaderBase&& src) noexcept {
-  // Exchange decompressor_present_ early to support self-assignment.
+    ZlibReaderBase&& that) noexcept {
+  // Exchange that.decompressor_present_ early to support self-assignment.
   const bool decompressor_present =
-      riegeli::exchange(src.decompressor_present_, false);
+      riegeli::exchange(that.decompressor_present_, false);
   if (decompressor_present_) {
     const int result = inflateEnd(&decompressor_);
     RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
   }
-  BufferedReader::operator=(std::move(src));
-  truncated_ = riegeli::exchange(src.truncated_, false);
+  BufferedReader::operator=(std::move(that));
+  truncated_ = riegeli::exchange(that.truncated_, false);
   decompressor_present_ = decompressor_present;
-  decompressor_ = src.decompressor_;
+  decompressor_ = that.decompressor_;
   return *this;
 }
 
@@ -190,13 +190,13 @@ ZlibReader<Src>::ZlibReader(Src src, Options options)
 }
 
 template <typename Src>
-ZlibReader<Src>::ZlibReader(ZlibReader&& src) noexcept
-    : ZlibReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+ZlibReader<Src>::ZlibReader(ZlibReader&& that) noexcept
+    : ZlibReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& src) noexcept {
-  ZlibReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
+  ZlibReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

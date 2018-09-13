@@ -99,17 +99,18 @@ const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
 
 RecordReaderBase::RecordReaderBase(State state) noexcept : Object(state) {}
 
-RecordReaderBase::RecordReaderBase(RecordReaderBase&& src) noexcept
-    : Object(std::move(src)),
-      chunk_begin_(riegeli::exchange(src.chunk_begin_, 0)),
-      chunk_decoder_(std::move(src.chunk_decoder_)),
-      recoverable_(riegeli::exchange(src.recoverable_, Recoverable::kNo)) {}
+RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
+    : Object(std::move(that)),
+      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
+      chunk_decoder_(std::move(that.chunk_decoder_)),
+      recoverable_(riegeli::exchange(that.recoverable_, Recoverable::kNo)) {}
 
-RecordReaderBase& RecordReaderBase::operator=(RecordReaderBase&& src) noexcept {
-  Object::operator=(std::move(src));
-  chunk_begin_ = riegeli::exchange(src.chunk_begin_, 0);
-  chunk_decoder_ = std::move(src.chunk_decoder_);
-  recoverable_ = riegeli::exchange(src.recoverable_, Recoverable::kNo);
+RecordReaderBase& RecordReaderBase::operator=(
+    RecordReaderBase&& that) noexcept {
+  Object::operator=(std::move(that));
+  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
+  chunk_decoder_ = std::move(that.chunk_decoder_);
+  recoverable_ = riegeli::exchange(that.recoverable_, Recoverable::kNo);
   return *this;
 }
 

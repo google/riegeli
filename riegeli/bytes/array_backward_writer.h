@@ -47,8 +47,8 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   explicit ArrayBackwardWriterBase(State state) noexcept
       : BackwardWriter(state) {}
 
-  ArrayBackwardWriterBase(ArrayBackwardWriterBase&& src) noexcept;
-  ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& src) noexcept;
+  ArrayBackwardWriterBase(ArrayBackwardWriterBase&& that) noexcept;
+  ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& that) noexcept;
 
   void Done() override;
   bool PushSlow() override;
@@ -76,8 +76,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   // Will write to the array provided by dest.
   explicit ArrayBackwardWriter(Dest dest);
 
-  ArrayBackwardWriter(ArrayBackwardWriter&& src) noexcept;
-  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& src) noexcept;
+  ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
+  ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by Close().
@@ -87,7 +87,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   absl::Span<const char> dest_span() const override { return dest_.ptr(); }
 
  private:
-  void MoveDest(ArrayBackwardWriter&& src);
+  void MoveDest(ArrayBackwardWriter&& that);
 
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
@@ -98,14 +98,14 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 // Implementation details follow.
 
 inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
-    ArrayBackwardWriterBase&& src) noexcept
-    : BackwardWriter(std::move(src)),
-      written_(riegeli::exchange(src.written_, absl::Span<char>())) {}
+    ArrayBackwardWriterBase&& that) noexcept
+    : BackwardWriter(std::move(that)),
+      written_(riegeli::exchange(that.written_, absl::Span<char>())) {}
 
 inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
-    ArrayBackwardWriterBase&& src) noexcept {
-  BackwardWriter::operator=(std::move(src));
-  written_ = riegeli::exchange(src.written_, absl::Span<char>());
+    ArrayBackwardWriterBase&& that) noexcept {
+  BackwardWriter::operator=(std::move(that));
+  written_ = riegeli::exchange(that.written_, absl::Span<char>());
   return *this;
 }
 
@@ -119,27 +119,27 @@ ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
 
 template <typename Dest>
 ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
-    ArrayBackwardWriter&& src) noexcept
-    : ArrayBackwardWriterBase(std::move(src)) {
-  MoveDest(std::move(src));
+    ArrayBackwardWriter&& that) noexcept
+    : ArrayBackwardWriterBase(std::move(that)) {
+  MoveDest(std::move(that));
 }
 
 template <typename Dest>
 ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
-    ArrayBackwardWriter&& src) noexcept {
-  ArrayBackwardWriterBase::operator=(std::move(src));
-  MoveDest(std::move(src));
+    ArrayBackwardWriter&& that) noexcept {
+  ArrayBackwardWriterBase::operator=(std::move(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& src) {
+void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   if (dest_.kIsStable()) {
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
       limit_ = dest_.ptr().data();
       start_ = limit_ + dest_.ptr().size();

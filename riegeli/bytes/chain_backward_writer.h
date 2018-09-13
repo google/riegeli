@@ -70,8 +70,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
         size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
   }
 
-  ChainBackwardWriterBase(ChainBackwardWriterBase&& src) noexcept;
-  ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& src) noexcept;
+  ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
+  ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
 
   void Done() override;
   bool PushSlow() override;
@@ -111,8 +111,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // Will prepend to the Chain provided by dest.
   explicit ChainBackwardWriter(Dest dest, Options options = Options());
 
-  ChainBackwardWriter(ChainBackwardWriter&& src) noexcept;
-  ChainBackwardWriter& operator=(ChainBackwardWriter&& src) noexcept;
+  ChainBackwardWriter(ChainBackwardWriter&& that) noexcept;
+  ChainBackwardWriter& operator=(ChainBackwardWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the Chain being written
   // to.
@@ -122,7 +122,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   const Chain* dest_chain() const override { return dest_.ptr(); }
 
  private:
-  void MoveDest(ChainBackwardWriter&& src);
+  void MoveDest(ChainBackwardWriter&& that);
 
   // The object providing and possibly owning the Chain being written to, with
   // uninitialized space prepended (possibly empty); cursor_ points to the end
@@ -138,14 +138,14 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 // Implementation details follow.
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
-    ChainBackwardWriterBase&& src) noexcept
-    : BackwardWriter(std::move(src)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+    ChainBackwardWriterBase&& that) noexcept
+    : BackwardWriter(std::move(that)),
+      size_hint_(riegeli::exchange(that.size_hint_, 0)) {}
 
 inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
-    ChainBackwardWriterBase&& src) noexcept {
-  BackwardWriter::operator=(std::move(src));
-  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+    ChainBackwardWriterBase&& that) noexcept {
+  BackwardWriter::operator=(std::move(that));
+  size_hint_ = riegeli::exchange(that.size_hint_, 0);
   return *this;
 }
 
@@ -162,26 +162,26 @@ inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest dest,
 
 template <typename Dest>
 ChainBackwardWriter<Dest>::ChainBackwardWriter(
-    ChainBackwardWriter&& src) noexcept
-    : ChainBackwardWriterBase(std::move(src)) {
-  MoveDest(std::move(src));
+    ChainBackwardWriter&& that) noexcept
+    : ChainBackwardWriterBase(std::move(that)) {
+  MoveDest(std::move(that));
 }
 
 template <typename Dest>
 ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
-    ChainBackwardWriter&& src) noexcept {
-  ChainBackwardWriterBase::operator=(std::move(src));
-  MoveDest(std::move(src));
+    ChainBackwardWriter&& that) noexcept {
+  ChainBackwardWriterBase::operator=(std::move(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& src) {
+void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   if (dest_.kIsStable()) {
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = written_to_buffer();
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
       limit_ = const_cast<char*>(dest_->blocks().front().data());
       start_ = limit_ + (dest_->size() - IntCast<size_t>(start_pos_));

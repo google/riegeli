@@ -139,8 +139,8 @@ class Object {
   // cause background threads of the source Object to pause interacting with the
   // Object while Object::operator=(Object&&) is called, and then continue
   // interacting with the target Object instead.
-  Object(Object&& src) noexcept;
-  Object& operator=(Object&& src) noexcept;
+  Object(Object&& that) noexcept;
+  Object& operator=(Object&& that) noexcept;
 
   // Marks the Object as healthy. This can be used if the Object supports
   // resetting to a clean state after a failure (apart from assignment).
@@ -236,13 +236,13 @@ inline Object::Object(State state) noexcept
       << "Unknown state: " << static_cast<uintptr_t>(state);
 }
 
-inline Object::Object(Object&& src) noexcept
-    : status_(src.status_.exchange(kClosedSuccessfully(),
-                                   std::memory_order_relaxed)) {}
+inline Object::Object(Object&& that) noexcept
+    : status_(that.status_.exchange(kClosedSuccessfully(),
+                                    std::memory_order_relaxed)) {}
 
-inline Object& Object::operator=(Object&& src) noexcept {
+inline Object& Object::operator=(Object&& that) noexcept {
   DeleteStatus(status_.exchange(
-      src.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
+      that.status_.exchange(kClosedSuccessfully(), std::memory_order_relaxed),
       std::memory_order_relaxed));
   return *this;
 }

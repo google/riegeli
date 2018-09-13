@@ -48,8 +48,8 @@ class LimitingReader : public Reader {
   // Precondition: size_limit >= src->pos()
   LimitingReader(Reader* src, Position size_limit);
 
-  LimitingReader(LimitingReader&& src) noexcept;
-  LimitingReader& operator=(LimitingReader&& src) noexcept;
+  LimitingReader(LimitingReader&& that) noexcept;
+  LimitingReader& operator=(LimitingReader&& that) noexcept;
 
   // Returns the original Reader. Unchanged by Close().
   Reader* src() const { return src_; }
@@ -97,18 +97,18 @@ inline constexpr Position LimitingReader::kNoSizeLimit() {
   return std::numeric_limits<Position>::max();
 }
 
-inline LimitingReader::LimitingReader(LimitingReader&& src) noexcept
-    : Reader(std::move(src)),
-      src_(riegeli::exchange(src.src_, nullptr)),
-      size_limit_(riegeli::exchange(src.size_limit_, 0)),
-      wrapped_(riegeli::exchange(src.wrapped_, nullptr)) {}
+inline LimitingReader::LimitingReader(LimitingReader&& that) noexcept
+    : Reader(std::move(that)),
+      src_(riegeli::exchange(that.src_, nullptr)),
+      size_limit_(riegeli::exchange(that.size_limit_, 0)),
+      wrapped_(riegeli::exchange(that.wrapped_, nullptr)) {}
 
 inline LimitingReader& LimitingReader::operator=(
-    LimitingReader&& src) noexcept {
-  Reader::operator=(std::move(src));
-  src_ = riegeli::exchange(src.src_, nullptr);
-  size_limit_ = riegeli::exchange(src.size_limit_, 0);
-  wrapped_ = riegeli::exchange(src.wrapped_, nullptr);
+    LimitingReader&& that) noexcept {
+  Reader::operator=(std::move(that));
+  src_ = riegeli::exchange(that.src_, nullptr);
+  size_limit_ = riegeli::exchange(that.size_limit_, 0);
+  wrapped_ = riegeli::exchange(that.wrapped_, nullptr);
   return *this;
 }
 

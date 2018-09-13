@@ -55,8 +55,8 @@ class FdWriterCommon : public BufferedWriter {
 
   explicit FdWriterCommon(size_t buffer_size);
 
-  FdWriterCommon(FdWriterCommon&& src) noexcept;
-  FdWriterCommon& operator=(FdWriterCommon&& src) noexcept;
+  FdWriterCommon(FdWriterCommon&& that) noexcept;
+  FdWriterCommon& operator=(FdWriterCommon&& that) noexcept;
 
   void SetFilename(int dest);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
@@ -140,8 +140,8 @@ class FdWriterBase : public internal::FdWriterCommon {
   FdWriterBase(size_t buffer_size, bool sync_pos)
       : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
 
-  FdWriterBase(FdWriterBase&& src) noexcept;
-  FdWriterBase& operator=(FdWriterBase&& src) noexcept;
+  FdWriterBase(FdWriterBase&& that) noexcept;
+  FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
   void Initialize(int flags, int dest);
   bool SyncPos(int dest);
@@ -211,8 +211,8 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   explicit FdStreamWriterBase(size_t buffer_size)
       : FdWriterCommon(buffer_size) {}
 
-  FdStreamWriterBase(FdStreamWriterBase&& src) noexcept;
-  FdStreamWriterBase& operator=(FdStreamWriterBase&& src) noexcept;
+  FdStreamWriterBase(FdStreamWriterBase&& that) noexcept;
+  FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
   void Initialize(int flags, int dest);
   bool WriteInternal(absl::string_view src) override;
@@ -250,8 +250,8 @@ class FdWriter : public FdWriterBase {
   // flags must include O_WRONLY or O_RDWR.
   FdWriter(absl::string_view filename, int flags, Options options = Options());
 
-  FdWriter(FdWriter&& src) noexcept;
-  FdWriter& operator=(FdWriter&& src) noexcept;
+  FdWriter(FdWriter&& that) noexcept;
+  FdWriter& operator=(FdWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -303,8 +303,8 @@ class FdStreamWriter : public FdStreamWriterBase {
   FdStreamWriter(absl::string_view filename, int flags,
                  Options options = Options());
 
-  FdStreamWriter(FdStreamWriter&& src) noexcept;
-  FdStreamWriter& operator=(FdStreamWriter&& src) noexcept;
+  FdStreamWriter(FdStreamWriter&& that) noexcept;
+  FdStreamWriter& operator=(FdStreamWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -324,37 +324,38 @@ class FdStreamWriter : public FdStreamWriterBase {
 
 namespace internal {
 
-inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {}
+inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
+    : BufferedWriter(std::move(that)),
+      filename_(riegeli::exchange(that.filename_, std::string())),
+      error_code_(riegeli::exchange(that.error_code_, 0)) {}
 
 inline FdWriterCommon& FdWriterCommon::operator=(
-    FdWriterCommon&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
+    FdWriterCommon&& that) noexcept {
+  BufferedWriter::operator=(std::move(that));
+  filename_ = riegeli::exchange(that.filename_, std::string());
+  error_code_ = riegeli::exchange(that.error_code_, 0);
   return *this;
 }
 
 }  // namespace internal
 
-inline FdWriterBase::FdWriterBase(FdWriterBase&& src) noexcept
-    : FdWriterCommon(std::move(src)),
-      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
+inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
+    : FdWriterCommon(std::move(that)),
+      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
 
-inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& src) noexcept {
-  FdWriterCommon::operator=(std::move(src));
-  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
+inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
+  FdWriterCommon::operator=(std::move(that));
+  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
   return *this;
 }
 
-inline FdStreamWriterBase::FdStreamWriterBase(FdStreamWriterBase&& src) noexcept
-    : FdWriterCommon(std::move(src)) {}
+inline FdStreamWriterBase::FdStreamWriterBase(
+    FdStreamWriterBase&& that) noexcept
+    : FdWriterCommon(std::move(that)) {}
 
 inline FdStreamWriterBase& FdStreamWriterBase::operator=(
-    FdStreamWriterBase&& src) noexcept {
-  FdWriterCommon::operator=(std::move(src));
+    FdStreamWriterBase&& that) noexcept {
+  FdWriterCommon::operator=(std::move(that));
   return *this;
 }
 
@@ -384,13 +385,13 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
 }
 
 template <typename Dest>
-FdWriter<Dest>::FdWriter(FdWriter&& src) noexcept
-    : FdWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
+    : FdWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& src) noexcept {
-  FdWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
+  FdWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 
@@ -442,14 +443,14 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
 }
 
 template <typename Dest>
-FdStreamWriter<Dest>::FdStreamWriter(FdStreamWriter&& src) noexcept
-    : FdStreamWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+FdStreamWriter<Dest>::FdStreamWriter(FdStreamWriter&& that) noexcept
+    : FdStreamWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 FdStreamWriter<Dest>& FdStreamWriter<Dest>::operator=(
-    FdStreamWriter&& src) noexcept {
-  FdStreamWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+    FdStreamWriter&& that) noexcept {
+  FdStreamWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 

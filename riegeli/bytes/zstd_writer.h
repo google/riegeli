@@ -144,8 +144,8 @@ class ZstdWriterBase : public BufferedWriter {
         window_log_(window_log),
         size_hint_(size_hint) {}
 
-  ZstdWriterBase(ZstdWriterBase&& src) noexcept;
-  ZstdWriterBase& operator=(ZstdWriterBase&& src) noexcept;
+  ZstdWriterBase(ZstdWriterBase&& that) noexcept;
+  ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
@@ -189,8 +189,8 @@ class ZstdWriter : public ZstdWriterBase {
   // Will write to the compressed Writer provided by dest.
   explicit ZstdWriter(Dest dest, Options options = Options());
 
-  ZstdWriter(ZstdWriter&& src) noexcept;
-  ZstdWriter& operator=(ZstdWriter&& src) noexcept;
+  ZstdWriter(ZstdWriter&& that) noexcept;
+  ZstdWriter& operator=(ZstdWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the compressed Writer.
   // Unchanged by Close().
@@ -208,12 +208,12 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Implementation details follow.
 
-inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& src) noexcept
-    : BufferedWriter(std::move(src)),
-      compression_level_(riegeli::exchange(src.compression_level_, 0)),
-      window_log_(riegeli::exchange(src.window_log_, 0)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)),
-      compressor_(std::move(src.compressor_)) {}
+inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
+    : BufferedWriter(std::move(that)),
+      compression_level_(riegeli::exchange(that.compression_level_, 0)),
+      window_log_(riegeli::exchange(that.window_log_, 0)),
+      size_hint_(riegeli::exchange(that.size_hint_, 0)),
+      compressor_(std::move(that.compressor_)) {}
 
 template <typename Dest>
 ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
@@ -226,13 +226,13 @@ ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& src) noexcept
-    : ZstdWriterBase(std::move(src)), dest_(std::move(src.dest_)) {}
+ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& that) noexcept
+    : ZstdWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(ZstdWriter&& src) noexcept {
-  ZstdWriterBase::operator=(std::move(src));
-  dest_ = std::move(src.dest_);
+ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(ZstdWriter&& that) noexcept {
+  ZstdWriterBase::operator=(std::move(that));
+  dest_ = std::move(that.dest_);
   return *this;
 }
 

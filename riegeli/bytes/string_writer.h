@@ -65,8 +65,8 @@ class StringWriterBase : public Writer {
  protected:
   explicit StringWriterBase(State state) noexcept : Writer(state) {}
 
-  StringWriterBase(StringWriterBase&& src) noexcept;
-  StringWriterBase& operator=(StringWriterBase&& src) noexcept;
+  StringWriterBase(StringWriterBase&& that) noexcept;
+  StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
   void Done() override;
   bool PushSlow() override;
@@ -102,8 +102,8 @@ class StringWriter : public StringWriterBase {
   // Will append to the string provided by dest.
   explicit StringWriter(Dest dest, Options options = Options());
 
-  StringWriter(StringWriter&& src) noexcept;
-  StringWriter& operator=(StringWriter&& src) noexcept;
+  StringWriter(StringWriter&& that) noexcept;
+  StringWriter& operator=(StringWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the string being written
   // to. Unchanged by Close().
@@ -113,7 +113,7 @@ class StringWriter : public StringWriterBase {
   const std::string* dest_string() const override { return dest_.ptr(); }
 
  private:
-  void MoveDest(StringWriter&& src);
+  void MoveDest(StringWriter&& that);
 
   // The object providing and possibly owning the string being written to, with
   // uninitialized space appended (possibly empty); cursor_ points to the
@@ -128,12 +128,12 @@ class StringWriter : public StringWriterBase {
 
 // Implementation details follow.
 
-inline StringWriterBase::StringWriterBase(StringWriterBase&& src) noexcept
-    : Writer(std::move(src)) {}
+inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
+    : Writer(std::move(that)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
-    StringWriterBase&& src) noexcept {
-  Writer::operator=(std::move(src));
+    StringWriterBase&& that) noexcept {
+  Writer::operator=(std::move(that));
   return *this;
 }
 
@@ -151,25 +151,26 @@ StringWriter<Dest>::StringWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-StringWriter<Dest>::StringWriter(StringWriter&& src) noexcept
-    : StringWriterBase(std::move(src)) {
-  MoveDest(std::move(src));
+StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
+    : StringWriterBase(std::move(that)) {
+  MoveDest(std::move(that));
 }
 
 template <typename Dest>
-StringWriter<Dest>& StringWriter<Dest>::operator=(StringWriter&& src) noexcept {
-  StringWriterBase::operator=(std::move(src));
-  MoveDest(std::move(src));
+StringWriter<Dest>& StringWriter<Dest>::operator=(
+    StringWriter&& that) noexcept {
+  StringWriterBase::operator=(std::move(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void StringWriter<Dest>::MoveDest(StringWriter&& src) {
+void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   if (dest_.kIsStable()) {
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = written_to_buffer();
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
       start_ = &(*dest_)[0];
       cursor_ = start_ + cursor_index;

@@ -43,8 +43,8 @@ class LimitingWriter : public Writer {
   // Precondition: size_limit >= dest->pos()
   LimitingWriter(Writer* dest, Position size_limit);
 
-  LimitingWriter(LimitingWriter&& src) noexcept;
-  LimitingWriter& operator=(LimitingWriter&& src) noexcept;
+  LimitingWriter(LimitingWriter&& that) noexcept;
+  LimitingWriter& operator=(LimitingWriter&& that) noexcept;
 
   // Returns the original Writer. Unchanged by Close().
   Writer* dest() const { return dest_; }
@@ -84,16 +84,16 @@ class LimitingWriter : public Writer {
 
 // Implementation details follow.
 
-inline LimitingWriter::LimitingWriter(LimitingWriter&& src) noexcept
-    : Writer(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      size_limit_(riegeli::exchange(src.size_limit_, 0)) {}
+inline LimitingWriter::LimitingWriter(LimitingWriter&& that) noexcept
+    : Writer(std::move(that)),
+      dest_(riegeli::exchange(that.dest_, nullptr)),
+      size_limit_(riegeli::exchange(that.size_limit_, 0)) {}
 
 inline LimitingWriter& LimitingWriter::operator=(
-    LimitingWriter&& src) noexcept {
-  Writer::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  size_limit_ = riegeli::exchange(src.size_limit_, 0);
+    LimitingWriter&& that) noexcept {
+  Writer::operator=(std::move(that));
+  dest_ = riegeli::exchange(that.dest_, nullptr);
+  size_limit_ = riegeli::exchange(that.size_limit_, 0);
   return *this;
 }
 

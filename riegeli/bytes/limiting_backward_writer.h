@@ -44,8 +44,8 @@ class LimitingBackwardWriter : public BackwardWriter {
   // Precondition: size_limit >= dest->pos()
   LimitingBackwardWriter(BackwardWriter* dest, Position size_limit);
 
-  LimitingBackwardWriter(LimitingBackwardWriter&& src) noexcept;
-  LimitingBackwardWriter& operator=(LimitingBackwardWriter&& src) noexcept;
+  LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
+  LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
 
   // Returns the original BackwardWriter. Unchanged by Close().
   BackwardWriter* dest() const { return dest_; }
@@ -82,16 +82,16 @@ class LimitingBackwardWriter : public BackwardWriter {
 // Implementation details follow.
 
 inline LimitingBackwardWriter::LimitingBackwardWriter(
-    LimitingBackwardWriter&& src) noexcept
-    : BackwardWriter(std::move(src)),
-      dest_(riegeli::exchange(src.dest_, nullptr)),
-      size_limit_(riegeli::exchange(src.size_limit_, 0)) {}
+    LimitingBackwardWriter&& that) noexcept
+    : BackwardWriter(std::move(that)),
+      dest_(riegeli::exchange(that.dest_, nullptr)),
+      size_limit_(riegeli::exchange(that.size_limit_, 0)) {}
 
 inline LimitingBackwardWriter& LimitingBackwardWriter::operator=(
-    LimitingBackwardWriter&& src) noexcept {
-  BackwardWriter::operator=(std::move(src));
-  dest_ = riegeli::exchange(src.dest_, nullptr);
-  size_limit_ = riegeli::exchange(src.size_limit_, 0);
+    LimitingBackwardWriter&& that) noexcept {
+  BackwardWriter::operator=(std::move(that));
+  dest_ = riegeli::exchange(that.dest_, nullptr);
+  size_limit_ = riegeli::exchange(that.size_limit_, 0);
   return *this;
 }
 

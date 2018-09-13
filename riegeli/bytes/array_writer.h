@@ -47,8 +47,8 @@ class ArrayWriterBase : public Writer {
  protected:
   explicit ArrayWriterBase(State state) noexcept : Writer(state) {}
 
-  ArrayWriterBase(ArrayWriterBase&& src) noexcept;
-  ArrayWriterBase& operator=(ArrayWriterBase&& src) noexcept;
+  ArrayWriterBase(ArrayWriterBase&& that) noexcept;
+  ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
 
   void Done() override;
   bool PushSlow() override;
@@ -75,8 +75,8 @@ class ArrayWriter : public ArrayWriterBase {
   // Will write to the array provided by dest.
   explicit ArrayWriter(Dest dest);
 
-  ArrayWriter(ArrayWriter&& src) noexcept;
-  ArrayWriter& operator=(ArrayWriter&& src) noexcept;
+  ArrayWriter(ArrayWriter&& that) noexcept;
+  ArrayWriter& operator=(ArrayWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by Close().
@@ -86,7 +86,7 @@ class ArrayWriter : public ArrayWriterBase {
   absl::Span<const char> dest_span() const override { return dest_.ptr(); }
 
  private:
-  void MoveDest(ArrayWriter&& src);
+  void MoveDest(ArrayWriter&& that);
 
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
@@ -96,14 +96,14 @@ class ArrayWriter : public ArrayWriterBase {
 
 // Implementation details follow.
 
-inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& src) noexcept
-    : Writer(std::move(src)),
-      written_(riegeli::exchange(src.written_, absl::Span<char>())) {}
+inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
+    : Writer(std::move(that)),
+      written_(riegeli::exchange(that.written_, absl::Span<char>())) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
-    ArrayWriterBase&& src) noexcept {
-  Writer::operator=(std::move(src));
-  written_ = riegeli::exchange(src.written_, absl::Span<char>());
+    ArrayWriterBase&& that) noexcept {
+  Writer::operator=(std::move(that));
+  written_ = riegeli::exchange(that.written_, absl::Span<char>());
   return *this;
 }
 
@@ -116,26 +116,26 @@ ArrayWriter<Dest>::ArrayWriter(Dest dest)
 }
 
 template <typename Dest>
-ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& src) noexcept
-    : ArrayWriterBase(std::move(src)) {
-  MoveDest(std::move(src));
+ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
+    : ArrayWriterBase(std::move(that)) {
+  MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(ArrayWriter&& src) noexcept {
-  ArrayWriterBase::operator=(std::move(src));
-  MoveDest(std::move(src));
+ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(ArrayWriter&& that) noexcept {
+  ArrayWriterBase::operator=(std::move(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ArrayWriter<Dest>::MoveDest(ArrayWriter&& src) {
+void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   if (dest_.kIsStable()) {
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
       start_ = dest_.ptr().data();
       cursor_ = start_ + cursor_index;

@@ -39,8 +39,8 @@ class BrotliReaderBase : public Reader {
  protected:
   explicit BrotliReaderBase(State state) noexcept : Reader(state) {}
 
-  BrotliReaderBase(BrotliReaderBase&& src) noexcept;
-  BrotliReaderBase& operator=(BrotliReaderBase&& src) noexcept;
+  BrotliReaderBase(BrotliReaderBase&& that) noexcept;
+  BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
   void Initialize();
   void Done() override;
@@ -81,8 +81,8 @@ class BrotliReader : public BrotliReaderBase {
   // Will read from the compressed Reader provided by src.
   explicit BrotliReader(Src src, Options options = Options());
 
-  BrotliReader(BrotliReader&& src) noexcept;
-  BrotliReader& operator=(BrotliReader&& src) noexcept;
+  BrotliReader(BrotliReader&& that) noexcept;
+  BrotliReader& operator=(BrotliReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the compressed Reader.
   // Unchanged by Close().
@@ -106,16 +106,16 @@ class BrotliReader : public BrotliReaderBase {
 
 // Implementation details follow.
 
-inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& src) noexcept
-    : Reader(std::move(src)),
-      truncated_(riegeli::exchange(src.truncated_, false)),
-      decompressor_(std::move(src.decompressor_)) {}
+inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
+    : Reader(std::move(that)),
+      truncated_(riegeli::exchange(that.truncated_, false)),
+      decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
-    BrotliReaderBase&& src) noexcept {
-  Reader::operator=(std::move(src));
-  truncated_ = riegeli::exchange(src.truncated_, false);
-  decompressor_ = std::move(src.decompressor_);
+    BrotliReaderBase&& that) noexcept {
+  Reader::operator=(std::move(that));
+  truncated_ = riegeli::exchange(that.truncated_, false);
+  decompressor_ = std::move(that.decompressor_);
   return *this;
 }
 
@@ -129,13 +129,13 @@ BrotliReader<Src>::BrotliReader(Src src, Options options)
 }
 
 template <typename Src>
-BrotliReader<Src>::BrotliReader(BrotliReader&& src) noexcept
-    : BrotliReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
+    : BrotliReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-BrotliReader<Src>& BrotliReader<Src>::operator=(BrotliReader&& src) noexcept {
-  BrotliReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+BrotliReader<Src>& BrotliReader<Src>::operator=(BrotliReader&& that) noexcept {
+  BrotliReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

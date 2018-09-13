@@ -43,25 +43,25 @@ ChunkDecoder::ChunkDecoder(Options options)
       field_filter_(std::move(options.field_filter_)),
       values_reader_(Chain()) {}
 
-ChunkDecoder::ChunkDecoder(ChunkDecoder&& src) noexcept
-    : Object(std::move(src)),
-      field_filter_(std::move(src.field_filter_)),
-      limits_(std::move(src.limits_)),
+ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
+    : Object(std::move(that)),
+      field_filter_(std::move(that.field_filter_)),
+      limits_(std::move(that.limits_)),
       values_reader_(
-          riegeli::exchange(src.values_reader_, ChainReader<Chain>(Chain()))),
-      index_(riegeli::exchange(src.index_, 0)),
-      record_scratch_(riegeli::exchange(src.record_scratch_, std::string())),
-      recoverable_(riegeli::exchange(src.recoverable_, false)) {}
+          riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
+      index_(riegeli::exchange(that.index_, 0)),
+      record_scratch_(riegeli::exchange(that.record_scratch_, std::string())),
+      recoverable_(riegeli::exchange(that.recoverable_, false)) {}
 
-ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& src) noexcept {
-  Object::operator=(std::move(src));
-  field_filter_ = std::move(src.field_filter_);
-  limits_ = std::move(src.limits_);
+ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
+  Object::operator=(std::move(that));
+  field_filter_ = std::move(that.field_filter_);
+  limits_ = std::move(that.limits_);
   values_reader_ =
-      riegeli::exchange(src.values_reader_, ChainReader<Chain>(Chain()));
-  index_ = riegeli::exchange(src.index_, 0);
-  record_scratch_ = riegeli::exchange(src.record_scratch_, std::string());
-  recoverable_ = riegeli::exchange(src.recoverable_, false);
+      riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
+  index_ = riegeli::exchange(that.index_, 0);
+  record_scratch_ = riegeli::exchange(that.record_scratch_, std::string());
+  recoverable_ = riegeli::exchange(that.recoverable_, false);
   return *this;
 }
 

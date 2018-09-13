@@ -40,8 +40,8 @@ class BufferedWriter : public Writer {
   // Creates a BufferedWriter with the given buffer size.
   explicit BufferedWriter(size_t buffer_size) noexcept;
 
-  BufferedWriter(BufferedWriter&& src) noexcept;
-  BufferedWriter& operator=(BufferedWriter&& src) noexcept;
+  BufferedWriter(BufferedWriter&& that) noexcept;
+  BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
   ~BufferedWriter() { DeleteBuffer(); }
 
@@ -92,18 +92,18 @@ inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t)";
 }
 
-inline BufferedWriter::BufferedWriter(BufferedWriter&& src) noexcept
-    : Writer(std::move(src)),
-      buffer_size_(riegeli::exchange(src.buffer_size_, 0)) {}
+inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
+    : Writer(std::move(that)),
+      buffer_size_(riegeli::exchange(that.buffer_size_, 0)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
-    BufferedWriter&& src) noexcept {
-  // Exchange src.start_ early to support self-assignment.
-  char* const start = riegeli::exchange(src.start_, nullptr);
+    BufferedWriter&& that) noexcept {
+  // Exchange that.start_ early to support self-assignment.
+  char* const start = riegeli::exchange(that.start_, nullptr);
   DeleteBuffer();
-  Writer::operator=(std::move(src));
+  Writer::operator=(std::move(that));
   start_ = start;
-  buffer_size_ = riegeli::exchange(src.buffer_size_, 0);
+  buffer_size_ = riegeli::exchange(that.buffer_size_, 0);
   return *this;
 }
 

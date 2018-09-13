@@ -59,8 +59,8 @@ class FdReaderCommon : public BufferedReader {
 
   explicit FdReaderCommon(size_t buffer_size);
 
-  FdReaderCommon(FdReaderCommon&& src) noexcept;
-  FdReaderCommon& operator=(FdReaderCommon&& src) noexcept;
+  FdReaderCommon(FdReaderCommon&& that) noexcept;
+  FdReaderCommon& operator=(FdReaderCommon&& that) noexcept;
 
   void SetFilename(int src);
   int OpenFd(absl::string_view filename, int flags);
@@ -129,8 +129,8 @@ class FdReaderBase : public internal::FdReaderCommon {
   FdReaderBase(size_t buffer_size, bool sync_pos)
       : FdReaderCommon(buffer_size), sync_pos_(sync_pos) {}
 
-  FdReaderBase(FdReaderBase&& src) noexcept;
-  FdReaderBase& operator=(FdReaderBase&& src) noexcept;
+  FdReaderBase(FdReaderBase&& that) noexcept;
+  FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
   void Initialize(int src);
   void SyncPos(int src);
@@ -185,8 +185,8 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   explicit FdStreamReaderBase(size_t buffer_size)
       : FdReaderCommon(buffer_size) {}
 
-  FdStreamReaderBase(FdStreamReaderBase&& src) noexcept;
-  FdStreamReaderBase& operator=(FdStreamReaderBase&& src) noexcept;
+  FdStreamReaderBase(FdStreamReaderBase&& that) noexcept;
+  FdStreamReaderBase& operator=(FdStreamReaderBase&& that) noexcept;
 
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
@@ -238,8 +238,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   explicit FdMMapReaderBase(bool sync_pos)
       : ChainReader(Chain()), sync_pos_(sync_pos) {}
 
-  FdMMapReaderBase(FdMMapReaderBase&& src) noexcept;
-  FdMMapReaderBase& operator=(FdMMapReaderBase&& src) noexcept;
+  FdMMapReaderBase(FdMMapReaderBase&& that) noexcept;
+  FdMMapReaderBase& operator=(FdMMapReaderBase&& that) noexcept;
 
   void SetFilename(int src);
   int OpenFd(absl::string_view filename, int flags);
@@ -285,8 +285,8 @@ class FdReader : public FdReaderBase {
   // flags must include O_RDONLY or O_RDWR.
   FdReader(absl::string_view filename, int flags, Options options = Options());
 
-  FdReader(FdReader&& src) noexcept;
-  FdReader& operator=(FdReader&& src) noexcept;
+  FdReader(FdReader&& that) noexcept;
+  FdReader& operator=(FdReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -340,8 +340,8 @@ class FdStreamReader : public FdStreamReaderBase {
   FdStreamReader(absl::string_view filename, int flags,
                  Options options = Options());
 
-  FdStreamReader(FdStreamReader&& src) noexcept;
-  FdStreamReader& operator=(FdStreamReader&& src) noexcept;
+  FdStreamReader(FdStreamReader&& that) noexcept;
+  FdStreamReader& operator=(FdStreamReader&& that) noexcept;
 
   // Returns the object providing and owning the fd being read from. Changed to
   // -1 by Close().
@@ -390,8 +390,8 @@ class FdMMapReader : public FdMMapReaderBase {
   FdMMapReader(absl::string_view filename, int flags,
                Options options = Options());
 
-  FdMMapReader(FdMMapReader&& src) noexcept;
-  FdMMapReader& operator=(FdMMapReader&& src) noexcept;
+  FdMMapReader(FdMMapReader&& that) noexcept;
+  FdMMapReader& operator=(FdMMapReader&& that) noexcept;
 
   // Returns the object providing and possibly owning the fd being read from. If
   // the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -411,52 +411,53 @@ class FdMMapReader : public FdMMapReaderBase {
 
 namespace internal {
 
-inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& src) noexcept
-    : BufferedReader(std::move(src)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)) {}
+inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& that) noexcept
+    : BufferedReader(std::move(that)),
+      filename_(riegeli::exchange(that.filename_, std::string())),
+      error_code_(riegeli::exchange(that.error_code_, 0)) {}
 
 inline FdReaderCommon& FdReaderCommon::operator=(
-    FdReaderCommon&& src) noexcept {
-  BufferedReader::operator=(std::move(src));
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
+    FdReaderCommon&& that) noexcept {
+  BufferedReader::operator=(std::move(that));
+  filename_ = riegeli::exchange(that.filename_, std::string());
+  error_code_ = riegeli::exchange(that.error_code_, 0);
   return *this;
 }
 
 }  // namespace internal
 
-inline FdReaderBase::FdReaderBase(FdReaderBase&& src) noexcept
-    : FdReaderCommon(std::move(src)),
-      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
+inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
+    : FdReaderCommon(std::move(that)),
+      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
 
-inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& src) noexcept {
-  FdReaderCommon::operator=(std::move(src));
-  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
+inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
+  FdReaderCommon::operator=(std::move(that));
+  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
   return *this;
 }
 
-inline FdStreamReaderBase::FdStreamReaderBase(FdStreamReaderBase&& src) noexcept
-    : FdReaderCommon(std::move(src)) {}
+inline FdStreamReaderBase::FdStreamReaderBase(
+    FdStreamReaderBase&& that) noexcept
+    : FdReaderCommon(std::move(that)) {}
 
 inline FdStreamReaderBase& FdStreamReaderBase::operator=(
-    FdStreamReaderBase&& src) noexcept {
-  FdReaderCommon::operator=(std::move(src));
+    FdStreamReaderBase&& that) noexcept {
+  FdReaderCommon::operator=(std::move(that));
   return *this;
 }
 
-inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& src) noexcept
-    : ChainReader(std::move(src)),
-      filename_(riegeli::exchange(src.filename_, std::string())),
-      error_code_(riegeli::exchange(src.error_code_, 0)),
-      sync_pos_(riegeli::exchange(src.sync_pos_, false)) {}
+inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
+    : ChainReader(std::move(that)),
+      filename_(riegeli::exchange(that.filename_, std::string())),
+      error_code_(riegeli::exchange(that.error_code_, 0)),
+      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
-    FdMMapReaderBase&& src) noexcept {
-  ChainReader::operator=(std::move(src));
-  filename_ = riegeli::exchange(src.filename_, std::string());
-  error_code_ = riegeli::exchange(src.error_code_, 0);
-  sync_pos_ = riegeli::exchange(src.sync_pos_, false);
+    FdMMapReaderBase&& that) noexcept {
+  ChainReader::operator=(std::move(that));
+  filename_ = riegeli::exchange(that.filename_, std::string());
+  error_code_ = riegeli::exchange(that.error_code_, 0);
+  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
   return *this;
 }
 
@@ -486,13 +487,13 @@ FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
 }
 
 template <typename Src>
-FdReader<Src>::FdReader(FdReader&& src) noexcept
-    : FdReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+FdReader<Src>::FdReader(FdReader&& that) noexcept
+    : FdReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-FdReader<Src>& FdReader<Src>::operator=(FdReader&& src) noexcept {
-  FdReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
+  FdReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 
@@ -539,14 +540,14 @@ FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
 }
 
 template <typename Src>
-FdStreamReader<Src>::FdStreamReader(FdStreamReader&& src) noexcept
-    : FdStreamReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+FdStreamReader<Src>::FdStreamReader(FdStreamReader&& that) noexcept
+    : FdStreamReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
 FdStreamReader<Src>& FdStreamReader<Src>::operator=(
-    FdStreamReader&& src) noexcept {
-  FdStreamReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+    FdStreamReader&& that) noexcept {
+  FdStreamReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 
@@ -588,13 +589,13 @@ FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
 }
 
 template <typename Src>
-FdMMapReader<Src>::FdMMapReader(FdMMapReader&& src) noexcept
-    : FdMMapReaderBase(std::move(src)), src_(std::move(src.src_)) {}
+FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
+    : FdMMapReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-FdMMapReader<Src>& FdMMapReader<Src>::operator=(FdMMapReader&& src) noexcept {
-  FdMMapReaderBase::operator=(std::move(src));
-  src_ = std::move(src.src_);
+FdMMapReader<Src>& FdMMapReader<Src>::operator=(FdMMapReader&& that) noexcept {
+  FdMMapReaderBase::operator=(std::move(that));
+  src_ = std::move(that.src_);
   return *this;
 }
 

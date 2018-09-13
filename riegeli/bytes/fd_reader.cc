@@ -57,8 +57,8 @@ class MMapRef {
  public:
   MMapRef(void* data, size_t size) : data_(data), size_(size) {}
 
-  MMapRef(MMapRef&& src) noexcept;
-  MMapRef& operator=(MMapRef&& src) noexcept;
+  MMapRef(MMapRef&& that) noexcept;
+  MMapRef& operator=(MMapRef&& that) noexcept;
 
   ~MMapRef();
 
@@ -74,19 +74,19 @@ class MMapRef {
   size_t size_;
 };
 
-MMapRef::MMapRef(MMapRef&& src) noexcept
-    : data_(riegeli::exchange(src.data_, nullptr)),
-      size_(riegeli::exchange(src.size_, 0)) {}
+MMapRef::MMapRef(MMapRef&& that) noexcept
+    : data_(riegeli::exchange(that.data_, nullptr)),
+      size_(riegeli::exchange(that.size_, 0)) {}
 
-MMapRef& MMapRef::operator=(MMapRef&& src) noexcept {
-  // Exchange data_ early to support self-assignment.
-  void* const data = riegeli::exchange(src.data_, nullptr);
+MMapRef& MMapRef::operator=(MMapRef&& that) noexcept {
+  // Exchange that.data_ early to support self-assignment.
+  void* const data = riegeli::exchange(that.data_, nullptr);
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
     RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
   data_ = data;
-  size_ = riegeli::exchange(src.size_, 0);
+  size_ = riegeli::exchange(that.size_, 0);
   return *this;
 }
 

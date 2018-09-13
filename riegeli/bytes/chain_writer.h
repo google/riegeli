@@ -71,8 +71,8 @@ class ChainWriterBase : public Writer {
         size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
   }
 
-  ChainWriterBase(ChainWriterBase&& src) noexcept;
-  ChainWriterBase& operator=(ChainWriterBase&& src) noexcept;
+  ChainWriterBase(ChainWriterBase&& that) noexcept;
+  ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
   void Done() override;
   bool PushSlow() override;
@@ -111,8 +111,8 @@ class ChainWriter : public ChainWriterBase {
   // Will append to the Chain provided by dest.
   explicit ChainWriter(Dest dest, Options options = Options());
 
-  ChainWriter(ChainWriter&& src) noexcept;
-  ChainWriter& operator=(ChainWriter&& src) noexcept;
+  ChainWriter(ChainWriter&& that) noexcept;
+  ChainWriter& operator=(ChainWriter&& that) noexcept;
 
   // Returns the object providing and possibly owning the Chain being written
   // to. Unchanged by Close().
@@ -122,7 +122,7 @@ class ChainWriter : public ChainWriterBase {
   const Chain* dest_chain() const override { return dest_.ptr(); }
 
  private:
-  void MoveDest(ChainWriter&& src);
+  void MoveDest(ChainWriter&& that);
 
   // The object providing and possibly owning the Chain being written to, with
   // uninitialized space appended (possibly empty); cursor_ points to the
@@ -138,14 +138,14 @@ class ChainWriter : public ChainWriterBase {
 
 // Implementation details follow.
 
-inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& src) noexcept
-    : Writer(std::move(src)),
-      size_hint_(riegeli::exchange(src.size_hint_, 0)) {}
+inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
+    : Writer(std::move(that)),
+      size_hint_(riegeli::exchange(that.size_hint_, 0)) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
-    ChainWriterBase&& src) noexcept {
-  Writer::operator=(std::move(src));
-  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+    ChainWriterBase&& that) noexcept {
+  Writer::operator=(std::move(that));
+  size_hint_ = riegeli::exchange(that.size_hint_, 0);
   return *this;
 }
 
@@ -159,25 +159,25 @@ ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-ChainWriter<Dest>::ChainWriter(ChainWriter&& src) noexcept
-    : ChainWriterBase(std::move(src)) {
-  MoveDest(std::move(src));
+ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
+    : ChainWriterBase(std::move(that)) {
+  MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ChainWriter<Dest>& ChainWriter<Dest>::operator=(ChainWriter&& src) noexcept {
-  ChainWriterBase::operator=(std::move(src));
-  MoveDest(std::move(src));
+ChainWriter<Dest>& ChainWriter<Dest>::operator=(ChainWriter&& that) noexcept {
+  ChainWriterBase::operator=(std::move(that));
+  MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ChainWriter<Dest>::MoveDest(ChainWriter&& src) {
+void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
   if (dest_.kIsStable()) {
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
   } else {
     const size_t cursor_index = written_to_buffer();
-    dest_ = std::move(src.dest_);
+    dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
       limit_ = const_cast<char*>(dest_->blocks().back().data() +
                                  dest_->blocks().back().size());
