@@ -45,7 +45,7 @@ namespace riegeli {
 class SimpleEncoder : public ChunkEncoder {
  public:
   // Creates an empty SimpleEncoder.
-  SimpleEncoder(CompressorOptions options, uint64_t size_hint);
+  explicit SimpleEncoder(CompressorOptions options, uint64_t size_hint);
 
   void Reset() override;
 

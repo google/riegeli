@@ -69,8 +69,6 @@ class TransposeDecoder : public Object {
   // submessages. Decoding works in non-recursive loop and this class keeps the
   // information needed to finalize one submessage.
   struct SubmessageStackElement {
-    SubmessageStackElement(size_t end_of_submessage, TagData tag_data)
-        : end_of_submessage(end_of_submessage), tag_data(tag_data) {}
     // The position of the end of submessage.
     size_t end_of_submessage;
     // Tag of this submessage.

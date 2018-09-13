@@ -32,7 +32,7 @@ class BlockHeader {
  public:
   BlockHeader() noexcept {}
 
-  BlockHeader(uint64_t previous_chunk, uint64_t next_chunk) {
+  explicit BlockHeader(uint64_t previous_chunk, uint64_t next_chunk) {
     set_previous_chunk(previous_chunk);
     set_next_chunk(next_chunk);
     set_header_hash(computed_header_hash());

@@ -36,7 +36,7 @@ class Compressor : public Object {
   Compressor() noexcept : Object(State::kClosed) {}
 
   // Creates an empty Compressor.
-  Compressor(CompressorOptions options, uint64_t size_hint = 0);
+  explicit Compressor(CompressorOptions options, uint64_t size_hint = 0);
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;

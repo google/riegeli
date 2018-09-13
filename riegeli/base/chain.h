@@ -338,7 +338,7 @@ class Chain::BlockIterator {
 
   BlockIterator() noexcept {}
 
-  BlockIterator(const Chain* chain, size_t block_index);
+  explicit BlockIterator(const Chain* chain, size_t block_index);
 
   BlockIterator(const BlockIterator& that) noexcept;
   BlockIterator& operator=(const BlockIterator& that) noexcept;
@@ -491,7 +491,7 @@ class Chain::Block {
   static Block* NewInternalForPrepend(size_t capacity);
 
   // Constructs an internal block. This constructor is public for NewAligned().
-  Block(size_t capacity, size_t space_before);
+  explicit Block(size_t capacity, size_t space_before);
 
   // Constructs an external block containing the moved object and sets block
   // data to moved_object.data(). This constructor is public for NewAligned().
@@ -502,7 +502,7 @@ class Chain::Block {
   // data to the data parameter, which must remain valid after the object is
   // moved. This constructor is public for NewAligned().
   template <typename T>
-  Block(T* object, absl::string_view data);
+  explicit Block(T* object, absl::string_view data);
 
   Block* Ref();
   void Unref();

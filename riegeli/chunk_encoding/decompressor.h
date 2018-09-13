@@ -58,7 +58,7 @@ class Decompressor : public Object {
   //
   // If compression_type is not kNone, reads uncompressed size as a varint from
   // the beginning of compressed data.
-  Decompressor(Src src, CompressionType compression_type);
+  explicit Decompressor(Src src, CompressionType compression_type);
 
   Decompressor(Decompressor&& that) noexcept;
   Decompressor& operator=(Decompressor&& that) noexcept;

@@ -32,8 +32,8 @@ class ChunkHeader {
  public:
   ChunkHeader() noexcept {}
 
-  ChunkHeader(const Chain& data, ChunkType chunk_type, uint64_t num_records,
-              uint64_t decoded_data_size);
+  explicit ChunkHeader(const Chain& data, ChunkType chunk_type,
+                       uint64_t num_records, uint64_t decoded_data_size);
 
   ChunkHeader(const ChunkHeader& that) noexcept {
     std::memcpy(words_, that.words_, sizeof(words_));

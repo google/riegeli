@@ -32,7 +32,7 @@ class RecordPosition {
 
   // Creates a RecordPosition corresponding to the given record of the chunk
   // at the given file position.
-  RecordPosition(uint64_t chunk_begin, uint64_t record_index);
+  explicit RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
   RecordPosition(const RecordPosition& that) noexcept;
   RecordPosition& operator=(const RecordPosition& that) noexcept;

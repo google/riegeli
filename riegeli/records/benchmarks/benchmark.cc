@@ -105,8 +105,8 @@ class Benchmarks {
   static bool ReadFile(const std::string& filename,
                        std::vector<std::string>* records, size_t* max_size);
 
-  Benchmarks(std::vector<std::string> records, std::string output_dir,
-             int repetitions);
+  explicit Benchmarks(std::vector<std::string> records, std::string output_dir,
+                      int repetitions);
 
   void RegisterTFRecord(std::string tfrecord_options);
   void RegisterRiegeli(std::string riegeli_options);

@@ -42,7 +42,7 @@ class LimitingBackwardWriter : public BackwardWriter {
   // Will write to dest.
   //
   // Precondition: size_limit >= dest->pos()
-  LimitingBackwardWriter(BackwardWriter* dest, Position size_limit);
+  explicit LimitingBackwardWriter(BackwardWriter* dest, Position size_limit);
 
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;

@@ -126,7 +126,7 @@ class FdReaderBase : public internal::FdReaderCommon {
  protected:
   FdReaderBase() noexcept {}
 
-  FdReaderBase(size_t buffer_size, bool sync_pos)
+  explicit FdReaderBase(size_t buffer_size, bool sync_pos)
       : FdReaderCommon(buffer_size), sync_pos_(sync_pos) {}
 
   FdReaderBase(FdReaderBase&& that) noexcept;
@@ -283,7 +283,8 @@ class FdReader : public FdReaderBase {
   // flags is the second argument of open, typically O_RDONLY.
   //
   // flags must include O_RDONLY or O_RDWR.
-  FdReader(absl::string_view filename, int flags, Options options = Options());
+  explicit FdReader(absl::string_view filename, int flags,
+                    Options options = Options());
 
   FdReader(FdReader&& that) noexcept;
   FdReader& operator=(FdReader&& that) noexcept;
@@ -330,15 +331,15 @@ class FdStreamReader : public FdStreamReaderBase {
   // type_identity_t<Src> disables template parameter deduction (C++17),
   // letting FdStreamReader(fd) mean FdStreamReader<OwnedFd>(fd) rather than
   // FdStreamReader<int>(fd).
-  FdStreamReader(type_identity_t<Src> src, Options options);
+  explicit FdStreamReader(type_identity_t<Src> src, Options options);
 
   // Opens a file for reading.
   //
   // flags is the second argument of open, typically O_RDONLY.
   //
   // flags must include O_RDONLY or O_RDWR.
-  FdStreamReader(absl::string_view filename, int flags,
-                 Options options = Options());
+  explicit FdStreamReader(absl::string_view filename, int flags,
+                          Options options = Options());
 
   FdStreamReader(FdStreamReader&& that) noexcept;
   FdStreamReader& operator=(FdStreamReader&& that) noexcept;
@@ -387,8 +388,8 @@ class FdMMapReader : public FdMMapReaderBase {
   //
   // flags must include O_RDONLY or O_RDWR.
   // options.set_owns_fd(false) must not be used.
-  FdMMapReader(absl::string_view filename, int flags,
-               Options options = Options());
+  explicit FdMMapReader(absl::string_view filename, int flags,
+                        Options options = Options());
 
   FdMMapReader(FdMMapReader&& that) noexcept;
   FdMMapReader& operator=(FdMMapReader&& that) noexcept;

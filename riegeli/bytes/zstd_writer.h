@@ -137,8 +137,8 @@ class ZstdWriterBase : public BufferedWriter {
  protected:
   ZstdWriterBase() noexcept {}
 
-  ZstdWriterBase(int compression_level, int window_log, Position size_hint,
-                 size_t buffer_size) noexcept
+  explicit ZstdWriterBase(int compression_level, int window_log,
+                          Position size_hint, size_t buffer_size) noexcept
       : BufferedWriter(buffer_size),
         compression_level_(compression_level),
         window_log_(window_log),

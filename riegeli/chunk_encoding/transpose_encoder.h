@@ -64,7 +64,7 @@ class Reader;
 class TransposeEncoder : public ChunkEncoder {
  public:
   // Creates an empty TransposeEncoder.
-  TransposeEncoder(CompressorOptions options, uint64_t bucket_size);
+  explicit TransposeEncoder(CompressorOptions options, uint64_t bucket_size);
 
   ~TransposeEncoder();
 
@@ -134,7 +134,7 @@ class TransposeEncoder : public ChunkEncoder {
   // assigned in the .proto file. We use "tag" for the identifier of this field
   // in the binary format. I.e., tag = (field << 3) | field_type.
   struct NodeId {
-    NodeId(internal::MessageId parent_message_id, uint32_t field);
+    explicit NodeId(internal::MessageId parent_message_id, uint32_t field);
     bool operator==(NodeId that) const;
     internal::MessageId parent_message_id;
     uint32_t field;
@@ -168,7 +168,7 @@ class TransposeEncoder : public ChunkEncoder {
   // One state of the state machine created in encoder.
   struct StateInfo {
     StateInfo();
-    StateInfo(uint32_t etag_index, uint32_t base);
+    explicit StateInfo(uint32_t etag_index, uint32_t base);
     // Index of the encoded_tag in "tags_list_" represented by this state.
     // kInvalidPos for NoOp states.
     uint32_t etag_index;
@@ -220,8 +220,8 @@ class TransposeEncoder : public ChunkEncoder {
   // Encoded tag represents a tag read from input together with the ID of the
   // message this tag belongs to and subtype extracted from the data.
   struct EncodedTag {
-    EncodedTag(internal::MessageId message_id, uint32_t tag,
-               internal::Subtype subtype);
+    explicit EncodedTag(internal::MessageId message_id, uint32_t tag,
+                        internal::Subtype subtype);
 
     bool operator==(EncodedTag that) const;
     // ID of the message this tag belongs to.
@@ -278,7 +278,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Information about the data buffer.
   struct BufferWithMetadata {
-    BufferWithMetadata(internal::MessageId message_id, uint32_t field);
+    explicit BufferWithMetadata(internal::MessageId message_id, uint32_t field);
     // Buffer itself, wrapped in unique_ptr so that its address remains constant
     // when additional buffers are added.
     std::unique_ptr<Chain> buffer;

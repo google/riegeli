@@ -1122,7 +1122,7 @@ skipped_submessage_start:
   goto do_transition;
 
 submessage_end:
-  submessage_stack.emplace_back(IntCast<size_t>(dest->pos()), node->tag_data);
+  submessage_stack.push_back({IntCast<size_t>(dest->pos()), node->tag_data});
   goto do_transition;
 
 failure:
@@ -1150,46 +1150,46 @@ submessage_start : {
 }
   goto do_transition;
 
-#define ACTIONS_FOR_TAG_LEN(tag_length)                             \
-  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);            \
-  goto do_transition;                                               \
-  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);           \
-  goto do_transition;                                               \
-  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);           \
-  goto do_transition;                                               \
-  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);           \
-  goto do_transition;                                               \
-  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);           \
-  goto do_transition;                                               \
-  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);           \
-  goto do_transition;                                               \
-  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);           \
-  goto do_transition;                                               \
-  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);           \
-  goto do_transition;                                               \
-  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);           \
-  goto do_transition;                                               \
-  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);           \
-  goto do_transition;                                               \
-  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);         \
-  goto do_transition;                                               \
-  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);             \
-  goto do_transition;                                               \
-  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);             \
-  goto do_transition;                                               \
-  string_##tag_length : STRING_CALLBACK(tag_length);                \
-  goto do_transition;                                               \
-  start_filter_group_##tag_length                                   \
-      : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {         \
-    return Fail("Submessage stack underflow");                      \
-  }                                                                 \
-  submessage_stack.pop_back();                                      \
-  COPY_TAG_CALLBACK(tag_length);                                    \
-  goto do_transition;                                               \
-  end_filter_group_##tag_length                                     \
-      : submessage_stack.emplace_back(IntCast<size_t>(dest->pos()), \
-                                      node->tag_data);              \
-  COPY_TAG_CALLBACK(tag_length);                                    \
+#define ACTIONS_FOR_TAG_LEN(tag_length)                      \
+  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);     \
+  goto do_transition;                                        \
+  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);    \
+  goto do_transition;                                        \
+  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);    \
+  goto do_transition;                                        \
+  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);    \
+  goto do_transition;                                        \
+  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);    \
+  goto do_transition;                                        \
+  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);    \
+  goto do_transition;                                        \
+  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);    \
+  goto do_transition;                                        \
+  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);    \
+  goto do_transition;                                        \
+  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);    \
+  goto do_transition;                                        \
+  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);    \
+  goto do_transition;                                        \
+  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);  \
+  goto do_transition;                                        \
+  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);      \
+  goto do_transition;                                        \
+  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);      \
+  goto do_transition;                                        \
+  string_##tag_length : STRING_CALLBACK(tag_length);         \
+  goto do_transition;                                        \
+  start_filter_group_##tag_length                            \
+      : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {  \
+    return Fail("Submessage stack underflow");               \
+  }                                                          \
+  submessage_stack.pop_back();                               \
+  COPY_TAG_CALLBACK(tag_length);                             \
+  goto do_transition;                                        \
+  end_filter_group_##tag_length                              \
+      : submessage_stack.push_back(                          \
+            {IntCast<size_t>(dest->pos()), node->tag_data}); \
+  COPY_TAG_CALLBACK(tag_length);                             \
   goto do_transition
 
   ACTIONS_FOR_TAG_LEN(1);

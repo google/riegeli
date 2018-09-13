@@ -122,8 +122,8 @@ class ValueParser : public Object {
  private:
   friend class OptionsParser;
 
-  ValueParser(OptionsParser* options_parser, absl::string_view key,
-              absl::string_view value);
+  explicit ValueParser(OptionsParser* options_parser, absl::string_view key,
+                       absl::string_view value);
 
   OptionsParser* options_parser_;
   absl::string_view key_;
@@ -170,7 +170,7 @@ class OptionsParser : public Object {
   friend class ValueParser;
 
   struct Option {
-    Option(std::string key, ValueParser::Function function)
+    explicit Option(std::string key, ValueParser::Function function)
         : key(std::move(key)), function(std::move(function)) {}
 
     std::string key;

@@ -43,7 +43,7 @@ class OwnedFd {
   OwnedFd() noexcept {}
 
   // Creates an OwnedFd which owns fd if fd >= 0.
-  OwnedFd(int fd) noexcept : fd_(fd) {}
+  /*implicit*/ OwnedFd(int fd) noexcept : fd_(fd) {}
 
   OwnedFd(OwnedFd&& that) noexcept;
   OwnedFd& operator=(OwnedFd&& that) noexcept;

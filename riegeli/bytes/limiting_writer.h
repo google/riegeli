@@ -41,7 +41,7 @@ class LimitingWriter : public Writer {
   // Will write to dest.
   //
   // Precondition: size_limit >= dest->pos()
-  LimitingWriter(Writer* dest, Position size_limit);
+  explicit LimitingWriter(Writer* dest, Position size_limit);
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;

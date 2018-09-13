@@ -137,7 +137,7 @@ class FdWriterBase : public internal::FdWriterCommon {
  protected:
   FdWriterBase() noexcept {}
 
-  FdWriterBase(size_t buffer_size, bool sync_pos)
+  explicit FdWriterBase(size_t buffer_size, bool sync_pos)
       : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
 
   FdWriterBase(FdWriterBase&& that) noexcept;
@@ -248,7 +248,8 @@ class FdWriter : public FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  FdWriter(absl::string_view filename, int flags, Options options = Options());
+  explicit FdWriter(absl::string_view filename, int flags,
+                    Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
   FdWriter& operator=(FdWriter&& that) noexcept;
@@ -291,7 +292,7 @@ class FdStreamWriter : public FdStreamWriterBase {
   // type_identity_t<Dest> disables template parameter deduction (C++17),
   // letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather than
   // FdStreamWriter<int>(fd).
-  FdStreamWriter(type_identity_t<Dest> dest, Options options);
+  explicit FdStreamWriter(type_identity_t<Dest> dest, Options options);
 
   // Opens a file for writing.
   //
@@ -300,8 +301,8 @@ class FdStreamWriter : public FdStreamWriterBase {
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
   // flags must include O_WRONLY or O_RDWR.
-  FdStreamWriter(absl::string_view filename, int flags,
-                 Options options = Options());
+  explicit FdStreamWriter(absl::string_view filename, int flags,
+                          Options options = Options());
 
   FdStreamWriter(FdStreamWriter&& that) noexcept;
   FdStreamWriter& operator=(FdStreamWriter&& that) noexcept;

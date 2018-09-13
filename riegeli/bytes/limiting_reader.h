@@ -46,7 +46,7 @@ class LimitingReader : public Reader {
   // Will read from src.
   //
   // Precondition: size_limit >= src->pos()
-  LimitingReader(Reader* src, Position size_limit);
+  explicit LimitingReader(Reader* src, Position size_limit);
 
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;

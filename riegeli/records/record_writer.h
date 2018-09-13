@@ -456,8 +456,9 @@ class RecordWriter : public RecordWriterBase {
 
 class FutureRecordPosition::FutureChunkBegin {
  public:
-  FutureChunkBegin(Position pos_before_chunks,
-                   std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+  explicit FutureChunkBegin(
+      Position pos_before_chunks,
+      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
 
   FutureChunkBegin(const FutureChunkBegin&) = delete;
   FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;

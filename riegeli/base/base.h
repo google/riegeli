@@ -65,8 +65,9 @@ class CheckFailed {
  public:
   // Begins formatting the message as:
   // "Check failed at file:line in function: message ".
-  ABSL_ATTRIBUTE_COLD CheckFailed(const char* file, int line,
-                                  const char* function, const char* message);
+  ABSL_ATTRIBUTE_COLD explicit CheckFailed(const char* file, int line,
+                                           const char* function,
+                                           const char* message);
 
   // Allows to add details to the message by writing to the stream.
   std::ostream& stream() { return stream_; }

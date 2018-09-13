@@ -34,7 +34,7 @@ class Field {
   //
   // Tags can be obtained from Type::k*FieldNumber constants exported by
   // compiled proto messages, or from FieldDescriptor::number().
-  Field(std::initializer_list<uint32_t> path);
+  /*implicit*/ Field(std::initializer_list<uint32_t> path);
 
   // Starts with the root message. Field tags can be added by AddTag().
   Field() noexcept {}
@@ -67,7 +67,7 @@ class FieldFilter {
   static FieldFilter All();
 
   // Includes only the specified fields.
-  FieldFilter(std::initializer_list<Field> fields);
+  /*implicit*/ FieldFilter(std::initializer_list<Field> fields);
 
   // Starts with an empty set to include. Fields can be added by AddField().
   FieldFilter() noexcept {}

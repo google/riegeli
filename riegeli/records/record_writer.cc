@@ -59,7 +59,7 @@ namespace {
 
 class FileDescriptorCollector {
  public:
-  FileDescriptorCollector(
+  explicit FileDescriptorCollector(
       google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>*
           file_descriptors)
       : file_descriptors_(RIEGELI_ASSERT_NOTNULL(file_descriptors)) {}
@@ -156,7 +156,7 @@ bool RecordWriterBase::Options::Parse(absl::string_view text,
 
 class RecordWriterBase::Worker : public Object {
  public:
-  Worker(ChunkWriter* chunk_writer, const Options& options)
+  explicit Worker(ChunkWriter* chunk_writer, const Options& options)
       : Object(State::kOpen),
         chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
         chunk_encoder_(MakeChunkEncoder(options)) {}
@@ -289,7 +289,7 @@ bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
 
 class RecordWriterBase::SerialWorker : public Worker {
  public:
-  SerialWorker(ChunkWriter* chunk_writer, Options&& options);
+  explicit SerialWorker(ChunkWriter* chunk_writer, Options&& options);
 
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
@@ -365,7 +365,7 @@ FutureRecordPosition RecordWriterBase::SerialWorker::ChunkBegin() {
 // thread-compatible, not thread-safe.
 class RecordWriterBase::ParallelWorker : public Worker {
  public:
-  ParallelWorker(ChunkWriter* chunk_writer, Options&& options);
+  explicit ParallelWorker(ChunkWriter* chunk_writer, Options&& options);
 
   ~ParallelWorker();
 

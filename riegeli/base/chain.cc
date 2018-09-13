@@ -49,7 +49,7 @@ void WritePadding(std::ostream& out, size_t pad) {
 
 class Chain::BlockRef {
  public:
-  BlockRef(Block* block, bool add_ref);
+  explicit BlockRef(Block* block, bool add_ref);
 
   BlockRef(BlockRef&& that) noexcept;
   BlockRef& operator=(BlockRef&& that) noexcept;

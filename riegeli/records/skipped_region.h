@@ -23,7 +23,7 @@ class SkippedRegion {
  public:
   constexpr SkippedRegion() noexcept {}
 
-  SkippedRegion(Position begin, Position end);
+  explicit SkippedRegion(Position begin, Position end);
 
   SkippedRegion(const SkippedRegion& that) noexcept;
   SkippedRegion& operator=(const SkippedRegion& that) noexcept;

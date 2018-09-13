@@ -119,7 +119,7 @@ bool IsProtoMessage(Reader* record) {
 struct PriorityQueueEntry {
   PriorityQueueEntry() {}
 
-  PriorityQueueEntry(uint32_t dest_index, size_t num_transitions)
+  explicit PriorityQueueEntry(uint32_t dest_index, size_t num_transitions)
       : dest_index(dest_index), num_transitions(num_transitions) {}
 
   // Index of the destination in "tags_list_".
