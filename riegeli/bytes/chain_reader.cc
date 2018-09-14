@@ -28,16 +28,6 @@
 
 namespace riegeli {
 
-void ChainReaderBase::Initialize(const Chain* src) {
-  iter_ = src->blocks().cbegin();
-  if (iter_ != src->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = start_;
-    limit_ = start_ + iter_->size();
-    limit_pos_ = buffer_size();
-  }
-}
-
 void ChainReaderBase::Done() {
   iter_ = Chain::BlockIterator();
   limit_pos_ = pos();

@@ -138,7 +138,7 @@ inline StringWriterBase& StringWriterBase::operator=(
 }
 
 template <typename Dest>
-StringWriter<Dest>::StringWriter(Dest dest, Options options)
+inline StringWriter<Dest>::StringWriter(Dest dest, Options options)
     : StringWriterBase(State::kOpen), dest_(std::move(dest)) {
   RIEGELI_ASSERT(dest_.ptr() != nullptr)
       << "Failed precondition of StringWriter<Dest>::StringWriter(Dest): "
@@ -151,13 +151,13 @@ StringWriter<Dest>::StringWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
+inline StringWriter<Dest>::StringWriter(StringWriter&& that) noexcept
     : StringWriterBase(std::move(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-StringWriter<Dest>& StringWriter<Dest>::operator=(
+inline StringWriter<Dest>& StringWriter<Dest>::operator=(
     StringWriter&& that) noexcept {
   StringWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
@@ -165,7 +165,7 @@ StringWriter<Dest>& StringWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-void StringWriter<Dest>::MoveDest(StringWriter&& that) {
+inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {

@@ -129,11 +129,12 @@ BrotliReader<Src>::BrotliReader(Src src, Options options)
 }
 
 template <typename Src>
-BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
+inline BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
     : BrotliReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-BrotliReader<Src>& BrotliReader<Src>::operator=(BrotliReader&& that) noexcept {
+inline BrotliReader<Src>& BrotliReader<Src>::operator=(
+    BrotliReader&& that) noexcept {
   BrotliReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;

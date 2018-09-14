@@ -196,11 +196,12 @@ DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-DefaultChunkWriter<Dest>::DefaultChunkWriter(DefaultChunkWriter&& that) noexcept
+inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
+    DefaultChunkWriter&& that) noexcept
     : DefaultChunkWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
+inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
     DefaultChunkWriter&& that) noexcept {
   DefaultChunkWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);

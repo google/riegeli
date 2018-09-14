@@ -99,7 +99,7 @@ inline StringReaderBase& StringReaderBase::operator=(
 }
 
 template <typename Src>
-StringReader<Src>::StringReader(Src src)
+inline StringReader<Src>::StringReader(Src src)
     : StringReaderBase(State::kOpen), src_(std::move(src)) {
   start_ = src_.ptr().data();
   cursor_ = start_;
@@ -108,20 +108,21 @@ StringReader<Src>::StringReader(Src src)
 }
 
 template <typename Src>
-StringReader<Src>::StringReader(StringReader&& that) noexcept
+inline StringReader<Src>::StringReader(StringReader&& that) noexcept
     : StringReaderBase(std::move(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
-StringReader<Src>& StringReader<Src>::operator=(StringReader&& that) noexcept {
+inline StringReader<Src>& StringReader<Src>::operator=(
+    StringReader&& that) noexcept {
   StringReaderBase::operator=(std::move(that));
   MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
-void StringReader<Src>::MoveSrc(StringReader&& that) {
+inline void StringReader<Src>::MoveSrc(StringReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {

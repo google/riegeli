@@ -114,15 +114,16 @@ ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
 // These functions allow to use a and b multiple times without reevaluation.
 // They are small enough to be inlined, with the slow path delegated to
 // FormatCheckOpMessage().
-#define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                       \
-  template <typename A, typename B>                                      \
-  CheckResult Check##name(const char* message, const A& a, const B& b) { \
-    if (ABSL_PREDICT_TRUE(a op b)) {                                     \
-      return CheckResult();                                              \
-    } else {                                                             \
-      return CheckResult(FormatCheckOpMessage(message, a, b));           \
-    }                                                                    \
-  }                                                                      \
+#define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                \
+  template <typename A, typename B>                               \
+  inline CheckResult Check##name(const char* message, const A& a, \
+                                 const B& b) {                    \
+    if (ABSL_PREDICT_TRUE(a op b)) {                              \
+      return CheckResult();                                       \
+    } else {                                                      \
+      return CheckResult(FormatCheckOpMessage(message, a, b));    \
+    }                                                             \
+  }                                                               \
   static_assert(true, "")  // Eat a semicolon.
 
 RIEGELI_INTERNAL_DEFINE_CHECK_OP(Eq, ==);
@@ -135,8 +136,8 @@ RIEGELI_INTERNAL_DEFINE_CHECK_OP(Ge, >=);
 #undef RIEGELI_INTERNAL_DEFINE_CHECK_OP
 
 template <typename T>
-T CheckNotNull(const char* file, int line, const char* function,
-               const char* message, T&& value) {
+inline T CheckNotNull(const char* file, int line, const char* function,
+                      const char* message, T&& value) {
   if (ABSL_PREDICT_FALSE(value == nullptr)) {
     CheckFailed(file, line, function, message);
   }
@@ -160,7 +161,7 @@ class UnreachableStream {
 };
 
 template <typename T>
-T AssertNotNull(T&& value) {
+inline T AssertNotNull(T&& value) {
   if (value == nullptr) RIEGELI_INTERNAL_UNREACHABLE();
   return std::forward<T>(value);
 }
@@ -272,7 +273,7 @@ using std::exchange;
 #else  // !__cpp_lib_exchange_function
 
 template <typename T, typename U = T>
-T exchange(T& obj, U&& new_value) {
+inline T exchange(T& obj, U&& new_value) {
   T old_value = std::move(obj);
   obj = std::forward<U>(new_value);
   return old_value;
@@ -286,7 +287,8 @@ T exchange(T& obj, U&& new_value) {
 namespace internal {
 
 template <typename A, typename B>
-absl::enable_if_t<std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
+inline absl::enable_if_t<
+    std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Value out of range";
@@ -294,7 +296,8 @@ IntCastImpl(B value) {
 }
 
 template <typename A, typename B>
-absl::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value, A>
+inline absl::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
+                         A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, 0) << "Value out of range";
   RIEGELI_ASSERT_LE(static_cast<absl::make_unsigned_t<B>>(value),
@@ -304,7 +307,8 @@ IntCastImpl(B value) {
 }
 
 template <typename A, typename B>
-absl::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value, A>
+inline absl::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
+                         A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value,
                     absl::make_unsigned_t<A>{std::numeric_limits<A>::max()})
@@ -313,7 +317,8 @@ IntCastImpl(B value) {
 }
 
 template <typename A, typename B>
-absl::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value, A>
+inline absl::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
+                         A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Value out of range";
@@ -325,7 +330,7 @@ IntCastImpl(B value) {
 }  // namespace internal
 
 template <typename A, typename B>
-A IntCast(B value) {
+inline A IntCast(B value) {
   static_assert(std::is_integral<A>::value,
                 "IntCast() requires integral types");
   static_assert(std::is_integral<B>::value,
@@ -336,7 +341,7 @@ A IntCast(B value) {
 // PtrDistance(first, last) returns last - first as size_t, asserting that
 // first <= last.
 template <typename A>
-size_t PtrDistance(const A* first, const A* last) {
+inline size_t PtrDistance(const A* first, const A* last) {
   RIEGELI_ASSERT(first <= last)
       << "Failed invariant of PtrDistance(): pointers in the wrong order";
   return static_cast<size_t>(last - first);
@@ -451,7 +456,7 @@ constexpr absl::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
 // SaturatingAdd() adds unsigned values, or returns max possible value of the
 // type if addition would overflow.
 template <typename T>
-T SaturatingAdd(T a, T b) {
+constexpr T SaturatingAdd(T a, T b) {
   static_assert(std::is_unsigned<T>::value,
                 "SaturatingAdd() requires an unsigned type");
   return a + UnsignedMin(b, std::numeric_limits<T>::max() - a);
@@ -460,7 +465,7 @@ T SaturatingAdd(T a, T b) {
 // SaturatingSub() subtracts unsigned values, or returns 0 if subtraction would
 // underflow.
 template <typename T>
-T SaturatingSub(T a, T b) {
+constexpr T SaturatingSub(T a, T b) {
   static_assert(std::is_unsigned<T>::value,
                 "SaturatingSub() requires an unsigned type");
   return a - UnsignedMin(b, a);

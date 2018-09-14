@@ -161,14 +161,14 @@ inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest dest,
 }
 
 template <typename Dest>
-ChainBackwardWriter<Dest>::ChainBackwardWriter(
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     ChainBackwardWriter&& that) noexcept
     : ChainBackwardWriterBase(std::move(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
+inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
     ChainBackwardWriter&& that) noexcept {
   ChainBackwardWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
@@ -176,7 +176,7 @@ ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
+inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {

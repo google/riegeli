@@ -440,11 +440,12 @@ RecordReader<Src>::RecordReader(Src src, Options options)
 }
 
 template <typename Src>
-RecordReader<Src>::RecordReader(RecordReader&& that) noexcept
+inline RecordReader<Src>::RecordReader(RecordReader&& that) noexcept
     : RecordReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-RecordReader<Src>& RecordReader<Src>::operator=(RecordReader&& that) noexcept {
+inline RecordReader<Src>& RecordReader<Src>::operator=(
+    RecordReader&& that) noexcept {
   RecordReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;
@@ -462,7 +463,7 @@ void RecordReader<Src>::Done() {
 }
 
 template <typename Src>
-RecordPosition RecordReader<Src>::pos() const {
+inline RecordPosition RecordReader<Src>::pos() const {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
                         chunk_decoder_.num_records()) ||
       ABSL_PREDICT_FALSE(recoverable_ == Recoverable::kRecoverChunkDecoder)) {

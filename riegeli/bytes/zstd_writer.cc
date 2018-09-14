@@ -36,21 +36,6 @@ namespace riegeli {
 int ZstdWriterBase::Options::kMinWindowLog() { return ZSTD_WINDOWLOG_MIN; }
 int ZstdWriterBase::Options::kMaxWindowLog() { return ZSTD_WINDOWLOG_MAX; }
 
-ZstdWriterBase& ZstdWriterBase::operator=(ZstdWriterBase&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  compression_level_ = riegeli::exchange(src.compression_level_, 0);
-  window_log_ = riegeli::exchange(src.window_log_, 0),
-  size_hint_ = riegeli::exchange(src.size_hint_, 0);
-  if (src.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
-    compressor_ = std::move(src.compressor_);
-  } else if (compressor_ != nullptr) {
-    // Reuse this ZSTD_CStream because if options are the same then reusing it
-    // is faster than creating it again.
-    InitializeCStream();
-  }
-  return *this;
-}
-
 void ZstdWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(PushInternal())) {
     Writer* const dest = dest_writer();
@@ -74,7 +59,7 @@ inline bool ZstdWriterBase::EnsureCStreamCreated() {
   return true;
 }
 
-inline bool ZstdWriterBase::InitializeCStream() {
+bool ZstdWriterBase::InitializeCStream() {
   ZSTD_parameters params = ZSTD_getParams(
       compression_level_, IntCast<unsigned long long>(size_hint_), 0);
   if (window_log_ >= 0) {

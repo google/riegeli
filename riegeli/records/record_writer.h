@@ -562,11 +562,11 @@ RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
+inline RecordWriter<Dest>::RecordWriter(RecordWriter&& that) noexcept
     : RecordWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-RecordWriter<Dest>& RecordWriter<Dest>::operator=(
+inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
     RecordWriter&& that) noexcept {
   DoneBackground();
   RecordWriterBase::operator=(std::move(that));

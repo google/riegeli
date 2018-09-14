@@ -150,7 +150,7 @@ inline ChainWriterBase& ChainWriterBase::operator=(
 }
 
 template <typename Dest>
-ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
+inline ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
     : ChainWriterBase(options.size_hint_), dest_(std::move(dest)) {
   RIEGELI_ASSERT(dest_.ptr() != nullptr)
       << "Failed precondition of ChainWriter<Dest>::ChainWriter(Dest): "
@@ -159,20 +159,21 @@ ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
+inline ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
     : ChainWriterBase(std::move(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ChainWriter<Dest>& ChainWriter<Dest>::operator=(ChainWriter&& that) noexcept {
+inline ChainWriter<Dest>& ChainWriter<Dest>::operator=(
+    ChainWriter&& that) noexcept {
   ChainWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
+inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {

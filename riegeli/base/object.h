@@ -225,7 +225,7 @@ class Object {
 // Implementation details follow.
 
 template <typename T>
-TypeId TypeId::For() {
+inline TypeId TypeId::For() {
   static char token;
   return TypeId(&token);
 }

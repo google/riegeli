@@ -79,11 +79,11 @@ class FileDescriptorCollector {
 };
 
 template <typename Record>
-size_t RecordSize(const Record& record) {
+inline size_t RecordSize(const Record& record) {
   return record.size();
 }
 
-size_t RecordSize(const google::protobuf::MessageLite& record) {
+inline size_t RecordSize(const google::protobuf::MessageLite& record) {
   return record.ByteSizeLong();
 }
 

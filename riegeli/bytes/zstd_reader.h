@@ -151,11 +151,11 @@ ZstdReader<Src>::ZstdReader(Src src, Options options)
 }
 
 template <typename Src>
-ZstdReader<Src>::ZstdReader(ZstdReader&& that) noexcept
+inline ZstdReader<Src>::ZstdReader(ZstdReader&& that) noexcept
     : ZstdReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
+inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
   ZstdReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;

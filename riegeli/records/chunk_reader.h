@@ -302,11 +302,12 @@ DefaultChunkReader<Src>::DefaultChunkReader(Src src)
 }
 
 template <typename Src>
-DefaultChunkReader<Src>::DefaultChunkReader(DefaultChunkReader&& that) noexcept
+inline DefaultChunkReader<Src>::DefaultChunkReader(
+    DefaultChunkReader&& that) noexcept
     : DefaultChunkReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
+inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
     DefaultChunkReader&& that) noexcept {
   DefaultChunkReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);

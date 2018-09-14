@@ -122,18 +122,19 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
 }
 
 template <typename Src>
-Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
+inline Decompressor<Src>::Decompressor(Decompressor&& that) noexcept
     : Object(std::move(that)), reader_(std::move(that.reader_)) {}
 
 template <typename Src>
-Decompressor<Src>& Decompressor<Src>::operator=(Decompressor&& that) noexcept {
+inline Decompressor<Src>& Decompressor<Src>::operator=(
+    Decompressor&& that) noexcept {
   Object::operator=(std::move(that));
   reader_ = std::move(that.reader_);
   return *this;
 }
 
 template <typename Src>
-Reader* Decompressor<Src>::reader() {
+inline Reader* Decompressor<Src>::reader() {
   struct Visitor {
     Reader* operator()(Dependency<Reader*, Src>& reader) const {
       return reader.ptr();
@@ -162,13 +163,13 @@ void Decompressor<Src>::Done() {
 }
 
 template <typename Src>
-bool Decompressor<Src>::VerifyEndAndClose() {
+inline bool Decompressor<Src>::VerifyEndAndClose() {
   VerifyEnd();
   return Close();
 }
 
 template <typename Src>
-void Decompressor<Src>::VerifyEnd() {
+inline void Decompressor<Src>::VerifyEnd() {
   struct Visitor {
     void operator()(Dependency<Reader*, Src>& reader) const {
       if (reader.kIsOwning()) reader->VerifyEnd();

@@ -97,14 +97,6 @@ inline LimitingWriter& LimitingWriter::operator=(
   return *this;
 }
 
-inline bool LimitingWriter::SupportsRandomAccess() const {
-  return dest_ != nullptr && dest_->SupportsRandomAccess();
-}
-
-inline bool LimitingWriter::SupportsTruncate() const {
-  return dest_ != nullptr && dest_->SupportsTruncate();
-}
-
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_LIMITING_WRITER_H_

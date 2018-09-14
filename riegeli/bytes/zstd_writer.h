@@ -138,11 +138,7 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdWriterBase() noexcept {}
 
   explicit ZstdWriterBase(int compression_level, int window_log,
-                          Position size_hint, size_t buffer_size) noexcept
-      : BufferedWriter(buffer_size),
-        compression_level_(compression_level),
-        window_log_(window_log),
-        size_hint_(size_hint) {}
+                          Position size_hint, size_t buffer_size) noexcept;
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
@@ -208,6 +204,14 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Implementation details follow.
 
+inline ZstdWriterBase::ZstdWriterBase(int compression_level, int window_log,
+                                      Position size_hint,
+                                      size_t buffer_size) noexcept
+    : BufferedWriter(buffer_size),
+      compression_level_(compression_level),
+      window_log_(window_log),
+      size_hint_(size_hint) {}
+
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       compression_level_(riegeli::exchange(that.compression_level_, 0)),
@@ -215,8 +219,24 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       size_hint_(riegeli::exchange(that.size_hint_, 0)),
       compressor_(std::move(that.compressor_)) {}
 
+inline ZstdWriterBase& ZstdWriterBase::operator=(
+    ZstdWriterBase&& src) noexcept {
+  BufferedWriter::operator=(std::move(src));
+  compression_level_ = riegeli::exchange(src.compression_level_, 0);
+  window_log_ = riegeli::exchange(src.window_log_, 0),
+  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  if (src.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
+    compressor_ = std::move(src.compressor_);
+  } else if (compressor_ != nullptr) {
+    // Reuse this ZSTD_CStream because if options are the same then reusing it
+    // is faster than creating it again.
+    InitializeCStream();
+  }
+  return *this;
+}
+
 template <typename Dest>
-ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
+inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
     : ZstdWriterBase(options.compression_level_, options.window_log_,
                      options.size_hint_, options.buffer_size_),
       dest_(std::move(dest)) {
@@ -226,11 +246,12 @@ ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& that) noexcept
+inline ZstdWriter<Dest>::ZstdWriter(ZstdWriter&& that) noexcept
     : ZstdWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(ZstdWriter&& that) noexcept {
+inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
+    ZstdWriter&& that) noexcept {
   ZstdWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);
   return *this;

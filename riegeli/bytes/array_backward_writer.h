@@ -110,7 +110,7 @@ inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
 }
 
 template <typename Dest>
-ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
     : ArrayBackwardWriterBase(State::kOpen), dest_(std::move(dest)) {
   limit_ = dest_.ptr().data();
   start_ = limit_ + dest_.ptr().size();
@@ -118,14 +118,14 @@ ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
 }
 
 template <typename Dest>
-ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
     ArrayBackwardWriter&& that) noexcept
     : ArrayBackwardWriterBase(std::move(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
+inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
     ArrayBackwardWriter&& that) noexcept {
   ArrayBackwardWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
@@ -133,7 +133,7 @@ ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
+inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {

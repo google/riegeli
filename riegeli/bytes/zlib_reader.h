@@ -190,11 +190,11 @@ ZlibReader<Src>::ZlibReader(Src src, Options options)
 }
 
 template <typename Src>
-ZlibReader<Src>::ZlibReader(ZlibReader&& that) noexcept
+inline ZlibReader<Src>::ZlibReader(ZlibReader&& that) noexcept
     : ZlibReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
+inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
   ZlibReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;

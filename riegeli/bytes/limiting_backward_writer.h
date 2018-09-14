@@ -95,10 +95,6 @@ inline LimitingBackwardWriter& LimitingBackwardWriter::operator=(
   return *this;
 }
 
-inline bool LimitingBackwardWriter::SupportsTruncate() const {
-  return dest_ != nullptr && dest_->SupportsTruncate();
-}
-
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_LIMITING_BACKWARD_WRITER_H_

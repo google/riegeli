@@ -91,7 +91,7 @@ class NoDestructor {
 // TODO: Test this with overaligned types.
 
 template <typename T, size_t alignment = alignof(T), typename... Args>
-T* NewAligned(size_t num_bytes, Args&&... args) {
+inline T* NewAligned(size_t num_bytes, Args&&... args) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
   T* ptr;
@@ -128,7 +128,7 @@ T* NewAligned(size_t num_bytes, Args&&... args) {
 }
 
 template <typename T, size_t alignment = alignof(T)>
-void DeleteAligned(T* ptr, size_t num_bytes) {
+inline void DeleteAligned(T* ptr, size_t num_bytes) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
   ptr->~T();

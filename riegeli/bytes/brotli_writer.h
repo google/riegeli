@@ -214,11 +214,11 @@ BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
 }
 
 template <typename Dest>
-BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
+inline BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
     : BrotliWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
+inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
     BrotliWriter&& that) noexcept {
   BrotliWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);

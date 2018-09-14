@@ -386,11 +386,11 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
 }
 
 template <typename Dest>
-FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
+inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
     : FdWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
+inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
   FdWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);
   return *this;
@@ -444,11 +444,11 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
 }
 
 template <typename Dest>
-FdStreamWriter<Dest>::FdStreamWriter(FdStreamWriter&& that) noexcept
+inline FdStreamWriter<Dest>::FdStreamWriter(FdStreamWriter&& that) noexcept
     : FdStreamWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
-FdStreamWriter<Dest>& FdStreamWriter<Dest>::operator=(
+inline FdStreamWriter<Dest>& FdStreamWriter<Dest>::operator=(
     FdStreamWriter&& that) noexcept {
   FdStreamWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);

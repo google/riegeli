@@ -103,6 +103,10 @@ bool LimitingWriter::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool LimitingWriter::SupportsRandomAccess() const {
+  return dest_ != nullptr && dest_->SupportsRandomAccess();
+}
+
 bool LimitingWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
@@ -113,17 +117,6 @@ bool LimitingWriter::SeekSlow(Position new_pos) {
   const bool ok = dest_->Seek(pos_to_seek);
   SyncBuffer();
   return ok && pos_to_seek == new_pos;
-}
-
-inline void LimitingWriter::SyncBuffer() {
-  start_ = dest_->start();
-  cursor_ = dest_->cursor();
-  limit_ = dest_->limit();
-  start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
-  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
-    limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
-  }
-  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
 }
 
 bool LimitingWriter::Flush(FlushType flush_type) {
@@ -144,12 +137,27 @@ bool LimitingWriter::Size(Position* size) {
   return true;
 }
 
+bool LimitingWriter::SupportsTruncate() const {
+  return dest_ != nullptr && dest_->SupportsTruncate();
+}
+
 bool LimitingWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   dest_->set_cursor(cursor_);
   const bool ok = dest_->Truncate(new_size);
   SyncBuffer();
   return ok;
+}
+
+inline void LimitingWriter::SyncBuffer() {
+  start_ = dest_->start();
+  cursor_ = dest_->cursor();
+  limit_ = dest_->limit();
+  start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
+  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
+    limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
+  }
+  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
 }
 
 }  // namespace riegeli

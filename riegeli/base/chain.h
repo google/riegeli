@@ -649,14 +649,14 @@ struct Chain::ExternalMethodsFor {
 };
 
 template <typename T>
-Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
+inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
     void* object, absl::string_view unused) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object));
 }
 
 template <typename T>
-Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
+inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
     void* object, absl::string_view data) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
@@ -691,7 +691,7 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const Block* block,
 }
 
 template <typename T>
-Chain::Block::Block(T* object) {
+inline Chain::Block::Block(T* object) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
   data_ = unchecked_external_object<T>()->data();
@@ -700,7 +700,7 @@ Chain::Block::Block(T* object) {
 }
 
 template <typename T>
-Chain::Block::Block(T* object, absl::string_view data) : data_(data) {
+inline Chain::Block::Block(T* object, absl::string_view data) : data_(data) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
   RIEGELI_ASSERT(is_external())
@@ -731,7 +731,7 @@ inline bool Chain::Block::has_unique_owner() const {
 }
 
 template <typename T>
-T* Chain::Block::unchecked_external_object() {
+inline T* Chain::Block::unchecked_external_object() {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::Block::unchecked_external_object(): "
       << "block not external";
@@ -740,7 +740,7 @@ T* Chain::Block::unchecked_external_object() {
 }
 
 template <typename T>
-const T* Chain::Block::unchecked_external_object() const {
+inline const T* Chain::Block::unchecked_external_object() const {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::Block::unchecked_external_object(): "
       << "block not external";
@@ -749,14 +749,14 @@ const T* Chain::Block::unchecked_external_object() const {
 }
 
 template <typename T>
-const T* Chain::Block::checked_external_object() const {
+inline const T* Chain::Block::checked_external_object() const {
   return is_external() && external_.methods == &ExternalMethodsFor<T>::methods
              ? unchecked_external_object<T>()
              : nullptr;
 }
 
 template <typename T>
-T* Chain::Block::checked_external_object_with_unique_owner() {
+inline T* Chain::Block::checked_external_object_with_unique_owner() {
   return is_external() &&
                  external_.methods == &ExternalMethodsFor<T>::methods &&
                  has_unique_owner()
@@ -942,7 +942,7 @@ inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
 }
 
 template <typename T>
-const T* Chain::BlockIterator::external_object() const {
+inline const T* Chain::BlockIterator::external_object() const {
   RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::external_object(): "
          "iterator is end()";
@@ -1124,26 +1124,27 @@ inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
 inline Chain::Blocks Chain::blocks() const { return Blocks(this); }
 
 template <typename T>
-void Chain::AppendExternal(T object, size_t size_hint) {
+inline void Chain::AppendExternal(T object, size_t size_hint) {
   RawAppendExternal(ExternalMethodsFor<T>::NewBlockImplicitData, &object,
                     object.data(), size_hint);
 }
 
 template <typename T>
-void Chain::AppendExternal(T object, absl::string_view data, size_t size_hint) {
+inline void Chain::AppendExternal(T object, absl::string_view data,
+                                  size_t size_hint) {
   RawAppendExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
                     size_hint);
 }
 
 template <typename T>
-void Chain::PrependExternal(T object, size_t size_hint) {
+inline void Chain::PrependExternal(T object, size_t size_hint) {
   RawPrependExternal(ExternalMethodsFor<T>::NewBlockImplicitData, &object,
                      object.data(), size_hint);
 }
 
 template <typename T>
-void Chain::PrependExternal(T object, absl::string_view data,
-                            size_t size_hint) {
+inline void Chain::PrependExternal(T object, absl::string_view data,
+                                   size_t size_hint) {
   RawPrependExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
                      size_hint);
 }

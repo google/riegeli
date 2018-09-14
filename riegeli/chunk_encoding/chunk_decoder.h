@@ -139,6 +139,33 @@ class ChunkDecoder : public Object {
 
 // Implementation details follow.
 
+inline ChunkDecoder::ChunkDecoder(Options options)
+    : Object(State::kOpen),
+      field_filter_(std::move(options.field_filter_)),
+      values_reader_(Chain()) {}
+
+inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
+    : Object(std::move(that)),
+      field_filter_(std::move(that.field_filter_)),
+      limits_(std::move(that.limits_)),
+      values_reader_(
+          riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
+      index_(riegeli::exchange(that.index_, 0)),
+      record_scratch_(riegeli::exchange(that.record_scratch_, std::string())),
+      recoverable_(riegeli::exchange(that.recoverable_, false)) {}
+
+inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
+  Object::operator=(std::move(that));
+  field_filter_ = std::move(that.field_filter_);
+  limits_ = std::move(that.limits_);
+  values_reader_ =
+      riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
+  index_ = riegeli::exchange(that.index_, 0);
+  record_scratch_ = riegeli::exchange(that.record_scratch_, std::string());
+  recoverable_ = riegeli::exchange(that.recoverable_, false);
+  return *this;
+}
+
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());

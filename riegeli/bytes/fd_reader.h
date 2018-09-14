@@ -488,11 +488,11 @@ FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
 }
 
 template <typename Src>
-FdReader<Src>::FdReader(FdReader&& that) noexcept
+inline FdReader<Src>::FdReader(FdReader&& that) noexcept
     : FdReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
+inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
   FdReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;
@@ -541,11 +541,11 @@ FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
 }
 
 template <typename Src>
-FdStreamReader<Src>::FdStreamReader(FdStreamReader&& that) noexcept
+inline FdStreamReader<Src>::FdStreamReader(FdStreamReader&& that) noexcept
     : FdStreamReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-FdStreamReader<Src>& FdStreamReader<Src>::operator=(
+inline FdStreamReader<Src>& FdStreamReader<Src>::operator=(
     FdStreamReader&& that) noexcept {
   FdStreamReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
@@ -590,11 +590,12 @@ FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
 }
 
 template <typename Src>
-FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
+inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
     : FdMMapReaderBase(std::move(that)), src_(std::move(that.src_)) {}
 
 template <typename Src>
-FdMMapReader<Src>& FdMMapReader<Src>::operator=(FdMMapReader&& that) noexcept {
+inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
+    FdMMapReader&& that) noexcept {
   FdMMapReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;

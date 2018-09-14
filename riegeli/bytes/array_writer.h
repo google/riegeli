@@ -108,7 +108,7 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
 }
 
 template <typename Dest>
-ArrayWriter<Dest>::ArrayWriter(Dest dest)
+inline ArrayWriter<Dest>::ArrayWriter(Dest dest)
     : ArrayWriterBase(State::kOpen), dest_(std::move(dest)) {
   start_ = dest_.ptr().data();
   cursor_ = start_;
@@ -116,20 +116,21 @@ ArrayWriter<Dest>::ArrayWriter(Dest dest)
 }
 
 template <typename Dest>
-ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
+inline ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
     : ArrayWriterBase(std::move(that)) {
   MoveDest(std::move(that));
 }
 
 template <typename Dest>
-ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(ArrayWriter&& that) noexcept {
+inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
+    ArrayWriter&& that) noexcept {
   ArrayWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
 }
 
 template <typename Dest>
-void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
+inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {

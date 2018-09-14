@@ -43,7 +43,6 @@ class ChainReaderBase : public Reader {
   ChainReaderBase(ChainReaderBase&& that) noexcept;
   ChainReaderBase& operator=(ChainReaderBase&& that) noexcept;
 
-  void Initialize(const Chain* src);
   void Done() override;
   bool PullSlow() override;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -108,29 +107,36 @@ inline ChainReaderBase& ChainReaderBase::operator=(
 }
 
 template <typename Src>
-ChainReader<Src>::ChainReader(Src src)
+inline ChainReader<Src>::ChainReader(Src src)
     : ChainReaderBase(State::kOpen), src_(std::move(src)) {
   RIEGELI_ASSERT(src_.ptr() != nullptr)
       << "Failed precondition of ChainReader<Src>::ChainReader(Src): "
          "null Chain pointer";
-  Initialize(src_.ptr());
+  iter_ = src_->blocks().cbegin();
+  if (iter_ != src_->blocks().cend()) {
+    start_ = iter_->data();
+    cursor_ = start_;
+    limit_ = start_ + iter_->size();
+    limit_pos_ = buffer_size();
+  }
 }
 
 template <typename Src>
-ChainReader<Src>::ChainReader(ChainReader&& that) noexcept
+inline ChainReader<Src>::ChainReader(ChainReader&& that) noexcept
     : ChainReaderBase(std::move(that)) {
   MoveSrc(std::move(that));
 }
 
 template <typename Src>
-ChainReader<Src>& ChainReader<Src>::operator=(ChainReader&& that) noexcept {
+inline ChainReader<Src>& ChainReader<Src>::operator=(
+    ChainReader&& that) noexcept {
   ChainReaderBase::operator=(std::move(that));
   MoveSrc(std::move(that));
   return *this;
 }
 
 template <typename Src>
-void ChainReader<Src>::MoveSrc(ChainReader&& that) {
+inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
