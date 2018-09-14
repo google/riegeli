@@ -19,11 +19,13 @@
 #include <future>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
@@ -335,6 +337,11 @@ class RecordWriterBase : public Object {
   bool WriteRecord(absl::string_view record,
                    FutureRecordPosition* key = nullptr);
   bool WriteRecord(std::string&& record, FutureRecordPosition* key = nullptr);
+  template <typename Record>
+  absl::enable_if_t<std::is_convertible<Record, absl::string_view>::value, bool>
+  WriteRecord(const Record& record, FutureRecordPosition* key = nullptr) {
+    return WriteRecord(absl::string_view(record), key);
+  };
   bool WriteRecord(const char* record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
@@ -534,11 +541,6 @@ inline bool RecordWriterBase::WriteRecord(absl::string_view record,
 inline bool RecordWriterBase::WriteRecord(std::string&& record,
                                           FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
-}
-
-inline bool RecordWriterBase::WriteRecord(const char* record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
 inline bool RecordWriterBase::WriteRecord(const Chain& record,

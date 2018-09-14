@@ -19,10 +19,12 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -91,7 +93,11 @@ class BackwardWriter : public Object {
   //                    !healthy())
   bool Write(absl::string_view src);
   bool Write(std::string&& src);
-  bool Write(const char* src);
+  template <typename Src>
+  absl::enable_if_t<std::is_convertible<Src, absl::string_view>::value, bool>
+  Write(const Src& src) {
+    return Write(absl::string_view(src));
+  };
   bool Write(const Chain& src);
   bool Write(Chain&& src);
 
@@ -244,10 +250,6 @@ inline bool BackwardWriter::Write(std::string&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
-}
-
-inline bool BackwardWriter::Write(const char* src) {
-  return Write(absl::string_view(src));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
