@@ -342,7 +342,6 @@ class RecordWriterBase : public Object {
   WriteRecord(const Record& record, FutureRecordPosition* key = nullptr) {
     return WriteRecord(absl::string_view(record), key);
   };
-  bool WriteRecord(const char* record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
 
