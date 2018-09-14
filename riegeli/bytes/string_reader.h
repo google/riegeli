@@ -28,8 +28,6 @@
 
 namespace riegeli {
 
-namespace internal {
-
 // Template parameter invariant part of StringReader.
 class StringReaderBase : public Reader {
  public:
@@ -50,8 +48,6 @@ class StringReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
 };
 
-}  // namespace internal
-
 // A Reader which reads from a string. It supports random access.
 //
 // The Src template parameter specifies the type of the object providing and
@@ -66,7 +62,7 @@ class StringReaderBase : public Reader {
 // The string or array must not be changed until the StringReader is closed or
 // no longer used.
 template <typename Src = absl::string_view>
-class StringReader : public internal::StringReaderBase {
+class StringReader : public StringReaderBase {
  public:
   // Creates a closed StringReader.
   StringReader() noexcept : StringReaderBase(State::kClosed) {}
@@ -93,8 +89,6 @@ class StringReader : public internal::StringReaderBase {
 
 // Implementation details follow.
 
-namespace internal {
-
 inline StringReaderBase::StringReaderBase(StringReaderBase&& that) noexcept
     : Reader(std::move(that)) {}
 
@@ -103,8 +97,6 @@ inline StringReaderBase& StringReaderBase::operator=(
   Reader::operator=(std::move(that));
   return *this;
 }
-
-}  // namespace internal
 
 template <typename Src>
 StringReader<Src>::StringReader(Src src)

@@ -22,8 +22,6 @@
 
 namespace riegeli {
 
-namespace internal {
-
 void StringReaderBase::Done() {
   limit_pos_ = pos();
   Reader::Done();
@@ -53,8 +51,6 @@ bool StringReaderBase::Size(Position* size) {
   *size = limit_pos_;
   return true;
 }
-
-}  // namespace internal
 
 template class StringReader<absl::string_view>;
 template class StringReader<const std::string*>;
