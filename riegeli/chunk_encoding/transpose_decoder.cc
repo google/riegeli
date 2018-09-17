@@ -179,9 +179,7 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
 inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
-  if (subtype > Subtype::kVarintInlineMax) {
-    return CallbackType::kUnknown;
-  }
+  if (subtype > Subtype::kVarintInlineMax) return CallbackType::kUnknown;
   if (subtype >= Subtype::kVarintInline0) {
     return GetCopyTagCallbackType(tag_length + 1);
   }
@@ -482,9 +480,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   // Additional 0xff nodes to correctly handle invalid/malicious inputs.
   // TODO: Handle overflow.
   context->state_machine_nodes.resize(state_machine_size + 0xff);
-  if (filtering_enabled) {
-    context->node_templates.resize(state_machine_size);
-  }
+  if (filtering_enabled) context->node_templates.resize(state_machine_size);
   std::vector<StateMachineNode>& state_machine_nodes =
       context->state_machine_nodes;
   bool has_nonproto_op = false;
@@ -800,9 +796,7 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
     return Fail("Too many buffers");
   }
   if (num_buckets == 0) {
-    if (ABSL_PREDICT_FALSE(num_buffers != 0)) {
-      return Fail("Too few buckets");
-    }
+    if (ABSL_PREDICT_FALSE(num_buffers != 0)) return Fail("Too few buckets");
     return true;
   }
   first_buffer_indices->reserve(num_buckets);
@@ -909,24 +903,16 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
 
 inline bool TransposeDecoder::ContainsImplicitLoop(
     std::vector<StateMachineNode>* state_machine_nodes) {
-  for (StateMachineNode& node : *state_machine_nodes) {
-    node.implicit_loop_id = 0;
-  }
+  for (StateMachineNode& node : *state_machine_nodes) node.implicit_loop_id = 0;
   size_t next_loop_id = 1;
   for (StateMachineNode& node : *state_machine_nodes) {
-    if (node.implicit_loop_id != 0) {
-      continue;
-    }
+    if (node.implicit_loop_id != 0) continue;
     StateMachineNode* node_ptr = &node;
     node_ptr->implicit_loop_id = next_loop_id;
     while (internal::IsImplicit(node_ptr->callback_type)) {
       node_ptr = node_ptr->next_node;
-      if (node_ptr->implicit_loop_id == next_loop_id) {
-        return true;
-      }
-      if (node_ptr->implicit_loop_id != 0) {
-        break;
-      }
+      if (node_ptr->implicit_loop_id == next_loop_id) return true;
+      if (node_ptr->implicit_loop_id != 0) break;
       node_ptr->implicit_loop_id = next_loop_id;
     }
     ++next_loop_id;

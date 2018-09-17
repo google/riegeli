@@ -365,9 +365,7 @@ inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
       std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher>::iterator,
       bool>
       insert_result = encoded_tag_pos_.emplace(etag, tags_list_.size());
-  if (insert_result.second) {
-    tags_list_.emplace_back(etag);
-  }
+  if (insert_result.second) tags_list_.emplace_back(etag);
   return insert_result.first->second;
 }
 

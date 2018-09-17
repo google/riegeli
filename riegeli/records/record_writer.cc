@@ -460,9 +460,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
           &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
       mutex_.Unlock();
-      if (!ABSL_PREDICT_FALSE(absl::visit(Visitor{this}, request))) {
-        return;
-      }
+      if (!ABSL_PREDICT_FALSE(absl::visit(Visitor{this}, request))) return;
       mutex_.Lock();
       chunk_writer_requests_.pop_front();
       pos_before_chunks_ = chunk_writer_->pos();

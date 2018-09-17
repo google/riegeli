@@ -124,9 +124,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
     }
   }
 
-  if (ABSL_PREDICT_FALSE(!src->Seek(chunk_end))) {
-    return ReadingFailed(src);
-  }
+  if (ABSL_PREDICT_FALSE(!src->Seek(chunk_end))) return ReadingFailed(src);
 
   const uint64_t computed_data_hash = internal::Hash(chunk_.data);
   if (ABSL_PREDICT_FALSE(computed_data_hash != chunk_.header.data_hash())) {
@@ -157,9 +155,7 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
     // Source ended in a skipped region.
     if (!src->Pull()) {
       // Source still ends at the same position.
-      if (ABSL_PREDICT_FALSE(!src->healthy())) {
-        return Fail(*src);
-      }
+      if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       return false;
     }
     // Source has grown. Recovery can continue.
@@ -319,9 +315,7 @@ again:
     if (healthy()) {
       pos_ = recoverable_pos;
       if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) {
-          return Fail(*src);
-        }
+        if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       }
       if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
         recoverable_ = Recoverable::kFindChunk;
@@ -342,14 +336,10 @@ again:
 find_chunk:
   pos_ += internal::RemainingInBlock(pos_);
   if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
-    if (ABSL_PREDICT_FALSE(!src->healthy())) {
-      return Fail(*src);
-    }
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   } else if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
     if (recoverable_ != Recoverable::kNo) goto again;
-    if (ABSL_PREDICT_FALSE(!src->healthy())) {
-      return Fail(*src);
-    }
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
     if (skipped_region != nullptr) {
       *skipped_region = SkippedRegion(region_begin, pos_);
     }
@@ -362,9 +352,7 @@ find_chunk:
       goto find_chunk;
     }
     if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
-      if (ABSL_PREDICT_FALSE(!src->healthy())) {
-        return Fail(*src);
-      }
+      if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
     }
   }
   if (skipped_region != nullptr) {
@@ -434,9 +422,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       return true;
     }
     const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
-    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) {
-      return true;
-    }
+    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     if (chunk_end < block_begin) {
       // The current chunk ends too early. Skip to block_begin.
       goto read_block_header;
@@ -497,9 +483,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       return true;
     }
     const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
-    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) {
-      return true;
-    }
+    if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     chunk_begin = chunk_end;
   }
 }

@@ -83,9 +83,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
     }
     const Position length =
         UnsignedMin(size - src->pos(), internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, length))) {
-      return Fail(*dest);
-    }
+    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, length))) return Fail(*dest);
     pos_ += length;
   }
   if (!src->Close()) {
@@ -110,9 +108,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     }
     const Position length =
         UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!WriteZeros(dest, length))) {
-      return Fail(*dest);
-    }
+    if (ABSL_PREDICT_FALSE(!WriteZeros(dest, length))) return Fail(*dest);
     pos_ += length;
   }
   return true;

@@ -283,15 +283,11 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
     case Recoverable::kNo:
       RIEGELI_ASSERT_UNREACHABLE() << "kNo handled above";
     case Recoverable::kRecoverChunkReader:
-      if (ABSL_PREDICT_FALSE(!src->Recover(skipped_region))) {
-        return Fail(*src);
-      }
+      if (ABSL_PREDICT_FALSE(!src->Recover(skipped_region))) return Fail(*src);
       return true;
     case Recoverable::kRecoverChunkDecoder: {
       const uint64_t index_before = chunk_decoder_.index();
-      if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) {
-        chunk_decoder_.Reset();
-      }
+      if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) chunk_decoder_.Reset();
       if (skipped_region != nullptr) {
         const Position region_begin = chunk_begin_ + index_before;
         const Position region_end = pos().numeric();
