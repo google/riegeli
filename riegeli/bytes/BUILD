@@ -384,6 +384,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
         "@protobuf_archive//:protobuf_lite",
     ],
 )

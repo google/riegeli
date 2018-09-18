@@ -16,9 +16,10 @@
 
 #include <stddef.h>
 #include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
+#include "absl/strings/str_cat.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -109,48 +110,36 @@ google::protobuf::int64 ReaderInputStream::ByteCount() const {
 
 }  // namespace
 
-bool ParseFromReader(google::protobuf::MessageLite* message, Reader* input) {
-  ReaderInputStream input_stream(input);
-  return message->ParseFromZeroCopyStream(&input_stream);
-}
+namespace internal {
 
-bool ParsePartialFromReader(google::protobuf::MessageLite* message,
-                            Reader* input) {
-  ReaderInputStream input_stream(input);
-  return message->ParsePartialFromZeroCopyStream(&input_stream);
-}
-
-bool ParseFromStringView(google::protobuf::MessageLite* message,
-                         absl::string_view data) {
-  if (ABSL_PREDICT_FALSE(data.size() >
-                         size_t{std::numeric_limits<int>::max()})) {
+bool ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                         std::string* error_message) {
+  ReaderInputStream input_stream(src);
+  if (ABSL_PREDICT_FALSE(
+          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+    if (error_message != nullptr) {
+      *error_message =
+          absl::StrCat("Failed to parse message of type ", dest->GetTypeName());
+    }
     return false;
   }
-  return message->ParseFromArray(data.data(), IntCast<int>(data.size()));
-}
-
-bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
-                                absl::string_view data) {
-  if (ABSL_PREDICT_FALSE(data.size() >
-                         size_t{std::numeric_limits<int>::max()})) {
+  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
+    if (error_message != nullptr) {
+      *error_message =
+          absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
+                       " because it is missing required fields: ",
+                       dest->InitializationErrorString());
+    }
     return false;
   }
-  return message->ParsePartialFromArray(data.data(), IntCast<int>(data.size()));
+  return true;
 }
 
-bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data) {
-  ChainReader<> data_reader(&data);
-  if (ABSL_PREDICT_FALSE(!ParseFromReader(message, &data_reader))) return false;
-  return data_reader.Close();
-}
+}  // namespace internal
 
-bool ParsePartialFromChain(google::protobuf::MessageLite* message,
-                           const Chain& data) {
-  ChainReader<> data_reader(&data);
-  if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(message, &data_reader))) {
-    return false;
-  }
-  return data_reader.Close();
+bool ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                    std::string* error_message) {
+  return ParseFromReader(dest, ChainReader<>(&src), error_message);
 }
 
 }  // namespace riegeli

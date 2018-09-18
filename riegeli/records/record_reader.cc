@@ -219,15 +219,10 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
       << "Metadata chunk has unexpected record limits";
   RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata_writer.dest().size())
       << "Metadata chunk has unexpected record limits";
-  if (ABSL_PREDICT_FALSE(!ParsePartialFromChain(
-          metadata, serialized_metadata_writer.dest()))) {
-    return Fail("Failed to parse message of type riegeli.RecordsMetadata");
-  }
-  if (ABSL_PREDICT_FALSE(!metadata->IsInitialized())) {
-    return Fail(
-        absl::StrCat("Failed to parse message of type riegeli.RecordsMetadata"
-                     " because it is missing required fields: ",
-                     metadata->InitializationErrorString()));
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(!ParseFromChain(
+          metadata, serialized_metadata_writer.dest(), &error_message))) {
+    return Fail(error_message);
   }
   return true;
 }

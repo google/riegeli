@@ -15,43 +15,67 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
-#include <stddef.h>
+#include <string>
+#include <utility>
 
+#include "absl/base/optimization.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// Writes the message to the given Writer. All required fields must be set.
-bool SerializeToWriter(const google::protobuf::MessageLite& message,
-                       Writer* output);
-// Like SerializeToWriter(), but allows missing required fields.
-bool SerializePartialToWriter(const google::protobuf::MessageLite& message,
-                              Writer* output);
+// Writes the message in binary format to the given Writer. Fails if some
+// required fields are missing.
+//
+// The Dest template parameter specifies the type of the object providing and
+// possibly owning the Writer. Dest must support Dependency<Writer*, Dest>,
+// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
+// ChainWriter<> (owned).
+//
+// Return values:
+//  * true  - success
+//  * false - failure (*error_message is set)
+template <typename Dest = Writer*>
+bool SerializeToWriter(const google::protobuf::MessageLite& src, Dest dest,
+                       std::string* error_message = nullptr);
 
-// Serializes the message and store it in the given Chain. All required fields
-// must be set. The Chain is cleared on failure.
-bool SerializeToChain(const google::protobuf::MessageLite& message,
-                      Chain* output);
-// Like SerializeToChain(), but allows missing required fields.
-bool SerializePartialToChain(const google::protobuf::MessageLite& message,
-                             Chain* output);
+// Writes the message in binary format to the given Chain, clearing it first.
+// Fails if some required fields are missing.
+//
+// Return values:
+//  * true  - success
+//  * false - failure (*error_message is set)
+bool SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
+                      std::string* error_message = nullptr);
 
-// Makes a Chain encoding the message. Is equivalent to calling
-// SerializeToChain() on a Chain and using that. Returns an empty Chain
-// if SerializeToChain() would have returned an error.
-Chain SerializeAsChain(const google::protobuf::MessageLite& message);
-// Like SerializeAsChain(), but allows missing required fields.
-Chain SerializePartialAsChain(const google::protobuf::MessageLite& message);
+// Implementation details follow.
 
-// Like SerializeToChain(), but appends to the data to the Chain's existing
-// contents. All required fields must be set.
-bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
-                   size_t size_hint = 0);
-// Like AppendToChain(), but allows missing required fields.
-bool AppendPartialToChain(const google::protobuf::MessageLite& message,
-                          Chain* output, size_t size_hint = 0);
+namespace internal {
+
+bool SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                           Writer* dest, std::string* error_message);
+
+}  // namespace internal
+
+template <typename Dest>
+inline bool SerializeToWriter(const google::protobuf::MessageLite& src,
+                              Dest dest, std::string* error_message) {
+  Dependency<Writer*, Dest> dest_dep(std::move(dest));
+  if (ABSL_PREDICT_FALSE(!internal::SerializeToWriterImpl(src, dest_dep.ptr(),
+                                                          error_message))) {
+    return false;
+  }
+  if (dest_dep.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      if (error_message != nullptr)
+        *error_message = std::string(dest_dep->message());
+      return false;
+    }
+  }
+  return true;
+}
 
 }  // namespace riegeli
 

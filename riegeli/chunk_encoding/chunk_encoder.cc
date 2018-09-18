@@ -14,11 +14,9 @@
 
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 
-#include <stddef.h>
-#include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/str_cat.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/message_serialize.h"
@@ -27,19 +25,13 @@ namespace riegeli {
 
 bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!record.IsInitialized())) {
-    return Fail(absl::StrCat("Failed to serialize message of type ",
-                             record.GetTypeName(),
-                             " because it is missing required fields: ",
-                             record.InitializationErrorString()));
+  Chain serialized;
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(
+          !SerializeToChain(record, &serialized, &error_message))) {
+    return Fail(error_message);
   }
-  const size_t size = record.ByteSizeLong();
-  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return Fail(absl::StrCat(
-        "Failed to serialize message of type ", record.GetTypeName(),
-        " because it exceeds maximum protobuf size of 2GB: ", size));
-  }
-  return AddRecord(SerializePartialAsChain(record));
+  return AddRecord(std::move(serialized));
 }
 
 bool ChunkEncoder::AddRecord(Chain&& record) {

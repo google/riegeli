@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -57,18 +56,7 @@ void SimpleEncoder::Reset() {
 
 bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!record.IsInitialized())) {
-    return Fail(absl::StrCat("Failed to serialize message of type ",
-                             record.GetTypeName(),
-                             " because it is missing required fields: ",
-                             record.InitializationErrorString()));
-  }
   const size_t size = record.ByteSizeLong();
-  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return Fail(absl::StrCat(
-        "Failed to serialize message of type ", record.GetTypeName(),
-        " because it exceeds maximum protobuf size of 2GB: ", size));
-  }
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
     return Fail("Too many records");
   }
@@ -82,9 +70,10 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
                                         IntCast<uint64_t>(size)))) {
     return Fail(*sizes_compressor_.writer());
   }
-  if (ABSL_PREDICT_FALSE(
-          !SerializePartialToWriter(record, values_compressor_.writer()))) {
-    return Fail(*values_compressor_.writer());
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(!SerializeToWriter(record, values_compressor_.writer(),
+                                            &error_message))) {
+    return Fail(error_message);
   }
   return true;
 }

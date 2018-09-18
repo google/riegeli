@@ -249,7 +249,6 @@ cc_library(
         ":constants",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",

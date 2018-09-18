@@ -16,8 +16,10 @@
 
 #include <stddef.h>
 #include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/str_cat.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -93,66 +95,53 @@ google::protobuf::int64 WriterOutputStream::ByteCount() const {
 
 }  // namespace
 
-bool SerializeToWriter(const google::protobuf::MessageLite& message,
-                       Writer* output) {
-  WriterOutputStream output_stream(output);
-  return message.SerializeToZeroCopyStream(&output_stream);
-}
+namespace internal {
 
-bool SerializePartialToWriter(const google::protobuf::MessageLite& message,
-                              Writer* output) {
-  WriterOutputStream output_stream(output);
-  return message.SerializePartialToZeroCopyStream(&output_stream);
-}
-
-bool SerializeToChain(const google::protobuf::MessageLite& message,
-                      Chain* output) {
-  output->Clear();
-  return AppendToChain(message, output, message.ByteSizeLong());
-}
-
-bool SerializePartialToChain(const google::protobuf::MessageLite& message,
-                             Chain* output) {
-  output->Clear();
-  return AppendPartialToChain(message, output, message.ByteSizeLong());
-}
-
-Chain SerializeAsChain(const google::protobuf::MessageLite& message) {
-  Chain result;
-  AppendToChain(message, &result, message.ByteSizeLong());
-  return result;
-}
-
-Chain SerializePartialAsChain(const google::protobuf::MessageLite& message) {
-  Chain result;
-  AppendPartialToChain(message, &result, message.ByteSizeLong());
-  return result;
-}
-
-bool AppendToChain(const google::protobuf::MessageLite& message, Chain* output,
-                   size_t size_hint) {
-  RIEGELI_CHECK_LE(message.ByteSizeLong(),
-                   std::numeric_limits<size_t>::max() - output->size())
-      << "Failed precondition of AppendToChain(): Chain size overflow";
-  ChainWriter<> output_writer(
-      output, ChainWriterBase::Options().set_size_hint(size_hint));
-  if (ABSL_PREDICT_FALSE(!SerializeToWriter(message, &output_writer))) {
+bool SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                           Writer* dest, std::string* error_message) {
+  if (ABSL_PREDICT_FALSE(!src.IsInitialized())) {
+    if (error_message != nullptr) {
+      *error_message = absl::StrCat("Failed to serialize message of type ",
+                                    src.GetTypeName(),
+                                    " because it is missing required fields: ",
+                                    src.InitializationErrorString());
+    }
     return false;
   }
-  return output_writer.Close();
-}
-
-bool AppendPartialToChain(const google::protobuf::MessageLite& message,
-                          Chain* output, size_t size_hint) {
-  RIEGELI_CHECK_LE(message.ByteSizeLong(),
-                   std::numeric_limits<size_t>::max() - output->size())
-      << "Failed precondition of AppendPartialToChain(): Chain size overflow";
-  ChainWriter<> output_writer(
-      output, ChainWriterBase::Options().set_size_hint(size_hint));
-  if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(message, &output_writer))) {
+  const size_t size = src.ByteSizeLong();
+  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
+    if (error_message != nullptr) {
+      *error_message = absl::StrCat(
+          "Failed to serialize message of type ", src.GetTypeName(),
+          " because it exceeds maximum protobuf size of 2GB: ", size);
+    }
     return false;
   }
-  return output_writer.Close();
+  WriterOutputStream output_stream(dest);
+  if (ABSL_PREDICT_FALSE(
+          !src.SerializePartialToZeroCopyStream(&output_stream))) {
+    RIEGELI_ASSERT(!dest->healthy())
+        << "Failed to serialize message of type " << src.GetTypeName()
+        << ": SerializePartialToZeroCopyStream() failed for an unknown reason";
+    if (error_message != nullptr) {
+      *error_message = absl::StrCat("Failed to serialize message of type ",
+                                    src.GetTypeName(), ": ", dest->message());
+    }
+    return false;
+  }
+  return true;
+}
+
+}  // namespace internal
+
+bool SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
+                      std::string* error_message) {
+  dest->Clear();
+  return SerializeToWriter(
+      src,
+      ChainWriter<>(
+          dest, ChainWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      error_message);
 }
 
 }  // namespace riegeli

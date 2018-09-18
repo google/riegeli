@@ -177,29 +177,15 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  LimitingReader message_reader(&values_reader_, limit);
-  if (ABSL_PREDICT_FALSE(!ParsePartialFromReader(record, &message_reader))) {
-    message_reader.Close();
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(!ParseFromReader(
+          record, LimitingReader(&values_reader_, limit), &error_message))) {
     if (!values_reader_.Seek(limit)) {
       RIEGELI_ASSERT_UNREACHABLE()
           << "Seeking record values failed: " << values_reader_.message();
     }
     recoverable_ = true;
-    return Fail(absl::StrCat("Failed to parse message of type ",
-                             record->GetTypeName()));
-  }
-  RIEGELI_ASSERT_EQ(message_reader.pos(), limit)
-      << "Record was not read up to its end";
-  if (!message_reader.Close()) {
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing message reader failed: " << message_reader.message();
-  }
-  if (ABSL_PREDICT_FALSE(!record->IsInitialized())) {
-    recoverable_ = true;
-    return Fail(absl::StrCat("Failed to parse message of type ",
-                             record->GetTypeName(),
-                             " because it is missing required fields: ",
-                             record->InitializationErrorString()));
+    return Fail(error_message);
   }
   ++index_;
   return true;

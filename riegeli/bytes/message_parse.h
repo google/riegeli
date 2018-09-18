@@ -15,34 +15,67 @@
 #ifndef RIEGELI_BYTES_MESSAGE_PARSE_H_
 #define RIEGELI_BYTES_MESSAGE_PARSE_H_
 
-#include "absl/strings/string_view.h"
+#include <string>
+#include <utility>
+
+#include "absl/base/optimization.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
-// Reads a message from the given Reader. If successful, the entire input will
-// be consumed.
-bool ParseFromReader(google::protobuf::MessageLite* message, Reader* input);
-// Like ParseFromReader(), but accepts messages that are missing required
-// fields.
-bool ParsePartialFromReader(google::protobuf::MessageLite* message,
-                            Reader* input);
+// Reads a message in binary format from the given Reader. If successful, the
+// entire input will be consumed. Fails if some required fields are missing.
+//
+// The Src template parameter specifies the type of the object providing and
+// possibly owning the Reader. Src must support Dependency<Reader*, Src>,
+// e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
+// ChainReader<> (owned).
+//
+// Return values:
+//  * true  - success (*dest is filled)
+//  * false - failure (*dest is unspecified, *error_message is set)
+template <typename Src = Reader*>
+bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
+                     std::string* error_message = nullptr);
 
-// Parses a message contained in an array of bytes.
-bool ParseFromStringView(google::protobuf::MessageLite* message,
-                         absl::string_view data);
-// Like ParseFromStringView(), but accepts messages that are missing required
-// fields.
-bool ParsePartialFromStringView(google::protobuf::MessageLite* message,
-                                absl::string_view data);
+// Reads a message in binary format from the given Chain. If successful, the
+// entire input will be consumed. Fails if some required fields are missing.
+//
+// Return values:
+//  * true  - success (*message is filled)
+//  * false - failure (*message is unspecified, *error_message is set)
+bool ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                    std::string* error_message = nullptr);
 
-// Parses a message contained in a Chain.
-bool ParseFromChain(google::protobuf::MessageLite* message, const Chain& data);
-// Like ParseFromChain(), but accepts messages that are missing required fields.
-bool ParsePartialFromChain(google::protobuf::MessageLite* message,
-                           const Chain& data);
+// Implementation details follow.
+
+namespace internal {
+
+bool ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                         std::string* error_message);
+
+}  // namespace internal
+
+template <typename Src>
+inline bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
+                            std::string* error_message) {
+  Dependency<Reader*, Src> src_dep(std::move(src));
+  if (ABSL_PREDICT_FALSE(
+          !internal::ParseFromReaderImpl(dest, src_dep.ptr(), error_message))) {
+    return false;
+  }
+  if (src_dep.kIsOwning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
+      if (error_message != nullptr)
+        *error_message = std::string(src_dep->message());
+      return false;
+    }
+  }
+  return true;
+}
 
 }  // namespace riegeli
 

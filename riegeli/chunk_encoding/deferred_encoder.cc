@@ -22,12 +22,10 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -52,18 +50,7 @@ void DeferredEncoder::Reset() {
 
 bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!record.IsInitialized())) {
-    return Fail(absl::StrCat("Failed to serialize message of type ",
-                             record.GetTypeName(),
-                             " because it is missing required fields: ",
-                             record.InitializationErrorString()));
-  }
   const size_t size = record.ByteSizeLong();
-  if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return Fail(absl::StrCat(
-        "Failed to serialize message of type ", record.GetTypeName(),
-        " because it exceeds maximum protobuf size of 2GB: ", size));
-  }
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords()))) {
     return Fail("Too many records");
@@ -74,8 +61,10 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
-  if (ABSL_PREDICT_FALSE(!SerializePartialToWriter(record, &records_writer_))) {
-    return Fail(records_writer_);
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(
+          !SerializeToWriter<>(record, &records_writer_, &error_message))) {
+    return Fail(error_message);
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
   return true;
