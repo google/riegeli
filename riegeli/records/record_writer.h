@@ -118,8 +118,8 @@ class RecordWriterBase : public Object {
     //
     // Return values:
     //  * true  - success
-    //  * false - failure (*message is set)
-    bool Parse(absl::string_view text, std::string* message);
+    //  * false - failure (*error_message is set)
+    bool Parse(absl::string_view text, std::string* error_message = nullptr);
 
     // If true, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way

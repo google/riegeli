@@ -44,8 +44,8 @@ class CompressorOptions {
   //
   // Return values:
   //  * true  - success
-  //  * false - failure (*message is set)
-  bool Parse(absl::string_view text, std::string* message);
+  //  * false - failure (*error_message is set)
+  bool Parse(absl::string_view text, std::string* error_message = nullptr);
 
   // Changes compression algorithm to none.
   CompressorOptions& set_uncompressed() & {

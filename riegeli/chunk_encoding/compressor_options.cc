@@ -26,7 +26,8 @@
 
 namespace riegeli {
 
-bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
+bool CompressorOptions::Parse(absl::string_view text,
+                              std::string* error_message) {
   // Set just compression_type_ first because other parsers depend on
   // compression_type_.
   {
@@ -55,7 +56,9 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
     options_parser.AddOption("window_log",
                              [](ValueParser* value_parser) { return true; });
     if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
-      *message = std::string(options_parser.message());
+      if (error_message != nullptr) {
+        *error_message = std::string(options_parser.message());
+      }
       return false;
     }
   }
@@ -103,7 +106,9 @@ bool CompressorOptions::Parse(absl::string_view text, std::string* message) {
                                  << static_cast<unsigned>(compression_type_);
   }());
   if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
-    *message = std::string(options_parser.message());
+    if (error_message != nullptr) {
+      *error_message = std::string(options_parser.message());
+    }
     return false;
   }
   return true;

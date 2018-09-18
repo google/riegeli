@@ -126,7 +126,7 @@ inline FutureRecordPosition::FutureRecordPosition(
       chunk_begin_(pos_before_chunks) {}
 
 bool RecordWriterBase::Options::Parse(absl::string_view text,
-                                      std::string* message) {
+                                      std::string* error_message) {
   std::string compressor_text;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
@@ -148,10 +148,12 @@ bool RecordWriterBase::Options::Parse(absl::string_view text,
       "parallelism",
       ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
   if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
-    *message = std::string(options_parser.message());
+    if (error_message != nullptr) {
+      *error_message = std::string(options_parser.message());
+    }
     return false;
   }
-  return compressor_options_.Parse(compressor_text, message);
+  return compressor_options_.Parse(compressor_text, error_message);
 }
 
 class RecordWriterBase::Worker : public Object {
