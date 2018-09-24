@@ -65,8 +65,7 @@ void ThreadPool::Schedule(std::function<void()> task) {
       lock.Release();
       task();
     }
-  })
-      .detach();
+  }).detach();
 }
 
 ThreadPool& DefaultThreadPool() {
