@@ -135,7 +135,11 @@ class TransposeEncoder : public ChunkEncoder {
   // in the binary format. I.e., tag = (field << 3) | field_type.
   struct NodeId {
     explicit NodeId(internal::MessageId parent_message_id, uint32_t field);
-    bool operator==(NodeId that) const;
+
+    friend bool operator==(NodeId a, NodeId b) {
+      return a.parent_message_id == b.parent_message_id && a.field == b.field;
+    }
+
     internal::MessageId parent_message_id;
     uint32_t field;
   };
@@ -223,7 +227,11 @@ class TransposeEncoder : public ChunkEncoder {
     explicit EncodedTag(internal::MessageId message_id, uint32_t tag,
                         internal::Subtype subtype);
 
-    bool operator==(EncodedTag that) const;
+    friend bool operator==(EncodedTag a, EncodedTag b) {
+      return a.message_id == b.message_id && a.tag == b.tag &&
+             a.subtype == b.subtype;
+    }
+
     // ID of the message this tag belongs to.
     internal::MessageId message_id;
     // Tag as read from input.
