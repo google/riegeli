@@ -81,7 +81,7 @@ bool BrotliWriterBase::WriteInternal(absl::string_view src) {
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   Writer* const dest = dest_writer();
   return WriteInternal(src, dest, BROTLI_OPERATION_PROCESS);
 }
@@ -93,7 +93,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BrotliWriterBase::WriteInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
     limit_ = start_;

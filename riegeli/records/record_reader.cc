@@ -159,7 +159,9 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
     }
     return false;
   }
-  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature);
+  RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature)
+      << "Unexpected type of the first chunk: "
+      << static_cast<unsigned>(chunk.header.chunk_type());
 
   chunk_begin_ = src->pos();
   const ChunkHeader* chunk_header;

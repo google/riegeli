@@ -90,7 +90,8 @@ class BufferedWriter : public Writer {
 inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
     : Writer(State::kOpen), buffer_size_(buffer_size) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedWriter::BufferedWriter(size_t)";
+      << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
+         "zero buffer size";
 }
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept

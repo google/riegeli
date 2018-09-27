@@ -100,7 +100,8 @@ class BufferedReader : public Reader {
 inline BufferedReader::BufferedReader(size_t buffer_size) noexcept
     : Reader(State::kOpen), buffer_size_(buffer_size) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
-      << "Failed precondition of BufferedReader::BufferedReader(size_t)";
+      << "Failed precondition of BufferedReader::BufferedReader(size_t): "
+         "zero buffer size";
 }
 
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept

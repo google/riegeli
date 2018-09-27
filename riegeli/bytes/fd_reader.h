@@ -90,7 +90,8 @@ class FdReaderBase : public internal::FdReaderCommon {
 
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
-          << "Failed precondition of FdReaderBase::Options::set_buffer_size()";
+          << "Failed precondition of FdReaderBase::Options::set_buffer_size(): "
+             "zero buffer size";
       buffer_size_ = buffer_size;
       return *this;
     }

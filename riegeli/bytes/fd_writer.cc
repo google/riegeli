@@ -105,7 +105,7 @@ void FdWriterBase::Initialize(int flags, int dest) {
 
 bool FdWriterBase::SyncPos(int dest) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of FdWriterBase::SyncPos(): buffer not cleared";
+      << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos_), SEEK_SET) <
                            0)) {
@@ -125,7 +125,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
@@ -262,7 +262,7 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -

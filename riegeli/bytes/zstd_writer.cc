@@ -83,7 +83,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
@@ -144,7 +144,7 @@ bool ZstdWriterBase::FlushInternal(Function function,
       << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriterBase::FlushInternal(): "
-         "buffer not cleared";
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
   for (;;) {
     ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
