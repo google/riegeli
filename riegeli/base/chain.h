@@ -182,7 +182,7 @@ class Chain {
   void RemoveSuffix(size_t length, size_t size_hint = 0);
   void RemovePrefix(size_t length, size_t size_hint = 0);
 
-  void Swap(Chain* that);
+  friend void swap(Chain& a, Chain& b) noexcept;
 
   int Compare(absl::string_view that) const;
   int Compare(const Chain& that) const;
@@ -304,8 +304,6 @@ class Chain {
   //       size_ is the sum of sizes of blocks in [begin_, end_)
   size_t size_ = 0;
 };
-
-inline void swap(Chain& a, Chain& b) noexcept { a.Swap(&b); }
 
 bool operator==(const Chain& a, const Chain& b);
 bool operator!=(const Chain& a, const Chain& b);

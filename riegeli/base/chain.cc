@@ -1750,20 +1750,20 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   PrependExternal(BlockRef(block, false), data, size_hint);
 }
 
-void Chain::Swap(Chain* that) {
+void swap(Chain& a, Chain& b) noexcept {
   using std::swap;
-  if (has_here()) {
-    begin_ = that->block_ptrs_.here + (begin_ - block_ptrs_.here);
-    end_ = that->block_ptrs_.here + (end_ - block_ptrs_.here);
+  if (a.has_here()) {
+    a.begin_ = b.block_ptrs_.here + (a.begin_ - a.block_ptrs_.here);
+    a.end_ = b.block_ptrs_.here + (a.end_ - a.block_ptrs_.here);
   }
-  if (that->has_here()) {
-    that->begin_ = block_ptrs_.here + (that->begin_ - that->block_ptrs_.here);
-    that->end_ = block_ptrs_.here + (that->end_ - that->block_ptrs_.here);
+  if (b.has_here()) {
+    b.begin_ = a.block_ptrs_.here + (b.begin_ - b.block_ptrs_.here);
+    b.end_ = a.block_ptrs_.here + (b.end_ - b.block_ptrs_.here);
   }
-  swap(block_ptrs_, that->block_ptrs_);
-  swap(begin_, that->begin_);
-  swap(end_, that->end_);
-  swap(size_, that->size_);
+  swap(a.block_ptrs_, b.block_ptrs_);
+  swap(a.begin_, b.begin_);
+  swap(a.end_, b.end_);
+  swap(a.size_, b.size_);
 }
 
 int Chain::Compare(absl::string_view that) const {
