@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
@@ -94,16 +95,16 @@ inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
     : Writer(std::move(that)),
-      buffer_size_(riegeli::exchange(that.buffer_size_, 0)) {}
+      buffer_size_(absl::exchange(that.buffer_size_, 0)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
   // Exchange that.start_ early to support self-assignment.
-  char* const start = riegeli::exchange(that.start_, nullptr);
+  char* const start = absl::exchange(that.start_, nullptr);
   DeleteBuffer();
   Writer::operator=(std::move(that));
   start_ = start;
-  buffer_size_ = riegeli::exchange(that.buffer_size_, 0);
+  buffer_size_ = absl::exchange(that.buffer_size_, 0);
   return *this;
 }
 

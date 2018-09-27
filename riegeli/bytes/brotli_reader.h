@@ -19,8 +19,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/utility/utility.h"
 #include "brotli/decode.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
@@ -108,13 +108,13 @@ class BrotliReader : public BrotliReaderBase {
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
     : Reader(std::move(that)),
-      truncated_(riegeli::exchange(that.truncated_, false)),
+      truncated_(absl::exchange(that.truncated_, false)),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
     BrotliReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
-  truncated_ = riegeli::exchange(that.truncated_, false);
+  truncated_ = absl::exchange(that.truncated_, false);
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }

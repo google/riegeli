@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -214,17 +215,17 @@ inline ZstdWriterBase::ZstdWriterBase(int compression_level, int window_log,
 
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
-      compression_level_(riegeli::exchange(that.compression_level_, 0)),
-      window_log_(riegeli::exchange(that.window_log_, 0)),
-      size_hint_(riegeli::exchange(that.size_hint_, 0)),
+      compression_level_(absl::exchange(that.compression_level_, 0)),
+      window_log_(absl::exchange(that.window_log_, 0)),
+      size_hint_(absl::exchange(that.size_hint_, 0)),
       compressor_(std::move(that.compressor_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
     ZstdWriterBase&& src) noexcept {
   BufferedWriter::operator=(std::move(src));
-  compression_level_ = riegeli::exchange(src.compression_level_, 0);
-  window_log_ = riegeli::exchange(src.window_log_, 0),
-  size_hint_ = riegeli::exchange(src.size_hint_, 0);
+  compression_level_ = absl::exchange(src.compression_level_, 0);
+  window_log_ = absl::exchange(src.window_log_, 0),
+  size_hint_ = absl::exchange(src.size_hint_, 0);
   if (src.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
     compressor_ = std::move(src.compressor_);
   } else if (compressor_ != nullptr) {

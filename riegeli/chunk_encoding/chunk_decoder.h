@@ -23,6 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -149,20 +150,20 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
       field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
       values_reader_(
-          riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
-      index_(riegeli::exchange(that.index_, 0)),
-      record_scratch_(riegeli::exchange(that.record_scratch_, std::string())),
-      recoverable_(riegeli::exchange(that.recoverable_, false)) {}
+          absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
+      index_(absl::exchange(that.index_, 0)),
+      record_scratch_(absl::exchange(that.record_scratch_, std::string())),
+      recoverable_(absl::exchange(that.recoverable_, false)) {}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   Object::operator=(std::move(that));
   field_projection_ = std::move(that.field_projection_);
   limits_ = std::move(that.limits_);
   values_reader_ =
-      riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
-  index_ = riegeli::exchange(that.index_, 0);
-  record_scratch_ = riegeli::exchange(that.record_scratch_, std::string());
-  recoverable_ = riegeli::exchange(that.recoverable_, false);
+      absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
+  index_ = absl::exchange(that.index_, 0);
+  record_scratch_ = absl::exchange(that.record_scratch_, std::string());
+  recoverable_ = absl::exchange(that.recoverable_, false);
   return *this;
 }
 

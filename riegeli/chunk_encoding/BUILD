@@ -39,6 +39,7 @@ cc_library(
         "//riegeli/bytes:reader_utils",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
         "@protobuf_archive//:protobuf_lite",
     ],
 )

@@ -25,6 +25,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
@@ -101,16 +102,16 @@ RecordReaderBase::RecordReaderBase(State state) noexcept : Object(state) {}
 
 RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),
-      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
+      chunk_begin_(absl::exchange(that.chunk_begin_, 0)),
       chunk_decoder_(std::move(that.chunk_decoder_)),
-      recoverable_(riegeli::exchange(that.recoverable_, Recoverable::kNo)) {}
+      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)) {}
 
 RecordReaderBase& RecordReaderBase::operator=(
     RecordReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
-  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
+  chunk_begin_ = absl::exchange(that.chunk_begin_, 0);
   chunk_decoder_ = std::move(that.chunk_decoder_);
-  recoverable_ = riegeli::exchange(that.recoverable_, Recoverable::kNo);
+  recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
   return *this;
 }
 

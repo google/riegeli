@@ -24,6 +24,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -260,17 +261,17 @@ class Reader : public Object {
 
 inline Reader::Reader(Reader&& that) noexcept
     : Object(std::move(that)),
-      start_(riegeli::exchange(that.start_, nullptr)),
-      cursor_(riegeli::exchange(that.cursor_, nullptr)),
-      limit_(riegeli::exchange(that.limit_, nullptr)),
-      limit_pos_(riegeli::exchange(that.limit_pos_, 0)) {}
+      start_(absl::exchange(that.start_, nullptr)),
+      cursor_(absl::exchange(that.cursor_, nullptr)),
+      limit_(absl::exchange(that.limit_, nullptr)),
+      limit_pos_(absl::exchange(that.limit_pos_, 0)) {}
 
 inline Reader& Reader::operator=(Reader&& that) noexcept {
   Object::operator=(std::move(that));
-  start_ = riegeli::exchange(that.start_, nullptr);
-  cursor_ = riegeli::exchange(that.cursor_, nullptr);
-  limit_ = riegeli::exchange(that.limit_, nullptr);
-  limit_pos_ = riegeli::exchange(that.limit_pos_, 0);
+  start_ = absl::exchange(that.start_, nullptr);
+  cursor_ = absl::exchange(that.cursor_, nullptr);
+  limit_ = absl::exchange(that.limit_, nullptr);
+  limit_pos_ = absl::exchange(that.limit_pos_, 0);
   return *this;
 }
 

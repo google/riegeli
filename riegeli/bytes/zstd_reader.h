@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -130,13 +131,13 @@ class ZstdReader : public ZstdReaderBase {
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
-      truncated_(riegeli::exchange(that.truncated_, false)),
+      truncated_(absl::exchange(that.truncated_, false)),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
-  truncated_ = riegeli::exchange(that.truncated_, false);
+  truncated_ = absl::exchange(that.truncated_, false);
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }

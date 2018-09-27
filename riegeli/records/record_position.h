@@ -26,6 +26,7 @@
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
@@ -198,14 +199,14 @@ inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
 inline FutureRecordPosition::FutureRecordPosition(
     FutureRecordPosition&& that) noexcept
     : future_chunk_begin_(std::move(that.future_chunk_begin_)),
-      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
-      record_index_(riegeli::exchange(that.record_index_, 0)) {}
+      chunk_begin_(absl::exchange(that.chunk_begin_, 0)),
+      record_index_(absl::exchange(that.record_index_, 0)) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
     FutureRecordPosition&& that) noexcept {
   future_chunk_begin_ = std::move(that.future_chunk_begin_);
-  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
-  record_index_ = riegeli::exchange(that.record_index_, 0);
+  chunk_begin_ = absl::exchange(that.chunk_begin_, 0);
+  record_index_ = absl::exchange(that.record_index_, 0);
   return *this;
 }
 

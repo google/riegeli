@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -414,14 +415,14 @@ namespace internal {
 
 inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& that) noexcept
     : BufferedReader(std::move(that)),
-      filename_(riegeli::exchange(that.filename_, std::string())),
-      error_code_(riegeli::exchange(that.error_code_, 0)) {}
+      filename_(absl::exchange(that.filename_, std::string())),
+      error_code_(absl::exchange(that.error_code_, 0)) {}
 
 inline FdReaderCommon& FdReaderCommon::operator=(
     FdReaderCommon&& that) noexcept {
   BufferedReader::operator=(std::move(that));
-  filename_ = riegeli::exchange(that.filename_, std::string());
-  error_code_ = riegeli::exchange(that.error_code_, 0);
+  filename_ = absl::exchange(that.filename_, std::string());
+  error_code_ = absl::exchange(that.error_code_, 0);
   return *this;
 }
 
@@ -429,11 +430,11 @@ inline FdReaderCommon& FdReaderCommon::operator=(
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : FdReaderCommon(std::move(that)),
-      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
+      sync_pos_(absl::exchange(that.sync_pos_, false)) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   FdReaderCommon::operator=(std::move(that));
-  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
+  sync_pos_ = absl::exchange(that.sync_pos_, false);
   return *this;
 }
 
@@ -449,16 +450,16 @@ inline FdStreamReaderBase& FdStreamReaderBase::operator=(
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(std::move(that)),
-      filename_(riegeli::exchange(that.filename_, std::string())),
-      error_code_(riegeli::exchange(that.error_code_, 0)),
-      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
+      filename_(absl::exchange(that.filename_, std::string())),
+      error_code_(absl::exchange(that.error_code_, 0)),
+      sync_pos_(absl::exchange(that.sync_pos_, false)) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
   ChainReader::operator=(std::move(that));
-  filename_ = riegeli::exchange(that.filename_, std::string());
-  error_code_ = riegeli::exchange(that.error_code_, 0);
-  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
+  filename_ = absl::exchange(that.filename_, std::string());
+  error_code_ = absl::exchange(that.error_code_, 0);
+  sync_pos_ = absl::exchange(that.sync_pos_, false);
   return *this;
 }
 

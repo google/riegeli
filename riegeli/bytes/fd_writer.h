@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -327,14 +328,14 @@ namespace internal {
 
 inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
     : BufferedWriter(std::move(that)),
-      filename_(riegeli::exchange(that.filename_, std::string())),
-      error_code_(riegeli::exchange(that.error_code_, 0)) {}
+      filename_(absl::exchange(that.filename_, std::string())),
+      error_code_(absl::exchange(that.error_code_, 0)) {}
 
 inline FdWriterCommon& FdWriterCommon::operator=(
     FdWriterCommon&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
-  filename_ = riegeli::exchange(that.filename_, std::string());
-  error_code_ = riegeli::exchange(that.error_code_, 0);
+  filename_ = absl::exchange(that.filename_, std::string());
+  error_code_ = absl::exchange(that.error_code_, 0);
   return *this;
 }
 
@@ -342,11 +343,11 @@ inline FdWriterCommon& FdWriterCommon::operator=(
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : FdWriterCommon(std::move(that)),
-      sync_pos_(riegeli::exchange(that.sync_pos_, false)) {}
+      sync_pos_(absl::exchange(that.sync_pos_, false)) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   FdWriterCommon::operator=(std::move(that));
-  sync_pos_ = riegeli::exchange(that.sync_pos_, false);
+  sync_pos_ = absl::exchange(that.sync_pos_, false);
   return *this;
 }
 

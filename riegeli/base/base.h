@@ -263,24 +263,6 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
-// riegeli::exchange() is the same as std::exchange() from C++14, but is
-// available since C++11.
-
-#if __cpp_lib_exchange_function
-
-using std::exchange;
-
-#else  // !__cpp_lib_exchange_function
-
-template <typename T, typename U = T>
-inline T exchange(T& obj, U&& new_value) {
-  T old_value = std::move(obj);
-  obj = std::forward<U>(new_value);
-  return old_value;
-}
-
-#endif  // !__cpp_lib_exchange_function
-
 // IntCast<A>(value) converts between integral types, asserting that the value
 // fits in the target type.
 

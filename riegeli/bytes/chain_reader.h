@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <utility>
 
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -97,12 +98,12 @@ class ChainReader : public ChainReaderBase {
 
 inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& that) noexcept
     : Reader(std::move(that)),
-      iter_(riegeli::exchange(that.iter_, Chain::BlockIterator())) {}
+      iter_(absl::exchange(that.iter_, Chain::BlockIterator())) {}
 
 inline ChainReaderBase& ChainReaderBase::operator=(
     ChainReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
-  iter_ = riegeli::exchange(that.iter_, Chain::BlockIterator());
+  iter_ = absl::exchange(that.iter_, Chain::BlockIterator());
   return *this;
 }
 

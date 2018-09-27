@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -190,18 +191,18 @@ class BackwardWriter : public Object {
 
 inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
     : Object(std::move(that)),
-      start_(riegeli::exchange(that.start_, nullptr)),
-      cursor_(riegeli::exchange(that.cursor_, nullptr)),
-      limit_(riegeli::exchange(that.limit_, nullptr)),
-      start_pos_(riegeli::exchange(that.start_pos_, 0)) {}
+      start_(absl::exchange(that.start_, nullptr)),
+      cursor_(absl::exchange(that.cursor_, nullptr)),
+      limit_(absl::exchange(that.limit_, nullptr)),
+      start_pos_(absl::exchange(that.start_pos_, 0)) {}
 
 inline BackwardWriter& BackwardWriter::operator=(
     BackwardWriter&& that) noexcept {
   Object::operator=(std::move(that));
-  start_ = riegeli::exchange(that.start_, nullptr);
-  cursor_ = riegeli::exchange(that.cursor_, nullptr);
-  limit_ = riegeli::exchange(that.limit_, nullptr);
-  start_pos_ = riegeli::exchange(that.start_pos_, 0);
+  start_ = absl::exchange(that.start_, nullptr);
+  cursor_ = absl::exchange(that.cursor_, nullptr);
+  limit_ = absl::exchange(that.limit_, nullptr);
+  start_pos_ = absl::exchange(that.start_pos_, 0);
   return *this;
 }
 

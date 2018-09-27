@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -140,12 +141,12 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
-      size_hint_(riegeli::exchange(that.size_hint_, 0)) {}
+      size_hint_(absl::exchange(that.size_hint_, 0)) {}
 
 inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
     ChainBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  size_hint_ = riegeli::exchange(that.size_hint_, 0);
+  size_hint_ = absl::exchange(that.size_hint_, 0);
   return *this;
 }
 

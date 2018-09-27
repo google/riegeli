@@ -32,6 +32,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:variant",
+        "@com_google_absl//absl/utility",
         "@protobuf_archive//:cc_wkt_protos",
         "@protobuf_archive//:protobuf",
     ],
@@ -64,6 +65,7 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
         "@protobuf_archive//:cc_wkt_protos",
         "@protobuf_archive//:protobuf",
     ],
@@ -93,6 +95,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -119,6 +122,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -136,6 +140,7 @@ cc_library(
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
     ],
 )
 

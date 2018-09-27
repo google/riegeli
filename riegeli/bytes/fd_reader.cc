@@ -38,6 +38,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory_estimator.h"
@@ -75,18 +76,18 @@ class MMapRef {
 };
 
 MMapRef::MMapRef(MMapRef&& that) noexcept
-    : data_(riegeli::exchange(that.data_, nullptr)),
-      size_(riegeli::exchange(that.size_, 0)) {}
+    : data_(absl::exchange(that.data_, nullptr)),
+      size_(absl::exchange(that.size_, 0)) {}
 
 MMapRef& MMapRef::operator=(MMapRef&& that) noexcept {
   // Exchange that.data_ early to support self-assignment.
-  void* const data = riegeli::exchange(that.data_, nullptr);
+  void* const data = absl::exchange(that.data_, nullptr);
   if (data_ != nullptr) {
     const int result = munmap(data_, size_);
     RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
   data_ = data;
-  size_ = riegeli::exchange(that.size_, 0);
+  size_ = absl::exchange(that.size_, 0);
   return *this;
 }
 

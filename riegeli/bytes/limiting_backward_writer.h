@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -84,14 +85,14 @@ class LimitingBackwardWriter : public BackwardWriter {
 inline LimitingBackwardWriter::LimitingBackwardWriter(
     LimitingBackwardWriter&& that) noexcept
     : BackwardWriter(std::move(that)),
-      dest_(riegeli::exchange(that.dest_, nullptr)),
-      size_limit_(riegeli::exchange(that.size_limit_, 0)) {}
+      dest_(absl::exchange(that.dest_, nullptr)),
+      size_limit_(absl::exchange(that.size_limit_, 0)) {}
 
 inline LimitingBackwardWriter& LimitingBackwardWriter::operator=(
     LimitingBackwardWriter&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  dest_ = riegeli::exchange(that.dest_, nullptr);
-  size_limit_ = riegeli::exchange(that.size_limit_, 0);
+  dest_ = absl::exchange(that.dest_, nullptr);
+  size_limit_ = absl::exchange(that.size_limit_, 0);
   return *this;
 }
 

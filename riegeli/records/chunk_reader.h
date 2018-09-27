@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -272,22 +273,22 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 inline DefaultChunkReaderBase::DefaultChunkReaderBase(
     DefaultChunkReaderBase&& that) noexcept
     : Object(std::move(that)),
-      truncated_(riegeli::exchange(that.truncated_, false)),
-      pos_(riegeli::exchange(that.pos_, 0)),
-      chunk_(riegeli::exchange(that.chunk_, Chunk())),
+      truncated_(absl::exchange(that.truncated_, false)),
+      pos_(absl::exchange(that.pos_, 0)),
+      chunk_(absl::exchange(that.chunk_, Chunk())),
       block_header_(that.block_header_),
-      recoverable_(riegeli::exchange(that.recoverable_, Recoverable::kNo)),
-      recoverable_pos_(riegeli::exchange(that.recoverable_pos_, 0)) {}
+      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)),
+      recoverable_pos_(absl::exchange(that.recoverable_pos_, 0)) {}
 
 inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
     DefaultChunkReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
-  truncated_ = riegeli::exchange(that.truncated_, false);
-  pos_ = riegeli::exchange(that.pos_, 0);
-  chunk_ = riegeli::exchange(that.chunk_, Chunk());
+  truncated_ = absl::exchange(that.truncated_, false);
+  pos_ = absl::exchange(that.pos_, 0);
+  chunk_ = absl::exchange(that.chunk_, Chunk());
   block_header_ = that.block_header_;
-  recoverable_ = riegeli::exchange(that.recoverable_, Recoverable::kNo);
-  recoverable_pos_ = riegeli::exchange(that.recoverable_pos_, 0);
+  recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
+  recoverable_pos_ = absl::exchange(that.recoverable_pos_, 0);
   return *this;
 }
 

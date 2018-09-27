@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -99,16 +100,16 @@ inline constexpr Position LimitingReader::kNoSizeLimit() {
 
 inline LimitingReader::LimitingReader(LimitingReader&& that) noexcept
     : Reader(std::move(that)),
-      src_(riegeli::exchange(that.src_, nullptr)),
-      size_limit_(riegeli::exchange(that.size_limit_, 0)),
-      wrapped_(riegeli::exchange(that.wrapped_, nullptr)) {}
+      src_(absl::exchange(that.src_, nullptr)),
+      size_limit_(absl::exchange(that.size_limit_, 0)),
+      wrapped_(absl::exchange(that.wrapped_, nullptr)) {}
 
 inline LimitingReader& LimitingReader::operator=(
     LimitingReader&& that) noexcept {
   Reader::operator=(std::move(that));
-  src_ = riegeli::exchange(that.src_, nullptr);
-  size_limit_ = riegeli::exchange(that.size_limit_, 0);
-  wrapped_ = riegeli::exchange(that.wrapped_, nullptr);
+  src_ = absl::exchange(that.src_, nullptr);
+  size_limit_ = absl::exchange(that.size_limit_, 0);
+  wrapped_ = absl::exchange(that.wrapped_, nullptr);
   return *this;
 }
 

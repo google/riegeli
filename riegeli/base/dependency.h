@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/base.h"
+#include "absl/utility/utility.h"
 
 namespace riegeli {
 
@@ -101,9 +101,9 @@ class DependencyBase {
       : manager_(std::move(manager)) {}
 
   DependencyBase(DependencyBase&& that) noexcept
-      : manager_(riegeli::exchange(that.manager_, Manager())) {}
+      : manager_(absl::exchange(that.manager_, Manager())) {}
   DependencyBase& operator=(DependencyBase&& that) noexcept {
-    manager_ = riegeli::exchange(that.manager_, Manager());
+    manager_ = absl::exchange(that.manager_, Manager());
     return *this;
   }
 

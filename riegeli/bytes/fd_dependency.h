@@ -20,7 +20,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -56,7 +56,7 @@ class OwnedFd {
   int fd() const { return fd_; }
 
   // Releases ans returns the owned file descriptor without closing it.
-  int Release() { return riegeli::exchange(fd_, -1); }
+  int Release() { return absl::exchange(fd_, -1); }
 
  private:
   int fd_ = -1;
@@ -85,10 +85,9 @@ class Dependency<int, int> {
 
   explicit Dependency(int fd) : fd_(fd) {}
 
-  Dependency(Dependency&& that) noexcept
-      : fd_(riegeli::exchange(that.fd_, -1)) {}
+  Dependency(Dependency&& that) noexcept : fd_(absl::exchange(that.fd_, -1)) {}
   Dependency& operator=(Dependency&& that) noexcept {
-    fd_ = riegeli::exchange(that.fd_, -1);
+    fd_ = absl::exchange(that.fd_, -1);
     return *this;
   }
 
@@ -96,7 +95,7 @@ class Dependency<int, int> {
   const int& manager() const { return fd_; }
 
   int ptr() const { return fd_; }
-  int Release() { return riegeli::exchange(fd_, -1); }
+  int Release() { return absl::exchange(fd_, -1); }
 
   static constexpr bool kIsOwning() { return false; }
   static constexpr bool kIsStable() { return true; }
@@ -140,11 +139,11 @@ inline absl::string_view CloseFunctionName() {
 }  // namespace internal
 
 inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
-    : fd_(riegeli::exchange(that.fd_, -1)) {}
+    : fd_(absl::exchange(that.fd_, -1)) {}
 
 inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
   // Exchange that.fd_ early to support self-assignment.
-  const int fd = riegeli::exchange(that.fd_, -1);
+  const int fd = absl::exchange(that.fd_, -1);
   if (fd_ >= 0) internal::CloseFd(fd_);
   fd_ = fd;
   return *this;

@@ -27,6 +27,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
@@ -80,11 +81,11 @@ inline Chain::BlockRef::BlockRef(Block* block, bool add_ref) {
 }
 
 inline Chain::BlockRef::BlockRef(BlockRef&& that) noexcept
-    : block_(riegeli::exchange(that.block_, nullptr)) {}
+    : block_(absl::exchange(that.block_, nullptr)) {}
 
 inline Chain::BlockRef& Chain::BlockRef::operator=(BlockRef&& that) noexcept {
   // Exchange that.block_ early to support self-assignment.
-  Block* const block = riegeli::exchange(that.block_, nullptr);
+  Block* const block = absl::exchange(that.block_, nullptr);
   if (block_ != nullptr) block_->Unref();
   block_ = block;
   return *this;

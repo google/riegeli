@@ -21,6 +21,7 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -28,7 +29,10 @@ cc_library(
     name = "memory_estimator",
     srcs = ["memory_estimator.cc"],
     hdrs = ["memory_estimator.h"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/utility",
+    ],
 )
 
 cc_library(
@@ -42,6 +46,7 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/utility",
     ],
 )
 

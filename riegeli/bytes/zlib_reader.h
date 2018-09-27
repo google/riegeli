@@ -22,6 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -152,22 +153,21 @@ class ZlibReader : public ZlibReaderBase {
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
-      truncated_(riegeli::exchange(that.truncated_, false)),
-      decompressor_present_(
-          riegeli::exchange(that.decompressor_present_, false)),
+      truncated_(absl::exchange(that.truncated_, false)),
+      decompressor_present_(absl::exchange(that.decompressor_present_, false)),
       decompressor_(that.decompressor_) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
     ZlibReaderBase&& that) noexcept {
   // Exchange that.decompressor_present_ early to support self-assignment.
   const bool decompressor_present =
-      riegeli::exchange(that.decompressor_present_, false);
+      absl::exchange(that.decompressor_present_, false);
   if (decompressor_present_) {
     const int result = inflateEnd(&decompressor_);
     RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
   }
   BufferedReader::operator=(std::move(that));
-  truncated_ = riegeli::exchange(that.truncated_, false);
+  truncated_ = absl::exchange(that.truncated_, false);
   decompressor_present_ = decompressor_present;
   decompressor_ = that.decompressor_;
   return *this;

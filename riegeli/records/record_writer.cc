@@ -32,6 +32,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/variant.h"
+#include "absl/utility/utility.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message_lite.h"
@@ -552,15 +553,15 @@ RecordWriterBase::RecordWriterBase(State state) noexcept : Object(state) {}
 
 RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
     : Object(std::move(that)),
-      desired_chunk_size_(riegeli::exchange(that.desired_chunk_size_, 0)),
-      chunk_size_so_far_(riegeli::exchange(that.chunk_size_so_far_, 0)),
+      desired_chunk_size_(absl::exchange(that.desired_chunk_size_, 0)),
+      chunk_size_so_far_(absl::exchange(that.chunk_size_so_far_, 0)),
       worker_(std::move(that.worker_)) {}
 
 RecordWriterBase& RecordWriterBase::operator=(
     RecordWriterBase&& that) noexcept {
   Object::operator=(std::move(that));
-  desired_chunk_size_ = riegeli::exchange(that.desired_chunk_size_, 0);
-  chunk_size_so_far_ = riegeli::exchange(that.chunk_size_so_far_, 0);
+  desired_chunk_size_ = absl::exchange(that.desired_chunk_size_, 0);
+  chunk_size_so_far_ = absl::exchange(that.chunk_size_so_far_, 0);
   worker_ = std::move(that.worker_);
   return *this;
 }
