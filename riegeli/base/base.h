@@ -409,7 +409,7 @@ constexpr IntersectionTypeT<A, B> UnsignedMin(A a, B b) {
                 "UnsignedMin() requires unsigned types");
   static_assert(std::is_unsigned<B>::value,
                 "UnsignedMin() requires unsigned types");
-  return IntCast<IntersectionTypeT<A, B>>(a < b ? a : b);
+  return static_cast<IntersectionTypeT<A, B>>(a < b ? a : b);
 }
 
 template <typename A, typename B, typename... Rest>
