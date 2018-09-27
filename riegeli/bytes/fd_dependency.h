@@ -109,23 +109,22 @@ class Dependency<int, int> {
 namespace internal {
 
 inline int CloseFd(int fd) {
-  int error_code = 0;
   // http://austingroupbugs.net/view.php?id=529 explains this mess.
 #ifdef POSIX_CLOSE_RESTART
   // Avoid EINTR by using posix_close(_, 0) if available.
   if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
-    error_code = errno;
-    if (error_code == EINPROGRESS) error_code = 0;
+    if (errno == EINPROGRESS) return 0;
+    return -1;
   }
 #else
   if (ABSL_PREDICT_FALSE(close(fd) < 0)) {
-    error_code = errno;
     // After EINTR it is unspecified whether fd has been closed or not.
     // Assume that it is closed, which is the case e.g. on Linux.
-    if (error_code == EINPROGRESS || error_code == EINTR) error_code = 0;
+    if (errno == EINPROGRESS || errno == EINTR) return 0;
+    return -1;
   }
 #endif
-  return error_code;
+  return 0;
 }
 
 inline absl::string_view CloseFunctionName() {

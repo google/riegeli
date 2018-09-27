@@ -61,8 +61,7 @@ class FdWriterCommon : public BufferedWriter {
 
   void SetFilename(int dest);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                         int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   std::string filename_;
   // errno value of the last fd operation, or 0 if none.
@@ -403,9 +402,9 @@ void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
   if (dest_.kIsOwning() && dest_.ptr() >= 0) {
     const int dest = dest_.Release();
-    const int error_code = internal::CloseFd(dest);
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::CloseFunctionName(), error_code);
+    if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
+        ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName());
     }
   }
 }
@@ -462,9 +461,9 @@ void FdStreamWriter<Dest>::Done() {
   FdStreamWriterBase::Done();
   if (dest_.kIsOwning() && dest_.ptr() >= 0) {
     const int dest = dest_.Release();
-    const int error_code = internal::CloseFd(dest);
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::CloseFunctionName(), error_code);
+    if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
+        ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName());
     }
   }
 }

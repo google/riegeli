@@ -126,18 +126,16 @@ int FdReaderCommon::OpenFd(absl::string_view filename, int flags) {
 again:
   const int src = open(filename_.c_str(), flags, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
-    const int error_code = errno;
-    if (error_code == EINTR) goto again;
-    FailOperation("open()", error_code);
+    if (errno == EINTR) goto again;
+    FailOperation("open()");
     return -1;
   }
   return src;
 }
 
-bool FdReaderCommon::FailOperation(absl::string_view operation,
-                                   int error_code) {
-  error_code_ = error_code;
-  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+bool FdReaderCommon::FailOperation(absl::string_view operation) {
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
                            ", reading ", filename_));
 }
 
@@ -147,7 +145,7 @@ void FdReaderBase::Initialize(int src) {
   if (sync_pos_) {
     const off_t result = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      FailOperation("lseek()", errno);
+      FailOperation("lseek()");
       return;
     }
     limit_pos_ = IntCast<Position>(result);
@@ -157,7 +155,7 @@ void FdReaderBase::Initialize(int src) {
 void FdReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()", errno);
+      FailOperation("lseek()");
     }
   }
 }
@@ -185,9 +183,8 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(limit_pos_));
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      const int error_code = errno;
-      if (error_code == EINTR) goto again;
-      return FailOperation("pread()", error_code);
+      if (errno == EINTR) goto again;
+      return FailOperation("pread()");
     }
     if (ABSL_PREDICT_FALSE(result == 0)) return false;
     RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
@@ -210,8 +207,7 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
     const int src = src_fd();
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-      const int error_code = errno;
-      return FailOperation("fstat()", error_code);
+      return FailOperation("fstat()");
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
@@ -231,8 +227,7 @@ bool FdReaderBase::Size(Position* size) {
   const int src = src_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-    const int error_code = errno;
-    return FailOperation("fstat()", error_code);
+    return FailOperation("fstat()");
   }
   *size = IntCast<Position>(stat_info.st_size);
   return true;
@@ -260,9 +255,8 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
         src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}));
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      const int error_code = errno;
-      if (error_code == EINTR) goto again;
-      return FailOperation("read()", error_code);
+      if (errno == EINTR) goto again;
+      return FailOperation("read()");
     }
     if (ABSL_PREDICT_FALSE(result == 0)) return false;
     RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
@@ -288,26 +282,23 @@ int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
 again:
   const int src = open(filename_.c_str(), flags, 0666);
   if (ABSL_PREDICT_FALSE(src < 0)) {
-    const int error_code = errno;
-    if (error_code == EINTR) goto again;
-    FailOperation("open()", error_code);
+    if (errno == EINTR) goto again;
+    FailOperation("open()");
     return -1;
   }
   return src;
 }
 
-bool FdMMapReaderBase::FailOperation(absl::string_view operation,
-                                     int error_code) {
-  error_code_ = error_code;
-  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
                            ", reading ", filename_));
 }
 
 void FdMMapReaderBase::Initialize(int src) {
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-    const int error_code = errno;
-    FailOperation("fstat()", error_code);
+    FailOperation("fstat()");
     return;
   }
   if (ABSL_PREDICT_FALSE(IntCast<Position>(stat_info.st_size) >
@@ -319,8 +310,7 @@ void FdMMapReaderBase::Initialize(int src) {
     void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
                             PROT_READ, MAP_SHARED, src, 0);
     if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
-      const int error_code = errno;
-      FailOperation("mmap()", error_code);
+      FailOperation("mmap()");
       return;
     }
     Chain contents;
@@ -329,7 +319,7 @@ void FdMMapReaderBase::Initialize(int src) {
     if (sync_pos_) {
       const off_t result = lseek(src, 0, SEEK_CUR);
       if (ABSL_PREDICT_FALSE(result < 0)) {
-        FailOperation("lseek()", errno);
+        FailOperation("lseek()");
         return;
       }
       cursor_ += UnsignedMin(IntCast<Position>(result), available());
@@ -340,7 +330,7 @@ void FdMMapReaderBase::Initialize(int src) {
 void FdMMapReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()", errno);
+      FailOperation("lseek()");
     }
   }
 }

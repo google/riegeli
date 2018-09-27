@@ -65,8 +65,7 @@ class FdReaderCommon : public BufferedReader {
 
   void SetFilename(int src);
   int OpenFd(absl::string_view filename, int flags);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                         int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   std::string filename_;
   // errno value of the last fd operation, or 0 if none.
@@ -245,8 +244,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
   void SetFilename(int src);
   int OpenFd(absl::string_view filename, int flags);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
-                                         int error_code);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(int src);
   void SyncPos(int src);
 
@@ -506,9 +504,9 @@ void FdReader<Src>::Done() {
   FdReaderBase::Done();
   if (src_.kIsOwning() && src_.ptr() >= 0) {
     const int src = src_.Release();
-    const int error_code = internal::CloseFd(src);
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::CloseFunctionName(), error_code);
+    if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+        ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName());
     }
   }
 }
@@ -559,9 +557,9 @@ void FdStreamReader<Src>::Done() {
   FdStreamReaderBase::Done();
   if (src_.ptr() >= 0) {
     const int src = src_.Release();
-    const int error_code = internal::CloseFd(src);
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::CloseFunctionName(), error_code);
+    if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+        ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName());
     }
   }
 }
@@ -610,9 +608,9 @@ void FdMMapReader<Src>::Done() {
   ChainReader::src() = Chain();
   if (src_.kIsOwning() && src_.ptr() >= 0) {
     const int src = src_.Release();
-    const int error_code = internal::CloseFd(src);
-    if (ABSL_PREDICT_FALSE(error_code != 0) && ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(internal::CloseFunctionName(), error_code);
+    if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
+        ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation(internal::CloseFunctionName());
     }
   }
 }

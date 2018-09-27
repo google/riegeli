@@ -67,18 +67,16 @@ int FdWriterCommon::OpenFd(absl::string_view filename, int flags,
 again:
   const int dest = open(filename_.c_str(), flags, permissions);
   if (ABSL_PREDICT_FALSE(dest < 0)) {
-    const int error_code = errno;
-    if (error_code == EINTR) goto again;
-    FailOperation("open()", error_code);
+    if (errno == EINTR) goto again;
+    FailOperation("open()");
     return -1;
   }
   return dest;
 }
 
-bool FdWriterCommon::FailOperation(absl::string_view operation,
-                                   int error_code) {
-  error_code_ = error_code;
-  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code),
+bool FdWriterCommon::FailOperation(absl::string_view operation) {
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
                            ", writing ", filename_));
 }
 
@@ -88,15 +86,14 @@ void FdWriterBase::Initialize(int flags, int dest) {
   if (sync_pos_) {
     const off_t result = lseek(dest, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      FailOperation("lseek()", errno);
+      FailOperation("lseek()");
       return;
     }
     start_pos_ = IntCast<Position>(result);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      const int error_code = errno;
-      FailOperation("fstat()", error_code);
+      FailOperation("fstat()");
       return;
     }
     start_pos_ = IntCast<Position>(stat_info.st_size);
@@ -110,7 +107,7 @@ bool FdWriterBase::SyncPos(int dest) {
     if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos_), SEEK_SET) <
                            0)) {
       limit_ = start_;
-      return FailOperation("lseek()", errno);
+      return FailOperation("lseek()");
     }
   }
   return true;
@@ -140,10 +137,9 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(start_pos_));
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      const int error_code = errno;
-      if (error_code == EINTR) goto again;
+      if (errno == EINTR) goto again;
       limit_ = start_;
-      return FailOperation("pwrite()", error_code);
+      return FailOperation("pwrite()");
     }
     RIEGELI_ASSERT_GT(result, 0) << "pwrite() returned 0";
     RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
@@ -162,10 +158,8 @@ bool FdWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromObject:
     case FlushType::kFromProcess:
       return true;
-    case FlushType::kFromMachine: {
-      const int result = fsync(dest);
-      return result == 0;
-    }
+    case FlushType::kFromMachine:
+      return fsync(dest) == 0;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
@@ -183,9 +177,8 @@ bool FdWriterBase::SeekSlow(Position new_pos) {
     const int dest = dest_fd();
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      const int error_code = errno;
       limit_ = start_;
-      return FailOperation("fstat()", error_code);
+      return FailOperation("fstat()");
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
@@ -202,10 +195,9 @@ bool FdWriterBase::Size(Position* size) {
   const int dest = dest_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-    const int error_code = errno;
     cursor_ = start_;
     limit_ = start_;
-    return FailOperation("fstat()", error_code);
+    return FailOperation("fstat()");
   }
   *size = UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
   return true;
@@ -220,9 +212,8 @@ bool FdWriterBase::Truncate(Position new_size) {
     // Seeking forwards.
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      const int error_code = errno;
       limit_ = start_;
-      return FailOperation("fstat()", error_code);
+      return FailOperation("fstat()");
     }
     if (ABSL_PREDICT_FALSE(new_size > IntCast<Position>(stat_info.st_size))) {
       // File ends.
@@ -232,10 +223,9 @@ bool FdWriterBase::Truncate(Position new_size) {
   }
 again:
   if (ABSL_PREDICT_FALSE(ftruncate(dest, IntCast<off_t>(new_size)) < 0)) {
-    const int error_code = errno;
-    if (error_code == EINTR) goto again;
+    if (errno == EINTR) goto again;
     limit_ = start_;
-    return FailOperation("ftruncate()", error_code);
+    return FailOperation("ftruncate()");
   }
   start_pos_ = new_size;
   return true;
@@ -245,8 +235,7 @@ void FdStreamWriterBase::Initialize(int flags, int dest) {
   if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      const int error_code = errno;
-      FailOperation("fstat()", error_code);
+      FailOperation("fstat()");
       return;
     }
     start_pos_ = IntCast<Position>(stat_info.st_size);
@@ -276,10 +265,9 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
         dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}));
     if (ABSL_PREDICT_FALSE(result < 0)) {
-      const int error_code = errno;
-      if (error_code == EINTR) goto again;
+      if (errno == EINTR) goto again;
       limit_ = start_;
-      return FailOperation("write()", error_code);
+      return FailOperation("write()");
     }
     RIEGELI_ASSERT_GT(result, 0) << "write() returned 0";
     RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
@@ -297,10 +285,8 @@ bool FdStreamWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromObject:
     case FlushType::kFromProcess:
       return true;
-    case FlushType::kFromMachine: {
-      const int result = fsync(dest);
-      return result == 0;
-    }
+    case FlushType::kFromMachine:
+      return fsync(dest) == 0;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
