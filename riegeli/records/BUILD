@@ -58,7 +58,7 @@ cc_library(
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_decoder",
         "//riegeli/chunk_encoding:constants",
-        "//riegeli/chunk_encoding:field_filter",
+        "//riegeli/chunk_encoding:field_projection",
         "//riegeli/chunk_encoding:transpose_decoder",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",

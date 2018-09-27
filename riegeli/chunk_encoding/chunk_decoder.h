@@ -30,7 +30,7 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
-#include "riegeli/chunk_encoding/field_filter.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 
 namespace riegeli {
 
@@ -43,18 +43,18 @@ class ChunkDecoder : public Object {
     // Specifies the set of fields to be included in returned records, allowing
     // to exclude the remaining fields (but does not guarantee exclusion).
     // Excluding data makes reading faster.
-    Options& set_field_filter(FieldFilter field_filter) & {
-      field_filter_ = std::move(field_filter);
+    Options& set_field_projection(FieldProjection field_projection) & {
+      field_projection_ = std::move(field_projection);
       return *this;
     }
-    Options&& set_field_filter(FieldFilter field_filter) && {
-      return std::move(set_field_filter(std::move(field_filter)));
+    Options&& set_field_projection(FieldProjection field_projection) && {
+      return std::move(set_field_projection(std::move(field_projection)));
     }
 
    private:
     friend class ChunkDecoder;
 
-    FieldFilter field_filter_ = FieldFilter::All();
+    FieldProjection field_projection_ = FieldProjection::All();
   };
 
   // Creates an empty ChunkDecoder.
@@ -121,7 +121,7 @@ class ChunkDecoder : public Object {
  private:
   bool Parse(const ChunkHeader& header, Reader* src, Chain* dest);
 
-  FieldFilter field_filter_;
+  FieldProjection field_projection_;
   // Invariants if healthy():
   //   limits_ are sorted
   //   (limits_.empty() ? 0 : limits_.back()) == size of values_reader_
@@ -141,12 +141,12 @@ class ChunkDecoder : public Object {
 
 inline ChunkDecoder::ChunkDecoder(Options options)
     : Object(State::kOpen),
-      field_filter_(std::move(options.field_filter_)),
+      field_projection_(std::move(options.field_projection_)),
       values_reader_(Chain()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
     : Object(std::move(that)),
-      field_filter_(std::move(that.field_filter_)),
+      field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
       values_reader_(
           riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
@@ -156,7 +156,7 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   Object::operator=(std::move(that));
-  field_filter_ = std::move(that.field_filter_);
+  field_projection_ = std::move(that.field_projection_);
   limits_ = std::move(that.limits_);
   values_reader_ =
       riegeli::exchange(that.values_reader_, ChainReader<Chain>(Chain()));

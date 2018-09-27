@@ -116,8 +116,8 @@ RecordReaderBase& RecordReaderBase::operator=(
 
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   chunk_begin_ = src->pos();
-  chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_filter(
-      std::move(options.field_filter_)));
+  chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_projection(
+      std::move(options.field_projection_)));
 }
 
 void RecordReaderBase::Done() {
@@ -204,7 +204,7 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   ChainBackwardWriter<Chain> serialized_metadata_writer((Chain()));
   std::vector<size_t> limits;
   const bool ok = transpose_decoder.Reset(
-      &data_reader, 1, chunk.header.decoded_data_size(), FieldFilter::All(),
+      &data_reader, 1, chunk.header.decoded_data_size(), FieldProjection::All(),
       &serialized_metadata_writer, &limits);
   if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
     return Fail(serialized_metadata_writer);

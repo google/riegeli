@@ -29,7 +29,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
-#include "riegeli/chunk_encoding/field_filter.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/chunk_reader_dependency.h"
 #include "riegeli/records/record_position.h"
@@ -77,21 +77,21 @@ class RecordReaderBase : public Object {
     // to exclude the remaining fields (but does not guarantee that they will be
     // excluded). Excluding data makes reading faster.
     //
-    // Filtering is effective if the file has been written with
+    // Projection is effective if the file has been written with
     // set_transpose(true). Additionally, set_bucket_fraction() with a lower
-    // value can make reading with filtering faster.
-    Options& set_field_filter(FieldFilter field_filter) & {
-      field_filter_ = std::move(field_filter);
+    // value can make reading with projection faster.
+    Options& set_field_projection(FieldProjection field_projection) & {
+      field_projection_ = std::move(field_projection);
       return *this;
     }
-    Options&& set_field_filter(FieldFilter field_filter) && {
-      return std::move(set_field_filter(std::move(field_filter)));
+    Options&& set_field_projection(FieldProjection field_projection) && {
+      return std::move(set_field_projection(std::move(field_projection)));
     }
 
    private:
     friend class RecordReaderBase;
 
-    FieldFilter field_filter_ = FieldFilter::All();
+    FieldProjection field_projection_ = FieldProjection::All();
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by Close().

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_CHUNK_ENCODING_INCLUDE_FIELDS_H_
-#define RIEGELI_CHUNK_ENCODING_INCLUDE_FIELDS_H_
+#ifndef RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_
+#define RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_
 
 #include <stdint.h>
 #include <initializer_list>
@@ -59,32 +59,32 @@ class Field {
 };
 
 // Specifies a set of fields to include.
-class FieldFilter {
+class FieldProjection {
  public:
   using Fields = absl::InlinedVector<Field, 1>;
 
   // Includes all fields.
-  static FieldFilter All();
+  static FieldProjection All();
 
   // Includes only the specified fields.
-  /*implicit*/ FieldFilter(std::initializer_list<Field> fields);
+  /*implicit*/ FieldProjection(std::initializer_list<Field> fields);
 
   // Starts with an empty set to include. Fields can be added by AddField().
-  FieldFilter() noexcept {}
+  FieldProjection() noexcept {}
 
-  FieldFilter(FieldFilter&&) noexcept;
-  FieldFilter& operator=(FieldFilter&&) noexcept;
+  FieldProjection(FieldProjection&&) noexcept;
+  FieldProjection& operator=(FieldProjection&&) noexcept;
 
-  FieldFilter(const FieldFilter&);
-  FieldFilter& operator=(const FieldFilter&);
+  FieldProjection(const FieldProjection&);
+  FieldProjection& operator=(const FieldProjection&);
 
   // Adds a field to the set to include.
-  FieldFilter& AddField(Field field) &;
-  FieldFilter&& AddField(Field field) &&;
+  FieldProjection& AddField(Field field) &;
+  FieldProjection&& AddField(Field field) &&;
 
   // Returns true if all fields are included, i.e. if the root message is
   // included.
-  bool include_all() const;
+  bool includes_all() const;
 
   // Returns the set of fields to include.
   const Fields& fields() const { return fields_; };
@@ -126,41 +126,43 @@ inline Field& Field::AddTag(uint32_t tag) & {
 
 inline Field&& Field::AddTag(uint32_t tag) && { return std::move(AddTag(tag)); }
 
-inline FieldFilter FieldFilter::All() {
-  FieldFilter field_filter;
-  field_filter.AddField(Field());
-  return field_filter;
+inline FieldProjection FieldProjection::All() {
+  FieldProjection field_projection;
+  field_projection.AddField(Field());
+  return field_projection;
 }
 
-inline FieldFilter::FieldFilter(std::initializer_list<Field> fields)
+inline FieldProjection::FieldProjection(std::initializer_list<Field> fields)
     : fields_(fields) {}
 
-inline FieldFilter::FieldFilter(FieldFilter&& that) noexcept
+inline FieldProjection::FieldProjection(FieldProjection&& that) noexcept
     : fields_(std::move(that.fields_)) {}
 
-inline FieldFilter& FieldFilter::operator=(FieldFilter&& that) noexcept {
+inline FieldProjection& FieldProjection::operator=(
+    FieldProjection&& that) noexcept {
   fields_ = std::move(that.fields_);
   return *this;
 }
 
-inline FieldFilter::FieldFilter(const FieldFilter& that)
+inline FieldProjection::FieldProjection(const FieldProjection& that)
     : fields_(that.fields_) {}
 
-inline FieldFilter& FieldFilter::operator=(const FieldFilter& that) {
+inline FieldProjection& FieldProjection::operator=(
+    const FieldProjection& that) {
   fields_ = that.fields_;
   return *this;
 }
 
-inline FieldFilter& FieldFilter::AddField(Field field) & {
+inline FieldProjection& FieldProjection::AddField(Field field) & {
   fields_.push_back(std::move(field));
   return *this;
 }
 
-inline FieldFilter&& FieldFilter::AddField(Field field) && {
+inline FieldProjection&& FieldProjection::AddField(Field field) && {
   return std::move(AddField(std::move(field)));
 }
 
-inline bool FieldFilter::include_all() const {
+inline bool FieldProjection::includes_all() const {
   for (const Field& field : fields_) {
     if (field.path().empty()) return true;
   }
@@ -169,4 +171,4 @@ inline bool FieldFilter::include_all() const {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_CHUNK_ENCODING_INCLUDE_FIELDS_H_
+#endif  // RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_

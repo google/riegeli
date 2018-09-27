@@ -62,7 +62,7 @@ struct PairHasher {
   }
 };
 
-// Information about one data bucket used in filtering.
+// Information about one data bucket used in projection.
 struct DataBucket {
   // Contains sizes of data buffers in the bucket if "decompressed" is false.
   std::vector<size_t> buffer_sizes;
@@ -123,7 +123,7 @@ enum class CallbackType : uint8_t {
       kVarint_6_##tag_length, kVarint_7_##tag_length, kVarint_8_##tag_length, \
       kVarint_9_##tag_length, kVarint_10_##tag_length, kFixed32_##tag_length, \
       kFixed64_##tag_length, kString_##tag_length,                            \
-      kStartFilterGroup_##tag_length, kEndFilterGroup_##tag_length
+      kStartProjectionGroup_##tag_length, kEndProjectionGroup_##tag_length
 
   TYPES_FOR_TAG_LEN(1),
   TYPES_FOR_TAG_LEN(2),
@@ -252,7 +252,7 @@ inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
     case Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
       // an empty string in proto decoder.
-      // Note: Only submessages can be "existence only" filtered, but we encode
+      // Note: Only submessages can be "existence only" projected, but we encode
       // empty submessages as strings so we need to handle this callback type.
       return GetCopyTagCallbackType(tag_length + 1);
     case Subtype::kLengthDelimitedEndOfSubmessage:
@@ -262,26 +262,26 @@ inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
   }
 }
 
-inline CallbackType GetStartFilterGroupCallbackType(size_t tag_length) {
+inline CallbackType GetStartProjectionGroupCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
-  return CallbackType::kStartFilterGroup_1 +
-         (tag_length - 1) * (CallbackType::kStartFilterGroup_2 -
-                             CallbackType::kStartFilterGroup_1);
+  return CallbackType::kStartProjectionGroup_1 +
+         (tag_length - 1) * (CallbackType::kStartProjectionGroup_2 -
+                             CallbackType::kStartProjectionGroup_1);
 }
 
-inline CallbackType GetEndFilterGroupCallbackType(size_t tag_length) {
+inline CallbackType GetEndProjectionGroupCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
-  return CallbackType::kEndFilterGroup_1 +
-         (tag_length - 1) * (CallbackType::kEndFilterGroup_2 -
-                             CallbackType::kEndFilterGroup_1);
+  return CallbackType::kEndProjectionGroup_1 +
+         (tag_length - 1) * (CallbackType::kEndProjectionGroup_2 -
+                             CallbackType::kEndProjectionGroup_1);
 }
 
 // Get callback for node.
 inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
                                     Subtype subtype, size_t tag_length,
-                                    bool filtering_enabled) {
+                                    bool projection_enabled) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
   switch (field_included) {
@@ -296,11 +296,13 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
         case WireType::kLengthDelimited:
           return GetStringCallbackType(subtype, tag_length);
         case WireType::kStartGroup:
-          return filtering_enabled ? GetStartFilterGroupCallbackType(tag_length)
-                                   : GetCopyTagCallbackType(tag_length);
+          return projection_enabled
+                     ? GetStartProjectionGroupCallbackType(tag_length)
+                     : GetCopyTagCallbackType(tag_length);
         case WireType::kEndGroup:
-          return filtering_enabled ? GetEndFilterGroupCallbackType(tag_length)
-                                   : GetCopyTagCallbackType(tag_length);
+          return projection_enabled
+                     ? GetEndProjectionGroupCallbackType(tag_length)
+                     : GetCopyTagCallbackType(tag_length);
         default:
           return CallbackType::kUnknown;
       }
@@ -329,9 +331,9 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           // Only submessage fields should be allowed to be "existence only".
           return GetStringExistenceCallbackType(subtype, tag_length);
         case WireType::kStartGroup:
-          return GetStartFilterGroupCallbackType(tag_length);
+          return GetStartProjectionGroupCallbackType(tag_length);
         case WireType::kEndGroup:
-          return GetEndFilterGroupCallbackType(tag_length);
+          return GetEndProjectionGroupCallbackType(tag_length);
         default:
           return CallbackType::kUnknown;
       }
@@ -350,7 +352,7 @@ struct TransposeDecoder::Context {
   // Compression type of the input.
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
-  // Note: Used only when filtering is disabled.
+  // Note: Used only when projection is disabled.
   std::vector<ChainReader<Chain>> buffers;
   // Buffer for lengths of nonproto messages.
   Reader* nonproto_lengths = nullptr;
@@ -361,7 +363,7 @@ struct TransposeDecoder::Context {
   // State machine transitions. One byte = one transition.
   internal::Decompressor<> transitions;
 
-  // --- Fields used in filtering. ---
+  // --- Fields used in projection. ---
   // We number used fields with indices into "existence_only" vector below.
   // Fields form a tree structure stored in "include_fields" map. If "p" is
   // the index of parent submessage then "include_fields[<p,f>]" is the index
@@ -379,7 +381,7 @@ struct TransposeDecoder::Context {
 
 bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
                              uint64_t decoded_data_size,
-                             const FieldFilter& field_filter,
+                             const FieldProjection& field_projection,
                              BackwardWriter* dest,
                              std::vector<size_t>* limits) {
   RIEGELI_ASSERT_EQ(dest->pos(), 0u)
@@ -395,7 +397,7 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
   }
 
   Context context;
-  if (ABSL_PREDICT_FALSE(!Parse(&context, src, field_filter))) return false;
+  if (ABSL_PREDICT_FALSE(!Parse(&context, src, field_projection))) return false;
   LimitingBackwardWriter limiting_dest(dest, decoded_data_size);
   if (ABSL_PREDICT_FALSE(
           !Decode(&context, num_records, &limiting_dest, limits))) {
@@ -405,7 +407,7 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
   if (ABSL_PREDICT_FALSE(!limiting_dest.Close())) return Fail(limiting_dest);
   RIEGELI_ASSERT_LE(dest->pos(), decoded_data_size)
       << "Decoded data size larger than expected";
-  if (field_filter.include_all() &&
+  if (field_projection.includes_all() &&
       ABSL_PREDICT_FALSE(dest->pos() != decoded_data_size)) {
     return Fail("Decoded data size smaller than expected");
   }
@@ -413,10 +415,10 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
 }
 
 inline bool TransposeDecoder::Parse(Context* context, Reader* src,
-                                    const FieldFilter& field_filter) {
-  const bool filtering_enabled = !field_filter.include_all();
-  if (filtering_enabled) {
-    for (const Field& include_field : field_filter.fields()) {
+                                    const FieldProjection& field_projection) {
+  const bool projection_enabled = !field_projection.includes_all();
+  if (projection_enabled) {
+    for (const Field& include_field : field_projection.fields()) {
       uint32_t current_index = kInvalidPos;
       for (size_t i = 0; i < include_field.path().size(); ++i) {
         const std::pair<std::unordered_map<std::pair<uint32_t, uint32_t>,
@@ -456,7 +458,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   uint32_t num_buffers;
   std::vector<uint32_t> first_buffer_indices;
   std::vector<uint32_t> bucket_indices;
-  if (filtering_enabled) {
+  if (projection_enabled) {
     if (ABSL_PREDICT_FALSE(
             !ParseBuffersForFitering(context, header_decompressor.reader(), src,
                                      &first_buffer_indices, &bucket_indices))) {
@@ -480,7 +482,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   // Additional 0xff nodes to correctly handle invalid/malicious inputs.
   // TODO: Handle overflow.
   context->state_machine_nodes.resize(state_machine_size + 0xff);
-  if (filtering_enabled) context->node_templates.resize(state_machine_size);
+  if (projection_enabled) context->node_templates.resize(state_machine_size);
   std::vector<StateMachineNode>& state_machine_nodes =
       context->state_machine_nodes;
   bool has_nonproto_op = false;
@@ -531,7 +533,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
         if (ABSL_PREDICT_FALSE(buffer_index >= num_buffers)) {
           return Fail("Buffer index too large");
         }
-        if (filtering_enabled) {
+        if (projection_enabled) {
           const uint32_t bucket = bucket_indices[buffer_index];
           state_machine_node.buffer = GetBuffer(
               context, bucket, buffer_index - first_buffer_indices[bucket]);
@@ -548,7 +550,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
             internal::CallbackType::kMessageStart;
         break;
       case internal::MessageId::kStartOfSubmessage:
-        if (filtering_enabled) {
+        if (projection_enabled) {
           context->node_templates[i].tag =
               static_cast<uint32_t>(internal::MessageId::kStartOfSubmessage);
           state_machine_node.node_template = &context->node_templates[i];
@@ -580,7 +582,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
         if (internal::HasSubtype(tag)) {
           subtype = static_cast<internal::Subtype>(subtypes[subtype_index++]);
         }
-        if (filtering_enabled) {
+        if (projection_enabled) {
           if (internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
             if (ABSL_PREDICT_FALSE(!ReadVarint32(header_decompressor.reader(),
@@ -617,8 +619,9 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
             }
             state_machine_node.buffer = &context->buffers[buffer_index];
           }
-          state_machine_node.callback_type = internal::GetCallbackType(
-              FieldIncluded::kYes, tag, subtype, tag_length, filtering_enabled);
+          state_machine_node.callback_type =
+              internal::GetCallbackType(FieldIncluded::kYes, tag, subtype,
+                                        tag_length, projection_enabled);
           if (ABSL_PREDICT_FALSE(state_machine_node.callback_type ==
                                  internal::CallbackType::kUnknown)) {
             return Fail("Invalid node");
@@ -656,7 +659,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     if (ABSL_PREDICT_FALSE(num_buffers == 0)) {
       return Fail("Missing buffer for non-proto records");
     }
-    if (filtering_enabled) {
+    if (projection_enabled) {
       const uint32_t bucket = bucket_indices[num_buffers - 1];
       context->nonproto_lengths = GetBuffer(
           context, bucket, num_buffers - 1 - first_buffer_indices[bucket]);
@@ -1034,7 +1037,7 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
   // Set current node to the initial node.
   StateMachineNode* node = &context->state_machine_nodes[context->first_node];
   // The depth of the current field relative to the parent submessage that was
-  // excluded in filtering.
+  // excluded in projection.
   int skipped_submessage_level = 0;
 
   Reader* const transitions_reader = context->transitions.reader();
@@ -1064,7 +1067,8 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
       &&varint_7_##tag_length, &&varint_8_##tag_length,                      \
       &&varint_9_##tag_length, &&varint_10_##tag_length,                     \
       &&fixed32_##tag_length, &&fixed64_##tag_length, &&string_##tag_length, \
-      &&start_filter_group_##tag_length, &&end_filter_group_##tag_length
+      &&start_projection_group_##tag_length,                                 \
+      &&end_projection_group_##tag_length
 
       LABELS_FOR_TAG_LEN(1),
       LABELS_FOR_TAG_LEN(2),
@@ -1165,14 +1169,14 @@ submessage_start : {
   goto do_transition;                                        \
   string_##tag_length : STRING_CALLBACK(tag_length);         \
   goto do_transition;                                        \
-  start_filter_group_##tag_length                            \
+  start_projection_group_##tag_length                        \
       : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {  \
     return Fail("Submessage stack underflow");               \
   }                                                          \
   submessage_stack.pop_back();                               \
   COPY_TAG_CALLBACK(tag_length);                             \
   goto do_transition;                                        \
-  end_filter_group_##tag_length                              \
+  end_projection_group_##tag_length                          \
       : submessage_stack.push_back(                          \
             {IntCast<size_t>(dest->pos()), node->tag_data}); \
   COPY_TAG_CALLBACK(tag_length);                             \

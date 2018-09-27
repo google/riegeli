@@ -300,7 +300,7 @@ class TransposeEncoder : public ChunkEncoder {
   CompressionType compression_type_;
   // The default approximate bucket size, used if compression is enabled.
   // Finer bucket granularity (i.e. smaller size) worsens compression density
-  // but makes field filtering more effective.
+  // but makes field projection more effective.
   uint64_t bucket_size_;
 
   internal::Compressor compressor_;

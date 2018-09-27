@@ -74,7 +74,7 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
       << "Wrong last record end position";
   if (chunk.header.num_records() == 0) {
     RIEGELI_ASSERT_EQ(values.size(), 0u) << "Wrong decoded data size";
-  } else if (field_filter_.include_all()) {
+  } else if (field_projection_.includes_all()) {
     RIEGELI_ASSERT_EQ(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   } else {
@@ -147,12 +147,13 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
       TransposeDecoder transpose_decoder;
       dest->Clear();
       ChainBackwardWriter<> dest_writer(
-          dest, ChainBackwardWriterBase::Options().set_size_hint(
-                    field_filter_.include_all() ? header.decoded_data_size()
-                                                : uint64_t{0}));
+          dest,
+          ChainBackwardWriterBase::Options().set_size_hint(
+              field_projection_.includes_all() ? header.decoded_data_size()
+                                               : uint64_t{0}));
       const bool ok = transpose_decoder.Reset(
-          src, header.num_records(), header.decoded_data_size(), field_filter_,
-          &dest_writer, &limits_);
+          src, header.num_records(), header.decoded_data_size(),
+          field_projection_, &dest_writer, &limits_);
       if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);
       if (ABSL_PREDICT_FALSE(!ok)) {
         return Fail("Invalid transposed chunk", transpose_decoder);

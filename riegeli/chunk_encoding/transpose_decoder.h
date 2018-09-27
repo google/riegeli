@@ -24,7 +24,7 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
-#include "riegeli/chunk_encoding/field_filter.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 
 namespace riegeli {
@@ -52,7 +52,7 @@ class TransposeDecoder : public Object {
   //  * false - failure (!healthy());
   //            if !dest->healthy() then the problem was at dest
   bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
-             const FieldFilter& field_filter, BackwardWriter* dest,
+             const FieldProjection& field_projection, BackwardWriter* dest,
              std::vector<size_t>* limits);
 
  private:
@@ -108,7 +108,7 @@ class TransposeDecoder : public Object {
     union {
       // Buffer to read data from.
       Reader* buffer;
-      // In filtering mode, the node is updated in decoding phase based on the
+      // In projection mode, the node is updated in decoding phase based on the
       // current submessage stack and this template.
       StateMachineNodeTemplate* node_template;
     };
@@ -123,15 +123,16 @@ class TransposeDecoder : public Object {
 
   struct Context;
 
-  bool Parse(Context* context, Reader* src, const FieldFilter& field_filter);
+  bool Parse(Context* context, Reader* src,
+             const FieldProjection& field_projection);
 
   // Parse data buffers in "header_reader" and "reader" into
-  // "context_->buffers". This method is used when filtering is disabled and all
-  // filters are initially decompressed.
+  // "context_->buffers". This method is used when projection is disabled and
+  // all buffers are initially decompressed.
   bool ParseBuffers(Context* context, Reader* header_reader, Reader* src);
 
   // Parse data buffers in "header_reader" and "reader" into
-  // "context_->data_buckets". When filtering is enabled, buckets are
+  // "context_->data_buckets". When projection is enabled, buckets are
   // decompressed on demand. "bucket_indices" contains bucket index for each
   // buffer. "first_buffer_indices" contains the index of first buffer for each
   // bucket.
@@ -140,7 +141,7 @@ class TransposeDecoder : public Object {
                                std::vector<uint32_t>* first_buffer_indices,
                                std::vector<uint32_t>* bucket_indices);
 
-  // Precondition: filtering_enabled == true.
+  // Precondition: projection_enabled == true.
   Reader* GetBuffer(Context* context, uint32_t bucket_index,
                     uint32_t index_within_bucket);
 

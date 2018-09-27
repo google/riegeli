@@ -26,7 +26,7 @@ cc_library(
     deps = [
         ":chunk",
         ":constants",
-        ":field_filter",
+        ":field_projection",
         ":simple_decoder",
         ":transpose_decoder",
         "//riegeli/base",
@@ -202,7 +202,7 @@ cc_library(
     deps = [
         ":constants",
         ":decompressor",
-        ":field_filter",
+        ":field_projection",
         ":transpose_internal",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -232,8 +232,8 @@ cc_library(
 )
 
 cc_library(
-    name = "field_filter",
-    hdrs = ["field_filter.h"],
+    name = "field_projection",
+    hdrs = ["field_projection.h"],
     deps = [
         "//riegeli/base",
         "@com_google_absl//absl/container:inlined_vector",

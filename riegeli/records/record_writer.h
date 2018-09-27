@@ -206,8 +206,8 @@ class RecordWriterBase : public Object {
     //
     // This is meaningful if transpose and compression are enabled. A larger
     // bucket size improves compression density; a smaller bucket size makes
-    // reading with filtering faster, allowing to skip decompression of values
-    // of fields which are filtered out.
+    // reading with projection faster, allowing to skip decompression of values
+    // of fields which are not included.
     //
     // Default: 1.0
     Options& set_bucket_fraction(double fraction) & {
