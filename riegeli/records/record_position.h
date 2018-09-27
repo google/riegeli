@@ -16,12 +16,18 @@
 #define RIEGELI_RECORDS_RECORD_POSITION_H_
 
 #include <stdint.h>
+#include <future>
 #include <iosfwd>
 #include <limits>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/chunk_encoding/chunk.h"
 
 namespace riegeli {
 
@@ -63,6 +69,41 @@ bool operator<=(RecordPosition a, RecordPosition b);
 bool operator>=(RecordPosition a, RecordPosition b);
 
 std::ostream& operator<<(std::ostream& out, RecordPosition pos);
+
+// FutureRecordPosition is similar to shared_future<RecordPosition>.
+//
+// RecordWriter returns FutureRecordPosition instead of RecordPosition because
+// with parallelism > 0 the actual position is not known until pending chunks
+// finish encoding in background.
+class FutureRecordPosition {
+ public:
+  constexpr FutureRecordPosition() noexcept {}
+
+  explicit FutureRecordPosition(RecordPosition pos) noexcept;
+
+  FutureRecordPosition(
+      Position pos_before_chunks,
+      std::vector<std::shared_future<ChunkHeader>> chunk_headers,
+      uint64_t record_index);
+
+  FutureRecordPosition(FutureRecordPosition&& that) noexcept;
+  FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
+
+  FutureRecordPosition(const FutureRecordPosition& that);
+  FutureRecordPosition& operator=(const FutureRecordPosition& that);
+
+  // May block if returned by RecordWriter with parallelism > 0.
+  RecordPosition get() const;
+
+ private:
+  class FutureChunkBegin;
+
+  std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
+  // If future_chunk_begin_ == nullptr, chunk_begin_ is stored here, otherwise
+  // it is future_chunk_begin_->get().
+  Position chunk_begin_ = 0;
+  uint64_t record_index_ = 0;
+};
 
 // Implementation details follow.
 
@@ -120,6 +161,73 @@ inline bool operator>=(RecordPosition a, RecordPosition b) {
     return a.chunk_begin() > b.chunk_begin();
   }
   return a.record_index() >= b.record_index();
+}
+
+class FutureRecordPosition::FutureChunkBegin {
+ public:
+  explicit FutureChunkBegin(
+      Position pos_before_chunks,
+      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+
+  FutureChunkBegin(const FutureChunkBegin&) = delete;
+  FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
+
+  Position get() const;
+
+ private:
+  void Resolve() const;
+
+  mutable absl::once_flag flag_;
+  // Position before writing chunks having chunk_headers_.
+  mutable Position pos_before_chunks_ = 0;
+  // Headers of chunks to be written after pos_before_chunks_.
+  mutable std::vector<std::shared_future<ChunkHeader>> chunk_headers_;
+};
+
+inline Position FutureRecordPosition::FutureChunkBegin::get() const {
+  absl::call_once(flag_, &FutureChunkBegin::Resolve, this);
+  RIEGELI_ASSERT(chunk_headers_.empty())
+      << "FutureRecordPosition::FutureChunkBegin::Resolve() "
+         "did not clear chunk_headers_";
+  return pos_before_chunks_;
+}
+
+inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
+    : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    FutureRecordPosition&& that) noexcept
+    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
+      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
+      record_index_(riegeli::exchange(that.record_index_, 0)) {}
+
+inline FutureRecordPosition& FutureRecordPosition::operator=(
+    FutureRecordPosition&& that) noexcept {
+  future_chunk_begin_ = std::move(that.future_chunk_begin_);
+  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
+  record_index_ = riegeli::exchange(that.record_index_, 0);
+  return *this;
+}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    const FutureRecordPosition& that)
+    : future_chunk_begin_(that.future_chunk_begin_),
+      chunk_begin_(that.chunk_begin_),
+      record_index_(that.record_index_) {}
+
+inline FutureRecordPosition& FutureRecordPosition::operator=(
+    const FutureRecordPosition& that) {
+  future_chunk_begin_ = that.future_chunk_begin_;
+  chunk_begin_ = that.chunk_begin_;
+  record_index_ = that.record_index_;
+  return *this;
+}
+
+inline RecordPosition FutureRecordPosition::get() const {
+  return RecordPosition(future_chunk_begin_ == nullptr
+                            ? chunk_begin_
+                            : future_chunk_begin_->get(),
+                        record_index_);
 }
 
 }  // namespace riegeli

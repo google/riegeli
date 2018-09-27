@@ -10,7 +10,6 @@ cc_library(
     ],
     hdrs = ["record_writer.h"],
     deps = [
-        ":block",
         ":chunk_writer",
         ":record_position",
         ":records_metadata_cc_proto",
@@ -27,7 +26,6 @@ cc_library(
         "//riegeli/chunk_encoding:deferred_encoder",
         "//riegeli/chunk_encoding:simple_encoder",
         "//riegeli/chunk_encoding:transpose_encoder",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
@@ -87,9 +85,13 @@ cc_library(
     srcs = ["record_position.cc"],
     hdrs = ["record_position.h"],
     deps = [
+        ":block",
         "//riegeli/base",
         "//riegeli/base:endian",
+        "//riegeli/chunk_encoding:chunk",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
 )

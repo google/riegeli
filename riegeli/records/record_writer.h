@@ -16,14 +16,11 @@
 #define RIEGELI_RECORDS_RECORD_WRITER_H_
 
 #include <stdint.h>
-#include <future>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
-#include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
@@ -34,7 +31,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/chunk_writer_dependency.h"
@@ -50,44 +46,6 @@ namespace riegeli {
 // better to prune them to keep only what is needed for the message descriptor.
 void SetRecordType(RecordsMetadata* metadata,
                    const google::protobuf::Descriptor* descriptor);
-
-// FutureRecordPosition is similar to shared_future<RecordPosition>.
-//
-// RecordWriter returns FutureRecordPosition instead of RecordPosition because
-// with parallelism > 0 the actual position is not known until pending chunks
-// finish encoding in background.
-class FutureRecordPosition {
- public:
-  constexpr FutureRecordPosition() noexcept {}
-
-  explicit FutureRecordPosition(RecordPosition pos) noexcept;
-
-  FutureRecordPosition(FutureRecordPosition&& that) noexcept;
-  FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
-
-  FutureRecordPosition(const FutureRecordPosition& that);
-  FutureRecordPosition& operator=(const FutureRecordPosition& that);
-
-  // May block if returned by RecordWriter with parallelism > 0.
-  RecordPosition get() const;
-
- private:
-  friend class RecordWriterBase;
-
-  class FutureChunkBegin;
-
-  explicit FutureRecordPosition(Position chunk_begin);
-
-  FutureRecordPosition(
-      Position pos_before_chunks,
-      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
-
-  std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
-  // If future_chunk_begin_ == nullptr, chunk_begin_ is stored here, otherwise
-  // it is future_chunk_begin_->get().
-  Position chunk_begin_ = 0;
-  uint64_t record_index_ = 0;
-};
 
 class RecordWriterBase : public Object {
  public:
@@ -459,73 +417,6 @@ class RecordWriter : public RecordWriterBase {
 };
 
 // Implementation details follow.
-
-class FutureRecordPosition::FutureChunkBegin {
- public:
-  explicit FutureChunkBegin(
-      Position pos_before_chunks,
-      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
-
-  FutureChunkBegin(const FutureChunkBegin&) = delete;
-  FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
-
-  Position get() const;
-
- private:
-  void Resolve() const;
-
-  mutable absl::once_flag flag;
-  // Position before writing chunks having chunk_headers_.
-  mutable Position pos_before_chunks_ = 0;
-  // Headers of chunks to be written after pos_before_chunks_.
-  mutable std::vector<std::shared_future<ChunkHeader>> chunk_headers_;
-};
-
-inline Position FutureRecordPosition::FutureChunkBegin::get() const {
-  absl::call_once(flag, &FutureChunkBegin::Resolve, this);
-  RIEGELI_ASSERT(chunk_headers_.empty())
-      << "FutureRecordPosition::FutureChunkBegin::Resolve() "
-         "did not clear chunk_headers_";
-  return pos_before_chunks_;
-}
-
-inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
-    : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
-
-inline FutureRecordPosition::FutureRecordPosition(
-    FutureRecordPosition&& that) noexcept
-    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
-      chunk_begin_(riegeli::exchange(that.chunk_begin_, 0)),
-      record_index_(riegeli::exchange(that.record_index_, 0)) {}
-
-inline FutureRecordPosition& FutureRecordPosition::operator=(
-    FutureRecordPosition&& that) noexcept {
-  future_chunk_begin_ = std::move(that.future_chunk_begin_);
-  chunk_begin_ = riegeli::exchange(that.chunk_begin_, 0);
-  record_index_ = riegeli::exchange(that.record_index_, 0);
-  return *this;
-}
-
-inline FutureRecordPosition::FutureRecordPosition(
-    const FutureRecordPosition& that)
-    : future_chunk_begin_(that.future_chunk_begin_),
-      chunk_begin_(that.chunk_begin_),
-      record_index_(that.record_index_) {}
-
-inline FutureRecordPosition& FutureRecordPosition::operator=(
-    const FutureRecordPosition& that) {
-  future_chunk_begin_ = that.future_chunk_begin_;
-  chunk_begin_ = that.chunk_begin_;
-  record_index_ = that.record_index_;
-  return *this;
-}
-
-inline RecordPosition FutureRecordPosition::get() const {
-  return RecordPosition(future_chunk_begin_ == nullptr
-                            ? chunk_begin_
-                            : future_chunk_begin_->get(),
-                        record_index_);
-}
 
 inline bool RecordWriterBase::WriteRecord(
     const google::protobuf::MessageLite& record, FutureRecordPosition* key) {

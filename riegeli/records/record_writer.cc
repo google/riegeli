@@ -49,7 +49,6 @@
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
-#include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"
 
@@ -96,34 +95,6 @@ void SetRecordType(RecordsMetadata* metadata,
   FileDescriptorCollector collector(metadata->mutable_file_descriptor());
   collector.AddFile(descriptor->file());
 }
-
-inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
-    Position pos_before_chunks,
-    std::vector<std::shared_future<ChunkHeader>> chunk_headers)
-    : pos_before_chunks_(pos_before_chunks),
-      chunk_headers_(std::move(chunk_headers)) {}
-
-void FutureRecordPosition::FutureChunkBegin::Resolve() const {
-  Position pos = pos_before_chunks_;
-  for (const std::shared_future<ChunkHeader>& chunk_header : chunk_headers_) {
-    pos = internal::ChunkEnd(chunk_header.get(), pos);
-  }
-  pos_before_chunks_ = pos;
-  chunk_headers_ = std::vector<std::shared_future<ChunkHeader>>();
-}
-
-inline FutureRecordPosition::FutureRecordPosition(Position chunk_begin)
-    : chunk_begin_(chunk_begin) {}
-
-inline FutureRecordPosition::FutureRecordPosition(
-    Position pos_before_chunks,
-    std::vector<std::shared_future<ChunkHeader>> chunk_headers)
-    : future_chunk_begin_(
-          chunk_headers.empty()
-              ? nullptr
-              : absl::make_unique<FutureChunkBegin>(pos_before_chunks,
-                                                    std::move(chunk_headers))),
-      chunk_begin_(pos_before_chunks) {}
 
 bool RecordWriterBase::Options::Parse(absl::string_view text,
                                       std::string* error_message) {
@@ -182,15 +153,13 @@ class RecordWriterBase::Worker : public Object {
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
 
-  FutureRecordPosition Pos();
+  virtual FutureRecordPosition Pos() const = 0;
 
  protected:
   void EncodeSignature(Chunk* chunk);
   bool EncodeMetadata(const Options& options, Chunk* chunk);
 
   static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
-
-  virtual FutureRecordPosition ChunkBegin() = 0;
 
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
 
@@ -265,12 +234,6 @@ bool RecordWriterBase::Worker::AddRecord(Record&& record) {
   return true;
 }
 
-inline FutureRecordPosition RecordWriterBase::Worker::Pos() {
-  FutureRecordPosition pos = ChunkBegin();
-  pos.record_index_ = chunk_encoder_->num_records();
-  return pos;
-}
-
 bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
                                            Chunk* chunk) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -296,10 +259,9 @@ class RecordWriterBase::SerialWorker : public Worker {
   void OpenChunk() override { chunk_encoder_->Reset(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+  FutureRecordPosition Pos() const override;
 
  protected:
-  FutureRecordPosition ChunkBegin() override;
-
  private:
   bool WriteSignature();
   bool WriteMetadata(const Options& options);
@@ -359,8 +321,9 @@ bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
   return true;
 }
 
-FutureRecordPosition RecordWriterBase::SerialWorker::ChunkBegin() {
-  return FutureRecordPosition(chunk_writer_->pos());
+FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
+  return FutureRecordPosition(
+      RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
 }
 
 // ParallelWorker uses parallelism internally, but the class is still only
@@ -374,10 +337,10 @@ class RecordWriterBase::ParallelWorker : public Worker {
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(options_); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+  FutureRecordPosition Pos() const override;
 
  protected:
   void Done() override;
-  FutureRecordPosition ChunkBegin() override;
 
  private:
   struct ChunkPromises {
@@ -405,7 +368,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   bool HasCapacityForRequest() const;
 
   Options options_;
-  absl::Mutex mutex_;
+  mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
   // Position before handling chunk_writer_requests_.
   Position pos_before_chunks_ GUARDED_BY(mutex_);
@@ -566,7 +529,7 @@ bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
   return done_future.get();
 }
 
-FutureRecordPosition RecordWriterBase::ParallelWorker::ChunkBegin() {
+FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
   absl::MutexLock lock(&mutex_);
   std::vector<std::shared_future<ChunkHeader>> chunk_headers;
   chunk_headers.reserve(chunk_writer_requests_.size());
@@ -581,7 +544,8 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::ChunkBegin() {
       chunk_headers.push_back(write_chunk_request->chunk_header);
     }
   }
-  return FutureRecordPosition(pos_before_chunks_, std::move(chunk_headers));
+  return FutureRecordPosition(pos_before_chunks_, std::move(chunk_headers),
+                              chunk_encoder_->num_records());
 }
 
 RecordWriterBase::RecordWriterBase(State state) noexcept : Object(state) {}
