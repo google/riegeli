@@ -19,10 +19,10 @@
 #include <stdint.h>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -139,13 +139,14 @@ class TransposeEncoder : public ChunkEncoder {
     friend bool operator==(NodeId a, NodeId b) {
       return a.parent_message_id == b.parent_message_id && a.field == b.field;
     }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, NodeId self) {
+      return HashState::combine(std::move(hash_state), self.parent_message_id,
+                                self.field);
+    }
 
     internal::MessageId parent_message_id;
     uint32_t field;
-  };
-
-  struct NodeIdHasher {
-    size_t operator()(NodeId node_id) const;
   };
 
   // Get BackwardWriter for field "field" in message "parent_message_id".
@@ -164,10 +165,8 @@ class TransposeEncoder : public ChunkEncoder {
   // Write all buffer lengths to "header_writer" and data buffers in "data_" to
   // "data_writer" (compressed using compressor_). Fill map with the sequential
   // position of each buffer written.
-  bool WriteBuffers(
-      Writer* header_writer, Writer* data_writer,
-      std::unordered_map<TransposeEncoder::NodeId, uint32_t,
-                         TransposeEncoder::NodeIdHasher>* buffer_pos);
+  bool WriteBuffers(Writer* header_writer, Writer* data_writer,
+                    absl::flat_hash_map<NodeId, uint32_t>* buffer_pos);
 
   // One state of the state machine created in encoder.
   struct StateInfo {
@@ -231,17 +230,17 @@ class TransposeEncoder : public ChunkEncoder {
       return a.message_id == b.message_id && a.tag == b.tag &&
              a.subtype == b.subtype;
     }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, EncodedTag self) {
+      return HashState::combine(std::move(hash_state), self.message_id,
+                                self.tag, self.subtype);
+    }
 
     // ID of the message this tag belongs to.
     internal::MessageId message_id;
     // Tag as read from input.
     uint32_t tag;
     internal::Subtype subtype;
-    // Always update EncodedTagHasher when changing this struct.
-  };
-
-  struct EncodedTagHasher {
-    size_t operator()(EncodedTag encoded_tag) const;
   };
 
   // Get possition of the encoded tag in "tags_list_" adding it if not in the
@@ -259,16 +258,12 @@ class TransposeEncoder : public ChunkEncoder {
     size_t num_transitions = 0;
   };
 
-  struct Uint32Hasher {
-    size_t operator()(uint32_t v) const;
-  };
-
   // Information about encoded tag.
   struct EncodedTagInfo {
     explicit EncodedTagInfo(EncodedTag tag);
     EncodedTag tag;
     // Maps all destinations reachable from this encoded tag to DestInfo.
-    std::unordered_map<uint32_t, DestInfo, Uint32Hasher> dest_info;
+    absl::flat_hash_map<uint32_t, DestInfo> dest_info;
     // Number of incoming tranitions into this state.
     size_t num_incoming_transitions = 0;
     // Index of this state in the state machine.
@@ -309,14 +304,14 @@ class TransposeEncoder : public ChunkEncoder {
   // Sequence of tags on input as indices into "tags_list_".
   std::vector<uint32_t> encoded_tags_;
   // Position of encoded tag in "tags_list_".
-  std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher> encoded_tag_pos_;
+  absl::flat_hash_map<EncodedTag, uint32_t> encoded_tag_pos_;
   // Data buffers in separate vectors per buffer type.
   std::vector<BufferWithMetadata> data_[kNumBufferTypes];
   // Every group creates a new message ID. We keep track of open groups in this
   // vector.
   std::vector<internal::MessageId> group_stack_;
   // Tree of message nodes.
-  std::unordered_map<NodeId, MessageNode, NodeIdHasher> message_nodes_;
+  absl::flat_hash_map<NodeId, MessageNode> message_nodes_;
   ChainBackwardWriter<Chain> nonproto_lengths_writer_;
   // Counter used to assign unique IDs to the message nodes.
   internal::MessageId next_message_id_ = internal::MessageId::kRoot + 1;

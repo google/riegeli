@@ -22,12 +22,12 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -75,7 +75,7 @@ class FileDescriptorCollector {
  private:
   google::protobuf::RepeatedPtrField<google::protobuf::FileDescriptorProto>*
       file_descriptors_;
-  std::unordered_set<std::string> files_seen_;
+  absl::flat_hash_set<std::string> files_seen_;
 };
 
 template <typename Record>

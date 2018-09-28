@@ -31,6 +31,7 @@ cc_library(
     hdrs = ["memory_estimator.h"],
     deps = [
         ":base",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/utility",
     ],
 )

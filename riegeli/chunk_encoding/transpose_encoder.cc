@@ -20,11 +20,11 @@
 #include <limits>
 #include <queue>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -147,12 +147,6 @@ inline TransposeEncoder::NodeId::NodeId(internal::MessageId parent_message_id,
                                         uint32_t field)
     : parent_message_id(parent_message_id), field(field) {}
 
-inline size_t TransposeEncoder::NodeIdHasher::operator()(NodeId node_id) const {
-  return internal::Murmur3_64(
-      (static_cast<uint64_t>(node_id.parent_message_id) << 32) |
-      uint64_t{node_id.field});
-}
-
 inline TransposeEncoder::StateInfo::StateInfo()
     : etag_index(kInvalidPos),
       base(kInvalidPos),
@@ -196,13 +190,12 @@ void TransposeEncoder::Done() {
   if (ABSL_PREDICT_FALSE(!compressor_.Close())) Fail(compressor_);
   tags_list_ = std::vector<EncodedTagInfo>();
   encoded_tags_ = std::vector<uint32_t>();
-  encoded_tag_pos_ =
-      std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher>();
+  encoded_tag_pos_ = absl::flat_hash_map<EncodedTag, uint32_t>();
   for (std::vector<BufferWithMetadata>& buffers : data_) {
     buffers = std::vector<BufferWithMetadata>();
   }
   group_stack_ = std::vector<internal::MessageId>();
-  message_nodes_ = std::unordered_map<NodeId, MessageNode, NodeIdHasher>();
+  message_nodes_ = absl::flat_hash_map<NodeId, MessageNode>();
   if (ABSL_PREDICT_FALSE(!nonproto_lengths_writer_.Close())) {
     Fail(nonproto_lengths_writer_);
   }
@@ -221,22 +214,6 @@ void TransposeEncoder::Reset() {
   message_nodes_.clear();
   nonproto_lengths_writer_ = ChainBackwardWriter<Chain>(Chain());
   next_message_id_ = internal::MessageId::kRoot + 1;
-}
-
-inline size_t TransposeEncoder::Uint32Hasher::operator()(uint32_t v) const {
-  return internal::Murmur3_64(v);
-}
-
-inline size_t TransposeEncoder::EncodedTagHasher::operator()(
-    EncodedTag encoded_tag) const {
-  static_assert(static_cast<uint8_t>(internal::Subtype::kVarintInline0) +
-                        kMaxVarintInline <=
-                    15,
-                "Update the hash function if any subtype can exceed 15");
-  return internal::Murmur3_64(
-      (uint64_t{encoded_tag.tag} << 32) ^
-      (static_cast<uint64_t>(encoded_tag.message_id) << 4) ^
-      static_cast<uint64_t>(encoded_tag.subtype));
 }
 
 bool TransposeEncoder::AddRecord(absl::string_view record) {
@@ -332,8 +309,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
 
 inline BackwardWriter* TransposeEncoder::GetBuffer(
     internal::MessageId parent_message_id, uint32_t field, BufferType type) {
-  const std::pair<
-      std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator, bool>
+  const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator, bool>
       insert_result = message_nodes_.emplace(NodeId(parent_message_id, field),
                                              MessageNode(next_message_id_));
   if (insert_result.second) {
@@ -352,9 +328,7 @@ inline BackwardWriter* TransposeEncoder::GetBuffer(
 }
 
 inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
-  const std::pair<
-      std::unordered_map<EncodedTag, uint32_t, EncodedTagHasher>::iterator,
-      bool>
+  const std::pair<absl::flat_hash_map<EncodedTag, uint32_t>::iterator, bool>
       insert_result = encoded_tag_pos_.emplace(etag, tags_list_.size());
   if (insert_result.second) tags_list_.emplace_back(etag);
   return insert_result.first->second;
@@ -443,9 +417,8 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
           encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
               parent_message_id, tag,
               internal::Subtype::kLengthDelimitedStartOfSubmessage)));
-          const std::pair<
-              std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator,
-              bool>
+          const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator,
+                          bool>
               insert_result =
                   message_nodes_.emplace(NodeId(parent_message_id, field),
                                          MessageNode(next_message_id_));
@@ -491,9 +464,8 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
       case internal::WireType::kStartGroup: {
         encoded_tags_.push_back(GetPosInTagsList(
             EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        const std::pair<
-            std::unordered_map<NodeId, MessageNode, NodeIdHasher>::iterator,
-            bool>
+        const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator,
+                        bool>
             insert_result =
                 message_nodes_.emplace(NodeId(parent_message_id, field),
                                        MessageNode(next_message_id_));
@@ -548,8 +520,7 @@ inline bool TransposeEncoder::AddBuffer(bool force_new_bucket,
 
 inline bool TransposeEncoder::WriteBuffers(
     Writer* header_writer, Writer* data_writer,
-    std::unordered_map<TransposeEncoder::NodeId, uint32_t,
-                       TransposeEncoder::NodeIdHasher>* buffer_pos) {
+    absl::flat_hash_map<NodeId, uint32_t>* buffer_pos) {
   size_t num_buffers = 0;
   for (size_t i = 0; i < kNumBufferTypes; ++i) {
     // Sort data_ by length, largest to smallest.
@@ -581,10 +552,7 @@ inline bool TransposeEncoder::WriteBuffers(
                                         &bucket_lengths, &buffer_lengths))) {
         return false;
       }
-      const std::pair<
-          std::unordered_map<TransposeEncoder::NodeId, uint32_t,
-                             TransposeEncoder::NodeIdHasher>::iterator,
-          bool>
+      const std::pair<absl::flat_hash_map<NodeId, uint32_t>::iterator, bool>
           insert_result =
               buffer_pos->emplace(NodeId(buffer.message_id, buffer.field),
                                   IntCast<uint32_t>(buffer_pos->size()));
@@ -644,14 +612,14 @@ inline bool TransposeEncoder::WriteStatesAndData(
     // one, then it would not be obvious whether to stop or continue decoding.
     // Only if transition is explicit we check whether there is more transition
     // bytes.
-    std::unordered_map<uint32_t, DestInfo, Uint32Hasher>& dest_info =
+    absl::flat_hash_map<uint32_t, DestInfo>& dest_info =
         tags_list_[encoded_tags_[0]].dest_info;
     const uint32_t first_key = dest_info.begin()->first;
     dest_info[first_key + 1];
     RIEGELI_ASSERT_NE(tags_list_[encoded_tags_[0]].dest_info.size(), 1u)
         << "Number of transitions from the last state did not increase";
   }
-  std::unordered_map<NodeId, uint32_t, NodeIdHasher> buffer_pos;
+  absl::flat_hash_map<NodeId, uint32_t> buffer_pos;
   if (ABSL_PREDICT_FALSE(
           !WriteBuffers(header_writer, data_writer, &buffer_pos))) {
     return false;
@@ -709,8 +677,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
           subtype_to_write.push_back(static_cast<char>(etag.subtype));
         }
         if (internal::HasDataBuffer(etag.tag, etag.subtype)) {
-          const std::unordered_map<NodeId, uint32_t,
-                                   NodeIdHasher>::const_iterator iter =
+          const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
               buffer_pos.find(NodeId(etag.message_id, etag.tag >> 3));
           RIEGELI_ASSERT(iter != buffer_pos.end())
               << "Buffer not found: " << static_cast<uint32_t>(etag.message_id)
@@ -726,8 +693,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
       }
       if (etag.message_id == internal::MessageId::kNonProto) {
         // NonProto has data buffer.
-        const std::unordered_map<NodeId, uint32_t, NodeIdHasher>::const_iterator
-            iter = buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
+        const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
+            buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
         RIEGELI_ASSERT(iter != buffer_pos.end())
             << "Buffer of non-proto records not found";
         buffer_index_to_write.push_back(iter->second);

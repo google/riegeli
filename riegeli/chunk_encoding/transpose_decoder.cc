@@ -19,12 +19,12 @@
 #include <cstring>
 #include <limits>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -54,13 +54,6 @@ Reader* kEmptyReader() {
 }
 
 constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();
-
-// Hash pair of uint32_ts.
-struct PairHasher {
-  size_t operator()(std::pair<uint32_t, uint32_t> p) const {
-    return internal::Murmur3_64((uint64_t{p.first} << 32) | uint64_t{p.second});
-  }
-};
 
 // Information about one data bucket used in projection.
 struct DataBucket {
@@ -369,8 +362,7 @@ struct TransposeDecoder::Context {
   // the index of parent submessage then "include_fields[<p,f>]" is the index
   // of the child with field number "f". The root index is assumed to be
   // "kInvalidPos".
-  std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, PairHasher>
-      include_fields;
+  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, uint32_t> include_fields;
   // Are we interested in the existence of the field only?
   std::vector<bool> existence_only;
   // Data buckets.
@@ -421,8 +413,8 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     for (const Field& include_field : field_projection.fields()) {
       uint32_t current_index = kInvalidPos;
       for (size_t i = 0; i < include_field.path().size(); ++i) {
-        const std::pair<std::unordered_map<std::pair<uint32_t, uint32_t>,
-                                           uint32_t, PairHasher>::iterator,
+        const std::pair<absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
+                                            uint32_t>::iterator,
                         bool>
             insert_result = context->include_fields.emplace(
                 std::make_pair(current_index, include_field.path()[i]),
@@ -1295,8 +1287,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         if (!ReadVarint32(&cursor, &tag)) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         }
-        const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
-                                 PairHasher>::const_iterator iter =
+        const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
+                                  uint32_t>::const_iterator iter =
             context->include_fields.find(std::make_pair(index, tag >> 3));
         if (iter == context->include_fields.end()) {
           field_included = FieldIncluded::kNo;
@@ -1325,8 +1317,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       if (!ReadVarint32(&cursor, &tag)) {
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       }
-      const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
-                               PairHasher>::const_iterator iter =
+      const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
+                                uint32_t>::const_iterator iter =
           context->include_fields.find(std::make_pair(index, tag >> 3));
       if (iter == context->include_fields.end()) {
         field_included = FieldIncluded::kNo;

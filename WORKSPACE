@@ -1,13 +1,13 @@
 workspace(name = "com_google_riegeli")
 
-# Import Abseil (2018-06-28).
+# Import Abseil (2018-09-27).
 http_archive(
     name = "com_google_absl",
-    sha256 = "6dda700b67b3d8eafd31e419c888cc65c1525219eace9396c1ae884b08ed8caa",
-    strip_prefix = "abseil-cpp-ba8d6cf07766263723e86736f20a51c1c9c67b19",
+    sha256 = "57b7817ad91856399a77300349eda39d2edae2c3c037d453fee0a16b85e92a4d",
+    strip_prefix = "abseil-cpp-48cd2c3f351ff188bc85684b84a91b6e6d17d896",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/ba8d6cf07766263723e86736f20a51c1c9c67b19.zip",
-        "https://github.com/abseil/abseil-cpp/archive/ba8d6cf07766263723e86736f20a51c1c9c67b19.zip",
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/48cd2c3f351ff188bc85684b84a91b6e6d17d896.zip",
+        "https://github.com/abseil/abseil-cpp/archive/48cd2c3f351ff188bc85684b84a91b6e6d17d896.zip",
     ],
 )
 

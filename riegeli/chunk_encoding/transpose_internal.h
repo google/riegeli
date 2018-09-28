@@ -133,17 +133,6 @@ inline bool HasSubtype(uint32_t tag) {
   }
 }
 
-// Murmur3 mix variant:
-// http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html
-inline uint64_t Murmur3_64(uint64_t x) {
-  x ^= x >> 31;
-  x *= 0x7fb5d329728ea185U;
-  x ^= x >> 27;
-  x *= 0x81dadef4bc2dd44dU;
-  x ^= x >> 33;
-  return x;
-}
-
 }  // namespace internal
 }  // namespace riegeli
 

@@ -16,8 +16,8 @@
 #define RIEGELI_BASE_MEMORY_STATS_H_
 
 #include <stddef.h>
-#include <unordered_set>
 
+#include "absl/container/flat_hash_set.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 
@@ -99,7 +99,7 @@ class MemoryEstimator {
 
  private:
   size_t total_memory_ = 0;
-  std::unordered_set<const void*> objects_seen_;
+  absl::flat_hash_set<const void*> objects_seen_;
 };
 
 // Implementation details follow.
