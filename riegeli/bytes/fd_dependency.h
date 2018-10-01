@@ -21,6 +21,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -95,7 +96,10 @@ class Dependency<int, int> {
   const int& manager() const { return fd_; }
 
   int ptr() const { return fd_; }
-  int Release() { return absl::exchange(fd_, -1); }
+  int Release() {
+    RIEGELI_ASSERT_UNREACHABLE() << "Dependency<int, int>::Release() called "
+                                    "but kIsOwning() is false";
+  }
 
   static constexpr bool kIsOwning() { return false; }
   static constexpr bool kIsStable() { return true; }
