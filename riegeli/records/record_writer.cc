@@ -130,10 +130,11 @@ bool RecordWriterBase::Options::Parse(absl::string_view text,
 
 class RecordWriterBase::Worker : public Object {
  public:
-  explicit Worker(ChunkWriter* chunk_writer, const Options& options)
+  explicit Worker(ChunkWriter* chunk_writer, Options&& options)
       : Object(State::kOpen),
+        options_(std::move(options)),
         chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
-        chunk_encoder_(MakeChunkEncoder(options)) {}
+        chunk_encoder_(MakeChunkEncoder()) {}
 
   ~Worker();
 
@@ -157,30 +158,67 @@ class RecordWriterBase::Worker : public Object {
   virtual FutureRecordPosition Pos() const = 0;
 
  protected:
+  void Initialize(Position initial_pos);
+  virtual bool WriteSignature() = 0;
+  virtual bool WriteMetadata() = 0;
+
+  std::unique_ptr<ChunkEncoder> MakeChunkEncoder();
   void EncodeSignature(Chunk* chunk);
-  bool EncodeMetadata(const Options& options, Chunk* chunk);
-
-  static std::unique_ptr<ChunkEncoder> MakeChunkEncoder(const Options& options);
-
+  bool EncodeMetadata(Chunk* chunk);
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
 
+  Options options_;
   // Invariant: chunk_writer_ != nullptr
   ChunkWriter* chunk_writer_;
-  // Invariant: chunk_encoder_ != nullptr
+  // Invariant: if chunk is open then chunk_encoder_ != nullptr
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
 RecordWriterBase::Worker::~Worker() {}
 
-void RecordWriterBase::Worker::EncodeSignature(Chunk* chunk) {
+inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
+  if (initial_pos == 0) {
+    if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
+    if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
+  }
+}
+
+inline std::unique_ptr<ChunkEncoder>
+RecordWriterBase::Worker::MakeChunkEncoder() {
+  std::unique_ptr<ChunkEncoder> chunk_encoder;
+  if (options_.transpose_) {
+    const long double long_double_bucket_size =
+        std::round(static_cast<long double>(options_.chunk_size_) *
+                   static_cast<long double>(options_.bucket_fraction_));
+    const uint64_t bucket_size =
+        ABSL_PREDICT_FALSE(
+            long_double_bucket_size >=
+            static_cast<long double>(std::numeric_limits<uint64_t>::max()))
+            ? std::numeric_limits<uint64_t>::max()
+            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
+                  ? static_cast<uint64_t>(long_double_bucket_size)
+                  : uint64_t{1};
+    chunk_encoder = absl::make_unique<TransposeEncoder>(
+        options_.compressor_options_, bucket_size);
+  } else {
+    chunk_encoder = absl::make_unique<SimpleEncoder>(
+        options_.compressor_options_, options_.chunk_size_);
+  }
+  if (options_.parallelism_ == 0) {
+    return chunk_encoder;
+  } else {
+    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
+  }
+}
+
+inline void RecordWriterBase::Worker::EncodeSignature(Chunk* chunk) {
   chunk->header = ChunkHeader(chunk->data, ChunkType::kFileSignature, 0, 0);
 }
 
-bool RecordWriterBase::Worker::EncodeMetadata(const Options& options,
-                                              Chunk* chunk) {
-  TransposeEncoder transpose_encoder(options.compressor_options_,
-                                     options.metadata_.ByteSizeLong());
-  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options.metadata_))) {
+inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk* chunk) {
+  TransposeEncoder transpose_encoder(options_.compressor_options_,
+                                     options_.metadata_.ByteSizeLong());
+  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options_.metadata_))) {
     return Fail(transpose_encoder);
   }
   ChainWriter<> data_writer(&chunk->data);
@@ -197,36 +235,8 @@ bool RecordWriterBase::Worker::EncodeMetadata(const Options& options,
   return true;
 }
 
-inline std::unique_ptr<ChunkEncoder> RecordWriterBase::Worker::MakeChunkEncoder(
-    const Options& options) {
-  std::unique_ptr<ChunkEncoder> chunk_encoder;
-  if (options.transpose_) {
-    const long double long_double_bucket_size =
-        std::round(static_cast<long double>(options.chunk_size_) *
-                   static_cast<long double>(options.bucket_fraction_));
-    const uint64_t bucket_size =
-        ABSL_PREDICT_FALSE(
-            long_double_bucket_size >=
-            static_cast<long double>(std::numeric_limits<uint64_t>::max()))
-            ? std::numeric_limits<uint64_t>::max()
-            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
-                  ? static_cast<uint64_t>(long_double_bucket_size)
-                  : uint64_t{1};
-    chunk_encoder = absl::make_unique<TransposeEncoder>(
-        options.compressor_options_, bucket_size);
-  } else {
-    chunk_encoder = absl::make_unique<SimpleEncoder>(
-        options.compressor_options_, options.chunk_size_);
-  }
-  if (options.parallelism_ == 0) {
-    return chunk_encoder;
-  } else {
-    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
-  }
-}
-
 template <typename Record>
-bool RecordWriterBase::Worker::AddRecord(Record&& record) {
+inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
@@ -235,8 +245,8 @@ bool RecordWriterBase::Worker::AddRecord(Record&& record) {
   return true;
 }
 
-bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
-                                           Chunk* chunk) {
+inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
+                                                  Chunk* chunk) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkType chunk_type;
   uint64_t num_records;
@@ -263,21 +273,17 @@ class RecordWriterBase::SerialWorker : public Worker {
   FutureRecordPosition Pos() const override;
 
  protected:
- private:
-  bool WriteSignature();
-  bool WriteMetadata(const Options& options);
+  bool WriteSignature() override;
+  bool WriteMetadata() override;
 };
 
 inline RecordWriterBase::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
                                                     Options&& options)
-    : Worker(chunk_writer, options) {
-  if (chunk_writer_->pos() == 0) {
-    if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
-    if (ABSL_PREDICT_FALSE(!WriteMetadata(options))) return;
-  }
+    : Worker(chunk_writer, std::move(options)) {
+  Initialize(chunk_writer_->pos());
 }
 
-inline bool RecordWriterBase::SerialWorker::WriteSignature() {
+bool RecordWriterBase::SerialWorker::WriteSignature() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
   EncodeSignature(&chunk);
@@ -287,12 +293,11 @@ inline bool RecordWriterBase::SerialWorker::WriteSignature() {
   return true;
 }
 
-inline bool RecordWriterBase::SerialWorker::WriteMetadata(
-    const Options& options) {
+bool RecordWriterBase::SerialWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options.metadata_.ByteSizeLong() == 0) return true;
+  if (options_.metadata_.ByteSizeLong() == 0) return true;
   Chunk chunk;
-  if (ABSL_PREDICT_FALSE(!EncodeMetadata(options, &chunk))) return false;
+  if (ABSL_PREDICT_FALSE(!EncodeMetadata(&chunk))) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
     return Fail(*chunk_writer_);
   }
@@ -335,13 +340,15 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
   ~ParallelWorker();
 
-  void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(options_); }
+  void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
 
  protected:
   void Done() override;
+  bool WriteSignature() override;
+  bool WriteMetadata() override;
 
  private:
   struct ChunkPromises {
@@ -364,11 +371,8 @@ class RecordWriterBase::ParallelWorker : public Worker {
   using ChunkWriterRequest =
       absl::variant<DoneRequest, WriteChunkRequest, FlushRequest>;
 
-  bool WriteSignature();
-  bool WriteMetadata();
   bool HasCapacityForRequest() const;
 
-  Options options_;
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
   // Position before handling chunk_writer_requests_.
@@ -377,8 +381,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
 inline RecordWriterBase::ParallelWorker::ParallelWorker(
     ChunkWriter* chunk_writer, Options&& options)
-    : Worker(chunk_writer, options),
-      options_(std::move(options)),
+    : Worker(chunk_writer, std::move(options)),
       pos_before_chunks_(chunk_writer_->pos()) {
   internal::DefaultThreadPool().Schedule([this] {
     struct Visitor {
@@ -432,11 +435,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       pos_before_chunks_ = chunk_writer_->pos();
     }
   });
-
-  if (chunk_writer_->pos() == 0) {
-    if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
-    if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
-  }
+  Initialize(pos_before_chunks_);
 }
 
 RecordWriterBase::ParallelWorker::~ParallelWorker() {
@@ -462,7 +461,7 @@ bool RecordWriterBase::ParallelWorker::HasCapacityForRequest() const
   return chunk_writer_requests_.size() < IntCast<size_t>(options_.parallelism_);
 }
 
-inline bool RecordWriterBase::ParallelWorker::WriteSignature() {
+bool RecordWriterBase::ParallelWorker::WriteSignature() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chunk chunk;
   EncodeSignature(&chunk);
@@ -478,7 +477,7 @@ inline bool RecordWriterBase::ParallelWorker::WriteSignature() {
   return true;
 }
 
-inline bool RecordWriterBase::ParallelWorker::WriteMetadata() {
+bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (options_.metadata_.ByteSizeLong() == 0) return true;
   ChunkPromises* const chunk_promises = new ChunkPromises();
@@ -490,7 +489,7 @@ inline bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   mutex_.Unlock();
   internal::DefaultThreadPool().Schedule([this, chunk_promises] {
     Chunk chunk;
-    EncodeMetadata(options_, &chunk);
+    EncodeMetadata(&chunk);
     chunk_promises->chunk_header.set_value(chunk.header);
     chunk_promises->chunk.set_value(std::move(chunk));
     delete chunk_promises;
