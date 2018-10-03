@@ -32,8 +32,8 @@ class Dependency<ChunkReader*, M,
  public:
   Dependency() noexcept {}
 
-  explicit Dependency(const M& value) : chunk_reader_(value) {}
-  explicit Dependency(M&& value) : chunk_reader_(std::move(value)) {}
+  explicit Dependency(const M& manager) : chunk_reader_(manager) {}
+  explicit Dependency(M&& manager) : chunk_reader_(std::move(manager)) {}
 
   Dependency(Dependency&& that) noexcept
       : chunk_reader_(std::move(that.chunk_reader_)) {}

@@ -32,8 +32,8 @@ class Dependency<ChunkWriter*, M,
  public:
   Dependency() noexcept {}
 
-  explicit Dependency(const M& value) : chunk_writer_(value) {}
-  explicit Dependency(M&& value) : chunk_writer_(std::move(value)) {}
+  explicit Dependency(const M& manager) : chunk_writer_(manager) {}
+  explicit Dependency(M&& manager) : chunk_writer_(std::move(manager)) {}
 
   Dependency(Dependency&& that) noexcept
       : chunk_writer_(std::move(that.chunk_writer_)) {}
