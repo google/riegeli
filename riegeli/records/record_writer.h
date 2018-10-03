@@ -299,7 +299,7 @@ class RecordWriterBase : public Object {
   absl::enable_if_t<std::is_convertible<Record, absl::string_view>::value, bool>
   WriteRecord(const Record& record, FutureRecordPosition* key = nullptr) {
     return WriteRecord(absl::string_view(record), key);
-  };
+  }
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
 
@@ -355,6 +355,7 @@ class RecordWriterBase : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
+  // Invariant: if !closed() then worker_ != nullptr.
   std::unique_ptr<Worker> worker_;
 };
 

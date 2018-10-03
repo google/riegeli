@@ -521,11 +521,11 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
 bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
-  {
-    absl::MutexLock lock(&mutex_);
-    chunk_writer_requests_.emplace_back(
-        FlushRequest{flush_type, std::move(done_promise)});
-  }
+  mutex_.LockWhen(
+      absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+  chunk_writer_requests_.emplace_back(
+      FlushRequest{flush_type, std::move(done_promise)});
+  mutex_.Unlock();
   return done_future.get();
 }
 
@@ -582,13 +582,11 @@ void RecordWriterBase::Initialize(ChunkWriter* chunk_writer,
 }
 
 void RecordWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && chunk_size_so_far_ != 0) {
+  if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) Fail(*worker_);
+    chunk_size_so_far_ = 0;
   }
-  if (ABSL_PREDICT_TRUE(worker_ != nullptr)) {
-    if (ABSL_PREDICT_FALSE(!worker_->Close())) Fail(*worker_);
-  }
-  chunk_size_so_far_ = 0;
+  if (ABSL_PREDICT_FALSE(!worker_->Close())) Fail(*worker_);
 }
 
 void RecordWriterBase::DoneBackground() { worker_.reset(); }
