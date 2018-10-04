@@ -221,13 +221,13 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       compressor_(std::move(that.compressor_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
-    ZstdWriterBase&& src) noexcept {
-  BufferedWriter::operator=(std::move(src));
-  compression_level_ = absl::exchange(src.compression_level_, 0);
-  window_log_ = absl::exchange(src.window_log_, 0),
-  size_hint_ = absl::exchange(src.size_hint_, 0);
-  if (src.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
-    compressor_ = std::move(src.compressor_);
+    ZstdWriterBase&& that) noexcept {
+  BufferedWriter::operator=(std::move(that));
+  compression_level_ = absl::exchange(that.compression_level_, 0);
+  window_log_ = absl::exchange(that.window_log_, 0),
+  size_hint_ = absl::exchange(that.size_hint_, 0);
+  if (that.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
+    compressor_ = std::move(that.compressor_);
   } else if (compressor_ != nullptr) {
     // Reuse this ZSTD_CStream because if options are the same then reusing it
     // is faster than creating it again.
