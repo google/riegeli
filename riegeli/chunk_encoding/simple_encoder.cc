@@ -26,7 +26,6 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
