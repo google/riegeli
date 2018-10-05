@@ -16,13 +16,12 @@
 #define RIEGELI_BYTES_BUFFERED_WRITER_H_
 
 #include <stddef.h>
-#include <memory>
 #include <utility>
 
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/buffer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -43,8 +42,6 @@ class BufferedWriter : public Writer {
 
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
-
-  ~BufferedWriter() { DeleteBuffer(); }
 
   // BufferedWriter overrides Writer::Done(). Derived classes which override it
   // further should include a call to BufferedWriter::Done().
@@ -70,55 +67,37 @@ class BufferedWriter : public Writer {
   //   written_to_buffer() == 0
   virtual bool WriteInternal(absl::string_view src) = 0;
 
-  // The size of the buffer that start_ points to, once it is allocated.
-  //
-  // The buffer is allocated with std::allocator<char>().
-  //
-  // Invariant: if healthy() then buffer_size_ > 0
-  size_t buffer_size_ = 0;
-
  private:
-  // If the buffer is allocated, deletes it.
-  void DeleteBuffer();
-
-  // Invariant:
-  //   if healthy() then buffer_size() == (start_ == nullptr ? 0 : buffer_size_)
+  // Buffered data, to be written directly after the physical destination
+  // position which is start_pos_.
+  //
+  // Invariant: if healthy() then buffer_.size() > 0
+  internal::Buffer buffer_;
 };
 
 // Implementation details follow.
 
 inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
-    : Writer(State::kOpen), buffer_size_(buffer_size) {
+    : Writer(State::kOpen), buffer_(buffer_size) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
          "zero buffer size";
 }
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
-    : Writer(std::move(that)),
-      buffer_size_(absl::exchange(that.buffer_size_, 0)) {}
+    : Writer(std::move(that)), buffer_(std::move(that.buffer_)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
-  // Exchange that.start_ early to support self-assignment.
-  char* const start = absl::exchange(that.start_, nullptr);
-  DeleteBuffer();
   Writer::operator=(std::move(that));
-  start_ = start;
-  buffer_size_ = absl::exchange(that.buffer_size_, 0);
+  buffer_ = std::move(that.buffer_);
   return *this;
 }
 
 inline void BufferedWriter::Done() {
   start_pos_ = pos();
-  DeleteBuffer();
+  buffer_ = internal::Buffer();
   Writer::Done();
-}
-
-inline void BufferedWriter::DeleteBuffer() {
-  if (start_ != nullptr) {
-    std::allocator<char>().deallocate(start_, buffer_size_);
-  }
 }
 
 }  // namespace riegeli

@@ -97,7 +97,10 @@ cc_library(
 
 cc_library(
     name = "buffered_writer",
-    srcs = ["buffered_writer.cc"],
+    srcs = [
+        "buffer.h",
+        "buffered_writer.cc",
+    ],
     hdrs = ["buffered_writer.h"],
     deps = [
         ":writer",
