@@ -379,6 +379,20 @@ cc_library(
 )
 
 cc_library(
+    name = "zlib_writer",
+    srcs = ["zlib_writer.cc"],
+    hdrs = ["zlib_writer.h"],
+    deps = [
+        ":buffered_writer",
+        ":writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@zlib_archive//:zlib",
+    ],
+)
+
+cc_library(
     name = "zlib_reader",
     srcs = ["zlib_reader.cc"],
     hdrs = ["zlib_reader.h"],

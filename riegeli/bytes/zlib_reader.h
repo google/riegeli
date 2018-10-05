@@ -27,6 +27,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "zconf.h"
 #include "zlib.h"
 
 namespace riegeli {
@@ -36,28 +37,52 @@ class ZlibReaderBase : public BufferedReader {
  public:
   class Options {
    public:
+    enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };
+
     Options() noexcept {}
 
-    // Parameter interpreted by inflateInit2() which specifies the acceptable
-    // base two logarithm of the maximum window size, and which kinds of a
-    // header are expected.
+    // Maximum acceptable logarithm of the LZ77 sliding window size.
     //
-    // A negative window_bits means no header, with the negated window_bits
-    // specifying the actual number of bits in range 8..15.
+    // kDefaultWindowLog() means any value is acceptable, otherwise this must
+    // not be lower than the corresponding setting of the compressor.
     //
-    // Otherwise 0 means that any number of bits is acceptable (up to 15),
-    // a value in range 8..15 means that up to this number of window bits is
-    // acceptable, and further window_bits can be incremented to specify which
-    // kinds of a header are expected:
-    //  * bits + 0  - zlib header
-    //  * bits + 16 - gzip header
-    //  * bits + 32 - zlib or gzip header
-    Options& set_window_bits(int window_bits) & {
-      window_bits_ = window_bits;
+    // window_log must be kDefaultWindowLog() (0) or between kMinWindowLog() (9)
+    // and kMaxWindowLog() (15). Default: kDefaultWindowLog() (0).
+    static constexpr int kMinWindowLog() { return 9; }
+    static constexpr int kMaxWindowLog() { return MAX_WBITS; }
+    static constexpr int kDefaultWindowLog() { return 0; }
+    Options& set_window_log(int window_log) & {
+      if (window_log != kDefaultWindowLog()) {
+        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+            << "Failed precondition of "
+               "ZlibReaderBase::Options::set_window_log(): "
+               "window log out of range";
+        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+            << "Failed precondition of "
+               "ZlibReaderBase::Options::set_window_log(): "
+               "window log out of range";
+      }
       return *this;
     }
-    Options&& set_window_bits(int window_bits) && {
-      return std::move(set_window_bits(window_bits));
+    Options&& set_window_log(int window_log) && {
+      return std::move(set_window_log(window_log));
+    }
+
+    // What format of header to expect:
+    //
+    //  * Header::kZlib       - zlib header
+    //  * Header::kGzip       - gzip header
+    //  * Header::kZlibOrGzip - zlib or gzip header
+    //  * Header::kRaw        - no header (compressor must write no header too)
+    //
+    // Default: Header::kZlibOrGzip.
+    static constexpr Header kDefaultHeader() { return Header::kZlibOrGzip; }
+    Options& set_header(Header header) & {
+      header_ = header;
+      return *this;
+    }
+    Options&& set_header(Header header) && {
+      return std::move(set_header(header));
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
@@ -76,7 +101,8 @@ class ZlibReaderBase : public BufferedReader {
     template <typename Src>
     friend class ZlibReader;
 
-    int window_bits_ = 32;
+    int window_log_ = kDefaultWindowLog();
+    Header header_ = kDefaultHeader();
     size_t buffer_size_ = kDefaultBufferSize();
   };
 
@@ -93,22 +119,27 @@ class ZlibReaderBase : public BufferedReader {
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
-  ~ZlibReaderBase();
-
   void Initialize(int window_bits);
   void Done() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 
  private:
+  struct ZStreamDeleter {
+    void operator()(z_stream* ptr) const {
+      const int result = inflateEnd(ptr);
+      RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
+      delete ptr;
+    }
+  };
+
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   // If true, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, Close() will
   // fail.
   bool truncated_ = false;
-  bool decompressor_present_ = false;
-  z_stream decompressor_;
+  std::unique_ptr<z_stream, ZStreamDeleter> decompressor_;
 };
 
 // A Reader which decompresses data with zlib after getting it from another
@@ -154,30 +185,14 @@ class ZlibReader : public ZlibReaderBase {
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       truncated_(absl::exchange(that.truncated_, false)),
-      decompressor_present_(absl::exchange(that.decompressor_present_, false)),
-      decompressor_(that.decompressor_) {}
+      decompressor_(std::move(that.decompressor_)) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
     ZlibReaderBase&& that) noexcept {
-  // Exchange that.decompressor_present_ early to support self-assignment.
-  const bool decompressor_present =
-      absl::exchange(that.decompressor_present_, false);
-  if (decompressor_present_) {
-    const int result = inflateEnd(&decompressor_);
-    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
-  }
   BufferedReader::operator=(std::move(that));
   truncated_ = absl::exchange(that.truncated_, false);
-  decompressor_present_ = decompressor_present;
-  decompressor_ = that.decompressor_;
+  decompressor_ = std::move(that.decompressor_);
   return *this;
-}
-
-inline ZlibReaderBase::~ZlibReaderBase() {
-  if (decompressor_present_) {
-    const int result = inflateEnd(&decompressor_);
-    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
-  }
 }
 
 template <typename Src>
@@ -186,7 +201,9 @@ ZlibReader<Src>::ZlibReader(Src src, Options options)
   RIEGELI_ASSERT(src_.ptr() != nullptr)
       << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
          "null Reader pointer";
-  Initialize(options.window_bits_);
+  Initialize(options.header_ == Options::Header::kRaw
+                 ? -options.window_log_
+                 : options.window_log_ + static_cast<int>(options.header_));
 }
 
 template <typename Src>

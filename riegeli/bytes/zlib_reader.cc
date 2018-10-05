@@ -18,6 +18,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -30,31 +31,23 @@
 namespace riegeli {
 
 void ZlibReaderBase::Initialize(int window_bits) {
-  decompressor_present_ = true;
-  decompressor_.next_in = nullptr;
-  decompressor_.avail_in = 0;
-  decompressor_.zalloc = nullptr;
-  decompressor_.zfree = nullptr;
-  decompressor_.opaque = nullptr;
-  if (ABSL_PREDICT_FALSE(inflateInit2(&decompressor_, window_bits) != Z_OK)) {
+  decompressor_.reset(new z_stream());
+  if (ABSL_PREDICT_FALSE(inflateInit2(decompressor_.get(), window_bits) !=
+                         Z_OK)) {
     FailOperation("inflateInit2()");
   }
 }
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated zlib-compressed stream");
-  if (decompressor_present_) {
-    decompressor_present_ = false;
-    const int result = inflateEnd(&decompressor_);
-    RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
-  }
+  decompressor_.reset();
   BufferedReader::Done();
 }
 
 inline bool ZlibReaderBase::FailOperation(absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
-  if (decompressor_.msg != nullptr) {
-    absl::StrAppend(&message, ": ", decompressor_.msg);
+  if (decompressor_->msg != nullptr) {
+    absl::StrAppend(&message, ": ", decompressor_->msg);
   }
   return Fail(message);
 }
@@ -65,7 +58,7 @@ bool ZlibReaderBase::PullSlow() {
          "data available, use Pull() instead";
   // After all data have been decompressed, skip BufferedReader::PullSlow()
   // to avoid allocating the buffer in case it was not allocated yet.
-  if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
+  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   return BufferedReader::PullSlow();
 }
 
@@ -79,32 +72,30 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
-  if (ABSL_PREDICT_FALSE(!decompressor_present_)) return false;
+  if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader* const src = src_reader();
   truncated_ = false;
-  decompressor_.next_out = reinterpret_cast<Bytef*>(dest);
+  decompressor_->next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
-    decompressor_.avail_out =
-        UnsignedMin(max_length - PtrDistance(reinterpret_cast<Bytef*>(dest),
-                                             decompressor_.next_out),
-                    std::numeric_limits<uInt>::max());
-    decompressor_.next_in = const_cast<z_const Bytef*>(
+    decompressor_->avail_out = UnsignedMin(
+        PtrDistance(reinterpret_cast<char*>(decompressor_->next_out),
+                    dest + max_length),
+        std::numeric_limits<uInt>::max());
+    decompressor_->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src->cursor()));
-    decompressor_.avail_in =
+    decompressor_->avail_in =
         UnsignedMin(src->available(), std::numeric_limits<uInt>::max());
-    int result = inflate(&decompressor_, Z_NO_FLUSH);
-    src->set_cursor(reinterpret_cast<const char*>(decompressor_.next_in));
+    const int result = inflate(decompressor_.get(), Z_NO_FLUSH);
+    src->set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
     const size_t length_read =
-        PtrDistance(dest, reinterpret_cast<char*>(decompressor_.next_out));
+        PtrDistance(dest, reinterpret_cast<char*>(decompressor_->next_out));
     switch (result) {
       case Z_OK:
-        if (length_read >= min_length) {
-          limit_pos_ += length_read;
-          return true;
-        }
-        RIEGELI_ASSERT_EQ(decompressor_.avail_in, 0u)
-            << "inflate() returned but there are still input data and output "
-               "space";
+        if (length_read >= min_length) break;
+        ABSL_FALLTHROUGH_INTENDED;
+      case Z_BUF_ERROR:
+        RIEGELI_ASSERT_EQ(decompressor_->avail_in, 0u)
+            << "inflate() returned but there are still input data";
         if (ABSL_PREDICT_FALSE(!src->Pull())) {
           limit_pos_ += length_read;
           if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
@@ -113,16 +104,14 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
         }
         continue;
       case Z_STREAM_END:
-        decompressor_present_ = false;
-        result = inflateEnd(&decompressor_);
-        RIEGELI_ASSERT_EQ(result, Z_OK) << "inflateEnd() failed";
-        limit_pos_ += length_read;
-        return length_read >= min_length;
+        decompressor_.reset();
+        break;
       default:
         FailOperation("inflate()");
-        limit_pos_ += length_read;
-        return length_read >= min_length;
+        break;
     }
+    limit_pos_ += length_read;
+    return length_read >= min_length;
   }
 }
 
