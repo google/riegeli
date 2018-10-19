@@ -45,8 +45,8 @@ bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
 // entire input will be consumed. Fails if some required fields are missing.
 //
 // Return values:
-//  * true  - success (*message is filled)
-//  * false - failure (*message is unspecified, *error_message is set)
+//  * true  - success (*dest is filled)
+//  * false - failure (*dest is unspecified, *error_message is set)
 bool ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
                     std::string* error_message = nullptr);
 
