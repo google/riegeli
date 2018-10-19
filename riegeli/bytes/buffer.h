@@ -63,11 +63,15 @@ inline Buffer::Buffer(Buffer&& that) noexcept
     : data_(absl::exchange(that.data_, nullptr)), size_(that.size_) {}
 
 inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
-  // Exchange that.data_ early to support self-assignment.
-  char* const data = absl::exchange(that.data_, nullptr);
-  DeleteBuffer();
-  data_ = data;
-  size_ = that.size_;
+  if (that.data_ != nullptr || size_ != that.size_) {
+    // Exchange that.data_ early to support self-assignment.
+    char* const data = absl::exchange(that.data_, nullptr);
+    DeleteBuffer();
+    data_ = data;
+    size_ = that.size_;
+  } else {
+    // Keep data_ unchanged, and size_ is already the same.
+  }
   return *this;
 }
 
