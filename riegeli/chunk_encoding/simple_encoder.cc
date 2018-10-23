@@ -41,12 +41,6 @@ SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
       sizes_compressor_(options),
       values_compressor_(options, size_hint) {}
 
-void SimpleEncoder::Done() {
-  if (ABSL_PREDICT_FALSE(!sizes_compressor_.Close())) Fail(sizes_compressor_);
-  if (ABSL_PREDICT_FALSE(!values_compressor_.Close())) Fail(values_compressor_);
-  ChunkEncoder::Done();
-}
-
 void SimpleEncoder::Reset() {
   ChunkEncoder::Reset();
   sizes_compressor_.Reset();

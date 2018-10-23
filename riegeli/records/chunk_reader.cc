@@ -53,7 +53,6 @@ void DefaultChunkReaderBase::Done() {
     Fail(absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
                       pos_, " with length ", src->pos() - pos_));
   }
-  chunk_.Close();
 }
 
 inline bool DefaultChunkReaderBase::ReadingFailed(Reader* src) {

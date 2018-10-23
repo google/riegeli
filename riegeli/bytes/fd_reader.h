@@ -605,7 +605,7 @@ template <typename Src>
 void FdMMapReader<Src>::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
   FdMMapReaderBase::Done();
-  ChainReader::src() = Chain();
+  ChainReader::src().Clear();
   if (src_.kIsOwning() && src_.ptr() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&

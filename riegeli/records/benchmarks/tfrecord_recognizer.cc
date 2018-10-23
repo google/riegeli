@@ -26,8 +26,6 @@
 
 namespace riegeli {
 
-void TFRecordRecognizer::Done() { byte_reader_ = nullptr; }
-
 bool TFRecordRecognizer::CheckFileFormat(
     tensorflow::io::RecordReaderOptions* record_reader_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

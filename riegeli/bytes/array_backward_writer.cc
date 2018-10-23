@@ -24,7 +24,6 @@ namespace riegeli {
 void ArrayBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     written_ = absl::Span<char>(cursor_, written_to_buffer());
-    start_pos_ = pos();
   }
   BackwardWriter::Done();
 }

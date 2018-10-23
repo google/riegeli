@@ -34,12 +34,11 @@ LimitingWriter::LimitingWriter(Writer* dest, Position size_limit)
   RIEGELI_ASSERT_GE(size_limit, dest_->pos())
       << "Failed precondition of LimitingWriter::LimitingWriter(): "
          "size limit smaller than current position";
-  SyncBuffer();
+  MakeBuffer();
 }
 
 void LimitingWriter::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) dest_->set_cursor(cursor_);
-  start_pos_ = pos();
+  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
   Writer::Done();
 }
 
@@ -53,9 +52,9 @@ bool LimitingWriter::PushSlow() {
     limit_ = start_;
     return FailOverflow();
   }
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Push();
   SyncBuffer();
+  const bool ok = dest_->Push();
+  MakeBuffer();
   return ok;
 }
 
@@ -97,9 +96,9 @@ bool LimitingWriter::WriteInternal(Src&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Write(std::forward<Src>(src));
   SyncBuffer();
+  const bool ok = dest_->Write(std::forward<Src>(src));
+  MakeBuffer();
   return ok;
 }
 
@@ -112,26 +111,26 @@ bool LimitingWriter::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_->set_cursor(cursor_);
+  SyncBuffer();
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
   const bool ok = dest_->Seek(pos_to_seek);
-  SyncBuffer();
+  MakeBuffer();
   return ok && pos_to_seek == new_pos;
 }
 
 bool LimitingWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Flush(flush_type);
   SyncBuffer();
+  const bool ok = dest_->Flush(flush_type);
+  MakeBuffer();
   return ok;
 }
 
 bool LimitingWriter::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Size(size);
   SyncBuffer();
+  const bool ok = dest_->Size(size);
+  MakeBuffer();
   if (ABSL_PREDICT_FALSE(!ok)) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
@@ -143,13 +142,15 @@ bool LimitingWriter::SupportsTruncate() const {
 
 bool LimitingWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Truncate(new_size);
   SyncBuffer();
+  const bool ok = dest_->Truncate(new_size);
+  MakeBuffer();
   return ok;
 }
 
-inline void LimitingWriter::SyncBuffer() {
+inline void LimitingWriter::SyncBuffer() { dest_->set_cursor(cursor_); }
+
+inline void LimitingWriter::MakeBuffer() {
   start_ = dest_->start();
   cursor_ = dest_->cursor();
   limit_ = dest_->limit();

@@ -68,7 +68,6 @@ void BrotliWriterBase::Done() {
     WriteInternal(absl::string_view(start_, buffered_length), dest,
                   BROTLI_OPERATION_FINISH);
   }
-  compressor_.reset();
   BufferedWriter::Done();
 }
 

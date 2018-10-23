@@ -87,11 +87,6 @@ RecordsMetadataDescriptors::RecordsMetadataDescriptors(
   }
 }
 
-void RecordsMetadataDescriptors::Done() {
-  record_type_name_ = std::string();
-  pool_.reset();
-}
-
 const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
     const {
   if (pool_ == nullptr) return nullptr;

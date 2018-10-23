@@ -268,6 +268,7 @@ inline Writer& Writer::operator=(Writer&& that) noexcept {
 }
 
 inline void Writer::Done() {
+  start_pos_ = pos();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

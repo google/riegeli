@@ -38,11 +38,7 @@
 
 namespace riegeli {
 
-void ChunkDecoder::Done() {
-  values_reader_ = ChainReader<Chain>();
-  record_scratch_ = std::string();
-  recoverable_ = false;
-}
+void ChunkDecoder::Done() { recoverable_ = false; }
 
 void ChunkDecoder::Reset() {
   MarkHealthy();

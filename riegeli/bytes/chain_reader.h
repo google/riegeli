@@ -118,7 +118,7 @@ inline ChainReader<Src>::ChainReader(Src src)
     start_ = iter_->data();
     cursor_ = start_;
     limit_ = start_ + iter_->size();
-    limit_pos_ = buffer_size();
+    limit_pos_ += available();
   }
 }
 

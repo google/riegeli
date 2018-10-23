@@ -63,9 +63,10 @@ class LimitingBackwardWriter : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  void SyncBuffer();
   template <typename Src>
   bool WriteInternal(Src&& src);
+  void SyncBuffer();
+  void MakeBuffer();
 
   // Invariant: if healthy() then dest_ != nullptr
   BackwardWriter* dest_ = nullptr;

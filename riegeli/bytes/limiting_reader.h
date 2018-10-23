@@ -78,6 +78,7 @@ class LimitingReader : public Reader {
   template <typename Dest>
   bool ReadInternal(Dest* dest, size_t length);
   void SyncBuffer();
+  void MakeBuffer();
 
   // Invariant: if healthy() then src_ != nullptr
   Reader* src_ = nullptr;

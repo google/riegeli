@@ -86,7 +86,7 @@ class Object {
   // position, i.e. that it either has more data or ends cleanly (for sources
   // where truncation can be distinguished from a clean end).
   //
-  // Closes owned resources.
+  // Closes owned dependencies.
   //
   // Returns true if the Object did not fail, i.e. if it was healthy just before
   // becoming closed.

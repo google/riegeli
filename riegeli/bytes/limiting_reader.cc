@@ -40,20 +40,19 @@ LimitingReader::LimitingReader(Reader* src, Position size_limit)
     // src is already a LimitingReader: refer to its source instead, so that
     // creating a stack of LimitingReaders avoids iterating through the stack
     // in each virtual function call.
-    wrapped_->src_->set_cursor(wrapped_->cursor_);
+    wrapped_->SyncBuffer();
     src_ = wrapped_->src_;
     size_limit_ = UnsignedMin(size_limit_, wrapped_->size_limit_);
   }
-  SyncBuffer();
+  MakeBuffer();
 }
 
 void LimitingReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) src_->set_cursor(cursor_);
+  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
   if (wrapped_ != nullptr) {
-    wrapped_->SyncBuffer();
+    wrapped_->MakeBuffer();
     wrapped_ = nullptr;
   }
-  limit_pos_ = pos();
   Reader::Done();
 }
 
@@ -66,10 +65,10 @@ bool LimitingReader::PullSlow() {
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
+  SyncBuffer();
   if (ABSL_PREDICT_FALSE(limit_pos_ == size_limit_)) return false;
   const bool ok = src_->Pull();
-  SyncBuffer();
+  MakeBuffer();
   return ok;
 }
 
@@ -93,12 +92,12 @@ bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
 template <typename Dest>
 bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
+  SyncBuffer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->Read(dest, length_to_read);
-  SyncBuffer();
+  MakeBuffer();
   return ok && length_to_read == length;
 }
 
@@ -107,12 +106,12 @@ bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
+  SyncBuffer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src_->CopyTo(dest, length_to_copy);
-  SyncBuffer();
+  MakeBuffer();
   return ok && length_to_copy == length;
 }
 
@@ -121,16 +120,16 @@ bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
+  SyncBuffer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReader: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
     src_->Seek(size_limit_);
-    SyncBuffer();
+    MakeBuffer();
     return false;
   }
   const bool ok = src_->CopyTo(dest, length);
-  SyncBuffer();
+  MakeBuffer();
   return ok;
 }
 
@@ -139,24 +138,26 @@ bool LimitingReader::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
+  SyncBuffer();
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
   const bool ok = src_->Seek(pos_to_seek);
-  SyncBuffer();
+  MakeBuffer();
   return ok && pos_to_seek == new_pos;
 }
 
 bool LimitingReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  src_->set_cursor(cursor_);
-  const bool ok = src_->Size(size);
   SyncBuffer();
+  const bool ok = src_->Size(size);
+  MakeBuffer();
   if (ABSL_PREDICT_FALSE(!ok)) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
 }
 
-inline void LimitingReader::SyncBuffer() {
+inline void LimitingReader::SyncBuffer() { src_->set_cursor(cursor_); }
+
+inline void LimitingReader::MakeBuffer() {
   start_ = src_->start();
   cursor_ = src_->cursor();
   limit_ = src_->limit();

@@ -62,9 +62,6 @@ class SimpleEncoder : public ChunkEncoder {
                       uint64_t* num_records,
                       uint64_t* decoded_data_size) override;
 
- protected:
-  void Done() override;
-
  private:
   template <typename Record>
   bool AddRecordImpl(Record&& record);

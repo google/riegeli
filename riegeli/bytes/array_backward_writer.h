@@ -37,7 +37,7 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   virtual absl::Span<const char> dest_span() const = 0;
 
   // Returns written data in a suffix of the original array. Valid only after
-  // Close() or Flush().
+  // Close().
   absl::Span<char> written() { return written_; }
   absl::Span<const char> written() const { return written_; }
 
@@ -54,7 +54,7 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   void Done() override;
   bool PushSlow() override;
 
-  // Written data. Valid only after Close() or Flush().
+  // Written data. Valid only after Close().
   absl::Span<char> written_;
 };
 

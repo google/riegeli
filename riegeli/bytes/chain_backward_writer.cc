@@ -33,8 +33,7 @@ void ChainBackwardWriterBase::Done() {
     Chain* const dest = dest_chain();
     RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
         << "ChainBackwardWriter destination changed unexpectedly";
-    DiscardBuffer(dest);
-    start_pos_ = dest->size();
+    SyncBuffer(dest);
   }
   BackwardWriter::Done();
 }
@@ -52,11 +51,8 @@ bool ChainBackwardWriterBase::PushSlow() {
     limit_ = start_;
     return FailOverflow();
   }
-  start_pos_ = dest->size();
-  const absl::Span<char> buffer = dest->PrependBuffer(1, 0, size_hint_);
-  limit_ = buffer.data();
-  start_ = limit_ + buffer.size();
-  cursor_ = start_;
+  start_pos_ = pos();
+  MakeBuffer(dest, 1);
   return true;
 }
 
@@ -74,7 +70,8 @@ bool ChainBackwardWriterBase::WriteSlow(absl::string_view src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
+  start_pos_ += src.size();
   dest->Prepend(src, size_hint_);
   MakeBuffer(dest);
   return true;
@@ -94,7 +91,8 @@ bool ChainBackwardWriterBase::WriteSlow(std::string&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
+  start_pos_ += src.size();
   dest->Prepend(std::move(src), size_hint_);
   MakeBuffer(dest);
   return true;
@@ -114,7 +112,8 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
+  start_pos_ += src.size();
   dest->Prepend(src, size_hint_);
   MakeBuffer(dest);
   return true;
@@ -126,7 +125,8 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
          "length too small, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain* const dest = dest_chain();
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
+  start_pos_ += src.size();
   dest->Prepend(std::move(src), size_hint_);
   MakeBuffer(dest);
   return true;
@@ -142,18 +142,24 @@ bool ChainBackwardWriterBase::Truncate(Position new_size) {
     cursor_ = start_ - (new_size - start_pos_);
     return true;
   }
-  dest->RemovePrefix(IntCast<size_t>(dest->size() - new_size));
-  MakeBuffer(dest);
+  start_pos_ = new_size;
+  dest->RemovePrefix(dest->size() - IntCast<size_t>(new_size));
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
   return true;
 }
 
-inline void ChainBackwardWriterBase::DiscardBuffer(Chain* dest) {
+inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
+  start_pos_ = pos();
   dest->RemovePrefix(available());
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
 }
 
-inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest) {
-  start_pos_ = dest->size();
-  const absl::Span<char> buffer = dest->PrependBuffer(0, 0, size_hint_);
+inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_size) {
+  const absl::Span<char> buffer = dest->PrependBuffer(min_size, 0, size_hint_);
   limit_ = buffer.data();
   start_ = limit_ + buffer.size();
   cursor_ = start_;

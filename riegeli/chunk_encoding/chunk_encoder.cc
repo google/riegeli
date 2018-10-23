@@ -23,6 +23,11 @@
 
 namespace riegeli {
 
+void ChunkEncoder::Done() {
+  num_records_ = 0;
+  decoded_data_size_ = 0;
+}
+
 bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain serialized;

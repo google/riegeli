@@ -207,6 +207,7 @@ inline BackwardWriter& BackwardWriter::operator=(
 }
 
 inline void BackwardWriter::Done() {
+  start_pos_ = pos();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

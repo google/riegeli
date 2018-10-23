@@ -83,14 +83,12 @@ class ChainBackwardWriterBase : public BackwardWriter {
 
  private:
   // Discards uninitialized space from the beginning of *dest, so that it
-  // contains only actual data written. Invalidates buffer pointers and
-  // start_pos_.
-  void DiscardBuffer(Chain* dest);
+  // contains only actual data written.
+  void SyncBuffer(Chain* dest);
 
   // Prepends some uninitialized space to *dest if this can be done without
-  // allocation. Sets buffer pointers to the uninitialized space and restores
-  // start_pos_.
-  void MakeBuffer(Chain* dest);
+  // allocation.
+  void MakeBuffer(Chain* dest, size_t min_size = 1);
 
   size_t size_hint_ = 0;
 };

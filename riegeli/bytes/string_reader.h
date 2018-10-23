@@ -43,7 +43,6 @@ class StringReaderBase : public Reader {
   StringReaderBase(StringReaderBase&& that) noexcept;
   StringReaderBase& operator=(StringReaderBase&& that) noexcept;
 
-  void Done() override;
   bool PullSlow() override;
   bool SeekSlow(Position new_pos) override;
 };

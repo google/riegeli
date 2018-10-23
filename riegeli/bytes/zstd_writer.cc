@@ -43,8 +43,6 @@ void ZstdWriterBase::Done() {
         << "BufferedWriter::PushInternal() did not empty the buffer";
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()", dest);
   }
-  // Do not reset compressor_. It might be reused if a fresh ZstdWriter is
-  // assigned to *this.
   BufferedWriter::Done();
 }
 

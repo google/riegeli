@@ -37,9 +37,6 @@ class TFRecordRecognizer : public Object {
   bool CheckFileFormat(
       tensorflow::io::RecordReaderOptions* record_reader_options);
 
- protected:
-  void Done() override;
-
  private:
   Reader* byte_reader_;
 };

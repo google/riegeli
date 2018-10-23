@@ -29,9 +29,8 @@
 namespace riegeli {
 
 void ChainReaderBase::Done() {
-  iter_ = Chain::BlockIterator();
-  limit_pos_ = pos();
   Reader::Done();
+  iter_ = Chain::BlockIterator();
 }
 
 bool ChainReaderBase::PullSlow() {
@@ -50,7 +49,7 @@ bool ChainReaderBase::PullSlow() {
       start_ = iter_->data();
       cursor_ = start_;
       limit_ = start_ + iter_->size();
-      limit_pos_ += buffer_size();
+      limit_pos_ += available();
       return true;
     }
   }

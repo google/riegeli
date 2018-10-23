@@ -22,11 +22,6 @@
 
 namespace riegeli {
 
-void StringReaderBase::Done() {
-  limit_pos_ = pos();
-  Reader::Done();
-}
-
 bool StringReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "

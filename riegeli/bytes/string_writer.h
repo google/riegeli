@@ -76,13 +76,12 @@ class StringWriterBase : public Writer {
 
  private:
   // Discards uninitialized space from the end of *dest, so that it contains
-  // only actual data written. Invalidates buffer pointers.
-  void DiscardBuffer(std::string* dest);
+  // only actual data written.
+  void SyncBuffer(std::string* dest);
 
   // Appends some uninitialized space to *dest if this can be done without
-  // reallocation. Sets buffer pointers to the uninitialized space.
-  void MakeBuffer(std::string* dest, size_t cursor_pos);
-  void MakeBuffer(std::string* dest) { return MakeBuffer(dest, dest->size()); }
+  // reallocation.
+  void MakeBuffer(std::string* dest);
 };
 
 // A Writer which appends to a string, resizing it as necessary.

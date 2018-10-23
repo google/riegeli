@@ -84,13 +84,12 @@ class ChainWriterBase : public Writer {
 
  private:
   // Discards uninitialized space from the end of *dest, so that it contains
-  // only actual data written. Invalidates buffer pointers and start_pos_.
-  void DiscardBuffer(Chain* dest);
+  // only actual data written.
+  void SyncBuffer(Chain* dest);
 
   // Appends some uninitialized space to *dest if this can be done without
-  // allocation. Sets buffer pointers to the uninitialized space and restores
-  // start_pos_.
-  void MakeBuffer(Chain* dest);
+  // allocation.
+  void MakeBuffer(Chain* dest, size_t min_size = 0);
 
   size_t size_hint_ = 0;
 };

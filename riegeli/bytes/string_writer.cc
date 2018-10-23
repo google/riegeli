@@ -29,8 +29,7 @@ void StringWriterBase::Done() {
     std::string* const dest = dest_string();
     RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
         << "StringWriter destination changed unexpectedly";
-    DiscardBuffer(dest);
-    start_pos_ = dest->size();
+    SyncBuffer(dest);
   }
   Writer::Done();
 }
@@ -48,9 +47,11 @@ bool StringWriterBase::PushSlow() {
     limit_ = start_;
     return FailOverflow();
   }
-  const size_t cursor_pos = dest->size();
-  if (dest->capacity() == dest->size()) dest->push_back('\0');
-  MakeBuffer(dest, cursor_pos);
+  if (dest->capacity() == dest->size()) {
+    dest->push_back('\0');
+    dest->pop_back();
+  }
+  MakeBuffer(dest);
   return true;
 }
 
@@ -67,7 +68,7 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
   dest->append(src.data(), src.size());
   MakeBuffer(dest);
   return true;
@@ -86,7 +87,7 @@ bool StringWriterBase::WriteSlow(std::string&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
   if (dest->empty() && dest->capacity() <= src.capacity()) {
     *dest = std::move(src);
   } else {
@@ -109,7 +110,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  DiscardBuffer(dest);
+  SyncBuffer(dest);
   src.AppendTo(dest);
   MakeBuffer(dest);
   return true;
@@ -120,10 +121,7 @@ bool StringWriterBase::Flush(FlushType flush_type) {
   std::string* const dest = dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  DiscardBuffer(dest);
-  start_ = &(*dest)[0];
-  cursor_ = start_ + dest->size();
-  limit_ = cursor_;
+  SyncBuffer(dest);
   return true;
 }
 
@@ -137,16 +135,19 @@ bool StringWriterBase::Truncate(Position new_size) {
   return true;
 }
 
-inline void StringWriterBase::DiscardBuffer(std::string* dest) {
+inline void StringWriterBase::SyncBuffer(std::string* dest) {
   dest->resize(written_to_buffer());
+  start_ = &(*dest)[0];
+  cursor_ = start_ + dest->size();
+  limit_ = cursor_;
 }
 
-inline void StringWriterBase::MakeBuffer(std::string* dest, size_t cursor_pos) {
-  const size_t dest_size = dest->capacity();
-  dest->resize(dest_size);
+inline void StringWriterBase::MakeBuffer(std::string* dest) {
+  const size_t cursor_pos = dest->size();
+  dest->resize(dest->capacity());
   start_ = &(*dest)[0];
   cursor_ = start_ + cursor_pos;
-  limit_ = start_ + dest_size;
+  limit_ = start_ + dest->size();
 }
 
 template class StringWriter<std::string*>;

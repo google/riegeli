@@ -163,9 +163,6 @@ class OptionsParser : public Object {
   //  * false - failure (!healthy())
   bool Parse(absl::string_view text);
 
- protected:
-  void Done() override;
-
  private:
   friend class ValueParser;
 

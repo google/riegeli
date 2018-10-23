@@ -276,6 +276,7 @@ inline Reader& Reader::operator=(Reader&& that) noexcept {
 }
 
 inline void Reader::Done() {
+  limit_pos_ = pos();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

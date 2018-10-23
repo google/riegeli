@@ -212,8 +212,6 @@ bool ValueParser::InvalidValue(absl::string_view valid_values) {
   return false;
 }
 
-void OptionsParser::Done() { options_ = std::vector<Option>(); }
-
 bool OptionsParser::Parse(absl::string_view text) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   size_t option_begin = 0;

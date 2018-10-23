@@ -40,7 +40,6 @@ void ZlibReaderBase::Initialize(int window_bits) {
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated zlib-compressed stream");
-  decompressor_.reset();
   BufferedReader::Done();
 }
 

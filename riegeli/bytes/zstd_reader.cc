@@ -55,7 +55,6 @@ void ZstdReaderBase::Initialize() {
 
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated Zstd-compressed stream");
-  decompressor_.reset();
   BufferedReader::Done();
 }
 

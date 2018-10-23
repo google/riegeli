@@ -45,10 +45,6 @@ class BufferedReader : public Reader {
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
-  // BufferedReader overrides Reader::Done(). Derived classes which override it
-  // further should include a call to BufferedReader::Done().
-  void Done() override;
-
   bool PullSlow() override;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -115,12 +111,6 @@ inline BufferedReader& BufferedReader::operator=(
   buffer_size_ = absl::exchange(that.buffer_size_, 0);
   buffer_ = absl::exchange(that.buffer_, Chain());
   return *this;
-}
-
-inline void BufferedReader::Done() {
-  limit_pos_ = pos();
-  buffer_ = Chain();
-  Reader::Done();
 }
 
 }  // namespace riegeli

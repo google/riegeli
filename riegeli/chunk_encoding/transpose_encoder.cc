@@ -186,23 +186,6 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
 
 TransposeEncoder::~TransposeEncoder() {}
 
-void TransposeEncoder::Done() {
-  if (ABSL_PREDICT_FALSE(!compressor_.Close())) Fail(compressor_);
-  tags_list_ = std::vector<EncodedTagInfo>();
-  encoded_tags_ = std::vector<uint32_t>();
-  encoded_tag_pos_ = absl::flat_hash_map<EncodedTag, uint32_t>();
-  for (std::vector<BufferWithMetadata>& buffers : data_) {
-    buffers = std::vector<BufferWithMetadata>();
-  }
-  group_stack_ = std::vector<internal::MessageId>();
-  message_nodes_ = absl::flat_hash_map<NodeId, MessageNode>();
-  if (ABSL_PREDICT_FALSE(!nonproto_lengths_writer_.Close())) {
-    Fail(nonproto_lengths_writer_);
-  }
-  next_message_id_ = internal::MessageId::kRoot + 1;
-  ChunkEncoder::Done();
-}
-
 void TransposeEncoder::Reset() {
   ChunkEncoder::Reset();
   compressor_.Reset();

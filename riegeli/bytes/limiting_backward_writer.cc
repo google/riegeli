@@ -36,12 +36,11 @@ LimitingBackwardWriter::LimitingBackwardWriter(BackwardWriter* dest,
       << "Failed precondition of "
          "LimitingBackwardWriter::LimitingBackwardWriter(): "
          "size limit smaller than current position";
-  SyncBuffer();
+  MakeBuffer();
 }
 
 void LimitingBackwardWriter::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) dest_->set_cursor(cursor_);
-  start_pos_ = pos();
+  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
   BackwardWriter::Done();
 }
 
@@ -55,9 +54,9 @@ bool LimitingBackwardWriter::PushSlow() {
     limit_ = start_;
     return FailOverflow();
   }
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Push();
   SyncBuffer();
+  const bool ok = dest_->Push();
+  MakeBuffer();
   return ok;
 }
 
@@ -100,9 +99,9 @@ bool LimitingBackwardWriter::WriteInternal(Src&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Write(std::forward<Src>(src));
   SyncBuffer();
+  const bool ok = dest_->Write(std::forward<Src>(src));
+  MakeBuffer();
   return ok;
 }
 
@@ -112,13 +111,15 @@ bool LimitingBackwardWriter::SupportsTruncate() const {
 
 bool LimitingBackwardWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  dest_->set_cursor(cursor_);
-  const bool ok = dest_->Truncate(new_size);
   SyncBuffer();
+  const bool ok = dest_->Truncate(new_size);
+  MakeBuffer();
   return ok;
 }
 
-inline void LimitingBackwardWriter::SyncBuffer() {
+inline void LimitingBackwardWriter::SyncBuffer() { dest_->set_cursor(cursor_); }
+
+inline void LimitingBackwardWriter::MakeBuffer() {
   start_ = dest_->start();
   cursor_ = dest_->cursor();
   limit_ = dest_->limit();

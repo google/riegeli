@@ -58,9 +58,6 @@ class RecordsMetadataDescriptors : public Object {
   // Returns record type full name, or an empty string if not available.
   const std::string& record_type_name() const { return record_type_name_; }
 
- protected:
-  void Done() override;
-
  private:
   class ErrorCollector;
 

@@ -59,9 +59,6 @@ class Compressor : public Object {
   //  * false - failure (!healthy())
   bool EncodeAndClose(Writer* dest);
 
- protected:
-  void Done() override;
-
  private:
   CompressorOptions options_;
   uint64_t size_hint_ = 0;

@@ -45,7 +45,6 @@ void ZlibWriterBase::Done() {
     cursor_ = start_;
     WriteInternal(absl::string_view(start_, buffered_length), dest, Z_FINISH);
   }
-  compressor_.reset();
   BufferedWriter::Done();
 }
 

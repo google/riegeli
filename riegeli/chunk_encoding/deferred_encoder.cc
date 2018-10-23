@@ -32,15 +32,6 @@
 
 namespace riegeli {
 
-void DeferredEncoder::Done() {
-  if (base_encoder_ != nullptr) {
-    if (ABSL_PREDICT_FALSE(!base_encoder_->Close())) Fail(*base_encoder_);
-  }
-  if (ABSL_PREDICT_FALSE(!records_writer_.Close())) Fail(records_writer_);
-  limits_ = std::vector<size_t>();
-  ChunkEncoder::Done();
-}
-
 void DeferredEncoder::Reset() {
   ChunkEncoder::Reset();
   base_encoder_->Reset();

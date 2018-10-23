@@ -57,7 +57,7 @@ class ChunkEncoder : public Object {
   absl::enable_if_t<std::is_convertible<Record, absl::string_view>::value, bool>
   AddRecord(const Record& record) {
     return AddRecord(absl::string_view(record));
-  };
+  }
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
@@ -98,11 +98,6 @@ class ChunkEncoder : public Object {
 };
 
 // Implementation details follow.
-
-inline void ChunkEncoder::Done() {
-  num_records_ = 0;
-  decoded_data_size_ = 0;
-}
 
 inline void ChunkEncoder::Reset() {
   MarkHealthy();

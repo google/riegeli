@@ -66,9 +66,10 @@ class LimitingWriter : public Writer {
   bool SeekSlow(Position new_pos) override;
 
  private:
-  void SyncBuffer();
   template <typename Src>
   bool WriteInternal(Src&& src);
+  void SyncBuffer();
+  void MakeBuffer();
 
   // Invariant: if healthy() then dest_ != nullptr
   Writer* dest_ = nullptr;

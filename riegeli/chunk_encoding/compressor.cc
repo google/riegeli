@@ -74,11 +74,6 @@ void Compressor::Reset() {
       << static_cast<unsigned>(options_.compression_type());
 }
 
-void Compressor::Done() {
-  if (ABSL_PREDICT_FALSE(!writer()->Close())) Fail(*writer());
-  compressed_ = Chain();
-}
-
 bool Compressor::EncodeAndClose(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Position uncompressed_size = writer()->pos();

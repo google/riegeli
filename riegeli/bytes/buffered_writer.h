@@ -43,10 +43,6 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
-  // BufferedWriter overrides Writer::Done(). Derived classes which override it
-  // further should include a call to BufferedWriter::Done().
-  void Done() override;
-
   bool PushSlow() override;
   bool WriteSlow(absl::string_view src) override;
 
@@ -92,12 +88,6 @@ inline BufferedWriter& BufferedWriter::operator=(
   Writer::operator=(std::move(that));
   buffer_ = std::move(that.buffer_);
   return *this;
-}
-
-inline void BufferedWriter::Done() {
-  start_pos_ = pos();
-  buffer_ = internal::Buffer();
-  Writer::Done();
 }
 
 }  // namespace riegeli
