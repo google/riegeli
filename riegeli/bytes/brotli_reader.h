@@ -151,7 +151,7 @@ void BrotliReader<Src>::Done() {
 template <typename Src>
 void BrotliReader<Src>::VerifyEnd() {
   BrotliReaderBase::VerifyEnd();
-  if (src_.kIsOwning()) src_->VerifyEnd();
+  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class BrotliReader<Reader*>;

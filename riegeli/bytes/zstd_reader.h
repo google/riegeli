@@ -173,7 +173,7 @@ void ZstdReader<Src>::Done() {
 template <typename Src>
 void ZstdReader<Src>::VerifyEnd() {
   ZstdReaderBase::VerifyEnd();
-  if (src_.kIsOwning()) src_->VerifyEnd();
+  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class ZstdReader<Reader*>;

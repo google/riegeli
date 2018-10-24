@@ -176,7 +176,7 @@ inline void Decompressor<Src>::VerifyEnd() {
     }
     void operator()(Reader& reader) const { reader.VerifyEnd(); }
   };
-  absl::visit(Visitor(), reader_);
+  if (ABSL_PREDICT_TRUE(healthy())) absl::visit(Visitor(), reader_);
 }
 
 extern template class Decompressor<Reader*>;

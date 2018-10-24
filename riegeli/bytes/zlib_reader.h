@@ -228,7 +228,7 @@ void ZlibReader<Src>::Done() {
 template <typename Src>
 void ZlibReader<Src>::VerifyEnd() {
   ZlibReaderBase::VerifyEnd();
-  if (src_.kIsOwning()) src_->VerifyEnd();
+  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class ZlibReader<Reader*>;
