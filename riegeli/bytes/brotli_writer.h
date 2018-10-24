@@ -183,6 +183,7 @@ class BrotliWriter : public BrotliWriterBase {
   Writer* dest_writer() override { return dest_.ptr(); }
   const Writer* dest_writer() const override { return dest_.ptr(); }
 
+ protected:
   void Done() override;
 
  private:
