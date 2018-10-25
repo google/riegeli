@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
@@ -27,59 +28,35 @@
 
 namespace riegeli {
 
-LimitingReader::LimitingReader(Reader* src, Position size_limit)
-    : Reader(State::kOpen),
-      src_(RIEGELI_ASSERT_NOTNULL(src)),
-      size_limit_(size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, src_->pos())
-      << "Failed precondition of LimitingReader::LimitingReader(): "
-         "size limit smaller than current position";
-  if (src_->GetTypeId() == TypeId::For<LimitingReader>() &&
-      ABSL_PREDICT_TRUE(src_->healthy())) {
-    wrapped_ = static_cast<LimitingReader*>(src_);
-    // src is already a LimitingReader: refer to its source instead, so that
-    // creating a stack of LimitingReaders avoids iterating through the stack
-    // in each virtual function call.
-    wrapped_->SyncBuffer();
-    src_ = wrapped_->src_;
-    size_limit_ = UnsignedMin(size_limit_, wrapped_->size_limit_);
-  }
-  MakeBuffer();
-}
-
-void LimitingReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
-  if (wrapped_ != nullptr) {
-    wrapped_->MakeBuffer();
-    wrapped_ = nullptr;
+void LimitingReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Reader* const src = src_reader();
+    SyncBuffer(src);
   }
   Reader::Done();
 }
 
-TypeId LimitingReader::GetTypeId() const {
-  return TypeId::For<LimitingReader>();
-}
-
-bool LimitingReader::PullSlow() {
+bool LimitingReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
   if (ABSL_PREDICT_FALSE(limit_pos_ == size_limit_)) return false;
-  const bool ok = src_->Pull();
-  MakeBuffer();
+  const bool ok = src->Pull();
+  MakeBuffer(src);
   return ok;
 }
 
-bool LimitingReader::ReadSlow(char* dest, size_t length) {
+bool LimitingReaderBase::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
   return ReadInternal(dest, length);
 }
 
-bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
+bool LimitingReaderBase::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
@@ -90,83 +67,82 @@ bool LimitingReader::ReadSlow(Chain* dest, size_t length) {
 }
 
 template <typename Dest>
-bool LimitingReader::ReadInternal(Dest* dest, size_t length) {
+inline bool LimitingReaderBase::ReadInternal(Dest* dest, size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReader: position exceeds size limit";
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
-  const bool ok = src_->Read(dest, length_to_read);
-  MakeBuffer();
+  const bool ok = src->Read(dest, length_to_read);
+  MakeBuffer(src);
   return ok && length_to_read == length;
 }
 
-bool LimitingReader::CopyToSlow(Writer* dest, Position length) {
+bool LimitingReaderBase::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReader: position exceeds size limit";
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
-  const bool ok = src_->CopyTo(dest, length_to_copy);
-  MakeBuffer();
+  const bool ok = src->CopyTo(dest, length_to_copy);
+  MakeBuffer(src);
   return ok && length_to_copy == length;
 }
 
-bool LimitingReader::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool LimitingReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
   RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReader: position exceeds size limit";
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
-    src_->Seek(size_limit_);
-    MakeBuffer();
+    src->Seek(size_limit_);
+    MakeBuffer(src);
     return false;
   }
-  const bool ok = src_->CopyTo(dest, length);
-  MakeBuffer();
+  const bool ok = src->CopyTo(dest, length);
+  MakeBuffer(src);
   return ok;
 }
 
-bool LimitingReader::SeekSlow(Position new_pos) {
+bool LimitingReaderBase::SupportsRandomAccess() const {
+  const Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRandomAccess();
+}
+
+bool LimitingReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
-  const bool ok = src_->Seek(pos_to_seek);
-  MakeBuffer();
+  const bool ok = src->Seek(pos_to_seek);
+  MakeBuffer(src);
   return ok && pos_to_seek == new_pos;
 }
 
-bool LimitingReader::Size(Position* size) {
+bool LimitingReaderBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  const bool ok = src_->Size(size);
-  MakeBuffer();
+  Reader* const src = src_reader();
+  SyncBuffer(src);
+  const bool ok = src->Size(size);
+  MakeBuffer(src);
   if (ABSL_PREDICT_FALSE(!ok)) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
 }
 
-inline void LimitingReader::SyncBuffer() { src_->set_cursor(cursor_); }
-
-inline void LimitingReader::MakeBuffer() {
-  start_ = src_->start();
-  cursor_ = src_->cursor();
-  limit_ = src_->limit();
-  limit_pos_ = src_->pos() + src_->available();  // src_->limit_pos_
-  if (ABSL_PREDICT_FALSE(limit_pos_ > size_limit_)) {
-    limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
-    limit_pos_ = size_limit_;
-  }
-  if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail(*src_);
-}
+template class LimitingReader<Reader*>;
+template class LimitingReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

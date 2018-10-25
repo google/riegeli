@@ -390,7 +390,7 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
 
   Context context;
   if (ABSL_PREDICT_FALSE(!Parse(&context, src, field_projection))) return false;
-  LimitingBackwardWriter limiting_dest(dest, decoded_data_size);
+  LimitingBackwardWriter<> limiting_dest(dest, decoded_data_size);
   if (ABSL_PREDICT_FALSE(
           !Decode(&context, num_records, &limiting_dest, limits))) {
     limiting_dest.Close();

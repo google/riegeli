@@ -63,8 +63,8 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
                          std::numeric_limits<Position>::max() - src->pos())) {
     return Fail("Size of sizes too large");
   }
-  internal::Decompressor<LimitingReader> sizes_decompressor(
-      LimitingReader(src, src->pos() + sizes_size), compression_type);
+  internal::Decompressor<LimitingReader<>> sizes_decompressor(
+      LimitingReader<>(src, src->pos() + sizes_size), compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
     return Fail(sizes_decompressor);
   }

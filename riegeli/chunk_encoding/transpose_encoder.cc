@@ -221,23 +221,19 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  ChainReader<> records_reader(&records);
+  LimitingReader<ChainReader<>> record_reader((ChainReader<>(&records)));
   for (const size_t limit : limits) {
-    RIEGELI_ASSERT_GE(limit, records_reader.pos())
+    RIEGELI_ASSERT_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";
-    LimitingReader record(&records_reader, limit);
-    if (ABSL_PREDICT_FALSE(!AddRecordInternal(&record))) return false;
-    RIEGELI_ASSERT_EQ(record.pos(), limit)
+    record_reader.set_size_limit(limit);
+    if (ABSL_PREDICT_FALSE(!AddRecordInternal(&record_reader))) return false;
+    RIEGELI_ASSERT_EQ(record_reader.pos(), limit)
         << "Record was not read up to its end";
-    if (!record.Close()) {
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Closing record failed: " << record.message();
-    }
   }
-  if (!records_reader.Close()) {
+  if (!record_reader.Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing records failed: " << records_reader.message();
+        << "Closing records failed: " << record_reader.message();
   }
   return true;
 }
@@ -273,7 +269,8 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kStartOfMessage, 0, internal::Subtype::kTrivial)));
-    return AddMessage(record, internal::MessageId::kRoot, 0);
+    LimitingReader<> message(record);
+    return AddMessage(&message, internal::MessageId::kRoot, 0);
   } else {
     encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
         internal::MessageId::kNonProto, 0, internal::Subtype::kTrivial)));
@@ -321,7 +318,7 @@ inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
 // Note: EncodedTags are appended into "encoded_tags_" but data is prepended
 // into respective buffers. "encoded_tags_" will be reversed later in
 // WriteToBuffer call.
-inline bool TransposeEncoder::AddMessage(Reader* record,
+inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
                                          internal::MessageId parent_message_id,
                                          int depth) {
   while (record->Pull()) {
@@ -392,11 +389,11 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
               << "Invalid length: " << record->message();
         }
         const Position value_pos = record->pos();
-        LimitingReader value(record, value_pos + length);
+        SizeLimitSetter size_limiter(record, value_pos + length);
         // Non-toplevel empty strings are treated as strings, not messages.
         // They have a simpler encoding this way (one node instead of two).
         if (depth < kMaxRecursionDepth && length != 0 &&
-            IsProtoMessage(&value)) {
+            IsProtoMessage(record)) {
           encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
               parent_message_id, tag,
               internal::Subtype::kLengthDelimitedStartOfSubmessage)));
@@ -409,26 +406,18 @@ inline bool TransposeEncoder::AddMessage(Reader* record,
             // New node was added.
             ++next_message_id_;
           }
-          if (!value.Seek(value_pos)) {
+          if (!record->Seek(value_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
-                << "Seeking submessage reader failed: " << value.message();
+                << "Seeking submessage reader failed: " << record->message();
           }
           if (ABSL_PREDICT_FALSE(!AddMessage(
-                  &value, insert_result.first->second.message_id, depth + 1))) {
+                  record, insert_result.first->second.message_id, depth + 1))) {
             return false;
           }
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedEndOfSubmessage)));
-          if (!value.Close()) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Closing submessage reader failed: " << value.message();
-          }
         } else {
-          if (ABSL_PREDICT_FALSE(!value.Close())) {
-            RIEGELI_ASSERT_UNREACHABLE()
-                << "Closing submessage reader failed: " << value.message();
-          }
           encoded_tags_.push_back(GetPosInTagsList(
               EncodedTag(parent_message_id, tag,
                          internal::Subtype::kLengthDelimitedString)));

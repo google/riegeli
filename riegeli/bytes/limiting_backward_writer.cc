@@ -15,6 +15,7 @@
 #include "riegeli/bytes/limiting_backward_writer.h"
 
 #include <stddef.h>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -27,61 +28,53 @@
 
 namespace riegeli {
 
-LimitingBackwardWriter::LimitingBackwardWriter(BackwardWriter* dest,
-                                               Position size_limit)
-    : BackwardWriter(State::kOpen),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      size_limit_(size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, dest_->pos())
-      << "Failed precondition of "
-         "LimitingBackwardWriter::LimitingBackwardWriter(): "
-         "size limit smaller than current position";
-  MakeBuffer();
-}
-
-void LimitingBackwardWriter::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
+void LimitingBackwardWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    BackwardWriter* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
   BackwardWriter::Done();
 }
 
-bool LimitingBackwardWriter::PushSlow() {
+bool LimitingBackwardWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  SyncBuffer();
-  const bool ok = dest_->Push();
-  MakeBuffer();
+  SyncBuffer(dest);
+  const bool ok = dest->Push();
+  MakeBuffer(dest);
   return ok;
 }
 
-bool LimitingBackwardWriter::WriteSlow(absl::string_view src) {
+bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
   return WriteInternal(src);
 }
 
-bool LimitingBackwardWriter::WriteSlow(std::string&& src) {
+bool LimitingBackwardWriterBase::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), available())
-      << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+      << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
+         "length too small, use Write(string&&) instead";
   return WriteInternal(std::move(src));
 }
 
-bool LimitingBackwardWriter::WriteSlow(const Chain& src) {
+bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   return WriteInternal(src);
 }
 
-bool LimitingBackwardWriter::WriteSlow(Chain&& src) {
+bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
@@ -89,8 +82,9 @@ bool LimitingBackwardWriter::WriteSlow(Chain&& src) {
 }
 
 template <typename Src>
-bool LimitingBackwardWriter::WriteInternal(Src&& src) {
+inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter* const dest = dest_writer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriter: "
          "position exceeds size limit";
@@ -99,35 +93,27 @@ bool LimitingBackwardWriter::WriteInternal(Src&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  SyncBuffer();
-  const bool ok = dest_->Write(std::forward<Src>(src));
-  MakeBuffer();
+  SyncBuffer(dest);
+  const bool ok = dest->Write(std::forward<Src>(src));
+  MakeBuffer(dest);
   return ok;
 }
 
-bool LimitingBackwardWriter::SupportsTruncate() const {
-  return dest_ != nullptr && dest_->SupportsTruncate();
+bool LimitingBackwardWriterBase::SupportsTruncate() const {
+  const BackwardWriter* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool LimitingBackwardWriter::Truncate(Position new_size) {
+bool LimitingBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  const bool ok = dest_->Truncate(new_size);
-  MakeBuffer();
+  BackwardWriter* const dest = dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest->Truncate(new_size);
+  MakeBuffer(dest);
   return ok;
 }
 
-inline void LimitingBackwardWriter::SyncBuffer() { dest_->set_cursor(cursor_); }
-
-inline void LimitingBackwardWriter::MakeBuffer() {
-  start_ = dest_->start();
-  cursor_ = dest_->cursor();
-  limit_ = dest_->limit();
-  start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
-  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
-    limit_ += IntCast<size_t>(limit_pos() - size_limit_);
-  }
-  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
-}
+template class LimitingBackwardWriter<BackwardWriter*>;
+template class LimitingBackwardWriter<std::unique_ptr<BackwardWriter>>;
 
 }  // namespace riegeli

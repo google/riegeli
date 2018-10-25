@@ -15,6 +15,7 @@
 #include "riegeli/bytes/limiting_writer.h"
 
 #include <stddef.h>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -27,59 +28,53 @@
 
 namespace riegeli {
 
-LimitingWriter::LimitingWriter(Writer* dest, Position size_limit)
-    : Writer(State::kOpen),
-      dest_(RIEGELI_ASSERT_NOTNULL(dest)),
-      size_limit_(size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, dest_->pos())
-      << "Failed precondition of LimitingWriter::LimitingWriter(): "
-         "size limit smaller than current position";
-  MakeBuffer();
-}
-
-void LimitingWriter::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
+void LimitingWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Writer* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
   Writer::Done();
 }
 
-bool LimitingWriter::PushSlow() {
+bool LimitingWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
     cursor_ = start_;
     limit_ = start_;
     return FailOverflow();
   }
-  SyncBuffer();
-  const bool ok = dest_->Push();
-  MakeBuffer();
+  SyncBuffer(dest);
+  const bool ok = dest->Push();
+  MakeBuffer(dest);
   return ok;
 }
 
-bool LimitingWriter::WriteSlow(absl::string_view src) {
+bool LimitingWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
   return WriteInternal(src);
 }
 
-bool LimitingWriter::WriteSlow(std::string&& src) {
+bool LimitingWriterBase::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_GT(src.size(), available())
-      << "Failed precondition of Writer::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+      << "Failed precondition of Writer::WriteSlow(string&&): "
+         "length too small, use Write(string&&) instead";
   return WriteInternal(std::move(src));
 }
 
-bool LimitingWriter::WriteSlow(const Chain& src) {
+bool LimitingWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   return WriteInternal(src);
 }
 
-bool LimitingWriter::WriteSlow(Chain&& src) {
+bool LimitingWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
@@ -87,8 +82,9 @@ bool LimitingWriter::WriteSlow(Chain&& src) {
 }
 
 template <typename Src>
-bool LimitingWriter::WriteInternal(Src&& src) {
+inline bool LimitingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Writer* const dest = dest_writer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingWriter: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
@@ -96,69 +92,65 @@ bool LimitingWriter::WriteInternal(Src&& src) {
     limit_ = start_;
     return FailOverflow();
   }
-  SyncBuffer();
-  const bool ok = dest_->Write(std::forward<Src>(src));
-  MakeBuffer();
+  SyncBuffer(dest);
+  const bool ok = dest->Write(std::forward<Src>(src));
+  MakeBuffer(dest);
   return ok;
 }
 
-bool LimitingWriter::SupportsRandomAccess() const {
-  return dest_ != nullptr && dest_->SupportsRandomAccess();
+bool LimitingWriterBase::SupportsRandomAccess() const {
+  const Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsRandomAccess();
 }
 
-bool LimitingWriter::SeekSlow(Position new_pos) {
+bool LimitingWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
+  Writer* const dest = dest_writer();
+  SyncBuffer(dest);
   const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
-  const bool ok = dest_->Seek(pos_to_seek);
-  MakeBuffer();
+  const bool ok = dest->Seek(pos_to_seek);
+  MakeBuffer(dest);
   return ok && pos_to_seek == new_pos;
 }
 
-bool LimitingWriter::Flush(FlushType flush_type) {
+bool LimitingWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  const bool ok = dest_->Flush(flush_type);
-  MakeBuffer();
+  Writer* const dest = dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest->Flush(flush_type);
+  MakeBuffer(dest);
   return ok;
 }
 
-bool LimitingWriter::Size(Position* size) {
+bool LimitingWriterBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  const bool ok = dest_->Size(size);
-  MakeBuffer();
+  Writer* const dest = dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest->Size(size);
+  MakeBuffer(dest);
   if (ABSL_PREDICT_FALSE(!ok)) return false;
   *size = UnsignedMin(*size, size_limit_);
   return true;
 }
 
-bool LimitingWriter::SupportsTruncate() const {
-  return dest_ != nullptr && dest_->SupportsTruncate();
+bool LimitingWriterBase::SupportsTruncate() const {
+  const Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool LimitingWriter::Truncate(Position new_size) {
+bool LimitingWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  const bool ok = dest_->Truncate(new_size);
-  MakeBuffer();
+  Writer* const dest = dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest->Truncate(new_size);
+  MakeBuffer(dest);
   return ok;
 }
 
-inline void LimitingWriter::SyncBuffer() { dest_->set_cursor(cursor_); }
-
-inline void LimitingWriter::MakeBuffer() {
-  start_ = dest_->start();
-  cursor_ = dest_->cursor();
-  limit_ = dest_->limit();
-  start_pos_ = dest_->pos() - dest_->written_to_buffer();  // dest_->start_pos_
-  if (ABSL_PREDICT_FALSE(limit_pos() > size_limit_)) {
-    limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
-  }
-  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
-}
+template class LimitingWriter<Writer*>;
+template class LimitingWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

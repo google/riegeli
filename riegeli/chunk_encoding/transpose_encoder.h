@@ -37,6 +37,7 @@
 
 namespace riegeli {
 
+class LimitingReaderBase;
 class Reader;
 
 // Format (values are varint encoded unless indicated otherwise):
@@ -156,8 +157,8 @@ class TransposeEncoder : public ChunkEncoder {
   // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
   // this message returns true.
   // "depth" is the recursion depth.
-  bool AddMessage(Reader* record, internal::MessageId parent_message_id,
-                  int depth);
+  bool AddMessage(LimitingReaderBase* record,
+                  internal::MessageId parent_message_id, int depth);
 
   // Write all buffer lengths to "header_writer" and data buffers in "data_" to
   // "data_writer" (compressed using compressor_). Fill map with the sequential
