@@ -56,6 +56,8 @@ class ArrayWriterBase : public Writer {
 
   // Written data. Valid only after Close() or Flush().
   absl::Span<char> written_;
+
+  // Invariant: if healthy() then start_pos_ == 0
 };
 
 // A Writer which writes to a preallocated array with a known size limit.
@@ -91,8 +93,6 @@ class ArrayWriter : public ArrayWriterBase {
 
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
-
-  // Invariant: if healthy() then start_pos_ == 0
 };
 
 // Implementation details follow.

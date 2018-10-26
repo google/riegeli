@@ -52,6 +52,14 @@ class ChainReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
 
   Chain::BlockIterator iter_;
+
+  // Invariants if healthy():
+  //   iter_.chain() == src_chain()
+  //   start_ ==
+  //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())
+  //   buffer_size() ==
+  //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())
+  //   start_pos() is the position of iter_ in *src_chain()
 };
 
 // A Reader which reads from a Chain. It supports random access.
@@ -86,12 +94,6 @@ class ChainReader : public ChainReaderBase {
 
   // The object providing and possibly owning the Chain being read from.
   Dependency<const Chain*, Src> src_;
-
-  // Invariants if healthy():
-  //   iter_.chain() == src_.ptr()
-  //   start_ == (iter_ == src_->blocks().cend() ? nullptr : iter_->data())
-  //   buffer_size() == (iter_ == src_->blocks().cend() ? 0 : iter_->size())
-  //   start_pos() is the position of iter_ in *src_
 };
 
 // Implementation details follow.

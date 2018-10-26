@@ -56,6 +56,8 @@ class ArrayBackwardWriterBase : public BackwardWriter {
 
   // Written data. Valid only after Close().
   absl::Span<char> written_;
+
+  // Invariant: if healthy() then start_pos_ == 0
 };
 
 // A BackwardWriter which writes to a preallocated array with a known size
@@ -92,8 +94,6 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
-
-  // Invariant: if healthy() then start_pos_ == 0
 };
 
 // Implementation details follow.

@@ -91,6 +91,10 @@ class ChainBackwardWriterBase : public BackwardWriter {
   void MakeBuffer(Chain* dest, size_t min_size = 1);
 
   size_t size_hint_ = 0;
+
+  // Invariants if healthy():
+  //   limit_ == nullptr || limit_ == dest_chain()->blocks().front().data()
+  //   limit_pos() == dest_chain()->size()
 };
 
 // A BackwardWriter which prepends to a Chain.
@@ -128,10 +132,6 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // of the uninitialized space, except that it can be nullptr if the
   // uninitialized space is empty.
   Dependency<Chain*, Dest> dest_;
-
-  // Invariants if healthy():
-  //   limit_ == nullptr || limit_ == dest_->blocks().front().data()
-  //   limit_pos() == dest_->size()
 };
 
 // Implementation details follow.

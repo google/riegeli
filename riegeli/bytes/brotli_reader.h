@@ -60,6 +60,10 @@ class BrotliReaderBase : public Reader {
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
+
+  // Invariant:
+  //   cursor_ and limit_ point inside the buffer returned by
+  //   BrotliDecoderTakeOutput() or are both nullptr
 };
 
 // A Reader which decompresses data with Brotli after getting it from another
@@ -98,10 +102,6 @@ class BrotliReader : public BrotliReaderBase {
  private:
   // The object providing and possibly owning the compressed Reader.
   Dependency<Reader*, Src> src_;
-
-  // Invariant:
-  //   cursor_ and limit_ point inside the buffer returned by
-  //   BrotliDecoderTakeOutput() or are both nullptr
 };
 
 // Implementation details follow.

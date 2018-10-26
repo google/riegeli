@@ -82,6 +82,11 @@ class StringWriterBase : public Writer {
   // Appends some uninitialized space to *dest if this can be done without
   // reallocation.
   void MakeBuffer(std::string* dest);
+
+  // Invariants if healthy():
+  //   start_ == &(*dest_string())[0]
+  //   buffer_size() == dest_string()->size()
+  //   start_pos_ == 0
 };
 
 // A Writer which appends to a string, resizing it as necessary.
@@ -118,11 +123,6 @@ class StringWriter : public StringWriterBase {
   // uninitialized space appended (possibly empty); cursor_ points to the
   // uninitialized space.
   Dependency<std::string*, Dest> dest_;
-
-  // Invariants if healthy():
-  //   start_ == &(*dest_)[0]
-  //   buffer_size() == dest_->size()
-  //   start_pos_ == 0
 };
 
 // Implementation details follow.

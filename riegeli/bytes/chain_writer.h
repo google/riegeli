@@ -92,6 +92,11 @@ class ChainWriterBase : public Writer {
   void MakeBuffer(Chain* dest, size_t min_size = 0);
 
   size_t size_hint_ = 0;
+
+  // Invariants if healthy():
+  //   limit_ == nullptr || limit_ == dest_chain()->blocks().back().data() +
+  //                                  dest_chain()->blocks().back().size()
+  //   limit_pos() == dest_chain()->size()
 };
 
 // A Writer which appends to a Chain.
@@ -129,11 +134,6 @@ class ChainWriter : public ChainWriterBase {
   // uninitialized space, except that it can be nullptr if the uninitialized
   // space is empty.
   Dependency<Chain*, Dest> dest_;
-
-  // Invariants if healthy():
-  //   limit_ == nullptr || limit_ == dest_->blocks().back().data() +
-  //                                  dest_->blocks().back().size()
-  //   limit_pos() == dest_->size()
 };
 
 // Implementation details follow.
