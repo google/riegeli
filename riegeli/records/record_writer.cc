@@ -117,6 +117,10 @@ bool RecordWriterBase::Options::Parse(absl::string_view text,
   options_parser.AddOption("bucket_fraction",
                            ValueParser::Real(&bucket_fraction_, 0.0, 1.0));
   options_parser.AddOption(
+      "pad_to_block_boundary",
+      ValueParser::Enum(&pad_to_block_boundary_,
+                        {{"", true}, {"true", true}, {"false", false}}));
+  options_parser.AddOption(
       "parallelism",
       ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
   if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
@@ -152,6 +156,8 @@ class RecordWriterBase::Worker : public Object {
   // If the result is false then !healthy().
   virtual bool CloseChunk() = 0;
 
+  bool MaybePadToBlockBoundary();
+
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
 
@@ -161,6 +167,7 @@ class RecordWriterBase::Worker : public Object {
   void Initialize(Position initial_pos);
   virtual bool WriteSignature() = 0;
   virtual bool WriteMetadata() = 0;
+  virtual bool PadToBlockBoundary() = 0;
 
   std::unique_ptr<ChunkEncoder> MakeChunkEncoder();
   void EncodeSignature(Chunk* chunk);
@@ -180,6 +187,16 @@ inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
   if (initial_pos == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
     if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
+  } else {
+    MaybePadToBlockBoundary();
+  }
+}
+
+inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
+  if (options_.pad_to_block_boundary_) {
+    return PadToBlockBoundary();
+  } else {
+    return true;
   }
 }
 
@@ -275,6 +292,7 @@ class RecordWriterBase::SerialWorker : public Worker {
  protected:
   bool WriteSignature() override;
   bool WriteMetadata() override;
+  bool PadToBlockBoundary() override;
 };
 
 inline RecordWriterBase::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
@@ -316,6 +334,14 @@ bool RecordWriterBase::SerialWorker::CloseChunk() {
   return true;
 }
 
+bool RecordWriterBase::SerialWorker::PadToBlockBoundary() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->PadToBlockBoundary())) {
+    return Fail(*chunk_writer_);
+  }
+  return true;
+}
+
 bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
@@ -349,6 +375,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   void Done() override;
   bool WriteSignature() override;
   bool WriteMetadata() override;
+  bool PadToBlockBoundary() override;
 
  private:
   struct ChunkPromises {
@@ -364,12 +391,14 @@ class RecordWriterBase::ParallelWorker : public Worker {
     std::shared_future<ChunkHeader> chunk_header;
     std::future<Chunk> chunk;
   };
+  struct PadToBlockBoundaryRequest {};
   struct FlushRequest {
     FlushType flush_type;
     std::promise<bool> done;
   };
   using ChunkWriterRequest =
-      absl::variant<DoneRequest, WriteChunkRequest, FlushRequest>;
+      absl::variant<DoneRequest, WriteChunkRequest, PadToBlockBoundaryRequest,
+                    FlushRequest>;
 
   bool HasCapacityForRequest() const;
 
@@ -402,6 +431,14 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
         return true;
       }
 
+      bool operator()(PadToBlockBoundaryRequest& request) const {
+        if (ABSL_PREDICT_FALSE(!self->healthy())) return true;
+        if (ABSL_PREDICT_FALSE(!self->chunk_writer_->PadToBlockBoundary())) {
+          self->Fail(*self->chunk_writer_);
+        }
+        return true;
+      }
+
       bool operator()(FlushRequest& request) const {
         if (ABSL_PREDICT_FALSE(!self->healthy())) {
           request.done.set_value(false);
@@ -429,7 +466,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
           &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
       mutex_.Unlock();
-      if (!ABSL_PREDICT_FALSE(absl::visit(Visitor{this}, request))) return;
+      if (ABSL_PREDICT_FALSE(!absl::visit(Visitor{this}, request))) return;
       mutex_.Lock();
       chunk_writer_requests_.pop_front();
       pos_before_chunks_ = chunk_writer_->pos();
@@ -518,6 +555,15 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
   return true;
 }
 
+bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  mutex_.LockWhen(
+      absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+  chunk_writer_requests_.emplace_back(PadToBlockBoundaryRequest());
+  mutex_.Unlock();
+  return true;
+}
+
 bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
@@ -530,21 +576,25 @@ bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
-  absl::MutexLock lock(&mutex_);
-  std::vector<std::shared_future<ChunkHeader>> chunk_headers;
-  chunk_headers.reserve(chunk_writer_requests_.size());
-  for (const ChunkWriterRequest& pending_request : chunk_writer_requests_) {
-    // Only requests of type WriteChunkRequest affect the position.
-    //
-    // Requests are kept in the queue while they are being handled, so a
-    // FlushRequest might not have been removed from the queue yet.
-    const WriteChunkRequest* const write_chunk_request =
-        absl::get_if<WriteChunkRequest>(&pending_request);
-    if (write_chunk_request != nullptr) {
-      chunk_headers.push_back(write_chunk_request->chunk_header);
+  struct Visitor {
+    void operator()(const DoneRequest&) {}
+    void operator()(const WriteChunkRequest& request) {
+      actions.emplace_back(request.chunk_header);
     }
+    void operator()(const PadToBlockBoundaryRequest&) {
+      actions.emplace_back(FutureRecordPosition::PadToBlockBoundary());
+    }
+    void operator()(const FlushRequest&) {}
+
+    std::vector<FutureRecordPosition::Action> actions;
+  };
+  Visitor visitor;
+  absl::MutexLock lock(&mutex_);
+  visitor.actions.reserve(chunk_writer_requests_.size());
+  for (const ChunkWriterRequest& request : chunk_writer_requests_) {
+    absl::visit(visitor, request);
   }
-  return FutureRecordPosition(pos_before_chunks_, std::move(chunk_headers),
+  return FutureRecordPosition(pos_before_chunks_, std::move(visitor.actions),
                               chunk_encoder_->num_records());
 }
 
@@ -586,6 +636,7 @@ void RecordWriterBase::Done() {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) Fail(*worker_);
     chunk_size_so_far_ = 0;
   }
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) Fail(*worker_);
   if (ABSL_PREDICT_FALSE(!worker_->Close())) Fail(*worker_);
 }
 
@@ -631,6 +682,9 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) return Fail(*worker_);
+  }
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
+    return Fail(*worker_);
   }
   if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) {
     if (ABSL_PREDICT_FALSE(!worker_->healthy())) return Fail(*worker_);

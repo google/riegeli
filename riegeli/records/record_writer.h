@@ -65,6 +65,7 @@ class RecordWriterBase : public Object {
     //     "window_log" ":" window_log |
     //     "chunk_size" ":" chunk_size |
     //     "bucket_fraction" ":" bucket_fraction |
+    //     "pad_to_block_boundary" (":" ("true" | "false"))? |
     //     "parallelism" ":" parallelism
     //   brotli_level ::= integer 0..11 (default 9)
     //   zstd_level ::= integer -32..22 (default 9)
@@ -243,6 +244,28 @@ class RecordWriterBase : public Object {
       return std::move(set_metadata(std::move(metadata)));
     }
 
+    // If true, padding is written to reach a 64KB block boundary when the
+    // RecordWriter is created, before Close(), and before Flush().
+    //
+    // Consequences:
+    //
+    //  * Even if the existing file was corrupted or truncated, data appended to
+    //    it will be readable.
+    //
+    //  * Physical concatenation of separately written files yields a valid file
+    //    (setting metadata in subsequent files is wasteful but harmless).
+    //
+    //  * Up to 64KB is wasted when padding is written.
+    //
+    // Default: false
+    Options& set_pad_to_block_boundary(bool pad_to_block_boundary) & {
+      pad_to_block_boundary_ = pad_to_block_boundary;
+      return *this;
+    }
+    Options&& set_pad_to_block_boundary(bool pad_to_block_boundary) && {
+      return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
+    }
+
     // Sets the maximum number of chunks being encoded in parallel in
     // background. Larger parallelism can increase throughput, up to a point
     // where it no longer matters; smaller parallelism reduces memory usage.
@@ -271,6 +294,7 @@ class RecordWriterBase : public Object {
     uint64_t chunk_size_ = uint64_t{1} << 20;
     double bucket_fraction_ = 1.0;
     RecordsMetadata metadata_;
+    bool pad_to_block_boundary_ = false;
     int parallelism_ = 0;
   };
 

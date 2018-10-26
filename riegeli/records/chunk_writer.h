@@ -53,6 +53,13 @@ class ChunkWriter : public Object {
   //  * false - failure (!healthy())
   virtual bool WriteChunk(const Chunk& chunk) = 0;
 
+  // Writes padding to reach a 64KB block boundary.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
+  virtual bool PadToBlockBoundary() = 0;
+
   // Pushes buffered data to the destination.
   //
   // Additionally, attempts to ensure the following, depending on flush_type
@@ -113,6 +120,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
   virtual const Writer* dest_writer() const = 0;
 
   bool WriteChunk(const Chunk& chunk) override;
+  bool PadToBlockBoundary() override;
   bool Flush(FlushType flush_type) override;
 
  protected:
@@ -120,6 +128,8 @@ class DefaultChunkWriterBase : public ChunkWriter {
 
   DefaultChunkWriterBase(DefaultChunkWriterBase&& that) noexcept;
   DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& that) noexcept;
+
+  void Initialize(Writer* dest, Position pos);
 
  private:
   bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end,
@@ -193,7 +203,7 @@ DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
       << "Failed precondition of "
          "DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest): "
          "null Writer pointer";
-  Initialize(options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.ptr(), options.assumed_pos_.value_or(dest_->pos()));
 }
 
 template <typename Dest>

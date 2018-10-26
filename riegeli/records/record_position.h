@@ -26,6 +26,7 @@
 
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/variant.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -78,14 +79,16 @@ std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 // finish encoding in background.
 class FutureRecordPosition {
  public:
+  struct PadToBlockBoundary {};
+  using Action =
+      absl::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
+
   constexpr FutureRecordPosition() noexcept {}
 
   explicit FutureRecordPosition(RecordPosition pos) noexcept;
 
-  FutureRecordPosition(
-      Position pos_before_chunks,
-      std::vector<std::shared_future<ChunkHeader>> chunk_headers,
-      uint64_t record_index);
+  FutureRecordPosition(Position pos_before_chunks, std::vector<Action> actions,
+                       uint64_t record_index);
 
   FutureRecordPosition(FutureRecordPosition&& that) noexcept;
   FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
@@ -166,9 +169,8 @@ inline bool operator>=(RecordPosition a, RecordPosition b) {
 
 class FutureRecordPosition::FutureChunkBegin {
  public:
-  explicit FutureChunkBegin(
-      Position pos_before_chunks,
-      std::vector<std::shared_future<ChunkHeader>> chunk_headers);
+  explicit FutureChunkBegin(Position pos_before_chunks,
+                            std::vector<Action> actions);
 
   FutureChunkBegin(const FutureChunkBegin&) = delete;
   FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
@@ -179,17 +181,17 @@ class FutureRecordPosition::FutureChunkBegin {
   void Resolve() const;
 
   mutable absl::once_flag flag_;
-  // Position before writing chunks having chunk_headers_.
+  // Position before writing chunks according to actions_.
   mutable Position pos_before_chunks_ = 0;
   // Headers of chunks to be written after pos_before_chunks_.
-  mutable std::vector<std::shared_future<ChunkHeader>> chunk_headers_;
+  mutable std::vector<Action> actions_;
 };
 
 inline Position FutureRecordPosition::FutureChunkBegin::get() const {
   absl::call_once(flag_, &FutureChunkBegin::Resolve, this);
-  RIEGELI_ASSERT(chunk_headers_.empty())
+  RIEGELI_ASSERT(actions_.empty())
       << "FutureRecordPosition::FutureChunkBegin::Resolve() "
-         "did not clear chunk_headers_";
+         "did not clear actions_";
   return pos_before_chunks_;
 }
 

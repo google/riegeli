@@ -51,7 +51,7 @@ void DefaultChunkReaderBase::Done() {
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = src->pos();
     Fail(absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
-                      pos_, " with length ", src->pos() - pos_));
+                      pos_, " with length ", recoverable_pos_ - pos_));
   }
 }
 
@@ -311,10 +311,14 @@ again:
   MarkNotFailed();
   chunk_.Reset();
   if (recoverable == Recoverable::kHaveChunk) {
+    pos_ = recoverable_pos;
     if (healthy()) {
-      pos_ = recoverable_pos;
       if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
+        if (skipped_region != nullptr) {
+          *skipped_region = SkippedRegion(region_begin, src->pos());
+        }
+        return true;
       }
       if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
         recoverable_ = Recoverable::kFindChunk;
@@ -323,7 +327,7 @@ again:
       }
     }
     if (skipped_region != nullptr) {
-      *skipped_region = SkippedRegion(region_begin, src->pos());
+      *skipped_region = SkippedRegion(region_begin, pos_);
     }
     return true;
   }
@@ -336,13 +340,14 @@ find_chunk:
   pos_ += internal::RemainingInBlock(pos_);
   if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
     if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
-  } else if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
-    if (recoverable_ != Recoverable::kNo) goto again;
-    if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
     if (skipped_region != nullptr) {
-      *skipped_region = SkippedRegion(region_begin, pos_);
+      *skipped_region = SkippedRegion(region_begin, src->pos());
     }
     return true;
+  }
+  if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
+    if (recoverable_ != Recoverable::kNo) goto again;
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   } else if (block_header_.previous_chunk() == 0) {
     // A chunk boundary coincides with block boundary. Recovery is done.
   } else {
@@ -352,10 +357,14 @@ find_chunk:
     }
     if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
+      if (skipped_region != nullptr) {
+        *skipped_region = SkippedRegion(region_begin, src->pos());
+      }
+      return true;
     }
   }
   if (skipped_region != nullptr) {
-    *skipped_region = SkippedRegion(region_begin, src->pos());
+    *skipped_region = SkippedRegion(region_begin, pos_);
   }
   return true;
 }

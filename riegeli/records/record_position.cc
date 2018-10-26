@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -59,29 +60,40 @@ std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
 }
 
 inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
-    Position pos_before_chunks,
-    std::vector<std::shared_future<ChunkHeader>> chunk_headers)
-    : pos_before_chunks_(pos_before_chunks),
-      chunk_headers_(std::move(chunk_headers)) {}
+    Position pos_before_chunks, std::vector<Action> actions)
+    : pos_before_chunks_(pos_before_chunks), actions_(std::move(actions)) {}
 
 void FutureRecordPosition::FutureChunkBegin::Resolve() const {
-  Position pos = pos_before_chunks_;
-  for (const std::shared_future<ChunkHeader>& chunk_header : chunk_headers_) {
-    pos = internal::ChunkEnd(chunk_header.get(), pos);
+  struct Visitor {
+    void operator()(const std::shared_future<ChunkHeader>& chunk_header) {
+      // Matches DefaultChunkWriterBase::WriteChunk().
+      pos = internal::ChunkEnd(chunk_header.get(), pos);
+    }
+    void operator()(const PadToBlockBoundary&) {
+      // Matches DefaultChunkWriterBase::PadToBlockBoundary().
+      Position length = internal::RemainingInBlock(pos);
+      if (length == 0) return;
+      if (length < ChunkHeader::size()) length += internal::kBlockSize();
+      pos += length;
+    }
+
+    Position pos;
+  };
+  Visitor visitor{pos_before_chunks_};
+  for (const Action& action : actions_) {
+    absl::visit(visitor, action);
   }
-  pos_before_chunks_ = pos;
-  chunk_headers_ = std::vector<std::shared_future<ChunkHeader>>();
+  pos_before_chunks_ = visitor.pos;
+  actions_ = std::vector<Action>();
 }
 
-FutureRecordPosition::FutureRecordPosition(
-    Position pos_before_chunks,
-    std::vector<std::shared_future<ChunkHeader>> chunk_headers,
-    uint64_t record_index)
-    : future_chunk_begin_(
-          chunk_headers.empty()
-              ? nullptr
-              : absl::make_unique<FutureChunkBegin>(pos_before_chunks,
-                                                    std::move(chunk_headers))),
+FutureRecordPosition::FutureRecordPosition(Position pos_before_chunks,
+                                           std::vector<Action> actions,
+                                           uint64_t record_index)
+    : future_chunk_begin_(actions.empty()
+                              ? nullptr
+                              : absl::make_unique<FutureChunkBegin>(
+                                    pos_before_chunks, std::move(actions))),
       chunk_begin_(pos_before_chunks),
       record_index_(record_index) {}
 

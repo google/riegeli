@@ -15,10 +15,13 @@
 #include "riegeli/records/chunk_writer.h"
 
 #include <stdint.h>
+#include <cstring>
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -34,11 +37,21 @@ namespace riegeli {
 
 ChunkWriter::~ChunkWriter() {}
 
+void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
+  if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos))) {
+    const Position length = internal::RemainingInBlock(pos);
+    if (ABSL_PREDICT_FALSE(!WriteZeros(dest, length))) Fail(*dest);
+    pos += length;
+  }
+  ChunkWriter::Initialize(pos);
+}
+
 bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   RIEGELI_ASSERT_EQ(chunk.header.data_hash(), internal::Hash(chunk.data))
       << "Failed precondition of ChunkWriter::WriteChunk(): "
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  // Matches FutureRecordPosition::FutureChunkBegin::Resolve().
   Writer* const dest = dest_writer();
   StringReader<> header_reader(
       absl::string_view(chunk.header.bytes(), chunk.header.size()));
@@ -112,6 +125,24 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     pos_ += length;
   }
   return true;
+}
+
+bool DefaultChunkWriterBase::PadToBlockBoundary() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  // Matches FutureRecordPosition::FutureChunkBegin::Resolve().
+  size_t length = IntCast<size_t>(internal::RemainingInBlock(pos_));
+  if (length == 0) return true;
+  if (length < ChunkHeader::size()) {
+    // Not enough space for a padding chunk in this block. Write one more block.
+    length += size_t{internal::kUsableBlockSize()};
+  }
+  length -= ChunkHeader::size();
+  Chunk chunk;
+  const absl::Span<char> buffer = chunk.data.AppendBuffer(length);
+  std::memset(buffer.data(), '\0', length);
+  chunk.data.RemoveSuffix(buffer.size() - length);
+  chunk.header = ChunkHeader(chunk.data, ChunkType::kPadding, 0, 0);
+  return WriteChunk(chunk);
 }
 
 bool DefaultChunkWriterBase::Flush(FlushType flush_type) {
