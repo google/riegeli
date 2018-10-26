@@ -1053,7 +1053,10 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
 }
 
 inline Chain::Chain(Chain&& that) noexcept
-    : block_ptrs_(that.block_ptrs_), size_(absl::exchange(that.size_, 0)) {
+    : size_(absl::exchange(that.size_, 0)) {
+  // Use memcpy() instead of copy constructor to silence -Wmaybe-uninitialized
+  // in gcc.
+  std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   if (that.has_here()) {
     // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
@@ -1087,7 +1090,8 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
   DeleteBlockPtrs();
   // It does not matter what is left in that.block_ptrs_ because that.begin_ and
   // that.end_ point to the empty prefix of that.block_ptrs_.here[].
-  block_ptrs_ = that.block_ptrs_;
+  // Use memcpy() instead of assignment to silence -Wmaybe-uninitialized in gcc.
+  std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   begin_ = begin;
   end_ = end;
   size_ = absl::exchange(that.size_, 0);
