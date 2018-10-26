@@ -22,15 +22,15 @@ http_archive(
     ],
 )
 
-# Import Zstd (2018-06-28).
+# Import Zstd (2018-10-17).
 new_http_archive(
     name = "net_zstd",
     build_file = "net_zstd.BUILD",
-    sha256 = "81a60ad270909406d2b01cd8f99d0506f6f05409ed35649b54d8f2b610be41d3",
-    strip_prefix = "zstd-1.3.5/lib",
+    sha256 = "00cf0539c61373f1450f5a09b2e3704e5cc6396404dffe248816732510d692ec",
+    strip_prefix = "zstd-1.3.7/lib",
     urls = [
-        "https://mirror.bazel.build/github.com/facebook/zstd/archive/v1.3.5.zip",
-        "https://github.com/facebook/zstd/archive/v1.3.5.zip",
+        "https://mirror.bazel.build/github.com/facebook/zstd/archive/v1.3.7.zip",
+        "https://github.com/facebook/zstd/archive/v1.3.7.zip",
     ],
 )
 
