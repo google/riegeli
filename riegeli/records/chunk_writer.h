@@ -100,11 +100,11 @@ class DefaultChunkWriterBase : public ChunkWriter {
     // target file at the given position.
     //
     // Default: byte_writer->pos()
-    Options& set_assumed_pos(Position assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(Position assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
 

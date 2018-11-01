@@ -164,11 +164,11 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
     // Default for constructor from fd: none, must be provided explicitly.
     //
     // Default for constructor from filename: 0.
-    Options& set_assumed_pos(Position assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(Position assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
 

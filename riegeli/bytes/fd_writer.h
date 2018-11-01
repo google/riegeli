@@ -185,11 +185,11 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     //
     // Default for constructor from filename: 0 when opening for writing, or
     // file size when opening for appending.
-    Options& set_assumed_pos(Position assumed_pos) & {
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(Position assumed_pos) && {
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
 
