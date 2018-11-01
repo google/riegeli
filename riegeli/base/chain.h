@@ -30,6 +30,7 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
@@ -90,6 +91,9 @@ class Chain {
   void AppendTo(std::string* dest) const;
   explicit operator std::string() const&;
   explicit operator std::string() &&;
+
+  // If the Chain contents are flat, returns them, otherwise returns nullopt.
+  absl::optional<absl::string_view> TryFlat() const;
 
   // Estimates the amount of memory used by this Chain.
   size_t EstimateMemory() const;
@@ -1124,6 +1128,17 @@ inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
 }
 
 inline Chain::Blocks Chain::blocks() const { return Blocks(this); }
+
+inline absl::optional<absl::string_view> Chain::TryFlat() const {
+  switch (end_ - begin_) {
+    case 0:
+      return short_data();
+    case 1:
+      return front()->data();
+    default:
+      return absl::nullopt;
+  }
+}
 
 template <typename T>
 inline void Chain::AppendExternal(T object, size_t size_hint) {

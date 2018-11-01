@@ -336,34 +336,36 @@ void Benchmarks::RunAll() {
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
-    RunOne(absl::StrCat("tfrecord ", tfrecord_options.first),
-           [&](const std::string& filename,
-               const std::vector<std::string>& records) {
-             WriteTFRecord(
-                 filename,
-                 tensorflow::io::RecordWriterOptions::CreateRecordWriterOptions(
-                     tfrecord_options.second),
-                 records);
-           },
-           [&](const std::string& filename, std::vector<std::string>* records) {
-             return ReadTFRecord(
-                 filename,
-                 tensorflow::io::RecordReaderOptions::CreateRecordReaderOptions(
-                     tfrecord_options.second),
-                 records);
-           });
+    RunOne(
+        absl::StrCat("tfrecord ", tfrecord_options.first),
+        [&](const std::string& filename,
+            const std::vector<std::string>& records) {
+          WriteTFRecord(
+              filename,
+              tensorflow::io::RecordWriterOptions::CreateRecordWriterOptions(
+                  tfrecord_options.second),
+              records);
+        },
+        [&](const std::string& filename, std::vector<std::string>* records) {
+          return ReadTFRecord(
+              filename,
+              tensorflow::io::RecordReaderOptions::CreateRecordReaderOptions(
+                  tfrecord_options.second),
+              records);
+        });
   }
   for (const std::pair<std::string, riegeli::RecordWriterBase::Options>&
            riegeli_options : riegeli_benchmarks_) {
-    RunOne(absl::StrCat("riegeli ", riegeli_options.first),
-           [&](const std::string& filename,
-               const std::vector<std::string>& records) {
-             WriteRiegeli(filename, riegeli_options.second, records);
-           },
-           [&](const std::string& filename, std::vector<std::string>* records) {
-             return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
-                                records);
-           });
+    RunOne(
+        absl::StrCat("riegeli ", riegeli_options.first),
+        [&](const std::string& filename,
+            const std::vector<std::string>& records) {
+          WriteRiegeli(filename, riegeli_options.second, records);
+        },
+        [&](const std::string& filename, std::vector<std::string>* records) {
+          return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
+                             records);
+        });
   }
 }
 
