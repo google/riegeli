@@ -289,7 +289,6 @@ cc_library(
     hdrs = ["fd_writer.h"],
     deps = [
         ":buffered_writer",
-        ":writer",
         "//riegeli/base",
         "//riegeli/base:str_error",
         "@com_google_absl//absl/base:core_headers",

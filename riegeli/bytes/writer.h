@@ -33,16 +33,6 @@
 
 namespace riegeli {
 
-// Specifies how durable data should be.
-enum class FlushType {
-  // Just write the data to the corresponding destination, e.g. file.
-  kFromObject = 0,
-  // Attempt to ensure that data survives process crash.
-  kFromProcess = 1,
-  // Attempt to ensure that data survives operating system crash.
-  kFromMachine = 2,
-};
-
 // A Writer writes sequences of bytes to a destination. The nature of the
 // destination depends on the particular class derived from Writer.
 //

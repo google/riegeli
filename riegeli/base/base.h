@@ -483,6 +483,16 @@ using Position =
     absl::common_type_t<size_t, absl::make_unsigned_t<std::streamoff>,
                         uint64_t>;
 
+// Specifies how durable data should be.
+enum class FlushType {
+  // Just write the data to the corresponding destination, e.g. file.
+  kFromObject = 0,
+  // Attempt to ensure that data survives process crash.
+  kFromProcess = 1,
+  // Attempt to ensure that data survives operating system crash.
+  kFromMachine = 2,
+};
+
 // The default size of buffers used to amortize copying data to/from a more
 // expensive destination/source.
 constexpr size_t kDefaultBufferSize() { return size_t{64} << 10; }

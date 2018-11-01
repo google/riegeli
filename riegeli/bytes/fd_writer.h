@@ -30,7 +30,6 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

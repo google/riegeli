@@ -21,6 +21,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
