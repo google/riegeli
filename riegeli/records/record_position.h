@@ -52,8 +52,11 @@ class RecordPosition {
   // Distinct RecordPositions of a valid file have distinct numeric values.
   uint64_t numeric() const { return chunk_begin_ + record_index_; }
 
-  // Serialized strings have the same natural order as the corresponding
-  // positions.
+  // Text format.
+  std::string ToString() const;
+
+  // Binary format. Serialized strings have the same natural order as the
+  // corresponding positions.
   std::string Serialize() const;
   bool Parse(absl::string_view serialized);
 

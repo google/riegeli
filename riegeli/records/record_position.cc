@@ -25,6 +25,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
@@ -33,6 +34,10 @@
 #include "riegeli/records/block.h"
 
 namespace riegeli {
+
+std::string RecordPosition::ToString() const {
+  return absl::StrCat(chunk_begin_, "/", record_index_);
+}
 
 std::string RecordPosition::Serialize() const {
   const uint64_t words[2] = {WriteBigEndian64(chunk_begin_),
@@ -56,7 +61,7 @@ bool RecordPosition::Parse(absl::string_view serialized) {
 }
 
 std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
-  return out << pos.chunk_begin() << "/" << pos.record_index();
+  return out << pos.ToString();
 }
 
 inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
