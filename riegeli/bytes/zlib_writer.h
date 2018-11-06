@@ -142,7 +142,7 @@ class ZlibWriterBase : public BufferedWriter {
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
-  void Initialize(int compression_level, int window_bits);
+  void Initialize(Writer* dest, int compression_level, int window_bits);
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -156,7 +156,6 @@ class ZlibWriterBase : public BufferedWriter {
     }
   };
 
-  void DeleteCompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool WriteInternal(absl::string_view src, Writer* dest, int flush);
 
@@ -216,10 +215,7 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest dest, Options options)
     : ZlibWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
-      << "Failed precondition of ZlibWriter<Dest>::ZlibWriter(Dest): "
-         "null Writer pointer";
-  Initialize(options.compression_level_,
+  Initialize(dest_.ptr(), options.compression_level_,
              options.header_ == Options::Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));

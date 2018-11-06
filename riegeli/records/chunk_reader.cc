@@ -32,7 +32,15 @@
 namespace riegeli {
 
 void DefaultChunkReaderBase::Initialize(Reader* src) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of "
+         "DefaultChunkReader<Src>::DefaultChunkReader(Src): "
+         "null Reader pointer";
   pos_ = src->pos();
+  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+    Fail(*src);
+    return;
+  }
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;

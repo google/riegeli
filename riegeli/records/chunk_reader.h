@@ -295,10 +295,6 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
 template <typename Src>
 DefaultChunkReader<Src>::DefaultChunkReader(Src src)
     : DefaultChunkReaderBase(State::kOpen), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
-      << "Failed precondition of "
-         "DefaultChunkReader<Src>::DefaultChunkReader(Src): "
-         "null Reader pointer";
   Initialize(src_.ptr());
 }
 

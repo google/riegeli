@@ -69,7 +69,7 @@ class ZstdReaderBase : public BufferedReader {
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
-  void Initialize();
+  void Initialize(Reader* src);
   void Done() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
@@ -145,10 +145,7 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 template <typename Src>
 ZstdReader<Src>::ZstdReader(Src src, Options options)
     : ZstdReaderBase(options.buffer_size_), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
-      << "Failed precondition of ZstdReader<Src>::ZstdReader(Src): "
-         "null Reader pointer";
-  Initialize();
+  Initialize(src_.ptr());
 }
 
 template <typename Src>

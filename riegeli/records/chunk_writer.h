@@ -199,10 +199,6 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 template <typename Dest>
 DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
     : DefaultChunkWriterBase(State::kOpen), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
-      << "Failed precondition of "
-         "DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest): "
-         "null Writer pointer";
   Initialize(dest_.ptr(), options.assumed_pos_.value_or(dest_->pos()));
 }
 

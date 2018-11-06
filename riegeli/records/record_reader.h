@@ -430,9 +430,6 @@ inline RecordPosition RecordReaderBase::pos() const {
 template <typename Src>
 RecordReader<Src>::RecordReader(Src src, Options options)
     : RecordReaderBase(State::kOpen), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
-      << "Failed precondition of RecordReader<Src>::RecordReader(Src): "
-         "null ChunkReader pointer";
   Initialize(src_.ptr(), std::move(options));
 }
 

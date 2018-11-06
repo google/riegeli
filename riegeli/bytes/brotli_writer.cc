@@ -27,8 +27,15 @@
 
 namespace riegeli {
 
-void BrotliWriterBase::Initialize(int compression_level, int window_log,
-                                  Position size_hint) {
+void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
+                                  int window_log, Position size_hint) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of BrotliWriter<Dest>::BrotliWriter(Dest): "
+         "null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    Fail(*dest);
+    return;
+  }
   compressor_.reset(BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     Fail("BrotliEncoderCreateInstance() failed");

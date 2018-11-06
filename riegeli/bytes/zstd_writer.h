@@ -245,6 +245,7 @@ inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
   RIEGELI_ASSERT(dest_.ptr() != nullptr)
       << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
          "null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
 }
 
 template <typename Dest>

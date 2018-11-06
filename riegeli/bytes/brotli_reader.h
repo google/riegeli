@@ -42,7 +42,7 @@ class BrotliReaderBase : public Reader {
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
-  void Initialize();
+  void Initialize(Reader* src);
   void Done() override;
   bool PullSlow() override;
 
@@ -122,10 +122,7 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
 template <typename Src>
 BrotliReader<Src>::BrotliReader(Src src, Options options)
     : BrotliReaderBase(State::kOpen), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
-      << "Failed precondition of BrotliReader<Src>::BrotliReader(Src): "
-         "null Reader pointer";
-  Initialize();
+  Initialize(src_.ptr());
 }
 
 template <typename Src>

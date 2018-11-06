@@ -119,7 +119,7 @@ class ZlibReaderBase : public BufferedReader {
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
-  void Initialize(int window_bits);
+  void Initialize(Reader* src, int window_bits);
   void Done() override;
   bool PullSlow() override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
@@ -198,10 +198,8 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
 template <typename Src>
 ZlibReader<Src>::ZlibReader(Src src, Options options)
     : ZlibReaderBase(options.buffer_size_), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
-      << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
-         "null Reader pointer";
-  Initialize(options.header_ == Options::Header::kRaw
+  Initialize(src_.ptr(),
+             options.header_ == Options::Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));
 }

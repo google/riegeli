@@ -138,7 +138,9 @@ class RecordWriterBase::Worker : public Object {
       : Object(State::kOpen),
         options_(std::move(options)),
         chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
-        chunk_encoder_(MakeChunkEncoder()) {}
+        chunk_encoder_(MakeChunkEncoder()) {
+    if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) Fail(*chunk_writer_);
+  }
 
   ~Worker();
 
@@ -617,18 +619,20 @@ RecordWriterBase& RecordWriterBase::operator=(
 
 RecordWriterBase::~RecordWriterBase() {}
 
-void RecordWriterBase::Initialize(ChunkWriter* chunk_writer,
-                                  Options&& options) {
+void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of RecordWriter<Dest>::RecordWriter(Dest): "
+         "null ChunkWriter pointer";
   // Ensure that num_records does not overflow when WriteRecordImpl() keeps
   // num_records * sizeof(uint64_t) under desired_chunk_size_.
   desired_chunk_size_ =
       UnsignedMin(options.chunk_size_, kMaxNumRecords() * sizeof(uint64_t));
   if (options.parallelism_ == 0) {
-    worker_ = absl::make_unique<SerialWorker>(chunk_writer, std::move(options));
+    worker_ = absl::make_unique<SerialWorker>(dest, std::move(options));
   } else {
-    worker_ =
-        absl::make_unique<ParallelWorker>(chunk_writer, std::move(options));
+    worker_ = absl::make_unique<ParallelWorker>(dest, std::move(options));
   }
+  if (ABSL_PREDICT_FALSE(!worker_->healthy())) Fail(*worker_);
 }
 
 void RecordWriterBase::Done() {

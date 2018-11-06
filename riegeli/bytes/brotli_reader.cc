@@ -27,7 +27,14 @@
 
 namespace riegeli {
 
-void BrotliReaderBase::Initialize() {
+void BrotliReaderBase::Initialize(Reader* src) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of BrotliReader<Src>::BrotliReader(Src): "
+         "null Reader pointer";
+  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+    Fail(*src);
+    return;
+  }
   decompressor_.reset(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("BrotliDecoderCreateInstance() failed");

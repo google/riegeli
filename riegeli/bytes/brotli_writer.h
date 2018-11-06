@@ -136,7 +136,8 @@ class BrotliWriterBase : public BufferedWriter {
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
-  void Initialize(int compression_level, int window_log, Position size_hint);
+  void Initialize(Writer* dest, int compression_level, int window_log,
+                  Position size_hint);
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -207,10 +208,7 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
 template <typename Dest>
 BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
     : BrotliWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
-      << "Failed precondition of BrotliWriter<Dest>::BrotliWriter(Dest): "
-         "null Writer pointer";
-  Initialize(options.compression_level_, options.window_log_,
+  Initialize(dest_.ptr(), options.compression_level_, options.window_log_,
              options.size_hint_);
 }
 

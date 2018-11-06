@@ -30,7 +30,14 @@
 
 namespace riegeli {
 
-void ZlibReaderBase::Initialize(int window_bits) {
+void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
+         "null Reader pointer";
+  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+    Fail(*src);
+    return;
+  }
   decompressor_.reset(new z_stream());
   if (ABSL_PREDICT_FALSE(inflateInit2(decompressor_.get(), window_bits) !=
                          Z_OK)) {

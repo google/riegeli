@@ -111,6 +111,10 @@ RecordReaderBase& RecordReaderBase::operator=(
 }
 
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of RecordReader<Src>::RecordReader(Src): "
+         "null ChunkReader pointer";
+  if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
   chunk_begin_ = src->pos();
   chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_projection(
       std::move(options.field_projection_)));

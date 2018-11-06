@@ -29,7 +29,15 @@
 
 namespace riegeli {
 
-void ZlibWriterBase::Initialize(int compression_level, int window_bits) {
+void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
+                                int window_bits) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of ZlibWriter<Dest>::ZlibWriter(Dest): "
+         "null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    Fail(*dest);
+    return;
+  }
   compressor_.reset(new z_stream());
   if (ABSL_PREDICT_FALSE(deflateInit2(compressor_.get(), compression_level,
                                       Z_DEFLATED, window_bits, 8,

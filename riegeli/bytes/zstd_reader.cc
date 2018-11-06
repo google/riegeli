@@ -29,7 +29,14 @@
 
 namespace riegeli {
 
-void ZstdReaderBase::Initialize() {
+void ZstdReaderBase::Initialize(Reader* src) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of ZstdReader<Src>::ZstdReader(Src): "
+         "null Reader pointer";
+  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+    Fail(*src);
+    return;
+  }
   decompressor_.reset(ZSTD_createDStream());
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail("ZSTD_createDStream() failed");

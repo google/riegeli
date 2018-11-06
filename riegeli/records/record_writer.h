@@ -363,7 +363,7 @@ class RecordWriterBase : public Object {
   RecordWriterBase(RecordWriterBase&& that) noexcept;
   RecordWriterBase& operator=(RecordWriterBase&& that) noexcept;
 
-  void Initialize(ChunkWriter* chunk_writer, Options&& options);
+  void Initialize(ChunkWriter* dest, Options&& options);
 
   void Done() override;
 
@@ -471,9 +471,6 @@ inline bool RecordWriterBase::WriteRecord(Chain&& record,
 template <typename Dest>
 RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
     : RecordWriterBase(State::kOpen), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
-      << "Failed precondition of RecordWriter<Dest>::RecordWriter(Dest): "
-         "null ChunkWriter pointer";
   Initialize(dest_.ptr(), std::move(options));
 }
 
