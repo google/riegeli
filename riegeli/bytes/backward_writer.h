@@ -98,7 +98,7 @@ class BackwardWriter : public Object {
   absl::enable_if_t<std::is_convertible<Src, absl::string_view>::value, bool>
   Write(const Src& src) {
     return Write(absl::string_view(src));
-  };
+  }
   bool Write(const Chain& src);
   bool Write(Chain&& src);
 

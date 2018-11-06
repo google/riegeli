@@ -87,7 +87,7 @@ class FieldProjection {
   bool includes_all() const;
 
   // Returns the set of fields to include.
-  const Fields& fields() const { return fields_; };
+  const Fields& fields() const { return fields_; }
 
  private:
   Fields fields_;
