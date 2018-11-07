@@ -596,8 +596,11 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     absl::visit(visitor, request);
   }
-  return FutureRecordPosition(pos_before_chunks_, std::move(visitor.actions),
-                              chunk_encoder_->num_records());
+  // chunk_encoder_ is nullptr when the current chunk is closed, e.g. when
+  // RecordWriter is closed or if RecordWriter::Flush() failed.
+  return FutureRecordPosition(
+      pos_before_chunks_, std::move(visitor.actions),
+      chunk_encoder_ == nullptr ? uint64_t{0} : chunk_encoder_->num_records());
 }
 
 RecordWriterBase::RecordWriterBase(State state) noexcept : Object(state) {}
