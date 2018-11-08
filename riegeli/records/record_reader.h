@@ -122,6 +122,11 @@ class RecordReaderBase : public Object {
   //  * false (when !healthy()) - failure
   bool ReadMetadata(RecordsMetadata* metadata);
 
+  // Like ReadMetadata(), but metadata is returned in the serialized form.
+  //
+  // This is faster if the caller needs metadata already serialized.
+  bool ReadSerializedMetadata(Chain* metadata);
+
   // Reads the next record.
   //
   // ReadRecord(MessageLite*) parses raw bytes to a proto message after reading.
@@ -250,7 +255,7 @@ class RecordReaderBase : public Object {
   Recoverable recoverable_ = Recoverable::kNo;
 
  private:
-  bool ParseMetadata(const Chunk& chunk, RecordsMetadata* metadata);
+  bool ParseMetadata(const Chunk& chunk, Chain* metadata);
 
   // Precondition: !chunk_decoder_.healthy() ||
   //               chunk_decoder_.index() == chunk_decoder_.num_records()

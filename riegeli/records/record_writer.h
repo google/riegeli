@@ -238,10 +238,23 @@ class RecordWriterBase : public Object {
     // Default: no fields set
     Options& set_metadata(RecordsMetadata metadata) & {
       metadata_ = std::move(metadata);
+      serialized_metadata_.Clear();
       return *this;
     }
     Options&& set_metadata(RecordsMetadata metadata) && {
       return std::move(set_metadata(std::move(metadata)));
+    }
+
+    // Like set_metadata(), but metadata is passed in the serialized form.
+    //
+    // This is faster if the caller has metadata already serialized.
+    Options& set_serialized_metadata(Chain metadata) & {
+      metadata_.Clear();
+      serialized_metadata_ = std::move(metadata);
+      return *this;
+    }
+    Options&& set_serialized_metadata(Chain metadata) && {
+      return std::move(set_serialized_metadata(std::move(metadata)));
     }
 
     // If true, padding is written to reach a 64KB block boundary when the
@@ -294,6 +307,7 @@ class RecordWriterBase : public Object {
     uint64_t chunk_size_ = uint64_t{1} << 20;
     double bucket_fraction_ = 1.0;
     RecordsMetadata metadata_;
+    Chain serialized_metadata_;
     bool pad_to_block_boundary_ = false;
     int parallelism_ = 0;
   };

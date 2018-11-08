@@ -141,6 +141,19 @@ bool RecordReaderBase::CheckFileFormat() {
 }
 
 bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
+  Chain serialized_metadata;
+  if (ABSL_PREDICT_FALSE(!ReadSerializedMetadata(&serialized_metadata))) {
+    return false;
+  }
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(
+          !ParseFromChain(metadata, serialized_metadata, &error_message))) {
+    return Fail(error_message);
+  }
+  return true;
+}
+
+bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkReader* const src = src_chunk_reader();
   if (ABSL_PREDICT_FALSE(src->pos() != 0)) {
@@ -192,7 +205,7 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
 }
 
 inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
-                                            RecordsMetadata* metadata) {
+                                            Chain* metadata) {
   RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileMetadata)
       << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
@@ -203,7 +216,8 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   }
   ChainReader<> data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
-  ChainBackwardWriter<Chain> serialized_metadata_writer((Chain()));
+  metadata->Clear();
+  ChainBackwardWriter<Chain*> serialized_metadata_writer(metadata);
   std::vector<size_t> limits;
   const bool ok = transpose_decoder.Reset(
       &data_reader, 1, chunk.header.decoded_data_size(), FieldProjection::All(),
@@ -219,13 +233,8 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   }
   RIEGELI_ASSERT_EQ(limits.size(), 1u)
       << "Metadata chunk has unexpected record limits";
-  RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata_writer.dest().size())
+  RIEGELI_ASSERT_EQ(limits.back(), metadata->size())
       << "Metadata chunk has unexpected record limits";
-  std::string error_message;
-  if (ABSL_PREDICT_FALSE(!ParseFromChain(
-          metadata, serialized_metadata_writer.dest(), &error_message))) {
-    return Fail(error_message);
-  }
   return true;
 }
 

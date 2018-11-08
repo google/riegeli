@@ -236,8 +236,11 @@ inline void RecordWriterBase::Worker::EncodeSignature(Chunk* chunk) {
 
 inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk* chunk) {
   TransposeEncoder transpose_encoder(options_.compressor_options_,
-                                     options_.metadata_.ByteSizeLong());
-  if (ABSL_PREDICT_FALSE(!transpose_encoder.AddRecord(options_.metadata_))) {
+                                     std::numeric_limits<uint64_t>::max());
+  if (ABSL_PREDICT_FALSE(
+          options_.serialized_metadata_.empty()
+              ? !transpose_encoder.AddRecord(options_.metadata_)
+              : !transpose_encoder.AddRecord(options_.serialized_metadata_))) {
     return Fail(transpose_encoder);
   }
   ChainWriter<> data_writer(&chunk->data);
@@ -315,7 +318,10 @@ bool RecordWriterBase::SerialWorker::WriteSignature() {
 
 bool RecordWriterBase::SerialWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata_.ByteSizeLong() == 0) return true;
+  if (options_.metadata_.ByteSizeLong() == 0 &&
+      options_.serialized_metadata_.empty()) {
+    return true;
+  }
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!EncodeMetadata(&chunk))) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->WriteChunk(chunk))) {
@@ -518,7 +524,10 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
 
 bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata_.ByteSizeLong() == 0) return true;
+  if (options_.metadata_.ByteSizeLong() == 0 &&
+      options_.serialized_metadata_.empty()) {
+    return true;
+  }
   ChunkPromises* const chunk_promises = new ChunkPromises();
   mutex_.LockWhen(
       absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
