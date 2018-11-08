@@ -453,7 +453,7 @@ Chain::Chain(const Chain& that) : size_(that.size_) {
 }
 
 Chain& Chain::operator=(const Chain& that) {
-  if (&that != this) {
+  if (ABSL_PREDICT_TRUE(&that != this)) {
     UnrefBlocks();
     end_ = begin_;
     if (that.begin_ == that.end_) {
