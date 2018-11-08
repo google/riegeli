@@ -69,8 +69,9 @@ inline bool SerializeToWriter(const google::protobuf::MessageLite& src,
   }
   if (dest_dep.kIsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      if (error_message != nullptr)
+      if (error_message != nullptr) {
         *error_message = std::string(dest_dep->message());
+      }
       return false;
     }
   }
