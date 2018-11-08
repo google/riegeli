@@ -109,7 +109,7 @@ inline void MemoryEstimator::RegisterMemory(size_t memory) {
 }
 
 inline void MemoryEstimator::RegisterDynamicMemory(size_t memory) {
-  return RegisterMemory(EstimatedAllocatedSize(memory));
+  RegisterMemory(EstimatedAllocatedSize(memory));
 }
 
 inline bool MemoryEstimator::RegisterNode(const void* ptr) {
