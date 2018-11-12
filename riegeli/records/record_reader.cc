@@ -99,7 +99,8 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),
       chunk_begin_(absl::exchange(that.chunk_begin_, 0)),
       chunk_decoder_(std::move(that.chunk_decoder_)),
-      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)) {}
+      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)),
+      recovery_(absl::exchange(that.recovery_, nullptr)) {}
 
 RecordReaderBase& RecordReaderBase::operator=(
     RecordReaderBase&& that) noexcept {
@@ -107,6 +108,7 @@ RecordReaderBase& RecordReaderBase::operator=(
   chunk_begin_ = absl::exchange(that.chunk_begin_, 0);
   chunk_decoder_ = std::move(that.chunk_decoder_);
   recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
+  recovery_ = absl::exchange(that.recovery_, nullptr);
   return *this;
 }
 
@@ -118,6 +120,7 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   chunk_begin_ = src->pos();
   chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_projection(
       std::move(options.field_projection_)));
+  recovery_ = std::move(options.recovery_);
 }
 
 void RecordReaderBase::Done() {
@@ -154,7 +157,8 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
 }
 
 bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  metadata->Clear();
+  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader* const src = src_chunk_reader();
   if (ABSL_PREDICT_FALSE(src->pos() != 0)) {
     return Fail(
@@ -167,7 +171,8 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
     if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*src);
+      Fail(*src);
+      return TryRecovery();
     }
     return false;
   }
@@ -180,26 +185,26 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   if (ABSL_PREDICT_FALSE(!src->PullChunkHeader(&chunk_header))) {
     if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*src);
+      Fail(*src);
+      return TryRecovery();
     }
     return false;
   }
   if (chunk_header->chunk_type() != ChunkType::kFileMetadata) {
     // Missing file metadata chunk, assume empty RecordMetadata.
-    metadata->Clear();
     return true;
   }
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
     if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*src);
+      Fail(*src);
+      return TryRecovery();
     }
     return false;
   }
   if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
-    metadata->Clear();
     recoverable_ = Recoverable::kRecoverChunkDecoder;
-    return false;
+    return TryRecovery();
   }
   return true;
 }
@@ -245,13 +250,23 @@ bool RecordReaderBase::ReadRecordSlow(Record* record, RecordPosition* key) {
         << "Failed precondition of RecordReaderBase::ReadRecordSlow(): "
            "records available, use ReadRecord() instead";
   }
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) {
+    if (!TryRecovery()) return false;
+    goto again;
+  }
   for (;;) {
     if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
       recoverable_ = Recoverable::kRecoverChunkDecoder;
-      return Fail(chunk_decoder_);
+      Fail(chunk_decoder_);
+      if (!TryRecovery()) return false;
+      goto again;
     }
-    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) {
+      if (!TryRecovery()) return false;
+    }
+    // Retrying from here is equivalent to calling ReadRecord() again
+    // (not ReadRecordSlow()).
+  again:
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
       RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
           << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -319,7 +334,7 @@ bool RecordReaderBase::Size(Position* size) {
 }
 
 bool RecordReaderBase::Seek(RecordPosition new_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader* const src = src_chunk_reader();
   if (new_pos.chunk_begin() == chunk_begin_) {
     if (new_pos.record_index() == 0 || src->pos() > chunk_begin_) {
@@ -334,7 +349,8 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
       chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*src);
+      Fail(*src);
+      return TryRecovery();
     }
     if (new_pos.record_index() == 0) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
@@ -344,14 +360,14 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
       return true;
     }
   }
-  if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+  if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();
 skip_reading_chunk:
   chunk_decoder_.SetIndex(new_pos.record_index());
   return true;
 }
 
 bool RecordReaderBase::Seek(Position new_pos) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader* const src = src_chunk_reader();
   if (new_pos >= chunk_begin_ && new_pos <= src->pos()) {
     // Seeking inside or just after the current chunk which has been read,
@@ -362,7 +378,8 @@ bool RecordReaderBase::Seek(Position new_pos) {
       chunk_begin_ = src->pos();
       chunk_decoder_.Reset();
       recoverable_ = Recoverable::kRecoverChunkReader;
-      return Fail(*src);
+      Fail(*src);
+      return TryRecovery();
     }
     if (src->pos() >= new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
@@ -375,7 +392,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
       chunk_decoder_.Reset();
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!ReadChunk())) return false;
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();
   }
   chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
   return true;

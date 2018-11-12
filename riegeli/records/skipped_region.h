@@ -15,6 +15,9 @@
 #ifndef RIEGELI_RECORDS_SKIPPED_REGION_H_
 #define RIEGELI_RECORDS_SKIPPED_REGION_H_
 
+#include <iosfwd>
+#include <string>
+
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -33,10 +36,17 @@ class SkippedRegion {
 
   Position length() const { return end_ - begin_; }
 
+  std::string ToString() const;
+
  private:
   Position begin_ = 0;
   Position end_ = 0;
 };
+
+bool operator==(SkippedRegion a, SkippedRegion b);
+bool operator!=(SkippedRegion a, SkippedRegion b);
+
+std::ostream& operator<<(std::ostream& out, SkippedRegion skipped_region);
 
 // Implementation details follow.
 
@@ -55,6 +65,14 @@ inline SkippedRegion& SkippedRegion::operator=(
   begin_ = that.begin_;
   end_ = that.end_;
   return *this;
+}
+
+inline bool operator==(SkippedRegion a, SkippedRegion b) {
+  return a.begin() == b.begin() && a.end() == b.end();
+}
+
+inline bool operator!=(SkippedRegion a, SkippedRegion b) {
+  return a.begin() != b.begin() || a.end() != b.end();
 }
 
 }  // namespace riegeli

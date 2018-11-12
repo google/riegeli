@@ -15,6 +15,7 @@
 #ifndef RIEGELI_RECORDS_RECORD_READER_H_
 #define RIEGELI_RECORDS_RECORD_READER_H_
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -78,6 +79,8 @@ class RecordReaderBase : public Object {
     // Projection is effective if the file has been written with
     // set_transpose(true). Additionally, set_bucket_fraction() with a lower
     // value can make reading with projection faster.
+    //
+    // Default: FieldProjection::All().
     Options& set_field_projection(FieldProjection field_projection) & {
       field_projection_ = std::move(field_projection);
       return *this;
@@ -86,10 +89,44 @@ class RecordReaderBase : public Object {
       return std::move(set_field_projection(std::move(field_projection)));
     }
 
+    // Sets the recovery function to be called after skipping over invalid file
+    // contents.
+    //
+    // If the recovery function is set to nullptr, then invalid file contents
+    // cause RecordReader to fail. Recover() can be used to skip over the
+    // invalid region.
+    //
+    // If the recovery function is set to a value other than nullptr, then
+    // invalid file contents cause RecordReader to skip over the invalid region
+    // and call the recovery function. If the recovery function returns true,
+    // reading continues. If the recovery function returns false, reading ends.
+    //
+    // If Close() is called and file contents were truncated, the recovery
+    // function is called if set. The RecordReader remains closed.
+    //
+    // Calling the following functions may cause the recovery function to be
+    // called (in the same thread):
+    //  * Close() - returns true, ignores the result of the recovery function
+    //  * ReadMetadata() - returns the result of the recovery function
+    //  * ReadSerializedMetadata() - returns the result of the recovery function
+    //  * ReadRecord() - retried if the recovery function returns true,
+    //                   returns false if the recovery function returns false
+    //  * Seek() - returns the result of the recovery function
+    //
+    // Default: nullptr
+    Options& set_recovery(std::function<bool(SkippedRegion)> recovery) & {
+      recovery_ = std::move(recovery);
+      return *this;
+    }
+    Options&& set_recovery(std::function<bool(SkippedRegion)> recovery) && {
+      return std::move(set_recovery(std::move(recovery)));
+    }
+
    private:
     friend class RecordReaderBase;
 
     FieldProjection field_projection_ = FieldProjection::All();
+    std::function<bool(SkippedRegion)> recovery_;
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by Close().
@@ -101,6 +138,9 @@ class RecordReaderBase : public Object {
   // ReadMetadata() and ReadRecord() already check the file format.
   // CheckFileFormat() can verify the file format before (or instead of)
   // performing other operations.
+  //
+  // This ignores the recovery function. If invalid file contents are skipped,
+  // then checking the file format is meaningless: any file can be read.
   //
   // Return values:
   //  * true                    - success
@@ -158,6 +198,16 @@ class RecordReaderBase : public Object {
   //
   // If skipped_region != nullptr, *skipped_region is set to the position of the
   // skipped region on success.
+  //
+  // If a recovery function is set, then Recover() is called automatically.
+  // Otherwise Recover() can be called after one of the following functions
+  // returned false, and the function can be assumed to have returned true
+  // if Recover() returns true:
+  //  * Close()
+  //  * ReadMetadata()
+  //  * ReadSerializedMetadata()
+  //  * ReadRecord() - should be retried if Recover() returns true
+  //  * Seek()
   //
   // Return values:
   //  * true  - success
@@ -226,6 +276,8 @@ class RecordReaderBase : public Object {
   void Initialize(ChunkReader* src, Options&& options);
   void Done() override;
 
+  bool TryRecovery();
+
   // Position of the beginning of the current chunk or end of file, except when
   // Seek(Position) failed to locate the chunk containing the position, in which
   // case this is that position.
@@ -253,6 +305,8 @@ class RecordReaderBase : public Object {
   //   if closed() then recoverable_ == Recoverable::kNo ||
   //                    recoverable_ == Recoverable::kRecoverChunkReader
   Recoverable recoverable_ = Recoverable::kNo;
+
+  std::function<bool(SkippedRegion)> recovery_;
 
  private:
   bool ParseMetadata(const Chunk& chunk, Chain* metadata);
@@ -291,7 +345,15 @@ class RecordReaderBase : public Object {
 //     ... Failed with reason: record_reader_.message()
 //   }
 //
-// For reading records while skipping errors:
+// For reading records while skipping errors, pass options like these:
+//
+//       RecordReaderBase::Options().set_recovery(
+//           [&skipped_bytes](SkippedRegion skipped_region) {
+//             skipped_bytes += skipped_region.length();
+//             return true;
+//           })
+//
+// An equivalent lower level implementation, without callbacks:
 //
 //   Position skipped_bytes = 0;
 //   SomeProto record;
@@ -423,6 +485,12 @@ inline bool RecordReaderBase::ReadRecord(Chain* record, RecordPosition* key) {
   return ReadRecordSlow(record, key);
 }
 
+inline bool RecordReaderBase::TryRecovery() {
+  if (recovery_ == nullptr) return false;
+  SkippedRegion skipped_region;
+  return Recover(&skipped_region) && recovery_(skipped_region);
+}
+
 inline RecordPosition RecordReaderBase::pos() const {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() <
                         chunk_decoder_.num_records()) ||
@@ -457,6 +525,7 @@ void RecordReader<Src>::Done() {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       Fail(*src_);
+      TryRecovery();
     }
   }
 }

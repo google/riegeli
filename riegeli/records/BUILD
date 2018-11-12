@@ -103,8 +103,12 @@ cc_library(
 
 cc_library(
     name = "skipped_region",
+    srcs = ["skipped_region.cc"],
     hdrs = ["skipped_region.h"],
-    deps = ["//riegeli/base"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(
