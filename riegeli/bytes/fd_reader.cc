@@ -202,6 +202,7 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ClearBuffer();
   if (new_pos > limit_pos_) {
     // Seeking forwards.
     const int src = src_fd();
@@ -211,12 +212,10 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      ClearBuffer();
       limit_pos_ = IntCast<Position>(stat_info.st_size);
       return false;
     }
   }
-  ClearBuffer();
   limit_pos_ = new_pos;
   PullSlow();
   return true;
