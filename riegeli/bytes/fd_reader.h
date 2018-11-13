@@ -308,19 +308,17 @@ class FdReader : public FdReaderBase {
 // position.
 //
 // The Src template parameter specifies the type of the object providing and
-// owning the fd being read from. Src must support Dependency<int, Src>, e.g.
-// OwnedFd (owned, default). The fd must be owned because it is impossible to
-// unread what has been buffered, so a non-owned fd would be left having an
-// unpredictable amount of extra data consumed, which would not be useful.
+// possibly owning the fd being read from. Src must support
+// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+//
+// Warning: if the fd is not owned, it will have an unpredictable amount of
+// extra data consumed because of buffering.
 //
 // The fd must not be closed nor have its position changed until the
 // FdStreamReader is closed or no longer used.
 template <typename Src = OwnedFd>
 class FdStreamReader : public FdStreamReaderBase {
  public:
-  static_assert(Dependency<int, Src>::kIsOwning(),
-                "FdStreamReader must own the fd");
-
   // Creates a closed FdStreamReader.
   FdStreamReader() noexcept {}
 
@@ -555,7 +553,7 @@ inline FdStreamReader<Src>& FdStreamReader<Src>::operator=(
 template <typename Src>
 void FdStreamReader<Src>::Done() {
   FdStreamReaderBase::Done();
-  if (src_.ptr() >= 0) {
+  if (src_.kIsOwning() && src_.ptr() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -618,6 +616,7 @@ void FdMMapReader<Src>::Done() {
 extern template class FdReader<OwnedFd>;
 extern template class FdReader<int>;
 extern template class FdStreamReader<OwnedFd>;
+extern template class FdStreamReader<int>;
 extern template class FdMMapReader<OwnedFd>;
 extern template class FdMMapReader<int>;
 

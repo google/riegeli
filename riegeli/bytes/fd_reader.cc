@@ -337,6 +337,7 @@ void FdMMapReaderBase::SyncPos(int src) {
 template class FdReader<OwnedFd>;
 template class FdReader<int>;
 template class FdStreamReader<OwnedFd>;
+template class FdStreamReader<int>;
 template class FdMMapReader<OwnedFd>;
 template class FdMMapReader<int>;
 
