@@ -81,22 +81,29 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
 
 }  // namespace internal
 
-void FdWriterBase::Initialize(int flags, int dest) {
-  if (sync_pos_) {
-    const off_t result = lseek(dest, 0, SEEK_CUR);
-    if (ABSL_PREDICT_FALSE(result < 0)) {
-      FailOperation("lseek()");
-      return;
-    }
-    start_pos_ = IntCast<Position>(result);
-  } else if ((flags & O_APPEND) != 0) {
-    struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      FailOperation("fstat()");
-      return;
-    }
-    start_pos_ = IntCast<Position>(stat_info.st_size);
+void FdWriterBase::Initialize(int dest) {
+  RIEGELI_ASSERT(sync_pos_)
+      << "Failed precondition of FdWriterBase::Initialize(): "
+         "position synchronization turned off";
+  const int flags = fcntl(dest, F_GETFL);
+  if (ABSL_PREDICT_FALSE(flags < 0)) {
+    FailOperation("fcntl()");
+    return;
   }
+  return Initialize(flags, dest);
+}
+
+void FdWriterBase::Initialize(int flags, int dest) {
+  RIEGELI_ASSERT(sync_pos_)
+      << "Failed precondition of FdWriterBase::Initialize(): "
+         "position synchronization turned off";
+  const off_t file_pos =
+      lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
+  if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+    FailOperation("lseek()");
+    return;
+  }
+  start_pos_ = IntCast<Position>(file_pos);
 }
 
 bool FdWriterBase::SyncPos(int dest) {
@@ -131,20 +138,20 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   }
   do {
   again:
-    const ssize_t result = pwrite(
+    const ssize_t length_written = pwrite(
         dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(start_pos_));
-    if (ABSL_PREDICT_FALSE(result < 0)) {
+    if (ABSL_PREDICT_FALSE(length_written < 0)) {
       if (errno == EINTR) goto again;
       limit_ = start_;
       return FailOperation("pwrite()");
     }
-    RIEGELI_ASSERT_GT(result, 0) << "pwrite() returned 0";
-    RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
+    RIEGELI_ASSERT_GT(length_written, 0) << "pwrite() returned 0";
+    RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
         << "pwrite() wrote more than requested";
-    start_pos_ += IntCast<size_t>(result);
-    src.remove_prefix(IntCast<size_t>(result));
+    start_pos_ += IntCast<size_t>(length_written);
+    src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
   return true;
 }
@@ -230,15 +237,13 @@ again:
   return true;
 }
 
-void FdStreamWriterBase::Initialize(int flags, int dest) {
-  if ((flags & O_APPEND) != 0) {
-    struct stat stat_info;
-    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-      FailOperation("fstat()");
-      return;
-    }
-    start_pos_ = IntCast<Position>(stat_info.st_size);
+void FdStreamWriterBase::Initialize(int dest) {
+  struct stat stat_info;
+  if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
+    FailOperation("fstat()");
+    return;
   }
+  start_pos_ = IntCast<Position>(stat_info.st_size);
 }
 
 bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
@@ -260,19 +265,19 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
   }
   do {
   again:
-    const ssize_t result = write(
+    const ssize_t length_written = write(
         dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}));
-    if (ABSL_PREDICT_FALSE(result < 0)) {
+    if (ABSL_PREDICT_FALSE(length_written < 0)) {
       if (errno == EINTR) goto again;
       limit_ = start_;
       return FailOperation("write()");
     }
-    RIEGELI_ASSERT_GT(result, 0) << "write() returned 0";
-    RIEGELI_ASSERT_LE(IntCast<size_t>(result), src.size())
+    RIEGELI_ASSERT_GT(length_written, 0) << "write() returned 0";
+    RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
         << "write() wrote more than requested";
-    start_pos_ += IntCast<size_t>(result);
-    src.remove_prefix(IntCast<size_t>(result));
+    start_pos_ += IntCast<size_t>(length_written);
+    src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
   return true;
 }

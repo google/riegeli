@@ -142,14 +142,15 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
 }  // namespace internal
 
 void FdReaderBase::Initialize(int src) {
-  if (sync_pos_) {
-    const off_t result = lseek(src, 0, SEEK_CUR);
-    if (ABSL_PREDICT_FALSE(result < 0)) {
-      FailOperation("lseek()");
-      return;
-    }
-    limit_pos_ = IntCast<Position>(result);
+  RIEGELI_ASSERT(sync_pos_)
+      << "Failed precondition of FdReaderBase::Initialize(): "
+         "position synchronization turned off";
+  const off_t file_pos = lseek(src, 0, SEEK_CUR);
+  if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+    FailOperation("lseek()");
+    return;
   }
+  limit_pos_ = IntCast<Position>(file_pos);
 }
 
 void FdReaderBase::SyncPos(int src) {
@@ -178,22 +179,22 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
   }
   for (;;) {
   again:
-    const ssize_t result = pread(
+    const ssize_t length_read = pread(
         src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
         IntCast<off_t>(limit_pos_));
-    if (ABSL_PREDICT_FALSE(result < 0)) {
+    if (ABSL_PREDICT_FALSE(length_read < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation("pread()");
     }
-    if (ABSL_PREDICT_FALSE(result == 0)) return false;
-    RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
+    if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
+    RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
         << "pread() read more than requested";
-    limit_pos_ += IntCast<size_t>(result);
-    if (IntCast<size_t>(result) >= min_length) return true;
-    dest += result;
-    min_length -= IntCast<size_t>(result);
-    max_length -= IntCast<size_t>(result);
+    limit_pos_ += IntCast<size_t>(length_read);
+    if (IntCast<size_t>(length_read) >= min_length) return true;
+    dest += length_read;
+    min_length -= IntCast<size_t>(length_read);
+    max_length -= IntCast<size_t>(length_read);
   }
 }
 
@@ -250,21 +251,21 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
   }
   for (;;) {
   again:
-    const ssize_t result = read(
+    const ssize_t length_read = read(
         src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}));
-    if (ABSL_PREDICT_FALSE(result < 0)) {
+    if (ABSL_PREDICT_FALSE(length_read < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation("read()");
     }
-    if (ABSL_PREDICT_FALSE(result == 0)) return false;
-    RIEGELI_ASSERT_LE(IntCast<size_t>(result), max_length)
+    if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
+    RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
         << "read() read more than requested";
-    limit_pos_ += IntCast<size_t>(result);
-    if (IntCast<size_t>(result) >= min_length) return true;
-    dest += result;
-    min_length -= IntCast<size_t>(result);
-    max_length -= IntCast<size_t>(result);
+    limit_pos_ += IntCast<size_t>(length_read);
+    if (IntCast<size_t>(length_read) >= min_length) return true;
+    dest += length_read;
+    min_length -= IntCast<size_t>(length_read);
+    max_length -= IntCast<size_t>(length_read);
   }
 }
 
@@ -294,7 +295,8 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
                            ", reading ", filename_));
 }
 
-void FdMMapReaderBase::Initialize(int src) {
+void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
+                                  int src) {
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
@@ -305,24 +307,28 @@ void FdMMapReaderBase::Initialize(int src) {
     Fail("File is too large for mmap()");
     return;
   }
-  if (stat_info.st_size != 0) {
-    void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
-                            PROT_READ, MAP_SHARED, src, 0);
-    if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
-      FailOperation("mmap()");
+  if (stat_info.st_size == 0) return;
+  void* const data = mmap(nullptr, IntCast<size_t>(stat_info.st_size),
+                          PROT_READ, MAP_SHARED, src, 0);
+  if (ABSL_PREDICT_FALSE(data == MAP_FAILED)) {
+    FailOperation("mmap()");
+    return;
+  }
+  Chain contents;
+  contents.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
+  // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
+  // was not known in FdMMapReaderBase constructor. This sets the Chain and
+  // updates ChainReader to read from it.
+  ChainReader::operator=(ChainReader(std::move(contents)));
+  if (initial_pos.has_value()) {
+    cursor_ += UnsignedMin(*initial_pos, available());
+  } else {
+    const off_t file_pos = lseek(src, 0, SEEK_CUR);
+    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+      FailOperation("lseek()");
       return;
     }
-    Chain contents;
-    contents.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
-    ChainReader::operator=(ChainReader(std::move(contents)));
-    if (sync_pos_) {
-      const off_t result = lseek(src, 0, SEEK_CUR);
-      if (ABSL_PREDICT_FALSE(result < 0)) {
-        FailOperation("lseek()");
-        return;
-      }
-      cursor_ += UnsignedMin(IntCast<Position>(result), available());
-    }
+    cursor_ += UnsignedMin(IntCast<Position>(file_pos), available());
   }
 }
 

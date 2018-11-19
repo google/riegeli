@@ -84,12 +84,30 @@ class FdWriterBase : public internal::FdWriterCommon {
 
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
+    //
+    // Default: 0666
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
     }
     Options&& set_permissions(mode_t permissions) && {
       return std::move(set_permissions(permissions));
+    }
+
+    // If nullopt, FdWriter will initially get the current fd position, and will
+    // set the fd position on Close() and Flush().
+    //
+    // If not nullopt, writing will start from this position. The current fd
+    // position will not be gotten or set. This is useful for multiple FdWriters
+    // concurrently writing to the same fd.
+    //
+    // Default: nullopt.
+    Options& set_initial_pos(absl::optional<Position> initial_pos) & {
+      initial_pos_ = initial_pos;
+      return *this;
+    }
+    Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
+      return std::move(set_initial_pos(initial_pos));
     }
 
     Options& set_buffer_size(size_t buffer_size) & {
@@ -103,28 +121,13 @@ class FdWriterBase : public internal::FdWriterCommon {
       return std::move(set_buffer_size(buffer_size));
     }
 
-    // If true, FdWriter will initially get the current file position, and will
-    // set the final file position on Close() and Flush().
-    //
-    // If false, file position is irrelevant for FdWriter, and writing will
-    // start at the end of file.
-    //
-    // Default: false.
-    Options& set_sync_pos(bool sync_pos) & {
-      sync_pos_ = sync_pos;
-      return *this;
-    }
-    Options&& set_sync_pos(bool sync_pos) && {
-      return std::move(set_sync_pos(sync_pos));
-    }
-
    private:
     template <typename Dest>
     friend class FdWriter;
 
     mode_t permissions_ = 0666;
+    absl::optional<Position> initial_pos_;
     size_t buffer_size_ = kDefaultBufferSize();
-    bool sync_pos_ = false;
   };
 
   bool Flush(FlushType flush_type) override;
@@ -142,6 +145,7 @@ class FdWriterBase : public internal::FdWriterCommon {
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
+  void Initialize(int dest);
   void Initialize(int flags, int dest);
   bool SyncPos(int dest);
   bool WriteInternal(absl::string_view src) override;
@@ -167,6 +171,24 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
       return std::move(set_permissions(permissions));
     }
 
+    // If not nullopt, this position will be assumed initially, to be reported
+    // by pos(). This is required by the constructor from fd.
+    //
+    // If nullopt, which is allowed by the constructor from filename, the
+    // position will be assumed to be 0 when not appending, or file size when
+    // appending.
+    //
+    // In any case writing will start from the current position.
+    //
+    // Default: nullopt.
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+      assumed_pos_ = assumed_pos;
+      return *this;
+    }
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+      return std::move(set_assumed_pos(assumed_pos));
+    }
+
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
@@ -179,27 +201,13 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
       return std::move(set_buffer_size(buffer_size));
     }
 
-    // Sets the file position assumed initially, used for reporting by pos().
-    //
-    // Default for constructor from fd: none, must be provided explicitly.
-    //
-    // Default for constructor from filename: 0 when opening for writing, or
-    // file size when opening for appending.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
-      assumed_pos_ = assumed_pos;
-      return *this;
-    }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
-      return std::move(set_assumed_pos(assumed_pos));
-    }
-
    private:
     template <typename Dest>
     friend class FdStreamWriter;
 
     mode_t permissions_ = 0666;
-    size_t buffer_size_ = kDefaultBufferSize();
     absl::optional<Position> assumed_pos_;
+    size_t buffer_size_ = kDefaultBufferSize();
   };
 
   bool Flush(FlushType flush_type) override;
@@ -213,13 +221,21 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   FdStreamWriterBase(FdStreamWriterBase&& that) noexcept;
   FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
-  void Initialize(int flags, int dest);
+  void Initialize(int dest);
   bool WriteInternal(absl::string_view src) override;
 };
 
-// A Writer which writes to a file descriptor. It supports random access; the
-// fd must support pwrite(), lseek(), fstat(), and ftruncate(). Writes occur at
-// the position managed by FdWriter.
+// A Writer which writes to a file descriptor. It supports random access.
+//
+// The fd should support:
+//  * fcntl()     - for the constructor from fd
+//                  unless Options::set_initial_pos(pos)
+//  * close()     - if the fd is owned
+//  * pwrite()
+//  * lseek()     - unless Options::set_initial_pos(pos)
+//  * fstat()     - for Seek(), Size(), or Truncate()
+//  * fsync()     - for Flush(FlushType::kFromMachine)
+//  * ftruncate() - for Truncate()
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. Dest must support
@@ -232,8 +248,7 @@ class FdWriter : public FdWriterBase {
   // Creates a closed FdWriter.
   FdWriter() noexcept {}
 
-  // Will write to the fd provided by dest, starting at the end of file, or at
-  // the current fd position if options.set_sync_pos(true) is used.
+  // Will write to the fd provided by dest.
   //
   // type_identity_t<Dest> disables template parameter deduction (C++17),
   // letting FdWriter(fd) mean FdWriter<OwnedFd>(fd) rather than
@@ -268,7 +283,12 @@ class FdWriter : public FdWriterBase {
 };
 
 // A Writer which writes to a fd which does not have to support random access.
-// The fd must support write(). Writes occur at the current fd position.
+//
+// The fd should support:
+//  * close() - if the fd is owned
+//  * write()
+//  * fstat() - when opening for appending unless Options::set_assumed_pos(pos)
+//  * fsync() - for Flush(FlushType::kFromMachine)
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. Dest must support
@@ -284,9 +304,9 @@ class FdStreamWriter : public FdStreamWriterBase {
   // Creates a closed FdStreamWriter.
   FdStreamWriter() noexcept {}
 
-  // Will write to the fd provided by dest, starting at its current position.
+  // Will write to the fd provided by dest.
   //
-  // options.set_assumed_pos() must be used.
+  // Requires Options::set_assumed_pos(pos).
   //
   // type_identity_t<Dest> disables template parameter deduction (C++17),
   // letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather than
@@ -361,18 +381,22 @@ inline FdStreamWriterBase& FdStreamWriterBase::operator=(
 
 template <typename Dest>
 FdWriter<Dest>::FdWriter(type_identity_t<Dest> dest, Options options)
-    : FdWriterBase(options.buffer_size_, options.sync_pos_),
+    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
       dest_(std::move(dest)) {
   RIEGELI_ASSERT_GE(dest_.ptr(), 0)
       << "Failed precondition of FdWriter<Dest>::FdWriter(Dest): "
          "negative file descriptor";
   SetFilename(dest_.ptr());
-  Initialize(O_WRONLY | O_APPEND, dest_.ptr());
+  if (options.initial_pos_.has_value()) {
+    start_pos_ = *options.initial_pos_;
+  } else {
+    Initialize(dest_.ptr());
+  }
 }
 
 template <typename Dest>
 FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
-    : FdWriterBase(options.buffer_size_, options.sync_pos_) {
+    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdWriter::FdWriter(string_view): "
@@ -380,7 +404,11 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
   const int dest = OpenFd(filename, flags, options.permissions_);
   if (ABSL_PREDICT_TRUE(dest >= 0)) {
     dest_ = Dependency<int, Dest>(Dest(dest));
-    Initialize(flags, dest_.ptr());
+    if (options.initial_pos_.has_value()) {
+      start_pos_ = *options.initial_pos_;
+    } else {
+      Initialize(flags, dest_.ptr());
+    }
   }
 }
 
@@ -436,8 +464,8 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
     dest_ = Dependency<int, Dest>(Dest(dest));
     if (options.assumed_pos_.has_value()) {
       start_pos_ = *options.assumed_pos_;
-    } else {
-      Initialize(flags, dest_.ptr());
+    } else if ((flags & O_APPEND) != 0) {
+      Initialize(dest_.ptr());
     }
   }
 }
