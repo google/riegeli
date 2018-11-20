@@ -57,8 +57,8 @@ class RecordPosition {
 
   // Binary format. Serialized strings have the same natural order as the
   // corresponding positions.
-  std::string Serialize() const;
-  bool Parse(absl::string_view serialized);
+  std::string ToBytes() const;
+  bool FromBytes(absl::string_view serialized);
 
  private:
   // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_

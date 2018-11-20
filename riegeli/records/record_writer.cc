@@ -97,8 +97,8 @@ void SetRecordType(RecordsMetadata* metadata,
   collector.AddFile(descriptor->file());
 }
 
-bool RecordWriterBase::Options::Parse(absl::string_view text,
-                                      std::string* error_message) {
+bool RecordWriterBase::Options::FromString(absl::string_view text,
+                                           std::string* error_message) {
   std::string compressor_text;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
@@ -123,13 +123,13 @@ bool RecordWriterBase::Options::Parse(absl::string_view text,
   options_parser.AddOption(
       "parallelism",
       ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
-  if (ABSL_PREDICT_FALSE(!options_parser.Parse(text))) {
+  if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
     if (error_message != nullptr) {
       *error_message = std::string(options_parser.message());
     }
     return false;
   }
-  return compressor_options_.Parse(compressor_text, error_message);
+  return compressor_options_.FromString(compressor_text, error_message);
 }
 
 class RecordWriterBase::Worker : public Object {

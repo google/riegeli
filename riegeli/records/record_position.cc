@@ -39,13 +39,13 @@ std::string RecordPosition::ToString() const {
   return absl::StrCat(chunk_begin_, "/", record_index_);
 }
 
-std::string RecordPosition::Serialize() const {
+std::string RecordPosition::ToBytes() const {
   const uint64_t words[2] = {WriteBigEndian64(chunk_begin_),
                              WriteBigEndian64(record_index_)};
   return std::string(reinterpret_cast<const char*>(words), sizeof(words));
 }
 
-bool RecordPosition::Parse(absl::string_view serialized) {
+bool RecordPosition::FromBytes(absl::string_view serialized) {
   uint64_t words[2];
   if (ABSL_PREDICT_FALSE(serialized.size() != sizeof(words))) return false;
   std::memcpy(words, serialized.data(), sizeof(words));

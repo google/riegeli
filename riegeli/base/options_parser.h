@@ -161,7 +161,7 @@ class OptionsParser : public Object {
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  bool Parse(absl::string_view text);
+  bool FromString(absl::string_view text);
 
  private:
   friend class ValueParser;

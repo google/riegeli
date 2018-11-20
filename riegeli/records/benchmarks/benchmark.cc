@@ -308,7 +308,7 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
                   riegeli::ValueParser::FailIfSeen("uncompressed"),
                   riegeli::ValueParser::Empty(
                       &compression, tensorflow::io::compression::kGzip)));
-  RIEGELI_CHECK(options_parser.Parse(tfrecord_options))
+  RIEGELI_CHECK(options_parser.FromString(tfrecord_options))
       << options_parser.message();
   tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
 }
@@ -319,7 +319,7 @@ void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
       riegeli::IntCast<int>(absl::StrCat("riegeli ", riegeli_options).size()));
   riegeli::RecordWriterBase::Options options;
   std::string message;
-  RIEGELI_CHECK(options.Parse(riegeli_options, &message)) << message;
+  RIEGELI_CHECK(options.FromString(riegeli_options, &message)) << message;
   riegeli_benchmarks_.emplace_back(std::move(riegeli_options),
                                    std::move(options));
 }
