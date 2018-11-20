@@ -66,6 +66,7 @@ class RecordsMetadataDescriptors : public Object {
   std::unique_ptr<google::protobuf::DescriptorPool> pool_;
 };
 
+// Template parameter invariant part of RecordReader.
 class RecordReaderBase : public Object {
  public:
   class Options {
@@ -135,9 +136,8 @@ class RecordReaderBase : public Object {
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
-  // ReadMetadata() and ReadRecord() already check the file format.
-  // CheckFileFormat() can verify the file format before (or instead of)
-  // performing other operations.
+  // Reading functions already check the file format. CheckFileFormat() can
+  // verify the file format before (or instead of) performing other operations.
   //
   // This ignores the recovery function. If invalid file contents are skipped,
   // then checking the file format is meaningless: any file can be read.
@@ -237,12 +237,13 @@ class RecordReaderBase : public Object {
   // If it points between records, it is interpreted as the next record.
   //
   // Return values:
-  //  * true  - success
+  //  * true  - success (healthy())
   //  * false - failure (!healthy())
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
 
-  // Returns the size of the file, i.e. the position corresponding to its end.
+  // Returns the size of the file in bytes, i.e. the position corresponding to
+  // its end.
   //
   // Return values:
   //  * true  - success (*size is set, healthy())

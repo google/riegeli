@@ -39,11 +39,11 @@ class Field {
   // Starts with the root message. Field tags can be added by AddTag().
   Field() noexcept {}
 
-  Field(Field&& that) noexcept;
-  Field& operator=(Field&& that) noexcept;
-
   Field(const Field& that);
   Field& operator=(const Field& that);
+
+  Field(Field&& that) noexcept;
+  Field& operator=(Field&& that) noexcept;
 
   // Adds a field tag to the end of the path.
   Field& AddTag(uint32_t tag) &;
@@ -72,11 +72,11 @@ class FieldProjection {
   // Starts with an empty set to include. Fields can be added by AddField().
   FieldProjection() noexcept {}
 
-  FieldProjection(FieldProjection&&) noexcept;
-  FieldProjection& operator=(FieldProjection&&) noexcept;
-
   FieldProjection(const FieldProjection&);
   FieldProjection& operator=(const FieldProjection&);
+
+  FieldProjection(FieldProjection&&) noexcept;
+  FieldProjection& operator=(FieldProjection&&) noexcept;
 
   // Adds a field to the set to include.
   FieldProjection& AddField(Field field) &;
@@ -104,17 +104,17 @@ inline void Field::AssertValid(uint32_t tag) {
   RIEGELI_ASSERT_LE(tag, (uint32_t{1} << 29) - 1) << "Field tag out of range";
 }
 
-inline Field::Field(Field&& that) noexcept : path_(std::move(that.path_)) {}
-
-inline Field& Field::operator=(Field&& that) noexcept {
-  path_ = std::move(that.path_);
-  return *this;
-}
-
 inline Field::Field(const Field& that) : path_(that.path_) {}
 
 inline Field& Field::operator=(const Field& that) {
   path_ = that.path_;
+  return *this;
+}
+
+inline Field::Field(Field&& that) noexcept : path_(std::move(that.path_)) {}
+
+inline Field& Field::operator=(Field&& that) noexcept {
+  path_ = std::move(that.path_);
   return *this;
 }
 
@@ -135,21 +135,21 @@ inline FieldProjection FieldProjection::All() {
 inline FieldProjection::FieldProjection(std::initializer_list<Field> fields)
     : fields_(fields) {}
 
-inline FieldProjection::FieldProjection(FieldProjection&& that) noexcept
-    : fields_(std::move(that.fields_)) {}
-
-inline FieldProjection& FieldProjection::operator=(
-    FieldProjection&& that) noexcept {
-  fields_ = std::move(that.fields_);
-  return *this;
-}
-
 inline FieldProjection::FieldProjection(const FieldProjection& that)
     : fields_(that.fields_) {}
 
 inline FieldProjection& FieldProjection::operator=(
     const FieldProjection& that) {
   fields_ = that.fields_;
+  return *this;
+}
+
+inline FieldProjection::FieldProjection(FieldProjection&& that) noexcept
+    : fields_(std::move(that.fields_)) {}
+
+inline FieldProjection& FieldProjection::operator=(
+    FieldProjection&& that) noexcept {
+  fields_ = std::move(that.fields_);
   return *this;
 }
 

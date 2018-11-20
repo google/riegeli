@@ -93,11 +93,11 @@ class FutureRecordPosition {
   FutureRecordPosition(Position pos_before_chunks, std::vector<Action> actions,
                        uint64_t record_index);
 
-  FutureRecordPosition(FutureRecordPosition&& that) noexcept;
-  FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
-
   FutureRecordPosition(const FutureRecordPosition& that);
   FutureRecordPosition& operator=(const FutureRecordPosition& that);
+
+  FutureRecordPosition(FutureRecordPosition&& that) noexcept;
+  FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
 
   // May block if returned by RecordWriter with parallelism > 0.
   RecordPosition get() const;
@@ -202,20 +202,6 @@ inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
     : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
 
 inline FutureRecordPosition::FutureRecordPosition(
-    FutureRecordPosition&& that) noexcept
-    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
-      chunk_begin_(absl::exchange(that.chunk_begin_, 0)),
-      record_index_(absl::exchange(that.record_index_, 0)) {}
-
-inline FutureRecordPosition& FutureRecordPosition::operator=(
-    FutureRecordPosition&& that) noexcept {
-  future_chunk_begin_ = std::move(that.future_chunk_begin_);
-  chunk_begin_ = absl::exchange(that.chunk_begin_, 0);
-  record_index_ = absl::exchange(that.record_index_, 0);
-  return *this;
-}
-
-inline FutureRecordPosition::FutureRecordPosition(
     const FutureRecordPosition& that)
     : future_chunk_begin_(that.future_chunk_begin_),
       chunk_begin_(that.chunk_begin_),
@@ -226,6 +212,20 @@ inline FutureRecordPosition& FutureRecordPosition::operator=(
   future_chunk_begin_ = that.future_chunk_begin_;
   chunk_begin_ = that.chunk_begin_;
   record_index_ = that.record_index_;
+  return *this;
+}
+
+inline FutureRecordPosition::FutureRecordPosition(
+    FutureRecordPosition&& that) noexcept
+    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
+      chunk_begin_(absl::exchange(that.chunk_begin_, 0)),
+      record_index_(absl::exchange(that.record_index_, 0)) {}
+
+inline FutureRecordPosition& FutureRecordPosition::operator=(
+    FutureRecordPosition&& that) noexcept {
+  future_chunk_begin_ = std::move(that.future_chunk_begin_);
+  chunk_begin_ = absl::exchange(that.chunk_begin_, 0);
+  record_index_ = absl::exchange(that.record_index_, 0);
   return *this;
 }
 

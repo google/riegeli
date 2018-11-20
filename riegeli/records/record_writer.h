@@ -47,6 +47,7 @@ namespace riegeli {
 void SetRecordType(RecordsMetadata* metadata,
                    const google::protobuf::Descriptor* descriptor);
 
+// Template parameter invariant part of RecordWriter.
 class RecordWriterBase : public Object {
  public:
   class Options {
@@ -250,7 +251,7 @@ class RecordWriterBase : public Object {
       return std::move(set_metadata(std::move(metadata)));
     }
 
-    // Like set_metadata(), but metadata is passed in the serialized form.
+    // Like set_metadata(), but metadata are passed in the serialized form.
     //
     // This is faster if the caller has metadata already serialized.
     Options& set_serialized_metadata(Chain metadata) & {
