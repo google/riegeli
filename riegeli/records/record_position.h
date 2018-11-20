@@ -54,6 +54,7 @@ class RecordPosition {
 
   // Text format.
   std::string ToString() const;
+  bool FromString(absl::string_view serialized);
 
   // Binary format. Serialized strings have the same natural order as the
   // corresponding positions.

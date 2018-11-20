@@ -25,6 +25,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
@@ -37,6 +38,28 @@ namespace riegeli {
 
 std::string RecordPosition::ToString() const {
   return absl::StrCat(chunk_begin_, "/", record_index_);
+}
+
+bool RecordPosition::FromString(absl::string_view serialized) {
+  const size_t sep = serialized.find('/');
+  if (ABSL_PREDICT_FALSE(sep == absl::string_view::npos)) return false;
+  uint64_t chunk_begin;
+  if (ABSL_PREDICT_FALSE(
+          !absl::SimpleAtoi(serialized.substr(0, sep), &chunk_begin))) {
+    return false;
+  }
+  uint64_t record_index;
+  if (ABSL_PREDICT_FALSE(
+          !absl::SimpleAtoi(serialized.substr(sep + 1), &record_index))) {
+    return false;
+  }
+  if (ABSL_PREDICT_FALSE(record_index >
+                         std::numeric_limits<uint64_t>::max() - chunk_begin)) {
+    return false;
+  }
+  chunk_begin_ = chunk_begin;
+  record_index_ = record_index;
+  return true;
 }
 
 std::string RecordPosition::ToBytes() const {
