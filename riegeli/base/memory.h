@@ -20,6 +20,7 @@
 #include <new>
 #include <utility>
 
+#include "absl/meta/type_traits.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -28,50 +29,33 @@ namespace riegeli {
 // its destructor.
 //
 // It can be used as a static variable in a function to lazily initialize an
-// object. If the constructor is constexpr, it can also be used as a static
-// variable in a class or namespace scope.
+// object.
 template <typename T>
 class NoDestructor {
  public:
-  // Calls T constructor with no arguments.
-  //
-  // In GCC < 5.0 it is not enough to rely on the variadic template below for
-  // this, because for a const object with no initializer the compiler can emit
-  // a bogus error about uninitialized members.
-  constexpr NoDestructor() : object_() {}
-
   // Forwards constructor arguments to T constructor.
   template <typename... Args>
-  explicit constexpr NoDestructor(Args&&... args)
-      : object_(std::forward<Args>(args)...) {}
+  explicit NoDestructor(Args&&... args) {
+    new (&storage_) T(std::forward<Args>(args)...);
+  }
 
-  // Forwards move and copy construction, e.g. a brace initializer.
-  explicit constexpr NoDestructor(T&& src) : object_(std::move(src)) {}
-  explicit constexpr NoDestructor(const T& src) : object_(src) {}
+  // Forwards copy and move construction, e.g. a brace initializer.
+  explicit NoDestructor(const T& src) { new (&storage_) T(src); }
+  explicit NoDestructor(T&& src) { new (&storage_) T(std::move(src)); }
 
   NoDestructor(const NoDestructor&) = delete;
   NoDestructor& operator=(const NoDestructor&) = delete;
 
-  ~NoDestructor() {}
-
   // Smart pointer interface with deep constness.
-  //
-  // operator*() is a non-member function as a workaround for the fact that
-  // non-static member functions of a non-literal type cannot be constexpr in
-  // C++11. C++14 DR 1684 removes this restriction.
-  friend constexpr T& operator*(NoDestructor& ptr) { return ptr.object_; }
-  friend constexpr const T& operator*(const NoDestructor& ptr) {
-    return ptr.object_;
-  }
-  T* operator->() { return &object_; }
-  const T* operator->() const { return &object_; }
-  T* get() { return &object_; }
-  const T* get() const { return &object_; }
+  T* get() { return reinterpret_cast<T*>(&storage_); }
+  const T* get() const { return reinterpret_cast<const T*>(&storage_); }
+  T& operator*() { return *get(); }
+  const T& operator*() const { return *get(); }
+  T* operator->() { return get(); }
+  const T* operator->() const { return get(); }
 
  private:
-  union {
-    T object_;
-  };
+  absl::aligned_storage_t<sizeof(T), alignof(T)> storage_;
 };
 
 // {New,Delete}Aligned() provide memory allocation with the specified alignment
