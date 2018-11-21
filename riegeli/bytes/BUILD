@@ -420,7 +420,7 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -435,6 +435,6 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )

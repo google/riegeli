@@ -15,7 +15,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -40,7 +40,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/utility",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -147,7 +147,7 @@ cc_library(
         "//riegeli/bytes:writer_utils",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -257,6 +257,6 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@protobuf_archive//:protobuf_lite",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )

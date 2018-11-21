@@ -34,8 +34,8 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:variant",
         "@com_google_absl//absl/utility",
-        "@protobuf_archive//:cc_wkt_protos",
-        "@protobuf_archive//:protobuf",
+        "@com_google_protobuf//:cc_wkt_protos",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -67,15 +67,15 @@ cc_library(
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/utility",
-        "@protobuf_archive//:cc_wkt_protos",
-        "@protobuf_archive//:protobuf",
+        "@com_google_protobuf//:cc_wkt_protos",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
 proto_library(
     name = "records_metadata_proto",
     srcs = ["records_metadata.proto"],
-    deps = ["@protobuf_archive//:descriptor_proto"],
+    deps = ["@com_google_protobuf//:descriptor_proto"],
 )
 
 cc_proto_library(
