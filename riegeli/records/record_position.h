@@ -33,6 +33,19 @@
 
 namespace riegeli {
 
+// RecordPosition represents the position of a record in a Riegeli/records file,
+// or a position between records.
+//
+// There are two ways of expressing positions, both strictly monotonic:
+//  * RecordPosition (a class) - Faster for seeking.
+//  * Position (an integer)    - Scaled between 0 and file size.
+//
+// RecordPosition can be converted to Position by numeric().
+//
+// Working with RecordPosition is recommended, unless it is needed to seek to an
+// approximate position interpolated along the file, e.g. for splitting the file
+// into shards, or unless the position must be expressed as an integer from the
+// range [0, file_size] in order to fit into a preexisting API.
 class RecordPosition {
  public:
   // Creates a RecordPosition corresponding to the first record.

@@ -326,15 +326,7 @@ class RecordReaderBase : public Object {
 // conceptually a binary string; usually it is a serialized proto message.
 //
 // RecordReader supports reading records sequentially, querying for the current
-// position, and seeking to continue reading from another position. There are
-// two ways of expressing positions, both strictly monotonic:
-//  * RecordPosition (a class) - Faster for seeking.
-//  * Position (an integer)    - Scaled between 0 and file size.
-//
-// Working with RecordPosition is recommended, unless it is needed to seek to an
-// approximate position interpolated along the file, e.g. for splitting the file
-// into shards, or unless the position must be expressed as an integer from the
-// range [0, file_size] in order to fit into a preexisting API.
+// position, and seeking to continue reading from another position.
 //
 // For reading records sequentially, this kind of loop can be used:
 //
