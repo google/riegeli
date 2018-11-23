@@ -72,17 +72,6 @@ cc_library(
     ],
 )
 
-proto_library(
-    name = "records_metadata_proto",
-    srcs = ["records_metadata.proto"],
-    deps = ["@com_google_protobuf//:descriptor_proto"],
-)
-
-cc_proto_library(
-    name = "records_metadata_cc_proto",
-    deps = [":records_metadata_proto"],
-)
-
 cc_library(
     name = "record_position",
     srcs = ["record_position.cc"],
@@ -162,4 +151,15 @@ cc_library(
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/strings",
     ],
+)
+
+proto_library(
+    name = "records_metadata_proto",
+    srcs = ["records_metadata.proto"],
+    deps = ["@com_google_protobuf//:descriptor_proto"],
+)
+
+cc_proto_library(
+    name = "records_metadata_cc_proto",
+    deps = [":records_metadata_proto"],
 )
