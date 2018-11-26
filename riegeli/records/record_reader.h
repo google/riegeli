@@ -40,7 +40,7 @@
 
 namespace riegeli {
 
-class Chunk;
+struct Chunk;
 
 // Interprets record_type_name and file_descriptor from metadata.
 class RecordsMetadataDescriptors : public Object {
