@@ -134,7 +134,7 @@ class FdReaderBase : public internal::FdReaderCommon {
   FdReaderBase(FdReaderBase&& that) noexcept;
   FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
-  void Initialize(int src);
+  void Initialize(absl::optional<Position> initial_pos, int src);
   void SyncPos(int src);
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
   bool SeekSlow(Position new_pos) override;
@@ -194,6 +194,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   FdStreamReaderBase(FdStreamReaderBase&& that) noexcept;
   FdStreamReaderBase& operator=(FdStreamReaderBase&& that) noexcept;
 
+  void Initialize(Position assumed_pos);
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
 
@@ -485,11 +486,7 @@ FdReader<Src>::FdReader(type_identity_t<Src> src, Options options)
       << "Failed precondition of FdReader<Src>::FdReader(Src): "
          "negative file descriptor";
   SetFilename(src_.ptr());
-  if (options.initial_pos_.has_value()) {
-    limit_pos_ = *options.initial_pos_;
-  } else {
-    Initialize(src_.ptr());
-  }
+  Initialize(options.initial_pos_, src_.ptr());
 }
 
 template <typename Src>
@@ -502,11 +499,7 @@ FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_TRUE(src >= 0)) {
     src_ = Dependency<int, Src>(Src(src));
-    if (options.initial_pos_.has_value()) {
-      limit_pos_ = *options.initial_pos_;
-    } else {
-      Initialize(src_.ptr());
-    }
+    Initialize(options.initial_pos_, src_.ptr());
   }
 }
 
@@ -545,7 +538,7 @@ FdStreamReader<Src>::FdStreamReader(type_identity_t<Src> src, Options options)
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
   SetFilename(src_.ptr());
-  limit_pos_ = *options.assumed_pos_;
+  Initialize(*options.assumed_pos_);
 }
 
 template <typename Src>
@@ -559,7 +552,7 @@ FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_TRUE(src >= 0)) {
     src_ = Dependency<int, Src>(Src(src));
-    if (options.assumed_pos_.has_value()) limit_pos_ = *options.assumed_pos_;
+    if (options.assumed_pos_.has_value()) Initialize(*options.assumed_pos_);
   }
 }
 

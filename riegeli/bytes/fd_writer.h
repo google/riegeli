@@ -145,8 +145,8 @@ class FdWriterBase : public internal::FdWriterCommon {
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
-  void Initialize(int dest);
-  void Initialize(int flags, int dest);
+  void Initialize(absl::optional<Position> initial_pos, int dest);
+  void Initialize(absl::optional<Position> initial_pos, int flags, int dest);
   bool SyncPos(int dest);
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
@@ -221,7 +221,8 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   FdStreamWriterBase(FdStreamWriterBase&& that) noexcept;
   FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
-  void Initialize(int dest);
+  void Initialize(Position assumed_pos);
+  void Initialize(absl::optional<Position> assumed_pos, int flags, int dest);
   bool WriteInternal(absl::string_view src) override;
 };
 
@@ -387,11 +388,7 @@ FdWriter<Dest>::FdWriter(type_identity_t<Dest> dest, Options options)
       << "Failed precondition of FdWriter<Dest>::FdWriter(Dest): "
          "negative file descriptor";
   SetFilename(dest_.ptr());
-  if (options.initial_pos_.has_value()) {
-    start_pos_ = *options.initial_pos_;
-  } else {
-    Initialize(dest_.ptr());
-  }
+  Initialize(options.initial_pos_, dest_.ptr());
 }
 
 template <typename Dest>
@@ -404,11 +401,7 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
   const int dest = OpenFd(filename, flags, options.permissions_);
   if (ABSL_PREDICT_TRUE(dest >= 0)) {
     dest_ = Dependency<int, Dest>(Dest(dest));
-    if (options.initial_pos_.has_value()) {
-      start_pos_ = *options.initial_pos_;
-    } else {
-      Initialize(flags, dest_.ptr());
-    }
+    Initialize(options.initial_pos_, flags, dest_.ptr());
   }
 }
 
@@ -448,7 +441,7 @@ FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest> dest,
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
   SetFilename(dest_.ptr());
-  start_pos_ = *options.assumed_pos_;
+  Initialize(*options.assumed_pos_);
 }
 
 template <typename Dest>
@@ -462,11 +455,7 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
   const int dest = OpenFd(filename, flags, options.permissions_);
   if (ABSL_PREDICT_TRUE(dest >= 0)) {
     dest_ = Dependency<int, Dest>(Dest(dest));
-    if (options.assumed_pos_.has_value()) {
-      start_pos_ = *options.assumed_pos_;
-    } else if ((flags & O_APPEND) != 0) {
-      Initialize(dest_.ptr());
-    }
+    Initialize(options.assumed_pos_, flags, dest_.ptr());
   }
 }
 

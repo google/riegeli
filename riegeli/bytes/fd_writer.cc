@@ -81,29 +81,37 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
 
 }  // namespace internal
 
-void FdWriterBase::Initialize(int dest) {
-  RIEGELI_ASSERT(sync_pos_)
-      << "Failed precondition of FdWriterBase::Initialize(): "
-         "position synchronization turned off";
-  const int flags = fcntl(dest, F_GETFL);
-  if (ABSL_PREDICT_FALSE(flags < 0)) {
-    FailOperation("fcntl()");
-    return;
+void FdWriterBase::Initialize(absl::optional<Position> initial_pos, int dest) {
+  int flags = 0;
+  if (!initial_pos.has_value()) {
+    // If initial_pos.has_value() then flags are not needed, so avoid fcntl().
+    flags = fcntl(dest, F_GETFL);
+    if (ABSL_PREDICT_FALSE(flags < 0)) {
+      FailOperation("fcntl()");
+      return;
+    }
   }
-  return Initialize(flags, dest);
+  return Initialize(initial_pos, flags, dest);
 }
 
-void FdWriterBase::Initialize(int flags, int dest) {
-  RIEGELI_ASSERT(sync_pos_)
-      << "Failed precondition of FdWriterBase::Initialize(): "
-         "position synchronization turned off";
-  const off_t file_pos =
-      lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
-  if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-    FailOperation("lseek()");
-    return;
+void FdWriterBase::Initialize(absl::optional<Position> initial_pos, int flags,
+                              int dest) {
+  if (initial_pos.has_value()) {
+    if (ABSL_PREDICT_FALSE(*initial_pos >
+                           Position{std::numeric_limits<off_t>::max()})) {
+      FailOverflow();
+      return;
+    }
+    start_pos_ = *initial_pos;
+  } else {
+    const off_t file_pos =
+        lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
+    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+      FailOperation("lseek()");
+      return;
+    }
+    start_pos_ = IntCast<Position>(file_pos);
   }
-  start_pos_ = IntCast<Position>(file_pos);
 }
 
 bool FdWriterBase::SyncPos(int dest) {
@@ -237,13 +245,27 @@ again:
   return true;
 }
 
-void FdStreamWriterBase::Initialize(int dest) {
-  struct stat stat_info;
-  if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-    FailOperation("fstat()");
+void FdStreamWriterBase::Initialize(Position assumed_pos) {
+  if (ABSL_PREDICT_FALSE(assumed_pos >
+                         Position{std::numeric_limits<off_t>::max()})) {
+    FailOverflow();
     return;
   }
-  start_pos_ = IntCast<Position>(stat_info.st_size);
+  start_pos_ = assumed_pos;
+}
+
+void FdStreamWriterBase::Initialize(absl::optional<Position> assumed_pos,
+                                    int flags, int dest) {
+  if (assumed_pos.has_value()) {
+    Initialize(*assumed_pos);
+  } else if ((flags & O_APPEND) != 0) {
+    struct stat stat_info;
+    if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
+      FailOperation("fstat()");
+      return;
+    }
+    start_pos_ = IntCast<Position>(stat_info.st_size);
+  }
 }
 
 bool FdStreamWriterBase::WriteInternal(absl::string_view src) {

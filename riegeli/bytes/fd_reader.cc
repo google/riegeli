@@ -141,16 +141,22 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
 
 }  // namespace internal
 
-void FdReaderBase::Initialize(int src) {
-  RIEGELI_ASSERT(sync_pos_)
-      << "Failed precondition of FdReaderBase::Initialize(): "
-         "position synchronization turned off";
-  const off_t file_pos = lseek(src, 0, SEEK_CUR);
-  if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-    FailOperation("lseek()");
-    return;
+void FdReaderBase::Initialize(absl::optional<Position> initial_pos, int src) {
+  if (initial_pos.has_value()) {
+    if (ABSL_PREDICT_FALSE(*initial_pos >
+                           Position{std::numeric_limits<off_t>::max()})) {
+      FailOverflow();
+      return;
+    }
+    limit_pos_ = *initial_pos;
+  } else {
+    const off_t file_pos = lseek(src, 0, SEEK_CUR);
+    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+      FailOperation("lseek()");
+      return;
+    }
+    limit_pos_ = IntCast<Position>(file_pos);
   }
-  limit_pos_ = IntCast<Position>(file_pos);
 }
 
 void FdReaderBase::SyncPos(int src) {
@@ -231,6 +237,15 @@ bool FdReaderBase::Size(Position* size) {
   }
   *size = IntCast<Position>(stat_info.st_size);
   return true;
+}
+
+void FdStreamReaderBase::Initialize(Position assumed_pos) {
+  if (ABSL_PREDICT_FALSE(assumed_pos >
+                         Position{std::numeric_limits<off_t>::max()})) {
+    FailOverflow();
+    return;
+  }
+  limit_pos_ = assumed_pos;
 }
 
 bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
