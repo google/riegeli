@@ -353,10 +353,7 @@ bool RecordWriterBase::SerialWorker::PadToBlockBoundary() {
 bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!chunk_writer_->Flush(flush_type))) {
-    if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) {
-      return Fail(*chunk_writer_);
-    }
-    return false;
+    return Fail(*chunk_writer_);
   }
   return true;
 }
@@ -454,7 +451,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
         }
         if (ABSL_PREDICT_FALSE(
                 !self->chunk_writer_->Flush(request.flush_type))) {
-          if (!self->chunk_writer_->healthy()) self->Fail(*self->chunk_writer_);
+          self->Fail(*self->chunk_writer_);
           request.done.set_value(false);
           return true;
         }
@@ -702,10 +699,7 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
     return Fail(*worker_);
   }
-  if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) {
-    if (ABSL_PREDICT_FALSE(!worker_->healthy())) return Fail(*worker_);
-    return false;
-  }
+  if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) return Fail(*worker_);
   if (chunk_size_so_far_ != 0) {
     worker_->OpenChunk();
     chunk_size_so_far_ = 0;

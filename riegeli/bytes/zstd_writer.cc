@@ -124,11 +124,8 @@ bool ZstdWriterBase::Flush(FlushType flush_type) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) {
-    if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-      limit_ = start_;
-      return Fail(*dest);
-    }
-    return false;
+    limit_ = start_;
+    return Fail(*dest);
   }
   return true;
 }

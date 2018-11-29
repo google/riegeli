@@ -359,9 +359,8 @@ class RecordWriterBase : public Object {
   //  * FlushType::kFromMachine - data survives operating system crash
   //
   // Return values:
-  //  * true                    - success (pushed and synced, healthy())
-  //  * false (when healthy())  - failure to sync
-  //  * false (when !healthy()) - failure to push
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
   bool Flush(FlushType flush_type);
 
   // Returns the current position.

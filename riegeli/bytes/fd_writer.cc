@@ -169,7 +169,11 @@ bool FdWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromProcess:
       return true;
     case FlushType::kFromMachine:
-      return fsync(dest) == 0;
+      if (ABSL_PREDICT_FALSE(fsync(dest) < 0)) {
+        limit_ = start_;
+        return FailOperation("fsync()");
+      }
+      return true;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
@@ -298,7 +302,11 @@ bool FdStreamWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromProcess:
       return true;
     case FlushType::kFromMachine:
-      return fsync(dest) == 0;
+      if (ABSL_PREDICT_FALSE(fsync(dest) < 0)) {
+        limit_ = start_;
+        return FailOperation("fsync()");
+      }
+      return true;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);

@@ -73,9 +73,8 @@ class ChunkWriter : public Object {
   // keeping the possibility to write more data later.
   //
   // Return values:
-  //  * true                    - success (pushed and synced, healthy())
-  //  * false (when healthy())  - failure to sync
-  //  * false (when !healthy()) - failure to push
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
   virtual bool Flush(FlushType flush_type) = 0;
 
   // Returns the current byte position. Unchanged by Close().
