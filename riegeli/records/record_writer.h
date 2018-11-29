@@ -81,10 +81,6 @@ class RecordWriterBase : public Object {
     //  * false - failure (*error_message is set)
     bool FromString(absl::string_view text,
                     std::string* error_message = nullptr);
-    // TODO: Deprecated.
-    bool Parse(absl::string_view text, std::string* error_message = nullptr) {
-      return FromString(text, error_message);
-    }
 
     // If true, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way
@@ -207,7 +203,7 @@ class RecordWriterBase : public Object {
 
     // Sets the desired uncompressed size of a bucket which groups values of
     // several fields of the given wire type to be compressed together,
-    // relatively to the desired chunk size, on the scale between 0.0 (compress
+    // relative to the desired chunk size, on the scale between 0.0 (compress
     // each field separately) to 1.0 (put all fields of the same wire type in
     // the same bucket).
     //
