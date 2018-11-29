@@ -18,7 +18,7 @@
 #define _XOPEN_SOURCE 500
 #endif
 
-// Make file offsets 64-bit even on 32-bit systems.
+// Make off_t 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
@@ -108,10 +108,6 @@ void MMapRef::DumpStructure(absl::string_view data, std::ostream& out) const {
 }  // namespace
 
 namespace internal {
-
-FdReaderCommon::FdReaderCommon(size_t buffer_size)
-    : BufferedReader(UnsignedMin(
-          buffer_size, Position{std::numeric_limits<off_t>::max()})) {}
 
 void FdReaderCommon::SetFilename(int src) {
   if (src == 0) {
@@ -239,15 +235,6 @@ bool FdReaderBase::Size(Position* size) {
   return true;
 }
 
-void FdStreamReaderBase::Initialize(Position assumed_pos) {
-  if (ABSL_PREDICT_FALSE(assumed_pos >
-                         Position{std::numeric_limits<off_t>::max()})) {
-    FailOverflow();
-    return;
-  }
-  limit_pos_ = assumed_pos;
-}
-
 bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
                                       size_t max_length) {
   RIEGELI_ASSERT_GT(min_length, 0u)
@@ -260,8 +247,7 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
-                         Position{std::numeric_limits<off_t>::max()} -
-                             limit_pos_)) {
+                         std::numeric_limits<Position>::max() - limit_pos_)) {
     return FailOverflow();
   }
   for (;;) {

@@ -18,7 +18,7 @@
 #define _XOPEN_SOURCE 500
 #endif
 
-// Make file offsets 64-bit even on 32-bit systems.
+// Make off_t 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
@@ -45,10 +45,6 @@
 namespace riegeli {
 
 namespace internal {
-
-FdWriterCommon::FdWriterCommon(size_t buffer_size)
-    : BufferedWriter(UnsignedMin(
-          buffer_size, Position{std::numeric_limits<off_t>::max()})) {}
 
 void FdWriterCommon::SetFilename(int dest) {
   if (dest == 1) {
@@ -245,19 +241,10 @@ again:
   return true;
 }
 
-void FdStreamWriterBase::Initialize(Position assumed_pos) {
-  if (ABSL_PREDICT_FALSE(assumed_pos >
-                         Position{std::numeric_limits<off_t>::max()})) {
-    FailOverflow();
-    return;
-  }
-  start_pos_ = assumed_pos;
-}
-
 void FdStreamWriterBase::Initialize(absl::optional<Position> assumed_pos,
                                     int flags, int dest) {
   if (assumed_pos.has_value()) {
-    Initialize(*assumed_pos);
+    start_pos_ = *assumed_pos;
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
@@ -280,8 +267,7 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
          "buffer not empty";
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
-                         Position{std::numeric_limits<off_t>::max()} -
-                             start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos_)) {
     limit_ = start_;
     return FailOverflow();
   }

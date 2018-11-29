@@ -72,10 +72,6 @@ class FdReaderCommon : public BufferedReader {
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
-
-  // Invariants:
-  //   limit_pos_ <= numeric_limits<off_t>::max()
-  //   buffer_size_ <= numeric_limits<off_t>::max()
 };
 
 }  // namespace internal
@@ -140,6 +136,8 @@ class FdReaderBase : public internal::FdReaderCommon {
   bool SeekSlow(Position new_pos) override;
 
   bool sync_pos_ = false;
+
+  // Invariant: limit_pos_ <= numeric_limits<off_t>::max()
 };
 
 // Template parameter invariant part of FdStreamReader.
@@ -194,7 +192,6 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   FdStreamReaderBase(FdStreamReaderBase&& that) noexcept;
   FdStreamReaderBase& operator=(FdStreamReaderBase&& that) noexcept;
 
-  void Initialize(Position assumed_pos);
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
 
@@ -428,6 +425,9 @@ class FdMMapReader : public FdMMapReaderBase {
 
 namespace internal {
 
+inline FdReaderCommon::FdReaderCommon(size_t buffer_size)
+    : BufferedReader(buffer_size) {}
+
 inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& that) noexcept
     : BufferedReader(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
@@ -538,7 +538,7 @@ FdStreamReader<Src>::FdStreamReader(type_identity_t<Src> src, Options options)
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
   SetFilename(src_.ptr());
-  Initialize(*options.assumed_pos_);
+  limit_pos_ = *options.assumed_pos_;
 }
 
 template <typename Src>
@@ -552,7 +552,7 @@ FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_TRUE(src >= 0)) {
     src_ = Dependency<int, Src>(Src(src));
-    if (options.assumed_pos_.has_value()) Initialize(*options.assumed_pos_);
+    if (options.assumed_pos_.has_value()) limit_pos_ = *options.assumed_pos_;
   }
 }
 

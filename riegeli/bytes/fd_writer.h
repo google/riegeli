@@ -67,10 +67,6 @@ class FdWriterCommon : public BufferedWriter {
   //
   // Invariant: if healthy() then error_code_ == 0
   int error_code_ = 0;
-
-  // Invariants:
-  //   start_pos_ <= numeric_limits<off_t>::max()
-  //   buffer_size_ <= numeric_limits<off_t>::max()
 };
 
 }  // namespace internal
@@ -152,6 +148,8 @@ class FdWriterBase : public internal::FdWriterCommon {
   bool SeekSlow(Position new_pos) override;
 
   bool sync_pos_ = false;
+
+  // Invariant: start_pos_ <= numeric_limits<off_t>::max()
 };
 
 // Template parameter invariant part of FdStreamWriter.
@@ -221,7 +219,6 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   FdStreamWriterBase(FdStreamWriterBase&& that) noexcept;
   FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
-  void Initialize(Position assumed_pos);
   void Initialize(absl::optional<Position> assumed_pos, int flags, int dest);
   bool WriteInternal(absl::string_view src) override;
 };
@@ -345,6 +342,9 @@ class FdStreamWriter : public FdStreamWriterBase {
 
 namespace internal {
 
+inline FdWriterCommon::FdWriterCommon(size_t buffer_size)
+    : BufferedWriter(buffer_size) {}
+
 inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
     : BufferedWriter(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
@@ -441,7 +441,7 @@ FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest> dest,
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
   SetFilename(dest_.ptr());
-  Initialize(*options.assumed_pos_);
+  start_pos_ = *options.assumed_pos_;
 }
 
 template <typename Dest>
