@@ -44,6 +44,7 @@ class BufferedWriter : public Writer {
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
   bool PushSlow() override;
+  using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not

@@ -64,6 +64,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   void Done() override;
   bool PushSlow() override;
+  using BackwardWriter::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(std::string&& src) override;
   bool WriteSlow(const Chain& src) override;

@@ -46,6 +46,7 @@ class BufferedReader : public Reader {
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
   bool PullSlow() override;
+  using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
   bool CopyToSlow(Writer* dest, Position length) override;

@@ -46,6 +46,7 @@ class ChainReaderBase : public Reader {
 
   void Done() override;
   bool PullSlow() override;
+  using Reader::ReadSlow;
   bool ReadSlow(Chain* dest, size_t length) override;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
