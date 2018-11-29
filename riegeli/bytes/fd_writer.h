@@ -399,10 +399,9 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
       << "Failed precondition of FdWriter::FdWriter(string_view): "
          "flags must include O_WRONLY or O_RDWR";
   const int dest = OpenFd(filename, flags, options.permissions_);
-  if (ABSL_PREDICT_TRUE(dest >= 0)) {
-    dest_ = Dependency<int, Dest>(Dest(dest));
-    Initialize(options.initial_pos_, flags, dest_.ptr());
-  }
+  if (ABSL_PREDICT_FALSE(dest < 0)) return;
+  dest_ = Dependency<int, Dest>(Dest(dest));
+  Initialize(options.initial_pos_, flags, dest_.ptr());
 }
 
 template <typename Dest>
@@ -453,10 +452,9 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
       << "Failed precondition of FdStreamWriter::FdStreamWriter(string_view): "
          "flags must include O_WRONLY or O_RDWR";
   const int dest = OpenFd(filename, flags, options.permissions_);
-  if (ABSL_PREDICT_TRUE(dest >= 0)) {
-    dest_ = Dependency<int, Dest>(Dest(dest));
-    Initialize(options.assumed_pos_, flags, dest_.ptr());
-  }
+  if (ABSL_PREDICT_FALSE(dest < 0)) return;
+  dest_ = Dependency<int, Dest>(Dest(dest));
+  Initialize(options.assumed_pos_, flags, dest_.ptr());
 }
 
 template <typename Dest>

@@ -497,10 +497,9 @@ FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
       << "Failed precondition of FdReader::FdReader(string_view): "
          "flags must include O_RDONLY or O_RDWR";
   const int src = OpenFd(filename, flags);
-  if (ABSL_PREDICT_TRUE(src >= 0)) {
-    src_ = Dependency<int, Src>(Src(src));
-    Initialize(options.initial_pos_, src_.ptr());
-  }
+  if (ABSL_PREDICT_FALSE(src < 0)) return;
+  src_ = Dependency<int, Src>(Src(src));
+  Initialize(options.initial_pos_, src_.ptr());
 }
 
 template <typename Src>
@@ -550,10 +549,9 @@ FdStreamReader<Src>::FdStreamReader(absl::string_view filename, int flags,
       << "Failed precondition of FdStreamReader::FdStreamReader(string_view): "
          "flags must include O_RDONLY or O_RDWR";
   const int src = OpenFd(filename, flags);
-  if (ABSL_PREDICT_TRUE(src >= 0)) {
-    src_ = Dependency<int, Src>(Src(src));
-    if (options.assumed_pos_.has_value()) limit_pos_ = *options.assumed_pos_;
-  }
+  if (ABSL_PREDICT_FALSE(src < 0)) return;
+  src_ = Dependency<int, Src>(Src(src));
+  if (options.assumed_pos_.has_value()) limit_pos_ = *options.assumed_pos_;
 }
 
 template <typename Src>
@@ -600,10 +598,9 @@ FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
       << "Failed precondition of FdMMapReader::FdMMapReader(string_view): "
          "flags must include O_RDONLY or O_RDWR";
   const int src = OpenFd(filename, flags);
-  if (ABSL_PREDICT_TRUE(src >= 0)) {
-    src_ = Dependency<int, Src>(Src(src));
-    Initialize(options.initial_pos_, src_.ptr());
-  }
+  if (ABSL_PREDICT_FALSE(src < 0)) return;
+  src_ = Dependency<int, Src>(Src(src));
+  Initialize(options.initial_pos_, src_.ptr());
 }
 
 template <typename Src>
