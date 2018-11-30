@@ -97,17 +97,14 @@ cc_library(
 
 cc_library(
     name = "buffered_writer",
-    srcs = [
-        "buffer.h",
-        "buffered_writer.cc",
-    ],
+    srcs = ["buffered_writer.cc"],
     hdrs = ["buffered_writer.h"],
     deps = [
         ":writer",
         "//riegeli/base",
+        "//riegeli/base:buffer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 

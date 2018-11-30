@@ -53,6 +53,17 @@ cc_library(
 )
 
 cc_library(
+    name = "buffer",
+    hdrs = ["buffer.h"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
+    ],
+)
+
+cc_library(
     name = "endian",
     hdrs = ["endian.h"],
 )

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_BUFFER_H_
-#define RIEGELI_BYTES_BUFFER_H_
+#ifndef RIEGELI_BASE_BUFFER_H_
+#define RIEGELI_BASE_BUFFER_H_
 
 #include <stddef.h>
 #include <memory>
@@ -23,9 +23,8 @@
 #include "riegeli/base/base.h"
 
 namespace riegeli {
-namespace internal {
 
-// Lazily allocated buffer.
+// Lazily allocated buffer of a fixed size.
 class Buffer {
  public:
   Buffer() noexcept {}
@@ -88,7 +87,6 @@ inline char* Buffer::GetData() {
   return data_;
 }
 
-}  // namespace internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_BUFFER_H_
+#endif  // RIEGELI_BASE_BUFFER_H_

@@ -20,8 +20,8 @@
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/buffer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -69,7 +69,7 @@ class BufferedWriter : public Writer {
   // position which is start_pos_.
   //
   // Invariant: if healthy() then buffer_.size() > 0
-  internal::Buffer buffer_;
+  Buffer buffer_;
 };
 
 // Implementation details follow.
