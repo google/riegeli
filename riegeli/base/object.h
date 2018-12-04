@@ -179,7 +179,7 @@ class Object {
   // If Fail() is called multiple times, the first message wins.
   //
   // Precondition: !closed()
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message);
+  ABSL_ATTRIBUTE_COLD virtual bool Fail(absl::string_view message);
 
   // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
   // Fail(StrCat(message, ": ", src.message())).

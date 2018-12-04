@@ -102,7 +102,6 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
-    limit_ = start_;
     return FailOverflow();
   }
   size_t available_in = src.size();
@@ -112,7 +111,6 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (ABSL_PREDICT_FALSE(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
-      limit_ = start_;
       return Fail("BrotliEncoderCompressStream() failed");
     }
     size_t length = 0;
@@ -120,7 +118,6 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
       if (ABSL_PREDICT_FALSE(!dest->Write(absl::string_view(data, length)))) {
-        limit_ = start_;
         return Fail(*dest);
       }
     } else if (available_in == 0) {
@@ -140,10 +137,7 @@ bool BrotliWriterBase::Flush(FlushType flush_type) {
                          BROTLI_OPERATION_FLUSH))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) {
-    limit_ = start_;
-    return Fail(*dest);
-  }
+  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
 

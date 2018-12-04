@@ -88,7 +88,6 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
-    limit_ = start_;
     return FailOverflow();
   }
   compressor_->next_in =
@@ -96,10 +95,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
   for (;;) {
     // If compressor_->avail_out == 0 then deflate() returns Z_BUF_ERROR,
     // so dest->Push() first.
-    if (ABSL_PREDICT_FALSE(!dest->Push())) {
-      limit_ = start_;
-      return Fail(*dest);
-    }
+    if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
     size_t avail_in =
         PtrDistance(reinterpret_cast<const char*>(compressor_->next_in),
                     src.data() + src.size());
@@ -130,7 +126,6 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
             << "deflate() returned an unexpected Z_BUF_ERROR";
         break;
       default:
-        limit_ = start_;
         return FailOperation("deflate()");
     }
     RIEGELI_ASSERT_EQ(length_written, src.size())
@@ -149,10 +144,7 @@ bool ZlibWriterBase::Flush(FlushType flush_type) {
           absl::string_view(start_, buffered_length), dest, Z_PARTIAL_FLUSH))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) {
-    limit_ = start_;
-    return Fail(*dest);
-  }
+  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
 

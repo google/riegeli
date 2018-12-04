@@ -26,6 +26,13 @@
 
 namespace riegeli {
 
+bool Writer::Fail(absl::string_view message) {
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  return Object::Fail(message);
+}
+
 bool Writer::FailOverflow() { return Fail("Writer position overflow"); }
 
 bool Writer::WriteSlow(absl::string_view src) {
@@ -75,20 +82,14 @@ bool Writer::WriteSlow(Chain&& src) {
 }
 
 bool Writer::SeekSlow(Position new_pos) {
-  cursor_ = start_;
-  limit_ = start_;
   return Fail("Writer::Seek() not supported");
 }
 
 bool Writer::Size(Position* size) {
-  cursor_ = start_;
-  limit_ = start_;
   return Fail("Writer::Size() not supported");
 }
 
 bool Writer::Truncate(Position new_size) {
-  cursor_ = start_;
-  limit_ = start_;
   return Fail("Writer::Truncate() not supported");
 }
 

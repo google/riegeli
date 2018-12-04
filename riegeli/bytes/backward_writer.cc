@@ -26,6 +26,13 @@
 
 namespace riegeli {
 
+bool BackwardWriter::Fail(absl::string_view message) {
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  return Object::Fail(message);
+}
+
 bool BackwardWriter::FailOverflow() {
   return Fail("BackwardWriter position overflow");
 }
@@ -79,8 +86,6 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
 }
 
 bool BackwardWriter::Truncate(Position new_size) {
-  cursor_ = start_;
-  limit_ = start_;
   return Fail("BackwardWriter::Truncate() not supported");
 }
 

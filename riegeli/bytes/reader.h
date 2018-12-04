@@ -193,8 +193,8 @@ class Reader : public Object {
   Reader(Reader&& that) noexcept;
   Reader& operator=(Reader&& that) noexcept;
 
-  // Reader overrides Object::Done(). Derived classes which override it further
-  // should include a call to Reader::Done().
+  // Reader overrides Object::Done() to set buffer pointers to nullptr. Derived
+  // classes which override it further should include a call to Reader::Done().
   void Done() override;
 
   // Marks the Reader as failed with message "Reader position overflow".

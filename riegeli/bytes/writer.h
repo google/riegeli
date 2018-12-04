@@ -184,9 +184,14 @@ class Writer : public Object {
   Writer(Writer&& that) noexcept;
   Writer& operator=(Writer&& that) noexcept;
 
-  // Writer overrides Object::Done(). Derived classes which override it further
-  // should include a call to Writer::Done().
+  // Writer overrides Object::Done() to set buffer pointers to nullptr. Derived
+  // classes which override it further should include a call to Writer::Done().
   void Done() override;
+
+  // Writer overrides Object::Fail() to set buffer pointers to nullptr. Derived
+  // classes which override it further should include a call to Writer::Fail().
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message) override;
 
   // Marks the Writer as failed with message "Writer position overflow".
   // Always returns false.

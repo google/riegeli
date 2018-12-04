@@ -42,11 +42,7 @@ bool LimitingWriterBase::PushSlow() {
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
-  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
-    cursor_ = start_;
-    limit_ = start_;
-    return FailOverflow();
-  }
+  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) return FailOverflow();
   SyncBuffer(dest);
   const bool ok = dest->Push();
   MakeBuffer(dest);
@@ -88,8 +84,6 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingWriter: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   SyncBuffer(dest);

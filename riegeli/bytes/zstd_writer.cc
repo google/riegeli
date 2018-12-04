@@ -85,7 +85,6 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
-    limit_ = start_;
     return FailOverflow();
   }
   if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
@@ -96,7 +95,6 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
         ZSTD_compressStream(compressor_.get(), &output, &input);
     dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      limit_ = start_;
       return Fail(absl::StrCat("ZSTD_compressStream() failed: ",
                                ZSTD_getErrorName(result)));
     }
@@ -107,10 +105,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
       start_pos_ += input.pos;
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!dest->Push())) {
-      limit_ = start_;
-      return Fail(*dest);
-    }
+    if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
   }
 }
 
@@ -123,10 +118,7 @@ bool ZstdWriterBase::Flush(FlushType flush_type) {
           !FlushInternal(ZSTD_flushStream, "ZSTD_flushStream()", dest))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) {
-    limit_ = start_;
-    return Fail(*dest);
-  }
+  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
 
@@ -147,16 +139,12 @@ bool ZstdWriterBase::FlushInternal(Function function,
     dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) return true;
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      limit_ = start_;
       return Fail(
           absl::StrCat(function_name, " failed: ", ZSTD_getErrorName(result)));
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size)
         << function_name << " returned but there is still output space";
-    if (ABSL_PREDICT_FALSE(!dest->Push())) {
-      limit_ = start_;
-      return Fail(*dest);
-    }
+    if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
   }
 }
 

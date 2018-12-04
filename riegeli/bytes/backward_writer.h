@@ -138,9 +138,16 @@ class BackwardWriter : public Object {
   BackwardWriter(BackwardWriter&& that) noexcept;
   BackwardWriter& operator=(BackwardWriter&& that) noexcept;
 
-  // BackwardWriter overrides Object::Done(). Derived classes which override it
-  // further should include a call to BackwardWriter::Done().
+  // BackwardWriter overrides Object::Done() to set buffer pointers to nullptr.
+  // Derived classes which override it further should include a call to
+  // BackwardWriter::Done().
   void Done() override;
+
+  // BackwardWriter overrides Object::Fail() to set buffer pointers to nullptr.
+  // Derived classes which override it further should include a call to
+  // BackwardWriter::Fail().
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message) override;
 
   // Marks the BackwardWriter as failed with message "BackwardWriter position
   // overflow". Always returns false.

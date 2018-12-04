@@ -44,8 +44,6 @@ bool StringWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(dest->size() == dest->max_size())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   if (dest->capacity() == dest->size()) {
@@ -65,8 +63,6 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   SyncBuffer(dest);
@@ -84,8 +80,6 @@ bool StringWriterBase::WriteSlow(std::string&& src) {
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   SyncBuffer(dest);
@@ -107,8 +101,6 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   SyncBuffer(dest);

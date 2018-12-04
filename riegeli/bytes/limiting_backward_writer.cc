@@ -42,11 +42,7 @@ bool LimitingBackwardWriterBase::PushSlow() {
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();
-  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) {
-    cursor_ = start_;
-    limit_ = start_;
-    return FailOverflow();
-  }
+  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) return FailOverflow();
   SyncBuffer(dest);
   const bool ok = dest->Push();
   MakeBuffer(dest);
@@ -89,8 +85,6 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
       << "Failed invariant of LimitingBackwardWriter: "
          "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
-    cursor_ = start_;
-    limit_ = start_;
     return FailOverflow();
   }
   SyncBuffer(dest);
