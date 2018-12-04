@@ -69,6 +69,7 @@ class LimitingReaderBase : public Reader {
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
+  using Reader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
