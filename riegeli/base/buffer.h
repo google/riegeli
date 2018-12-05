@@ -48,6 +48,10 @@ class Buffer {
   // Returns the data size, or the planned size if not allocated yet.
   const size_t size() const { return size_; }
 
+  // Returns true if the buffer is already allocated and GetData() is fast.
+  // Returns false if GetData() would allocate the buffer.
+  bool is_allocated() const { return data_ != nullptr; }
+
  private:
   // If the buffer is allocated, deletes it.
   void DeleteBuffer();

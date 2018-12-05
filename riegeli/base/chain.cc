@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <atomic>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -369,10 +370,11 @@ inline void Chain::Block::AppendTo(Chain* dest, size_t size_hint) {
 
 inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                          size_t size_hint) {
-  RIEGELI_ASSERT(substr.data() >= data_begin())
+  RIEGELI_ASSERT(std::greater_equal<const char*>()(substr.data(), data_begin()))
       << "Failed precondition of Chain::Block::AppendSubstrTo(Chain*): "
          "substring not contained in data";
-  RIEGELI_ASSERT_LE(substr.size(), size() - (substr.data() - data_begin()))
+  RIEGELI_ASSERT(
+      std::less_equal<const char*>()(substr.data() + substr.size(), data_end()))
       << "Failed precondition of Chain::Block::AppendSubstrTo(Chain*): "
          "substring not contained in data";
   RIEGELI_CHECK_LE(substr.size(),
