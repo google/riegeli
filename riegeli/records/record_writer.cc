@@ -280,8 +280,8 @@ inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
     return Fail(*chunk_encoder);
   }
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
-  chunk->header = ChunkHeader(chunk->data, chunk_type, num_records,
-                              IntCast<uint64_t>(decoded_data_size));
+  chunk->header =
+      ChunkHeader(chunk->data, chunk_type, num_records, decoded_data_size);
   return true;
 }
 
