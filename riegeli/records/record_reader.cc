@@ -222,7 +222,9 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   ChainReader<> data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
   metadata->Clear();
-  ChainBackwardWriter<Chain*> serialized_metadata_writer(metadata);
+  ChainBackwardWriter<Chain*> serialized_metadata_writer(
+      metadata, ChainBackwardWriterBase::Options().set_size_hint(
+                    chunk.header.decoded_data_size()));
   std::vector<size_t> limits;
   const bool ok = transpose_decoder.Reset(
       &data_reader, 1, chunk.header.decoded_data_size(), FieldProjection::All(),
