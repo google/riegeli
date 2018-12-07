@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
