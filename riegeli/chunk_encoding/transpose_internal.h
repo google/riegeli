@@ -30,7 +30,7 @@ enum class MessageId : uint32_t {
   kStartOfMessage,
   // kRoot marks the root node in memory. It is never encoded.
   kRoot,
-  // Remaining message ids are proto tags (field << 3 | wire_type).
+  // Remaining message ids are assigned sequentially one per NodeId.
 };
 
 inline MessageId operator+(MessageId a, uint32_t b) {

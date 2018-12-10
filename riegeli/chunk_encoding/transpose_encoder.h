@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -124,34 +125,28 @@ class TransposeEncoder : public ChunkEncoder {
     std::unique_ptr<BackwardWriter> writer;
     // Unique ID for every instance of this class within Encoder.
     internal::MessageId message_id;
+    // Position of encoded tag in "tags_list_" per subtype.
+    // Size 14 works well with kMaxVarintInline == 3.
+    absl::InlinedVector<uint32_t, 14> encoded_tag_pos;
   };
 
-  // We build a tree structure of protocol buffer fields. NodeId uniquely
+  // We build a tree structure of protocol buffer tags. NodeId uniquely
   // identifies a node in this tree.
-  // Note: We use "field" to denote numeric id of the protocol buffer field
-  // assigned in the .proto file. We use "tag" for the identifier of this field
-  // in the binary format. I.e., tag = (field << 3) | field_type.
   struct NodeId {
-    explicit NodeId(internal::MessageId parent_message_id, uint32_t field);
+    explicit NodeId(internal::MessageId parent_message_id, uint32_t tag);
 
     friend bool operator==(NodeId a, NodeId b) {
-      return a.parent_message_id == b.parent_message_id && a.field == b.field;
+      return a.parent_message_id == b.parent_message_id && a.tag == b.tag;
     }
     template <typename HashState>
     friend HashState AbslHashValue(HashState hash_state, NodeId self) {
       return HashState::combine(std::move(hash_state), self.parent_message_id,
-                                self.field);
+                                self.tag);
     }
 
     internal::MessageId parent_message_id;
-    uint32_t field;
+    uint32_t tag;
   };
-
-  // Get BackwardWriter for field "field" in message "parent_message_id".
-  // "type" is used to select the right category for the buffer if not created
-  // yet.
-  BackwardWriter* GetBuffer(internal::MessageId parent_message_id,
-                            uint32_t field, BufferType type);
 
   // Add message recursively to the internal data structures.
   // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
@@ -218,32 +213,19 @@ class TransposeEncoder : public ChunkEncoder {
   bool WriteTransitions(uint32_t max_transition,
                         const std::vector<StateInfo>& state_machine);
 
-  // Encoded tag represents a tag read from input together with the ID of the
-  // message this tag belongs to and subtype extracted from the data.
-  struct EncodedTag {
-    explicit EncodedTag(internal::MessageId message_id, uint32_t tag,
-                        internal::Subtype subtype);
+  // Value type of node in Nodes map.
+  using Node = absl::flat_hash_map<NodeId, MessageNode>::value_type;
 
-    friend bool operator==(EncodedTag a, EncodedTag b) {
-      return a.message_id == b.message_id && a.tag == b.tag &&
-             a.subtype == b.subtype;
-    }
-    template <typename HashState>
-    friend HashState AbslHashValue(HashState hash_state, EncodedTag self) {
-      return HashState::combine(std::move(hash_state), self.message_id,
-                                self.tag, self.subtype);
-    }
+  // Returns node pointer from "node_id".
+  Node* GetNode(NodeId node_id);
 
-    // ID of the message this tag belongs to.
-    internal::MessageId message_id;
-    // Tag as read from input.
-    uint32_t tag;
-    internal::Subtype subtype;
-  };
+  // Get possition of the (node, subtype) pair in "tags_list_" adding it if not
+  // in the list yet.
+  uint32_t GetPosInTagsList(Node* node, internal::Subtype subtype);
 
-  // Get possition of the encoded tag in "tags_list_" adding it if not in the
-  // list yet.
-  uint32_t GetPosInTagsList(EncodedTag etag);
+  // Get BackwardWriter for node. "type" is used to select the right category
+  // for the buffer if not created yet.
+  BackwardWriter* GetBuffer(Node* node, BufferType type);
 
   // Information about the state machine transition destination.
   struct DestInfo {
@@ -258,8 +240,9 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Information about encoded tag.
   struct EncodedTagInfo {
-    explicit EncodedTagInfo(EncodedTag tag);
-    EncodedTag tag;
+    explicit EncodedTagInfo(NodeId node_id, internal::Subtype subtype);
+    NodeId node_id;
+    internal::Subtype subtype;
     // Maps all destinations reachable from this encoded tag to DestInfo.
     absl::flat_hash_map<uint32_t, DestInfo> dest_info;
     // Number of incoming tranitions into this state.
@@ -279,15 +262,12 @@ class TransposeEncoder : public ChunkEncoder {
 
   // Information about the data buffer.
   struct BufferWithMetadata {
-    explicit BufferWithMetadata(internal::MessageId message_id, uint32_t field);
+    explicit BufferWithMetadata(NodeId node_id);
     // Buffer itself, wrapped in unique_ptr so that its address remains constant
     // when additional buffers are added.
     std::unique_ptr<Chain> buffer;
-    // Message ID and tag of the node in "message_nodes_" that this buffer
-    // belongs to.
-    internal::MessageId message_id;
-    // Field number in message with ID "message_id" that the buffer belongs to.
-    uint32_t field;
+    // NodeId this buffer belongs to.
+    NodeId node_id;
   };
 
   CompressionType compression_type_;
@@ -301,8 +281,6 @@ class TransposeEncoder : public ChunkEncoder {
   std::vector<EncodedTagInfo> tags_list_;
   // Sequence of tags on input as indices into "tags_list_".
   std::vector<uint32_t> encoded_tags_;
-  // Position of encoded tag in "tags_list_".
-  absl::flat_hash_map<EncodedTag, uint32_t> encoded_tag_pos_;
   // Data buffers in separate vectors per buffer type.
   std::vector<BufferWithMetadata> data_[kNumBufferTypes];
   // Every group creates a new message ID. We keep track of open groups in this

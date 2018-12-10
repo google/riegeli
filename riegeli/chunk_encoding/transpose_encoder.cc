@@ -144,8 +144,8 @@ inline TransposeEncoder::MessageNode::MessageNode(
     : message_id(message_id) {}
 
 inline TransposeEncoder::NodeId::NodeId(internal::MessageId parent_message_id,
-                                        uint32_t field)
-    : parent_message_id(parent_message_id), field(field) {}
+                                        uint32_t tag)
+    : parent_message_id(parent_message_id), tag(tag) {}
 
 inline TransposeEncoder::StateInfo::StateInfo()
     : etag_index(kInvalidPos),
@@ -156,24 +156,18 @@ inline TransposeEncoder::StateInfo::StateInfo(uint32_t etag_index,
                                               uint32_t base)
     : etag_index(etag_index), base(base), canonical_source(kInvalidPos) {}
 
-inline TransposeEncoder::EncodedTag::EncodedTag(internal::MessageId message_id,
-                                                uint32_t tag,
-                                                internal::Subtype subtype)
-    : message_id(message_id), tag(tag), subtype(subtype) {}
-
 inline TransposeEncoder::DestInfo::DestInfo() : pos(kInvalidPos) {}
 
-inline TransposeEncoder::EncodedTagInfo::EncodedTagInfo(EncodedTag tag)
-    : tag(tag),
+inline TransposeEncoder::EncodedTagInfo::EncodedTagInfo(
+    NodeId node_id, internal::Subtype subtype)
+    : node_id(node_id),
+      subtype(subtype),
       state_machine_pos(kInvalidPos),
       public_list_noop_pos(kInvalidPos),
       base(kInvalidPos) {}
 
-inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(
-    internal::MessageId message_id, uint32_t field)
-    : buffer(absl::make_unique<Chain>()),
-      message_id(message_id),
-      field(field) {}
+inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
+    : buffer(absl::make_unique<Chain>()), node_id(node_id) {}
 
 TransposeEncoder::TransposeEncoder(CompressorOptions options,
                                    uint64_t bucket_size)
@@ -191,7 +185,6 @@ void TransposeEncoder::Reset() {
   compressor_.Reset();
   tags_list_.clear();
   encoded_tags_.clear();
-  encoded_tag_pos_.clear();
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   group_stack_.clear();
   message_nodes_.clear();
@@ -267,15 +260,16 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
         << "Seeking reader of a record failed: " << record->message();
   }
   if (is_proto) {
-    encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
-        internal::MessageId::kStartOfMessage, 0, internal::Subtype::kTrivial)));
+    encoded_tags_.push_back(GetPosInTagsList(
+        GetNode(NodeId(internal::MessageId::kStartOfMessage, 0)),
+        internal::Subtype::kTrivial));
     LimitingReader<> message(record);
     return AddMessage(&message, internal::MessageId::kRoot, 0);
   } else {
-    encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
-        internal::MessageId::kNonProto, 0, internal::Subtype::kTrivial)));
-    BackwardWriter* const buffer =
-        GetBuffer(internal::MessageId::kNonProto, 0, BufferType::kNonProto);
+    Node* node = GetNode(NodeId(internal::MessageId::kNonProto, 0));
+    encoded_tags_.push_back(
+        GetPosInTagsList(node, internal::Subtype::kTrivial));
+    BackwardWriter* const buffer = GetBuffer(node, BufferType::kNonProto);
     if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, IntCast<size_t>(size)))) {
       return Fail(*buffer);
     }
@@ -287,31 +281,40 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   }
 }
 
-inline BackwardWriter* TransposeEncoder::GetBuffer(
-    internal::MessageId parent_message_id, uint32_t field, BufferType type) {
-  const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator, bool>
-      insert_result = message_nodes_.emplace(NodeId(parent_message_id, field),
-                                             MessageNode(next_message_id_));
-  if (insert_result.second) {
-    // New node was added.
-    ++next_message_id_;
-  }
-  MessageNode& node = insert_result.first->second;
-  if (node.writer == nullptr) {
+inline BackwardWriter* TransposeEncoder::GetBuffer(Node* node,
+                                                   BufferType type) {
+  if (!node->second.writer) {
     std::vector<BufferWithMetadata>& buffers =
         data_[static_cast<uint32_t>(type)];
-    buffers.emplace_back(parent_message_id, field);
-    node.writer =
+    buffers.emplace_back(node->first);
+    node->second.writer =
         absl::make_unique<ChainBackwardWriter<>>(buffers.back().buffer.get());
   }
-  return node.writer.get();
+  return node->second.writer.get();
 }
 
-inline uint32_t TransposeEncoder::GetPosInTagsList(EncodedTag etag) {
-  const std::pair<absl::flat_hash_map<EncodedTag, uint32_t>::iterator, bool>
-      insert_result = encoded_tag_pos_.emplace(etag, tags_list_.size());
-  if (insert_result.second) tags_list_.emplace_back(etag);
-  return insert_result.first->second;
+inline uint32_t TransposeEncoder::GetPosInTagsList(Node* node,
+                                                   internal::Subtype subtype) {
+  size_t pos = static_cast<size_t>(subtype);
+  if (node->second.encoded_tag_pos.size() <= pos) {
+    node->second.encoded_tag_pos.resize(pos + 1,
+                                        std::numeric_limits<uint32_t>::max());
+  }
+  uint32_t* ret = &node->second.encoded_tag_pos[pos];
+  if (*ret == std::numeric_limits<uint32_t>::max()) {
+    *ret = tags_list_.size();
+    tags_list_.emplace_back(node->first, subtype);
+  }
+  return *ret;
+}
+
+inline TransposeEncoder::Node* TransposeEncoder::GetNode(NodeId node_id) {
+  auto it = message_nodes_.find(node_id);
+  if (it == message_nodes_.end()) {
+    it = message_nodes_.emplace(node_id, next_message_id_).first;
+    ++next_message_id_;
+  }
+  return &*it;
 }
 
 // Precondition: IsProtoMessage returns true for this record.
@@ -326,7 +329,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
     if (!ReadVarint32(record, &tag)) {
       RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record->message();
     }
-    const uint32_t field = tag >> 3;
+    Node* node = GetNode(NodeId(parent_message_id, tag));
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
         // Storing value as uint64_t[2] instead of uint8_t[10] lets Clang and
@@ -344,19 +347,16 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
             PtrDistance(reinterpret_cast<char*>(value), value_end);
         if (reinterpret_cast<const unsigned char*>(value)[0] <=
             kMaxVarintInline) {
-          encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
-              parent_message_id, tag,
-              internal::Subtype::kVarintInline0 +
-                  reinterpret_cast<const unsigned char*>(value)[0])));
-        } else {
           encoded_tags_.push_back(GetPosInTagsList(
-              EncodedTag(parent_message_id, tag,
-                         internal::Subtype::kVarint1 +
-                             IntCast<uint8_t>(value_length - 1))));
+              node, internal::Subtype::kVarintInline0 +
+                        reinterpret_cast<const unsigned char*>(value)[0]));
+        } else {
+          encoded_tags_.push_back(
+              GetPosInTagsList(node, internal::Subtype::kVarint1 +
+                                         IntCast<uint8_t>(value_length - 1)));
           // Clear high bit of each byte.
           for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
-          BackwardWriter* const buffer =
-              GetBuffer(parent_message_id, field, BufferType::kVarint);
+          BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
           if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
                   reinterpret_cast<const char*>(value), value_length)))) {
             return Fail(*buffer);
@@ -364,19 +364,17 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         }
       } break;
       case internal::WireType::kFixed32: {
-        encoded_tags_.push_back(GetPosInTagsList(
-            EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        BackwardWriter* const buffer =
-            GetBuffer(parent_message_id, field, BufferType::kFixed32);
+        encoded_tags_.push_back(
+            GetPosInTagsList(node, internal::Subtype::kTrivial));
+        BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
         if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, sizeof(uint32_t)))) {
           return Fail(*buffer);
         }
       } break;
       case internal::WireType::kFixed64: {
-        encoded_tags_.push_back(GetPosInTagsList(
-            EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        BackwardWriter* const buffer =
-            GetBuffer(parent_message_id, field, BufferType::kFixed64);
+        encoded_tags_.push_back(
+            GetPosInTagsList(node, internal::Subtype::kTrivial));
+        BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
         if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, sizeof(uint64_t)))) {
           return Fail(*buffer);
         }
@@ -394,39 +392,29 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         // They have a simpler encoding this way (one node instead of two).
         if (depth < kMaxRecursionDepth && length != 0 &&
             IsProtoMessage(record)) {
-          encoded_tags_.push_back(GetPosInTagsList(EncodedTag(
-              parent_message_id, tag,
-              internal::Subtype::kLengthDelimitedStartOfSubmessage)));
-          const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator,
-                          bool>
-              insert_result =
-                  message_nodes_.emplace(NodeId(parent_message_id, field),
-                                         MessageNode(next_message_id_));
-          if (insert_result.second) {
-            // New node was added.
-            ++next_message_id_;
-          }
+          encoded_tags_.push_back(GetPosInTagsList(
+              node, internal::Subtype::kLengthDelimitedStartOfSubmessage));
           if (!record->Seek(value_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
                 << "Seeking submessage reader failed: " << record->message();
           }
-          if (ABSL_PREDICT_FALSE(!AddMessage(
-                  record, insert_result.first->second.message_id, depth + 1))) {
+          auto end_of_submessage_pos = GetPosInTagsList(
+              node, internal::Subtype::kLengthDelimitedEndOfSubmessage);
+          if (ABSL_PREDICT_FALSE(
+                  !AddMessage(record, node->second.message_id, depth + 1))) {
             return false;
           }
-          encoded_tags_.push_back(GetPosInTagsList(
-              EncodedTag(parent_message_id, tag,
-                         internal::Subtype::kLengthDelimitedEndOfSubmessage)));
+          // Call to AddMessage invalidates "node"
+          node = nullptr;
+          encoded_tags_.push_back(end_of_submessage_pos);
         } else {
           encoded_tags_.push_back(GetPosInTagsList(
-              EncodedTag(parent_message_id, tag,
-                         internal::Subtype::kLengthDelimitedString)));
+              node, internal::Subtype::kLengthDelimitedString));
           if (!record->Seek(length_pos)) {
             RIEGELI_ASSERT_UNREACHABLE()
                 << "Seeking message reader failed: " << record->message();
           }
-          BackwardWriter* const buffer =
-              GetBuffer(parent_message_id, field, BufferType::kString);
+          BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!record->CopyTo(
                   buffer, IntCast<size_t>(value_pos - length_pos) + length))) {
             return Fail(*buffer);
@@ -434,27 +422,22 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         }
       } break;
       case internal::WireType::kStartGroup: {
-        encoded_tags_.push_back(GetPosInTagsList(
-            EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
-        const std::pair<absl::flat_hash_map<NodeId, MessageNode>::iterator,
-                        bool>
-            insert_result =
-                message_nodes_.emplace(NodeId(parent_message_id, field),
-                                       MessageNode(next_message_id_));
-        if (insert_result.second) {
-          // New node was added.
-          ++next_message_id_;
-        }
+        encoded_tags_.push_back(
+            GetPosInTagsList(node, internal::Subtype::kTrivial));
         group_stack_.push_back(parent_message_id);
         ++depth;
-        parent_message_id = insert_result.first->second.message_id;
+        parent_message_id = node->second.message_id;
       } break;
       case internal::WireType::kEndGroup:
         parent_message_id = group_stack_.back();
         group_stack_.pop_back();
         --depth;
-        encoded_tags_.push_back(GetPosInTagsList(
-            EncodedTag(parent_message_id, tag, internal::Subtype::kTrivial)));
+        // Note that "parent_message_id" was updated above so the "node" does
+        // not belong to "(parent_message_id, tag)" as in all the other cases.
+        // But we don't reload "node" because this still works. All we need is
+        // some unique consistent node.
+        encoded_tags_.push_back(
+            GetPosInTagsList(node, internal::Subtype::kTrivial));
         break;
       default:
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid wire type: " << (tag & 7);
@@ -496,17 +479,17 @@ inline bool TransposeEncoder::WriteBuffers(
   size_t num_buffers = 0;
   for (size_t i = 0; i < kNumBufferTypes; ++i) {
     // Sort data_ by length, largest to smallest.
-    std::sort(data_[i].begin(), data_[i].end(),
-              [](const BufferWithMetadata& a, const BufferWithMetadata& b) {
-                if (a.buffer->size() != b.buffer->size()) {
-                  return a.buffer->size() > b.buffer->size();
-                }
-                // Break ties for reproducible ordering.
-                if (a.message_id != b.message_id) {
-                  return a.message_id < b.message_id;
-                }
-                return a.field < b.field;
-              });
+    std::sort(
+        data_[i].begin(), data_[i].end(),
+        [](const BufferWithMetadata& a, const BufferWithMetadata& b) {
+          if (a.buffer->size() != b.buffer->size()) {
+            return a.buffer->size() > b.buffer->size();
+          }
+          if (a.node_id.parent_message_id != b.node_id.parent_message_id) {
+            return a.node_id.parent_message_id < b.node_id.parent_message_id;
+          }
+          return a.node_id.tag < b.node_id.tag;
+        });
     num_buffers += data_[i].size();
   }
   const Chain& nonproto_lengths = nonproto_lengths_writer_.dest();
@@ -525,12 +508,12 @@ inline bool TransposeEncoder::WriteBuffers(
         return false;
       }
       const std::pair<absl::flat_hash_map<NodeId, uint32_t>::iterator, bool>
-          insert_result =
-              buffer_pos->emplace(NodeId(buffer.message_id, buffer.field),
-                                  IntCast<uint32_t>(buffer_pos->size()));
+          insert_result = buffer_pos->emplace(
+              buffer.node_id, IntCast<uint32_t>(buffer_pos->size()));
       RIEGELI_ASSERT(insert_result.second)
           << "Field already has buffer assigned: "
-          << static_cast<uint32_t>(buffer.message_id) << "/" << buffer.field;
+          << static_cast<uint32_t>(buffer.node_id.parent_message_id) << "/"
+          << buffer.node_id.tag;
     }
   }
   if (!nonproto_lengths.empty()) {
@@ -618,52 +601,55 @@ inline bool TransposeEncoder::WriteStatesAndData(
       base_to_write.push_back(state_info.base);
       continue;
     }
-    EncodedTag etag = tags_list_[state_info.etag_index].tag;
-    if (etag.tag != 0) {
-      const bool is_string = static_cast<internal::WireType>(etag.tag & 7) ==
+    const EncodedTagInfo& etag_info = tags_list_[state_info.etag_index];
+    NodeId node_id = etag_info.node_id;
+    internal::Subtype subtype = etag_info.subtype;
+    if (node_id.tag != 0) {
+      const bool is_string = static_cast<internal::WireType>(node_id.tag & 7) ==
                              internal::WireType::kLengthDelimited;
       if (is_string &&
-          etag.subtype ==
-              internal::Subtype::kLengthDelimitedStartOfSubmessage) {
+          subtype == internal::Subtype::kLengthDelimitedStartOfSubmessage) {
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
                 header_writer, static_cast<uint32_t>(
                                    internal::MessageId::kStartOfSubmessage)))) {
           return Fail(*header_writer);
         }
       } else if (is_string &&
-                 etag.subtype ==
+                 subtype ==
                      internal::Subtype::kLengthDelimitedEndOfSubmessage) {
         // End of submessage is encoded as WireType::kSubmessage instead of
         // WireType::kLengthDelimited.
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
                 header_writer,
-                etag.tag + (internal::WireType::kSubmessage -
-                            internal::WireType::kLengthDelimited)))) {
+                node_id.tag + (internal::WireType::kSubmessage -
+                               internal::WireType::kLengthDelimited)))) {
           return Fail(*header_writer);
         }
       } else {
-        if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, etag.tag))) {
+        if (ABSL_PREDICT_FALSE(!WriteVarint32(header_writer, node_id.tag))) {
           return Fail(*header_writer);
         }
-        if (internal::HasSubtype(etag.tag)) {
-          subtype_to_write.push_back(static_cast<char>(etag.subtype));
+        if (internal::HasSubtype(node_id.tag)) {
+          subtype_to_write.push_back(static_cast<char>(subtype));
         }
-        if (internal::HasDataBuffer(etag.tag, etag.subtype)) {
+        if (internal::HasDataBuffer(node_id.tag, subtype)) {
           const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
-              buffer_pos.find(NodeId(etag.message_id, etag.tag >> 3));
+              buffer_pos.find(NodeId(node_id.parent_message_id, node_id.tag));
           RIEGELI_ASSERT(iter != buffer_pos.end())
-              << "Buffer not found: " << static_cast<uint32_t>(etag.message_id)
-              << "/" << (etag.tag >> 3);
+              << "Buffer not found: "
+              << static_cast<uint32_t>(node_id.parent_message_id) << "/"
+              << node_id.tag;
           buffer_index_to_write.push_back(iter->second);
         }
       }
     } else {
       // NonProto and StartOfMessage special IDs.
       if (ABSL_PREDICT_FALSE(!WriteVarint32(
-              header_writer, static_cast<uint32_t>(etag.message_id)))) {
+              header_writer,
+              static_cast<uint32_t>(node_id.parent_message_id)))) {
         return Fail(*header_writer);
       }
-      if (etag.message_id == internal::MessageId::kNonProto) {
+      if (node_id.parent_message_id == internal::MessageId::kNonProto) {
         // NonProto has data buffer.
         const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
             buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
@@ -672,7 +658,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
         buffer_index_to_write.push_back(iter->second);
       } else {
         RIEGELI_ASSERT_EQ(
-            static_cast<uint32_t>(etag.message_id),
+            static_cast<uint32_t>(node_id.parent_message_id),
             static_cast<uint32_t>(internal::MessageId::kStartOfMessage))
             << "Unexpected message ID with no tag";
       }
