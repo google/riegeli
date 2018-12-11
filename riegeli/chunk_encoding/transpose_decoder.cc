@@ -1025,6 +1025,7 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
   // For now positions reported by *dest are pushed to limits directly.
   // Later limits will be reversed and complemented.
   limits->clear();
+  limits->reserve(num_records);
 
   // Set current node to the initial node.
   StateMachineNode* node = &context->state_machine_nodes[context->first_node];
@@ -1035,6 +1036,7 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
   Reader* const transitions_reader = context->transitions.reader();
   // Stack of all open sub-messages.
   std::vector<SubmessageStackElement> submessage_stack;
+  submessage_stack.reserve(16);
   // Number of following iteration that go directly to node->next_node without
   // reading transition byte.
   int num_iters = 0;
