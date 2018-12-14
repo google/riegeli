@@ -28,6 +28,11 @@ message RecordsMetadata {
   // They are informative here, they are never necessary to decode the file.
   optional string record_writer_options = 4;
 
+  // Number of records in the file, so that the reader can tune for it.
+  //
+  // This is informative, the actual number of records may differ.
+  optional int64 num_records = 5;
+
   // Clients can define custom metadata in extensions of this message.
   extensions 1000 to max;
 }
