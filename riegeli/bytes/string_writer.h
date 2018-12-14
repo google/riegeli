@@ -35,7 +35,7 @@ class StringWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // Announce in advance the destination size. This may improve performance
+    // Announces in advance the destination size. This may improve performance
     // and reduce memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.

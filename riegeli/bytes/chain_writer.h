@@ -37,7 +37,7 @@ class ChainWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // Announce in advance the destination size. This may reduce Chain memory
+    // Announces in advance the destination size. This may reduce Chain memory
     // usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.

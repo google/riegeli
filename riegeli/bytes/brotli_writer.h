@@ -87,7 +87,7 @@ class BrotliWriterBase : public BufferedWriter {
       return std::move(set_window_log(window_log));
     }
 
-    // Announce in advance the destination size. This may improve compression
+    // Announces in advance the destination size. This may improve compression
     // density.
     //
     // If the size hint turns out to not match reality, nothing breaks.
@@ -99,6 +99,9 @@ class BrotliWriterBase : public BufferedWriter {
       return std::move(set_size_hint(size_hint));
     }
 
+    // Tunes how much data is buffered before calling the compression engine.
+    //
+    // Default: 64K
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "

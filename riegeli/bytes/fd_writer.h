@@ -106,6 +106,9 @@ class FdWriterBase : public internal::FdWriterCommon {
       return std::move(set_initial_pos(initial_pos));
     }
 
+    // Tunes how much data is buffered before writing to the file.
+    //
+    // Default: 64K
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of FdWriterBase::Options::set_buffer_size(): "
@@ -187,6 +190,9 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
       return std::move(set_assumed_pos(assumed_pos));
     }
 
+    // Tunes how much data is buffered before writing to the file.
+    //
+    // Default: 64K
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "

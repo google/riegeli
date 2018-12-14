@@ -36,6 +36,9 @@ class ZstdReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    // Tunes how much data is buffered after calling the decompression engine.
+    //
+    // Default: ZSTD_DStreamOutSize()
     static size_t kDefaultBufferSize() { return ZSTD_DStreamOutSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)

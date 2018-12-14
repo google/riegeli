@@ -105,6 +105,9 @@ class ZlibWriterBase : public BufferedWriter {
       return std::move(set_header(header));
     }
 
+    // Tunes how much data is buffered before calling the compression engine.
+    //
+    // Default: 64K
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
