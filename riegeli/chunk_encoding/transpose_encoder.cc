@@ -77,13 +77,13 @@ bool IsProtoMessage(Reader* record) {
   std::vector<uint32_t> started_groups;
   while (record->Pull()) {
     uint32_t tag;
-    if (!ReadVarint32(record, &tag)) return false;
+    if (!ReadCanonicalVarint32(record, &tag)) return false;
     const uint32_t field = tag >> 3;
     if (field == 0) return false;
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
         uint64_t value;
-        if (!ReadVarint64(record, &value)) return false;
+        if (!ReadCanonicalVarint64(record, &value)) return false;
       } break;
       case internal::WireType::kFixed32:
         if (!record->Skip(sizeof(uint32_t))) return false;
@@ -93,7 +93,7 @@ bool IsProtoMessage(Reader* record) {
         break;
       case internal::WireType::kLengthDelimited: {
         uint32_t length;
-        if (!ReadVarint32(record, &length)) return false;
+        if (!ReadCanonicalVarint32(record, &length)) return false;
         if (!record->Skip(length)) return false;
       } break;
       case internal::WireType::kStartGroup:

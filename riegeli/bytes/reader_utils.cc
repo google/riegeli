@@ -32,138 +32,88 @@ namespace riegeli {
 namespace internal {
 
 bool ReadVarint32Slow(Reader* src, uint32_t* data) {
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-  const char* cursor = src->cursor();
-  uint32_t acc = static_cast<uint8_t>(*cursor++);
-  src->set_cursor(cursor);
-  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
-    // More than a single byte.
-    uint32_t byte;
-    int shift = 0;
-    do {
-      if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-      const char* cursor = src->cursor();
-      byte = static_cast<uint8_t>(*cursor++);
-      src->set_cursor(cursor);
-      shift += 7;
-      acc += (byte - 1) << shift;
-      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint32() - 1) * 7)) {
-        // Last possible byte.
-        if (ABSL_PREDICT_FALSE(
-                byte >= uint32_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
-          // Some bits are set outside of the range of possible values.
-          return false;
-        }
-        break;
+  uint32_t acc = 0;
+  int shift = 0;
+  uint8_t byte;
+  do {
+    if (ABSL_PREDICT_FALSE(!ReadByte(src, &byte))) return false;
+    acc |= (uint32_t{byte} & 0x7f) << shift;
+    if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint32() - 1) * 7)) {
+      // Last possible byte.
+      if (ABSL_PREDICT_FALSE(
+              byte >= uint8_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
+        // The representation is longer than kMaxLengthVarint32()
+        // or the represented value does not fit in uint32_t.
+        return false;
       }
-    } while (byte >= 0x80);
-    if (ABSL_PREDICT_FALSE(byte == 0)) {
-      // Overlong representation.
-      return false;
+      break;
     }
-  }
+    shift += 7;
+  } while ((byte & 0x80) != 0);
   *data = acc;
   return true;
 }
 
 bool ReadVarint64Slow(Reader* src, uint64_t* data) {
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-  const char* cursor = src->cursor();
-  uint64_t acc = static_cast<uint8_t>(*cursor++);
-  src->set_cursor(cursor);
-  if (ABSL_PREDICT_FALSE(acc >= 0x80)) {
-    // More than a single byte.
-    uint64_t byte;
-    int shift = 0;
-    do {
-      if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-      const char* cursor = src->cursor();
-      byte = static_cast<uint8_t>(*cursor++);
-      src->set_cursor(cursor);
-      shift += 7;
-      acc += (byte - 1) << shift;
-      if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint64() - 1) * 7)) {
-        // Last possible byte.
-        if (ABSL_PREDICT_FALSE(
-                byte >= uint64_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
-          // Some bits are set outside of the range of possible values.
-          return false;
-        }
-        break;
+  uint64_t acc = 0;
+  int shift = 0;
+  uint8_t byte;
+  do {
+    if (ABSL_PREDICT_FALSE(!ReadByte(src, &byte))) return false;
+    acc |= (uint64_t{byte} & 0x7f) << shift;
+    if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint64() - 1) * 7)) {
+      // Last possible byte.
+      if (ABSL_PREDICT_FALSE(
+              byte >= uint8_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
+        // The representation is longer than kMaxLengthVarint64()
+        // or the represented value does not fit in uint64_t.
+        return false;
       }
-    } while (byte >= 0x80);
-    if (ABSL_PREDICT_FALSE(byte == 0)) {
-      // Overlong representation.
-      return false;
+      break;
     }
-  }
+    shift += 7;
+  } while ((byte & 0x80) != 0);
   *data = acc;
   return true;
 }
 
 char* CopyVarint32Slow(Reader* src, char* dest) {
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
-  const char* cursor = src->cursor();
-  uint8_t byte = static_cast<uint8_t>(*cursor++);
-  src->set_cursor(cursor);
-  *dest++ = static_cast<char>(byte);
-  if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
-    // More than a single byte.
-    int remaining = kMaxLengthVarint32() - 1;
-    do {
-      if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
-      const char* cursor = src->cursor();
-      byte = static_cast<uint8_t>(*cursor++);
-      src->set_cursor(cursor);
-      *dest++ = static_cast<char>(byte);
-      if (ABSL_PREDICT_FALSE(--remaining == 0)) {
-        // Last possible byte.
-        if (ABSL_PREDICT_FALSE(
-                byte >= uint8_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
-          // Some bits are set outside of the range of possible values.
-          return nullptr;
-        }
-        break;
+  int remaining = kMaxLengthVarint32();
+  uint8_t byte;
+  do {
+    if (ABSL_PREDICT_FALSE(!ReadByte(src, &byte))) return nullptr;
+    *dest++ = static_cast<char>(byte);
+    if (ABSL_PREDICT_FALSE(--remaining == 0)) {
+      // Last possible byte.
+      if (ABSL_PREDICT_FALSE(
+              byte >= uint8_t{1} << (32 - (kMaxLengthVarint32() - 1) * 7))) {
+        // The representation is longer than kMaxLengthVarint32()
+        // or the represented value does not fit in uint32_t.
+        return nullptr;
       }
-    } while (byte >= 0x80);
-    if (ABSL_PREDICT_FALSE(byte == 0)) {
-      // Overlong representation.
-      return nullptr;
+      break;
     }
-  }
+  } while ((byte & 0x80) != 0);
   return dest;
 }
 
 char* CopyVarint64Slow(Reader* src, char* dest) {
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
-  const char* cursor = src->cursor();
-  uint8_t byte = static_cast<uint8_t>(*cursor++);
-  src->set_cursor(cursor);
-  *dest++ = static_cast<char>(byte);
-  if (ABSL_PREDICT_FALSE(byte >= 0x80)) {
-    // More than a single byte.
-    int remaining = kMaxLengthVarint64() - 1;
-    do {
-      if (ABSL_PREDICT_FALSE(!src->Pull())) return nullptr;
-      const char* cursor = src->cursor();
-      byte = static_cast<uint8_t>(*cursor++);
-      src->set_cursor(cursor);
-      *dest++ = static_cast<char>(byte);
-      if (ABSL_PREDICT_FALSE(--remaining == 0)) {
-        // Last possible byte.
-        if (ABSL_PREDICT_FALSE(
-                byte >= uint8_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
-          // Some bits are set outside of the range of possible values.
-          return nullptr;
-        }
-        break;
+  int remaining = kMaxLengthVarint64();
+  uint8_t byte;
+  do {
+    if (ABSL_PREDICT_FALSE(!ReadByte(src, &byte))) return nullptr;
+    *dest++ = static_cast<char>(byte);
+    if (ABSL_PREDICT_FALSE(--remaining == 0)) {
+      // Last possible byte.
+      if (ABSL_PREDICT_FALSE(
+              byte >= uint8_t{1} << (64 - (kMaxLengthVarint64() - 1) * 7))) {
+        // The representation is longer than kMaxLengthVarint64()
+        // or the represented value does not fit in uint64_t.
+        return nullptr;
       }
-    } while (byte >= 0x80);
-    if (ABSL_PREDICT_FALSE(byte == 0)) {
-      // Overlong representation.
-      return nullptr;
+      break;
     }
-  }
+  } while ((byte & 0x80) != 0);
   return dest;
 }
 
