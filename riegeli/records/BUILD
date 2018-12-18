@@ -97,6 +97,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
     ],
 )
 

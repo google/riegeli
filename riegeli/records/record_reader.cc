@@ -301,6 +301,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
                                  "recovery does not apply to chunk reader "
                                  "but RecordReader is closed";
   }
+  std::string saved_message(message());
   MarkNotFailed();
   switch (recoverable) {
     case Recoverable::kNo:
@@ -314,7 +315,8 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       if (skipped_region != nullptr) {
         const Position region_begin = chunk_begin_ + index_before;
         const Position region_end = pos().numeric();
-        *skipped_region = SkippedRegion(region_begin, region_end);
+        *skipped_region =
+            SkippedRegion(region_begin, region_end, std::move(saved_message));
       }
       return true;
     }

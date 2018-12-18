@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -316,6 +317,7 @@ again:
   recoverable_ = Recoverable::kNo;
   Position recoverable_pos = recoverable_pos_;
   recoverable_pos_ = 0;
+  std::string saved_message(message());
   MarkNotFailed();
   chunk_.Reset();
   if (recoverable == Recoverable::kHaveChunk) {
@@ -324,7 +326,8 @@ again:
       if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
         if (skipped_region != nullptr) {
-          *skipped_region = SkippedRegion(region_begin, src->pos());
+          *skipped_region =
+              SkippedRegion(region_begin, src->pos(), std::move(saved_message));
         }
         return true;
       }
@@ -335,7 +338,8 @@ again:
       }
     }
     if (skipped_region != nullptr) {
-      *skipped_region = SkippedRegion(region_begin, pos_);
+      *skipped_region =
+          SkippedRegion(region_begin, pos_, std::move(saved_message));
     }
     return true;
   }
@@ -349,7 +353,8 @@ find_chunk:
   if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
     if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
     if (skipped_region != nullptr) {
-      *skipped_region = SkippedRegion(region_begin, src->pos());
+      *skipped_region =
+          SkippedRegion(region_begin, src->pos(), std::move(saved_message));
     }
     return true;
   }
@@ -366,13 +371,15 @@ find_chunk:
     if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       if (skipped_region != nullptr) {
-        *skipped_region = SkippedRegion(region_begin, src->pos());
+        *skipped_region =
+            SkippedRegion(region_begin, src->pos(), std::move(saved_message));
       }
       return true;
     }
   }
   if (skipped_region != nullptr) {
-    *skipped_region = SkippedRegion(region_begin, pos_);
+    *skipped_region =
+        SkippedRegion(region_begin, pos_, std::move(saved_message));
   }
   return true;
 }

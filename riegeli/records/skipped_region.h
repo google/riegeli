@@ -17,62 +17,82 @@
 
 #include <iosfwd>
 #include <string>
+#include <utility>
 
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
 
+// Details about a skipped region of invalid file contents.
 class SkippedRegion {
  public:
-  constexpr SkippedRegion() noexcept {}
+  SkippedRegion() noexcept {}
 
-  explicit SkippedRegion(Position begin, Position end);
+  // Creates a SkippedRegion with the given region location and message
+  // explaining why the region is invalid.
+  explicit SkippedRegion(Position begin, Position end, std::string message);
 
-  SkippedRegion(const SkippedRegion& that) noexcept;
-  SkippedRegion& operator=(const SkippedRegion& that) noexcept;
+  SkippedRegion(const SkippedRegion& that);
+  SkippedRegion& operator=(const SkippedRegion& that);
 
+  SkippedRegion(SkippedRegion&&) noexcept;
+  SkippedRegion& operator=(SkippedRegion&&) noexcept;
+
+  // File position of the beginning of the skipped region, inclusive.
   Position begin() const { return begin_; }
+  // File position of the end of the skipped region, exclusive.
   Position end() const { return end_; }
 
+  // Length of the skipped region, in bytes.
   Position length() const { return end_ - begin_; }
 
+  // Message explaining why the region is invalid.
+  const std::string& message() const { return message_; }
+
+  // Formats SkippedRegion as string: "[<begin>, <end>): <message>".
   std::string ToString() const;
 
  private:
   Position begin_ = 0;
   Position end_ = 0;
+  std::string message_;
 };
 
-bool operator==(SkippedRegion a, SkippedRegion b);
-bool operator!=(SkippedRegion a, SkippedRegion b);
-
-std::ostream& operator<<(std::ostream& out, SkippedRegion skipped_region);
+// Same as: out << skipped_region.ToString()
+std::ostream& operator<<(std::ostream& out,
+                         const SkippedRegion& skipped_region);
 
 // Implementation details follow.
 
-inline SkippedRegion::SkippedRegion(Position begin, Position end)
-    : begin_(begin), end_(end) {
+inline SkippedRegion::SkippedRegion(Position begin, Position end,
+                                    std::string message)
+    : begin_(begin), end_(end), message_(std::move(message)) {
   RIEGELI_ASSERT_LE(begin, end)
       << "Failed precondition of SkippedRegion::SkippedRegion: "
          "positions in the wrong order";
 }
 
-inline SkippedRegion::SkippedRegion(const SkippedRegion& that) noexcept
-    : begin_(that.begin_), end_(that.end_) {}
+inline SkippedRegion::SkippedRegion(const SkippedRegion& that)
+    : begin_(that.begin_), end_(that.end_), message_(that.message_) {}
 
-inline SkippedRegion& SkippedRegion::operator=(
-    const SkippedRegion& that) noexcept {
+inline SkippedRegion& SkippedRegion::operator=(const SkippedRegion& that) {
   begin_ = that.begin_;
   end_ = that.end_;
+  message_ = that.message_;
   return *this;
 }
 
-inline bool operator==(SkippedRegion a, SkippedRegion b) {
-  return a.begin() == b.begin() && a.end() == b.end();
-}
+inline SkippedRegion::SkippedRegion(SkippedRegion&& that) noexcept
+    : begin_(absl::exchange(that.begin_, 0)),
+      end_(absl::exchange(that.end_, 0)),
+      message_(absl::exchange(that.message_, std::string())) {}
 
-inline bool operator!=(SkippedRegion a, SkippedRegion b) {
-  return a.begin() != b.begin() || a.end() != b.end();
+inline SkippedRegion& SkippedRegion::operator=(SkippedRegion&& that) noexcept {
+  begin_ = absl::exchange(that.begin_, 0);
+  end_ = absl::exchange(that.end_, 0);
+  message_ = absl::exchange(that.message_, std::string());
+  return *this;
 }
 
 }  // namespace riegeli

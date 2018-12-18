@@ -115,11 +115,13 @@ class RecordReaderBase : public Object {
     //  * Seek() - returns the result of the recovery function
     //
     // Default: nullptr
-    Options& set_recovery(std::function<bool(SkippedRegion)> recovery) & {
+    Options& set_recovery(
+        std::function<bool(const SkippedRegion&)> recovery) & {
       recovery_ = std::move(recovery);
       return *this;
     }
-    Options&& set_recovery(std::function<bool(SkippedRegion)> recovery) && {
+    Options&& set_recovery(
+        std::function<bool(const SkippedRegion&)> recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
 
@@ -127,7 +129,7 @@ class RecordReaderBase : public Object {
     friend class RecordReaderBase;
 
     FieldProjection field_projection_ = FieldProjection::All();
-    std::function<bool(SkippedRegion)> recovery_;
+    std::function<bool(const SkippedRegion&)> recovery_;
   };
 
   // Returns the Riegeli/records file being read from. Unchanged by Close().
@@ -307,7 +309,7 @@ class RecordReaderBase : public Object {
   //                    recoverable_ == Recoverable::kRecoverChunkReader
   Recoverable recoverable_ = Recoverable::kNo;
 
-  std::function<bool(SkippedRegion)> recovery_;
+  std::function<bool(const SkippedRegion&)> recovery_;
 
  private:
   bool ParseMetadata(const Chunk& chunk, Chain* metadata);
@@ -341,7 +343,7 @@ class RecordReaderBase : public Object {
 // For reading records while skipping errors, pass options like these:
 //
 //       RecordReaderBase::Options().set_recovery(
-//           [&skipped_bytes](SkippedRegion skipped_region) {
+//           [&skipped_bytes](const SkippedRegion& skipped_region) {
 //             skipped_bytes += skipped_region.length();
 //             return true;
 //           })

@@ -52,24 +52,27 @@ class RecordPosition {
   constexpr RecordPosition() noexcept {}
 
   // Creates a RecordPosition corresponding to the given record of the chunk
-  // at the given file position.
+  // beginning at the given file position.
   explicit RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
   RecordPosition(const RecordPosition& that) noexcept;
   RecordPosition& operator=(const RecordPosition& that) noexcept;
 
+  // File position of the beginning of the chunk containing the given record.
   uint64_t chunk_begin() const { return chunk_begin_; }
+  // Index of the record within the chunk.
   uint64_t record_index() const { return record_index_; }
 
   // Converts RecordPosition to an integer scaled between 0 and file size.
   // Distinct RecordPositions of a valid file have distinct numeric values.
   uint64_t numeric() const { return chunk_begin_ + record_index_; }
 
-  // Text format.
+  // Text format: "<chunk_begin>/<record_index>".
   std::string ToString() const;
   bool FromString(absl::string_view serialized);
 
-  // Binary format. Serialized strings have the same natural order as the
+  // Binary format: chunk_begin and record_index as BigEndian-encoded 8-byte
+  // integers. Serialized strings have the same natural order as the
   // corresponding positions.
   std::string ToBytes() const;
   bool FromBytes(absl::string_view serialized);
@@ -87,6 +90,7 @@ bool operator>(RecordPosition a, RecordPosition b);
 bool operator<=(RecordPosition a, RecordPosition b);
 bool operator>=(RecordPosition a, RecordPosition b);
 
+// Same as: out << pos.ToString()
 std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
 // FutureRecordPosition is similar to shared_future<RecordPosition>.
