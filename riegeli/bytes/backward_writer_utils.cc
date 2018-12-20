@@ -25,13 +25,13 @@ namespace riegeli {
 namespace internal {
 
 bool WriteVarint32Slow(BackwardWriter* dest, uint32_t data) {
-  char buffer[kMaxLengthVarint32()];
+  char buffer[kMaxLengthVarint32];
   char* const end = WriteVarint32(buffer, data);
   return dest->Write(absl::string_view(buffer, PtrDistance(buffer, end)));
 }
 
 bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data) {
-  char buffer[kMaxLengthVarint64()];
+  char buffer[kMaxLengthVarint64];
   char* const end = WriteVarint64(buffer, data);
   return dest->Write(absl::string_view(buffer, PtrDistance(buffer, end)));
 }

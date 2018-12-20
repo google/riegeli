@@ -39,17 +39,17 @@ class BrotliWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel() (0) and
-    // kMaxCompressionLevel() (11). Default: kDefaultCompressionLevel() (9).
-    static constexpr int kMinCompressionLevel() { return BROTLI_MIN_QUALITY; }
-    static constexpr int kMaxCompressionLevel() { return BROTLI_MAX_QUALITY; }
-    static constexpr int kDefaultCompressionLevel() { return 9; }
+    // compression_level must be between kMinCompressionLevel (0) and
+    // kMaxCompressionLevel (11). Default: kDefaultCompressionLevel (9).
+    static constexpr int kMinCompressionLevel = BROTLI_MIN_QUALITY;
+    static constexpr int kMaxCompressionLevel = BROTLI_MAX_QUALITY;
+    static constexpr int kDefaultCompressionLevel = 9;
     Options& set_compression_level(int compression_level) & {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -64,19 +64,17 @@ class BrotliWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // window_log must be between kMinWindowLog() (10) and kMaxWindowLog() (30).
-    // Default: kDefaultWindowLog() (22).
-    static constexpr int kMinWindowLog() { return BROTLI_MIN_WINDOW_BITS; }
-    static constexpr int kMaxWindowLog() {
-      return BROTLI_LARGE_MAX_WINDOW_BITS;
-    }
-    static constexpr int kDefaultWindowLog() { return BROTLI_DEFAULT_WINDOW; }
+    // window_log must be between kMinWindowLog (10) and kMaxWindowLog (30).
+    // Default: kDefaultWindowLog (22).
+    static constexpr int kMinWindowLog = BROTLI_MIN_WINDOW_BITS;
+    static constexpr int kMaxWindowLog = BROTLI_LARGE_MAX_WINDOW_BITS;
+    static constexpr int kDefaultWindowLog = BROTLI_DEFAULT_WINDOW;
     Options& set_window_log(int window_log) & {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
           << "Failed precondition of "
              "BrotliWriterBase::Options::set_window_log(): "
              "window log out of range";
@@ -118,10 +116,10 @@ class BrotliWriterBase : public BufferedWriter {
     template <typename Dest>
     friend class BrotliWriter;
 
-    int compression_level_ = kDefaultCompressionLevel();
-    int window_log_ = kDefaultWindowLog();
+    int compression_level_ = kDefaultCompressionLevel;
+    int window_log_ = kDefaultWindowLog;
     Position size_hint_ = 0;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the compressed Writer. Unchanged by Close().
@@ -230,7 +228,7 @@ inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
 template <typename Dest>
 void BrotliWriter<Dest>::Done() {
   BrotliWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

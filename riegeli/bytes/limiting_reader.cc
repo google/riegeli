@@ -28,6 +28,13 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr Position LimitingReaderBase::kNoSizeLimit;
+#endif
+
 void LimitingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Reader* const src = src_reader();
@@ -57,7 +64,7 @@ bool LimitingReaderBase::ReadSlow(char* dest, size_t length) {
 }
 
 bool LimitingReaderBase::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
@@ -80,7 +87,7 @@ inline bool LimitingReaderBase::ReadInternal(Dest* dest, size_t length) {
 }
 
 bool LimitingReaderBase::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -95,7 +102,7 @@ bool LimitingReaderBase::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool LimitingReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

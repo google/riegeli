@@ -40,18 +40,18 @@ class ZstdWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel() (-32) and
-    // kMaxCompressionLevel() (22). Level 0 is currently equivalent to 3.
-    // Default: kDefaultCompressionLevel() (9).
-    static int kMinCompressionLevel() { return -32; }
-    static int kMaxCompressionLevel() { return ZSTD_maxCLevel(); }
-    static constexpr int kDefaultCompressionLevel() { return 9; }
+    // compression_level must be between kMinCompressionLevel (-32) and
+    // kMaxCompressionLevel (22). Level 0 is currently equivalent to 3.
+    // Default: kDefaultCompressionLevel (9).
+    static constexpr int kMinCompressionLevel = -32;
+    static constexpr int kMaxCompressionLevel = 22;  // ZSTD_maxCLevel();
+    static constexpr int kDefaultCompressionLevel = 9;
     Options& set_compression_level(int compression_level) & {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZstdWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "ZstdWriterBase::Options::set_compression_level()"
              "compression level out of range";
@@ -66,22 +66,23 @@ class ZstdWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value kDefaultWindowLog() (-1) means to derive window_log from
+    // Special value kDefaultWindowLog (-1) means to derive window_log from
     // compression_level and size_hint.
     //
-    // window_log must be kDefaultWindowLog() (-1) or between kMinWindowLog()
-    // (10) and kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit build).
-    // Default: kDefaultWindowLog() (-1).
-    static int kMinWindowLog();
-    static int kMaxWindowLog();
-    static constexpr int kDefaultWindowLog() { return -1; }
+    // window_log must be kDefaultWindowLog (-1) or between kMinWindowLog (10)
+    // and kMaxWindowLog (30 in 32-bit build, 31 in 64-bit build).
+    // Default: kDefaultWindowLog (-1).
+    static constexpr int kMinWindowLog = 10;  // ZSTD_WINDOWLOG_MIN
+    static constexpr int kMaxWindowLog =
+        sizeof(size_t) == 4 ? 30 : 31;  // ZSTD_WINDOWLOG_MAX
+    static constexpr int kDefaultWindowLog = -1;
     Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog()) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+      if (window_log != kDefaultWindowLog) {
+        RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
@@ -109,7 +110,7 @@ class ZstdWriterBase : public BufferedWriter {
     // Tunes how much data is buffered before calling the compression engine.
     //
     // Default: ZSTD_CStreamInSize()
-    static size_t kDefaultBufferSize() { return ZSTD_CStreamInSize(); }
+    static size_t DefaultBufferSize() { return ZSTD_CStreamInSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
@@ -126,10 +127,10 @@ class ZstdWriterBase : public BufferedWriter {
     template <typename Dest>
     friend class ZstdWriter;
 
-    int compression_level_ = kDefaultCompressionLevel();
-    int window_log_ = kDefaultWindowLog();
+    int compression_level_ = kDefaultCompressionLevel;
+    int window_log_ = kDefaultWindowLog;
     Position size_hint_ = 0;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = DefaultBufferSize();
   };
 
   // Returns the compressed Writer. Unchanged by Close().
@@ -266,7 +267,7 @@ inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
 template <typename Dest>
 void ZstdWriter<Dest>::Done() {
   ZstdWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

@@ -43,7 +43,7 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t size = record.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(num_records_ ==
-                         UnsignedMin(limits_.max_size(), kMaxNumRecords()))) {
+                         UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
@@ -81,7 +81,7 @@ template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(num_records_ ==
-                         UnsignedMin(limits_.max_size(), kMaxNumRecords()))) {
+                         UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
@@ -104,7 +104,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(limits.size() >
-                         UnsignedMin(limits_.max_size(), kMaxNumRecords()) -
+                         UnsignedMin(limits_.max_size(), kMaxNumRecords) -
                              num_records_)) {
     return Fail("Too many records");
   }

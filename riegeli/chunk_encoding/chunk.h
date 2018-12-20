@@ -66,7 +66,7 @@ class ChunkHeader {
   void set_data_hash(uint64_t value) { words_[2] = WriteLittleEndian64(value); }
   void set_chunk_type_and_num_records(ChunkType chunk_type,
                                       uint64_t num_records) {
-    RIEGELI_ASSERT_LE(num_records, kMaxNumRecords())
+    RIEGELI_ASSERT_LE(num_records, kMaxNumRecords)
         << "Failed precondition of "
            "ChunkHeader::set_chunk_type_and_num_records(): "
            "number of records out of range";

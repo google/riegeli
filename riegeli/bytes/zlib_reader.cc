@@ -30,6 +30,17 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int ZlibReaderBase::Options::kMinWindowLog;
+constexpr int ZlibReaderBase::Options::kMaxWindowLog;
+constexpr int ZlibReaderBase::Options::kDefaultWindowLog;
+constexpr ZlibReaderBase::Options::Header
+    ZlibReaderBase::Options::kDefaultHeader;
+#endif
+
 void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "

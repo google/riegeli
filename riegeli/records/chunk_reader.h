@@ -314,7 +314,7 @@ inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
 template <typename Src>
 void DefaultChunkReader<Src>::Done() {
   DefaultChunkReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }

@@ -29,6 +29,20 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int ZlibWriterBase::Options::kMinCompressionLevel;
+constexpr int ZlibWriterBase::Options::kMaxCompressionLevel;
+constexpr int ZlibWriterBase::Options::kDefaultCompressionLevel;
+constexpr int ZlibWriterBase::Options::kMinWindowLog;
+constexpr int ZlibWriterBase::Options::kMaxWindowLog;
+constexpr int ZlibWriterBase::Options::kDefaultWindowLog;
+constexpr ZlibWriterBase::Options::Header
+    ZlibWriterBase::Options::kDefaultHeader;
+#endif
+
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
                                 int window_bits) {
   RIEGELI_ASSERT(dest != nullptr)

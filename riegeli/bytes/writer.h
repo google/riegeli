@@ -219,7 +219,7 @@ class Writer : public Object {
   //
   // Precondition for WriteSlow(string&&), WriteSlow(const Chain&), and
   // WriteSlow(Chain&&):
-  //   src.size() > UnsignedMin(available(), kMaxBytesToCopy())
+  //   src.size() > UnsignedMin(available(), kMaxBytesToCopy)
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(std::string&& src);
   virtual bool WriteSlow(const Chain& src);
@@ -296,7 +296,7 @@ inline bool Writer::Write(absl::string_view src) {
 
 inline bool Writer::Write(std::string&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
-                        src.size() <= kMaxBytesToCopy())) {
+                        src.size() <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(!src.empty())) {  // memcpy(nullptr, _, 0)
                                             // is undefined.
       std::memcpy(cursor_, src.data(), src.size());
@@ -309,7 +309,7 @@ inline bool Writer::Write(std::string&& src) {
 
 inline bool Writer::Write(const Chain& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
-                        src.size() <= kMaxBytesToCopy())) {
+                        src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor_);
     cursor_ += src.size();
     return true;
@@ -319,7 +319,7 @@ inline bool Writer::Write(const Chain& src) {
 
 inline bool Writer::Write(Chain&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
-                        src.size() <= kMaxBytesToCopy())) {
+                        src.size() <= kMaxBytesToCopy)) {
     src.CopyTo(cursor_);
     cursor_ += src.size();
     return true;

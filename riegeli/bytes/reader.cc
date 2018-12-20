@@ -107,7 +107,7 @@ bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch,
 }
 
 bool Reader::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
@@ -135,7 +135,7 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
 }
 
 bool Reader::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   while (length > available()) {
@@ -151,7 +151,7 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (length <= available()) {
@@ -159,8 +159,8 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
     cursor_ += length;
     return dest->Write(data);
   }
-  if (length <= kMaxBytesToCopy()) {
-    char buffer[kMaxBytesToCopy()];
+  if (length <= kMaxBytesToCopy) {
+    char buffer[kMaxBytesToCopy];
     if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
     return dest->Write(absl::string_view(buffer, length));
   }

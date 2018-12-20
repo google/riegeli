@@ -55,6 +55,22 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int RecordWriterBase::Options::kMinBrotli;
+constexpr int RecordWriterBase::Options::kMaxBrotli;
+constexpr int RecordWriterBase::Options::kDefaultBrotli;
+constexpr int RecordWriterBase::Options::kMinZstd;
+constexpr int RecordWriterBase::Options::kMaxZstd;
+constexpr int RecordWriterBase::Options::kDefaultZstd;
+constexpr int RecordWriterBase::Options::kMinWindowLog;
+constexpr int RecordWriterBase::Options::kMaxWindowLog;
+constexpr int RecordWriterBase::Options::kDefaultWindowLog;
+constexpr uint64_t RecordWriterBase::Options::kDefaultChunkSize;
+#endif
+
 namespace {
 
 class FileDescriptorCollector {
@@ -635,7 +651,7 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   // Ensure that num_records does not overflow when WriteRecordImpl() keeps
   // num_records * sizeof(uint64_t) under desired_chunk_size_.
   desired_chunk_size_ =
-      UnsignedMin(options.chunk_size_, kMaxNumRecords() * sizeof(uint64_t));
+      UnsignedMin(options.chunk_size_, kMaxNumRecords * sizeof(uint64_t));
   if (options.parallelism_ == 0) {
     worker_ = absl::make_unique<SerialWorker>(dest, std::move(options));
   } else {

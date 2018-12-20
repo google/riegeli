@@ -73,7 +73,7 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
   int ptr() const { return this->manager().fd(); }
   int Release() { return this->manager().Release(); }
 
-  static constexpr bool kIsOwning() { return true; }
+  bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return true; }
 };
 
@@ -98,10 +98,10 @@ class Dependency<int, int> {
   int ptr() const { return fd_; }
   int Release() {
     RIEGELI_ASSERT_UNREACHABLE() << "Dependency<int, int>::Release() called "
-                                    "but kIsOwning() is false";
+                                    "but is_owning() is false";
   }
 
-  static constexpr bool kIsOwning() { return false; }
+  bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
 
  private:

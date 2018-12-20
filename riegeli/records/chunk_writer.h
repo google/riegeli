@@ -217,7 +217,7 @@ inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
 template <typename Dest>
 void DefaultChunkWriter<Dest>::Done() {
   DefaultChunkWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

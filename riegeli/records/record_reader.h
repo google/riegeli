@@ -516,7 +516,7 @@ inline RecordReader<Src>& RecordReader<Src>::operator=(
 template <typename Src>
 void RecordReader<Src>::Done() {
   RecordReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       Fail(*src_);

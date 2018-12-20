@@ -126,7 +126,7 @@ class FdWriterBase : public internal::FdWriterCommon {
 
     mode_t permissions_ = 0666;
     absl::optional<Position> initial_pos_;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   bool Flush(FlushType flush_type) override;
@@ -211,7 +211,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   bool Flush(FlushType flush_type) override;
@@ -425,7 +425,7 @@ template <typename Dest>
 void FdWriter<Dest>::Done() {
   if (ABSL_PREDICT_TRUE(PushInternal())) SyncPos(dest_.ptr());
   FdWriterBase::Done();
-  if (dest_.kIsOwning() && dest_.ptr() >= 0) {
+  if (dest_.is_owning() && dest_.ptr() >= 0) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -479,7 +479,7 @@ template <typename Dest>
 void FdStreamWriter<Dest>::Done() {
   PushInternal();
   FdStreamWriterBase::Done();
-  if (dest_.kIsOwning() && dest_.ptr() >= 0) {
+  if (dest_.is_owning() && dest_.ptr() >= 0) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {

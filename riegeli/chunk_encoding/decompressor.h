@@ -150,7 +150,7 @@ template <typename Src>
 void Decompressor<Src>::Done() {
   struct Visitor {
     void operator()(Dependency<Reader*, Src>& reader) const {
-      if (reader.kIsOwning()) {
+      if (reader.is_owning()) {
         if (ABSL_PREDICT_FALSE(!reader->Close())) self->Fail(*reader);
       }
     }
@@ -172,7 +172,7 @@ template <typename Src>
 inline void Decompressor<Src>::VerifyEnd() {
   struct Visitor {
     void operator()(Dependency<Reader*, Src>& reader) const {
-      if (reader.kIsOwning()) reader->VerifyEnd();
+      if (reader.is_owning()) reader->VerifyEnd();
     }
     void operator()(Reader& reader) const { reader.VerifyEnd(); }
   };

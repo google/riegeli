@@ -198,7 +198,7 @@ bool TransposeEncoder::AddRecord(absl::string_view record) {
 }
 
 bool TransposeEncoder::AddRecord(std::string&& record) {
-  if (record.size() <= kMaxBytesToCopy()) {
+  if (record.size() <= kMaxBytesToCopy) {
     return AddRecord(absl::string_view(record));
   } else {
     return AddRecord(Chain(std::move(record)));
@@ -245,7 +245,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
   RIEGELI_ASSERT_LE(pos_before, size)
       << "Current position after the end of record";
   size -= pos_before;
-  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
@@ -335,7 +335,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         // Storing value as uint64_t[2] instead of uint8_t[10] lets Clang and
         // GCC generate better code for clearing high bit of each byte.
         uint64_t value[2];
-        static_assert(sizeof(value) >= kMaxLengthVarint64(),
+        static_assert(sizeof(value) >= kMaxLengthVarint64,
                       "value too small to hold a varint64");
         char* const value_end =
             CopyVarint64(record, reinterpret_cast<char*>(value));

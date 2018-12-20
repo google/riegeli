@@ -60,7 +60,7 @@ class TransposeDecoder : public Object {
   struct TagData {
     // "data" contains varint encoded tag (1 to 5 bytes) followed by inline
     // numeric (if any) or zero otherwise.
-    char data[kMaxLengthVarint32() + 1];
+    char data[kMaxLengthVarint32 + 1];
     // Length of the varint encoded tag.
     uint8_t size;
   };

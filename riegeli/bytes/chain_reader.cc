@@ -60,7 +60,7 @@ bool ChainReaderBase::PullSlow() {
 }
 
 bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "length too small, use Read(Chain*) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
@@ -101,7 +101,7 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
 }
 
 bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -115,8 +115,8 @@ bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
     ok = dest->Write(*src);
-  } else if (length_to_copy <= kMaxBytesToCopy()) {
-    char buffer[kMaxBytesToCopy()];
+  } else if (length_to_copy <= kMaxBytesToCopy) {
+    char buffer[kMaxBytesToCopy];
     if (!Read(buffer, IntCast<size_t>(length_to_copy))) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(char*) failed";
     }
@@ -133,7 +133,7 @@ bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
 }
 
 bool ChainReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -152,8 +152,8 @@ bool ChainReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
     }
     return dest->Write(*src);
   }
-  if (length <= kMaxBytesToCopy()) {
-    char buffer[kMaxBytesToCopy()];
+  if (length <= kMaxBytesToCopy) {
+    char buffer[kMaxBytesToCopy];
     if (!Reader::ReadSlow(buffer, length)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::ReadSlow(char*) failed";
     }

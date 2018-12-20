@@ -34,9 +34,7 @@ namespace riegeli {
 class LimitingWriterBase : public Writer {
  public:
   // An infinite size limit.
-  static constexpr Position kNoSizeLimit() {
-    return std::numeric_limits<Position>::max();
-  }
+  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
 
   // Changes the size limit.
   //
@@ -81,7 +79,7 @@ class LimitingWriterBase : public Writer {
   // the size limit. Fails this if dest failed.
   void MakeBuffer(Writer* dest);
 
-  Position size_limit_ = kNoSizeLimit();
+  Position size_limit_ = kNoSizeLimit;
 
  private:
   template <typename Src>
@@ -114,7 +112,7 @@ class LimitingWriter : public LimitingWriterBase {
   // Will write to the original Writer provided by dest.
   //
   // Precondition: size_limit >= dest->pos()
-  explicit LimitingWriter(Dest dest, Position size_limit = kNoSizeLimit());
+  explicit LimitingWriter(Dest dest, Position size_limit = kNoSizeLimit);
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
@@ -141,12 +139,12 @@ class LimitingWriter : public LimitingWriterBase {
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
     : Writer(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit())) {}
+      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
 
 inline LimitingWriterBase& LimitingWriterBase::operator=(
     LimitingWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit());
+  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
 }
 
@@ -215,7 +213,7 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
 template <typename Dest>
 void LimitingWriter<Dest>::Done() {
   LimitingWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

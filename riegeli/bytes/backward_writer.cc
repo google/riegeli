@@ -59,7 +59,7 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
 }
 
 bool BackwardWriter::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
          "length too small, use Write(string&&) instead";
   // Not std::move(src): forward to Write(string_view).
@@ -67,7 +67,7 @@ bool BackwardWriter::WriteSlow(std::string&& src) {
 }
 
 bool BackwardWriter::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   for (Chain::Blocks::const_reverse_iterator iter = src.blocks().crbegin();
@@ -78,7 +78,7 @@ bool BackwardWriter::WriteSlow(const Chain& src) {
 }
 
 bool BackwardWriter::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   // Not std::move(src): forward to WriteSlow(const Chain&).

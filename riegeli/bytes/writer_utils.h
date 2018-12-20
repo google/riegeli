@@ -29,8 +29,8 @@ namespace riegeli {
 
 bool WriteByte(Writer* dest, uint8_t data);
 
-size_t LengthVarint32(uint32_t data);  // At most kMaxLengthVarint32().
-size_t LengthVarint64(uint64_t data);  // At most kMaxLengthVarint64().
+size_t LengthVarint32(uint32_t data);  // At most kMaxLengthVarint32.
+size_t LengthVarint64(uint64_t data);  // At most kMaxLengthVarint64.
 
 // At least LengthVarint32(data) bytes of space at dest[] must be available.
 char* WriteVarint32(char* dest, uint32_t data);
@@ -116,7 +116,7 @@ inline char* WriteVarint64(char* dest, uint64_t data) {
 }
 
 inline bool WriteVarint32(Writer* dest, uint32_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32)) {
     dest->set_cursor(WriteVarint32(dest->cursor(), data));
     return true;
   }
@@ -124,7 +124,7 @@ inline bool WriteVarint32(Writer* dest, uint32_t data) {
 }
 
 inline bool WriteVarint64(Writer* dest, uint64_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64())) {
+  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64)) {
     dest->set_cursor(WriteVarint64(dest->cursor(), data));
     return true;
   }

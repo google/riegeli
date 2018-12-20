@@ -39,7 +39,7 @@ class ZstdReaderBase : public BufferedReader {
     // Tunes how much data is buffered after calling the decompression engine.
     //
     // Default: ZSTD_DStreamOutSize()
-    static size_t kDefaultBufferSize() { return ZSTD_DStreamOutSize(); }
+    static size_t DefaultBufferSize() { return ZSTD_DStreamOutSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "
@@ -56,7 +56,7 @@ class ZstdReaderBase : public BufferedReader {
     template <typename Src>
     friend class ZstdReader;
 
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = DefaultBufferSize();
   };
 
   // Returns the compressed Reader. Unchanged by Close().
@@ -165,7 +165,7 @@ inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
 template <typename Src>
 void ZstdReader<Src>::Done() {
   ZstdReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
@@ -173,7 +173,7 @@ void ZstdReader<Src>::Done() {
 template <typename Src>
 void ZstdReader<Src>::VerifyEnd() {
   ZstdReaderBase::VerifyEnd();
-  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class ZstdReader<Reader*>;

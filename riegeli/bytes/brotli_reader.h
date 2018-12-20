@@ -140,7 +140,7 @@ inline BrotliReader<Src>& BrotliReader<Src>::operator=(
 template <typename Src>
 void BrotliReader<Src>::Done() {
   BrotliReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
@@ -148,7 +148,7 @@ void BrotliReader<Src>::Done() {
 template <typename Src>
 void BrotliReader<Src>::VerifyEnd() {
   BrotliReaderBase::VerifyEnd();
-  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class BrotliReader<Reader*>;

@@ -47,6 +47,7 @@ cc_library(
 cc_library(
     name = "constants",
     hdrs = ["constants.h"],
+    deps = ["//riegeli/base"],
 )
 
 cc_library(

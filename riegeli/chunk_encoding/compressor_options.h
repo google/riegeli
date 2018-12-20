@@ -61,31 +61,28 @@ class CompressorOptions {
   // tunes the tradeoff between compression density and compression speed
   // (higher = better density but slower).
   //
-  // compression_level must be between kMinBrotli() (0) and kMaxBrotli() (11).
-  // Default: kDefaultBrotli() (9).
+  // compression_level must be between kMinBrotli (0) and kMaxBrotli (11).
+  // Default: kDefaultBrotli (9).
   //
   // This is the default compression algorithm.
-  static constexpr int kMinBrotli() {
-    return BrotliWriterBase::Options::kMinCompressionLevel();
-  }
-  static constexpr int kMaxBrotli() {
-    return BrotliWriterBase::Options::kMaxCompressionLevel();
-  }
-  static constexpr int kDefaultBrotli() {
-    return BrotliWriterBase::Options::kDefaultCompressionLevel();
-  }
-  CompressorOptions& set_brotli(int compression_level = kDefaultBrotli()) & {
-    RIEGELI_ASSERT_GE(compression_level, kMinBrotli())
+  static constexpr int kMinBrotli =
+      BrotliWriterBase::Options::kMinCompressionLevel;
+  static constexpr int kMaxBrotli =
+      BrotliWriterBase::Options::kMaxCompressionLevel;
+  static constexpr int kDefaultBrotli =
+      BrotliWriterBase::Options::kDefaultCompressionLevel;
+  CompressorOptions& set_brotli(int compression_level = kDefaultBrotli) & {
+    RIEGELI_ASSERT_GE(compression_level, kMinBrotli)
         << "Failed precondition of CompressorOptions::set_brotli(): "
            "compression level out of range";
-    RIEGELI_ASSERT_LE(compression_level, kMaxBrotli())
+    RIEGELI_ASSERT_LE(compression_level, kMaxBrotli)
         << "Failed precondition of CompressorOptions::set_brotli(): "
            "compression level out of range";
     compression_type_ = CompressionType::kBrotli;
     compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_brotli(int compression_level = kDefaultBrotli()) && {
+  CompressorOptions&& set_brotli(int compression_level = kDefaultBrotli) && {
     return std::move(set_brotli(compression_level));
   }
 
@@ -93,29 +90,24 @@ class CompressorOptions {
   // the tradeoff between compression density and compression speed (higher =
   // better density but slower).
   //
-  // compression_level must be between kMinZstd() (-32) and kMaxZstd() (22).
-  // Level 0 is currently equivalent to 3. Default: kDefaultZstd() (9).
-  static int kMinZstd() {
-    return ZstdWriterBase::Options::kMinCompressionLevel();
-  }
-  static int kMaxZstd() {
-    return ZstdWriterBase::Options::kMaxCompressionLevel();
-  }
-  static constexpr int kDefaultZstd() {
-    return ZstdWriterBase::Options::kDefaultCompressionLevel();
-  }
-  CompressorOptions& set_zstd(int compression_level = kDefaultZstd()) & {
-    RIEGELI_ASSERT_GE(compression_level, kMinZstd())
+  // compression_level must be between kMinZstd (-32) and kMaxZstd (22).
+  // Level 0 is currently equivalent to 3. Default: kDefaultZstd (9).
+  static constexpr int kMinZstd = ZstdWriterBase::Options::kMinCompressionLevel;
+  static constexpr int kMaxZstd = ZstdWriterBase::Options::kMaxCompressionLevel;
+  static constexpr int kDefaultZstd =
+      ZstdWriterBase::Options::kDefaultCompressionLevel;
+  CompressorOptions& set_zstd(int compression_level = kDefaultZstd) & {
+    RIEGELI_ASSERT_GE(compression_level, kMinZstd)
         << "Failed precondition of CompressorOptions::set_zstd(): "
            "compression level out of range";
-    RIEGELI_ASSERT_LE(compression_level, kMaxZstd())
+    RIEGELI_ASSERT_LE(compression_level, kMaxZstd)
         << "Failed precondition of CompressorOptions::set_zstd(): "
            "compression level out of range";
     compression_type_ = CompressionType::kZstd;
     compression_level_ = compression_level;
     return *this;
   }
-  CompressorOptions&& set_zstd(int compression_level = kDefaultZstd()) && {
+  CompressorOptions&& set_zstd(int compression_level = kDefaultZstd) && {
     return std::move(set_zstd(compression_level));
   }
 
@@ -127,36 +119,34 @@ class CompressorOptions {
   // between compression density and memory usage (higher = better density but
   // more memory).
   //
-  // Special value kDefaultWindowLog() (-1) means to keep the default
+  // Special value kDefaultWindowLog (-1) means to keep the default
   // (brotli: 22, zstd: derived from compression level and chunk size).
   //
-  // For uncompressed, window_log must be kDefaultWindowLog() (-1).
+  // For uncompressed, window_log must be kDefaultWindowLog (-1).
   //
-  // For brotli, window_log must be kDefaultWindowLog() (-1) or between
-  // BrotliWriterBase::Options::kMinWindowLog() (10) and
-  // BrotliWriterBase::Options::kMaxWindowLog() (30).
+  // For brotli, window_log must be kDefaultWindowLog (-1) or between
+  // BrotliWriterBase::Options::kMinWindowLog (10) and
+  // BrotliWriterBase::Options::kMaxWindowLog (30).
   //
-  // For zstd, window_log must be kDefaultWindowLog() (-1) or between
-  // ZstdWriterBase::Options::kMinWindowLog() (10) and
-  // ZstdWriterBase::Options::kMaxWindowLog() (30 in 32-bit build, 31 in 64-bit
+  // For zstd, window_log must be kDefaultWindowLog (-1) or between
+  // ZstdWriterBase::Options::kMinWindowLog (10) and
+  // ZstdWriterBase::Options::kMaxWindowLog (30 in 32-bit build, 31 in 64-bit
   // build).
   //
-  // Default: kDefaultWindowLog() (-1).
-  static int kMinWindowLog() {
-    return SignedMin(BrotliWriterBase::Options::kMinWindowLog(),
-                     ZstdWriterBase::Options::kMinWindowLog());
-  }
-  static int kMaxWindowLog() {
-    return SignedMax(BrotliWriterBase::Options::kMaxWindowLog(),
-                     ZstdWriterBase::Options::kMaxWindowLog());
-  }
-  static constexpr int kDefaultWindowLog() { return -1; }
+  // Default: kDefaultWindowLog (-1).
+  static constexpr int kMinWindowLog =
+      SignedMin(BrotliWriterBase::Options::kMinWindowLog,
+                ZstdWriterBase::Options::kMinWindowLog);
+  static constexpr int kMaxWindowLog =
+      SignedMax(BrotliWriterBase::Options::kMaxWindowLog,
+                ZstdWriterBase::Options::kMaxWindowLog);
+  static constexpr int kDefaultWindowLog = -1;
   CompressorOptions& set_window_log(int window_log) & {
-    if (window_log != kDefaultWindowLog()) {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+    if (window_log != kDefaultWindowLog) {
+      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
     }
@@ -174,8 +164,8 @@ class CompressorOptions {
 
  private:
   CompressionType compression_type_ = CompressionType::kBrotli;
-  int compression_level_ = kDefaultBrotli();
-  int window_log_ = kDefaultWindowLog();
+  int compression_level_ = kDefaultBrotli;
+  int window_log_ = kDefaultWindowLog;
 };
 
 }  // namespace riegeli

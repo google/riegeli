@@ -139,7 +139,7 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
   if (length == 0) return true;
   if (length < ChunkHeader::size()) {
     // Not enough space for a padding chunk in this block. Write one more block.
-    length += size_t{internal::kUsableBlockSize()};
+    length += size_t{internal::kUsableBlockSize};
   }
   length -= ChunkHeader::size();
   Chunk chunk;

@@ -71,7 +71,7 @@ namespace riegeli {
 //
 //   // If true, a Dependency owns the dependent object, i.e. the destructor of
 //   // Dependency destroys that object.
-//   static constexpr bool kIsOwning();
+//   bool is_owning() const;
 //
 //   // If true, ptr() stays unchanged when a Dependency is moved.
 //   static constexpr bool kIsStable();
@@ -125,7 +125,7 @@ class Dependency<P*, M*, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
   P& operator*() const { return *ptr(); }
   P* operator->() const { return ptr(); }
 
-  static constexpr bool kIsOwning() { return false; }
+  bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
 };
 
@@ -143,7 +143,7 @@ class Dependency<P*, M, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
   P* operator->() { return ptr(); }
   const P* operator->() const { return ptr(); }
 
-  static constexpr bool kIsOwning() { return true; }
+  bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
 };
 
@@ -159,7 +159,7 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
   P& operator*() const { return *ptr(); }
   P* operator->() const { return ptr(); }
 
-  static constexpr bool kIsOwning() { return true; }
+  bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return true; }
 };
 

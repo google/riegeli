@@ -26,6 +26,14 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr uintptr_t Object::kHealthy;
+constexpr uintptr_t Object::kClosedSuccessfully;
+#endif
+
 inline Object::FailedStatus::FailedStatus(absl::string_view message)
     : message_size(message.size()) {
   std::memcpy(message_data, message.data(), message.size());
@@ -37,7 +45,7 @@ bool Object::Fail(absl::string_view message) {
   const uintptr_t new_status =
       reinterpret_cast<uintptr_t>(NewAligned<FailedStatus>(
           offsetof(FailedStatus, message_data) + message.size(), message));
-  uintptr_t old_status = kHealthy();
+  uintptr_t old_status = kHealthy;
   if (ABSL_PREDICT_FALSE(!status_.compare_exchange_strong(
           old_status, new_status, std::memory_order_release))) {
     // status_ was already set, new_status loses.

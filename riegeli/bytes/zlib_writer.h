@@ -43,17 +43,17 @@ class ZlibWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel() (0) and
-    // kMaxCompressionLevel() (9). Default: kDefaultCompressionLevel() (6).
-    static constexpr int kMinCompressionLevel() { return Z_NO_COMPRESSION; }
-    static constexpr int kMaxCompressionLevel() { return Z_BEST_COMPRESSION; }
-    static constexpr int kDefaultCompressionLevel() { return 6; }
+    // compression_level must be between kMinCompressionLevel (0) and
+    // kMaxCompressionLevel (9). Default: kDefaultCompressionLevel (6).
+    static constexpr int kMinCompressionLevel = Z_NO_COMPRESSION;
+    static constexpr int kMaxCompressionLevel = Z_BEST_COMPRESSION;
+    static constexpr int kDefaultCompressionLevel = 6;
     Options& set_compression_level(int compression_level) & {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel())
+      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel())
+      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_compression_level()"
              "compression level out of range";
@@ -68,17 +68,17 @@ class ZlibWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // window_log must be between kMinWindowLog() (9) and kMaxWindowLog() (15).
-    // Default: kDefaultWindowLog() (15).
-    static constexpr int kMinWindowLog() { return 9; }
-    static constexpr int kMaxWindowLog() { return MAX_WBITS; }
-    static constexpr int kDefaultWindowLog() { return MAX_WBITS; }
+    // window_log must be between kMinWindowLog (9) and kMaxWindowLog (15).
+    // Default: kDefaultWindowLog (15).
+    static constexpr int kMinWindowLog = 9;
+    static constexpr int kMaxWindowLog = MAX_WBITS;
+    static constexpr int kDefaultWindowLog = MAX_WBITS;
     Options& set_window_log(int window_log) & {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_window_log(): "
              "window log out of range";
@@ -96,7 +96,7 @@ class ZlibWriterBase : public BufferedWriter {
     //  * Header::kRaw  - no header (decompressor must expect no header too)
     //
     // Default: Header::kZlib.
-    static constexpr Header kDefaultHeader() { return Header::kZlib; }
+    static constexpr Header kDefaultHeader = Header::kZlib;
     Options& set_header(Header header) & {
       header_ = header;
       return *this;
@@ -124,10 +124,10 @@ class ZlibWriterBase : public BufferedWriter {
     template <typename Dest>
     friend class ZlibWriter;
 
-    int compression_level_ = kDefaultCompressionLevel();
-    int window_log_ = kDefaultWindowLog();
-    Header header_ = kDefaultHeader();
-    size_t buffer_size_ = kDefaultBufferSize();
+    int compression_level_ = kDefaultCompressionLevel;
+    int window_log_ = kDefaultWindowLog;
+    Header header_ = kDefaultHeader;
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the compressed Writer. Unchanged by Close().
@@ -239,7 +239,7 @@ inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
 template <typename Dest>
 void ZlibWriter<Dest>::Done() {
   ZlibWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

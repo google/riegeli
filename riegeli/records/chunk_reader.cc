@@ -95,7 +95,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
       if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
                              block_begin - pos_)) {
-        if (block_header_.next_chunk() <= internal::kBlockSize()) {
+        if (block_header_.next_chunk() <= internal::kBlockSize) {
           // Trust the rest of the block header: skip to the next chunk.
           recoverable_ = Recoverable::kHaveChunk;
           recoverable_pos_ = block_begin + block_header_.next_chunk();
@@ -202,7 +202,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
       if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) return false;
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() !=
                              block_begin - pos_)) {
-        if (block_header_.next_chunk() <= internal::kBlockSize()) {
+        if (block_header_.next_chunk() <= internal::kBlockSize) {
           // Trust the rest of the block header: skip to the next chunk.
           recoverable_ = Recoverable::kHaveChunk;
           recoverable_pos_ = block_begin + block_header_.next_chunk();

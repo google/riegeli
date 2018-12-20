@@ -67,7 +67,7 @@ inline bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
           !internal::ParseFromReaderImpl(dest, src_dep.ptr(), error_message))) {
     return false;
   }
-  if (src_dep.kIsOwning()) {
+  if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
       if (error_message != nullptr)
         *error_message = std::string(src_dep->message());

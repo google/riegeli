@@ -70,7 +70,7 @@ enum class Subtype : uint8_t {
   // Subtypes of kVarint:
   // Varint of the given length, in the buffer.
   kVarint1 = 0,
-  kVarintMax = static_cast<uint8_t>(kVarint1) + kMaxLengthVarint64() - 1,
+  kVarintMax = static_cast<uint8_t>(kVarint1) + kMaxLengthVarint64 - 1,
   // Varint of the given value, inline.
   kVarintInline0 = static_cast<uint8_t>(kVarintMax) + 1,
   kVarintInlineMax = static_cast<uint8_t>(kVarintInline0) + 0x7f,

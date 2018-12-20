@@ -43,21 +43,21 @@ class ZlibReaderBase : public BufferedReader {
 
     // Maximum acceptable logarithm of the LZ77 sliding window size.
     //
-    // kDefaultWindowLog() means any value is acceptable, otherwise this must
+    // kDefaultWindowLog means any value is acceptable, otherwise this must
     // not be lower than the corresponding setting of the compressor.
     //
-    // window_log must be kDefaultWindowLog() (0) or between kMinWindowLog() (9)
-    // and kMaxWindowLog() (15). Default: kDefaultWindowLog() (0).
-    static constexpr int kMinWindowLog() { return 9; }
-    static constexpr int kMaxWindowLog() { return MAX_WBITS; }
-    static constexpr int kDefaultWindowLog() { return 0; }
+    // window_log must be kDefaultWindowLog (0) or between kMinWindowLog (9)
+    // and kMaxWindowLog (15). Default: kDefaultWindowLog (0).
+    static constexpr int kMinWindowLog = 9;
+    static constexpr int kMaxWindowLog = MAX_WBITS;
+    static constexpr int kDefaultWindowLog = 0;
     Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog()) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog())
+      if (window_log != kDefaultWindowLog) {
+        RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
             << "Failed precondition of "
                "ZlibReaderBase::Options::set_window_log(): "
                "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog())
+        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
             << "Failed precondition of "
                "ZlibReaderBase::Options::set_window_log(): "
                "window log out of range";
@@ -76,7 +76,7 @@ class ZlibReaderBase : public BufferedReader {
     //  * Header::kRaw        - no header (compressor must write no header too)
     //
     // Default: Header::kZlibOrGzip.
-    static constexpr Header kDefaultHeader() { return Header::kZlibOrGzip; }
+    static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
     Options& set_header(Header header) & {
       header_ = header;
       return *this;
@@ -104,9 +104,9 @@ class ZlibReaderBase : public BufferedReader {
     template <typename Src>
     friend class ZlibReader;
 
-    int window_log_ = kDefaultWindowLog();
-    Header header_ = kDefaultHeader();
-    size_t buffer_size_ = kDefaultBufferSize();
+    int window_log_ = kDefaultWindowLog;
+    Header header_ = kDefaultHeader;
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   // Returns the compressed Reader. Unchanged by Close().
@@ -221,7 +221,7 @@ inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
 template <typename Src>
 void ZlibReader<Src>::Done() {
   ZlibReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
@@ -229,7 +229,7 @@ void ZlibReader<Src>::Done() {
 template <typename Src>
 void ZlibReader<Src>::VerifyEnd() {
   ZlibReaderBase::VerifyEnd();
-  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
 extern template class ZlibReader<Reader*>;

@@ -263,6 +263,30 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
+// RIEGELI_INLINE_CONSTEXPR(type, name, init) emulates namespace-scope
+//   inline constexpr type name = init;
+// from C++17, but is available since C++11.
+
+#if __cpp_inline_variables
+#define RIEGELI_INLINE_CONSTEXPR(type, name, init) \
+  inline constexpr ::riegeli::type_identity_t<type> name = init
+
+#else
+
+#define RIEGELI_INLINE_CONSTEXPR(type, name, init)                            \
+  template <typename RiegeliInternalDummy>                                    \
+  struct RiegeliInternalInlineConstexpr_##name {                              \
+    static constexpr ::riegeli::type_identity_t<type> kInstance = init;       \
+  };                                                                          \
+  template <typename RiegeliInternalDummy>                                    \
+  constexpr ::riegeli::type_identity_t<type>                                  \
+      RiegeliInternalInlineConstexpr_##name<RiegeliInternalDummy>::kInstance; \
+  static constexpr const ::riegeli::type_identity_t<type>& name =             \
+      RiegeliInternalInlineConstexpr_##name<void>::kInstance;                 \
+  static_assert(sizeof(name) != 0, "Silence unused variable warnings.")
+
+#endif
+
 // IntCast<A>(value) converts between integral types, asserting that the value
 // fits in the target type.
 
@@ -495,13 +519,13 @@ enum class FlushType {
 
 // The default size of buffers used to amortize copying data to/from a more
 // expensive destination/source.
-constexpr size_t kDefaultBufferSize() { return size_t{64} << 10; }
+RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 
 // In the fast path of certain functions, even if enough data is available in a
-// buffer, the data is not copied if more than kMaxBytesToCopy() is requested,
+// buffer, the data is not copied if more than kMaxBytesToCopy is requested,
 // falling back to a virtual slow path instead. The virtual function might take
 // advantage of sharing instead of copying.
-constexpr size_t kMaxBytesToCopy() { return 511; }
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 511);
 
 }  // namespace riegeli
 

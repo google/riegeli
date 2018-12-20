@@ -52,7 +52,7 @@ class Dependency<ChunkReader*, M,
   ChunkReader* operator->() { return ptr(); }
   const ChunkReader* operator->() const { return ptr(); }
 
-  static constexpr bool kIsOwning() { return true; }
+  bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
 
  private:

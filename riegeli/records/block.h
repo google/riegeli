@@ -73,50 +73,48 @@ class BlockHeader {
   uint64_t words_[3];
 };
 
-constexpr Position kBlockSize() { return Position{1} << 16; }
+RIEGELI_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
 
-constexpr Position kUsableBlockSize() {
-  return kBlockSize() - BlockHeader::size();
-}
+RIEGELI_INLINE_CONSTEXPR(Position, kUsableBlockSize,
+                         kBlockSize - BlockHeader::size());
 
 // Whether pos is a block boundary (immediately before a block header).
-inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize() == 0; }
+inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize == 0; }
 
 // The nearest block boundary at or before pos.
 inline Position RoundDownToBlockBoundary(Position pos) {
-  return pos - pos % kBlockSize();
+  return pos - pos % kBlockSize;
 }
 
 // How many bytes remain until the end of the block (0 at a block boundary).
-inline Position RemainingInBlock(Position pos) { return (-pos) % kBlockSize(); }
+inline Position RemainingInBlock(Position pos) { return (-pos) % kBlockSize; }
 
 // Whether pos is a possible chunk boundary (not inside nor immediately after
 // a block header).
 inline bool IsPossibleChunkBoundary(Position pos) {
-  return RemainingInBlock(pos) < kUsableBlockSize();
+  return RemainingInBlock(pos) < kUsableBlockSize;
 }
 
 // The nearest possible chunk boundary at or after pos (chunk boundaries are not
 // valid inside or immediately after a block header).
 inline Position RoundUpToPossibleChunkBoundary(Position pos) {
-  return pos + SaturatingSub(RemainingInBlock(pos), kUsableBlockSize() - 1);
+  return pos + SaturatingSub(RemainingInBlock(pos), kUsableBlockSize - 1);
 }
 
 // If pos is immediately before or inside a block header, how many bytes remain
 // until the end of the block header, otherwise 0.
 inline size_t RemainingInBlockHeader(Position pos) {
-  return SaturatingSub(BlockHeader::size(),
-                       IntCast<size_t>(pos % kBlockSize()));
+  return SaturatingSub(BlockHeader::size(), IntCast<size_t>(pos % kBlockSize));
 }
 
 // For a chunk beginning at the given position, the position after the given
 // length, adding intervening block headers.
 inline Position AddWithOverhead(Position chunk_begin, Position length) {
-  RIEGELI_ASSERT_LT(RemainingInBlock(chunk_begin), kUsableBlockSize())
+  RIEGELI_ASSERT_LT(RemainingInBlock(chunk_begin), kUsableBlockSize)
       << "Failed precondition of AddWithOverhead(): invalid chunk boundary";
   const Position num_overhead_blocks =
-      (length + (chunk_begin + kUsableBlockSize() - 1) % kBlockSize()) /
-      kUsableBlockSize();
+      (length + (chunk_begin + kUsableBlockSize - 1) % kBlockSize) /
+      kUsableBlockSize;
   return chunk_begin + length + num_overhead_blocks * BlockHeader::size();
 }
 
@@ -127,10 +125,10 @@ inline Position DistanceWithoutOverhead(Position chunk_begin, Position pos) {
       << "Failed precondition of DistanceWithoutOverhead(): "
          "positions in the wrong order";
   const Position num_overhead_blocks =
-      pos / kBlockSize() - chunk_begin / kBlockSize();
-  return (pos - UnsignedMin(pos % kBlockSize(), BlockHeader::size())) -
+      pos / kBlockSize - chunk_begin / kBlockSize;
+  return (pos - UnsignedMin(pos % kBlockSize, BlockHeader::size())) -
          (chunk_begin -
-          UnsignedMin(chunk_begin % kBlockSize(), BlockHeader::size())) -
+          UnsignedMin(chunk_begin % kBlockSize, BlockHeader::size())) -
          num_overhead_blocks * BlockHeader::size();
 }
 

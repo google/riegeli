@@ -34,9 +34,7 @@ namespace riegeli {
 class LimitingBackwardWriterBase : public BackwardWriter {
  public:
   // An infinite size limit.
-  static constexpr Position kNoSizeLimit() {
-    return std::numeric_limits<Position>::max();
-  }
+  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
 
   // Changes the size limit.
   //
@@ -78,7 +76,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   // the size limit. Fails this if dest failed.
   void MakeBuffer(BackwardWriter* dest);
 
-  Position size_limit_ = kNoSizeLimit();
+  Position size_limit_ = kNoSizeLimit;
 
  private:
   template <typename Src>
@@ -112,7 +110,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   //
   // Precondition: size_limit >= dest->pos()
   explicit LimitingBackwardWriter(Dest dest,
-                                  Position size_limit = kNoSizeLimit());
+                                  Position size_limit = kNoSizeLimit);
 
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
@@ -139,12 +137,12 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit())) {}
+      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
 
 inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
     LimitingBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit());
+  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
 }
 
@@ -218,7 +216,7 @@ inline void LimitingBackwardWriter<Dest>::MoveDest(
 template <typename Dest>
 void LimitingBackwardWriter<Dest>::Done() {
   LimitingBackwardWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

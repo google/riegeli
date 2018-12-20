@@ -161,7 +161,7 @@ inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
 // Returns copy_tag callback type for "tag_length".
 inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32() + 1)
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32 + 1)
       << "Tag length too large";
   return CallbackType::kCopyTag_1 +
          (tag_length - 1) *
@@ -171,7 +171,7 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
 // Returns numeric callback type for "subtype" and "tag_length".
 inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   if (subtype > Subtype::kVarintInlineMax) return CallbackType::kUnknown;
   if (subtype >= Subtype::kVarintInline0) {
     return GetCopyTagCallbackType(tag_length + 1);
@@ -186,7 +186,7 @@ inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
 // Returns FLOAT binary callback type for "tag_length".
 inline CallbackType GetFixed32CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed32_1 +
          (tag_length - 1) *
              (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
@@ -195,7 +195,7 @@ inline CallbackType GetFixed32CallbackType(size_t tag_length) {
 // Returns DOUBLE binary callback type for "tag_length".
 inline CallbackType GetFixed64CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed64_1 +
          (tag_length - 1) *
              (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
@@ -204,7 +204,7 @@ inline CallbackType GetFixed64CallbackType(size_t tag_length) {
 // Returns string callback type for "subtype" and "tag_length".
 inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case Subtype::kLengthDelimitedString:
       return CallbackType::kString_1 +
@@ -224,7 +224,7 @@ inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
 inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
                                                  size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case Subtype::kLengthDelimitedString:
       return CallbackType::kNoOp;
@@ -240,7 +240,7 @@ inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
 inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
                                                    size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
@@ -257,7 +257,7 @@ inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
 
 inline CallbackType GetStartProjectionGroupCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kStartProjectionGroup_1 +
          (tag_length - 1) * (CallbackType::kStartProjectionGroup_2 -
                              CallbackType::kStartProjectionGroup_1);
@@ -265,7 +265,7 @@ inline CallbackType GetStartProjectionGroupCallbackType(size_t tag_length) {
 
 inline CallbackType GetEndProjectionGroupCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kEndProjectionGroup_1 +
          (tag_length - 1) * (CallbackType::kEndProjectionGroup_2 -
                              CallbackType::kEndProjectionGroup_1);
@@ -276,7 +276,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
                                     Subtype subtype, size_t tag_length,
                                     bool projection_enabled) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32()) << "Tag length too large";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (field_included) {
     case FieldIncluded::kYes:
       switch (static_cast<WireType>(tag & 7)) {
@@ -981,42 +981,41 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   } while (false)
 
 // Decode string value from *node to *dest.
-#define STRING_CALLBACK(tag_length)                                         \
-  do {                                                                      \
-    uint32_t length;                                                        \
-    size_t length_length;                                                   \
-    if (ABSL_PREDICT_TRUE(node->buffer->available() >=                      \
-                          kMaxLengthVarint32())) {                          \
-      const char* cursor = node->buffer->cursor();                          \
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(&cursor, &length))) {            \
-        node->buffer->set_cursor(cursor);                                   \
-        return Fail("Reading string length failed");                        \
-      }                                                                     \
-      length_length = PtrDistance(node->buffer->cursor(), cursor);          \
-    } else {                                                                \
-      const Position pos_before = node->buffer->pos();                      \
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(node->buffer, &length))) {       \
-        return Fail("Reading string length failed", *node->buffer);         \
-      }                                                                     \
-      length_length = IntCast<size_t>(node->buffer->pos() - pos_before);    \
-      if (!node->buffer->Seek(pos_before)) {                                \
-        RIEGELI_ASSERT_UNREACHABLE()                                        \
-            << "Seeking buffer failed: " << node->buffer->message();        \
-      }                                                                     \
-    }                                                                       \
-    if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -  \
-                                        length_length)) {                   \
-      return Fail("String length overflow");                                \
-    }                                                                       \
-    if (ABSL_PREDICT_FALSE(                                                 \
-            !node->buffer->CopyTo(dest, length_length + size_t{length}))) { \
-      if (!dest->healthy()) return Fail(*dest);                             \
-      return Fail("Reading string field failed", *node->buffer);            \
-    }                                                                       \
-    if (ABSL_PREDICT_FALSE(!dest->Write(                                    \
-            absl::string_view(node->tag_data.data, tag_length)))) {         \
-      return Fail(*dest);                                                   \
-    }                                                                       \
+#define STRING_CALLBACK(tag_length)                                           \
+  do {                                                                        \
+    uint32_t length;                                                          \
+    size_t length_length;                                                     \
+    if (ABSL_PREDICT_TRUE(node->buffer->available() >= kMaxLengthVarint32)) { \
+      const char* cursor = node->buffer->cursor();                            \
+      if (ABSL_PREDICT_FALSE(!ReadVarint32(&cursor, &length))) {              \
+        node->buffer->set_cursor(cursor);                                     \
+        return Fail("Reading string length failed");                          \
+      }                                                                       \
+      length_length = PtrDistance(node->buffer->cursor(), cursor);            \
+    } else {                                                                  \
+      const Position pos_before = node->buffer->pos();                        \
+      if (ABSL_PREDICT_FALSE(!ReadVarint32(node->buffer, &length))) {         \
+        return Fail("Reading string length failed", *node->buffer);           \
+      }                                                                       \
+      length_length = IntCast<size_t>(node->buffer->pos() - pos_before);      \
+      if (!node->buffer->Seek(pos_before)) {                                  \
+        RIEGELI_ASSERT_UNREACHABLE()                                          \
+            << "Seeking buffer failed: " << node->buffer->message();          \
+      }                                                                       \
+    }                                                                         \
+    if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -    \
+                                        length_length)) {                     \
+      return Fail("String length overflow");                                  \
+    }                                                                         \
+    if (ABSL_PREDICT_FALSE(                                                   \
+            !node->buffer->CopyTo(dest, length_length + size_t{length}))) {   \
+      if (!dest->healthy()) return Fail(*dest);                               \
+      return Fail("Reading string field failed", *node->buffer);              \
+    }                                                                         \
+    if (ABSL_PREDICT_FALSE(!dest->Write(                                      \
+            absl::string_view(node->tag_data.data, tag_length)))) {           \
+      return Fail(*dest);                                                     \
+    }                                                                         \
   } while (false)
 
 inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,

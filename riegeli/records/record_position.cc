@@ -101,7 +101,7 @@ void FutureRecordPosition::FutureChunkBegin::Resolve() const {
       // Matches DefaultChunkWriterBase::PadToBlockBoundary().
       Position length = internal::RemainingInBlock(pos);
       if (length == 0) return;
-      if (length < ChunkHeader::size()) length += internal::kBlockSize();
+      if (length < ChunkHeader::size()) length += internal::kBlockSize;
       pos += length;
     }
 

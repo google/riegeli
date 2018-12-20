@@ -174,7 +174,7 @@ class Chain {
   // in these functions might avoid storing it in the external object.
   //
   // AppendExternal()/PrependExternal() can decide to copy data instead. This is
-  // always the case if data.size() <= kMaxBytesToCopy().
+  // always the case if data.size() <= kMaxBytesToCopy.
   template <typename T>
   void AppendExternal(T object, size_t size_hint = 0);
   template <typename T>
@@ -230,9 +230,9 @@ class Chain {
     Allocated allocated;
   };
 
-  static constexpr size_t kMinBufferSize() { return 128; }
-  static constexpr size_t kMaxBufferSize() { return size_t{64} << 10; }
-  static constexpr size_t kAllocationCost() { return 256; }
+  static constexpr size_t kMinBufferSize = 128;
+  static constexpr size_t kMaxBufferSize = size_t{64} << 10;
+  static constexpr size_t kAllocationCost = 256;
 
   bool has_here() const { return begin_ == block_ptrs_.here; }
   bool has_allocated() const { return begin_ != block_ptrs_.here; }
@@ -415,8 +415,8 @@ class Chain::BlockIterator {
   // Sentinel values for iterators over a pseudo-block pointer representing
   // short data of a Chain.
   static Block* const kShortData[1];
-  static Block* const* kBeginShortData() { return kShortData; }
-  static Block* const* kEndShortData() { return kShortData + 1; }
+  static constexpr Block* const* kBeginShortData = kShortData;
+  static constexpr Block* const* kEndShortData = kShortData + 1;
 
   BlockIterator(const Chain* chain, Block* const* ptr) noexcept;
 
@@ -489,8 +489,8 @@ class Chain::Blocks {
 //
 // Definitions:
 //  - empty block: a block with size == 0
-//  - tiny block: a block with size < kMinBufferSize()
-//  - wasteful block: a block with free space > max(size, kMinBufferSize())
+//  - tiny block: a block with size < kMinBufferSize
+//  - wasteful block: a block with free space > max(size, kMinBufferSize)
 //
 // Invariants of a Chain:
 //  - A block can be empty or wasteful only if it is the first or last block.
@@ -498,7 +498,8 @@ class Chain::Blocks {
 class Chain::Block {
  public:
   static constexpr size_t kInternalAllocatedOffset();
-  static constexpr size_t kMaxCapacity();
+  static constexpr size_t kMaxCapacity =
+      size_t{std::numeric_limits<ptrdiff_t>::max()};
 
   // Creates an internal block for appending.
   static Block* NewInternal(size_t capacity);
@@ -720,10 +721,6 @@ constexpr size_t Chain::Block::kExternalObjectOffset() {
                              offsetof(External, object_lower_bound));
 }
 
-constexpr size_t Chain::Block::kMaxCapacity() {
-  return size_t{std::numeric_limits<ptrdiff_t>::max()};
-}
-
 inline Chain::Block* Chain::Block::Ref() {
   ref_count_.fetch_add(1, std::memory_order_relaxed);
   return this;
@@ -795,8 +792,8 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
       ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr)
                 ? nullptr
                 : chain_->begin_ == chain_->end_
-                      ? chain_->empty() ? BlockIterator::kEndShortData()
-                                        : BlockIterator::kBeginShortData()
+                      ? chain_->empty() ? BlockIterator::kEndShortData
+                                        : BlockIterator::kBeginShortData
                       : chain_->begin_) +
            block_index) {}
 
@@ -819,17 +816,17 @@ inline size_t Chain::BlockIterator::block_index() const {
                          ? nullptr
                          : chain_->begin_ == chain_->end_
                                ? chain_->empty()
-                                     ? BlockIterator::kEndShortData()
-                                     : BlockIterator::kBeginShortData()
+                                     ? BlockIterator::kEndShortData
+                                     : BlockIterator::kBeginShortData
                                : chain_->begin_,
                      ptr_);
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::operator*(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return chain_->short_data();
   } else {
     return (*ptr_)->data();
@@ -946,10 +943,10 @@ inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
 
 template <typename T>
 inline const T* Chain::BlockIterator::external_object() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::external_object(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return nullptr;
   } else {
     return (*ptr_)->checked_external_object<T>();
@@ -967,14 +964,14 @@ inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& that) noexcept {
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
                                    ? chain_->empty()
-                                         ? BlockIterator::kEndShortData()
-                                         : BlockIterator::kBeginShortData()
+                                         ? BlockIterator::kEndShortData
+                                         : BlockIterator::kBeginShortData
                                    : chain_->begin_);
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::end() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
-                                   ? BlockIterator::kEndShortData()
+                                   ? BlockIterator::kEndShortData
                                    : chain_->end_);
 }
 

@@ -222,7 +222,7 @@ class Reader : public Object {
   //   length > available()
   //
   // Precondition for ReadSlow(Chain*) and CopyToSlow():
-  //   length > UnsignedMin(available(), kMaxBytesToCopy())
+  //   length > UnsignedMin(available(), kMaxBytesToCopy)
   //
   // Precondition for ReadSlow(string*):
   //   length <= dest->max_size() - dest->size()
@@ -338,7 +338,7 @@ inline bool Reader::Read(absl::string_view* dest, std::string* scratch,
 inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
-  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     dest->Append(absl::string_view(cursor_, length));
     cursor_ += length;
     return true;
@@ -347,7 +347,7 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 }
 
 inline bool Reader::CopyTo(Writer* dest, Position length) {
-  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     const absl::string_view data(cursor_, IntCast<size_t>(length));
     cursor_ += length;
     return dest->Write(data);
@@ -356,7 +356,7 @@ inline bool Reader::CopyTo(Writer* dest, Position length) {
 }
 
 inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
-  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy())) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     const absl::string_view data(cursor_, length);
     cursor_ += length;
     return dest->Write(data);

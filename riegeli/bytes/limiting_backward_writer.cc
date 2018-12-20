@@ -28,6 +28,13 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr Position LimitingBackwardWriterBase::kNoSizeLimit;
+#endif
+
 void LimitingBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     BackwardWriter* const dest = dest_writer();
@@ -64,14 +71,14 @@ bool LimitingBackwardWriterBase::WriteSlow(std::string&& src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   return WriteInternal(src);
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   return WriteInternal(std::move(src));

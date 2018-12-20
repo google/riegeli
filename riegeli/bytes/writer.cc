@@ -56,7 +56,7 @@ bool Writer::WriteSlow(absl::string_view src) {
 }
 
 bool Writer::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(string&&): "
          "length too small, use Write(string&&) instead";
   // Not std::move(src): forward to Write(string_view).
@@ -64,7 +64,7 @@ bool Writer::WriteSlow(std::string&& src) {
 }
 
 bool Writer::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   for (const absl::string_view fragment : src.blocks()) {
@@ -74,7 +74,7 @@ bool Writer::WriteSlow(const Chain& src) {
 }
 
 bool Writer::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   // Not std::move(src): forward to WriteSlow(const Chain&).

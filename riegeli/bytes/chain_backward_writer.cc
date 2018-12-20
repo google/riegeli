@@ -74,7 +74,7 @@ bool ChainBackwardWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
          "length too small, use Write(string&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -93,7 +93,7 @@ bool ChainBackwardWriterBase::WriteSlow(std::string&& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -112,7 +112,7 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy()))
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

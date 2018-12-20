@@ -109,24 +109,18 @@ class RecordWriterBase : public Object {
     // tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinBrotli() (0) and kMaxBrotli() (11).
-    // Default: kDefaultBrotli() (9).
+    // compression_level must be between kMinBrotli (0) and kMaxBrotli (11).
+    // Default: kDefaultBrotli (9).
     //
     // This is the default compression algorithm.
-    static constexpr int kMinBrotli() {
-      return CompressorOptions::kMinBrotli();
-    }
-    static constexpr int kMaxBrotli() {
-      return CompressorOptions::kMaxBrotli();
-    }
-    static constexpr int kDefaultBrotli() {
-      return CompressorOptions::kDefaultBrotli();
-    }
-    Options& set_brotli(int compression_level = kDefaultBrotli()) & {
+    static constexpr int kMinBrotli = CompressorOptions::kMinBrotli;
+    static constexpr int kMaxBrotli = CompressorOptions::kMaxBrotli;
+    static constexpr int kDefaultBrotli = CompressorOptions::kDefaultBrotli;
+    Options& set_brotli(int compression_level = kDefaultBrotli) & {
       compressor_options_.set_brotli(compression_level);
       return *this;
     }
-    Options&& set_brotli(int compression_level = kDefaultBrotli()) && {
+    Options&& set_brotli(int compression_level = kDefaultBrotli) && {
       return std::move(set_brotli(compression_level));
     }
 
@@ -134,18 +128,16 @@ class RecordWriterBase : public Object {
     // the tradeoff between compression density and compression speed (higher =
     // better density but slower).
     //
-    // compression_level must be between kMinZstd() (-32) and kMaxZstd() (22).
-    // Level 0 is currently equivalent to 3. Default: kDefaultZstd() (9).
-    static int kMinZstd() { return CompressorOptions::kMinZstd(); }
-    static int kMaxZstd() { return CompressorOptions::kMaxZstd(); }
-    static constexpr int kDefaultZstd() {
-      return CompressorOptions::kDefaultZstd();
-    }
-    Options& set_zstd(int compression_level = kDefaultZstd()) & {
+    // compression_level must be between kMinZstd (-32) and kMaxZstd (22).
+    // Level 0 is currently equivalent to 3. Default: kDefaultZstd (9).
+    static constexpr int kMinZstd = CompressorOptions::kMinZstd;
+    static constexpr int kMaxZstd = CompressorOptions::kMaxZstd;
+    static constexpr int kDefaultZstd = CompressorOptions::kDefaultZstd;
+    Options& set_zstd(int compression_level = kDefaultZstd) & {
       compressor_options_.set_zstd(compression_level);
       return *this;
     }
-    Options&& set_zstd(int compression_level = kDefaultZstd()) && {
+    Options&& set_zstd(int compression_level = kDefaultZstd) && {
       return std::move(set_zstd(compression_level));
     }
 
@@ -153,26 +145,25 @@ class RecordWriterBase : public Object {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value kDefaultWindowLog() (-1) means to keep the default
+    // Special value kDefaultWindowLog (-1) means to keep the default
     // (brotli: 22, zstd: derived from compression level and chunk size).
     //
-    // For uncompressed, window_log must be kDefaultWindowLog() (-1).
+    // For uncompressed, window_log must be kDefaultWindowLog (-1).
     //
-    // For brotli, window_log must be kDefaultWindowLog() (-1) or between
-    // BrotliWriterBase::Options::kMinWindowLog() (10) and
-    // BrotliWriterBase::Options::kMaxWindowLog() (30).
+    // For brotli, window_log must be kDefaultWindowLog (-1) or between
+    // BrotliWriterBase::Options::kMinWindowLog (10) and
+    // BrotliWriterBase::Options::kMaxWindowLog (30).
     //
-    // For zstd, window_log must be kDefaultWindowLog() (-1) or between
-    // ZstdWriterBase::Options::kMinWindowLog() (10) and
-    // ZstdWriterBase::Options::kMaxWindowLog() (30 in 32-bit build, 31 in
-    // 64-bit build).
+    // For zstd, window_log must be kDefaultWindowLog (-1) or between
+    // ZstdWriterBase::Options::kMinWindowLog (10) and
+    // ZstdWriterBase::Options::kMaxWindowLog (30 in 32-bit build, 31 in 64-bit
+    // build).
     //
-    // Default: kDefaultWindowLog() (-1).
-    static int kMinWindowLog() { return CompressorOptions::kMinWindowLog(); }
-    static int kMaxWindowLog() { return CompressorOptions::kMaxWindowLog(); }
-    static constexpr int kDefaultWindowLog() {
-      return CompressorOptions::kDefaultWindowLog();
-    }
+    // Default: kDefaultWindowLog (-1).
+    static constexpr int kMinWindowLog = CompressorOptions::kMinWindowLog;
+    static constexpr int kMaxWindowLog = CompressorOptions::kMaxWindowLog;
+    static constexpr int kDefaultWindowLog =
+        CompressorOptions::kDefaultWindowLog;
     Options& set_window_log(int window_log) & {
       compressor_options_.set_window_log(window_log);
       return *this;
@@ -189,6 +180,7 @@ class RecordWriterBase : public Object {
     // and reduces memory usage of both writer and reader.
     //
     // Default: 1 << 20
+    static constexpr uint64_t kDefaultChunkSize = uint64_t{1} << 20;
     Options& set_chunk_size(uint64_t size) & {
       RIEGELI_ASSERT_GT(size, 0u)
           << "Failed precondition of "
@@ -306,7 +298,7 @@ class RecordWriterBase : public Object {
 
     bool transpose_ = false;
     CompressorOptions compressor_options_;
-    uint64_t chunk_size_ = uint64_t{1} << 20;
+    uint64_t chunk_size_ = kDefaultChunkSize;
     double bucket_fraction_ = 1.0;
     RecordsMetadata metadata_;
     Chain serialized_metadata_;
@@ -505,7 +497,7 @@ inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
 template <typename Dest>
 void RecordWriter<Dest>::Done() {
   RecordWriterBase::Done();
-  if (dest_.kIsOwning()) {
+  if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }

@@ -109,7 +109,7 @@ class StableDependency<P*, M,
   P* operator->() { return ptr(); }
   const P* operator->() const { return ptr(); }
 
-  static constexpr bool kIsOwning() { return Dependency<P*, M>::kIsOwning(); }
+  bool is_owning() const { return dep_->is_owning(); }
 
  private:
   std::unique_ptr<Dependency<P*, M>> dep_;

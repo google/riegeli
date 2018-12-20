@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <limits>
 
+#include "riegeli/base/base.h"
+
 namespace riegeli {
 
 // These values are frozen in the file format.
@@ -36,9 +38,8 @@ enum class CompressionType : uint8_t {
   kZstd = 'z',
 };
 
-constexpr uint64_t kMaxNumRecords() {
-  return std::numeric_limits<uint64_t>::max() >> 8;
-}
+RIEGELI_INLINE_CONSTEXPR(uint64_t, kMaxNumRecords,
+                         std::numeric_limits<uint64_t>::max() >> 8);
 
 }  // namespace riegeli
 

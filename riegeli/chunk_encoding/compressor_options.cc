@@ -26,6 +26,21 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int CompressorOptions::kMinBrotli;
+constexpr int CompressorOptions::kMaxBrotli;
+constexpr int CompressorOptions::kDefaultBrotli;
+constexpr int CompressorOptions::kMinZstd;
+constexpr int CompressorOptions::kMaxZstd;
+constexpr int CompressorOptions::kDefaultZstd;
+constexpr int CompressorOptions::kMinWindowLog;
+constexpr int CompressorOptions::kMaxWindowLog;
+constexpr int CompressorOptions::kDefaultWindowLog;
+#endif
+
 bool CompressorOptions::FromString(absl::string_view text,
                                    std::string* error_message) {
   // Set just compression_type_ first because other parsers depend on
@@ -72,35 +87,34 @@ bool CompressorOptions::FromString(absl::string_view text,
       ValueParser::Or(
           ValueParser::Empty(
               &compression_level_,
-              BrotliWriterBase::Options::kDefaultCompressionLevel()),
+              BrotliWriterBase::Options::kDefaultCompressionLevel),
           ValueParser::Int(&compression_level_,
-                           BrotliWriterBase::Options::kMinCompressionLevel(),
-                           BrotliWriterBase::Options::kMaxCompressionLevel())));
+                           BrotliWriterBase::Options::kMinCompressionLevel,
+                           BrotliWriterBase::Options::kMaxCompressionLevel)));
   options_parser.AddOption(
       "zstd",
       ValueParser::Or(
-          ValueParser::Empty(
-              &compression_level_,
-              ZstdWriterBase::Options::kDefaultCompressionLevel()),
+          ValueParser::Empty(&compression_level_,
+                             ZstdWriterBase::Options::kDefaultCompressionLevel),
           ValueParser::Int(&compression_level_,
-                           ZstdWriterBase::Options::kMinCompressionLevel(),
-                           ZstdWriterBase::Options::kMaxCompressionLevel())));
+                           ZstdWriterBase::Options::kMinCompressionLevel,
+                           ZstdWriterBase::Options::kMaxCompressionLevel)));
   options_parser.AddOption("window_log", [&] {
     switch (compression_type_) {
       case CompressionType::kNone:
         return ValueParser::FailIfSeen("uncompressed");
       case CompressionType::kBrotli:
         return ValueParser::Or(
-            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
+            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog}}),
             ValueParser::Int(&window_log_,
-                             BrotliWriterBase::Options::kMinWindowLog(),
-                             BrotliWriterBase::Options::kMaxWindowLog()));
+                             BrotliWriterBase::Options::kMinWindowLog,
+                             BrotliWriterBase::Options::kMaxWindowLog));
       case CompressionType::kZstd:
         return ValueParser::Or(
-            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog()}}),
+            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog}}),
             ValueParser::Int(&window_log_,
-                             ZstdWriterBase::Options::kMinWindowLog(),
-                             ZstdWriterBase::Options::kMaxWindowLog()));
+                             ZstdWriterBase::Options::kMinWindowLog,
+                             ZstdWriterBase::Options::kMaxWindowLog));
     }
     RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
@@ -121,27 +135,25 @@ int CompressorOptions::window_log() const {
           << "Failed precondition of CompressorOptions::window_log(): "
              "uncompressed";
     case CompressionType::kBrotli:
-      if (window_log_ == kDefaultWindowLog()) {
-        return BrotliWriterBase::Options::kDefaultWindowLog();
+      if (window_log_ == kDefaultWindowLog) {
+        return BrotliWriterBase::Options::kDefaultWindowLog;
       } else {
-        RIEGELI_ASSERT_GE(window_log_,
-                          BrotliWriterBase::Options::kMinWindowLog())
+        RIEGELI_ASSERT_GE(window_log_, BrotliWriterBase::Options::kMinWindowLog)
             << "Failed precondition of CompressorOptions::set_window_log(): "
                "window log out of range for brotli";
-        RIEGELI_ASSERT_LE(window_log_,
-                          BrotliWriterBase::Options::kMaxWindowLog())
+        RIEGELI_ASSERT_LE(window_log_, BrotliWriterBase::Options::kMaxWindowLog)
             << "Failed precondition of CompressorOptions::set_window_log(): "
                "window log out of range for brotli";
         return window_log_;
       }
     case CompressionType::kZstd:
-      if (window_log_ == kDefaultWindowLog()) {
-        return ZstdWriterBase::Options::kDefaultWindowLog();
+      if (window_log_ == kDefaultWindowLog) {
+        return ZstdWriterBase::Options::kDefaultWindowLog;
       } else {
-        RIEGELI_ASSERT_GE(window_log_, ZstdWriterBase::Options::kMinWindowLog())
+        RIEGELI_ASSERT_GE(window_log_, ZstdWriterBase::Options::kMinWindowLog)
             << "Failed precondition of CompressorOptions::set_window_log(): "
                "window log out of range for zstd";
-        RIEGELI_ASSERT_LE(window_log_, ZstdWriterBase::Options::kMaxWindowLog())
+        RIEGELI_ASSERT_LE(window_log_, ZstdWriterBase::Options::kMaxWindowLog)
             << "Failed precondition of CompressorOptions::set_window_log(): "
                "window log out of range for zstd";
         return window_log_;

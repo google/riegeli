@@ -118,7 +118,7 @@ class FdReaderBase : public internal::FdReaderCommon {
     friend class FdReader;
 
     absl::optional<Position> initial_pos_;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
   bool SupportsRandomAccess() const override { return true; }
@@ -186,7 +186,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
     friend class FdStreamReader;
 
     absl::optional<Position> assumed_pos_;
-    size_t buffer_size_ = kDefaultBufferSize();
+    size_t buffer_size_ = kDefaultBufferSize;
   };
 
  protected:
@@ -523,7 +523,7 @@ template <typename Src>
 void FdReader<Src>::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
   FdReaderBase::Done();
-  if (src_.kIsOwning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.ptr() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -575,7 +575,7 @@ inline FdStreamReader<Src>& FdStreamReader<Src>::operator=(
 template <typename Src>
 void FdStreamReader<Src>::Done() {
   FdStreamReaderBase::Done();
-  if (src_.kIsOwning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.ptr() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -626,7 +626,7 @@ void FdMMapReader<Src>::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
   FdMMapReaderBase::Done();
   ChainReader::src().Clear();
-  if (src_.kIsOwning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.ptr() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {

@@ -36,9 +36,7 @@ namespace riegeli {
 class LimitingReaderBase : public Reader {
  public:
   // An infinite size limit.
-  static constexpr Position kNoSizeLimit() {
-    return std::numeric_limits<Position>::max();
-  }
+  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
 
   // Changes the size limit.
   //
@@ -81,7 +79,7 @@ class LimitingReaderBase : public Reader {
   // the size limit. Fails this if src failed.
   void MakeBuffer(Reader* src);
 
-  Position size_limit_ = kNoSizeLimit();
+  Position size_limit_ = kNoSizeLimit;
 
  private:
   template <typename Dest>
@@ -113,7 +111,7 @@ class LimitingReader : public LimitingReaderBase {
   // Will read from the original Reader provided by src.
   //
   // Precondition: size_limit >= src->pos()
-  explicit LimitingReader(Src src, Position size_limit = kNoSizeLimit());
+  explicit LimitingReader(Src src, Position size_limit = kNoSizeLimit);
 
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;
@@ -165,12 +163,12 @@ class SizeLimitSetter {
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
     : Reader(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit())) {}
+      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
 
 inline LimitingReaderBase& LimitingReaderBase::operator=(
     LimitingReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit());
+  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
 }
 
@@ -241,7 +239,7 @@ inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
 template <typename Src>
 void LimitingReader<Src>::Done() {
   LimitingReaderBase::Done();
-  if (src_.kIsOwning()) {
+  if (src_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
@@ -249,7 +247,7 @@ void LimitingReader<Src>::Done() {
 template <typename Src>
 void LimitingReader<Src>::VerifyEnd() {
   LimitingReaderBase::VerifyEnd();
-  if (src_.kIsOwning() && ABSL_PREDICT_TRUE(healthy())) {
+  if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
     SyncBuffer(src_.ptr());
     src_->VerifyEnd();
     MakeBuffer(src_.ptr());

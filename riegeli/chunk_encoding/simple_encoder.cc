@@ -50,7 +50,7 @@ void SimpleEncoder::Reset() {
 bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t size = record.ByteSizeLong();
-  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
@@ -90,7 +90,7 @@ bool SimpleEncoder::AddRecord(Chain&& record) {
 template <typename Record>
 bool SimpleEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords())) {
+  if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
@@ -115,7 +115,7 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(limits.size() > kMaxNumRecords() - num_records_)) {
+  if (ABSL_PREDICT_FALSE(limits.size() > kMaxNumRecords - num_records_)) {
     return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(records.size() > std::numeric_limits<uint64_t>::max() -
