@@ -84,6 +84,9 @@ class RecordPosition {
   friend bool operator<=(RecordPosition a, RecordPosition b);
   friend bool operator>=(RecordPosition a, RecordPosition b);
 
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state, RecordPosition self);
+
   // Same as: out << pos.ToString()
   friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
@@ -186,6 +189,12 @@ inline bool operator>=(RecordPosition a, RecordPosition b) {
     return a.chunk_begin() > b.chunk_begin();
   }
   return a.record_index() >= b.record_index();
+}
+
+template <typename HashState>
+inline HashState AbslHashValue(HashState hash_state, RecordPosition self) {
+  return HashState::combine(std::move(hash_state), self.chunk_begin_,
+                            self.record_index_);
 }
 
 class FutureRecordPosition::FutureChunkBegin {
