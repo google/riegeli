@@ -77,21 +77,21 @@ class RecordPosition {
   std::string ToBytes() const;
   bool FromBytes(absl::string_view serialized);
 
+  friend bool operator==(RecordPosition a, RecordPosition b);
+  friend bool operator!=(RecordPosition a, RecordPosition b);
+  friend bool operator<(RecordPosition a, RecordPosition b);
+  friend bool operator>(RecordPosition a, RecordPosition b);
+  friend bool operator<=(RecordPosition a, RecordPosition b);
+  friend bool operator>=(RecordPosition a, RecordPosition b);
+
+  // Same as: out << pos.ToString()
+  friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
+
  private:
   // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_
   uint64_t chunk_begin_ = 0;
   uint64_t record_index_ = 0;
 };
-
-bool operator==(RecordPosition a, RecordPosition b);
-bool operator!=(RecordPosition a, RecordPosition b);
-bool operator<(RecordPosition a, RecordPosition b);
-bool operator>(RecordPosition a, RecordPosition b);
-bool operator<=(RecordPosition a, RecordPosition b);
-bool operator>=(RecordPosition a, RecordPosition b);
-
-// Same as: out << pos.ToString()
-std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
 // FutureRecordPosition is similar to shared_future<RecordPosition>.
 //

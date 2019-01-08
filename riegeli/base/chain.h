@@ -192,6 +192,29 @@ class Chain {
   int Compare(absl::string_view that) const;
   int Compare(const Chain& that) const;
 
+  friend bool operator==(const Chain& a, const Chain& b);
+  friend bool operator!=(const Chain& a, const Chain& b);
+  friend bool operator<(const Chain& a, const Chain& b);
+  friend bool operator>(const Chain& a, const Chain& b);
+  friend bool operator<=(const Chain& a, const Chain& b);
+  friend bool operator>=(const Chain& a, const Chain& b);
+
+  friend bool operator==(const Chain& a, absl::string_view b);
+  friend bool operator!=(const Chain& a, absl::string_view b);
+  friend bool operator<(const Chain& a, absl::string_view b);
+  friend bool operator>(const Chain& a, absl::string_view b);
+  friend bool operator<=(const Chain& a, absl::string_view b);
+  friend bool operator>=(const Chain& a, absl::string_view b);
+
+  friend bool operator==(absl::string_view a, const Chain& b);
+  friend bool operator!=(absl::string_view a, const Chain& b);
+  friend bool operator<(absl::string_view a, const Chain& b);
+  friend bool operator>(absl::string_view a, const Chain& b);
+  friend bool operator<=(absl::string_view a, const Chain& b);
+  friend bool operator>=(absl::string_view a, const Chain& b);
+
+  friend std::ostream& operator<<(std::ostream& out, const Chain& str);
+
  private:
   struct ExternalMethods;
   template <typename T>
@@ -309,29 +332,6 @@ class Chain {
   //       size_ is the sum of sizes of blocks in [begin_, end_)
   size_t size_ = 0;
 };
-
-bool operator==(const Chain& a, const Chain& b);
-bool operator!=(const Chain& a, const Chain& b);
-bool operator<(const Chain& a, const Chain& b);
-bool operator>(const Chain& a, const Chain& b);
-bool operator<=(const Chain& a, const Chain& b);
-bool operator>=(const Chain& a, const Chain& b);
-
-bool operator==(const Chain& a, absl::string_view b);
-bool operator!=(const Chain& a, absl::string_view b);
-bool operator<(const Chain& a, absl::string_view b);
-bool operator>(const Chain& a, absl::string_view b);
-bool operator<=(const Chain& a, absl::string_view b);
-bool operator>=(const Chain& a, absl::string_view b);
-
-bool operator==(absl::string_view a, const Chain& b);
-bool operator!=(absl::string_view a, const Chain& b);
-bool operator<(absl::string_view a, const Chain& b);
-bool operator>(absl::string_view a, const Chain& b);
-bool operator<=(absl::string_view a, const Chain& b);
-bool operator>=(absl::string_view a, const Chain& b);
-
-std::ostream& operator<<(std::ostream& out, const Chain& str);
 
 class Chain::BlockIterator {
  public:

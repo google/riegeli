@@ -53,15 +53,15 @@ class SkippedRegion {
   // Formats SkippedRegion as string: "[<begin>, <end>): <message>".
   std::string ToString() const;
 
+  // Same as: out << skipped_region.ToString()
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const SkippedRegion& skipped_region);
+
  private:
   Position begin_ = 0;
   Position end_ = 0;
   std::string message_;
 };
-
-// Same as: out << skipped_region.ToString()
-std::ostream& operator<<(std::ostream& out,
-                         const SkippedRegion& skipped_region);
 
 // Implementation details follow.
 
