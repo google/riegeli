@@ -42,8 +42,8 @@ namespace riegeli {
 constexpr size_t Chain::kMinBufferSize;
 constexpr size_t Chain::kMaxBufferSize;
 constexpr size_t Chain::kAllocationCost;
-constexpr Block* const* Chain::BlockIterator::kBeginShortData;
-constexpr Block* const* Chain::BlockIterator::kEndShortData;
+constexpr Chain::Block* const* Chain::BlockIterator::kBeginShortData;
+constexpr Chain::Block* const* Chain::BlockIterator::kEndShortData;
 constexpr size_t Chain::Block::kMaxCapacity;
 #endif
 
