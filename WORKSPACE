@@ -58,7 +58,8 @@ new_http_archive(
     ],
 )
 
-# Import Tensorflow (2018-09-25) and Protobuf (2018-06-06).
+# Import Tensorflow (2018-09-25), Protobuf (2018-06-06), and configure
+# @local_config_python.
 
 http_archive(
     name = "org_tensorflow",

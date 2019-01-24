@@ -1,3 +1,5 @@
+load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
+
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])  # Apache 2.0
@@ -163,4 +165,10 @@ proto_library(
 cc_proto_library(
     name = "records_metadata_cc_proto",
     deps = [":records_metadata_proto"],
+)
+
+py_proto_library(
+    name = "records_metadata_py_pb2",
+    srcs = ["records_metadata.proto"],
+    deps = ["@com_google_protobuf//:protobuf_python"],
 )
