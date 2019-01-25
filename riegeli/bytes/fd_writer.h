@@ -441,7 +441,7 @@ FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest> dest,
   RIEGELI_ASSERT_GE(dest_.ptr(), 0)
       << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
          "negative file descriptor";
-  RIEGELI_ASSERT(options.assumed_pos_.has_value())
+  RIEGELI_CHECK(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";

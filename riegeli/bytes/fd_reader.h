@@ -538,7 +538,7 @@ FdStreamReader<Src>::FdStreamReader(type_identity_t<Src> src, Options options)
   RIEGELI_ASSERT_GE(src_.ptr(), 0)
       << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
          "negative file descriptor";
-  RIEGELI_ASSERT(options.assumed_pos_.has_value())
+  RIEGELI_CHECK(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
