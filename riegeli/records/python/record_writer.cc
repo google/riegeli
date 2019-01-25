@@ -921,7 +921,7 @@ Example values for dest (possibly with 'ab' instead of 'wb' for appending):
  * io.open(filename, 'wb') - better with buffering=0 or use io.FileIO()
  * open(filename, 'wb') - better with buffering=0 or use io.FileIO()
  * io.BytesIO() - use close=False to access dest after closing the RecordWriter
- * gfile.GFile(filename, 'wb')
+ * tf.gfile.GFile(filename, 'wb')
 
 Syntax of options (same as in C++
 riegeli::RecordWriterBase::Options::FromString()):

@@ -1032,7 +1032,7 @@ Example values for src:
  * io.open(filename, 'rb') - better with buffering=0 or use io.FileIO()
  * open(filename, 'rb') - better with buffering=0 or use io.FileIO()
  * io.BytesIO(contents)
- * gfile.Open(filename, 'rb')
+ * tf.gfile.GFile(filename, 'rb')
 
 Warning: if close is False and assumed_pos is not None, src will have an
 unpredictable amount of extra data consumed because of buffering.
