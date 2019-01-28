@@ -2,7 +2,7 @@ load("//riegeli:python.bzl", "py_extension")
 
 package(default_visibility = ["//riegeli:__subpackages__"])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 py_extension(
     name = "record_writer",
