@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_PYTHON_PYTHON_WRITER_H_
-#define RIEGELI_BYTES_PYTHON_PYTHON_WRITER_H_
+#ifndef PYTHON_RIEGELI_BYTES_PYTHON_WRITER_H_
+#define PYTHON_RIEGELI_BYTES_PYTHON_WRITER_H_
 
 // From https://docs.python.org/3/c-api/intro.html:
 // Since Python may define some pre-processor definitions which affect the
@@ -28,8 +28,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/utility/utility.h"
+#include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/python/utils.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -169,4 +169,4 @@ inline int PythonWriter::Traverse(visitproc visit, void* arg) {
 }  // namespace python
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_PYTHON_PYTHON_WRITER_H_
+#endif  // PYTHON_RIEGELI_BYTES_PYTHON_WRITER_H_

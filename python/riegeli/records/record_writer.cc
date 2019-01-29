@@ -24,11 +24,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "python/riegeli/base/utils.h"
+#include "python/riegeli/bytes/python_writer.h"
+#include "python/riegeli/records/record_position.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/python/utils.h"
-#include "riegeli/bytes/python/python_writer.h"
-#include "riegeli/records/python/record_position.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_writer.h"
 
@@ -854,8 +854,7 @@ PyTypeObject PyRecordWriter_Type = {
     // clang-format off
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
     // clang-format on
-    "riegeli.records.python.record_writer."
-    "RecordWriter",                                        // tp_name
+    "riegeli.records.record_writer.RecordWriter",          // tp_name
     sizeof(PyRecordWriterObject),                          // tp_basicsize
     0,                                                     // tp_itemsize
     reinterpret_cast<destructor>(RecordWriterDestructor),  // tp_dealloc
@@ -1027,7 +1026,7 @@ delayed. Default: 0.
 #endif
 };
 
-const char* const kModuleName = "riegeli.records.python.record_writer";
+const char* const kModuleName = "riegeli.records.record_writer";
 const char kModuleDoc[] = R"doc(Writes records to a Riegeli/records file.)doc";
 
 const PyMethodDef kModuleMethods[] = {

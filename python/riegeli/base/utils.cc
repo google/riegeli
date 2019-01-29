@@ -19,7 +19,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "riegeli/base/python/utils.h"
+#include "python/riegeli/base/utils.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -97,8 +97,8 @@ std::string Exception::message() const {
 
 void SetRiegeliError(absl::string_view message) {
   PythonLock::AssertHeld();
-  static constexpr ImportedConstant kRiegeliError(
-      "riegeli.base.python.riegeli_error", "RiegeliError");
+  static constexpr ImportedConstant kRiegeliError("riegeli.base.riegeli_error",
+                                                  "RiegeliError");
   if (ABSL_PREDICT_FALSE(!kRiegeliError.Verify())) return;
   PyObject* const type = kRiegeliError.get();
   PythonPtr value = StringToPython(message);

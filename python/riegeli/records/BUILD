@@ -1,6 +1,7 @@
-load("//riegeli:python.bzl", "py_extension")
+load("//python/riegeli:py_extension.bzl", "py_extension")
+load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
 
-package(default_visibility = ["//riegeli:__subpackages__"])
+package(default_visibility = ["//python/riegeli:__subpackages__"])
 
 licenses(["notice"])
 
@@ -9,10 +10,10 @@ py_extension(
     srcs = ["record_writer.cc"],
     deps = [
         ":record_position_cc",
+        "//python/riegeli/base:utils",
+        "//python/riegeli/bytes:python_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/base/python:utils",
-        "//riegeli/bytes/python:python_writer",
         "//riegeli/records:record_position",
         "//riegeli/records:record_writer",
         "@com_google_absl//absl/base:core_headers",
@@ -25,16 +26,16 @@ py_extension(
     srcs = ["record_reader.cc"],
     # Python modules imported from C++.
     data = [
+        ":records_metadata_py_pb2",
         ":skipped_region",
-        "//riegeli/records:records_metadata_py_pb2",
         "@com_google_protobuf//:protobuf_python",
     ],
     deps = [
         ":record_position_cc",
+        "//python/riegeli/base:utils",
+        "//python/riegeli/bytes:python_reader",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/base/python:utils",
-        "//riegeli/bytes/python:python_reader",
         "//riegeli/chunk_encoding:field_projection",
         "//riegeli/records:record_position",
         "//riegeli/records:record_reader",
@@ -48,8 +49,8 @@ py_extension(
     srcs = ["record_position.cc"],
     hdrs = ["record_position.h"],
     deps = [
+        "//python/riegeli/base:utils",
         "//riegeli/base",
-        "//riegeli/base/python:utils",
         "//riegeli/records:record_position",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
@@ -61,4 +62,10 @@ py_extension(
 py_library(
     name = "skipped_region",
     srcs = ["skipped_region.py"],
+)
+
+py_proto_library(
+    name = "records_metadata_py_pb2",
+    srcs = ["records_metadata.proto"],
+    deps = ["@com_google_protobuf//:protobuf_python"],
 )

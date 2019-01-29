@@ -1,6 +1,6 @@
 load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
 
-package(default_visibility = ["//riegeli:__subpackages__"])
+package(default_visibility = ["//python/riegeli:__subpackages__"])
 
 licenses(["notice"])
 
@@ -9,7 +9,7 @@ py_binary(
     srcs = ["write_read_records.py"],
     deps = [
         ":records_test_py_pb2",
-        "//riegeli:python",
+        "//python/riegeli",
     ],
 )
 

@@ -20,7 +20,7 @@ from __future__ import print_function
 import io
 
 import riegeli
-from riegeli.records.python.examples import records_test_pb2
+from riegeli.records.examples import records_test_pb2
 
 
 def sample_string(i, size):

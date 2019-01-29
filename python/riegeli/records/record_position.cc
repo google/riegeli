@@ -19,7 +19,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "riegeli/records/python/record_position.h"
+#include "python/riegeli/records/record_position.h"
 
 #include <stdint.h>
 #include <utility>
@@ -27,8 +27,8 @@
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/str_cat.h"
+#include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/python/utils.h"
 #include "riegeli/records/record_position.h"
 
 namespace riegeli {
@@ -294,8 +294,7 @@ PyTypeObject PyRecordPosition_Type = {
     // clang-format off
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
     // clang-format on
-    "riegeli.records.python.record_position."
-    "RecordPosition",                                        // tp_name
+    "riegeli.records.record_position.RecordPosition",        // tp_name
     sizeof(PyRecordPositionObject),                          // tp_basicsize
     0,                                                       // tp_itemsize
     reinterpret_cast<destructor>(RecordPositionDestructor),  // tp_dealloc
@@ -390,7 +389,7 @@ bool RecordPositionFromPython(PyObject* object, RecordPosition* value) {
   return true;
 }
 
-const char* const kModuleName = "riegeli.records.python.record_position";
+const char* const kModuleName = "riegeli.records.record_position";
 const char kModuleDoc[] =
     R"doc(Represents a position in a Riegeli/records file.)doc";
 

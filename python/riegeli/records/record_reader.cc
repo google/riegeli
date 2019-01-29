@@ -25,12 +25,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "python/riegeli/base/utils.h"
+#include "python/riegeli/bytes/python_reader.h"
+#include "python/riegeli/records/record_position.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/python/utils.h"
-#include "riegeli/bytes/python/python_reader.h"
 #include "riegeli/chunk_encoding/field_projection.h"
-#include "riegeli/records/python/record_position.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
 
@@ -310,7 +310,7 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
             return false;
           }
           static constexpr ImportedConstant kSkippedRegion(
-              "riegeli.records.python.skipped_region", "SkippedRegion");
+              "riegeli.records.skipped_region", "SkippedRegion");
           if (ABSL_PREDICT_FALSE(!kSkippedRegion.Verify())) {
             self->recovery_exception.emplace(Exception::Fetch());
             return false;
@@ -959,8 +959,7 @@ PyTypeObject PyRecordReader_Type = {
     // clang-format off
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
     // clang-format on
-    "riegeli.records.python.record_reader."
-    "RecordReader",                                        // tp_name
+    "riegeli.records.record_reader.RecordReader",          // tp_name
     sizeof(PyRecordReaderObject),                          // tp_basicsize
     0,                                                     // tp_itemsize
     reinterpret_cast<destructor>(RecordReaderDestructor),  // tp_dealloc
@@ -1154,7 +1153,7 @@ PyTypeObject PyRecordIter_Type = {
 #endif
 };
 
-const char* const kModuleName = "riegeli.records.python.record_reader";
+const char* const kModuleName = "riegeli.records.record_reader";
 const char kModuleDoc[] = R"doc(Reads records from a Riegeli/records file.)doc";
 
 const PyMethodDef kModuleMethods[] = {

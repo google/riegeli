@@ -19,7 +19,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "riegeli/bytes/python/python_writer.h"
+#include "python/riegeli/bytes/python_writer.h"
 
 #include <stddef.h>
 #include <limits>
@@ -27,8 +27,8 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/python/utils.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {

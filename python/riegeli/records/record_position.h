@@ -18,11 +18,11 @@
 // standard headers are included.
 #include <Python.h>
 
-#ifndef RIEGELI_RECORDS_PYTHON_RECORD_POSITION_H_
-#define RIEGELI_RECORDS_PYTHON_RECORD_POSITION_H_
+#ifndef PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
+#define PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
 
+#include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/python/utils.h"
 #include "riegeli/records/record_position.h"
 
 namespace riegeli {
@@ -39,9 +39,9 @@ struct RecordPositionApi {
 };
 
 RIEGELI_INLINE_CONSTEXPR(const char*, kRecordPositionCapsuleName,
-                         "riegeli.records.python.record_position._CPPAPI");
+                         "riegeli.records.record_position._CPPAPI");
 
 }  // namespace python
 }  // namespace riegeli
 
-#endif  // RIEGELI_RECORDS_PYTHON_RECORD_POSITION_H_
+#endif  // PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_

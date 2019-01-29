@@ -1,4 +1,4 @@
-package(default_visibility = ["//riegeli:__subpackages__"])
+package(default_visibility = ["//python/riegeli:__subpackages__"])
 
 licenses(["notice"])
 
@@ -7,8 +7,8 @@ cc_library(
     srcs = ["python_writer.cc"],
     hdrs = ["python_writer.h"],
     deps = [
+        "//python/riegeli/base:utils",
         "//riegeli/base",
-        "//riegeli/base/python:utils",
         "//riegeli/bytes:buffered_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -23,8 +23,8 @@ cc_library(
     srcs = ["python_reader.cc"],
     hdrs = ["python_reader.h"],
     deps = [
+        "//python/riegeli/base:utils",
         "//riegeli/base",
-        "//riegeli/base/python:utils",
         "//riegeli/bytes:buffered_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",

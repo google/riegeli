@@ -17,12 +17,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from riegeli.base.python import riegeli_error
+from riegeli.base import riegeli_error
+from riegeli.records import record_position
+from riegeli.records import record_reader
+from riegeli.records import record_writer
+from riegeli.records import skipped_region
+
 from riegeli.records import records_metadata_pb2
-from riegeli.records.python import record_position
-from riegeli.records.python import record_reader
-from riegeli.records.python import record_writer
-from riegeli.records.python import skipped_region
 
 __all__ = ('RiegeliError', 'FlushType', 'RecordPosition', 'SkippedRegion',
            'RecordsMetadata', 'set_record_type', 'RecordWriter',

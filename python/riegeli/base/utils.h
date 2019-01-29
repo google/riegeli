@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_PYTHON_UTILS_H_
-#define RIEGELI_BASE_PYTHON_UTILS_H_
+#ifndef PYTHON_RIEGELI_BASE_UTILS_H_
+#define PYTHON_RIEGELI_BASE_UTILS_H_
 
 // From https://docs.python.org/3/c-api/intro.html:
 // Since Python may define some pre-processor definitions which affect the
@@ -311,8 +311,7 @@ class Identifier : public internal::StaticObject {
 // An instance of ImportedConstant should be allocated statically:
 //
 //   static constexpr ImportedConstant kRiegeliError(
-//       "riegeli.base.python.riegeli_error",
-//       "RiegeliError");
+//       "riegeli.base.riegeli_error", "RiegeliError");
 //
 // Then kRiegeliError.get() is a borrowed reference to the Python object.
 class ImportedConstant : public internal::StaticObject {
@@ -364,7 +363,7 @@ bool ExportCapsule(PyObject* module, const char* capsule_name, const void* ptr);
 // An instance of ImportedCapsule should be allocated statically:
 //
 //   static constexpr ImportedCapsule<RecordPositionApi> kRecordPositionApi(
-//       "riegeli.records.python.record_position._CPPAPI");
+//       "riegeli.records.record_position._CPPAPI");
 //
 // Then kRecordPositionApi.get() is a pointer stored in the capsule.
 template <typename T>
@@ -530,4 +529,4 @@ inline int Exception::Traverse(visitproc visit, void* arg) {
 }  // namespace python
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_PYTHON_UTILS_H_
+#endif  // PYTHON_RIEGELI_BASE_UTILS_H_
