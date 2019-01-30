@@ -49,7 +49,9 @@ class BlockHeader {
 
   char* bytes() { return reinterpret_cast<char*>(words_); }
   const char* bytes() const { return reinterpret_cast<const char*>(words_); }
-  static constexpr size_t size() { return sizeof(words_); }
+  static constexpr size_t size() {
+    return sizeof(uint64_t) * 3;  // sizeof(words_)
+  }
 
   uint64_t computed_header_hash() const {
     return internal::Hash(absl::string_view(
