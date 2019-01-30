@@ -42,8 +42,6 @@ namespace riegeli {
 constexpr size_t Chain::kMinBufferSize;
 constexpr size_t Chain::kMaxBufferSize;
 constexpr size_t Chain::kAllocationCost;
-constexpr Chain::Block* const* Chain::BlockIterator::kBeginShortData;
-constexpr Chain::Block* const* Chain::BlockIterator::kEndShortData;
 constexpr size_t Chain::Block::kMaxCapacity;
 #endif
 
@@ -407,10 +405,10 @@ inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
 Chain::Block* const Chain::BlockIterator::kShortData[1] = {nullptr};
 
 Chain::PinnedBlock Chain::BlockIterator::Pin() {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::Pin(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     Block* const block = Block::NewInternal(kMaxShortDataSize);
     block->AppendWithExplicitSizeToCopy(chain_->short_data(),
                                         kMaxShortDataSize);
@@ -425,10 +423,10 @@ void Chain::PinnedBlock::Unpin(void* token) {
 }
 
 void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::AppendTo(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     dest->Append(chain_->short_data(), size_hint);
   } else {
     (*ptr_)->AppendTo(dest, size_hint);
@@ -437,10 +435,10 @@ void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
 
 void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                           size_t size_hint) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     dest->Append(substr, size_hint);
   } else {
     (*ptr_)->AppendSubstrTo(substr, dest, size_hint);

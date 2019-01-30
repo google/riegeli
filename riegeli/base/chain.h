@@ -415,8 +415,8 @@ class Chain::BlockIterator {
   // Sentinel values for iterators over a pseudo-block pointer representing
   // short data of a Chain.
   static Block* const kShortData[1];
-  static constexpr Block* const* kBeginShortData = kShortData;
-  static constexpr Block* const* kEndShortData = kShortData + 1;
+  static Block* const* kBeginShortData() { return kShortData; }
+  static Block* const* kEndShortData() { return kShortData + 1; }
 
   BlockIterator(const Chain* chain, Block* const* ptr) noexcept;
 
@@ -792,8 +792,8 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
       ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr)
                 ? nullptr
                 : chain_->begin_ == chain_->end_
-                      ? chain_->empty() ? BlockIterator::kEndShortData
-                                        : BlockIterator::kBeginShortData
+                      ? chain_->empty() ? BlockIterator::kEndShortData()
+                                        : BlockIterator::kBeginShortData()
                       : chain_->begin_) +
            block_index) {}
 
@@ -816,17 +816,17 @@ inline size_t Chain::BlockIterator::block_index() const {
                          ? nullptr
                          : chain_->begin_ == chain_->end_
                                ? chain_->empty()
-                                     ? BlockIterator::kEndShortData
-                                     : BlockIterator::kBeginShortData
+                                     ? BlockIterator::kEndShortData()
+                                     : BlockIterator::kBeginShortData()
                                : chain_->begin_,
                      ptr_);
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::operator*(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     return chain_->short_data();
   } else {
     return (*ptr_)->data();
@@ -943,10 +943,10 @@ inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
 
 template <typename T>
 inline const T* Chain::BlockIterator::external_object() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::external_object(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     return nullptr;
   } else {
     return (*ptr_)->checked_external_object<T>();
@@ -964,14 +964,14 @@ inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& that) noexcept {
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
                                    ? chain_->empty()
-                                         ? BlockIterator::kEndShortData
-                                         : BlockIterator::kBeginShortData
+                                         ? BlockIterator::kEndShortData()
+                                         : BlockIterator::kBeginShortData()
                                    : chain_->begin_);
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::end() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
-                                   ? BlockIterator::kEndShortData
+                                   ? BlockIterator::kEndShortData()
                                    : chain_->end_);
 }
 
