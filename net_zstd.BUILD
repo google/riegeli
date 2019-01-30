@@ -1,6 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
-licenses(["notice"])  # BSD
+licenses(["notice"])
 
 cc_library(
     name = "zstdlib",

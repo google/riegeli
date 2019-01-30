@@ -1,6 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 config_setting(
     name = "haswell",
@@ -218,18 +218,4 @@ cc_library(
 config_setting(
     name = "cpu_ppc",
     values = {"cpu": "ppc"},
-)
-
-# For users of InstructionSets<HighwayHash> runtime dispatch
-cc_library(
-    name = "highwayhash_dynamic",
-    hdrs = ["highwayhash/highwayhash_target.h"],
-    deps = [
-        ":arch_specific",
-        ":compiler_specific",
-        ":hh_avx2",
-        ":hh_portable",
-        ":hh_sse41",
-        ":hh_types",
-    ],
 )
