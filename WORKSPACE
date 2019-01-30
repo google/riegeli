@@ -1,24 +1,24 @@
 workspace(name = "com_google_riegeli")
 
-# Import Abseil (2018-09-27).
+# Import Abseil (2018-12-04).
 http_archive(
     name = "com_google_absl",
-    sha256 = "57b7817ad91856399a77300349eda39d2edae2c3c037d453fee0a16b85e92a4d",
-    strip_prefix = "abseil-cpp-48cd2c3f351ff188bc85684b84a91b6e6d17d896",
+    sha256 = "fe4d9e424dc25ee57695509cf6c5a7dd582a7ac1ca1efb92713fb439b3e8b1c6",
+    strip_prefix = "abseil-cpp-20181200",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/48cd2c3f351ff188bc85684b84a91b6e6d17d896.zip",
-        "https://github.com/abseil/abseil-cpp/archive/48cd2c3f351ff188bc85684b84a91b6e6d17d896.zip",
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/20181200.zip",
+        "https://github.com/abseil/abseil-cpp/archive/20181200.zip",
     ],
 )
 
-# Import Brotli (2018-09-13).
+# Import Brotli (2018-10-23).
 http_archive(
     name = "org_brotli",
-    sha256 = "eec7b86bff510480b0c7450ace937077b8cc3c1ea38f4517b7f17572fcbf0430",
-    strip_prefix = "brotli-1.0.6",
+    sha256 = "6e69be238ff61cef589a3fa88da11b649c7ff7a5932cb12d1e6251c8c2e17a2f",
+    strip_prefix = "brotli-1.0.7",
     urls = [
-        "https://mirror.bazel.build/github.com/google/brotli/archive/v1.0.6.zip",
-        "https://github.com/google/brotli/archive/v1.0.6.zip",
+        "https://mirror.bazel.build/github.com/google/brotli/archive/v1.0.7.zip",
+        "https://github.com/google/brotli/archive/v1.0.7.zip",
     ],
 )
 
@@ -46,15 +46,15 @@ new_http_archive(
     ],
 )
 
-# Import HighwayHash (2018-06-26).
+# Import HighwayHash (2019-01-29).
 new_http_archive(
     name = "com_google_highwayhash",
     build_file = "com_google_highwayhash.BUILD",
-    sha256 = "6298342c5c25fe2c6403afd02e7e6dc65edd15290af664fa6d410f600784a360",
-    strip_prefix = "highwayhash-9099074416ebc926c9e5e6f5143db92ebd9b4c03",
+    sha256 = "017d766fa5f130702eafcc2c9807582c67bdf99614f702d68edb510213428a23",
+    strip_prefix = "highwayhash-e96ab3b409eb0cdec19c066aef1fd7e60e74eae3",
     urls = [
-        "https://mirror.bazel.build/github.com/google/highwayhash/archive/9099074416ebc926c9e5e6f5143db92ebd9b4c03.zip",
-        "https://github.com/google/highwayhash/archive/9099074416ebc926c9e5e6f5143db92ebd9b4c03.zip",
+        "https://mirror.bazel.build/github.com/google/highwayhash/archive/e96ab3b409eb0cdec19c066aef1fd7e60e74eae3.zip",
+        "https://github.com/google/highwayhash/archive/e96ab3b409eb0cdec19c066aef1fd7e60e74eae3.zip",
     ],
 )
 
