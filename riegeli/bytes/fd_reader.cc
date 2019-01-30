@@ -35,6 +35,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -59,7 +60,7 @@ class MMapRef {
   MMapRef(void* data, size_t size) : data_(data), size_(size) {}
 
   MMapRef(MMapRef&& that) noexcept;
-  MMapRef& operator=(MMapRef&& that) noexcept;
+  ABSL_ATTRIBUTE_UNUSED MMapRef& operator=(MMapRef&& that) noexcept;
 
   ~MMapRef();
 

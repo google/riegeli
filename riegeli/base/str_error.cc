@@ -23,6 +23,7 @@
 #include <string.h>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 
@@ -31,7 +32,8 @@ namespace riegeli {
 namespace {
 
 // POSIX strerror_r returns int.
-std::string StrErrorResult(int result, const char* buffer, int error_code) {
+ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(int result, const char* buffer,
+                                                 int error_code) {
   if (ABSL_PREDICT_FALSE(result != 0)) {
     return absl::StrCat("Unknown error ", error_code);
   }
@@ -39,7 +41,9 @@ std::string StrErrorResult(int result, const char* buffer, int error_code) {
 }
 
 // GNU strerror_r returns char*.
-std::string StrErrorResult(char* result, const char* buffer, int error_code) {
+ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(char* result,
+                                                 const char* buffer,
+                                                 int error_code) {
   return result;
 }
 
