@@ -36,7 +36,7 @@ def py_extension(
     native.cc_binary(
         name = cc_binary_name,
         linkshared = True,
-        linkstatic = False,
+        linkstatic = True,
         visibility = ["//visibility:private"],
         deps = [cc_library_name],
     )
