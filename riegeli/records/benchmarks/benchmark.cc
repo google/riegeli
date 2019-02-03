@@ -427,8 +427,8 @@ void Benchmarks::RunOne(
 
   absl::PrintF("%-*s %7.3f", max_name_width_, name, compression.Median());
   for (const std::array<Stats*, 2>& stats_cpu_real :
-       {std::array<Stats*, 2>{&writing_cpu_speed, &writing_real_speed},
-        std::array<Stats*, 2>{&reading_cpu_speed, &reading_real_speed}}) {
+       {std::array<Stats*, 2>{{&writing_cpu_speed, &writing_real_speed}},
+        std::array<Stats*, 2>{{&reading_cpu_speed, &reading_real_speed}}}) {
     absl::PrintF(" ");
     for (Stats* const stats : stats_cpu_real) {
       absl::PrintF(" %4.0f", stats->Median());
