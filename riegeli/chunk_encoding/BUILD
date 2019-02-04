@@ -74,7 +74,7 @@ cc_library(
     deps = [
         "//riegeli/base:chain",
         "@com_google_absl//absl/strings",
-        "@com_google_highwayhash//:highwayhash",
+        "@highwayhash",
     ],
 )
 
