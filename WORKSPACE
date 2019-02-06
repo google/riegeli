@@ -60,16 +60,16 @@ http_archive(
     ],
 )
 
-# Import Tensorflow (2018-12-14), Protobuf (2018-12-05), and configure
+# Import Tensorflow (2019-02-03), Protobuf (2018-12-05), and configure
 # @local_config_python.
 
 http_archive(
     name = "org_tensorflow",
-    sha256 = "5c8a42173f0e56bfef53ad9c73a64644625cdd1dc364e6f3dfb53687813451df",
-    strip_prefix = "tensorflow-1.13.0-rc0",
+    sha256 = "55e25c577f337dfb02e9b4ba675b9a8d3d6d210bdad80f1674c2d3c0cf646a9e",
+    strip_prefix = "tensorflow-226398bd70d6369dd97fa9cf4bee94af9a05f1d0",
     urls = [
-        "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/v1.13.0-rc0.zip",
-        "https://github.com/tensorflow/tensorflow/archive/v1.13.0-rc0.zip",
+        "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/226398bd70d6369dd97fa9cf4bee94af9a05f1d0.zip",
+        "https://github.com/tensorflow/tensorflow/archive/226398bd70d6369dd97fa9cf4bee94af9a05f1d0.zip",
     ],
 )
 

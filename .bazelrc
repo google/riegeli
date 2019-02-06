@@ -1,0 +1,5 @@
+# Make Python protos faster by backing them with C++ protos.
+build --define=use_fast_cpp_protos=true
+
+# Tensorflow requires building GRPC with no ARES support.
+build --define=grpc_no_ares=true
