@@ -60,7 +60,7 @@ http_archive(
     ],
 )
 
-# Import Tensorflow (2019-02-03), Protobuf (2018-12-05), and configure
+# Import TensorFlow (2019-02-03), Protobuf (2018-12-05), and configure
 # @local_config_python.
 
 http_archive(

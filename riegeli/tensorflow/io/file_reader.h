@@ -42,7 +42,7 @@ class FileReaderBase : public Reader {
    public:
     Options() noexcept {}
 
-    // Overrides the Tensorflow environment.
+    // Overrides the TensorFlow environment.
     //
     // nullptr is interpreted as Env::Default().
     //
