@@ -1,7 +1,5 @@
 # Riegeli/records file format specification
 
-[TOC]
-
 ## Summary
 
 File contents are interpreted as a sequence of variable-sized *chunks,* where a
