@@ -22,8 +22,8 @@ message RecordsMetadata {
   // descriptor database.
   repeated google.protobuf.FileDescriptorProto file_descriptor = 3;
 
-  // Options originally used to encode the file, as for
-  // RecordWriter::Options::Parse().
+  // Options originally used to encode the file:
+  // https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
   //
   // They are informative here, they are never necessary to decode the file.
   optional string record_writer_options = 4;
