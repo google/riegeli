@@ -76,6 +76,11 @@ class RecordWriterBase : public Object {
     //   bucket_fraction ::= real 0..1
     //   parallelism ::= integer 0..
     //
+    // An empty string is the same as "default".
+    //
+    // Options are documented below, and also at
+    // https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
+    //
     // Return values:
     //  * true  - success
     //  * false - failure (*error_message is set)

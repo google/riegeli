@@ -922,78 +922,8 @@ Example values for dest (possibly with 'ab' instead of 'wb' for appending):
  * io.BytesIO() - use close=False to access dest after closing the RecordWriter
  * tf.gfile.GFile(filename, 'wb')
 
-Syntax of options (same as in C++
-riegeli::RecordWriterBase::Options::FromString()):
-  options ::= option? ("," option?)*
-  option ::=
-    "default" |
-    "transpose" (":" ("true" | "false"))? |
-    "uncompressed" |
-    "brotli" (":" brotli_level)? |
-    "zstd" (":" zstd_level)? |
-    "window_log" ":" window_log |
-    "chunk_size" ":" chunk_size |
-    "bucket_fraction" ":" bucket_fraction |
-    "pad_to_block_boundary" (":" ("true" | "false"))? |
-    "parallelism" ":" parallelism
-  brotli_level ::= integer 0..11 (default 9)
-  zstd_level ::= integer -32..22 (default 9)
-  window_log ::= "auto" or integer 10..31
-  chunk_size ::=
-    integer expressed as real with optional suffix [BkKMGTPE], 1..
-  bucket_fraction ::= real 0..1
-  parallelism ::= integer 0..
-
-If transpose is true or empty, records should be serialized proto messages (but
-nothing will break if they are not). A chunk of records will be processed in a
-way which allows for better compression. If transpose is false, a chunk of
-records will be stored in a simpler format, directly or with compression.
-Default: false.
-
-Supported compression algorithms:
- * uncompressed
- * brotli, compression level defaults to 9
- * zstd, compression level defaults to 9
-Default: brotli.
-
-window_log sets the logarithm of the LZ77 sliding window size. This tunes the
-tradeoff between compression density and memory usage (higher = better density
-but more memory). Special value auto means to keep the default (brotli: 22,
-zstd: derived from compression level and chunk size). For uncompressed,
-window_log must be auto. For brotli, window_log must be auto or between 10 and
-30. For zstd, window_log must be auto or between 10 and 30 in 32-bit build, 31
-in 64-bit build. Default: auto.
-
-chunk_size sets the desired uncompressed size of a chunk which groups messages
-to be transposed, compressed, and written together. A larger chunk size improves
-compression density; a smaller chunk size allows to read pieces of the file
-independently with finer granularity, and reduces memory usage of both writer
-and reader. Default: 1M.
-
-bucket_fraction sets the desired uncompressed size of a bucket which groups
-values of several fields of the given wire type to be compressed together,
-relative to the desired chunk size, on the scale between 0.0 (compress each
-field separately) to 1.0 (put all fields of the same wire type in the same
-bucket. This is meaningful if transpose and compression are enabled. A larger
-bucket size improves compression density; a smaller bucket size makes reading
-with projection faster, allowing to skip decompression of values of fields which
-are not included. Default 1.0.
-
-If pad_to_block_boundary is true or empty, padding is written to reach a 64KB
-block boundary when the RecordWriter is created, before close() or __exit__(),
-and before flush(). Consequences:
- * Even if the existing file was corrupted or truncated, data appended to it
-   will be readable.
- * Physical concatenation of separately written files yields a valid file
-   (setting metadata in subsequent files is wasteful but harmless).
- * Up to 64KB is wasted when padding is written.
-Default: false.
-
-parallelism sets the maximum number of chunks being encoded in parallel in
-background. Larger parallelism can increase throughput, up to a point where it
-no longer matters; smaller parallelism reduces memory usage. If parallelism > 0,
-chunks are written to dest in background and reporting writing errors is
-delayed. Default: 0.
+Options are documented at
+https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
 )doc",                                                              // tp_doc
     reinterpret_cast<traverseproc>(RecordWriterTraverse),  // tp_traverse
     reinterpret_cast<inquiry>(RecordWriterClear),          // tp_clear
