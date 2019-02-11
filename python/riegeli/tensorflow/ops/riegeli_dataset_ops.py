@@ -19,6 +19,7 @@ from __future__ import print_function
 
 from riegeli.tensorflow.ops import gen_riegeli_dataset_ops
 import tensorflow as tf
+
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.data.util import structure
 from tensorflow.python.framework import load_library
