@@ -19,6 +19,7 @@ from __future__ import print_function
 
 import os
 
+from builtins import range  # pylint: disable=redefined-builtin
 import riegeli
 from riegeli.tensorflow.ops import riegeli_dataset_ops
 import tensorflow as tf

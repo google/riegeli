@@ -60,8 +60,8 @@ http_archive(
     ],
 )
 
-# Import TensorFlow (2019-02-03), Protobuf (2018-12-05), and configure
-# @local_config_python.
+# Import TensorFlow (2019-02-03), Protobuf (@com_google_protobuf, 2018-12-05),
+# Abseil-Python (@absl_py, 2019-01-11), and configure @local_config_python.
 
 http_archive(
     name = "org_tensorflow",

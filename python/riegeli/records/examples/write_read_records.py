@@ -20,12 +20,13 @@ from __future__ import print_function
 import io
 
 import riegeli
-from riegeli.records.examples import records_test_pb2
+
+from riegeli.records.tests import records_test_pb2
 
 
 def sample_string(i, size):
   piece = '{} '.format(i).encode()
-  result = piece * -(-size // len(piece))  # length(result) >= size
+  result = piece * -(-size // len(piece))  # len(result) >= size
   return result[:size]
 
 

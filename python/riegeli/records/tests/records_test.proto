@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-package riegeli.examples;
+package riegeli.tests;
 
 message SimpleMessage {
   optional int32 id = 1;
