@@ -140,17 +140,17 @@ class PythonWrapped {
   template <typename... Args>
   void emplace(Args&&... args) {
     if (has_value_) {
-      reinterpret_cast<T*>(&storage_)->~T();
+      reinterpret_cast<T*>(storage_)->~T();
     } else {
       has_value_ = true;
     }
-    new (&storage_) T(std::forward<Args>(args)...);
+    new (storage_) T(std::forward<Args>(args)...);
   }
 
   void reset() {
     if (has_value_) {
       has_value_ = false;
-      reinterpret_cast<T*>(&storage_)->~T();
+      reinterpret_cast<T*>(storage_)->~T();
     }
   }
 
@@ -158,11 +158,11 @@ class PythonWrapped {
 
   T* get() {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return reinterpret_cast<T*>(&storage_);
+    return reinterpret_cast<T*>(storage_);
   }
   const T* get() const {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return reinterpret_cast<const T*>(&storage_);
+    return reinterpret_cast<const T*>(storage_);
   }
   T& operator*() { return *get(); }
   const T& operator*() const { return *get(); }
@@ -180,7 +180,7 @@ class PythonWrapped {
 
  private:
   bool has_value_;
-  absl::aligned_storage_t<sizeof(T), alignof(T)> storage_;
+  alignas(T) char storage_[sizeof(T)];
 };
 
 // Represents an optional Python exception being raised.

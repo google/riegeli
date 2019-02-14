@@ -20,7 +20,6 @@
 #include <new>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -36,26 +35,26 @@ class NoDestructor {
   // Forwards constructor arguments to T constructor.
   template <typename... Args>
   explicit NoDestructor(Args&&... args) {
-    new (&storage_) T(std::forward<Args>(args)...);
+    new (storage_) T(std::forward<Args>(args)...);
   }
 
   // Forwards copy and move construction, e.g. a brace initializer.
-  explicit NoDestructor(const T& src) { new (&storage_) T(src); }
-  explicit NoDestructor(T&& src) { new (&storage_) T(std::move(src)); }
+  explicit NoDestructor(const T& src) { new (storage_) T(src); }
+  explicit NoDestructor(T&& src) { new (storage_) T(std::move(src)); }
 
   NoDestructor(const NoDestructor&) = delete;
   NoDestructor& operator=(const NoDestructor&) = delete;
 
   // Smart pointer interface with deep constness.
-  T* get() { return reinterpret_cast<T*>(&storage_); }
-  const T* get() const { return reinterpret_cast<const T*>(&storage_); }
+  T* get() { return reinterpret_cast<T*>(storage_); }
+  const T* get() const { return reinterpret_cast<const T*>(storage_); }
   T& operator*() { return *get(); }
   const T& operator*() const { return *get(); }
   T* operator->() { return get(); }
   const T* operator->() const { return get(); }
 
  private:
-  absl::aligned_storage_t<sizeof(T), alignof(T)> storage_;
+  alignas(T) char storage_[sizeof(T)];
 };
 
 // {New,Delete}Aligned() provide memory allocation with the specified alignment
