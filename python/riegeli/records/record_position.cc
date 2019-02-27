@@ -233,7 +233,7 @@ from_str(type, serialized: )doc" RIEGELI_TEXT_OR_BYTES R"doc() -> RecordPosition
 Parses RecordPosition from its text format.
 
 Args:
-  serialized: Text std::string to parse.
+  serialized: Text string to parse.
 )doc"},
     {"to_bytes", reinterpret_cast<PyCFunction>(RecordPositionToBytes),
      METH_NOARGS,
@@ -256,7 +256,7 @@ Serialized byte strings have the same natural order as the corresponding
 positions.
 
 Args:
-  serialized: Byte std::string to parse.
+  serialized: Byte string to parse.
 )doc"},
     {nullptr, nullptr, 0, nullptr},
 };

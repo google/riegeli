@@ -312,8 +312,8 @@ inline bool Reader::Read(std::string* dest, size_t length) {
   RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
       << "Failed precondition of Reader::Read(string*): string size overflow";
   if (ABSL_PREDICT_TRUE(length <= available())) {
-    if (ABSL_PREDICT_TRUE(length > 0)) {  // Avoid std::string::append(nullptr,
-                                          // 0) just in case.
+    if (ABSL_PREDICT_TRUE(length > 0)) {  // Avoid string::append(nullptr, 0)
+                                          // just in case.
       dest->append(cursor_, length);
       cursor_ += length;
     }
