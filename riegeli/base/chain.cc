@@ -154,34 +154,45 @@ inline void Chain::StringRef::DumpStructure(absl::string_view data,
   out << "string";
 }
 
-inline Chain::Block* Chain::Block::NewInternal(size_t capacity) {
-  RIEGELI_ASSERT_GT(capacity, 0u)
+inline Chain::Block* Chain::Block::NewInternal(size_t min_capacity) {
+  RIEGELI_ASSERT_GT(min_capacity, 0u)
       << "Failed precondition of Chain::Block::NewInternal(): zero capacity";
-  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity)
-      << "Chain block capacity overflow";
-  return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity, 0);
+  size_t raw_capacity;
+  return SizeReturningNewAligned<Block>(
+      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity,
+      ForAppend());
 }
 
-inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t capacity) {
-  RIEGELI_ASSERT_GT(capacity, 0u)
-      << "Failed precondition of Chain::Block::NewInternalForPrepend(): zero "
-         "capacity";
-  RIEGELI_CHECK_LE(capacity, Block::kMaxCapacity)
-      << "Chain block capacity overflow";
-  return NewAligned<Block>(kInternalAllocatedOffset() + capacity, capacity,
-                           capacity);
+inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t min_capacity) {
+  RIEGELI_ASSERT_GT(min_capacity, 0u)
+      << "Failed precondition of Chain::Block::NewInternalForPrepend(): "
+         "zero capacity";
+  size_t raw_capacity;
+  return SizeReturningNewAligned<Block>(
+      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity,
+      ForPrepend());
 }
 
-inline Chain::Block::Block(size_t capacity, size_t space_before)
-    // Redundant casts are needed for -fsanitize=bounds.
-    : data_(absl::string_view(
-          static_cast<const char*>(allocated_begin_) + space_before, 0)),
-      allocated_end_(static_cast<const char*>(allocated_begin_) + capacity) {
-  RIEGELI_ASSERT_LE(space_before, capacity)
-      << "Failed precondition of Chain::Block::Block(): "
-         "space before data is larger than capacity";
+inline Chain::Block::Block(const size_t* raw_capacity, ForAppend)
+    : data_(allocated_begin_, 0),
+      allocated_end_(data_.data() +
+                     (*raw_capacity - kInternalAllocatedOffset())) {
   RIEGELI_ASSERT(is_internal())
       << "A Block with allocated_end_ != nullptr should be considered internal";
+  RIEGELI_CHECK_LE(capacity(), Block::kMaxCapacity)
+      << "Chain block capacity overflow";
+}
+
+inline Chain::Block::Block(const size_t* raw_capacity, ForPrepend)
+    // Redundant cast is needed for -fsanitize=bounds.
+    : data_(static_cast<const char*>(allocated_begin_) +
+                (*raw_capacity - kInternalAllocatedOffset()),
+            0),
+      allocated_end_(data_.data()) {
+  RIEGELI_ASSERT(is_internal())
+      << "A Block with allocated_end_ != nullptr should be considered internal";
+  RIEGELI_CHECK_LE(capacity(), Block::kMaxCapacity)
+      << "Chain block capacity overflow";
 }
 
 inline void Chain::Block::Unref() {
@@ -807,7 +818,7 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
   RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
   const size_t size_before = size_ - replaced_length;
-  const size_t length = UnsignedMax(
+  return UnsignedMax(
       replaced_length + min_length,
       UnsignedMin(
           size_before < size_hint
@@ -816,13 +827,6 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
                             SaturatingAdd(replaced_length, recommended_length),
                             size_before / 2),
           kMaxBufferSize));
-  const size_t rounded_length = UnsignedMin(
-      EstimatedAllocatedSize(Block::kInternalAllocatedOffset() + length) -
-          Block::kInternalAllocatedOffset(),
-      Block::kMaxCapacity);
-  RIEGELI_ASSERT_GE(rounded_length, replaced_length + min_length)
-      << "Block capacity too small after rounding";
-  return rounded_length;
 }
 
 absl::Span<char> Chain::AppendBuffer(size_t min_length,

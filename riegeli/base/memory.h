@@ -57,6 +57,12 @@ class NoDestructor {
   alignas(T) char storage_[sizeof(T)];
 };
 
+// Returns the estimated size which will be allocated when requesting to
+// allocate requested_size.
+inline size_t EstimatedAllocatedSize(size_t requested_size) {
+  return RoundUp<sizeof(size_t) * 2>(requested_size);
+}
+
 // {New,Delete}Aligned() provide memory allocation with the specified alignment
 // known at compile time, with the size specified in bytes, and which allow
 // deallocation to be faster by knowing the size.
@@ -161,10 +167,52 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
 #endif
 }
 
-// Returns the estimated size which will be allocated when requesting to
-// allocate requested_size.
-inline size_t EstimatedAllocatedSize(size_t requested_size) {
-  return RoundUp<sizeof(size_t) * 2>(requested_size);
+// SizeReturningNewAligned() is like NewAligned(), but it returns the number of
+// bytes actually allocated, which can be greater than the requested number of
+// bytes.
+//
+// The object can be freed with DeleteAligned(), passing either min_num_bytes
+// or *actual_num_bytes, or anything between.
+//
+// *actual_num_bytes is already set during the constructor call.
+template <typename T, size_t alignment = alignof(T), typename... Args>
+inline T* SizeReturningNewAligned(size_t min_num_bytes,
+                                  size_t* actual_num_bytes, Args&&... args) {
+  static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
+                "alignment must be a power of 2");
+  T* ptr;
+  const size_t capacity = EstimatedAllocatedSize(min_num_bytes);
+#if __cpp_aligned_new
+  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+    ptr = static_cast<T*>(operator new(capacity));
+  } else {
+    ptr = static_cast<T*>(operator new(capacity, std::align_val_t(alignment)));
+  }
+#else
+#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
+  constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+#else
+  constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
+#endif
+  if (alignment <= kDefaultNewAlignment) {
+    ptr = static_cast<T*>(operator new(capacity));
+  } else {
+    RIEGELI_CHECK_LE(capacity, std::numeric_limits<size_t>::max() -
+                                   sizeof(void*) - alignment +
+                                   kDefaultNewAlignment)
+        << "Out of memory";
+    void* const allocated = operator new(sizeof(void*) + capacity + alignment -
+                                         kDefaultNewAlignment);
+    void* const aligned =
+        reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
+            static_cast<char*>(allocated) + sizeof(void*))));
+    reinterpret_cast<void**>(aligned)[-1] = allocated;
+    ptr = static_cast<T*>(aligned);
+  }
+#endif
+  *actual_num_bytes = capacity;
+  new (ptr) T(std::forward<Args>(args)...);
+  return ptr;
 }
 
 }  // namespace riegeli

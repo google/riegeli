@@ -16,11 +16,11 @@
 #define RIEGELI_BASE_BUFFER_H_
 
 #include <stddef.h>
-#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/memory.h"
 
 namespace riegeli {
 
@@ -29,7 +29,7 @@ class Buffer {
  public:
   Buffer() noexcept {}
 
-  // Remembers the size to be allocated.
+  // Stores the minimal size to be allocated. Does not allocate the buffer yet.
   explicit Buffer(size_t size) noexcept : size_(size) {}
 
   // The source Buffer is left deallocated but with size unchanged.
@@ -38,14 +38,17 @@ class Buffer {
 
   ~Buffer() { DeleteBuffer(); }
 
-  // If the buffer is not allocated, allocates it. Returns the data pointer.
+  // If the buffer is not allocated, allocates it; this can increase the stored
+  // size to account for size rounding by the memory allocator. Returns the data
+  // pointer.
   //
   // This method is not thread-safe.
   //
   // Precondition: size() > 0
   char* GetData();
 
-  // Returns the data size, or the planned size if not allocated yet.
+  // Returns the data size, or the planned size if not allocated yet. The size
+  // can increase when GetData() is called.
   const size_t size() const { return size_; }
 
   // Returns true if the buffer is already allocated and GetData() is fast.
@@ -66,27 +69,31 @@ inline Buffer::Buffer(Buffer&& that) noexcept
     : data_(absl::exchange(that.data_, nullptr)), size_(that.size_) {}
 
 inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
-  if (that.data_ != nullptr || size_ != that.size_) {
-    // Exchange that.data_ early to support self-assignment.
-    char* const data = absl::exchange(that.data_, nullptr);
-    DeleteBuffer();
-    data_ = data;
-    size_ = that.size_;
-  } else {
-    // Keep data_ unchanged, and size_ is already the same.
-  }
+  // Exchange that.data_ early to support self-assignment.
+  char* const data = absl::exchange(that.data_, nullptr);
+  DeleteBuffer();
+  data_ = data;
+  size_ = that.size_;
   return *this;
 }
 
 inline void Buffer::DeleteBuffer() {
-  if (data_ != nullptr) std::allocator<char>().deallocate(data_, size_);
+  if (data_ != nullptr) {
+#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
+    operator delete(data_, size_);
+#else
+    operator delete(data_);
+#endif
+  }
 }
 
 inline char* Buffer::GetData() {
   if (ABSL_PREDICT_FALSE(data_ == nullptr)) {
     RIEGELI_ASSERT_GT(size_, 0u)
         << "Failed precondition of Buffer::GetData(): no buffer size specified";
-    data_ = std::allocator<char>().allocate(size_);
+    const size_t capacity = EstimatedAllocatedSize(size_);
+    data_ = static_cast<char*>(operator new(capacity));
+    size_ = capacity;
   }
   return data_;
 }

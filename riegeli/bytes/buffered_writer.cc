@@ -30,11 +30,11 @@ bool BufferedWriter::PushSlow() {
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   if (ABSL_PREDICT_FALSE(start_ == nullptr)) {
+    start_ = buffer_.GetData();
     if (ABSL_PREDICT_FALSE(buffer_.size() >
                            std::numeric_limits<Position>::max() - start_pos_)) {
       return FailOverflow();
     }
-    start_ = buffer_.GetData();
     cursor_ = start_;
     limit_ = start_ + buffer_.size();
   }

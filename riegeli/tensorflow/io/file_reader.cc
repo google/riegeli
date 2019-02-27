@@ -93,15 +93,15 @@ bool FileReaderBase::PullSlow() {
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
+  char* const ptr = buffer_.GetData();
   if (ABSL_PREDICT_FALSE(buffer_.size() >
                          std::numeric_limits<::tensorflow::uint64>::max() -
                              limit_pos_)) {
     return FailOverflow();
   }
   absl::string_view result;
-  const ::tensorflow::Status status =
-      src->Read(IntCast<::tensorflow::uint64>(limit_pos_), buffer_.size(),
-                &result, buffer_.GetData());
+  const ::tensorflow::Status status = src->Read(
+      IntCast<::tensorflow::uint64>(limit_pos_), buffer_.size(), &result, ptr);
   RIEGELI_ASSERT_LE(result.size(), buffer_.size())
       << "RandomAccessFile::Read() read more than requested";
   start_ = result.data();

@@ -497,18 +497,24 @@ class Chain::Blocks {
 //  - Tiny blocks must not be adjacent.
 class Chain::Block {
  public:
+  // Tags for overloaded constructors. Public for SizeReturningNewAligned().
+  struct ForAppend {};
+  struct ForPrepend {};
+
   static constexpr size_t kInternalAllocatedOffset();
   static constexpr size_t kMaxCapacity =
       size_t{std::numeric_limits<ptrdiff_t>::max()};
 
   // Creates an internal block for appending.
-  static Block* NewInternal(size_t capacity);
+  static Block* NewInternal(size_t min_capacity);
 
   // Creates an internal block for prepending.
-  static Block* NewInternalForPrepend(size_t capacity);
+  static Block* NewInternalForPrepend(size_t min_capacity);
 
-  // Constructs an internal block. This constructor is public for NewAligned().
-  explicit Block(size_t capacity, size_t space_before);
+  // Constructs an internal block. These constructors are public for
+  // SizeReturningNewAligned().
+  explicit Block(const size_t* raw_capacity, ForAppend);
+  explicit Block(const size_t* raw_capacity, ForPrepend);
 
   // Constructs an external block containing the moved object and sets block
   // data to moved_object.data(). This constructor is public for NewAligned().
