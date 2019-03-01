@@ -33,8 +33,10 @@ from tensorflow.python.framework import test_util
 from tensorflow.python.platform import test
 
 
-@test_util.run_all_in_graph_and_eager_modes
-class RiegeliDatasetTest(test.TestCase):
+# Adapted from tensorflow/python/data/kernel_tests/test_base.py
+# which has restricted visibility.
+class DatasetTestBase(test.TestCase):
+  """Base class for dataset tests."""
 
   def getNext(self, dataset, requires_initialization=False):
     """Returns a callable that returns the next element of the dataset.
@@ -127,7 +129,8 @@ class RiegeliDatasetTest(test.TestCase):
         self.evaluate(get_next())
       return
     if expected_shapes:
-      self.assertEqual(expected_shapes, dataset.output_shapes)
+      self.assertEqual(expected_shapes,
+                       dataset_ops.get_legacy_output_shapes(dataset))
     self.assertGreater(num_test_iterations, 0)
     for _ in range(num_test_iterations):
       get_next = self.getNext(
@@ -140,6 +143,10 @@ class RiegeliDatasetTest(test.TestCase):
         self.evaluate(get_next())
       with self.assertRaises(errors.OutOfRangeError):
         self.evaluate(get_next())
+
+
+@test_util.run_all_in_graph_and_eager_modes
+class RiegeliDatasetTest(DatasetTestBase):
 
   def setUp(self):
     super(RiegeliDatasetTest, self).setUp()
