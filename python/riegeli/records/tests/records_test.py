@@ -497,10 +497,11 @@ class RecordsTest(parameterized.TestCase):
         self.assertEqual(record_type.DESCRIPTOR.full_name,
                          'riegeli.tests.SimpleMessage')
         message_read = reader.read_message(record_type)
-        # Compare serializations because messages have descriptors of different
-        # origins.
-        self.assertEqual(message_read.SerializeToString(),
-                         message_written.SerializeToString())
+        # Serialize and deserialize because messages have descriptors of
+        # different origins.
+        self.assertEqual(
+            records_test_pb2.SimpleMessage.FromString(
+                message_read.SerializeToString()), message_written)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_field_projection(self, file_spec, random_access, parallelism):
