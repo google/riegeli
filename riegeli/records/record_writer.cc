@@ -38,10 +38,12 @@
 #include "google/protobuf/message_lite.h"
 #include "google/protobuf/repeated_field.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -113,8 +115,7 @@ void SetRecordType(RecordsMetadata* metadata,
   collector.AddFile(descriptor->file());
 }
 
-bool RecordWriterBase::Options::FromString(absl::string_view text,
-                                           std::string* error_message) {
+Status RecordWriterBase::Options::FromString(absl::string_view text) {
   std::string compressor_text;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
@@ -140,12 +141,9 @@ bool RecordWriterBase::Options::FromString(absl::string_view text,
       "parallelism",
       ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
   if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
-    if (error_message != nullptr) {
-      *error_message = std::string(options_parser.message());
-    }
-    return false;
+    return options_parser.status();
   }
-  return compressor_options_.FromString(compressor_text, error_message);
+  return compressor_options_.FromString(compressor_text);
 }
 
 class RecordWriterBase::Worker : public Object {
@@ -499,7 +497,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
 RecordWriterBase::ParallelWorker::~ParallelWorker() {
   if (ABSL_PREDICT_FALSE(!closed())) {
     // Ask the chunk writer thread to stop working and exit.
-    Fail("Canceled");
+    Fail(CancelledError());
     Done();
   }
 }

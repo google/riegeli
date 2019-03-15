@@ -14,11 +14,12 @@
 
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 
-#include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/message_serialize.h"
 
 namespace riegeli {
@@ -31,10 +32,9 @@ void ChunkEncoder::Done() {
 bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain serialized;
-  std::string error_message;
-  if (ABSL_PREDICT_FALSE(
-          !SerializeToChain(record, &serialized, &error_message))) {
-    return Fail(error_message);
+  Status serialize_status = SerializeToChain(record, &serialized);
+  if (ABSL_PREDICT_FALSE(!serialize_status.ok())) {
+    return Fail(std::move(serialize_status));
   }
   return AddRecord(std::move(serialized));
 }

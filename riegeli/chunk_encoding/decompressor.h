@@ -23,6 +23,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -104,7 +105,7 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
   uint64_t decompressed_size;
   if (ABSL_PREDICT_FALSE(
           !ReadVarint64(compressed_reader.ptr(), &decompressed_size))) {
-    Fail("Reading decompressed size failed");
+    Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
     return;
   }
   switch (compression_type) {
@@ -117,8 +118,8 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
       reader_ = ZstdReader<Src>(std::move(compressed_reader.manager()));
       return;
   }
-  Fail(absl::StrCat("Unknown compression type: ",
-                    static_cast<unsigned>(compression_type)));
+  Fail(DataLossError(absl::StrCat("Unknown compression type: ",
+                                  static_cast<unsigned>(compression_type))));
 }
 
 template <typename Src>
@@ -142,7 +143,7 @@ inline Reader* Decompressor<Src>::reader() {
     Reader* operator()(Reader& reader) const { return &reader; }
   };
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Decompressor::reader(): " << message();
+      << "Failed precondition of Decompressor::reader(): " << status();
   return absl::visit(Visitor(), reader_);
 }
 

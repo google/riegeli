@@ -86,7 +86,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
   Position size;
   if (!src->Size(&size)) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Getting section size failed: " << src->message();
+        << "Getting section size failed: " << src->status();
   }
   RIEGELI_ASSERT_EQ(src->pos(), 0u) << "Non-zero section reader position";
   while (src->pos() < size) {
@@ -106,7 +106,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
   }
   if (!src->Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing section reader failed: " << src->message();
+        << "Closing section reader failed: " << src->status();
   }
   return true;
 }

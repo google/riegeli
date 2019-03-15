@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
@@ -37,10 +38,10 @@ namespace tensorflow {
 
 void FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
-  const ::tensorflow::Status status = dest->Name(&filename);
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    if (!::tensorflow::errors::IsUnimplemented(status)) {
-      FailOperation("WritableFile::Name()", status);
+  const ::tensorflow::Status name_status = dest->Name(&filename);
+  if (ABSL_PREDICT_FALSE(!name_status.ok())) {
+    if (!::tensorflow::errors::IsUnimplemented(name_status)) {
+      FailOperation(name_status, "WritableFile::Name()");
     }
     return;
   }
@@ -52,13 +53,13 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
   std::unique_ptr<::tensorflow::WritableFile> dest;
-  const ::tensorflow::Status status =
+  const ::tensorflow::Status new_file_status =
       append ? env->NewAppendableFile(filename_, &dest)
              : env->NewWritableFile(filename_, &dest);
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    FailOperation(append ? absl::string_view("Env::NewAppendableFile()")
-                         : absl::string_view("Env::NewWritableFile()"),
-                  status);
+  if (ABSL_PREDICT_FALSE(!new_file_status.ok())) {
+    FailOperation(new_file_status,
+                  append ? absl::string_view("Env::NewAppendableFile()")
+                         : absl::string_view("Env::NewWritableFile()"));
     return nullptr;
   }
   return dest;
@@ -66,21 +67,24 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
 
 void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
   ::tensorflow::int64 file_pos;
-  const ::tensorflow::Status status = dest->Tell(&file_pos);
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    FailOperation("WritableFile::Tell()", status);
+  const ::tensorflow::Status tell_status = dest->Tell(&file_pos);
+  if (ABSL_PREDICT_FALSE(!tell_status.ok())) {
+    FailOperation(tell_status, "WritableFile::Tell()");
     return;
   }
   start_pos_ = IntCast<Position>(file_pos);
 }
 
-bool FileWriterBase::FailOperation(absl::string_view operation,
-                                   const ::tensorflow::Status& status) {
-  status_ = status;
-  std::string message =
-      absl::StrCat(operation, " failed: ", status_.ToString());
-  if (!filename_.empty()) absl::StrAppend(&message, ", writing ", filename_);
-  return Fail(message);
+bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
+                                   absl::string_view operation) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of FileWriterBase::FailOperation(): "
+         "status not failed";
+  std::string context = absl::StrCat(operation, " failed");
+  if (!filename_.empty()) absl::StrAppend(&context, " writing ", filename_);
+  return Fail(Annotate(
+      Status(static_cast<StatusCode>(status.code()), status.error_message()),
+      context));
 }
 
 bool FileWriterBase::PushSlow() {
@@ -128,8 +132,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of FileWriterBase::WriteInternal(): "
-      << message();
+      << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "buffer not empty";
@@ -138,9 +141,9 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
                          std::numeric_limits<Position>::max() - start_pos_)) {
     return FailOverflow();
   }
-  const ::tensorflow::Status status = dest->Append(src);
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    return FailOperation("WritableFile::Append(string_view)", status);
+  const ::tensorflow::Status append_status = dest->Append(src);
+  if (ABSL_PREDICT_FALSE(!append_status.ok())) {
+    return FailOperation(append_status, "WritableFile::Append(string_view)");
   }
   start_pos_ += src.size();
   return true;
@@ -153,16 +156,16 @@ bool FileWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromObject:
       return true;
     case FlushType::kFromProcess: {
-      const ::tensorflow::Status status = dest->Flush();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation("WritableFile::Flush()", status);
+      const ::tensorflow::Status flush_status = dest->Flush();
+      if (ABSL_PREDICT_FALSE(!flush_status.ok())) {
+        return FailOperation(flush_status, "WritableFile::Flush()");
       }
       return true;
     }
     case FlushType::kFromMachine: {
-      const ::tensorflow::Status status = dest->Sync();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation("WritableFile::Sync()", status);
+      const ::tensorflow::Status sync_status = dest->Sync();
+      if (ABSL_PREDICT_FALSE(!sync_status.ok())) {
+        return FailOperation(sync_status, "WritableFile::Sync()");
       }
       return true;
     }

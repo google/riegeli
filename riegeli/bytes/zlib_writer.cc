@@ -22,6 +22,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -75,7 +76,7 @@ inline bool ZlibWriterBase::FailOperation(absl::string_view operation) {
   if (compressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", compressor_->msg);
   }
-  return Fail(message);
+  return Fail(InternalError(message));
 }
 
 bool ZlibWriterBase::WriteInternal(absl::string_view src) {
@@ -83,8 +84,7 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-      << message();
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
@@ -95,8 +95,7 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
 inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
                                           int flush) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ZlibWriterBase::WriteInternal(): "
-      << message();
+      << "Failed precondition of ZlibWriterBase::WriteInternal(): " << status();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZlibWriterBase::WriteInternal(): "
          "buffer not empty";

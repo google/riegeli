@@ -25,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -57,7 +58,7 @@ inline bool ZstdWriterBase::EnsureCStreamCreated() {
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     compressor_.reset(ZSTD_createCStream());
     if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-      return Fail("ZSTD_createCStream() failed");
+      return Fail(InternalError("ZSTD_createCStream() failed"));
     }
     return InitializeCStream();
   }
@@ -73,8 +74,8 @@ bool ZstdWriterBase::InitializeCStream() {
   const size_t result = ZSTD_initCStream_advanced(
       compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
   if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-    return Fail(absl::StrCat("ZSTD_initCStream_advanced() failed: ",
-                             ZSTD_getErrorName(result)));
+    return Fail(InternalError(absl::StrCat(
+        "ZSTD_initCStream_advanced() failed: ", ZSTD_getErrorName(result))));
   }
   return true;
 }
@@ -84,8 +85,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-      << message();
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
@@ -102,8 +102,8 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
         ZSTD_compressStream(compressor_.get(), &output, &input);
     dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      return Fail(absl::StrCat("ZSTD_compressStream() failed: ",
-                               ZSTD_getErrorName(result)));
+      return Fail(InternalError(absl::StrCat("ZSTD_compressStream() failed: ",
+                                             ZSTD_getErrorName(result))));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
@@ -134,8 +134,7 @@ bool ZstdWriterBase::FlushInternal(Function function,
                                    absl::string_view function_name,
                                    Writer* dest) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ZstdWriterBase::FlushInternal(): "
-      << message();
+      << "Failed precondition of ZstdWriterBase::FlushInternal(): " << status();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriterBase::FlushInternal(): "
          "buffer not empty";
@@ -146,8 +145,8 @@ bool ZstdWriterBase::FlushInternal(Function function,
     dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) return true;
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      return Fail(
-          absl::StrCat(function_name, " failed: ", ZSTD_getErrorName(result)));
+      return Fail(InternalError(
+          absl::StrCat(function_name, " failed: ", ZSTD_getErrorName(result))));
     }
     RIEGELI_ASSERT_EQ(output.pos, output.size)
         << function_name << " returned but there is still output space";

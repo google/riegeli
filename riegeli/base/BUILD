@@ -3,6 +3,25 @@ package(default_visibility = ["//visibility:public"])
 licenses(["notice"])
 
 cc_library(
+    name = "status",
+    srcs = [
+        "canonical_errors.cc",
+        "errno_mapping.cc",
+        "status.cc",
+    ],
+    hdrs = [
+        "canonical_errors.h",
+        "errno_mapping.h",
+        "status.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
+    ],
+)
+
+cc_library(
     name = "base",
     srcs = [
         "base.cc",
@@ -17,6 +36,7 @@ cc_library(
         "stable_dependency.h",
     ],
     deps = [
+        ":status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
@@ -82,21 +102,12 @@ cc_library(
 )
 
 cc_library(
-    name = "str_error",
-    srcs = ["str_error.cc"],
-    hdrs = ["str_error.h"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_library(
     name = "options_parser",
     srcs = ["options_parser.cc"],
     hdrs = ["options_parser.h"],
     deps = [
         ":base",
+        ":status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],

@@ -25,6 +25,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -136,7 +137,8 @@ class ZlibReaderBase : public BufferedReader {
     }
   };
 
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(StatusCode code,
+                                         absl::string_view operation);
 
   // If true, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, Close() will

@@ -14,12 +14,13 @@
 
 #ifndef RIEGELI_BASE_STR_ERROR_H_
 #define RIEGELI_BASE_STR_ERROR_H_
-
-#include <string>
+#include "absl/strings/string_view.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-std::string StrError(int error_code);
+// Converts errno value to Status.
+Status ErrnoToCanonicalStatus(int error_number, absl::string_view message);
 
 }  // namespace riegeli
 
