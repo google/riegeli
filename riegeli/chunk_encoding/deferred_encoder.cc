@@ -25,9 +25,7 @@
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -46,17 +44,18 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   const size_t size = record.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
                                     decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail("Decoded data size too large");
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
-  Status serialize_status = SerializeToWriter<>(record, &records_writer_);
-  if (ABSL_PREDICT_FALSE(!serialize_status.ok())) {
-    return Fail(std::move(serialize_status));
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(
+          !SerializeToWriter<>(record, &records_writer_, &error_message))) {
+    return Fail(error_message);
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
   return true;
@@ -83,11 +82,11 @@ bool DeferredEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
                                              decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail("Decoded data size too large");
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(record.size());
@@ -107,7 +106,7 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   if (ABSL_PREDICT_FALSE(limits.size() >
                          UnsignedMin(limits_.max_size(), kMaxNumRecords) -
                              num_records_)) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   num_records_ += IntCast<uint64_t>(limits.size());
   decoded_data_size_ += IntCast<uint64_t>(records.size());

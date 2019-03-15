@@ -75,7 +75,7 @@ class Compressor : public Object {
 
 inline Writer* Compressor::writer() {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of Compressor::writer(): " << status();
+      << "Failed precondition of Compressor::writer(): " << message();
   return absl::visit([](Writer& writer) { return &writer; }, writer_);
 }
 

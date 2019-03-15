@@ -30,7 +30,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -192,7 +191,7 @@ class Writer : public Object {
   // Writer overrides Object::Fail() to set buffer pointers to nullptr. Derived
   // classes which override it further should include a call to Writer::Fail().
   using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message) override;
 
   // Marks the Writer as failed with message "Writer position overflow".
   // Always returns false.

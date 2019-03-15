@@ -17,28 +17,23 @@
 #include <stddef.h>
 #include <cstring>
 #include <string>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-bool Writer::Fail(Status status) {
+bool Writer::Fail(absl::string_view message) {
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
-  return Object::Fail(std::move(status));
+  return Object::Fail(message);
 }
 
-bool Writer::FailOverflow() {
-  return Fail(ResourceExhaustedError("Writer position overflow"));
-}
+bool Writer::FailOverflow() { return Fail("Writer position overflow"); }
 
 bool Writer::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
@@ -87,15 +82,15 @@ bool Writer::WriteSlow(Chain&& src) {
 }
 
 bool Writer::SeekSlow(Position new_pos) {
-  return Fail(UnimplementedError("Writer::Seek() not supported"));
+  return Fail("Writer::Seek() not supported");
 }
 
 bool Writer::Size(Position* size) {
-  return Fail(UnimplementedError("Writer::Size() not supported"));
+  return Fail("Writer::Size() not supported");
 }
 
 bool Writer::Truncate(Position new_size) {
-  return Fail(UnimplementedError("Writer::Truncate() not supported"));
+  return Fail("Writer::Truncate() not supported");
 }
 
 }  // namespace riegeli

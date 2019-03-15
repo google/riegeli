@@ -41,11 +41,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/str_error.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
@@ -85,8 +84,8 @@ MMapRef& MMapRef::operator=(MMapRef&& that) noexcept {
   // Exchange that.data_ early to support self-assignment.
   void* const data = absl::exchange(that.data_, nullptr);
   if (data_ != nullptr) {
-    RIEGELI_CHECK_EQ(munmap(data_, size_), 0)
-        << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
+    const int result = munmap(data_, size_);
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
   data_ = data;
   size_ = absl::exchange(that.size_, 0);
@@ -95,8 +94,8 @@ MMapRef& MMapRef::operator=(MMapRef&& that) noexcept {
 
 MMapRef::~MMapRef() {
   if (data_ != nullptr) {
-    RIEGELI_CHECK_EQ(munmap(data_, size_), 0)
-        << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
+    const int result = munmap(data_, size_);
+    RIEGELI_CHECK_EQ(result, 0) << "munmap() failed: " << StrError(errno);
   }
 }
 
@@ -132,12 +131,9 @@ again:
 }
 
 bool FdReaderCommon::FailOperation(absl::string_view operation) {
-  const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdReaderCommon::FailOperation(): "
-         "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed reading ", filename_)));
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
+                           ", reading ", filename_));
 }
 
 }  // namespace internal
@@ -177,7 +173,7 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
@@ -249,7 +245,7 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos_)) {
@@ -296,12 +292,9 @@ again:
 }
 
 bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
-  const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
-         "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed reading ", filename_)));
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
+                           ", reading ", filename_));
 }
 
 void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
@@ -313,8 +306,7 @@ void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
   }
   if (ABSL_PREDICT_FALSE(IntCast<Position>(stat_info.st_size) >
                          std::numeric_limits<size_t>::max())) {
-    Fail(OutOfRangeError(absl::StrCat("mmap() cannot be used reading ",
-                                      filename_, ": File too large")));
+    Fail("File is too large for mmap()");
     return;
   }
   if (stat_info.st_size == 0) return;

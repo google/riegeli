@@ -15,11 +15,11 @@
 #ifndef RIEGELI_CHUNK_ENCODING_COMPRESSOR_OPTIONS_H_
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_OPTIONS_H_
 
+#include <string>
 #include <utility>
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -42,10 +42,10 @@ class CompressorOptions {
   //   zstd_level ::= integer -32..22 (default 9)
   //   window_log ::= "auto" or integer 10..31
   //
-  // Returns status:
-  //  * status.ok()  - success
-  //  * !status.ok() - failure
-  Status FromString(absl::string_view text);
+  // Return values:
+  //  * true  - success
+  //  * false - failure (*error_message is set)
+  bool FromString(absl::string_view text, std::string* error_message = nullptr);
 
   // Changes compression algorithm to none.
   CompressorOptions& set_uncompressed() & {

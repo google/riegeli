@@ -15,13 +15,13 @@
 #ifndef RIEGELI_BYTES_MESSAGE_PARSE_H_
 #define RIEGELI_BYTES_MESSAGE_PARSE_H_
 
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -34,36 +34,47 @@ namespace riegeli {
 // e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
 // ChainReader<> (owned).
 //
-// Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified)
+// Return values:
+//  * true  - success (*dest is filled)
+//  * false - failure (*dest is unspecified, *error_message is set)
 template <typename Src = Reader*>
-Status ParseFromReader(google::protobuf::MessageLite* dest, Src src);
+bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
+                     std::string* error_message = nullptr);
 
 // Reads a message in binary format from the given Chain. If successful, the
 // entire input will be consumed. Fails if some required fields are missing.
 //
-// Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified, *error_message is set)
-Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src);
+// Return values:
+//  * true  - success (*dest is filled)
+//  * false - failure (*dest is unspecified, *error_message is set)
+bool ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                    std::string* error_message = nullptr);
 
 // Implementation details follow.
 
 namespace internal {
 
-Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src);
+bool ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                         std::string* error_message);
 
 }  // namespace internal
 
 template <typename Src>
-inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src src) {
+inline bool ParseFromReader(google::protobuf::MessageLite* dest, Src src,
+                            std::string* error_message) {
   Dependency<Reader*, Src> src_dep(std::move(src));
-  const Status status = internal::ParseFromReaderImpl(dest, src_dep.ptr());
-  if (ABSL_PREDICT_TRUE(status.ok()) && src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->Close())) return src_dep->status();
+  if (ABSL_PREDICT_FALSE(
+          !internal::ParseFromReaderImpl(dest, src_dep.ptr(), error_message))) {
+    return false;
   }
-  return status;
+  if (src_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
+      if (error_message != nullptr)
+        *error_message = std::string(src_dep->message());
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace riegeli

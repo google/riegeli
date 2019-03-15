@@ -175,7 +175,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.status();
+                                 << values_reader_.message();
   }
   ++index_;
   return true;
@@ -190,7 +190,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
   record->clear();
   if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.status();
+                                 << values_reader_.message();
   }
   ++index_;
   return true;
@@ -205,7 +205,7 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
   record->Clear();
   if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
-                                 << values_reader_.status();
+                                 << values_reader_.message();
   }
   ++index_;
   return true;
@@ -213,13 +213,13 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of ChunkDecoder::SetIndex(): " << status();
+      << "Failed precondition of ChunkDecoder::SetIndex(): " << message();
   index_ = UnsignedMin(index, num_records());
   const size_t start =
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];
   if (!values_reader_.Seek(start)) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Failed seeking values reader: " << values_reader_.status();
+        << "Failed seeking values reader: " << values_reader_.message();
   }
 }
 

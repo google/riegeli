@@ -38,7 +38,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/str_error.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
 
@@ -70,12 +70,9 @@ again:
 }
 
 bool FdWriterCommon::FailOperation(absl::string_view operation) {
-  const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdWriterCommon::FailOperation(): "
-         "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed writing ", filename_)));
+  error_code_ = errno;
+  return Fail(absl::StrCat(operation, " failed: ", StrError(error_code_),
+                           ", writing ", filename_));
 }
 
 }  // namespace internal
@@ -130,7 +127,8 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
@@ -257,7 +255,8 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";

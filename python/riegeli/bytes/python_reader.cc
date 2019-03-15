@@ -30,7 +30,6 @@
 #include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
@@ -70,8 +69,7 @@ bool PythonReader::FailOperation(absl::string_view operation) {
     return false;
   }
   exception_ = Exception::Fetch();
-  return Fail(
-      UnknownError(absl::StrCat(operation, " failed: ", exception_.message())));
+  return Fail(absl::StrCat(operation, " failed: ", exception_.message()));
 }
 
 void PythonReader::Done() {
@@ -106,7 +104,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(max_length >
                          std::numeric_limits<Position>::max() - limit_pos_)) {
     return FailOverflow();
@@ -217,8 +215,8 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       }
       if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
       if (ABSL_PREDICT_FALSE(length_read > max_length)) {
-        return Fail(InternalError(
-            absl::StrCat(read_function_name_, " read more than requested")));
+        return Fail(
+            absl::StrCat(read_function_name_, " read more than requested"));
       }
     } else {
       const PythonPtr length(SizeToPython(length_to_read));
@@ -242,8 +240,8 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       }
       if (ABSL_PREDICT_FALSE(IntCast<size_t>(buffer.len) > max_length)) {
         PyBuffer_Release(&buffer);
-        return Fail(InternalError(
-            absl::StrCat(read_function_name_, " read more than requested")));
+        return Fail(
+            absl::StrCat(read_function_name_, " read more than requested"));
       }
       std::memcpy(dest, buffer.buf, IntCast<size_t>(buffer.len));
       length_read = IntCast<size_t>(buffer.len);
@@ -295,7 +293,7 @@ bool PythonReader::SeekSlow(Position new_pos) {
 bool PythonReader::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonReader::Size() not supported"));
+    return Fail("PythonReader::Size() not supported");
   }
   PythonLock lock;
   if (ABSL_PREDICT_FALSE(!SizeInternal(size))) return false;
@@ -314,7 +312,7 @@ bool PythonReader::Size(Position* size) {
 
 inline bool PythonReader::SizeInternal(Position* size) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of PythonReader::SizeInternal(): " << status();
+      << "Failed precondition of PythonReader::SizeInternal(): " << message();
   RIEGELI_ASSERT(random_access_)
       << "Failed precondition of PythonReader::SizeInternal(): "
          "random access not supported";
@@ -324,9 +322,13 @@ inline bool PythonReader::SizeInternal(Position* size) {
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
-  const PythonPtr whence = IntToPython(2);  // io.SEEK_END
+#if PY_MAJOR_VERSION >= 3
+  const PythonPtr whence(PyLong_FromLong(2));  // io.SEEK_END
+#else
+  const PythonPtr whence(PyInt_FromLong(2));  // io.SEEK_END
+#endif
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
-    return FailOperation("IntToPython()");
+    return FailOperation("PyInt_FromLong()");
   }
   static constexpr Identifier id_seek("seek");
   PythonPtr result(PyObject_CallMethodObjArgs(

@@ -23,8 +23,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -54,24 +52,21 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   decompressor_.reset(new z_stream());
   if (ABSL_PREDICT_FALSE(inflateInit2(decompressor_.get(), window_bits) !=
                          Z_OK)) {
-    FailOperation(StatusCode::kInternal, "inflateInit2()");
+    FailOperation("inflateInit2()");
   }
 }
 
 void ZlibReaderBase::Done() {
-  if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(DataLossError("Truncated zlib-compressed stream"));
-  }
+  if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated zlib-compressed stream");
   BufferedReader::Done();
 }
 
-inline bool ZlibReaderBase::FailOperation(StatusCode code,
-                                          absl::string_view operation) {
+inline bool ZlibReaderBase::FailOperation(absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_->msg);
   }
-  return Fail(Status(code, message));
+  return Fail(message);
 }
 
 bool ZlibReaderBase::PullSlow() {
@@ -93,7 +88,7 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader* const src = src_reader();
   truncated_ = false;
@@ -129,7 +124,7 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
         decompressor_.reset();
         break;
       default:
-        FailOperation(StatusCode::kDataLoss, "inflate()");
+        FailOperation("inflate()");
         break;
     }
     limit_pos_ += length_read;

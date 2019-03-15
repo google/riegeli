@@ -15,13 +15,13 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -34,38 +34,48 @@ namespace riegeli {
 // e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
 // ChainWriter<> (owned).
 //
-// Returns status:
-//  * status.ok()  - success (dest is written to)
-//  * !status.ok() - failure (dest is unspecified)
+// Return values:
+//  * true  - success
+//  * false - failure (*error_message is set)
 template <typename Dest = Writer*>
-Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest dest);
+bool SerializeToWriter(const google::protobuf::MessageLite& src, Dest dest,
+                       std::string* error_message = nullptr);
 
 // Writes the message in binary format to the given Chain, clearing it first.
 // Fails if some required fields are missing.
 //
-// Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified)
-Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest);
+// Return values:
+//  * true  - success
+//  * false - failure (*error_message is set)
+bool SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
+                      std::string* error_message = nullptr);
 
 // Implementation details follow.
 
 namespace internal {
 
-Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                             Writer* dest);
+bool SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                           Writer* dest, std::string* error_message);
 
 }  // namespace internal
 
 template <typename Dest>
-inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                Dest dest) {
+inline bool SerializeToWriter(const google::protobuf::MessageLite& src,
+                              Dest dest, std::string* error_message) {
   Dependency<Writer*, Dest> dest_dep(std::move(dest));
-  const Status status = internal::SerializeToWriterImpl(src, dest_dep.ptr());
-  if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
+  if (ABSL_PREDICT_FALSE(!internal::SerializeToWriterImpl(src, dest_dep.ptr(),
+                                                          error_message))) {
+    return false;
   }
-  return status;
+  if (dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      if (error_message != nullptr) {
+        *error_message = std::string(dest_dep->message());
+      }
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace riegeli

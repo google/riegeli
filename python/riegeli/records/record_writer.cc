@@ -20,6 +20,7 @@
 #include <Python.h>
 
 #include <stddef.h>
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -28,7 +29,6 @@
 #include "python/riegeli/records/record_position.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_writer.h"
 
@@ -200,7 +200,7 @@ void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
     self->record_writer->dest().exception().Restore();
     return;
   }
-  SetRiegeliError(self->record_writer->status());
+  SetRiegeliError(self->record_writer->message());
 }
 
 extern "C" void RecordWriterDestructor(PyRecordWriterObject* self) {
@@ -273,10 +273,10 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   if (options_arg != nullptr) {
     TextOrBytes options;
     if (ABSL_PREDICT_FALSE(!options.FromPython(options_arg))) return -1;
-    const Status from_string_status =
-        record_writer_options.FromString(options.data());
-    if (ABSL_PREDICT_FALSE(!from_string_status.ok())) {
-      SetRiegeliError(from_string_status);
+    std::string error_message;
+    if (ABSL_PREDICT_FALSE(!record_writer_options.FromString(options.data(),
+                                                             &error_message))) {
+      SetRiegeliError(error_message);
       return -1;
     }
   }

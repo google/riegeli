@@ -30,7 +30,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -148,7 +147,7 @@ class BackwardWriter : public Object {
   // Derived classes which override it further should include a call to
   // BackwardWriter::Fail().
   using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message) override;
 
   // Marks the BackwardWriter as failed with message "BackwardWriter position
   // overflow". Always returns false.

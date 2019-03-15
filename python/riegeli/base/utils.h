@@ -32,7 +32,6 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 namespace python {
@@ -220,9 +219,8 @@ class Exception {
   PythonPtrLocking traceback_;
 };
 
-// Translate a failed status to the active Python exception, a class extending
-// RiegeliError.
-void SetRiegeliError(const Status& status);
+// Sets the active Python exception to RiegeliError(message).
+void SetRiegeliError(absl::string_view message);
 
 namespace internal {
 
@@ -387,17 +385,6 @@ class ImportedCapsule : public internal::ImportedCapsuleBase {
   const T& operator*() const { return *get(); }
   const T* operator->() const { return get(); }
 };
-
-// Converts C++ long to a Python int object.
-//
-// Returns nullptr on failure (with Python exception set).
-inline PythonPtr IntToPython(long value) {
-#if PY_MAJOR_VERSION >= 3
-  return PythonPtr(PyLong_FromLong(value));
-#else
-  return PythonPtr(PyInt_FromLong(value));
-#endif
-}
 
 // Converts C++ string_view to a Python bytes object (AKA str in Python2).
 //

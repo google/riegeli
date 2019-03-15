@@ -46,6 +46,10 @@ class FdWriterCommon : public BufferedWriter {
   // /dev/stderr, or /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
 
+  // Returns the errno value of the last fd operation, or 0 if none.
+  // Unchanged by Close().
+  int error_code() const { return error_code_; }
+
  protected:
   FdWriterCommon() noexcept {}
 
@@ -59,6 +63,10 @@ class FdWriterCommon : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   std::string filename_;
+  // errno value of the last fd operation, or 0 if none.
+  //
+  // Invariant: if healthy() then error_code_ == 0
+  int error_code_ = 0;
 };
 
 }  // namespace internal
@@ -345,12 +353,14 @@ inline FdWriterCommon::FdWriterCommon(size_t buffer_size)
 
 inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
     : BufferedWriter(std::move(that)),
-      filename_(absl::exchange(that.filename_, std::string())) {}
+      filename_(absl::exchange(that.filename_, std::string())),
+      error_code_(absl::exchange(that.error_code_, 0)) {}
 
 inline FdWriterCommon& FdWriterCommon::operator=(
     FdWriterCommon&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
+  error_code_ = absl::exchange(that.error_code_, 0);
   return *this;
 }
 

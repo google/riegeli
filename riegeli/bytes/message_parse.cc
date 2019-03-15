@@ -16,15 +16,14 @@
 
 #include <stddef.h>
 #include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -113,26 +112,34 @@ google::protobuf::int64 ReaderInputStream::ByteCount() const {
 
 namespace internal {
 
-Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
+bool ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                         std::string* error_message) {
   ReaderInputStream input_stream(src);
   if (ABSL_PREDICT_FALSE(
           !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
-    return DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+    if (error_message != nullptr) {
+      *error_message =
+          absl::StrCat("Failed to parse message of type ", dest->GetTypeName());
+    }
+    return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
-    return DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
-                     " because it is missing required fields: ",
-                     dest->InitializationErrorString()));
+    if (error_message != nullptr) {
+      *error_message =
+          absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
+                       " because it is missing required fields: ",
+                       dest->InitializationErrorString());
+    }
+    return false;
   }
-  return OkStatus();
+  return true;
 }
 
 }  // namespace internal
 
-Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
-  return ParseFromReader(dest, ChainReader<>(&src));
+bool ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                    std::string* error_message) {
+  return ParseFromReader(dest, ChainReader<>(&src), error_message);
 }
 
 }  // namespace riegeli

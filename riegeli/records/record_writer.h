@@ -30,7 +30,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/chunk_writer.h"
@@ -82,10 +81,11 @@ class RecordWriterBase : public Object {
     // Options are documented below, and also at
     // https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
     //
-    // Returns status:
-    //  * status.ok()  - success
-    //  * !status.ok() - failure
-    Status FromString(absl::string_view text);
+    // Return values:
+    //  * true  - success
+    //  * false - failure (*error_message is set)
+    bool FromString(absl::string_view text,
+                    std::string* error_message = nullptr);
 
     // If true, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way

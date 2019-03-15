@@ -12,7 +12,6 @@ cc_library(
         "@com_google_absl//absl/utility",
         "//riegeli/base",
         "//riegeli/base:buffer",
-        "//riegeli/base:status",
         "//riegeli/bytes:reader",
         # Do not depend on @org_tensorflow//tensorflow/core:lib because
         # //python/riegeli/tensorflow:ops/_riegeli_dataset_ops.so
@@ -35,7 +34,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:buffer",
         "//riegeli/base:chain",
-        "//riegeli/base:status",
         "//riegeli/bytes:writer",
         # Do not depend on @org_tensorflow//tensorflow/core:lib because
         # //python/riegeli/tensorflow:ops/_riegeli_dataset_ops.so

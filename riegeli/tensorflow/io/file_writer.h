@@ -104,6 +104,10 @@ class FileWriterBase : public Writer {
   // Close().
   const std::string& filename() const { return filename_; }
 
+  // Returns the status of the last WritableFile operation, or Status::OK() if
+  // none. Unchanged by Close().
+  const ::tensorflow::Status& status() const { return status_; }
+
   bool Flush(FlushType flush_type) override;
 
  protected:
@@ -118,8 +122,8 @@ class FileWriterBase : public Writer {
   std::unique_ptr<::tensorflow::WritableFile> OpenFile(
       ::tensorflow::Env* env, absl::string_view filename, bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
-                                         absl::string_view operation);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         const ::tensorflow::Status& status);
   bool PushSlow() override;
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not
@@ -135,11 +139,15 @@ class FileWriterBase : public Writer {
   //
   // Preconditions:
   //   !src.empty()
-  //   healthy()
+  //   status_.ok()
   bool WriteInternal(absl::string_view src);
 
  private:
   std::string filename_;
+  // Status of the last WritableFile operation, or Status::OK() if none.
+  //
+  // Invariant: if healthy() then status_.ok()
+  ::tensorflow::Status status_;
   // Buffered data to be written.
   //
   // Invariant: if healthy() then buffer_.size() > 0
@@ -199,12 +207,14 @@ inline FileWriterBase::FileWriterBase(size_t buffer_size)
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
+      status_(absl::exchange(that.status_, ::tensorflow::Status::OK())),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
+  status_ = absl::exchange(that.status_, ::tensorflow::Status::OK());
   buffer_ = std::move(that.buffer_);
   return *this;
 }
@@ -246,10 +256,9 @@ void FileWriter<Dest>::Done() {
   PushInternal();
   FileWriterBase::Done();
   if (dest_.is_owning() && dest_.ptr() != nullptr) {
-    const ::tensorflow::Status close_status = dest_->Close();
-    if (ABSL_PREDICT_FALSE(!close_status.ok()) &&
-        ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(close_status, "WritableFile::Close()");
+    const ::tensorflow::Status status = dest_->Close();
+    if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(healthy())) {
+      FailOperation("WritableFile::Close()", status);
     }
   }
 }

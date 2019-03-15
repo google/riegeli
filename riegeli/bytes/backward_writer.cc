@@ -17,27 +17,24 @@
 #include <stddef.h>
 #include <cstring>
 #include <string>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-bool BackwardWriter::Fail(Status status) {
+bool BackwardWriter::Fail(absl::string_view message) {
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
-  return Object::Fail(std::move(status));
+  return Object::Fail(message);
 }
 
 bool BackwardWriter::FailOverflow() {
-  return Fail(ResourceExhaustedError("BackwardWriter position overflow"));
+  return Fail("BackwardWriter position overflow");
 }
 
 bool BackwardWriter::WriteSlow(absl::string_view src) {
@@ -89,7 +86,7 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
 }
 
 bool BackwardWriter::Truncate(Position new_size) {
-  return Fail(UnimplementedError("BackwardWriter::Truncate() not supported"));
+  return Fail("BackwardWriter::Truncate() not supported");
 }
 
 }  // namespace riegeli

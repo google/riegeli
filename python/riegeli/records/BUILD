@@ -14,7 +14,6 @@ py_extension(
         "//python/riegeli/bytes:python_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/base:status",
         "//riegeli/records:record_position",
         "//riegeli/records:record_writer",
         "@com_google_absl//absl/base:core_headers",

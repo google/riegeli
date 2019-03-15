@@ -9,7 +9,7 @@ cc_binary(
         ":tfrecord_recognizer",
         "//riegeli/base",
         "//riegeli/base:options_parser",
-        "//riegeli/base:status",
+        "//riegeli/base:str_error",
         "//riegeli/bytes:fd_reader",
         "//riegeli/bytes:fd_writer",
         "//riegeli/bytes:writer_utils",
@@ -30,7 +30,6 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:endian",
-        "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:zlib_reader",
         "@com_google_absl//absl/base:core_headers",

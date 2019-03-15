@@ -14,16 +14,15 @@
 
 #include "riegeli/base/object.h"
 
-#include <stdint.h>
+#include <stddef.h>
 #include <atomic>
-#include <string>
-#include <utility>
+#include <cstring>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
+#include "riegeli/base/memory.h"
 
 namespace riegeli {
 
@@ -35,40 +34,36 @@ constexpr uintptr_t Object::kHealthy;
 constexpr uintptr_t Object::kClosedSuccessfully;
 #endif
 
-inline Object::FailedStatus::FailedStatus(Status&& status)
-    : status(std::move(status)) {}
+inline Object::FailedStatus::FailedStatus(absl::string_view message)
+    : message_size(message.size()) {
+  std::memcpy(message_data, message.data(), message.size());
+}
 
-bool Object::Fail(Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
+bool Object::Fail(absl::string_view message) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of Object::Fail(): Object closed";
-  const uintptr_t new_status_ptr =
-      reinterpret_cast<uintptr_t>(new FailedStatus(std::move(status)));
+  const uintptr_t new_status =
+      reinterpret_cast<uintptr_t>(NewAligned<FailedStatus>(
+          offsetof(FailedStatus, message_data) + message.size(), message));
   uintptr_t old_status = kHealthy;
-  if (ABSL_PREDICT_FALSE(!status_ptr_.compare_exchange_strong(
-          old_status, new_status_ptr, std::memory_order_release))) {
-    // status_ptr_ was already set, new_status_ptr loses.
-    DeleteStatus(new_status_ptr);
+  if (ABSL_PREDICT_FALSE(!status_.compare_exchange_strong(
+          old_status, new_status, std::memory_order_release))) {
+    // status_ was already set, new_status loses.
+    DeleteStatus(new_status);
   }
   return false;
 }
 
-bool Object::Fail(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of Object::Fail(): dependency healthy";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
-  return Fail(dependency.status());
+bool Object::Fail(absl::string_view message, const Object& src) {
+  return Fail(src.healthy() ? message
+                            : absl::StrCat(message, ": ", src.message()));
 }
 
-bool Object::Fail(const Object& dependency, Status fallback) {
-  RIEGELI_ASSERT(!fallback.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
-  return Fail(!dependency.healthy() ? dependency.status()
-                                    : std::move(fallback));
+bool Object::Fail(const Object& src) {
+  RIEGELI_ASSERT(!src.healthy())
+      << "Failed precondition of Object::Fail(Object): "
+         "source Object is healthy";
+  return Fail(src.message());
 }
 
 TypeId Object::GetTypeId() const { return TypeId(); }

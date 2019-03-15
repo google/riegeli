@@ -16,16 +16,15 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -53,11 +52,11 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   Reset();
   ChainReader<> data_reader(&chunk.data);
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() >
                          record_scratch_.max_size())) {
-    return Fail(ResourceExhaustedError("Too large chunk"));
+    return Fail("Too large chunk");
   }
   Chain values;
   if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
@@ -85,38 +84,38 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid file signature chunk: data size is not zero: ",
-            header.data_size())));
+            header.data_size()));
       }
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid file signature chunk: number of records is not zero: ",
-            header.num_records())));
+            header.num_records()));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid file signature chunk: decoded data size is not zero: ",
-            header.decoded_data_size())));
+            header.decoded_data_size()));
       }
       return true;
     case ChunkType::kFileMetadata:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid file metadata chunk: number of records is not zero: ",
-            header.num_records())));
+            header.num_records()));
       }
       return true;
     case ChunkType::kPadding:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid padding chunk: number of records is not zero: ",
-            header.num_records())));
+            header.num_records()));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid padding chunk: decoded data size is not zero: ",
-            header.decoded_data_size())));
+            header.decoded_data_size()));
       }
       return true;
     case ChunkType::kSimple: {
@@ -124,18 +123,19 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
       if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
                                                    header.decoded_data_size(),
                                                    &limits_))) {
-        return Fail(simple_decoder);
+        return Fail("Invalid simple chunk", simple_decoder);
       }
       dest->Clear();
       if (ABSL_PREDICT_FALSE(!simple_decoder.reader()->Read(
               dest, IntCast<size_t>(header.decoded_data_size())))) {
-        return Fail(*simple_decoder.reader(),
-                    DataLossError("Reading record values failed"));
+        return Fail("Reading record values failed", *simple_decoder.reader());
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
         return Fail(simple_decoder);
       }
-      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) return Fail(*src);
+      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) {
+        return Fail("Invalid simple chunk", *src);
+      }
       return true;
     }
     case ChunkType::kTransposed: {
@@ -150,8 +150,12 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
           src, header.num_records(), header.decoded_data_size(),
           field_projection_, &dest_writer, &limits_);
       if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);
-      if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder);
-      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) return Fail(*src);
+      if (ABSL_PREDICT_FALSE(!ok)) {
+        return Fail("Invalid transposed chunk", transpose_decoder);
+      }
+      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) {
+        return Fail("Invalid transposed chunk", *src);
+      }
       return true;
     }
   }
@@ -159,8 +163,8 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
     // Ignore chunks with no records, even if the type is unknown.
     return true;
   }
-  return Fail(DataLossError(absl::StrCat(
-      "Unknown chunk type: ", static_cast<uint64_t>(header.chunk_type()))));
+  return Fail(absl::StrCat("Unknown chunk type: ",
+                           static_cast<uint64_t>(header.chunk_type())));
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
@@ -169,15 +173,15 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  Status parse_status =
-      ParseFromReader(record, LimitingReader<>(&values_reader_, limit));
-  if (ABSL_PREDICT_FALSE(!parse_status.ok())) {
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(!ParseFromReader(
+          record, LimitingReader<>(&values_reader_, limit), &error_message))) {
     if (!values_reader_.Seek(limit)) {
       RIEGELI_ASSERT_UNREACHABLE()
-          << "Seeking record values failed: " << values_reader_.status();
+          << "Seeking record values failed: " << values_reader_.message();
     }
     recoverable_ = true;
-    return Fail(std::move(parse_status));
+    return Fail(error_message);
   }
   ++index_;
   return true;

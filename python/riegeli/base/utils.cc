@@ -32,7 +32,6 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 namespace python {
@@ -74,7 +73,7 @@ PyObject* Exception::Restore() && {
 }
 
 std::string Exception::message() const {
-  if (ok()) return "OK";
+  if (ok()) return "Healthy";
   PythonLock lock;
   RIEGELI_ASSERT(PyExceptionClass_Check(type_.get()))
       << "Expected an exception class, not " << Py_TYPE(type_.get())->tp_name;
@@ -96,47 +95,16 @@ std::string Exception::message() const {
   return message;
 }
 
-void SetRiegeliError(const Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of SetRiegeliError(): status not failed";
+void SetRiegeliError(absl::string_view message) {
   PythonLock::AssertHeld();
-  PythonPtr message = StringToPython(status.message());
-  if (ABSL_PREDICT_FALSE(message == nullptr)) return;
-  PyObject* type;
-  switch (status.code()) {
-#define HANDLE_CODE(name)                                     \
-  case StatusCode::k##name: {                                 \
-    static constexpr ImportedConstant k##name##Error(         \
-        "riegeli.base.riegeli_error", #name "Error");         \
-    if (ABSL_PREDICT_FALSE(!k##name##Error.Verify())) return; \
-    type = k##name##Error.get();                              \
-  } break
-
-    // clang-format off
-    HANDLE_CODE(Cancelled);
-    default:
-    HANDLE_CODE(Unknown);
-    HANDLE_CODE(InvalidArgument);
-    HANDLE_CODE(DeadlineExceeded);
-    HANDLE_CODE(NotFound);
-    HANDLE_CODE(AlreadyExists);
-    HANDLE_CODE(PermissionDenied);
-    HANDLE_CODE(Unauthenticated);
-    HANDLE_CODE(ResourceExhausted);
-    HANDLE_CODE(FailedPrecondition);
-    HANDLE_CODE(Aborted);
-    HANDLE_CODE(OutOfRange);
-    HANDLE_CODE(Unimplemented);
-    HANDLE_CODE(Internal);
-    HANDLE_CODE(Unavailable);
-    HANDLE_CODE(DataLoss);
-      // clang-format on
-
-#undef HANDLE_CODE
-  }
-
+  static constexpr ImportedConstant kRiegeliError("riegeli.base.riegeli_error",
+                                                  "RiegeliError");
+  if (ABSL_PREDICT_FALSE(!kRiegeliError.Verify())) return;
+  PyObject* const type = kRiegeliError.get();
+  PythonPtr value = StringToPython(message);
+  if (ABSL_PREDICT_FALSE(value == nullptr)) return;
   Py_INCREF(type);
-  PyErr_Restore(type, message.release(), nullptr);
+  PyErr_Restore(type, value.release(), nullptr);
 }
 
 namespace internal {

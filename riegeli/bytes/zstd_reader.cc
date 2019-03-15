@@ -23,7 +23,6 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -40,14 +39,14 @@ void ZstdReaderBase::Initialize(Reader* src) {
   }
   decompressor_.reset(ZSTD_createDStream());
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
-    Fail(InternalError("ZSTD_createDStream() failed"));
+    Fail("ZSTD_createDStream() failed");
     return;
   }
   {
     const size_t result = ZSTD_initDStream(decompressor_.get());
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_initDStream() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(absl::StrCat("ZSTD_initDStream() failed: ",
+                        ZSTD_getErrorName(result)));
       return;
     }
   }
@@ -55,16 +54,14 @@ void ZstdReaderBase::Initialize(Reader* src) {
     const size_t result = ZSTD_DCtx_setMaxWindowSize(
         decompressor_.get(), size_t{1} << ZSTD_WINDOWLOG_MAX);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(absl::StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
+                        ZSTD_getErrorName(result)));
     }
   }
 }
 
 void ZstdReaderBase::Done() {
-  if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(DataLossError("Truncated Zstd-compressed stream"));
-  }
+  if (ABSL_PREDICT_FALSE(truncated_)) Fail("Truncated Zstd-compressed stream");
   BufferedReader::Done();
 }
 
@@ -87,7 +84,7 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
+      << "Failed precondition of BufferedReader::ReadInternal(): " << message();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader* const src = src_reader();
   truncated_ = false;
@@ -107,8 +104,8 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       return output.pos >= min_length;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(absl::StrCat("ZSTD_decompressStream() failed: ",
+                        ZSTD_getErrorName(result)));
       limit_pos_ += output.pos;
       return output.pos >= min_length;
     }

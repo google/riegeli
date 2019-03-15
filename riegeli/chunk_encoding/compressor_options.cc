@@ -14,11 +14,12 @@
 
 #include "riegeli/chunk_encoding/compressor_options.h"
 
+#include <string>
+
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -40,7 +41,8 @@ constexpr int CompressorOptions::kMaxWindowLog;
 constexpr int CompressorOptions::kDefaultWindowLog;
 #endif
 
-Status CompressorOptions::FromString(absl::string_view text) {
+bool CompressorOptions::FromString(absl::string_view text,
+                                   std::string* error_message) {
   // Set just compression_type_ first because other parsers depend on
   // compression_type_.
   {
@@ -69,7 +71,10 @@ Status CompressorOptions::FromString(absl::string_view text) {
     options_parser.AddOption("window_log",
                              [](ValueParser* value_parser) { return true; });
     if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
-      return options_parser.status();
+      if (error_message != nullptr) {
+        *error_message = std::string(options_parser.message());
+      }
+      return false;
     }
   }
   OptionsParser options_parser;
@@ -115,9 +120,12 @@ Status CompressorOptions::FromString(absl::string_view text) {
                                  << static_cast<unsigned>(compression_type_);
   }());
   if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
-    return options_parser.status();
+    if (error_message != nullptr) {
+      *error_message = std::string(options_parser.message());
+    }
+    return false;
   }
-  return OkStatus();
+  return true;
 }
 
 int CompressorOptions::window_log() const {

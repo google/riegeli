@@ -98,6 +98,10 @@ class FileReaderBase : public Reader {
   // Close().
   const std::string& filename() const { return filename_; }
 
+  // Returns the status of the last RandomAccessFile operation, or Status::OK()
+  // if none. Unchanged by Close().
+  const ::tensorflow::Status& status() const { return status_; }
+
   bool SupportsRandomAccess() const override { return !filename_.empty(); }
   bool Size(Position* size) override;
 
@@ -114,8 +118,8 @@ class FileReaderBase : public Reader {
   bool InitializeFilename(::tensorflow::Env* env, absl::string_view filename);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
-                                         absl::string_view operation);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         const ::tensorflow::Status& status);
   bool PullSlow() override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
@@ -125,6 +129,10 @@ class FileReaderBase : public Reader {
   std::string filename_;
   // Invariant: if healthy() && !filename_.empty() then file_system_ != nullptr
   ::tensorflow::FileSystem* file_system_ = nullptr;
+  // Status of the last RandomAccessFile operation, or Status::OK() if none.
+  //
+  // Invariant: if healthy() then status_.ok()
+  ::tensorflow::Status status_;
   Buffer buffer_;
 };
 
@@ -181,6 +189,7 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
       file_system_(absl::exchange(that.file_system_, nullptr)),
+      status_(absl::exchange(that.status_, ::tensorflow::Status::OK())),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileReaderBase& FileReaderBase::operator=(
@@ -188,6 +197,7 @@ inline FileReaderBase& FileReaderBase::operator=(
   Reader::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
   file_system_ = absl::exchange(that.file_system_, nullptr);
+  status_ = absl::exchange(that.status_, ::tensorflow::Status::OK());
   buffer_ = std::move(that.buffer_);
   return *this;
 }

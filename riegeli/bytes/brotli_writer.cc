@@ -22,7 +22,6 @@
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -51,27 +50,25 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   compressor_.reset(BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-    Fail(InternalError("BrotliEncoderCreateInstance() failed"));
+    Fail("BrotliEncoderCreateInstance() failed");
     return;
   }
   if (ABSL_PREDICT_FALSE(
           !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_QUALITY,
                                      IntCast<uint32_t>(compression_level)))) {
-    Fail(InternalError(
-        "BrotliEncoderSetParameter(BROTLI_PARAM_QUALITY) failed"));
+    Fail("BrotliEncoderSetParameter(BROTLI_PARAM_QUALITY) failed");
     return;
   }
   if (ABSL_PREDICT_FALSE(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,
           uint32_t{window_log > BROTLI_MAX_WINDOW_BITS}))) {
-    Fail(InternalError(
-        "BrotliEncoderSetParameter(BROTLI_PARAM_LARGE_WINDOW) failed"));
+    Fail("BrotliEncoderSetParameter(BROTLI_PARAM_LARGE_WINDOW) failed");
     return;
   }
   if (ABSL_PREDICT_FALSE(
           !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_LGWIN,
                                      IntCast<uint32_t>(window_log)))) {
-    Fail(InternalError("BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
+    Fail("BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed");
     return;
   }
   if (size_hint > 0) {
@@ -98,7 +95,8 @@ bool BrotliWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
@@ -110,7 +108,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
                                             BrotliEncoderOperation op) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BrotliWriterBase::WriteInternal(): "
-      << status();
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BrotliWriterBase::WriteInternal(): "
          "buffer not empty";
@@ -125,7 +123,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (ABSL_PREDICT_FALSE(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
-      return Fail(InternalError("BrotliEncoderCompressStream() failed"));
+      return Fail("BrotliEncoderCompressStream() failed");
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(

@@ -29,7 +29,6 @@
 #include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -69,8 +68,7 @@ bool PythonWriter::FailOperation(absl::string_view operation) {
     return false;
   }
   exception_ = Exception::Fetch();
-  return Fail(
-      UnknownError(absl::StrCat(operation, " failed: ", exception_.message())));
+  return Fail(absl::StrCat(operation, " failed: ", exception_.message()));
 }
 
 void PythonWriter::Done() {
@@ -90,7 +88,8 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+      << "Failed precondition of BufferedWriter::WriteInternal(): "
+      << message();
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
@@ -199,7 +198,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       }
     }
     if (ABSL_PREDICT_FALSE(length_written > src.size())) {
-      return Fail(InternalError("write() wrote more than requested"));
+      return Fail("write() wrote more than requested");
     }
     start_pos_ += length_written;
     src.remove_prefix(length_written);
@@ -232,7 +231,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Seek() not supported"));
+    return Fail("PythonWriter::Seek() not supported");
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
@@ -265,7 +264,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
 bool PythonWriter::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Size() not supported"));
+    return Fail("PythonWriter::Size() not supported");
   }
   PythonLock lock;
   if (ABSL_PREDICT_FALSE(!SizeInternal(size))) return false;
@@ -284,7 +283,7 @@ bool PythonWriter::Size(Position* size) {
 
 inline bool PythonWriter::SizeInternal(Position* size) {
   RIEGELI_ASSERT(healthy())
-      << "Failed precondition of PythonWriter::SizeInternal(): " << status();
+      << "Failed precondition of PythonWriter::SizeInternal(): " << message();
   RIEGELI_ASSERT(random_access_)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
@@ -294,9 +293,13 @@ inline bool PythonWriter::SizeInternal(Position* size) {
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
-  const PythonPtr whence = IntToPython(2);  // io.SEEK_END
+#if PY_MAJOR_VERSION >= 3
+  const PythonPtr whence(PyLong_FromLong(2));  // io.SEEK_END
+#else
+  const PythonPtr whence(PyInt_FromLong(2));  // io.SEEK_END
+#endif
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
-    return FailOperation("IntToPython()");
+    return FailOperation("PyInt_FromLong()");
   }
   static constexpr Identifier id_seek("seek");
   PythonPtr result(PyObject_CallMethodObjArgs(
@@ -324,7 +327,7 @@ inline bool PythonWriter::SizeInternal(Position* size) {
 bool PythonWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Truncate() not supported"));
+    return Fail("PythonWriter::Truncate() not supported");
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   PythonLock lock;

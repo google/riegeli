@@ -41,9 +41,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/status.h"
+#include "riegeli/base/str_error.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/writer_utils.h"
@@ -63,8 +62,8 @@ namespace {
 
 uint64_t FileSize(const std::string& filename) {
   struct stat stat_info;
-  RIEGELI_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
-      << riegeli::ErrnoToCanonicalStatus(errno, "stat() failed").message();
+  const int result = stat(filename.c_str(), &stat_info);
+  RIEGELI_CHECK_EQ(result, 0) << "stat() failed: " << riegeli::StrError(errno);
   return riegeli::IntCast<uint64_t>(stat_info.st_size);
 }
 
@@ -156,7 +155,7 @@ bool Benchmarks::ReadFile(const std::string& filename,
                           std::vector<std::string>* records, size_t* max_size) {
   riegeli::FdReader<> file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
-    std::cerr << "Could not open file: " << file_reader.status() << std::endl;
+    std::cerr << "Could not open file: " << file_reader.message() << std::endl;
     std::exit(1);
   }
   {
@@ -164,18 +163,18 @@ bool Benchmarks::ReadFile(const std::string& filename,
     tensorflow::io::RecordReaderOptions record_reader_options;
     if (tfrecord_recognizer.CheckFileFormat(&record_reader_options)) {
       RIEGELI_CHECK(tfrecord_recognizer.Close())
-          << tfrecord_recognizer.status();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
+          << tfrecord_recognizer.message();
+      RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
       std::cout << "Reading TFRecord: " << filename << std::endl;
       return ReadTFRecord(filename, record_reader_options, records, max_size);
     }
   }
-  RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.status();
+  RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.message();
   {
     riegeli::DefaultChunkReader<> chunk_reader(&file_reader);
     if (chunk_reader.CheckFileFormat()) {
-      RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.status();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
+      RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.message();
+      RIEGELI_CHECK(file_reader.Close()) << file_reader.message();
       std::cout << "Reading Riegeli/records: " << filename << std::endl;
       return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
                          records, max_size);
@@ -245,9 +244,9 @@ void Benchmarks::WriteRiegeli(
       riegeli::FdWriter<>(filename, O_WRONLY | O_CREAT | O_TRUNC),
       std::move(record_writer_options));
   for (const std::string& record : records) {
-    RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
+    RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.message();
   }
-  RIEGELI_CHECK(record_writer.Close()) << record_writer.status();
+  RIEGELI_CHECK(record_writer.Close()) << record_writer.message();
 }
 
 bool Benchmarks::ReadRiegeli(
@@ -267,7 +266,7 @@ bool Benchmarks::ReadRiegeli(
     *max_size -= memory;
     records->push_back(std::move(record));
   }
-  RIEGELI_CHECK(record_reader.Close()) << record_reader.status();
+  RIEGELI_CHECK(record_reader.Close()) << record_reader.message();
   return true;
 }
 
@@ -310,7 +309,7 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
                   riegeli::ValueParser::Empty(
                       &compression, tensorflow::io::compression::kGzip)));
   RIEGELI_CHECK(options_parser.FromString(tfrecord_options))
-      << options_parser.status();
+      << options_parser.message();
   tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
 }
 
@@ -319,7 +318,8 @@ void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
       max_name_width_,
       riegeli::IntCast<int>(absl::StrCat("riegeli ", riegeli_options).size()));
   riegeli::RecordWriterBase::Options options;
-  RIEGELI_CHECK_EQ(options.FromString(riegeli_options), riegeli::OkStatus());
+  std::string message;
+  RIEGELI_CHECK(options.FromString(riegeli_options, &message)) << message;
   riegeli_benchmarks_.emplace_back(std::move(riegeli_options),
                                    std::move(options));
 }

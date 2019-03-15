@@ -25,10 +25,8 @@
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
@@ -53,11 +51,11 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t size = record.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
                                     decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail("Decoded data size too large");
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
@@ -65,10 +63,10 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
                                         IntCast<uint64_t>(size)))) {
     return Fail(*sizes_compressor_.writer());
   }
-  Status serialize_status =
-      SerializeToWriter(record, values_compressor_.writer());
-  if (ABSL_PREDICT_FALSE(!serialize_status.ok())) {
-    return Fail(std::move(serialize_status));
+  std::string error_message;
+  if (ABSL_PREDICT_FALSE(!SerializeToWriter(record, values_compressor_.writer(),
+                                            &error_message))) {
+    return Fail(error_message);
   }
   return true;
 }
@@ -93,11 +91,11 @@ template <typename Record>
 bool SimpleEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(record.size() > std::numeric_limits<uint64_t>::max() -
                                              decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail("Decoded data size too large");
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(record.size());
@@ -118,11 +116,11 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(limits.size() > kMaxNumRecords - num_records_)) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail("Too many records");
   }
   if (ABSL_PREDICT_FALSE(records.size() > std::numeric_limits<uint64_t>::max() -
                                               decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail("Decoded data size too large");
   }
   num_records_ += IntCast<uint64_t>(limits.size());
   decoded_data_size_ += IntCast<uint64_t>(records.size());

@@ -23,7 +23,6 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -46,7 +45,7 @@ void DefaultChunkReaderBase::Initialize(Reader* src) {
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
-    Fail(DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
+    Fail(absl::StrCat("Invalid chunk boundary: ", pos_));
   }
 }
 
@@ -60,9 +59,8 @@ void DefaultChunkReaderBase::Done() {
            "have been read for the chunk to be considered incomplete";
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = src->pos();
-    Fail(DataLossError(
-        absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
-                     pos_, " with length ", recoverable_pos_ - pos_)));
+    Fail(absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
+                      pos_, " with length ", recoverable_pos_ - pos_));
   }
 }
 
@@ -77,8 +75,8 @@ inline bool DefaultChunkReaderBase::SeekingFailed(Reader* src,
   if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   recoverable_ = Recoverable::kFindChunk;
   recoverable_pos_ = src->pos();
-  return Fail(DataLossError(absl::StrCat(
-      "Position ", new_pos, " exceeds file size: ", recoverable_pos_)));
+  return Fail(absl::StrCat("Position ", new_pos,
+                           " exceeds file size: ", recoverable_pos_));
 }
 
 bool DefaultChunkReaderBase::CheckFileFormat() {
@@ -106,24 +104,24 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
           recoverable_ = Recoverable::kFindChunk;
           recoverable_pos_ = src->pos();
         }
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid Riegeli/records file: chunk boundary is ", pos_,
             " but block header at ", block_begin,
             " implies a different previous chunk boundary: ",
             block_begin >= block_header_.previous_chunk()
                 ? absl::StrCat(block_begin - block_header_.previous_chunk())
                 : absl::StrCat("-",
-                               block_header_.previous_chunk() - block_begin))));
+                               block_header_.previous_chunk() - block_begin)));
       }
       if (ABSL_PREDICT_FALSE(block_header_.next_chunk() !=
                              chunk_end - block_begin)) {
         recoverable_ = Recoverable::kFindChunk;
         recoverable_pos_ = src->pos();
-        return Fail(DataLossError(
+        return Fail(
             absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
                          chunk_end, " but block header at ", block_begin,
                          " implies a different next chunk boundary: ",
-                         block_begin + block_header_.next_chunk())));
+                         block_begin + block_header_.next_chunk()));
       }
     }
     if (ABSL_PREDICT_FALSE(!src->Read(
@@ -143,11 +141,11 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
     // chunk is believed to be present after this chunk.
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = chunk_end;
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::StrCat(
         "Corrupted Riegeli/records file: chunk data hash mismatch (computed 0x",
         absl::Hex(computed_data_hash, absl::PadSpec::kZeroPad16), ", stored 0x",
         absl::Hex(chunk_.header.data_hash(), absl::PadSpec::kZeroPad16),
-        "), chunk at ", pos_, " with length ", chunk_end - pos_)));
+        "), chunk at ", pos_, " with length ", chunk_end - pos_));
   }
 
   *chunk = std::move(chunk_);
@@ -172,9 +170,9 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = pos_;
     pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
-        "Riegeli/records file ended at ", pos_,
-        " but has grown and will be skipped until ", recoverable_pos_)));
+    return Fail(absl::StrCat("Riegeli/records file ended at ", pos_,
+                             " but has grown and will be skipped until ",
+                             recoverable_pos_));
   }
 
   const Position chunk_header_read =
@@ -189,7 +187,7 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
 inline bool DefaultChunkReaderBase::ReadChunkHeader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
-      << status();
+      << message();
   Reader* const src = src_reader();
   RIEGELI_ASSERT_LT(internal::DistanceWithoutOverhead(pos_, src->pos()),
                     chunk_.header.size())
@@ -213,14 +211,14 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
           recoverable_ = Recoverable::kFindChunk;
           recoverable_pos_ = src->pos();
         }
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid Riegeli/records file: chunk boundary is ", pos_,
             " but block header at ", block_begin,
             " implies a different previous chunk boundary: ",
             block_begin >= block_header_.previous_chunk()
                 ? absl::StrCat(block_begin - block_header_.previous_chunk())
                 : absl::StrCat("-",
-                               block_header_.previous_chunk() - block_begin))));
+                               block_header_.previous_chunk() - block_begin)));
       }
     }
     const size_t chunk_header_read =
@@ -239,14 +237,14 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                          chunk_.header.stored_header_hash())) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::StrCat(
         "Corrupted Riegeli/records file: chunk header hash mismatch "
         "(computed 0x",
         absl::Hex(computed_header_hash, absl::PadSpec::kZeroPad16),
         ", stored 0x",
         absl::Hex(chunk_.header.stored_header_hash(),
                   absl::PadSpec::kZeroPad16),
-        "), chunk at ", pos_)));
+        "), chunk at ", pos_));
   }
   if (internal::RemainingInBlock(pos_) < chunk_.header.size()) {
     // The chunk header was interrupted by a block header. Both headers have
@@ -257,11 +255,11 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                            chunk_end - block_begin)) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(
+      return Fail(
           absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
                        chunk_end, " but block header at ", block_begin,
                        " implies a different next chunk boundary: ",
-                       block_begin + block_header_.next_chunk())));
+                       block_begin + block_header_.next_chunk()));
     }
   }
   if (pos_ == 0) {
@@ -273,8 +271,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                            chunk_.header.decoded_data_size() != 0)) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(
-          "Invalid Riegeli/records file: missing file signature"));
+      return Fail("Invalid Riegeli/records file: missing file signature");
     }
   }
   return true;
@@ -296,14 +293,14 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
                          block_header_.stored_header_hash())) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::StrCat(
         "Corrupted Riegeli/records file: block header hash mismatch "
         "(computed 0x",
         absl::Hex(computed_header_hash, absl::PadSpec::kZeroPad16),
         ", stored 0x",
         absl::Hex(block_header_.stored_header_hash(),
                   absl::PadSpec::kZeroPad16),
-        "), block at ", internal::RoundDownToBlockBoundary(recoverable_pos_))));
+        "), block at ", internal::RoundDownToBlockBoundary(recoverable_pos_)));
   }
   return true;
 }
@@ -320,7 +317,7 @@ again:
   recoverable_ = Recoverable::kNo;
   Position recoverable_pos = recoverable_pos_;
   recoverable_pos_ = 0;
-  std::string saved_message(status().message());
+  std::string saved_message(message());
   MarkNotFailed();
   chunk_.Reset();
   if (recoverable == Recoverable::kHaveChunk) {
@@ -397,7 +394,7 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
-    return Fail(DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
+    return Fail(absl::StrCat("Invalid chunk boundary: ", pos_));
   }
   return true;
 }
@@ -477,19 +474,19 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() > block_begin)) {
         recoverable_ = Recoverable::kFindChunk;
         recoverable_pos_ = src->pos();
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::StrCat(
             "Invalid Riegeli/records file: block header at ", block_begin,
             " implies a negative previous chunk boundary: -",
-            block_header_.previous_chunk() - block_begin)));
+            block_header_.previous_chunk() - block_begin));
       }
       chunk_begin = block_begin - block_header_.previous_chunk();
     }
     if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(chunk_begin))) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(absl::StrCat(
+      return Fail(absl::StrCat(
           "Invalid Riegeli/records file: block header at ", block_begin,
-          " implies an invalid chunk boundary: ", chunk_begin)));
+          " implies an invalid chunk boundary: ", chunk_begin));
     }
   }
 
