@@ -16,14 +16,15 @@
 
 #include <stddef.h>
 #include <limits>
-#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -97,25 +98,19 @@ google::protobuf::int64 WriterOutputStream::ByteCount() const {
 
 namespace internal {
 
-bool SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                           Writer* dest, std::string* error_message) {
+Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                             Writer* dest) {
   if (ABSL_PREDICT_FALSE(!src.IsInitialized())) {
-    if (error_message != nullptr) {
-      *error_message = absl::StrCat("Failed to serialize message of type ",
-                                    src.GetTypeName(),
-                                    " because it is missing required fields: ",
-                                    src.InitializationErrorString());
-    }
-    return false;
+    return InvalidArgumentError(
+        absl::StrCat("Failed to serialize message of type ", src.GetTypeName(),
+                     " because it is missing required fields: ",
+                     src.InitializationErrorString()));
   }
   const size_t size = src.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    if (error_message != nullptr) {
-      *error_message = absl::StrCat(
-          "Failed to serialize message of type ", src.GetTypeName(),
-          " because it exceeds maximum protobuf size of 2GB: ", size);
-    }
-    return false;
+    return ResourceExhaustedError(absl::StrCat(
+        "Failed to serialize message of type ", src.GetTypeName(),
+        " because it exceeds maximum protobuf size of 2GB: ", size));
   }
   WriterOutputStream output_stream(dest);
   if (ABSL_PREDICT_FALSE(
@@ -123,25 +118,18 @@ bool SerializeToWriterImpl(const google::protobuf::MessageLite& src,
     RIEGELI_ASSERT(!dest->healthy())
         << "Failed to serialize message of type " << src.GetTypeName()
         << ": SerializePartialToZeroCopyStream() failed for an unknown reason";
-    if (error_message != nullptr) {
-      *error_message = absl::StrCat("Failed to serialize message of type ",
-                                    src.GetTypeName(), ": ", dest->message());
-    }
-    return false;
+    return dest->status();
   }
-  return true;
+  return OkStatus();
 }
 
 }  // namespace internal
 
-bool SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
-                      std::string* error_message) {
+Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest) {
   dest->Clear();
   return SerializeToWriter(
-      src,
-      ChainWriter<>(
-          dest, ChainWriterBase::Options().set_size_hint(src.ByteSizeLong())),
-      error_message);
+      src, ChainWriter<>(dest, ChainWriterBase::Options().set_size_hint(
+                                   src.ByteSizeLong())));
 }
 
 }  // namespace riegeli

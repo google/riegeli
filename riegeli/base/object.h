@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BASE_OBJECT_H_
 #define RIEGELI_BASE_OBJECT_H_
 
-#include <stddef.h>
 #include <stdint.h>
 #include <atomic>
 
@@ -23,7 +22,8 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/memory.h"
+#include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -47,8 +47,7 @@ class TypeId {
 
 // Object is an abstract base class for data readers and writers, managing their
 // state: whether they are closed, and whether they failed (with an associated
-// human-readable message). An Object is healthy when it is not closed nor
-// failed.
+// Status). An Object is healthy when it is not closed nor failed.
 //
 // An Object becomes closed when Close() finishes, when constructed as closed
 // (usually with no parameters), or when moved from.
@@ -56,8 +55,8 @@ class TypeId {
 // An Object fails when it could not perform an operation due to an unexpected
 // reason.
 //
-// Derived Object classes can be movable but not copyable. The source Object is
-// left closed.
+// Derived Object classes can be movable but not copyable. After a move the
+// source Object is left closed.
 //
 // Derived Object classes should be thread-compatible: const member functions
 // may be called concurrently with const member functions, but non-const member
@@ -98,12 +97,12 @@ class Object {
   // Returns true if the Object is closed.
   bool closed() const;
 
-  // Returns a human-readable message describing the Object health.
-  //
-  // This is "Healthy", "Closed", or a failure message.
-  absl::string_view message() const;
+  // Returns a Status describing the failure if the Object is failed,
+  // or OkStatus() otherwise.
+  Status status() const;
 
-  // Returns a token which allows to detect the class of the Object at runtime.
+  // Returns a token which allows to detect the class of the Object at
+  // runtime.
   //
   // By default returns TypeId(). In order for a class to participate in class
   // detection at runtime, it must override GetTypeId():
@@ -135,10 +134,10 @@ class Object {
   // If a derived class uses background threads, its assignment operator, if
   // defined, should cause background threads of the target Object to stop
   // interacting with the Object before Object::Object(Object&&) is called.
-  // Also, its move constructor and move assignment operator, if defined, should
-  // cause background threads of the source Object to pause interacting with the
-  // Object while Object::operator=(Object&&) is called, and then continue
-  // interacting with the target Object instead.
+  // Also, its move constructor and move assignment operator, if defined,
+  // should cause background threads of the source Object to pause interacting
+  // with the Object while Object::operator=(Object&&) is called, and then
+  // continue interacting with the target Object instead.
   Object(Object&& that) noexcept;
   Object& operator=(Object&& that) noexcept;
 
@@ -146,8 +145,8 @@ class Object {
   // resetting to a clean state after a failure (apart from assignment).
   //
   // If a derived class uses background threads, its methods which call
-  // MarkHealthy should cause background threads to stop interacting with the
-  // Object before MarkHealthy is called.
+  // MarkHealthy() should cause background threads to stop interacting with
+  // the Object before MarkHealthy() is called.
   void MarkHealthy();
 
   // Marks the Object as not failed, keeping its closed() status unchanged.
@@ -161,61 +160,69 @@ class Object {
   // Implementation of Close(), called if the Object is not closed yet.
   //
   // Close() returns early if closed(), otherwise calls Done() and marks the
-  // Object as closed. See Close() for details of the responsibility of Done().
+  // Object as closed. See Close() for details of the responsibility of
+  // Done().
   //
-  // If a derived class uses background threads, Done() should cause background
-  // threads to stop interacting with the Object.
+  // If a derived class uses background threads, Done() should cause
+  // background threads to stop interacting with the Object.
   //
   // Precondition: !closed()
   virtual void Done() {}
 
-  // Marks the Object as failed with the specified message.
+  // Marks the Object as failed with the specified Status.
   //
-  // Fail() always returns false, for convenience of reporting the failure as a
-  // false result of a failing function.
+  // Fail() always returns false, for convenience of reporting the failure as
+  // a false result of a failing function.
   //
-  // Even though Fail() is not const, it may be called concurrently with public
-  // member functions, with const member functions, and with other Fail() calls.
-  // If Fail() is called multiple times, the first message wins.
-  //
-  // Precondition: !closed()
-  ABSL_ATTRIBUTE_COLD virtual bool Fail(absl::string_view message);
-
-  // If src.healthy(), equivalent to Fail(message), otherwise equivalent to
-  // Fail(StrCat(message, ": ", src.message())).
-  //
-  // Precondition: !closed()
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::string_view message, const Object& src);
-
-  // Equivalent to Fail(src.message()).
+  // Even though Fail() is not const, it may be called concurrently with
+  // public member functions, with const member functions, and with other
+  // Fail() calls. If Fail() is called multiple times, the first Status wins.
   //
   // Preconditions:
-  //   !src.healthy()
+  //   !status.ok()
   //   !closed()
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& src);
+  ABSL_ATTRIBUTE_COLD virtual bool Fail(Status status);
+
+  // Propagates failure from another Object.
+  //
+  // Equivalent to Fail(dependency.status()).
+  //
+  // Preconditions:
+  //   !dependency.healthy()
+  //   !closed()
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
+
+  // Propagates failure from another Object, with a fallback status to use if
+  // the other Object is healthy.
+  //
+  // Equivalent to Fail(!dependency.healthy() ? dependency.status() : fallback).
+  //
+  // Preconditions:
+  //   !fallback.ok()
+  //   !closed()
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency, Status fallback);
 
  private:
   struct FailedStatus {
-    explicit FailedStatus(absl::string_view message);
+    explicit FailedStatus(Status&& status);
 
-    size_t message_size;
     // The closed flag may be changed from false to true by Close(). This
     // happens after Done() finishes, and thus any background threads should
     // have stopped interacting with the Object.
     bool closed = false;
-    // Beginning of message (actual message has size message_size).
-    char message_data[1];
+    // The actual status, never OkStatus().
+    Status status;
   };
 
   static constexpr uintptr_t kHealthy = static_cast<uintptr_t>(State::kOpen);
   static constexpr uintptr_t kClosedSuccessfully =
       static_cast<uintptr_t>(State::kClosed);
 
-  static void DeleteStatus(uintptr_t status);
+  static void DeleteStatus(uintptr_t status_ptr);
 
-  // status_ is either kHealthy, or kClosedSuccessfully, or FailedStatus*
+  // status_ptr_ is either kHealthy, or kClosedSuccessfully, or FailedStatus*
   // reinterpret_cast to uintptr_t.
-  std::atomic<uintptr_t> status_;
+  std::atomic<uintptr_t> status_ptr_;
 };
 
 // Implementation details follow.
@@ -227,88 +234,86 @@ inline TypeId TypeId::For() {
 }
 
 inline Object::Object(State state) noexcept
-    : status_(static_cast<uintptr_t>(state)) {
+    : status_ptr_(static_cast<uintptr_t>(state)) {
   RIEGELI_ASSERT(state == State::kOpen || state == State::kClosed)
       << "Unknown state: " << static_cast<uintptr_t>(state);
 }
 
 inline Object::Object(Object&& that) noexcept
-    : status_(that.status_.exchange(kClosedSuccessfully,
-                                    std::memory_order_relaxed)) {}
+    : status_ptr_(that.status_ptr_.exchange(kClosedSuccessfully,
+                                            std::memory_order_relaxed)) {}
 
 inline Object& Object::operator=(Object&& that) noexcept {
-  DeleteStatus(status_.exchange(
-      that.status_.exchange(kClosedSuccessfully, std::memory_order_relaxed),
+  DeleteStatus(status_ptr_.exchange(
+      that.status_ptr_.exchange(kClosedSuccessfully, std::memory_order_relaxed),
       std::memory_order_relaxed));
   return *this;
 }
 
 inline Object::~Object() {
-  DeleteStatus(status_.load(std::memory_order_relaxed));
+  DeleteStatus(status_ptr_.load(std::memory_order_relaxed));
 }
 
 inline bool Object::Close() {
-  const uintptr_t status_before = status_.load(std::memory_order_acquire);
-  if (ABSL_PREDICT_FALSE(status_before != kHealthy)) {
-    if (ABSL_PREDICT_TRUE(status_before == kClosedSuccessfully)) return true;
-    if (reinterpret_cast<const FailedStatus*>(status_before)->closed) {
+  const uintptr_t status_ptr_before =
+      status_ptr_.load(std::memory_order_acquire);
+  if (ABSL_PREDICT_FALSE(status_ptr_before != kHealthy)) {
+    if (ABSL_PREDICT_TRUE(status_ptr_before == kClosedSuccessfully)) {
+      return true;
+    }
+    if (reinterpret_cast<const FailedStatus*>(status_ptr_before)->closed) {
       return false;
     }
   }
   Done();
-  const uintptr_t status_after = status_.load(std::memory_order_relaxed);
-  if (ABSL_PREDICT_TRUE(status_after == kHealthy)) {
-    status_.store(kClosedSuccessfully, std::memory_order_relaxed);
+  const uintptr_t status_ptr_after =
+      status_ptr_.load(std::memory_order_relaxed);
+  if (ABSL_PREDICT_TRUE(status_ptr_after == kHealthy)) {
+    status_ptr_.store(kClosedSuccessfully, std::memory_order_relaxed);
     return true;
   }
-  RIEGELI_ASSERT(status_after != kClosedSuccessfully &&
-                 !reinterpret_cast<const FailedStatus*>(status_after)->closed)
+  RIEGELI_ASSERT(
+      status_ptr_after != kClosedSuccessfully &&
+      !reinterpret_cast<const FailedStatus*>(status_ptr_after)->closed)
       << "Object marked as closed during Done()";
-  reinterpret_cast<FailedStatus*>(status_after)->closed = true;
+  reinterpret_cast<FailedStatus*>(status_ptr_after)->closed = true;
   return false;
 }
 
-inline void Object::DeleteStatus(uintptr_t status) {
-  if (ABSL_PREDICT_FALSE(status != kHealthy && status != kClosedSuccessfully)) {
-    DeleteAligned(
-        reinterpret_cast<FailedStatus*>(status),
-        offsetof(FailedStatus, message_data) +
-            reinterpret_cast<const FailedStatus*>(status)->message_size);
+inline void Object::DeleteStatus(uintptr_t status_ptr) {
+  if (ABSL_PREDICT_FALSE(status_ptr != kHealthy &&
+                         status_ptr != kClosedSuccessfully)) {
+    delete reinterpret_cast<FailedStatus*>(status_ptr);
   }
 }
 
 inline bool Object::healthy() const {
-  return status_.load(std::memory_order_acquire) == kHealthy;
+  return status_ptr_.load(std::memory_order_acquire) == kHealthy;
 }
 
 inline bool Object::closed() const {
-  const uintptr_t status = status_.load(std::memory_order_acquire);
-  if (ABSL_PREDICT_TRUE(status == kHealthy)) return false;
-  if (ABSL_PREDICT_TRUE(status == kClosedSuccessfully)) return true;
-  return reinterpret_cast<const FailedStatus*>(status)->closed;
+  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
+  if (ABSL_PREDICT_TRUE(status_ptr == kHealthy)) return false;
+  if (ABSL_PREDICT_TRUE(status_ptr == kClosedSuccessfully)) return true;
+  return reinterpret_cast<const FailedStatus*>(status_ptr)->closed;
 }
 
-inline absl::string_view Object::message() const {
-  const uintptr_t status = status_.load(std::memory_order_acquire);
-  switch (status) {
-    case kHealthy:
-      return "Healthy";
-    case kClosedSuccessfully:
-      return "Closed";
-    default:
-      return absl::string_view(
-          reinterpret_cast<const FailedStatus*>(status)->message_data,
-          reinterpret_cast<const FailedStatus*>(status)->message_size);
+inline Status Object::status() const {
+  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
+  if (status_ptr == kHealthy) return OkStatus();
+  if (status_ptr == kClosedSuccessfully) {
+    return FailedPreconditionError("Object closed");
   }
+  return reinterpret_cast<const FailedStatus*>(status_ptr)->status;
 }
 
 inline void Object::MarkHealthy() {
-  DeleteStatus(status_.exchange(kHealthy, std::memory_order_relaxed));
+  DeleteStatus(status_ptr_.exchange(kHealthy, std::memory_order_relaxed));
 }
 
 inline void Object::MarkNotFailed() {
-  DeleteStatus(status_.exchange(closed() ? kClosedSuccessfully : kHealthy,
-                                std::memory_order_relaxed));
+  DeleteStatus(status_ptr_.exchange(closed() ? kClosedSuccessfully : kHealthy,
+                                    std::memory_order_relaxed));
 }
 
 }  // namespace riegeli

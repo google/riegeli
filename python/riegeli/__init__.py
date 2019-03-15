@@ -25,12 +25,34 @@ from riegeli.records import skipped_region
 
 from riegeli.records import records_metadata_pb2
 
-__all__ = ('RiegeliError', 'FlushType', 'RecordPosition', 'SkippedRegion',
+__all__ = ('RiegeliError', 'CancelledError', 'UnknownError',
+           'InvalidArgumentError', 'DeadlineExceededError', 'NotFoundError',
+           'AlreadyExistsError', 'PermissionDeniedError',
+           'UnauthenticatedError', 'ResourceExhaustedError',
+           'FailedPreconditionError', 'AbortedError', 'OutOfRangeError',
+           'UnimplementedError', 'InternalError', 'UnavailableError',
+           'DataLossError', 'FlushType', 'RecordPosition', 'SkippedRegion',
            'RecordsMetadata', 'set_record_type', 'RecordWriter',
            'get_record_type', 'RecordReader')
 
 # pylint: disable=invalid-name
 RiegeliError = riegeli_error.RiegeliError
+CancelledError = riegeli_error.CancelledError
+UnknownError = riegeli_error.UnknownError
+InvalidArgumentError = riegeli_error.InvalidArgumentError
+DeadlineExceededError = riegeli_error.DeadlineExceededError
+NotFoundError = riegeli_error.NotFoundError
+AlreadyExistsError = riegeli_error.AlreadyExistsError
+PermissionDeniedError = riegeli_error.PermissionDeniedError
+UnauthenticatedError = riegeli_error.UnauthenticatedError
+ResourceExhaustedError = riegeli_error.ResourceExhaustedError
+FailedPreconditionError = riegeli_error.FailedPreconditionError
+AbortedError = riegeli_error.AbortedError
+OutOfRangeError = riegeli_error.OutOfRangeError
+UnimplementedError = riegeli_error.UnimplementedError
+InternalError = riegeli_error.InternalError
+UnavailableError = riegeli_error.UnavailableError
+DataLossError = riegeli_error.DataLossError
 RecordPosition = record_position.RecordPosition
 SkippedRegion = skipped_region.SkippedRegion
 RecordsMetadata = records_metadata_pb2.RecordsMetadata

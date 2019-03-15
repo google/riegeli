@@ -37,6 +37,7 @@ tf_custom_op_library(
     linkopts = ["-Wl,--allow-multiple-definition"],
     deps = [
         "//riegeli/base",
+        "//riegeli/base:status",
         "//riegeli/records:record_position",
         "//riegeli/records:record_reader",
         "//riegeli/tensorflow/io:file_reader",

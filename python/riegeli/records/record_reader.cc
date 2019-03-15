@@ -149,7 +149,7 @@ void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
     self->record_reader->src().exception().Restore();
     return;
   }
-  SetRiegeliError(self->record_reader->message());
+  SetRiegeliError(self->record_reader->status());
 }
 
 extern "C" void RecordReaderDestructor(PyRecordReaderObject* self) {

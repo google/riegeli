@@ -23,6 +23,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/tensorflow/io/file_reader.h"
@@ -139,17 +140,16 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
                   skipped_region.ToString());
             }
             if (TF_PREDICT_FALSE(!reader_->Close())) {
-              // Failed to read the file: return an error. Prefer an error from
-              // FileReader if that triggered the failure because its status is
-              // more specific, propagated from RandomAccessFile.
-              ::tensorflow::Status status = reader_->src().status();
-              status.Update(::tensorflow::errors::DataLoss(reader_->message()));
+              // Failed to read the file: return an error.
+              const Status status = reader_->status();
               // Further iteration will move on to the next file, if any.
               reader_.reset();
               ++current_file_index_;
               *end_of_sequence =
                   current_file_index_ == dataset()->filenames_.size();
-              return status;
+              return ::tensorflow::Status(
+                  static_cast<::tensorflow::error::Code>(status.code()),
+                  status.message());
             }
             // We have reached the end of the current file, so move on to the
             // next file, if any.

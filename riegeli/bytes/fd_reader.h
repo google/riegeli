@@ -51,10 +51,6 @@ class FdReaderCommon : public BufferedReader {
   // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
 
-  // Returns the errno value of the last fd operation, or 0 if none.
-  // Unchanged by Close().
-  int error_code() const { return error_code_; }
-
  protected:
   FdReaderCommon() noexcept {}
 
@@ -68,10 +64,6 @@ class FdReaderCommon : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   std::string filename_;
-  // errno value of the last fd operation, or 0 if none.
-  //
-  // Invariant: if healthy() then error_code_ == 0
-  int error_code_ = 0;
 };
 
 }  // namespace internal
@@ -239,10 +231,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
   const std::string& filename() const { return filename_; }
 
-  // Returns the errno value of the last fd operation, or 0 if none.
-  // Unchanged by Close().
-  int error_code() const { return error_code_; }
-
  protected:
   FdMMapReaderBase() noexcept {}
 
@@ -260,10 +248,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void SyncPos(int src);
 
   std::string filename_;
-  // errno value of the last fd operation, or 0 if none.
-  //
-  // Invariant: if healthy() then error_code_ == 0
-  int error_code_ = 0;
   bool sync_pos_ = false;
 };
 
@@ -436,14 +420,12 @@ inline FdReaderCommon::FdReaderCommon(size_t buffer_size)
 
 inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& that) noexcept
     : BufferedReader(std::move(that)),
-      filename_(absl::exchange(that.filename_, std::string())),
-      error_code_(absl::exchange(that.error_code_, 0)) {}
+      filename_(absl::exchange(that.filename_, std::string())) {}
 
 inline FdReaderCommon& FdReaderCommon::operator=(
     FdReaderCommon&& that) noexcept {
   BufferedReader::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
-  error_code_ = absl::exchange(that.error_code_, 0);
   return *this;
 }
 
@@ -472,14 +454,12 @@ inline FdStreamReaderBase& FdStreamReaderBase::operator=(
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
-      error_code_(absl::exchange(that.error_code_, 0)),
       sync_pos_(absl::exchange(that.sync_pos_, false)) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
   ChainReader::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
-  error_code_ = absl::exchange(that.error_code_, 0);
   sync_pos_ = absl::exchange(that.sync_pos_, false);
   return *this;
 }

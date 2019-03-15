@@ -22,6 +22,7 @@
 #include "absl/strings/str_cat.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
@@ -37,19 +38,20 @@ void BrotliReaderBase::Initialize(Reader* src) {
   }
   decompressor_.reset(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
-    Fail("BrotliDecoderCreateInstance() failed");
+    Fail(InternalError("BrotliDecoderCreateInstance() failed"));
     return;
   }
   if (ABSL_PREDICT_FALSE(!BrotliDecoderSetParameter(
           decompressor_.get(), BROTLI_DECODER_PARAM_LARGE_WINDOW,
           uint32_t{true}))) {
-    Fail("BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed");
+    Fail(InternalError(
+        "BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed"));
   }
 }
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail("Truncated Brotli-compressed stream");
+    Fail(DataLossError("Truncated Brotli-compressed stream"));
   }
   Reader::Done();
 }
@@ -71,9 +73,10 @@ bool BrotliReaderBase::PullSlow() {
         nullptr);
     src->set_cursor(reinterpret_cast<const char*>(next_in));
     if (ABSL_PREDICT_FALSE(result == BROTLI_DECODER_RESULT_ERROR)) {
-      Fail(absl::StrCat("BrotliDecoderDecompressStream() failed: ",
-                        BrotliDecoderErrorString(
-                            BrotliDecoderGetErrorCode(decompressor_.get()))));
+      Fail(DataLossError(
+          absl::StrCat("BrotliDecoderDecompressStream() failed: ",
+                       BrotliDecoderErrorString(
+                           BrotliDecoderGetErrorCode(decompressor_.get())))));
     }
     // Take the output first even if BrotliDecoderDecompressStream() returned
     // BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT, in order to be able to read data

@@ -29,6 +29,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/canonical_errors.h"
 
 namespace riegeli {
 
@@ -180,8 +181,8 @@ ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
          value_parser->options_parser_->options_) {
       if (option.key == key) {
         if (ABSL_PREDICT_FALSE(option.seen)) {
-          return value_parser->Fail(absl::StrCat(
-              "Option ", value_parser->key(), " conflicts with option ", key));
+          return value_parser->Fail(InvalidArgumentError(absl::StrCat(
+              "Option ", value_parser->key(), " conflicts with option ", key)));
         }
         return true;
       }
@@ -195,8 +196,8 @@ ValueParser::Function ValueParser::FailIfAnySeen() {
     for (const OptionsParser::Option& option :
          value_parser->options_parser_->options_) {
       if (ABSL_PREDICT_FALSE(option.seen)) {
-        return value_parser->Fail(
-            absl::StrCat("Option ", value_parser->key(), " must be first"));
+        return value_parser->Fail(InvalidArgumentError(
+            absl::StrCat("Option ", value_parser->key(), " must be first")));
       }
     }
     return true;
@@ -243,24 +244,25 @@ bool OptionsParser::FromString(absl::string_view text) {
             absl::StrAppend(&message, ", ", iter->key);
           }
         }
-        return Fail(message);
+        return Fail(InvalidArgumentError(message));
       }
       if (ABSL_PREDICT_FALSE(option->seen)) {
-        return Fail(absl::StrCat("Option ", key, " is present more than once"));
+        return Fail(InvalidArgumentError(
+            absl::StrCat("Option ", key, " is present more than once")));
       }
       ValueParser value_parser(this, key, value);
       if (ABSL_PREDICT_FALSE(!option->function(&value_parser))) {
         if (!value_parser.healthy()) return Fail(value_parser);
-        return Fail(absl::StrCat(
+        return Fail(InvalidArgumentError(absl::StrCat(
             "Option ", key, ": ",
             "invalid value: ", value.empty() ? "(empty)" : value,
             value_parser.valid_values_.empty() ? "" : ", valid values: ",
-            value_parser.valid_values_));
+            value_parser.valid_values_)));
       }
       RIEGELI_ASSERT(value_parser.healthy())
           << "Value parser of option " << key
           << " returned true but failed the ValueParser: "
-          << value_parser.message();
+          << value_parser.status();
       option->seen = true;
     }
     if (option_end == text.size()) break;
