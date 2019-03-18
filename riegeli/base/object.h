@@ -20,7 +20,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/status.h"
