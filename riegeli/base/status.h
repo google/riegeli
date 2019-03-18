@@ -14,6 +14,7 @@
 
 #ifndef RIEGELI_BASE_STATUS_H_
 #define RIEGELI_BASE_STATUS_H_
+
 #include <atomic>
 #include <iosfwd>
 #include <string>

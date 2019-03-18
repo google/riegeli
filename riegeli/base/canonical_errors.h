@@ -14,6 +14,7 @@
 
 #ifndef RIEGELI_BASE_CANONICAL_ERRORS_H_
 #define RIEGELI_BASE_CANONICAL_ERRORS_H_
+
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/status.h"

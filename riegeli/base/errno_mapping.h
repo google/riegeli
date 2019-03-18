@@ -14,6 +14,7 @@
 
 #ifndef RIEGELI_BASE_STR_ERROR_H_
 #define RIEGELI_BASE_STR_ERROR_H_
+
 #include "absl/strings/string_view.h"
 #include "riegeli/base/status.h"
 

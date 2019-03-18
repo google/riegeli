@@ -268,6 +268,7 @@ using type_identity_t = typename type_identity<T>::type;
 // from C++17, but is available since C++11.
 
 #if __cpp_inline_variables
+
 #define RIEGELI_INLINE_CONSTEXPR(type, name, init) \
   inline constexpr ::riegeli::type_identity_t<type> name = init
 
