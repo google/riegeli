@@ -949,7 +949,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
       char* const buffer = dest->cursor();                                  \
       if (ABSL_PREDICT_FALSE(                                               \
               !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        Fail(*node->buffer, DataLossError("Reading varint field failed"));  \
+        return Fail(*node->buffer,                                          \
+                    DataLossError("Reading varint field failed"));          \
       }                                                                     \
       for (size_t i = 0; i < data_length - 1; ++i) {                        \
         buffer[tag_length + i] |= 0x80;                                     \
@@ -959,7 +960,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
       char buffer[tag_length + data_length];                                \
       if (ABSL_PREDICT_FALSE(                                               \
               !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        Fail(*node->buffer, DataLossError("Reading varint field failed"));  \
+        return Fail(*node->buffer,                                          \
+                    DataLossError("Reading varint field failed"));          \
       }                                                                     \
       for (size_t i = 0; i < data_length - 1; ++i) {                        \
         buffer[tag_length + i] |= 0x80;                                     \
@@ -980,14 +982,16 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
       char* const buffer = dest->cursor();                                  \
       if (ABSL_PREDICT_FALSE(                                               \
               !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        Fail(*node->buffer, DataLossError("Reading fixed field failed"));   \
+        return Fail(*node->buffer,                                          \
+                    DataLossError("Reading fixed field failed"));           \
       }                                                                     \
       std::memcpy(buffer, node->tag_data.data, tag_length);                 \
     } else {                                                                \
       char buffer[tag_length + data_length];                                \
       if (ABSL_PREDICT_FALSE(                                               \
               !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        Fail(*node->buffer, DataLossError("Reading fixed field failed"));   \
+        return Fail(*node->buffer,                                          \
+                    DataLossError("Reading fixed field failed"));           \
       }                                                                     \
       std::memcpy(buffer, node->tag_data.data, tag_length);                 \
       if (ABSL_PREDICT_FALSE(!dest->Write(                                  \
@@ -1012,7 +1016,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     } else {                                                                  \
       const Position pos_before = node->buffer->pos();                        \
       if (ABSL_PREDICT_FALSE(!ReadVarint32(node->buffer, &length))) {         \
-        Fail(*node->buffer, DataLossError("Reading string length failed"));   \
+        return Fail(*node->buffer,                                            \
+                    DataLossError("Reading string length failed"));           \
       }                                                                       \
       length_length = IntCast<size_t>(node->buffer->pos() - pos_before);      \
       if (!node->buffer->Seek(pos_before)) {                                  \
@@ -1027,7 +1032,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (ABSL_PREDICT_FALSE(                                                   \
             !node->buffer->CopyTo(dest, length_length + size_t{length}))) {   \
       if (!dest->healthy()) return Fail(*dest);                               \
-      Fail(*node->buffer, DataLossError("Reading string field failed"));      \
+      return Fail(*node->buffer,                                              \
+                  DataLossError("Reading string field failed"));              \
     }                                                                         \
     if (ABSL_PREDICT_FALSE(!dest->Write(                                      \
             absl::string_view(node->tag_data.data, tag_length)))) {           \
@@ -1126,7 +1132,7 @@ submessage_end:
   goto do_transition;
 
 failure:
-  return false;
+  return Fail(DataLossError("Invalid node index"));
 
 submessage_start : {
   if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
