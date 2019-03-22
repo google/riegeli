@@ -48,38 +48,39 @@ http_archive(
     ],
 )
 
-# Import HighwayHash (2019-01-29).
+# Import HighwayHash (2019-02-22).
 http_archive(
     name = "highwayhash",
     build_file = "//:highwayhash.BUILD",
-    sha256 = "017d766fa5f130702eafcc2c9807582c67bdf99614f702d68edb510213428a23",
-    strip_prefix = "highwayhash-e96ab3b409eb0cdec19c066aef1fd7e60e74eae3",
+    sha256 = "cf891e024699c82aabce528a024adbe16e529f2b4e57f954455e0bf53efae585",
+    strip_prefix = "highwayhash-276dd7b4b6d330e4734b756e97ccfb1b69cc2e12",
     urls = [
-        "https://mirror.bazel.build/github.com/google/highwayhash/archive/e96ab3b409eb0cdec19c066aef1fd7e60e74eae3.zip",
-        "https://github.com/google/highwayhash/archive/e96ab3b409eb0cdec19c066aef1fd7e60e74eae3.zip",
+        "https://mirror.bazel.build/github.com/google/highwayhash/archive/276dd7b4b6d330e4734b756e97ccfb1b69cc2e12.zip",
+        "https://github.com/google/highwayhash/archive/276dd7b4b6d330e4734b756e97ccfb1b69cc2e12.zip",
     ],
 )
 
-# Import TensorFlow (2019-02-03), Protobuf (@com_google_protobuf, 2018-12-05),
+# Import TensorFlow (2019-03-05), Protobuf (@com_google_protobuf, 2018-12-05),
 # Abseil-Python (@absl_py, 2019-01-11), and configure @local_config_python.
 
 http_archive(
     name = "org_tensorflow",
-    sha256 = "55e25c577f337dfb02e9b4ba675b9a8d3d6d210bdad80f1674c2d3c0cf646a9e",
-    strip_prefix = "tensorflow-226398bd70d6369dd97fa9cf4bee94af9a05f1d0",
+    sha256 = "dfd0a8157a0f59bfb24a5b9b087d1a23dbd5155272b3a4fec0a747881b45f4e1",
+    strip_prefix = "tensorflow-2.0.0-alpha0",
     urls = [
-        "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/226398bd70d6369dd97fa9cf4bee94af9a05f1d0.zip",
-        "https://github.com/tensorflow/tensorflow/archive/226398bd70d6369dd97fa9cf4bee94af9a05f1d0.zip",
+        "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/v2.0.0-alpha0.zip",
+        "https://github.com/tensorflow/tensorflow/archive/v2.0.0-alpha0.zip",
     ],
 )
 
+# Import Closure Rules for Bazel (2018-12-21).
 http_archive(
     name = "io_bazel_rules_closure",
-    sha256 = "013b820c64874dae78f3dbb561f1f6ee2b3367bbdc10f086534c0acddbd434e7",
-    strip_prefix = "rules_closure-0.8.0",
+    sha256 = "43c9b882fa921923bcba764453f4058d102bece35a37c9f6383c713004aacff1",
+    strip_prefix = "rules_closure-9889e2348259a5aad7e805547c1a0cf311cfcd91",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/0.8.0.zip",
-        "https://github.com/bazelbuild/rules_closure/archive/0.8.0.zip",  # 2018-06-23
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/9889e2348259a5aad7e805547c1a0cf311cfcd91.tar.gz",
+        "https://github.com/bazelbuild/rules_closure/archive/9889e2348259a5aad7e805547c1a0cf311cfcd91.tar.gz",
     ],
 )
 
