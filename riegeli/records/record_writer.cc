@@ -431,7 +431,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
     ChunkWriter* chunk_writer, Options&& options)
     : Worker(chunk_writer, std::move(options)),
       pos_before_chunks_(chunk_writer_->pos()) {
-  internal::DefaultThreadPool().Schedule([this] {
+  internal::ThreadPool::global().Schedule([this] {
     struct Visitor {
       bool operator()(DoneRequest& request) const {
         request.done.set_value();
@@ -546,7 +546,7 @@ bool RecordWriterBase::ParallelWorker::WriteMetadata() {
       WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                         chunk_promises->chunk.get_future()});
   mutex_.Unlock();
-  internal::DefaultThreadPool().Schedule([this, chunk_promises] {
+  internal::ThreadPool::global().Schedule([this, chunk_promises] {
     Chunk chunk;
     EncodeMetadata(&chunk);
     chunk_promises->chunk_header.set_value(chunk.header);
@@ -566,14 +566,15 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
       WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                         chunk_promises->chunk.get_future()});
   mutex_.Unlock();
-  internal::DefaultThreadPool().Schedule([this, chunk_encoder, chunk_promises] {
-    Chunk chunk;
-    EncodeChunk(chunk_encoder, &chunk);
-    delete chunk_encoder;
-    chunk_promises->chunk_header.set_value(chunk.header);
-    chunk_promises->chunk.set_value(std::move(chunk));
-    delete chunk_promises;
-  });
+  internal::ThreadPool::global().Schedule(
+      [this, chunk_encoder, chunk_promises] {
+        Chunk chunk;
+        EncodeChunk(chunk_encoder, &chunk);
+        delete chunk_encoder;
+        chunk_promises->chunk_header.set_value(chunk.header);
+        chunk_promises->chunk.set_value(std::move(chunk));
+        delete chunk_promises;
+      });
   return true;
 }
 

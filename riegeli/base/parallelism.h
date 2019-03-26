@@ -36,6 +36,8 @@ class ThreadPool {
 
   ~ThreadPool();
 
+  static ThreadPool& global();
+
   void Schedule(std::function<void()> task);
 
  private:
@@ -45,8 +47,6 @@ class ThreadPool {
   size_t num_idle_threads_ GUARDED_BY(mutex_) = 0;
   std::deque<std::function<void()>> tasks_ GUARDED_BY(mutex_);
 };
-
-ThreadPool& DefaultThreadPool();
 
 }  // namespace internal
 }  // namespace riegeli

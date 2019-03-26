@@ -68,7 +68,7 @@ void ThreadPool::Schedule(std::function<void()> task) {
   }).detach();
 }
 
-ThreadPool& DefaultThreadPool() {
+ThreadPool& ThreadPool::global() {
   static NoDestructor<ThreadPool> kStaticThreadPool;
   return *kStaticThreadPool;
 }
