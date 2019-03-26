@@ -34,10 +34,10 @@ namespace riegeli {
 // Template parameter invariant part of ZlibWriter.
 class ZlibWriterBase : public BufferedWriter {
  public:
+  enum class Header { kZlib = 0, kGzip = 16, kRaw = -1 };
+
   class Options {
    public:
-    enum class Header { kZlib = 0, kGzip = 16, kRaw = -1 };
-
     Options() noexcept {}
 
     // Tunes the tradeoff between compression density and compression speed
@@ -219,7 +219,7 @@ template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest dest, Options options)
     : ZlibWriterBase(options.buffer_size_), dest_(std::move(dest)) {
   Initialize(dest_.ptr(), options.compression_level_,
-             options.header_ == Options::Header::kRaw
+             options.header_ == Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));
 }

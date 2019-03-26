@@ -40,8 +40,7 @@ constexpr int ZlibWriterBase::Options::kDefaultCompressionLevel;
 constexpr int ZlibWriterBase::Options::kMinWindowLog;
 constexpr int ZlibWriterBase::Options::kMaxWindowLog;
 constexpr int ZlibWriterBase::Options::kDefaultWindowLog;
-constexpr ZlibWriterBase::Options::Header
-    ZlibWriterBase::Options::kDefaultHeader;
+constexpr ZlibWriterBase::Header ZlibWriterBase::Options::kDefaultHeader;
 #endif
 
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level,

@@ -36,10 +36,10 @@ namespace riegeli {
 // Template parameter invariant part of ZlibReader.
 class ZlibReaderBase : public BufferedReader {
  public:
+  enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };
+
   class Options {
    public:
-    enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };
-
     Options() noexcept {}
 
     // Maximum acceptable logarithm of the LZ77 sliding window size.
@@ -204,7 +204,7 @@ template <typename Src>
 ZlibReader<Src>::ZlibReader(Src src, Options options)
     : ZlibReaderBase(options.buffer_size_), src_(std::move(src)) {
   Initialize(src_.ptr(),
-             options.header_ == Options::Header::kRaw
+             options.header_ == Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));
 }

@@ -39,8 +39,7 @@ namespace riegeli {
 constexpr int ZlibReaderBase::Options::kMinWindowLog;
 constexpr int ZlibReaderBase::Options::kMaxWindowLog;
 constexpr int ZlibReaderBase::Options::kDefaultWindowLog;
-constexpr ZlibReaderBase::Options::Header
-    ZlibReaderBase::Options::kDefaultHeader;
+constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 #endif
 
 void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
