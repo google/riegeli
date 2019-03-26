@@ -825,7 +825,7 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
               ? size_hint - size_before
               : UnsignedMax(kMinBufferSize,
                             SaturatingAdd(replaced_length, recommended_length),
-                            size_before / 2),
+                            size_before),
           kMaxBufferSize));
 }
 

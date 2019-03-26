@@ -253,7 +253,7 @@ class Chain {
     Allocated allocated;
   };
 
-  static constexpr size_t kMinBufferSize = 128;
+  static constexpr size_t kMinBufferSize = 256;
   static constexpr size_t kMaxBufferSize = size_t{64} << 10;
   static constexpr size_t kAllocationCost = 256;
 
