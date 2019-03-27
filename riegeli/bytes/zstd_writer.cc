@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -44,6 +45,57 @@ constexpr int ZstdWriterBase::Options::kMaxWindowLog;
 constexpr int ZstdWriterBase::Options::kDefaultWindowLog;
 #endif
 
+namespace {
+
+// Reduces the size hint to a class index which actually determines internal
+// parameters of the zstd compressor. This avoids varying ZSTD_CStreamKey for
+// inconsequential variations of the size hint.
+//
+// This follows tableID computation in ZSTD_getCParams().
+int SizeHintClass(Position size_hint) {
+  if (size_hint == 0) return 0;
+  return (size_hint <= Position{256} << 10 ? 1 : 0) +
+         (size_hint <= Position{128} << 10 ? 1 : 0) +
+         (size_hint <= Position{16} << 10 ? 1 : 0);
+}
+
+}  // namespace
+
+void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
+                                int window_log, Position size_hint) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
+         "null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    Fail(*dest);
+    return;
+  }
+  compressor_ =
+      RecyclingPool<ZSTD_CStream, ZSTD_CStreamDeleter,
+                    ZSTD_CStreamKey>::global()
+          .Get(ZSTD_CStreamKey{compression_level, window_log,
+                               SizeHintClass(size_hint)},
+               [] {
+                 return std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter>(
+                     ZSTD_createCStream());
+               });
+  if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
+    Fail(InternalError("ZSTD_createCStream() failed"));
+    return;
+  }
+  ZSTD_parameters params = ZSTD_getParams(
+      compression_level, IntCast<unsigned long long>(size_hint), 0);
+  if (window_log >= 0) {
+    params.cParams.windowLog = IntCast<unsigned>(window_log);
+  }
+  const size_t result = ZSTD_initCStream_advanced(
+      compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
+  if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
+    Fail(InternalError(absl::StrCat("ZSTD_initCStream_advanced() failed: ",
+                                    ZSTD_getErrorName(result))));
+  }
+}
+
 void ZstdWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(PushInternal())) {
     Writer* const dest = dest_writer();
@@ -51,33 +103,8 @@ void ZstdWriterBase::Done() {
         << "BufferedWriter::PushInternal() did not empty the buffer";
     FlushInternal(ZSTD_endStream, "ZSTD_endStream()", dest);
   }
+  compressor_.reset();
   BufferedWriter::Done();
-}
-
-inline bool ZstdWriterBase::EnsureCStreamCreated() {
-  if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-    compressor_.reset(ZSTD_createCStream());
-    if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-      return Fail(InternalError("ZSTD_createCStream() failed"));
-    }
-    return InitializeCStream();
-  }
-  return true;
-}
-
-bool ZstdWriterBase::InitializeCStream() {
-  ZSTD_parameters params = ZSTD_getParams(
-      compression_level_, IntCast<unsigned long long>(size_hint_), 0);
-  if (window_log_ >= 0) {
-    params.cParams.windowLog = IntCast<unsigned>(window_log_);
-  }
-  const size_t result = ZSTD_initCStream_advanced(
-      compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
-  if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-    return Fail(InternalError(absl::StrCat(
-        "ZSTD_initCStream_advanced() failed: ", ZSTD_getErrorName(result))));
-  }
-  return true;
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {
@@ -94,7 +121,6 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
                          std::numeric_limits<Position>::max() - limit_pos())) {
     return FailOverflow();
   }
-  if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
     ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
@@ -138,7 +164,6 @@ bool ZstdWriterBase::FlushInternal(Function function,
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of ZstdWriterBase::FlushInternal(): "
          "buffer not empty";
-  if (ABSL_PREDICT_FALSE(!EnsureCStreamCreated())) return false;
   for (;;) {
     ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
     const size_t result = function(compressor_.get(), &output);

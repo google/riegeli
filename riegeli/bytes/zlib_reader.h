@@ -25,6 +25,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -144,7 +145,7 @@ class ZlibReaderBase : public BufferedReader {
   // stream) at the current position. If the source does not grow, Close() will
   // fail.
   bool truncated_ = false;
-  std::unique_ptr<z_stream, ZStreamDeleter> decompressor_;
+  RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor_;
 };
 
 // A Reader which decompresses data with zlib after getting it from another

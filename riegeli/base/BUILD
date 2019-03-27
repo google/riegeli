@@ -84,6 +84,17 @@ cc_library(
 )
 
 cc_library(
+    name = "recycling_pool",
+    hdrs = ["recycling_pool.h"],
+    deps = [
+        ":base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "endian",
     hdrs = ["endian.h"],
 )

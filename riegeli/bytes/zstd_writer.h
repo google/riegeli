@@ -24,6 +24,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -142,12 +143,14 @@ class ZstdWriterBase : public BufferedWriter {
  protected:
   ZstdWriterBase() noexcept {}
 
-  explicit ZstdWriterBase(int compression_level, int window_log,
-                          Position size_hint, size_t buffer_size) noexcept;
+  explicit ZstdWriterBase(size_t buffer_size) noexcept
+      : BufferedWriter(buffer_size) {}
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
+  void Initialize(Writer* dest, int compression_level, int window_log,
+                  Position size_hint);
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -155,20 +158,34 @@ class ZstdWriterBase : public BufferedWriter {
   struct ZSTD_CStreamDeleter {
     void operator()(ZSTD_CStream* ptr) const { ZSTD_freeCStream(ptr); }
   };
+  struct ZSTD_CStreamKey {
+    friend bool operator==(ZSTD_CStreamKey a, ZSTD_CStreamKey b) {
+      return a.compression_level == b.compression_level &&
+             a.window_log == b.window_log &&
+             a.size_hint_class == b.size_hint_class;
+    }
+    friend bool operator!=(ZSTD_CStreamKey a, ZSTD_CStreamKey b) {
+      return a.compression_level != b.compression_level ||
+             a.window_log != b.window_log ||
+             a.size_hint_class != b.size_hint_class;
+    }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, ZSTD_CStreamKey self) {
+      return HashState::combine(std::move(hash_state), self.compression_level,
+                                self.window_log, self.size_hint_class);
+    }
 
-  bool EnsureCStreamCreated();
-  bool InitializeCStream();
+    int compression_level;
+    int window_log;
+    int size_hint_class;
+  };
 
   template <typename Function>
   bool FlushInternal(Function function, absl::string_view function_name,
                      Writer* dest);
 
-  int compression_level_ = 0;
-  int window_log_ = 0;
-  Position size_hint_ = 0;
-  // If healthy() but compressor_ == nullptr then compressor_ was not created
-  // yet.
-  std::unique_ptr<ZSTD_CStream, ZSTD_CStreamDeleter> compressor_;
+  RecyclingPool<ZSTD_CStream, ZSTD_CStreamDeleter, ZSTD_CStreamKey>::Handle
+      compressor_;
 };
 
 // A Writer which compresses data with Zstd before passing it to another Writer.
@@ -210,46 +227,22 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Implementation details follow.
 
-inline ZstdWriterBase::ZstdWriterBase(int compression_level, int window_log,
-                                      Position size_hint,
-                                      size_t buffer_size) noexcept
-    : BufferedWriter(buffer_size),
-      compression_level_(compression_level),
-      window_log_(window_log),
-      size_hint_(size_hint) {}
-
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
-      compression_level_(absl::exchange(that.compression_level_, 0)),
-      window_log_(absl::exchange(that.window_log_, 0)),
-      size_hint_(absl::exchange(that.size_hint_, 0)),
       compressor_(std::move(that.compressor_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
     ZstdWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
-  compression_level_ = absl::exchange(that.compression_level_, 0);
-  window_log_ = absl::exchange(that.window_log_, 0),
-  size_hint_ = absl::exchange(that.size_hint_, 0);
-  if (that.compressor_ != nullptr || ABSL_PREDICT_FALSE(!healthy())) {
-    compressor_ = std::move(that.compressor_);
-  } else if (compressor_ != nullptr) {
-    // Reuse this ZSTD_CStream because if options are the same then reusing it
-    // is faster than creating it again.
-    InitializeCStream();
-  }
+  compressor_ = std::move(that.compressor_);
   return *this;
 }
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
-    : ZstdWriterBase(options.compression_level_, options.window_log_,
-                     options.size_hint_, options.buffer_size_),
-      dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
-      << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
-         "null Writer pointer";
-  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail(*dest_);
+    : ZstdWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+  Initialize(dest_.ptr(), options.compression_level_, options.window_log_,
+             options.size_hint_);
 }
 
 template <typename Dest>

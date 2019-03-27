@@ -24,6 +24,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -50,17 +51,26 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
     Fail(*src);
     return;
   }
-  decompressor_.reset(new z_stream());
-  if (ABSL_PREDICT_FALSE(inflateInit2(decompressor_.get(), window_bits) !=
-                         Z_OK)) {
-    FailOperation(StatusCode::kInternal, "inflateInit2()");
-  }
+  decompressor_ = RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
+      [&] {
+        std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+        if (ABSL_PREDICT_FALSE(inflateInit2(ptr.get(), window_bits) != Z_OK)) {
+          FailOperation(StatusCode::kInternal, "inflateInit2()");
+        }
+        return ptr;
+      },
+      [&](z_stream* ptr) {
+        if (ABSL_PREDICT_FALSE(inflateReset2(ptr, window_bits) != Z_OK)) {
+          FailOperation(StatusCode::kInternal, "inflateReset2()");
+        }
+      });
 }
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Fail(DataLossError("Truncated zlib-compressed stream"));
   }
+  decompressor_.reset();
   BufferedReader::Done();
 }
 

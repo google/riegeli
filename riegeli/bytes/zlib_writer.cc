@@ -23,6 +23,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -52,12 +53,23 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(*dest);
     return;
   }
-  compressor_.reset(new z_stream());
-  if (ABSL_PREDICT_FALSE(deflateInit2(compressor_.get(), compression_level,
-                                      Z_DEFLATED, window_bits, 8,
-                                      Z_DEFAULT_STRATEGY) != Z_OK)) {
-    FailOperation("deflateInit2()");
-  }
+  compressor_ =
+      RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::global().Get(
+          ZStreamKey{compression_level, window_bits},
+          [&] {
+            std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
+            if (ABSL_PREDICT_FALSE(deflateInit2(ptr.get(), compression_level,
+                                                Z_DEFLATED, window_bits, 8,
+                                                Z_DEFAULT_STRATEGY) != Z_OK)) {
+              FailOperation("deflateInit2()");
+            }
+            return ptr;
+          },
+          [&](z_stream* ptr) {
+            if (ABSL_PREDICT_FALSE(deflateReset(ptr) != Z_OK)) {
+              FailOperation("deflateReset()");
+            }
+          });
 }
 
 void ZlibWriterBase::Done() {
@@ -67,6 +79,7 @@ void ZlibWriterBase::Done() {
     cursor_ = start_;
     WriteInternal(absl::string_view(start_, buffered_length), dest, Z_FINISH);
   }
+  compressor_.reset();
   BufferedWriter::Done();
 }
 

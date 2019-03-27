@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -38,7 +39,11 @@ void ZstdReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  decompressor_.reset(ZSTD_createDStream());
+  decompressor_ =
+      RecyclingPool<ZSTD_DStream, ZSTD_DStreamDeleter>::global().Get([] {
+        return std::unique_ptr<ZSTD_DStream, ZSTD_DStreamDeleter>(
+            ZSTD_createDStream());
+      });
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail(InternalError("ZSTD_createDStream() failed"));
     return;
@@ -65,6 +70,7 @@ void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Fail(DataLossError("Truncated Zstd-compressed stream"));
   }
+  decompressor_.reset();
   BufferedReader::Done();
 }
 

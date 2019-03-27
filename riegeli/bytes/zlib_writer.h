@@ -24,6 +24,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -158,11 +159,29 @@ class ZlibWriterBase : public BufferedWriter {
       delete ptr;
     }
   };
+  struct ZStreamKey {
+    friend bool operator==(ZStreamKey a, ZStreamKey b) {
+      return a.compression_level == b.compression_level &&
+             a.window_bits == b.window_bits;
+    }
+    friend bool operator!=(ZStreamKey a, ZStreamKey b) {
+      return a.compression_level != b.compression_level ||
+             a.window_bits != b.window_bits;
+    }
+    template <typename HashState>
+    friend HashState AbslHashValue(HashState hash_state, ZStreamKey self) {
+      return HashState::combine(std::move(hash_state), self.compression_level,
+                                self.window_bits);
+    }
+
+    int compression_level;
+    int window_bits;
+  };
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool WriteInternal(absl::string_view src, Writer* dest, int flush);
 
-  std::unique_ptr<z_stream, ZStreamDeleter> compressor_;
+  RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::Handle compressor_;
 };
 
 // A Writer which compresses data with Zlib before passing it to another Writer.

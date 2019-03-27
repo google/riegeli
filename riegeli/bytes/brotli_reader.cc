@@ -53,6 +53,7 @@ void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Fail(DataLossError("Truncated Brotli-compressed stream"));
   }
+  decompressor_.reset();
   Reader::Done();
 }
 

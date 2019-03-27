@@ -172,18 +172,16 @@ inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
 
 TransposeEncoder::TransposeEncoder(CompressorOptions options,
                                    uint64_t bucket_size)
-    : compression_type_(options.compression_type()),
+    : compressor_options_(std::move(options)),
       bucket_size_(options.compression_type() == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
-      compressor_(options),
       nonproto_lengths_writer_(Chain()) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
 void TransposeEncoder::Reset() {
   ChunkEncoder::Reset();
-  compressor_.Reset();
   tags_list_.clear();
   encoded_tags_.clear();
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
@@ -451,25 +449,27 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
 
 inline bool TransposeEncoder::AddBuffer(bool force_new_bucket,
                                         const Chain& next_chunk,
+                                        internal::Compressor* bucket_compressor,
                                         Writer* data_writer,
                                         std::vector<size_t>* bucket_lengths,
                                         std::vector<size_t>* buffer_lengths) {
   buffer_lengths->push_back(next_chunk.size());
   if (ABSL_PREDICT_FALSE(force_new_bucket ||
-                         compressor_.writer()->pos() + next_chunk.size() >
+                         bucket_compressor->writer()->pos() +
+                                 next_chunk.size() >
                              bucket_size_) &&
-      compressor_.writer()->pos() > 0) {
+      bucket_compressor->writer()->pos() > 0) {
     const Position pos_before = data_writer->pos();
-    if (ABSL_PREDICT_FALSE(!compressor_.EncodeAndClose(data_writer))) {
-      return Fail(compressor_);
+    if (ABSL_PREDICT_FALSE(!bucket_compressor->EncodeAndClose(data_writer))) {
+      return Fail(*bucket_compressor);
     }
     RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
         << "Data writer position decreased";
     bucket_lengths->push_back(IntCast<size_t>(data_writer->pos() - pos_before));
-    compressor_.Reset();
+    bucket_compressor->Reset();
   }
-  if (ABSL_PREDICT_FALSE(!compressor_.writer()->Write(next_chunk))) {
-    return Fail(compressor_);
+  if (ABSL_PREDICT_FALSE(!bucket_compressor->writer()->Write(next_chunk))) {
+    return Fail(*bucket_compressor);
   }
   return true;
 }
@@ -500,11 +500,13 @@ inline bool TransposeEncoder::WriteBuffers(
   buffer_lengths.reserve(num_buffers);
   std::vector<size_t> bucket_lengths;
 
+  internal::Compressor bucket_compressor(compressor_options_);
   // Write all buffer lengths to the header and data to "bucket_buffer".
-  for (size_t i = 0; i < kNumBufferTypes; ++i) {
-    for (size_t j = 0; j < data_[i].size(); ++j) {
-      const BufferWithMetadata& buffer = data_[i][j];
-      if (ABSL_PREDICT_FALSE(!AddBuffer(j == 0, *buffer.buffer, data_writer,
+  for (const std::vector<BufferWithMetadata>& buffers : data_) {
+    for (size_t j = 0; j < buffers.size(); ++j) {
+      const BufferWithMetadata& buffer = buffers[j];
+      if (ABSL_PREDICT_FALSE(!AddBuffer(j == 0, *buffer.buffer,
+                                        &bucket_compressor, data_writer,
                                         &bucket_lengths, &buffer_lengths))) {
         return false;
       }
@@ -520,18 +522,18 @@ inline bool TransposeEncoder::WriteBuffers(
   if (!nonproto_lengths.empty()) {
     // nonproto_lengths_ is the last buffer if non-empty.
     if (ABSL_PREDICT_FALSE(!AddBuffer(
-            /*force_new_bucket=*/true, nonproto_lengths, data_writer,
-            &bucket_lengths, &buffer_lengths))) {
+            /*force_new_bucket=*/true, nonproto_lengths, &bucket_compressor,
+            data_writer, &bucket_lengths, &buffer_lengths))) {
       return false;
     }
     // Note: nonproto_lengths needs no buffer_pos.
   }
 
-  if (compressor_.writer()->pos() > 0) {
+  if (bucket_compressor.writer()->pos() > 0) {
     // Last bucket.
     const Position pos_before = data_writer->pos();
-    if (ABSL_PREDICT_FALSE(!compressor_.EncodeAndClose(data_writer))) {
-      return Fail(compressor_);
+    if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
+      return Fail(bucket_compressor);
     }
     RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
         << "Data writer position decreased";
@@ -703,18 +705,20 @@ inline bool TransposeEncoder::WriteStatesAndData(
     return Fail(*header_writer);
   }
 
-  compressor_.Reset();
-  if (ABSL_PREDICT_FALSE(!WriteTransitions(max_transition, state_machine))) {
+  internal::Compressor transitions_compressor(compressor_options_);
+  if (ABSL_PREDICT_FALSE(!WriteTransitions(max_transition, state_machine,
+                                           transitions_compressor.writer()))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!compressor_.EncodeAndClose(data_writer))) {
-    return Fail(compressor_);
+  if (ABSL_PREDICT_FALSE(!transitions_compressor.EncodeAndClose(data_writer))) {
+    return Fail(transitions_compressor);
   }
   return true;
 }
 
 inline bool TransposeEncoder::WriteTransitions(
-    uint32_t max_transition, const std::vector<StateInfo>& state_machine) {
+    uint32_t max_transition, const std::vector<StateInfo>& state_machine,
+    Writer* transitions_writer) {
   if (encoded_tags_.empty()) return true;
   uint32_t prev_etag = encoded_tags_.back();
   uint32_t current_base = tags_list_[prev_etag].base;
@@ -780,8 +784,8 @@ inline bool TransposeEncoder::WriteTransitions(
             } else {
               if (last_transition.has_value()) {
                 if (ABSL_PREDICT_FALSE(
-                        !WriteByte(compressor_.writer(), *last_transition))) {
-                  return Fail(*compressor_.writer());
+                        !WriteByte(transitions_writer, *last_transition))) {
+                  return Fail(*transitions_writer);
                 }
               }
               last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -822,8 +826,8 @@ inline bool TransposeEncoder::WriteTransitions(
         } else {
           if (last_transition.has_value()) {
             if (ABSL_PREDICT_FALSE(
-                    !WriteByte(compressor_.writer(), *last_transition))) {
-              return Fail(*compressor_.writer());
+                    !WriteByte(transitions_writer, *last_transition))) {
+              return Fail(*transitions_writer);
             }
           }
           last_transition = IntCast<uint8_t>(write[j] << 2);
@@ -838,9 +842,8 @@ inline bool TransposeEncoder::WriteTransitions(
     current_base = tags_list_[prev_etag].base;
   }
   if (last_transition.has_value()) {
-    if (ABSL_PREDICT_FALSE(
-            !WriteByte(compressor_.writer(), *last_transition))) {
-      return Fail(*compressor_.writer());
+    if (ABSL_PREDICT_FALSE(!WriteByte(transitions_writer, *last_transition))) {
+      return Fail(*transitions_writer);
     }
   }
   return true;
@@ -1261,8 +1264,9 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
     return Fail(nonproto_lengths_writer_);
   }
 
-  if (ABSL_PREDICT_FALSE(
-          !WriteByte(dest, static_cast<uint8_t>(compression_type_)))) {
+  if (ABSL_PREDICT_FALSE(!WriteByte(
+          dest,
+          static_cast<uint8_t>(compressor_options_.compression_type())))) {
     return Fail(*dest);
   }
 
@@ -1279,18 +1283,15 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
   ChainWriter<Chain> compressed_header_writer((Chain()));
-  // Uncompressed header size is known before compression, but a size hint
-  // cannot be passed to compressor_ because it is reused for compressing
-  // buckets and transitions. Reusing the compressor brings more benefits
-  // (memory saving) than passing a size hint.
-  compressor_.Reset();
-  if (ABSL_PREDICT_FALSE(
-          !compressor_.writer()->Write(std::move(header_writer.dest())))) {
-    return Fail(*compressor_.writer());
+  internal::Compressor header_compressor(compressor_options_,
+                                         header_writer.dest().size());
+  if (ABSL_PREDICT_FALSE(!header_compressor.writer()->Write(
+          std::move(header_writer.dest())))) {
+    return Fail(*header_compressor.writer());
   }
   if (ABSL_PREDICT_FALSE(
-          !compressor_.EncodeAndClose(&compressed_header_writer))) {
-    return Fail(compressor_);
+          !header_compressor.EncodeAndClose(&compressed_header_writer))) {
+    return Fail(header_compressor);
   }
   if (ABSL_PREDICT_FALSE(!compressed_header_writer.Close())) {
     return Fail(compressed_header_writer);

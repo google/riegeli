@@ -178,11 +178,12 @@ class TransposeEncoder : public ChunkEncoder {
     uint32_t canonical_source;
   };
 
-  // Add "next_chunk" to compressor_.writer(). If either the current bucket
-  // would become too large or "force_new_bucket" is true, flush the current
-  // bucket to "data_writer" first and create a new bucket.
+  // Add "next_chunk" to bucket_compressor->writer(). If either the current
+  // bucket would become too large or "force_new_bucket" is true, flush the
+  // current bucket to "data_writer" first and create a new bucket.
   bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
-                 Writer* data_writer, std::vector<size_t>* bucket_lengths,
+                 internal::Compressor* bucket_compressor, Writer* data_writer,
+                 std::vector<size_t>* bucket_lengths,
                  std::vector<size_t>* buffer_lengths);
 
   // Compute base indices for states in "state_machine" that don't have one yet.
@@ -211,7 +212,8 @@ class TransposeEncoder : public ChunkEncoder {
   // Write all state machine transitions from "encoded_tags_" into
   // compressor_.writer().
   bool WriteTransitions(uint32_t max_transition,
-                        const std::vector<StateInfo>& state_machine);
+                        const std::vector<StateInfo>& state_machine,
+                        Writer* transitions_writer);
 
   // Value type of node in Nodes map.
   using Node = absl::flat_hash_map<NodeId, MessageNode>::value_type;
@@ -270,13 +272,12 @@ class TransposeEncoder : public ChunkEncoder {
     NodeId node_id;
   };
 
-  CompressionType compression_type_;
+  CompressorOptions compressor_options_;
   // The default approximate bucket size, used if compression is enabled.
   // Finer bucket granularity (i.e. smaller size) worsens compression density
   // but makes field projection more effective.
   uint64_t bucket_size_;
 
-  internal::Compressor compressor_;
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
   // Sequence of tags on input as indices into "tags_list_".

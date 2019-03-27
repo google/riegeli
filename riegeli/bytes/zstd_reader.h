@@ -23,6 +23,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -89,7 +90,7 @@ class ZstdReaderBase : public BufferedReader {
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed. In this case ZSTD_decompressStream() must not be called
   // again.
-  std::unique_ptr<ZSTD_DStream, ZSTD_DStreamDeleter> decompressor_;
+  RecyclingPool<ZSTD_DStream, ZSTD_DStreamDeleter>::Handle decompressor_;
 };
 
 // A Reader which decompresses data with Zstd after getting it from another
