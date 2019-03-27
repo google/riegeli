@@ -58,14 +58,17 @@ constexpr uint32_t kInvalidPos = std::numeric_limits<uint32_t>::max();
 
 // Information about one data bucket used in projection.
 struct DataBucket {
-  // Contains sizes of data buffers in the bucket if "decompressed" is false.
-  std::vector<size_t> buffer_sizes;
-  // Decompressed data buffers if "decompressed" is true.
-  std::vector<ChainReader<Chain>> buffers;
-  // Raw bucket data.
+  // Raw bucket data, valid if not all buffers are already decompressed,
+  // otherwise empty.
   Chain compressed_data;
-  // True if the bucket was already decompressed.
-  bool decompressed = false;
+  // Sizes of data buffers in the bucket, valid if not all buffers are already
+  // decompressed, otherwise empty.
+  std::vector<size_t> buffer_sizes;
+  // Decompressor for the remaining data, valid if some but not all buffers are
+  // already decompressed, otherwise closed.
+  internal::Decompressor<ChainReader<>> decompressor;
+  // A prefix of decompressed data buffers, lazily extended.
+  std::vector<ChainReader<Chain>> buffers;
 };
 
 // Should the data content of the field be decoded?
@@ -879,36 +882,40 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
   RIEGELI_ASSERT_LT(bucket_index, context->buckets.size())
       << "Bucket index out of range";
   DataBucket& bucket = context->buckets[bucket_index];
-  if (bucket.decompressed) {
-    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffers.size())
-        << "Index within bucket out of range";
-  } else {
-    RIEGELI_ASSERT_LT(index_within_bucket, bucket.buffer_sizes.size())
-        << "Index within bucket out of range";
-    internal::Decompressor<ChainReader<>> decompressor(
-        (ChainReader<>(&bucket.compressed_data)), context->compression_type);
-    if (ABSL_PREDICT_FALSE(!decompressor.healthy())) {
-      Fail(decompressor);
-      return nullptr;
-    }
-    bucket.buffers.reserve(bucket.buffer_sizes.size());
-    for (const size_t buffer_size : bucket.buffer_sizes) {
-      Chain buffer;
-      if (ABSL_PREDICT_FALSE(
-              !decompressor.reader()->Read(&buffer, buffer_size))) {
-        Fail(*decompressor.reader(), DataLossError("Reading buffer failed"));
+  RIEGELI_ASSERT_LT(index_within_bucket, !bucket.buffer_sizes.empty()
+                                             ? bucket.buffer_sizes.size()
+                                             : bucket.buffers.size())
+      << "Index within bucket out of range";
+  while (index_within_bucket >= bucket.buffers.size()) {
+    if (bucket.buffers.empty()) {
+      // This is the first buffer to be decompressed from this bucket.
+      bucket.decompressor = internal::Decompressor<ChainReader<>>(
+          ChainReader<>(&bucket.compressed_data), context->compression_type);
+      if (ABSL_PREDICT_FALSE(!bucket.decompressor.healthy())) {
+        Fail(bucket.decompressor);
         return nullptr;
       }
-      bucket.buffers.emplace_back(std::move(buffer));
+      // Important to prevent invalidating pointers by emplace_back().
+      bucket.buffers.reserve(bucket.buffer_sizes.size());
     }
-    if (ABSL_PREDICT_FALSE(!decompressor.VerifyEndAndClose())) {
-      Fail(decompressor);
+    Chain buffer;
+    if (ABSL_PREDICT_FALSE(!bucket.decompressor.reader()->Read(
+            &buffer, bucket.buffer_sizes[bucket.buffers.size()]))) {
+      Fail(*bucket.decompressor.reader(),
+           DataLossError("Reading buffer failed"));
       return nullptr;
     }
-    // Free memory of fields which are no longer needed.
-    bucket.buffer_sizes = std::vector<size_t>();
-    bucket.compressed_data = Chain();
-    bucket.decompressed = true;
+    bucket.buffers.emplace_back(std::move(buffer));
+    if (bucket.buffers.size() == bucket.buffer_sizes.size()) {
+      // This was the last decompressed buffer from this bucket.
+      if (ABSL_PREDICT_FALSE(!bucket.decompressor.VerifyEndAndClose())) {
+        Fail(bucket.decompressor);
+        return nullptr;
+      }
+      // Free memory of fields which are no longer needed.
+      bucket.compressed_data = Chain();
+      bucket.buffer_sizes = std::vector<size_t>();
+    }
   }
   return &bucket.buffers[index_within_bucket];
 }
