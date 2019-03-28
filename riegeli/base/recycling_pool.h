@@ -84,7 +84,7 @@ class RecyclingPool {
 
   // Creates a pool with the given maximal number of objects to keep.
   explicit RecyclingPool(size_t max_size = kDefaultMaxSize)
-      : max_size_(max_size) {}
+      : max_size_(max_size), cache_(by_key_.end()) {}
 
   RecyclingPool(const RecyclingPool&) = delete;
   RecyclingPool& operator=(const RecyclingPool&) = delete;
@@ -118,8 +118,7 @@ class RecyclingPool {
     typename ByFreshness::iterator by_freshness_iter;
   };
 
-  // An Entries object is often short, and it is often created and destroyed,
-  // hence std::list is used and not std::deque.
+  // std::list has a smaller overhead than std::deque for short sequences.
   using Entries = std::list<Entry>;
 
   using ByKey = absl::flat_hash_map<Key, Entries>;
@@ -135,6 +134,10 @@ class RecyclingPool {
   // non-empty and is ordered by their freshness (older to newer). Each object
   // is associated with the matching by_freshness_ iterator.
   ByKey by_key_ GUARDED_BY(mutex_);
+  // Optimization for Get() followed by Put() with a matching key.
+  // If cache_ != by_key_.end(), then cache_->second.back().object is replaced
+  // with nullptr instead of erasing its entries.
+  typename ByKey::iterator cache_ GUARDED_BY(mutex_);
 };
 
 // Specialization of RecyclingPool when Key is void. In this case Get() does not
@@ -214,18 +217,30 @@ RecyclingPool<T, Deleter, Key>::Get(Key key, Factory factory,
   std::unique_ptr<T, Deleter> returned;
   {
     absl::MutexLock lock(&mutex_);
+    if (cache_ != by_key_.end()) {
+      // Finish erasing the cached entry.
+      Entries& entries = cache_->second;
+      RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
+                                          "empty by_key_ value";
+      RIEGELI_ASSERT(entries.back().object == nullptr)
+          << "Failed invariant of RecyclingPool: "
+             "non-nullptr object pointed to by cache_";
+      by_freshness_.erase(entries.back().by_freshness_iter);
+      entries.pop_back();
+      if (entries.empty()) by_key_.erase(cache_);
+    }
     const typename ByKey::iterator by_key_iter = by_key_.find(key);
     if (ABSL_PREDICT_TRUE(by_key_iter != by_key_.end())) {
       // Return the newest entry with this key.
       Entries& entries = by_key_iter->second;
       RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
                                           "empty by_key_ value";
-      Entry& newest = entries.back();
-      returned = std::move(newest.object);
-      by_freshness_.erase(newest.by_freshness_iter);
-      entries.pop_back();
-      if (entries.empty()) by_key_.erase(by_key_iter);
+      RIEGELI_ASSERT(entries.back().object != nullptr)
+          << "Failed invariant of RecyclingPool: "
+             "nullptr object not pointed to by cache_";
+      returned = std::move(entries.back().object);
     }
+    cache_ = by_key_iter;
   }
   if (ABSL_PREDICT_TRUE(returned != nullptr)) {
     refurbisher(returned.get());
@@ -243,24 +258,48 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
   std::unique_ptr<T, Deleter> evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry with this key.
+  if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
+    Entries& entries = cache_->second;
+    RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
+                                        "empty by_key_ value";
+    if (ABSL_PREDICT_TRUE(cache_->first == key)) {
+      // cache_ hit. Set the object pointer again.
+      RIEGELI_ASSERT(entries.back().object == nullptr)
+          << "Failed invariant of RecyclingPool: "
+             "non-nullptr object pointed to by cache_";
+      entries.back().object = std::move(object);
+      cache_ = by_key_.end();
+      return;
+    }
+    // cache_ miss. Finish erasing the cached entry.
+    by_freshness_.erase(entries.back().by_freshness_iter);
+    entries.pop_back();
+    if (entries.empty()) by_key_.erase(cache_);
+  }
   by_freshness_.push_back(key);
   typename ByFreshness::iterator by_freshness_iter = by_freshness_.end();
   --by_freshness_iter;
+  // This invalidates by_key_ iterators, including cache_.
   by_key_[key].emplace_back(std::move(object), by_freshness_iter);
-  if (ABSL_PREDICT_TRUE(by_freshness_.size() <= max_size_)) return;
-  // Evict the oldest entry.
-  const Key& evicted_key = by_freshness_.front();
-  const typename ByKey::iterator by_key_iter = by_key_.find(evicted_key);
-  RIEGELI_ASSERT(by_key_iter != by_key_.end())
-      << "Failed invariant of RecyclingPool: "
-         "a key from by_freshness_ absent in by_key_";
-  Entries& entries = by_key_iter->second;
-  RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
-                                      "empty by_key_ value";
-  evicted = std::move(entries.front().object);
-  entries.pop_front();
-  if (entries.empty()) by_key_.erase(by_key_iter);
-  by_freshness_.pop_front();
+  if (ABSL_PREDICT_FALSE(by_freshness_.size() > max_size_)) {
+    // Evict the oldest entry.
+    const Key& evicted_key = by_freshness_.front();
+    const typename ByKey::iterator by_key_iter = by_key_.find(evicted_key);
+    RIEGELI_ASSERT(by_key_iter != by_key_.end())
+        << "Failed invariant of RecyclingPool: "
+           "a key from by_freshness_ absent in by_key_";
+    Entries& entries = by_key_iter->second;
+    RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
+                                        "empty by_key_ value";
+    RIEGELI_ASSERT(entries.back().object != nullptr)
+        << "Failed invariant of RecyclingPool: "
+           "nullptr object not pointed to by cache_";
+    evicted = std::move(entries.front().object);
+    entries.pop_front();
+    if (entries.empty()) by_key_.erase(by_key_iter);
+    by_freshness_.pop_front();
+  }
+  cache_ = by_key_.end();
   // Destroy evicted after releasing mutex_.
 }
 
