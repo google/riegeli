@@ -454,10 +454,7 @@ inline bool TransposeEncoder::AddBuffer(bool force_new_bucket,
                                         std::vector<size_t>* bucket_lengths,
                                         std::vector<size_t>* buffer_lengths) {
   buffer_lengths->push_back(next_chunk.size());
-  if (ABSL_PREDICT_FALSE(force_new_bucket ||
-                         bucket_compressor->writer()->pos() +
-                                 next_chunk.size() >
-                             bucket_size_) &&
+  if (ABSL_PREDICT_FALSE(force_new_bucket) &&
       bucket_compressor->writer()->pos() > 0) {
     const Position pos_before = data_writer->pos();
     if (ABSL_PREDICT_FALSE(!bucket_compressor->EncodeAndClose(data_writer))) {
@@ -479,12 +476,12 @@ inline bool TransposeEncoder::WriteBuffers(
     absl::flat_hash_map<NodeId, uint32_t>* buffer_pos) {
   size_t num_buffers = 0;
   for (size_t i = 0; i < kNumBufferTypes; ++i) {
-    // Sort data_ by length, largest to smallest.
+    // Sort data_ by length, smallest to largest.
     std::sort(
         data_[i].begin(), data_[i].end(),
         [](const BufferWithMetadata& a, const BufferWithMetadata& b) {
           if (a.buffer->size() != b.buffer->size()) {
-            return a.buffer->size() > b.buffer->size();
+            return a.buffer->size() < b.buffer->size();
           }
           if (a.node_id.parent_message_id != b.node_id.parent_message_id) {
             return a.node_id.parent_message_id < b.node_id.parent_message_id;
@@ -503,9 +500,36 @@ inline bool TransposeEncoder::WriteBuffers(
   internal::Compressor bucket_compressor(compressor_options_);
   // Write all buffer lengths to the header and data to "bucket_buffer".
   for (const std::vector<BufferWithMetadata>& buffers : data_) {
+    // We split data into buckets. bucket_splits contains indices `i`
+    // such that buffer `buffers[i]` starts a bucket.
+    size_t remaining_buffers_size = 0;
+    for (const BufferWithMetadata& buffer : buffers) {
+      remaining_buffers_size += buffer.buffer->size();
+    }
+
+    std::vector<size_t> bucket_splits;
+    bucket_splits.push_back(buffers.size());  // Sentinel.
+    size_t current_size = 0;
+    size_t j = buffers.size();
+    while (j > 0) {
+      --j;
+      size_t current_bucket_size = buffers[j].buffer->size();
+      current_size += current_bucket_size;
+      remaining_buffers_size -= current_bucket_size;
+      if (remaining_buffers_size <= bucket_size_ / 2) break;
+      if (current_size >= bucket_size_) {
+        bucket_splits.push_back(j);
+        current_size = 0;
+      }
+    }
+    bucket_splits.push_back(0);  // Always split at the first buffer.
+
+    size_t next_bucket_split = bucket_splits.size() - 1;
     for (size_t j = 0; j < buffers.size(); ++j) {
       const BufferWithMetadata& buffer = buffers[j];
-      if (ABSL_PREDICT_FALSE(!AddBuffer(j == 0, *buffer.buffer,
+      const bool force_new_bucket = bucket_splits[next_bucket_split] == j;
+      if (force_new_bucket) --next_bucket_split;
+      if (ABSL_PREDICT_FALSE(!AddBuffer(force_new_bucket, *buffer.buffer,
                                         &bucket_compressor, data_writer,
                                         &bucket_lengths, &buffer_lengths))) {
         return false;
