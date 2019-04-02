@@ -14,17 +14,21 @@
 """PIP package setup for Riegeli."""
 
 import setuptools
-from setuptools import dist
 
 with open('README.md', 'r') as fh:
   long_description = fh.read()
 
 
-class BinaryDistribution(dist.Distribution):
-  """This class is needed in order to create OS specific wheels."""
+class FakeNonEmptyList(list):
+  """This class is needed in order to create OS specific wheels.
 
-  def has_ext_modules(self):
-    return True
+  Trick setuptools into thinking that we have an extension module. We do have
+  extension modules, but they are compiled with bazel, so declaring their
+  sources in ext_modules would be misleading.
+  """
+
+  def __len__(self):
+    return 1
 
 
 setuptools.setup(
@@ -42,12 +46,12 @@ setuptools.setup(
         'protobuf',
     ],
     extras_require={
-        'tensorflow': ['tensorflow>=2.0.0'],
+        'tensorflow': ['tensorflow>=2.0.0a0'],
     },
     packages=setuptools.find_packages(),
     include_package_data=True,
     package_data={'': ['**/*.so']},
-    distclass=BinaryDistribution,
+    ext_modules=FakeNonEmptyList(),
     classifiers=[
         'Programming Language :: Python',
         'Intended Audience :: Developers',
