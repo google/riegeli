@@ -90,7 +90,15 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
-  if (written_to_buffer() > 0) length = SaturatingAdd(available(), length);
+  if (written_to_buffer() > 0) {
+    // Two writes are needed because current contents of buffer_ must be pushed.
+    // Write directly if writing through buffer_ would need more than two
+    // writes, or if buffer would be full for the second write.
+    length = SaturatingAdd(available(), length);
+  } else {
+    // Write directly if writing through buffer_ would need more than one write,
+    // or if buffer would be full.
+  }
   return length;
 }
 

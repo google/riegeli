@@ -92,6 +92,8 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
 }
 
 inline size_t FileReaderBase::LengthToReadDirectly() const {
+  // Read directly if reading through buffer_ would need more than one read,
+  // or if buffer_ would be full.
   return SaturatingAdd(available(), buffer_.size());
 }
 

@@ -27,12 +27,21 @@ namespace riegeli {
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
+    // Two writes are needed because current contents of buffer_ must be pushed.
+    // Write directly if writing through buffer_ would need more than two
+    // writes, or if buffer would be full for the second write.
     if (limit_pos() < size_hint_) {
+      // Write directly also if size_hint_ is reached.
       length = UnsignedMin(length, size_hint_ - limit_pos());
     }
     length = SaturatingAdd(available(), length);
-  } else if (start_pos_ < size_hint_) {
-    length = UnsignedMin(length, size_hint_ - start_pos_);
+  } else {
+    // Write directly if writing through buffer_ would need more than one write,
+    // or if buffer would be full.
+    if (start_pos_ < size_hint_) {
+      // Write directly also if size_hint_ is reached.
+      length = UnsignedMin(length, size_hint_ - start_pos_);
+    }
   }
   return length;
 }
@@ -47,7 +56,7 @@ bool BufferedWriter::PushSlow() {
   }
   if (ABSL_PREDICT_FALSE(!buffer_.is_allocated())) {
     if (start_pos_ < size_hint_ && buffer_.size() > size_hint_ - start_pos_) {
-      // Do not allocate a buffer larger than needed for size_hint_.
+      // Avoid allocating more than needed for size_hint_.
       buffer_ = Buffer(size_hint_ - start_pos_);
     }
   } else if (ABSL_PREDICT_FALSE(buffer_.size() < buffer_size_)) {

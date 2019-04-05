@@ -31,12 +31,17 @@
 namespace riegeli {
 
 inline size_t BufferedReader::next_buffer_size() const {
-  return limit_pos_ < size_hint_
-             ? UnsignedMin(buffer_size_, size_hint_ - limit_pos_)
-             : buffer_size_;
+  size_t length = buffer_size_;
+  if (limit_pos_ < size_hint_) {
+    // Avoid allocating more than needed for size_hint_.
+    length = UnsignedMin(length, size_hint_ - limit_pos_);
+  }
+  return length;
 }
 
 inline size_t BufferedReader::LengthToReadDirectly() const {
+  // Read directly if reading through buffer_ would need more than one read,
+  // or if buffer_ would be full. Read directly also if size_hint_ is reached.
   return SaturatingAdd(available(), next_buffer_size());
 }
 
@@ -56,7 +61,9 @@ inline Chain::BlockIterator BufferedReader::iter() const {
 }
 
 void BufferedReader::VerifyEnd() {
-  set_size_hint(pos() + 1);
+  // No more data are expected, so allocate a minimal non-empty buffer for
+  // verifying that.
+  set_size_hint(SaturatingAdd(pos(), Position{1}));
   Reader::VerifyEnd();
 }
 
