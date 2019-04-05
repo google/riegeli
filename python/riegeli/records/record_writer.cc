@@ -205,8 +205,10 @@ void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
 
 extern "C" void RecordWriterDestructor(PyRecordWriterObject* self) {
   PyObject_GC_UnTrack(self);
+  Py_TRASHCAN_SAFE_BEGIN(self);
   PythonUnlocked([&] { self->record_writer.reset(); });
   Py_TYPE(self)->tp_free(self);
+  Py_TRASHCAN_SAFE_END(self);
 }
 
 extern "C" int RecordWriterTraverse(PyRecordWriterObject* self, visitproc visit,
