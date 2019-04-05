@@ -33,10 +33,16 @@
 namespace riegeli {
 namespace internal {
 
-Compressor::Compressor(CompressorOptions options, uint64_t size_hint)
+Compressor::Compressor(CompressorOptions compressor_options,
+                       TuningOptions tuning_options)
     : Object(State::kOpen),
-      options_(std::move(options)),
-      size_hint_(size_hint) {
+      compressor_options_(std::move(compressor_options)),
+      tuning_options_(std::move(tuning_options)) {
+  Reset();
+}
+
+void Compressor::Reset(TuningOptions tuning_options) {
+  tuning_options_ = std::move(tuning_options);
   Reset();
 }
 
@@ -46,9 +52,10 @@ void Compressor::Reset() {
   ChainWriter<> compressed_writer(
       &compressed_,
       ChainWriterBase::Options().set_size_hint(
-          options_.compression_type() == CompressionType::kNone ? size_hint_
-                                                                : uint64_t{0}));
-  switch (options_.compression_type()) {
+          compressor_options_.compression_type() == CompressionType::kNone
+              ? tuning_options_.final_size_.value_or(tuning_options_.size_hint_)
+              : Position{0}));
+  switch (compressor_options_.compression_type()) {
     case CompressionType::kNone:
       writer_ = std::move(compressed_writer);
       return;
@@ -56,29 +63,31 @@ void Compressor::Reset() {
       writer_ = BrotliWriter<ChainWriter<>>(
           std::move(compressed_writer),
           BrotliWriterBase::Options()
-              .set_compression_level(options_.compression_level())
-              .set_window_log(options_.window_log())
-              .set_size_hint(size_hint_));
+              .set_compression_level(compressor_options_.compression_level())
+              .set_window_log(compressor_options_.window_log())
+              .set_size_hint(tuning_options_.final_size_.value_or(
+                  tuning_options_.size_hint_)));
       return;
     case CompressionType::kZstd:
       writer_ = ZstdWriter<ChainWriter<>>(
           std::move(compressed_writer),
           ZstdWriterBase::Options()
-              .set_compression_level(options_.compression_level())
-              .set_window_log(options_.window_log())
-              .set_size_hint(size_hint_));
+              .set_compression_level(compressor_options_.compression_level())
+              .set_window_log(compressor_options_.window_log())
+              .set_final_size(tuning_options_.final_size_)
+              .set_size_hint(tuning_options_.size_hint_));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown compression type: "
-      << static_cast<unsigned>(options_.compression_type());
+      << static_cast<unsigned>(compressor_options_.compression_type());
 }
 
 bool Compressor::EncodeAndClose(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Position uncompressed_size = writer()->pos();
   if (ABSL_PREDICT_FALSE(!writer()->Close())) return Fail(*writer());
-  if (options_.compression_type() != CompressionType::kNone) {
+  if (compressor_options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(dest, IntCast<uint64_t>(uncompressed_size)))) {
       return Fail(*dest);

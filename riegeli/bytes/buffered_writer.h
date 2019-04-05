@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
@@ -37,8 +38,13 @@ class BufferedWriter : public Writer {
   // Creates a closed BufferedWriter.
   BufferedWriter() noexcept : Writer(State::kClosed) {}
 
-  // Creates a BufferedWriter with the given buffer size.
-  explicit BufferedWriter(size_t buffer_size) noexcept;
+  // Creates a BufferedWriter with the given buffer size and size hint.
+  //
+  // Size hint is the expected maximum position reached, or 0 if unknown.
+  // This avoids allocating a larger buffer than necessary.
+  //
+  // If the size hint turns out to not match reality, nothing breaks.
+  explicit BufferedWriter(size_t buffer_size, Position size_hint = 0) noexcept;
 
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
@@ -65,6 +71,12 @@ class BufferedWriter : public Writer {
   virtual bool WriteInternal(absl::string_view src) = 0;
 
  private:
+  // Minimum length for which it is better to push current contents of buffer_
+  // and write the data directly than to write the data through buffer_.
+  size_t LengthToWriteDirectly() const;
+
+  size_t buffer_size_ = 0;
+  Position size_hint_ = 0;
   // Buffered data, to be written directly after the physical destination
   // position which is start_pos_.
   //
@@ -74,19 +86,28 @@ class BufferedWriter : public Writer {
 
 // Implementation details follow.
 
-inline BufferedWriter::BufferedWriter(size_t buffer_size) noexcept
-    : Writer(State::kOpen), buffer_(buffer_size) {
+inline BufferedWriter::BufferedWriter(size_t buffer_size,
+                                      Position size_hint) noexcept
+    : Writer(State::kOpen),
+      buffer_size_(buffer_size),
+      size_hint_(size_hint),
+      buffer_(buffer_size) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
          "zero buffer size";
 }
 
 inline BufferedWriter::BufferedWriter(BufferedWriter&& that) noexcept
-    : Writer(std::move(that)), buffer_(std::move(that.buffer_)) {}
+    : Writer(std::move(that)),
+      buffer_size_(absl::exchange(that.buffer_size_, 0)),
+      size_hint_(absl::exchange(that.size_hint_, 0)),
+      buffer_(std::move(that.buffer_)) {}
 
 inline BufferedWriter& BufferedWriter::operator=(
     BufferedWriter&& that) noexcept {
   Writer::operator=(std::move(that));
+  buffer_size_ = absl::exchange(that.buffer_size_, 0);
+  size_hint_ = absl::exchange(that.size_hint_, 0);
   buffer_ = std::move(that.buffer_);
   return *this;
 }

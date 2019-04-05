@@ -14,6 +14,7 @@
 
 #include "riegeli/tensorflow/io/file_reader.h"
 
+#include <stddef.h>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -91,6 +92,10 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
+inline size_t FileReaderBase::LengthToReadDirectly() const {
+  return SaturatingAdd(available(), buffer_.size());
+}
+
 bool FileReaderBase::PullSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Reader::PullSlow(): "
@@ -125,10 +130,7 @@ bool FileReaderBase::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
-  if (length - available() > buffer_.size()) {
-    // If reading through buffer_ would need multiple Read() calls, it is faster
-    // to copy current contents of buffer_ and read the remaining data directly
-    // into dest.
+  if (LengthToReadDirectly()) {
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     ::tensorflow::RandomAccessFile* const src = src_file();
     const size_t available_length = available();

@@ -39,12 +39,18 @@ class BufferedReader : public Reader {
   // Creates a closed BufferedReader.
   BufferedReader() noexcept : Reader(State::kClosed) {}
 
-  // Creates a BufferedReader with the given buffer size.
-  explicit BufferedReader(size_t buffer_size) noexcept;
+  // Creates a BufferedReader with the given buffer size and size hint.
+  //
+  // Size hint is the expected maximum position reached, or 0 if unknown.
+  // This avoids allocating a larger buffer than necessary.
+  //
+  // If the size hint turns out to not match reality, nothing breaks.
+  explicit BufferedReader(size_t buffer_size, Position size_hint = 0) noexcept;
 
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
+  void VerifyEnd() override;
   bool PullSlow() override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
@@ -67,14 +73,20 @@ class BufferedReader : public Reader {
   virtual bool ReadInternal(char* dest, size_t min_length,
                             size_t max_length) = 0;
 
+  // Discards buffer contents.
   void ClearBuffer();
 
-  // Minimal capacity of buffer_ once it is allocated.
-  //
-  // Invariant: if healthy() then buffer_size_ > 0
-  size_t buffer_size_ = 0;
+  // Changes the size hint after construction.
+  void set_size_hint(Position size_hint) { size_hint_ = size_hint; }
 
  private:
+  // The size of buffer_ to use for the next allocation.
+  size_t next_buffer_size() const;
+
+  // Minimum length for which it is better to append current contents of buffer_
+  // and read the remaining data directly than to read the data through buffer_.
+  size_t LengthToReadDirectly() const;
+
   // Returns true if flat_buffer_size is considered too small to continue
   // reading into it and a new buffer should be allocated instead.
   bool TooSmall(size_t flat_buffer_size) const;
@@ -84,6 +96,8 @@ class BufferedReader : public Reader {
   // Precondition: buffer_.blocks().size() == 1
   Chain::BlockIterator iter() const;
 
+  size_t buffer_size_ = 0;
+  Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is
   // limit_pos_.
   Chain buffer_;
@@ -95,8 +109,9 @@ class BufferedReader : public Reader {
 
 // Implementation details follow.
 
-inline BufferedReader::BufferedReader(size_t buffer_size) noexcept
-    : Reader(State::kOpen), buffer_size_(buffer_size) {
+inline BufferedReader::BufferedReader(size_t buffer_size,
+                                      Position size_hint) noexcept
+    : Reader(State::kOpen), buffer_size_(buffer_size), size_hint_(size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::BufferedReader(size_t): "
          "zero buffer size";
@@ -105,12 +120,14 @@ inline BufferedReader::BufferedReader(size_t buffer_size) noexcept
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
     : Reader(std::move(that)),
       buffer_size_(absl::exchange(that.buffer_size_, 0)),
+      size_hint_(absl::exchange(that.size_hint_, 0)),
       buffer_(absl::exchange(that.buffer_, Chain())) {}
 
 inline BufferedReader& BufferedReader::operator=(
     BufferedReader&& that) noexcept {
   Reader::operator=(std::move(that));
   buffer_size_ = absl::exchange(that.buffer_size_, 0);
+  size_hint_ = absl::exchange(that.size_hint_, 0);
   buffer_ = absl::exchange(that.buffer_, Chain());
   return *this;
 }

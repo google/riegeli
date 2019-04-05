@@ -122,6 +122,10 @@ class FileReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
 
  private:
+  // Minimum length for which it is better to append current contents of buffer_
+  // and read the remaining data directly than to read the data through buffer_.
+  size_t LengthToReadDirectly() const;
+
   std::string filename_;
   // Invariant: if healthy() && !filename_.empty() then file_system_ != nullptr
   ::tensorflow::FileSystem* file_system_ = nullptr;

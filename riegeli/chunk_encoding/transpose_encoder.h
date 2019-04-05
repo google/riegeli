@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -178,13 +179,14 @@ class TransposeEncoder : public ChunkEncoder {
     uint32_t canonical_source;
   };
 
-  // Add "next_chunk" to bucket_compressor->writer(). If either the current
-  // bucket would become too large or "force_new_bucket" is true, flush the
-  // current bucket to "data_writer" first and create a new bucket.
-  bool AddBuffer(bool force_new_bucket, const Chain& next_chunk,
-                 internal::Compressor* bucket_compressor, Writer* data_writer,
-                 std::vector<size_t>* bucket_lengths,
-                 std::vector<size_t>* buffer_lengths);
+  // Add `buffer` to `bucket_compressor->writer()`.
+  // If `new_uncompressed_bucket_size` is not `absl::nullopt`, flush the current
+  // bucket to `data_writer` first and create a new bucket of that size.
+  bool AddBuffer(absl::optional<size_t> new_uncompressed_bucket_size,
+                 const Chain& buffer, internal::Compressor* bucket_compressor,
+                 Writer* data_writer,
+                 std::vector<size_t>* compressed_bucket_sizes,
+                 std::vector<size_t>* buffer_sizes);
 
   // Compute base indices for states in "state_machine" that don't have one yet.
   // "public_list_base" is the index of the start of the public list.

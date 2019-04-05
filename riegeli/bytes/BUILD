@@ -108,6 +108,7 @@ cc_library(
         "//riegeli/base:buffer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -364,6 +365,7 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/utility",
         "@net_zstd//:zstdlib",
     ],

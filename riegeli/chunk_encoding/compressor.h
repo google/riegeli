@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -32,16 +33,58 @@ namespace internal {
 
 class Compressor : public Object {
  public:
+  class TuningOptions {
+   public:
+    TuningOptions() noexcept {}
+
+    // Exact uncompressed size. This may improve compression density and
+    // performance, and may cause the size to be stored in the compressed stream
+    // header.
+    //
+    // If the size hint turns out to not match reality, compression may fail.
+    TuningOptions& set_final_size(absl::optional<Position> final_size) & {
+      final_size_ = final_size;
+      return *this;
+    }
+    TuningOptions&& set_final_size(absl::optional<Position> final_size) && {
+      return std::move(set_final_size(final_size));
+    }
+
+    // Expected uncompressed size, or 0 if unknown. This may improve compression
+    // density and performance.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // set_final_size() overrides set_size_hint().
+    TuningOptions& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    TuningOptions&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
+   private:
+    friend class Compressor;
+
+    absl::optional<Position> final_size_;
+    Position size_hint_ = 0;
+  };
+
   // Creates a closed Compressor.
   Compressor() noexcept : Object(State::kClosed) {}
 
   // Creates an empty Compressor.
-  explicit Compressor(CompressorOptions options, uint64_t size_hint = 0);
+  explicit Compressor(CompressorOptions compressor_options,
+                      TuningOptions tuning_options = TuningOptions());
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
 
-  // Resets the Compressor back to empty.
+  // Resets the Compressor back to empty. Changes tuning options.
+  void Reset(TuningOptions tuning_options);
+
+  // Resets the Compressor back to empty. Keeps tuning options unchanged.
   void Reset();
 
   // Returns the Writer to which uncompressed data should be written.
@@ -60,8 +103,8 @@ class Compressor : public Object {
   bool EncodeAndClose(Writer* dest);
 
  private:
-  CompressorOptions options_;
-  uint64_t size_hint_ = 0;
+  CompressorOptions compressor_options_;
+  TuningOptions tuning_options_;
   Chain compressed_;
   // Invariant:
   //   options_.compression_type() is consistent with

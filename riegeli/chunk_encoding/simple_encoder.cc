@@ -41,7 +41,9 @@ namespace riegeli {
 SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
     : compression_type_(options.compression_type()),
       sizes_compressor_(options),
-      values_compressor_(options, size_hint) {}
+      values_compressor_(
+          options,
+          internal::Compressor::TuningOptions().set_size_hint(size_hint)) {}
 
 void SimpleEncoder::Reset() {
   ChunkEncoder::Reset();

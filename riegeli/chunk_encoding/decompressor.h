@@ -115,7 +115,9 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
       reader_ = BrotliReader<Src>(std::move(compressed_reader.manager()));
       return;
     case CompressionType::kZstd:
-      reader_ = ZstdReader<Src>(std::move(compressed_reader.manager()));
+      reader_ = ZstdReader<Src>(
+          std::move(compressed_reader.manager()),
+          ZstdReaderBase::Options().set_size_hint(decompressed_size));
       return;
   }
   Fail(DataLossError(absl::StrCat("Unknown compression type: ",

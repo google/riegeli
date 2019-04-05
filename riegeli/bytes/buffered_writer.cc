@@ -24,20 +24,42 @@
 
 namespace riegeli {
 
+inline size_t BufferedWriter::LengthToWriteDirectly() const {
+  size_t length = buffer_.size();
+  if (written_to_buffer() > 0) {
+    if (limit_pos() < size_hint_) {
+      length = UnsignedMin(length, size_hint_ - limit_pos());
+    }
+    length = SaturatingAdd(available(), length);
+  } else if (start_pos_ < size_hint_) {
+    length = UnsignedMin(length, size_hint_ - start_pos_);
+  }
+  return length;
+}
+
 bool BufferedWriter::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  if (ABSL_PREDICT_FALSE(start_ == nullptr)) {
-    start_ = buffer_.GetData();
-    if (ABSL_PREDICT_FALSE(buffer_.size() >
-                           std::numeric_limits<Position>::max() - start_pos_)) {
-      return FailOverflow();
-    }
-    cursor_ = start_;
-    limit_ = start_ + buffer_.size();
+  if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
+    return FailOverflow();
   }
+  if (ABSL_PREDICT_FALSE(!buffer_.is_allocated())) {
+    if (start_pos_ < size_hint_ && buffer_.size() > size_hint_ - start_pos_) {
+      // Do not allocate a buffer larger than needed for size_hint_.
+      buffer_ = Buffer(size_hint_ - start_pos_);
+    }
+  } else if (ABSL_PREDICT_FALSE(buffer_.size() < buffer_size_)) {
+    // buffer_ is too small. It must have been tuned for size_hint_ but more
+    // data are being written.
+    buffer_ = Buffer(buffer_size_);
+  }
+  start_ = buffer_.GetData();
+  cursor_ = start_;
+  limit_ =
+      start_ + UnsignedMin(buffer_.size(),
+                           std::numeric_limits<Position>::max() - start_pos_);
   return true;
 }
 
@@ -53,11 +75,7 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
-  if (written_to_buffer() == 0 ? src.size() >= buffer_.size()
-                               : src.size() - available() >= buffer_.size()) {
-    // If writing through the buffer would need multiple WriteInternal() calls,
-    // it is faster to push current contents of the buffer and write the
-    // remaining data directly from src.
+  if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
     return WriteInternal(src);
   }

@@ -37,6 +37,18 @@ class ZstdReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    // Expected uncompressed size, or 0 if unknown. This may improve
+    // performance.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
     // Tunes how much data is buffered after calling the decompression engine.
     //
     // Default: ZSTD_DStreamOutSize()
@@ -57,6 +69,7 @@ class ZstdReaderBase : public BufferedReader {
     template <typename Src>
     friend class ZstdReader;
 
+    Position size_hint_ = 0;
     size_t buffer_size_ = DefaultBufferSize();
   };
 
@@ -67,8 +80,8 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   ZstdReaderBase() noexcept {}
 
-  explicit ZstdReaderBase(size_t buffer_size) noexcept
-      : BufferedReader(buffer_size) {}
+  explicit ZstdReaderBase(size_t buffer_size, Position size_hint) noexcept
+      : BufferedReader(buffer_size, size_hint) {}
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
@@ -148,7 +161,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 
 template <typename Src>
 ZstdReader<Src>::ZstdReader(Src src, Options options)
-    : ZstdReaderBase(options.buffer_size_), src_(std::move(src)) {
+    : ZstdReaderBase(options.buffer_size_, options.size_hint_),
+      src_(std::move(src)) {
   Initialize(src_.ptr());
 }
 

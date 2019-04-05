@@ -139,6 +139,10 @@ class FileWriterBase : public Writer {
   bool WriteInternal(absl::string_view src);
 
  private:
+  // Minimum length for which it is better to push current contents of buffer_
+  // and write the data directly than to write the data through buffer_.
+  size_t LengthToWriteDirectly() const;
+
   std::string filename_;
   // Buffered data to be written.
   //

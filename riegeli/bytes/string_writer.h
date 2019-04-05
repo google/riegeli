@@ -35,8 +35,8 @@ class StringWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // Announces in advance the destination size. This may improve performance
-    // and reduce memory usage.
+    // Expected final size, or 0 if unknown. This may improve performance and
+    // memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
     Options& set_size_hint(Position size_hint) & {

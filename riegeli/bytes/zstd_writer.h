@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -95,17 +96,43 @@ class ZstdWriterBase : public BufferedWriter {
       return std::move(set_window_log(window_log));
     }
 
-    // Announces in advance the destination size. This may improve compression
-    // density, and this causes the size to be stored in the compressed stream
+    // Exact uncompressed size. This may improve compression density and
+    // performance, and causes the size to be stored in the compressed stream
     // header.
     //
+    // If the size hint turns out to not match reality, compression fails.
+    Options& set_final_size(absl::optional<Position> final_size) & {
+      final_size_ = final_size;
+      return *this;
+    }
+    Options&& set_final_size(absl::optional<Position> final_size) && {
+      return std::move(set_final_size(final_size));
+    }
+
+    // Expected uncompressed size, or 0 if unknown. This may improve compression
+    // density and performance.
+    //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // set_final_size() overrides set_size_hint().
     Options& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
+    }
+
+    // If true, computes checksum of uncompressed data and stores it in the
+    // compressed stream. This lets decompression verify the checksum.
+    //
+    // Default: false
+    Options& set_store_checksum(bool store_checksum) & {
+      store_checksum_ = store_checksum;
+      return *this;
+    }
+    Options&& set_store_checksum(bool store_checksum) && {
+      return std::move(set_store_checksum(store_checksum));
     }
 
     // Tunes how much data is buffered before calling the compression engine.
@@ -130,7 +157,9 @@ class ZstdWriterBase : public BufferedWriter {
 
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
+    absl::optional<Position> final_size_;
     Position size_hint_ = 0;
+    bool store_checksum_ = false;
     size_t buffer_size_ = DefaultBufferSize();
   };
 
@@ -143,14 +172,15 @@ class ZstdWriterBase : public BufferedWriter {
  protected:
   ZstdWriterBase() noexcept {}
 
-  explicit ZstdWriterBase(size_t buffer_size) noexcept
-      : BufferedWriter(buffer_size) {}
+  explicit ZstdWriterBase(size_t buffer_size, Position size_hint) noexcept
+      : BufferedWriter(buffer_size, size_hint) {}
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Initialize(Writer* dest, int compression_level, int window_log,
-                  Position size_hint);
+                  absl::optional<Position> final_size, Position size_hint,
+                  bool store_checksum);
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -240,9 +270,13 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
-    : ZstdWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+    : ZstdWriterBase(options.buffer_size_,
+                     options.final_size_.value_or(options.size_hint_)),
+      dest_(std::move(dest)) {
   Initialize(dest_.ptr(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
 }
 
 template <typename Dest>

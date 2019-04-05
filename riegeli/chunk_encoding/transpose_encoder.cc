@@ -447,25 +447,28 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
   return true;
 }
 
-inline bool TransposeEncoder::AddBuffer(bool force_new_bucket,
-                                        const Chain& next_chunk,
-                                        internal::Compressor* bucket_compressor,
-                                        Writer* data_writer,
-                                        std::vector<size_t>* bucket_lengths,
-                                        std::vector<size_t>* buffer_lengths) {
-  buffer_lengths->push_back(next_chunk.size());
-  if (ABSL_PREDICT_FALSE(force_new_bucket) &&
-      bucket_compressor->writer()->pos() > 0) {
-    const Position pos_before = data_writer->pos();
-    if (ABSL_PREDICT_FALSE(!bucket_compressor->EncodeAndClose(data_writer))) {
-      return Fail(*bucket_compressor);
+inline bool TransposeEncoder::AddBuffer(
+    absl::optional<size_t> new_uncompressed_bucket_size, const Chain& buffer,
+    internal::Compressor* bucket_compressor, Writer* data_writer,
+    std::vector<size_t>* compressed_bucket_sizes,
+    std::vector<size_t>* buffer_sizes) {
+  buffer_sizes->push_back(buffer.size());
+  if (new_uncompressed_bucket_size.has_value()) {
+    if (bucket_compressor->writer()->pos() > 0) {
+      const Position pos_before = data_writer->pos();
+      if (ABSL_PREDICT_FALSE(!bucket_compressor->EncodeAndClose(data_writer))) {
+        return Fail(*bucket_compressor);
+      }
+      RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
+          << "Data writer position decreased";
+      compressed_bucket_sizes->push_back(
+          IntCast<size_t>(data_writer->pos() - pos_before));
     }
-    RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
-        << "Data writer position decreased";
-    bucket_lengths->push_back(IntCast<size_t>(data_writer->pos() - pos_before));
-    bucket_compressor->Reset();
+    bucket_compressor->Reset(
+        internal::Compressor::TuningOptions().set_final_size(
+            *new_uncompressed_bucket_size));
   }
-  if (ABSL_PREDICT_FALSE(!bucket_compressor->writer()->Write(next_chunk))) {
+  if (ABSL_PREDICT_FALSE(!bucket_compressor->writer()->Write(buffer))) {
     return Fail(*bucket_compressor);
   }
   return true;
@@ -475,10 +478,10 @@ inline bool TransposeEncoder::WriteBuffers(
     Writer* header_writer, Writer* data_writer,
     absl::flat_hash_map<NodeId, uint32_t>* buffer_pos) {
   size_t num_buffers = 0;
-  for (size_t i = 0; i < kNumBufferTypes; ++i) {
-    // Sort data_ by length, smallest to largest.
+  for (std::vector<BufferWithMetadata>& buffers : data_) {
+    // Sort buffers by length, smallest to largest.
     std::sort(
-        data_[i].begin(), data_[i].end(),
+        buffers.begin(), buffers.end(),
         [](const BufferWithMetadata& a, const BufferWithMetadata& b) {
           if (a.buffer->size() != b.buffer->size()) {
             return a.buffer->size() < b.buffer->size();
@@ -488,50 +491,61 @@ inline bool TransposeEncoder::WriteBuffers(
           }
           return a.node_id.tag < b.node_id.tag;
         });
-    num_buffers += data_[i].size();
+    num_buffers += buffers.size();
   }
   const Chain& nonproto_lengths = nonproto_lengths_writer_.dest();
   if (!nonproto_lengths.empty()) ++num_buffers;
 
-  std::vector<size_t> buffer_lengths;
-  buffer_lengths.reserve(num_buffers);
-  std::vector<size_t> bucket_lengths;
+  std::vector<size_t> compressed_bucket_sizes;
+  std::vector<size_t> buffer_sizes;
+  buffer_sizes.reserve(num_buffers);
 
   internal::Compressor bucket_compressor(compressor_options_);
-  // Write all buffer lengths to the header and data to "bucket_buffer".
   for (const std::vector<BufferWithMetadata>& buffers : data_) {
-    // We split data into buckets. bucket_splits contains indices `i`
-    // such that buffer `buffers[i]` starts a bucket.
+    // Split data into buckets.
     size_t remaining_buffers_size = 0;
     for (const BufferWithMetadata& buffer : buffers) {
       remaining_buffers_size += buffer.buffer->size();
     }
 
-    std::vector<size_t> bucket_splits;
-    bucket_splits.push_back(buffers.size());  // Sentinel.
-    size_t current_size = 0;
-    size_t j = buffers.size();
-    while (j > 0) {
-      --j;
-      size_t current_bucket_size = buffers[j].buffer->size();
-      current_size += current_bucket_size;
-      remaining_buffers_size -= current_bucket_size;
-      if (remaining_buffers_size <= bucket_size_ / 2) break;
-      if (current_size >= bucket_size_) {
-        bucket_splits.push_back(j);
-        current_size = 0;
+    std::vector<size_t> uncompressed_bucket_sizes;
+    size_t current_bucket_size = 0;
+    for (std::vector<BufferWithMetadata>::const_reverse_iterator iter =
+             buffers.crbegin();
+         iter != buffers.crend(); ++iter) {
+      const size_t current_buffer_size = iter->buffer->size();
+      if (current_bucket_size > 0 &&
+          current_bucket_size + current_buffer_size / 2 >= bucket_size_) {
+        uncompressed_bucket_sizes.push_back(current_bucket_size);
+        current_bucket_size = 0;
+      }
+      current_bucket_size += current_buffer_size;
+      remaining_buffers_size -= current_buffer_size;
+      if (remaining_buffers_size <= bucket_size_ / 2) {
+        current_bucket_size += remaining_buffers_size;
+        break;
       }
     }
-    bucket_splits.push_back(0);  // Always split at the first buffer.
+    if (current_bucket_size > 0) {
+      uncompressed_bucket_sizes.push_back(current_bucket_size);
+    }
 
-    size_t next_bucket_split = bucket_splits.size() - 1;
-    for (size_t j = 0; j < buffers.size(); ++j) {
-      const BufferWithMetadata& buffer = buffers[j];
-      const bool force_new_bucket = bucket_splits[next_bucket_split] == j;
-      if (force_new_bucket) --next_bucket_split;
-      if (ABSL_PREDICT_FALSE(!AddBuffer(force_new_bucket, *buffer.buffer,
-                                        &bucket_compressor, data_writer,
-                                        &bucket_lengths, &buffer_lengths))) {
+    current_bucket_size = 0;
+    for (const BufferWithMetadata& buffer : buffers) {
+      absl::optional<size_t> new_uncompressed_bucket_size;
+      if (current_bucket_size == 0) {
+        RIEGELI_ASSERT(!uncompressed_bucket_sizes.empty())
+            << "Bucket sizes and buffer sizes do not match";
+        current_bucket_size = uncompressed_bucket_sizes.back();
+        uncompressed_bucket_sizes.pop_back();
+        new_uncompressed_bucket_size = current_bucket_size;
+      }
+      RIEGELI_ASSERT_GE(current_bucket_size, buffer.buffer->size())
+          << "Bucket sizes and buffer sizes do not match";
+      current_bucket_size -= buffer.buffer->size();
+      if (ABSL_PREDICT_FALSE(!AddBuffer(
+              new_uncompressed_bucket_size, *buffer.buffer, &bucket_compressor,
+              data_writer, &compressed_bucket_sizes, &buffer_sizes))) {
         return false;
       }
       const std::pair<absl::flat_hash_map<NodeId, uint32_t>::iterator, bool>
@@ -542,12 +556,16 @@ inline bool TransposeEncoder::WriteBuffers(
           << static_cast<uint32_t>(buffer.node_id.parent_message_id) << "/"
           << buffer.node_id.tag;
     }
+    RIEGELI_ASSERT(uncompressed_bucket_sizes.empty())
+        << "Bucket sizes and buffer sizes do not match";
+    RIEGELI_ASSERT_EQ(current_bucket_size, 0u)
+        << "Bucket sizes and buffer sizes do not match";
   }
   if (!nonproto_lengths.empty()) {
-    // nonproto_lengths_ is the last buffer if non-empty.
+    // nonproto_lengths is the last buffer if non-empty.
     if (ABSL_PREDICT_FALSE(!AddBuffer(
-            /*force_new_bucket=*/true, nonproto_lengths, &bucket_compressor,
-            data_writer, &bucket_lengths, &buffer_lengths))) {
+            nonproto_lengths.size(), nonproto_lengths, &bucket_compressor,
+            data_writer, &compressed_bucket_sizes, &buffer_sizes))) {
       return false;
     }
     // Note: nonproto_lengths needs no buffer_pos.
@@ -561,22 +579,23 @@ inline bool TransposeEncoder::WriteBuffers(
     }
     RIEGELI_ASSERT_GE(data_writer->pos(), pos_before)
         << "Data writer position decreased";
-    bucket_lengths.push_back(IntCast<size_t>(data_writer->pos() - pos_before));
+    compressed_bucket_sizes.push_back(
+        IntCast<size_t>(data_writer->pos() - pos_before));
   }
 
   if (ABSL_PREDICT_FALSE(!WriteVarint32(
-          header_writer, IntCast<uint32_t>(bucket_lengths.size()))) ||
+          header_writer, IntCast<uint32_t>(compressed_bucket_sizes.size()))) ||
       ABSL_PREDICT_FALSE(!WriteVarint32(
-          header_writer, IntCast<uint32_t>(buffer_lengths.size())))) {
+          header_writer, IntCast<uint32_t>(buffer_sizes.size())))) {
     return Fail(*header_writer);
   }
-  for (const size_t length : bucket_lengths) {
+  for (const size_t length : compressed_bucket_sizes) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
       return Fail(*header_writer);
     }
   }
-  for (const size_t length : buffer_lengths) {
+  for (const size_t length : buffer_sizes) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(header_writer, IntCast<uint64_t>(length)))) {
       return Fail(*header_writer);
@@ -1307,8 +1326,9 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
   ChainWriter<Chain> compressed_header_writer((Chain()));
-  internal::Compressor header_compressor(compressor_options_,
-                                         header_writer.dest().size());
+  internal::Compressor header_compressor(
+      compressor_options_, internal::Compressor::TuningOptions().set_final_size(
+                               header_writer.dest().size()));
   if (ABSL_PREDICT_FALSE(!header_compressor.writer()->Write(
           std::move(header_writer.dest())))) {
     return Fail(*header_compressor.writer());

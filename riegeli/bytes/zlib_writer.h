@@ -106,6 +106,18 @@ class ZlibWriterBase : public BufferedWriter {
       return std::move(set_header(header));
     }
 
+    // Expected uncompressed size, or 0 if unknown. This may improve
+    // performance.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
     // Tunes how much data is buffered before calling the compression engine.
     //
     // Default: 64K
@@ -128,6 +140,7 @@ class ZlibWriterBase : public BufferedWriter {
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
+    Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -140,8 +153,8 @@ class ZlibWriterBase : public BufferedWriter {
  protected:
   ZlibWriterBase() noexcept {}
 
-  explicit ZlibWriterBase(size_t buffer_size) noexcept
-      : BufferedWriter(buffer_size) {}
+  explicit ZlibWriterBase(size_t buffer_size, Position size_hint) noexcept
+      : BufferedWriter(buffer_size, size_hint) {}
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
@@ -236,7 +249,8 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest dest, Options options)
-    : ZlibWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+    : ZlibWriterBase(options.buffer_size_, options.size_hint_),
+      dest_(std::move(dest)) {
   Initialize(dest_.ptr(), options.compression_level_,
              options.header_ == Header::kRaw
                  ? -options.window_log_

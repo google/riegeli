@@ -14,6 +14,7 @@
 
 #include "riegeli/tensorflow/io/file_writer.h"
 
+#include <stddef.h>
 #include <limits>
 #include <memory>
 #include <string>
@@ -87,20 +88,25 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
+inline size_t FileWriterBase::LengthToWriteDirectly() const {
+  size_t length = buffer_.size();
+  if (written_to_buffer() > 0) length = SaturatingAdd(available(), length);
+  return length;
+}
+
 bool FileWriterBase::PushSlow() {
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of Writer::PushSlow(): "
          "space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  if (start_ == nullptr) {
-    start_ = buffer_.GetData();
-    if (ABSL_PREDICT_FALSE(buffer_.size() >
-                           std::numeric_limits<Position>::max() - start_pos_)) {
-      return FailOverflow();
-    }
-    cursor_ = start_;
-    limit_ = start_ + buffer_.size();
+  if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
+    return FailOverflow();
   }
+  start_ = buffer_.GetData();
+  cursor_ = start_;
+  limit_ =
+      start_ + UnsignedMin(buffer_.size(),
+                           std::numeric_limits<Position>::max() - start_pos_);
   return true;
 }
 
@@ -116,11 +122,7 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_GT(src.size(), available())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
-  if (written_to_buffer() == 0 ? src.size() >= buffer_.size()
-                               : src.size() - available() >= buffer_.size()) {
-    // If writing through the buffer would need multiple WriteInternal() calls,
-    // it is faster to push current contents of the buffer and write the
-    // remaining data directly from src.
+  if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
     return WriteInternal(src);
   }

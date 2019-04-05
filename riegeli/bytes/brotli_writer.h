@@ -85,8 +85,8 @@ class BrotliWriterBase : public BufferedWriter {
       return std::move(set_window_log(window_log));
     }
 
-    // Announces in advance the destination size. This may improve compression
-    // density.
+    // Expected uncompressed size, or 0 if unknown. This may improve compression
+    // density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
     Options& set_size_hint(Position size_hint) & {
@@ -131,8 +131,8 @@ class BrotliWriterBase : public BufferedWriter {
  protected:
   BrotliWriterBase() noexcept {}
 
-  explicit BrotliWriterBase(size_t buffer_size) noexcept
-      : BufferedWriter(buffer_size) {}
+  explicit BrotliWriterBase(size_t buffer_size, Position size_hint) noexcept
+      : BufferedWriter(buffer_size, size_hint) {}
 
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
@@ -208,7 +208,8 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
 
 template <typename Dest>
 BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
-    : BrotliWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+    : BrotliWriterBase(options.buffer_size_, options.size_hint_),
+      dest_(std::move(dest)) {
   Initialize(dest_.ptr(), options.compression_level_, options.window_log_,
              options.size_hint_);
 }

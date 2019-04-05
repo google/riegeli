@@ -111,6 +111,7 @@ cc_library(
         "//riegeli/bytes:writer_utils",
         "//riegeli/bytes:zstd_writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:variant",
     ],
 )

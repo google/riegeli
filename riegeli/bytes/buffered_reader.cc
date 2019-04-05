@@ -30,9 +30,19 @@
 
 namespace riegeli {
 
+inline size_t BufferedReader::next_buffer_size() const {
+  return limit_pos_ < size_hint_
+             ? UnsignedMin(buffer_size_, size_hint_ - limit_pos_)
+             : buffer_size_;
+}
+
+inline size_t BufferedReader::LengthToReadDirectly() const {
+  return SaturatingAdd(available(), next_buffer_size());
+}
+
 inline bool BufferedReader::TooSmall(size_t flat_buffer_size) const {
   // This is at least as strict as the condition in Chain::Block::wasteful().
-  const size_t buffer_size = UnsignedMax(buffer_size_, buffer_.size());
+  const size_t buffer_size = UnsignedMax(next_buffer_size(), buffer_.size());
   RIEGELI_ASSERT_LE(flat_buffer_size, buffer_size)
       << "Failed precondition of BufferedReader::TooSmall(): "
          "flat buffer larger than buffer size";
@@ -43,6 +53,11 @@ inline Chain::BlockIterator BufferedReader::iter() const {
   RIEGELI_ASSERT_EQ(buffer_.blocks().size(), 1u)
       << "Failed precondition of BufferedReader::iter(): single block expected";
   return buffer_.blocks().begin();
+}
+
+void BufferedReader::VerifyEnd() {
+  set_size_hint(pos() + 1);
+  Reader::VerifyEnd();
 }
 
 bool BufferedReader::PullSlow() {
@@ -56,7 +71,8 @@ bool BufferedReader::PullSlow() {
     RIEGELI_ASSERT_GT(buffer_size_, 0u)
         << "Failed invariant of BufferedReader: no buffer size specified";
     buffer_.Clear();
-    flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
+    flat_buffer =
+        buffer_.AppendBuffer(next_buffer_size(), 0, next_buffer_size());
     start_ = flat_buffer.data();
     cursor_ = start_;
   } else if (start_ == nullptr) {
@@ -85,10 +101,7 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
-  if (length - available() >= buffer_size_) {
-    // If reading through buffer_ would need multiple ReadInternal() calls, it
-    // is faster to copy current contents of buffer_ and read the remaining data
-    // directly into dest.
+  if (length >= LengthToReadDirectly()) {
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     const size_t available_length = available();
     if (available_length > 0) {  // memcpy(_, nullptr, 0) is undefined.
@@ -110,13 +123,9 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (length >= available() && length - available() >= buffer_size_) {
-    // If reading through buffer_ would need multiple ReadInternal() calls, it
-    // is faster to append current contents of buffer_ and read the remaining
-    // data directly into dest.
-    //
-    // Filling buffer_ first if it is partially filled might be even faster but
-    // not necessarily: it would ensure that buffer_ is attached by reference
+  if (length >= LengthToReadDirectly()) {
+    // Filling buffer_ first if it is partially filled might be faster but not
+    // necessarily: it would ensure that buffer_ is attached by reference
     // instead of being copied, but it would require additional ReadInternal()
     // calls.
     const size_t available_length = available();
@@ -153,7 +162,8 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
         length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
+      flat_buffer =
+          buffer_.AppendBuffer(next_buffer_size(), 0, next_buffer_size());
       start_ = flat_buffer.data();
       cursor_ = start_;
     } else if (start_ == nullptr) {
@@ -225,7 +235,8 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
         length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.AppendBuffer(buffer_size_, 0, buffer_size_);
+      flat_buffer =
+          buffer_.AppendBuffer(next_buffer_size(), 0, next_buffer_size());
       start_ = flat_buffer.data();
       cursor_ = start_;
     } else if (start_ == nullptr) {

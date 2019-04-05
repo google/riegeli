@@ -87,6 +87,18 @@ class ZlibReaderBase : public BufferedReader {
       return std::move(set_header(header));
     }
 
+    // Expected uncompressed size, or 0 if unknown. This may improve
+    // performance.
+    //
+    // If the size hint turns out to not match reality, nothing breaks.
+    Options& set_size_hint(Position size_hint) & {
+      size_hint_ = size_hint;
+      return *this;
+    }
+    Options&& set_size_hint(Position size_hint) && {
+      return std::move(set_size_hint(size_hint));
+    }
+
     // Tunes how much data is buffered after calling the decompression engine.
     //
     // Default: 64K
@@ -108,6 +120,7 @@ class ZlibReaderBase : public BufferedReader {
 
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
+    Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -118,8 +131,8 @@ class ZlibReaderBase : public BufferedReader {
  protected:
   ZlibReaderBase() noexcept {}
 
-  explicit ZlibReaderBase(size_t buffer_size) noexcept
-      : BufferedReader(buffer_size) {}
+  explicit ZlibReaderBase(size_t buffer_size, Position size_hint) noexcept
+      : BufferedReader(buffer_size, size_hint) {}
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
@@ -203,7 +216,8 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
 
 template <typename Src>
 ZlibReader<Src>::ZlibReader(Src src, Options options)
-    : ZlibReaderBase(options.buffer_size_), src_(std::move(src)) {
+    : ZlibReaderBase(options.buffer_size_, options.size_hint_),
+      src_(std::move(src)) {
   Initialize(src_.ptr(),
              options.header_ == Header::kRaw
                  ? -options.window_log_

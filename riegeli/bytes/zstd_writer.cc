@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
@@ -62,7 +63,9 @@ int SizeHintClass(Position size_hint) {
 }  // namespace
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
-                                int window_log, Position size_hint) {
+                                int window_log,
+                                absl::optional<Position> final_size,
+                                Position size_hint, bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
          "null Writer pointer";
@@ -88,8 +91,11 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
   if (window_log >= 0) {
     params.cParams.windowLog = IntCast<unsigned>(window_log);
   }
+  params.fParams.checksumFlag = store_checksum ? unsigned{1} : unsigned{0};
   const size_t result = ZSTD_initCStream_advanced(
-      compressor_.get(), nullptr, 0, params, ZSTD_CONTENTSIZE_UNKNOWN);
+      compressor_.get(), nullptr, 0, params,
+      final_size.has_value() ? IntCast<unsigned long long>(*final_size)
+                             : ZSTD_CONTENTSIZE_UNKNOWN);
   if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
     Fail(InternalError(absl::StrCat("ZSTD_initCStream_advanced() failed: ",
                                     ZSTD_getErrorName(result))));
