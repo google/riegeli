@@ -40,6 +40,7 @@ tf_custom_op_library(
         "//riegeli/base:status",
         "//riegeli/records:record_position",
         "//riegeli/records:record_reader",
+        "//riegeli/records:skipped_region",
         "//riegeli/tensorflow/io:file_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",

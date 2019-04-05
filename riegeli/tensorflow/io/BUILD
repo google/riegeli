@@ -30,7 +30,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/utility",
         "//riegeli/base",
         "//riegeli/base:buffer",

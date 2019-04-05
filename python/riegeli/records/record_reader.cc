@@ -21,9 +21,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <memory>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_reader.h"
@@ -33,6 +33,7 @@
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
+#include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
 namespace python {

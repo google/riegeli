@@ -15,7 +15,7 @@
 #ifndef RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 
-#include <stdint.h>
+#include <utility>
 
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"

@@ -40,6 +40,7 @@ py_extension(
         "//riegeli/chunk_encoding:field_projection",
         "//riegeli/records:record_position",
         "//riegeli/records:record_reader",
+        "//riegeli/records:skipped_region",
         "@com_google_absl//absl/base:core_headers",
         "@local_config_python//:python_headers",
     ],

@@ -22,6 +22,8 @@
 #include "python/riegeli/records/record_position.h"
 
 #include <stdint.h>
+#include <limits>
+#include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"

@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -30,6 +29,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/hash.h"
 #include "riegeli/records/block.h"
 

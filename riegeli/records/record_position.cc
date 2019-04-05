@@ -14,6 +14,7 @@
 
 #include "riegeli/records/record_position.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <cstring>
 #include <future>

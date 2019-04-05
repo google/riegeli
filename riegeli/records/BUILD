@@ -116,6 +116,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "//riegeli/bytes:writer_utils",
         "//riegeli/chunk_encoding:chunk",
+        "//riegeli/chunk_encoding:constants",
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",

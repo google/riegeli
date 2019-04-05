@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_LIMITING_WRITER_H_
 #define RIEGELI_BYTES_LIMITING_WRITER_H_
 
+#include <stddef.h>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
