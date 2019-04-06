@@ -288,7 +288,6 @@ bool PythonReader::SeekSlow(Position new_pos) {
   if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
     return FailOperation("seek()");
   }
-  PullSlow();
   return true;
 }
 

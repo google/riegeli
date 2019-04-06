@@ -191,7 +191,6 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
     }
   }
   limit_pos_ = new_pos;
-  PullSlow();
   return true;
 }
 
