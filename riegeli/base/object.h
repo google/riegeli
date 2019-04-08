@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_OBJECT_H_
 
 #include <stdint.h>
+
 #include <atomic>
 
 #include "absl/base/attributes.h"

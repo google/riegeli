@@ -15,6 +15,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 
 #include <stddef.h>
+
 #include <cstring>
 #include <limits>
 #include <utility>

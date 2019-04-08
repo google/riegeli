@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CHAIN_WRITER_H_
 
 #include <stddef.h>
+
 #include <limits>
 #include <string>
 #include <utility>

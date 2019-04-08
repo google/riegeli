@@ -15,6 +15,7 @@
 #include "riegeli/tensorflow/io/file_writer.h"
 
 #include <stddef.h>
+
 #include <limits>
 #include <memory>
 #include <string>

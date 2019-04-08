@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_BUFFERED_WRITER_H_
 
 #include <stddef.h>
+
 #include <utility>
 
 #include "absl/strings/string_view.h"

@@ -16,6 +16,7 @@
 #define RIEGELI_RECORDS_RECORD_POSITION_H_
 
 #include <stdint.h>
+
 #include <future>
 #include <iosfwd>
 #include <limits>

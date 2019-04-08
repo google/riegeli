@@ -15,6 +15,7 @@
 #include "riegeli/bytes/reader.h"
 
 #include <stddef.h>
+
 #include <cstring>
 #include <limits>
 #include <string>

@@ -17,11 +17,11 @@
 // standard headers on some systems, you must include Python.h before any
 // standard headers are included.
 #define PY_SSIZE_T_CLEAN
-#include <Python.h>
-
 #include "python/riegeli/records/record_position.h"
 
+#include <Python.h>
 #include <stdint.h>
+
 #include <limits>
 #include <memory>
 #include <utility>

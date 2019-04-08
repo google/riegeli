@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_READER_UTILS_H_
 
 #include <stdint.h>
+
 #include <string>
 
 #include "absl/base/optimization.h"

@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_FD_DEPENDENCY_H_
 
 #include <unistd.h>
+
 #include <cerrno>
 
 #include "absl/base/optimization.h"

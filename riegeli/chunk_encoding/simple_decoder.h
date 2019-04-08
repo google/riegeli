@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <vector>
 
 #include "riegeli/base/base.h"

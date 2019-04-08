@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_OPTIONS_PARSER_H_
 
 #include <stdint.h>
+
 #include <algorithm>
 #include <functional>
 #include <string>

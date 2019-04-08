@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_RECYCLING_POOL_H_
 
 #include <stddef.h>
+
 #include <deque>
 #include <list>
 #include <memory>

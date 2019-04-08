@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_PARALLELISM_H_
 
 #include <stddef.h>
+
 #include <deque>
 #include <functional>
 

@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_BACKWARD_WRITER_H_
 
 #include <stddef.h>
+
 #include <cstring>
 #include <limits>
 #include <string>

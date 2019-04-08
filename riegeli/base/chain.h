@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_CHAIN_H_
 
 #include <stddef.h>
+
 #include <atomic>
 #include <cstring>
 #include <iosfwd>

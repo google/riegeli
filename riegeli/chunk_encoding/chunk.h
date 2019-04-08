@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <cstring>
 
 #include "riegeli/base/base.h"

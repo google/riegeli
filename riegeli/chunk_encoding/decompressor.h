@@ -16,6 +16,7 @@
 #define RIEGELI_CHUNK_ENCODING_DECOMPRESSOR_H_
 
 #include <stdint.h>
+
 #include <memory>
 #include <utility>
 

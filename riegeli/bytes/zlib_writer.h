@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_ZLIB_WRITER_H_
 
 #include <stddef.h>
+
 #include <memory>
 #include <utility>
 

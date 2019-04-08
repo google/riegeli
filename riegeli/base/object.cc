@@ -15,6 +15,7 @@
 #include "riegeli/base/object.h"
 
 #include <stdint.h>
+
 #include <atomic>
 #include <utility>
 

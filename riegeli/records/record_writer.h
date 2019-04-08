@@ -16,6 +16,7 @@
 #define RIEGELI_RECORDS_RECORD_WRITER_H_
 
 #include <stdint.h>
+
 #include <memory>
 #include <string>
 #include <type_traits>

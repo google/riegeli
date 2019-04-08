@@ -15,6 +15,7 @@
 #include "riegeli/bytes/string_writer.h"
 
 #include <stddef.h>
+
 #include <string>
 
 #include "absl/base/optimization.h"

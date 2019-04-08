@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_CHAIN_READER_H_
 
 #include <stddef.h>
+
 #include <utility>
 
 #include "absl/utility/utility.h"

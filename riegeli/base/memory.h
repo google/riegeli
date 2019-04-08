@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_MEMORY_H_
 
 #include <stddef.h>
+
 #include <limits>
 #include <new>
 #include <utility>

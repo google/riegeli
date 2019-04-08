@@ -16,6 +16,7 @@
 #define RIEGELI_CHUNK_ENCODING_CONSTANTS_H_
 
 #include <stdint.h>
+
 #include <limits>
 
 #include "riegeli/base/base.h"

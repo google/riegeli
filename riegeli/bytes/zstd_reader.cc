@@ -18,6 +18,7 @@
 #include "riegeli/bytes/zstd_reader.h"
 
 #include <stddef.h>
+
 #include <limits>
 
 #include "absl/base/optimization.h"

@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_ARRAY_WRITER_H_
 
 #include <stddef.h>
+
 #include <string>
 #include <utility>
 

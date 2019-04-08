@@ -15,6 +15,7 @@
 #include "riegeli/bytes/buffered_writer.h"
 
 #include <stddef.h>
+
 #include <limits>
 
 #include "absl/base/optimization.h"

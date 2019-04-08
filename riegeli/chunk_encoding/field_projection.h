@@ -16,6 +16,7 @@
 #define RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_
 
 #include <stdint.h>
+
 #include <initializer_list>
 #include <utility>
 

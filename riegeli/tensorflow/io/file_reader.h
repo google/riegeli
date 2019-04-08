@@ -16,6 +16,7 @@
 #define RIEGELI_TENSORFLOW_IO_FILE_READER_H_
 
 #include <stddef.h>
+
 #include <memory>
 #include <string>
 #include <utility>

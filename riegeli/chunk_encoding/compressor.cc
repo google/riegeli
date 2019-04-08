@@ -15,6 +15,7 @@
 #include "riegeli/chunk_encoding/compressor.h"
 
 #include <stdint.h>
+
 #include <utility>
 
 #include "absl/base/optimization.h"

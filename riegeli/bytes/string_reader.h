@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_STRING_READER_H_
 
 #include <stddef.h>
+
 #include <string>
 #include <utility>
 

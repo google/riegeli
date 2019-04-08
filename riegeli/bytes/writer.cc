@@ -15,6 +15,7 @@
 #include "riegeli/bytes/writer.h"
 
 #include <stddef.h>
+
 #include <cstring>
 #include <string>
 #include <utility>

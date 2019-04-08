@@ -15,6 +15,7 @@
 #include "riegeli/bytes/backward_writer.h"
 
 #include <stddef.h>
+
 #include <cstring>
 #include <string>
 #include <utility>

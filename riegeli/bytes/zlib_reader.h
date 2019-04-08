@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_ZLIB_READER_H_
 
 #include <stddef.h>
+
 #include <memory>
 #include <utility>
 

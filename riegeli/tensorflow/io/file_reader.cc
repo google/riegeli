@@ -15,6 +15,7 @@
 #include "riegeli/tensorflow/io/file_reader.h"
 
 #include <stddef.h>
+
 #include <cstring>
 #include <limits>
 #include <memory>

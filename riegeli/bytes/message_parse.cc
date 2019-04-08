@@ -15,6 +15,7 @@
 #include "riegeli/bytes/message_parse.h"
 
 #include <stddef.h>
+
 #include <limits>
 
 #include "absl/base/optimization.h"

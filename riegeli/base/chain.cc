@@ -15,6 +15,7 @@
 #include "riegeli/base/chain.h"
 
 #include <stddef.h>
+
 #include <atomic>
 #include <cstring>
 #include <functional>
