@@ -47,12 +47,12 @@ namespace riegeli {
 namespace tensorflow {
 namespace {
 
-class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
+class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
  public:
   using DatasetOpKernel::DatasetOpKernel;
 
   void MakeDataset(::tensorflow::OpKernelContext* ctx,
-                   ::tensorflow::DatasetBase** output) override {
+                   ::tensorflow::data::DatasetBase** output) override {
     const ::tensorflow::Tensor* filenames_tensor;
     OP_REQUIRES_OK(ctx, ctx->input("filenames", &filenames_tensor));
     OP_REQUIRES(ctx, filenames_tensor->dims() <= 1,
@@ -69,16 +69,16 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
   }
 
  private:
-  class Dataset : public ::tensorflow::DatasetBase {
+  class Dataset : public ::tensorflow::data::DatasetBase {
    public:
     explicit Dataset(::tensorflow::OpKernelContext* ctx,
                      std::vector<std::string> filenames)
-        : DatasetBase(::tensorflow::DatasetContext(ctx)),
+        : DatasetBase(::tensorflow::data::DatasetContext(ctx)),
           filenames_(std::move(filenames)) {}
 
-    std::unique_ptr<::tensorflow::IteratorBase> MakeIteratorInternal(
+    std::unique_ptr<::tensorflow::data::IteratorBase> MakeIteratorInternal(
         const std::string& prefix) const override {
-      return std::unique_ptr<::tensorflow::IteratorBase>(
+      return std::unique_ptr<::tensorflow::data::IteratorBase>(
           new Iterator({this, absl::StrCat(prefix, "::Riegeli")}));
     }
 
@@ -101,8 +101,8 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
 
    protected:
     ::tensorflow::Status AsGraphDefInternal(
-        ::tensorflow::SerializationContext* ctx, DatasetGraphDefBuilder* b,
-        ::tensorflow::Node** output) const override {
+        ::tensorflow::data::SerializationContext* ctx,
+        DatasetGraphDefBuilder* b, ::tensorflow::Node** output) const override {
       ::tensorflow::Node* filenames = nullptr;
       TF_RETURN_IF_ERROR(b->AddVector(filenames_, &filenames));
       TF_RETURN_IF_ERROR(b->AddDataset(this, {filenames}, output));
@@ -110,13 +110,13 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
     }
 
    private:
-    class Iterator : public ::tensorflow::DatasetIterator<Dataset> {
+    class Iterator : public ::tensorflow::data::DatasetIterator<Dataset> {
      public:
       explicit Iterator(const Params& params)
           : DatasetIterator<Dataset>(params) {}
 
       ::tensorflow::Status GetNextInternal(
-          ::tensorflow::IteratorContext* ctx,
+          ::tensorflow::data::IteratorContext* ctx,
           std::vector<::tensorflow::Tensor>* out_tensors,
           bool* end_of_sequence) override LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
@@ -173,7 +173,7 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
 
      protected:
       ::tensorflow::Status SaveInternal(
-          ::tensorflow::IteratorStateWriter* writer) override
+          ::tensorflow::data::IteratorStateWriter* writer) override
           LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         TF_RETURN_IF_ERROR(writer->WriteScalar(
@@ -187,8 +187,8 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
       }
 
       ::tensorflow::Status RestoreInternal(
-          ::tensorflow::IteratorContext* ctx,
-          ::tensorflow::IteratorStateReader* reader) override
+          ::tensorflow::data::IteratorContext* ctx,
+          ::tensorflow::data::IteratorStateReader* reader) override
           LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         current_file_index_ = 0;
@@ -227,7 +227,7 @@ class RiegeliDatasetOp : public ::tensorflow::DatasetOpKernel {
       }
 
      private:
-      void OpenFile(::tensorflow::IteratorContext* ctx)
+      void OpenFile(::tensorflow::data::IteratorContext* ctx)
           EXCLUSIVE_LOCKS_REQUIRED(mu_) {
         reader_.emplace(tensorflow::FileReader<>(
             dataset()->filenames_[current_file_index_],
