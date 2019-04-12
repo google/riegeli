@@ -216,6 +216,15 @@ class Chain {
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
+  // Given an object which represents a string, converts it to a Chain by
+  // attaching the moved object, avoiding copying the string data.
+  //
+  // See AppendExternal() for details.
+  template <typename T>
+  friend Chain ChainFromExternal(T object);
+  template <typename T>
+  friend Chain ChainFromExternal(T object, absl::string_view data);
+
  private:
   struct ExternalMethods;
   template <typename T>
@@ -1274,6 +1283,23 @@ inline bool operator<=(absl::string_view a, const Chain& b) {
 
 inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
+}
+
+template <typename T>
+inline Chain ChainFromExternal(T object) {
+  const absl::string_view data = object.data();
+  Chain result;
+  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockImplicitData,
+                           &object, data, data.size());
+  return result;
+}
+
+template <typename T>
+inline Chain ChainFromExternal(T object, absl::string_view data) {
+  Chain result;
+  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockExplicitData,
+                           &object, data, data.size());
+  return result;
 }
 
 }  // namespace riegeli

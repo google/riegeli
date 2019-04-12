@@ -34,7 +34,6 @@
 #include <cerrno>
 #include <limits>
 #include <string>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -324,12 +323,11 @@ void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
     FailOperation("mmap()");
     return;
   }
-  Chain contents;
-  contents.AppendExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)));
   // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
   // was not known in FdMMapReaderBase constructor. This sets the Chain and
   // updates ChainReader to read from it.
-  ChainReader::operator=(ChainReader(std::move(contents)));
+  ChainReader::operator=(ChainReader(
+      ChainFromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)))));
   if (initial_pos.has_value()) {
     cursor_ += UnsignedMin(*initial_pos, available());
   } else {
