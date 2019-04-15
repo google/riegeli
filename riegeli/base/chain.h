@@ -48,9 +48,9 @@ namespace riegeli {
 // read using ChainReader. Chain itself exposes lower level appending/prepending
 // and iteration functions.
 //
-// Any parameter named size_hint announces in advance the eventual Chain size.
-// Providing it may reduce Chain memory usage. If the size hint turns out to not
-// match reality, nothing breaks.
+// Any parameter named size_hint announces the expected final size, or 0 if
+// unknown. Providing it may improve performance and memory usage. If the size
+// hint turns out to not match reality, nothing breaks.
 //
 // A Chain is implemented with a sequence of blocks holding flat data fragments.
 class Chain {
@@ -111,7 +111,7 @@ class Chain {
   // reasons to return a smaller buffer (e.g. a smaller buffer is already
   // allocated or recommended_length exceeds internal thresholds).
   //
-  // size_hint announces the intended total size, including existing data, this
+  // size_hint announces the expected final size, including existing data, this
   // buffer, and future data.
   //
   // If all three parameters are 0, returns whatever space is already allocated
@@ -539,9 +539,10 @@ class Chain::Block {
   explicit Block(const size_t* raw_capacity, ForPrepend);
 
   // Constructs an external block containing the moved object and sets block
-  // data to moved_object.data(). This constructor is public for NewAligned().
+  // data to moved_object.data() (the size parameter is used for an assertion).
+  // This constructor is public for NewAligned().
   template <typename T>
-  explicit Block(T* object);
+  explicit Block(T* object, size_t expected_size);
 
   // Constructs an external block containing the moved object and sets block
   // data to the data parameter, which must remain valid after the object is
@@ -786,9 +787,9 @@ DumpStructure(T* object, absl::string_view data, std::ostream& out) {
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // object has type T*. Creates an external block containing the moved object
-  // and sets block data to moved_object.data().
-  static Block* NewBlockImplicitData(
-      void* object, absl::string_view unused = absl::string_view());
+  // and sets block data to moved_object.data() (the data parameter is used
+  // for an assertion).
+  static Block* NewBlockImplicitData(void* object, absl::string_view data);
 
   // object has type T*. Creates an external block containing the moved object
   // and sets block data to the data parameter, which must remain valid after
@@ -810,9 +811,10 @@ struct Chain::ExternalMethodsFor {
 
 template <typename T>
 inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
-    void* object, absl::string_view unused) {
+    void* object, absl::string_view data) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object));
+      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
+      data.size());
 }
 
 template <typename T>
@@ -858,10 +860,12 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const Block* block,
 }
 
 template <typename T>
-inline Chain::Block::Block(T* object) {
+inline Chain::Block::Block(T* object, size_t expected_size) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(*object));
   data_ = unchecked_external_object<T>()->data();
+  RIEGELI_ASSERT_EQ(data_.size(), expected_size)
+      << "Moving an external object changed its data size";
   RIEGELI_ASSERT(is_external())
       << "A Block with allocated_end_ == nullptr should be considered external";
 }
