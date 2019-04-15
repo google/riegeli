@@ -101,6 +101,15 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter* const dest = dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest->Flush(flush_type);
+  MakeBuffer(dest);
+  return ok;
+}
+
 bool LimitingBackwardWriterBase::SupportsTruncate() const {
   const BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();

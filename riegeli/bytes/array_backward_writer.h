@@ -38,10 +38,11 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   virtual absl::Span<const char> dest_span() const = 0;
 
   // Returns written data in a suffix of the original array. Valid only after
-  // Close().
+  // Close() or Flush().
   absl::Span<char> written() { return written_; }
   absl::Span<const char> written() const { return written_; }
 
+  bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 
@@ -55,7 +56,7 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   void Done() override;
   bool PushSlow() override;
 
-  // Written data. Valid only after Close().
+  // Written data. Valid only after Close() or Flush().
   absl::Span<char> written_;
 
   // Invariant: if healthy() then start_pos_ == 0

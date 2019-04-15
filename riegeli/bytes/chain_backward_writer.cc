@@ -125,6 +125,15 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   return true;
 }
 
+bool ChainBackwardWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chain* const dest = dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+      << "ChainBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  return true;
+}
+
 bool ChainBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain* const dest = dest_chain();

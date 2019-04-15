@@ -38,8 +38,7 @@ namespace riegeli {
 // A BackwardWriter writes sequences of bytes to a destination, like Writer,
 // but back to front.
 //
-// Sequential writing is supported, random access is not. Flush() is not
-// supported.
+// Sequential writing is supported, random access is not.
 class BackwardWriter : public Object {
  public:
   // Ensures that some space is available for writing: pushes previously written
@@ -103,6 +102,23 @@ class BackwardWriter : public Object {
   }
   bool Write(const Chain& src);
   bool Write(Chain&& src);
+
+  // Pushes data written between start() and cursor() to the destination.
+  //
+  // Additionally, attempts to ensure the following, depending on flush_type
+  // (without a guarantee though):
+  //  * FlushType::kFromObject  - nothing
+  //  * FlushType::kFromProcess - data survives process crash
+  //  * FlushType::kFromMachine - data survives operating system crash
+  //
+  // The precise meaning of Flush() depends on the particular BackwardWriter.
+  // The intent is to make data written so far visible, but in contrast to
+  // Close(), keeping the possibility to write more data later.
+  //
+  // Return values:
+  //  * true  - success (healthy())
+  //  * false - failure (!healthy())
+  virtual bool Flush(FlushType flush_type) = 0;
 
   // Returns the current position (increasing as data are prepended).
   //

@@ -35,6 +35,12 @@ bool ArrayBackwardWriterBase::PushSlow() {
   return FailOverflow();
 }
 
+bool ArrayBackwardWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  written_ = absl::Span<char>(cursor_, written_to_buffer());
+  return true;
+}
+
 bool ArrayBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
