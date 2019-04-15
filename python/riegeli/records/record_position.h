@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
+#define PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
+
 // From https://docs.python.org/3/c-api/intro.html:
 // Since Python may define some pre-processor definitions which affect the
 // standard headers on some systems, you must include Python.h before any
 // standard headers are included.
 #include <Python.h>
-
-#ifndef PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
-#define PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_
+// clang-format: do not reorder the above include.
 
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"

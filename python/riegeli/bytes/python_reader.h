@@ -20,6 +20,8 @@
 // standard headers on some systems, you must include Python.h before any
 // standard headers are included.
 #include <Python.h>
+// clang-format: do not reorder the above include.
+
 #include <stddef.h>
 
 #include <utility>

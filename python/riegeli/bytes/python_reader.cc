@@ -17,9 +17,12 @@
 // standard headers on some systems, you must include Python.h before any
 // standard headers are included.
 #define PY_SSIZE_T_CLEAN
-#include "python/riegeli/bytes/python_reader.h"
-
 #include <Python.h>
+// clang-format: do not reorder the above include.
+
+#include "python/riegeli/bytes/python_reader.h"
+// clang-format: do not reorder the above include.
+
 #include <stddef.h>
 
 #include <cstring>

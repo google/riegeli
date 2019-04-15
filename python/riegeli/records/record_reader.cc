@@ -17,9 +17,9 @@
 // standard headers on some systems, you must include Python.h before any
 // standard headers are included.
 #define PY_SSIZE_T_CLEAN
-#include "riegeli/records/record_reader.h"
-
 #include <Python.h>
+// clang-format: do not reorder the above include.
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/records/record_position.h"
+#include "riegeli/records/record_reader.h"
 #include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
