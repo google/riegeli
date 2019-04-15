@@ -68,9 +68,8 @@ class MMapRef {
   absl::string_view data() const {
     return absl::string_view(static_cast<const char*>(data_), size_);
   }
-  void RegisterSubobjects(absl::string_view data,
-                          MemoryEstimator* memory_estimator) const;
-  void DumpStructure(absl::string_view data, std::ostream& out) const;
+  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void DumpStructure(std::ostream& out) const;
 
  private:
   void* data_;
@@ -100,12 +99,9 @@ MMapRef::~MMapRef() {
   }
 }
 
-void MMapRef::RegisterSubobjects(absl::string_view data,
-                                 MemoryEstimator* memory_estimator) const {}
+void MMapRef::RegisterSubobjects(MemoryEstimator* memory_estimator) const {}
 
-void MMapRef::DumpStructure(absl::string_view data, std::ostream& out) const {
-  out << "mmap";
-}
+void MMapRef::DumpStructure(std::ostream& out) const { out << "mmap"; }
 
 }  // namespace
 

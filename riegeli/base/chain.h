@@ -157,22 +157,32 @@ class Chain {
   //   // Contents of the object.
   //   absl::string_view data() const;
   //
-  // If the data parameter is given, it must remain valid after the object is
+  // If the data parameter is given, data must remain valid after the object is
   // moved.
   //
-  // T must also support:
+  // T may also support the following member functions, either with or without
+  // the data parameter, with the following definitions assumed by default:
+  //
+  //   // Called once before the destructor, except on a moved-from object.
+  //   void operator()(absl::string_view data) const {}
   //
   //   // Registers this object with MemoryEstimator.
   //   void RegisterSubobjects(absl::string_view data,
-  //                           MemoryEstimator* memory_estimator) const;
-  //   // Shows internal structure in a human-readable way, for debugging
-  //   // (a type name is enough).
-  //   void DumpStructure(absl::string_view data, std::ostream& out) const;
+  //                           MemoryEstimator* memory_estimator) const {
+  //     if (memory_estimator->RegisterNode(data.data())) {
+  //       memory_estimator->RegisterDynamicMemory(data.size());
+  //     }
+  //   }
   //
-  // where the data parameter of RegisterSubobjects() and DumpStructure()
-  // will get the original value of the data parameter of AppendExternal()/
-  // PrependExternal() (if given) or data() (otherwise). Having data available
-  // in these functions might avoid storing it in the external object.
+  //   // Shows internal structure in a human-readable way, for debugging.
+  //   void DumpStructure(absl::string_view data, std::ostream& out) const {
+  //     out << "External";
+  //   }
+  //
+  // Their data parameter, if present, will get the original value of the data
+  // parameter of AppendExternal()/PrependExternal() (if given) or data()
+  // (otherwise). Having data available in these functions might avoid storing
+  // data in the external object.
   //
   // AppendExternal()/PrependExternal() can decide to copy data instead. This is
   // always the case if data.size() <= kMaxBytesToCopy.
@@ -313,9 +323,11 @@ class Chain {
   void AppendBlock(Block* block, size_t size_hint);
 
   void RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
+                         void (*drop_object)(void*, absl::string_view),
                          void* object, absl::string_view data,
                          size_t size_hint);
   void RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
+                          void (*drop_object)(void*, absl::string_view),
                           void* object, absl::string_view data,
                           size_t size_hint);
 
@@ -647,6 +659,130 @@ struct Chain::ExternalMethods {
   void (*dump_structure)(const Block* block, std::ostream& out);
 };
 
+namespace internal {
+
+template <typename T, typename Enable = void>
+struct HasCallOperatorWithData : public std::false_type {};
+
+template <typename T>
+struct HasCallOperatorWithData<T, absl::void_t<decltype(std::declval<T>()(
+                                      std::declval<absl::string_view>()))>>
+    : public std::true_type {};
+
+template <typename T, typename Enable = void>
+struct HasCallOperatorWithoutData : public std::false_type {};
+
+template <typename T>
+struct HasCallOperatorWithoutData<T,
+                                  absl::void_t<decltype(std::declval<T>()())>>
+    : public std::true_type {};
+
+template <typename T>
+inline absl::enable_if_t<HasCallOperatorWithData<T>::value, void> CallOperator(
+    T* object, absl::string_view data) {
+  (*object)(data);
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                             HasCallOperatorWithoutData<T>::value,
+                         void>
+CallOperator(T* object, absl::string_view data) {
+  (*object)();
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                             !HasCallOperatorWithoutData<T>::value,
+                         void>
+CallOperator(T* object, absl::string_view data) {}
+
+template <typename T, typename Enable = void>
+struct HasRegisterSubobjectsWithData : public std::false_type {};
+
+template <typename T>
+struct HasRegisterSubobjectsWithData<
+    T,
+    absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
+        std::declval<absl::string_view>(), std::declval<MemoryEstimator*>()))>>
+    : public std::true_type {};
+
+template <typename T, typename Enable = void>
+struct HasRegisterSubobjectsWithoutData : public std::false_type {};
+
+template <typename T>
+struct HasRegisterSubobjectsWithoutData<
+    T, absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
+           std::declval<MemoryEstimator*>()))>> : public std::true_type {};
+
+template <typename T>
+inline absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, void>
+RegisterSubobjects(T* object, absl::string_view data,
+                   MemoryEstimator* memory_estimator) {
+  object->RegisterSubobjects(data, memory_estimator);
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                             HasRegisterSubobjectsWithoutData<T>::value,
+                         void>
+RegisterSubobjects(T* object, absl::string_view data,
+                   MemoryEstimator* memory_estimator) {
+  object->RegisterSubobjects(memory_estimator);
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                             !HasRegisterSubobjectsWithoutData<T>::value,
+                         void>
+RegisterSubobjects(T* object, absl::string_view data,
+                   MemoryEstimator* memory_estimator) {
+  if (memory_estimator->RegisterNode(data.data())) {
+    memory_estimator->RegisterDynamicMemory(data.size());
+  }
+}
+
+template <typename T, typename Enable = void>
+struct HasDumpStructureWithData : public std::false_type {};
+
+template <typename T>
+struct HasDumpStructureWithData<
+    T, absl::void_t<decltype(std::declval<T>().DumpStructure(
+           std::declval<absl::string_view>(), std::declval<std::ostream&>()))>>
+    : public std::true_type {};
+
+template <typename T, typename Enable = void>
+struct HasDumpStructureWithoutData : public std::false_type {};
+
+template <typename T>
+struct HasDumpStructureWithoutData<
+    T, absl::void_t<decltype(std::declval<T>().DumpStructure(
+           std::declval<std::ostream&>()))>> : public std::true_type {};
+
+template <typename T>
+inline absl::enable_if_t<HasDumpStructureWithData<T>::value, void>
+DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+  object->DumpStructure(data, out);
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                             HasDumpStructureWithoutData<T>::value,
+                         void>
+DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+  object->DumpStructure(out);
+}
+
+template <typename T>
+inline absl::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                             !HasDumpStructureWithoutData<T>::value,
+                         void>
+DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+  out << "External";
+}
+
+}  // namespace internal
+
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // object has type T*. Creates an external block containing the moved object
@@ -658,6 +794,10 @@ struct Chain::ExternalMethodsFor {
   // and sets block data to the data parameter, which must remain valid after
   // the object is moved.
   static Block* NewBlockExplicitData(void* object, absl::string_view data);
+
+  // object has type T*. Calls T::operator() to prepare for destruction of the
+  // object.
+  static void DropObject(void* object, absl::string_view data);
 
   static const Chain::ExternalMethods methods;
 
@@ -684,11 +824,18 @@ inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
 }
 
 template <typename T>
+inline void Chain::ExternalMethodsFor<T>::DropObject(void* object,
+                                                     absl::string_view data) {
+  internal::CallOperator(static_cast<T*>(object), data);
+}
+
+template <typename T>
 const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
     DeleteBlock, RegisterUnique, DumpStructure};
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(Block* block) {
+  internal::CallOperator(block->unchecked_external_object<T>(), block->data());
   block->unchecked_external_object<T>()->~T();
   DeleteAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
       block, Block::kExternalObjectOffset<T>() + sizeof(T));
@@ -699,15 +846,15 @@ void Chain::ExternalMethodsFor<T>::RegisterUnique(
     const Block* block, MemoryEstimator* memory_estimator) {
   memory_estimator->RegisterDynamicMemory(Block::kExternalObjectOffset<T>() +
                                           sizeof(T));
-  block->unchecked_external_object<T>()->RegisterSubobjects(block->data(),
-                                                            memory_estimator);
+  internal::RegisterSubobjects(block->unchecked_external_object<T>(),
+                               block->data(), memory_estimator);
 }
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const Block* block,
                                                  std::ostream& out) {
-  return block->unchecked_external_object<T>()->DumpStructure(block->data(),
-                                                              out);
+  internal::DumpStructure(block->unchecked_external_object<T>(), block->data(),
+                          out);
 }
 
 template <typename T>
@@ -1155,27 +1302,31 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
 
 template <typename T>
 inline void Chain::AppendExternal(T object, size_t size_hint) {
-  RawAppendExternal(ExternalMethodsFor<T>::NewBlockImplicitData, &object,
-                    object.data(), size_hint);
+  RawAppendExternal(ExternalMethodsFor<T>::NewBlockImplicitData,
+                    ExternalMethodsFor<T>::DropObject, &object, object.data(),
+                    size_hint);
 }
 
 template <typename T>
 inline void Chain::AppendExternal(T object, absl::string_view data,
                                   size_t size_hint) {
-  RawAppendExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
+  RawAppendExternal(ExternalMethodsFor<T>::NewBlockExplicitData,
+                    ExternalMethodsFor<T>::DropObject, &object, data,
                     size_hint);
 }
 
 template <typename T>
 inline void Chain::PrependExternal(T object, size_t size_hint) {
-  RawPrependExternal(ExternalMethodsFor<T>::NewBlockImplicitData, &object,
-                     object.data(), size_hint);
+  RawPrependExternal(ExternalMethodsFor<T>::NewBlockImplicitData,
+                     ExternalMethodsFor<T>::DropObject, &object, object.data(),
+                     size_hint);
 }
 
 template <typename T>
 inline void Chain::PrependExternal(T object, absl::string_view data,
                                    size_t size_hint) {
-  RawPrependExternal(ExternalMethodsFor<T>::NewBlockExplicitData, &object, data,
+  RawPrependExternal(ExternalMethodsFor<T>::NewBlockExplicitData,
+                     ExternalMethodsFor<T>::DropObject, &object, data,
                      size_hint);
 }
 
@@ -1290,7 +1441,8 @@ inline Chain ChainFromExternal(T object) {
   const absl::string_view data = object.data();
   Chain result;
   result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockImplicitData,
-                           &object, data, data.size());
+                           Chain::ExternalMethodsFor<T>::DropObject, &object,
+                           data, data.size());
   return result;
 }
 
@@ -1298,7 +1450,8 @@ template <typename T>
 inline Chain ChainFromExternal(T object, absl::string_view data) {
   Chain result;
   result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockExplicitData,
-                           &object, data, data.size());
+                           Chain::ExternalMethodsFor<T>::DropObject, &object,
+                           data, data.size());
   return result;
 }
 

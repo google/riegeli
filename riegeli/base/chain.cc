@@ -69,8 +69,7 @@ class Chain::BlockRef {
 
   ~BlockRef();
 
-  void RegisterSubobjects(absl::string_view data,
-                          MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -108,7 +107,7 @@ inline Chain::BlockRef::~BlockRef() {
 }
 
 inline void Chain::BlockRef::RegisterSubobjects(
-    absl::string_view data, MemoryEstimator* memory_estimator) const {
+    MemoryEstimator* memory_estimator) const {
   block_->RegisterShared(memory_estimator);
 }
 
@@ -126,9 +125,8 @@ class Chain::StringRef {
   StringRef& operator=(StringRef&& that) noexcept;
 
   absl::string_view data() const { return src_; }
-  void RegisterSubobjects(absl::string_view data,
-                          MemoryEstimator* memory_estimator) const;
-  void DumpStructure(absl::string_view data, std::ostream& out) const;
+  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void DumpStructure(std::ostream& out) const;
 
  private:
   friend class Chain;
@@ -146,12 +144,11 @@ inline Chain::StringRef& Chain::StringRef::operator=(
 }
 
 inline void Chain::StringRef::RegisterSubobjects(
-    absl::string_view data, MemoryEstimator* memory_estimator) const {
+    MemoryEstimator* memory_estimator) const {
   memory_estimator->RegisterDynamicMemory(src_.capacity() + 1);
 }
 
-inline void Chain::StringRef::DumpStructure(absl::string_view data,
-                                            std::ostream& out) const {
+inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
   out << "string";
 }
 
@@ -1582,6 +1579,7 @@ inline void Chain::AppendBlock(Block* block, size_t size_hint) {
 }
 
 void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
+                              void (*drop_object)(void*, absl::string_view),
                               void* object, absl::string_view data,
                               size_t size_hint) {
   RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
@@ -1589,6 +1587,7 @@ void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
          "Chain size overflow";
   if (data.size() <= kMaxBytesToCopy) {
     Append(data, size_hint);
+    drop_object(object, data);
     return;
   }
   if (begin_ == end_) {
@@ -1613,6 +1612,7 @@ void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
         // block and allocating an external block.
         last->Append(data);
         size_ += data.size();
+        drop_object(object, data);
         return;
       }
       // Appending in place is not possible, or rewriting the last block and
@@ -1626,6 +1626,7 @@ void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
 }
 
 void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
+                               void (*drop_object)(void*, absl::string_view),
                                void* object, absl::string_view data,
                                size_t size_hint) {
   RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
@@ -1633,6 +1634,7 @@ void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
          "Chain size overflow";
   if (data.size() <= kMaxBytesToCopy) {
     Prepend(data, size_hint);
+    drop_object(object, data);
     return;
   }
   if (begin_ == end_) {
@@ -1657,6 +1659,7 @@ void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
         // first block and allocating an external block.
         first->Prepend(data);
         size_ += data.size();
+        drop_object(object, data);
         return;
       }
       // Prepending in place is not possible, or rewriting the first block and
