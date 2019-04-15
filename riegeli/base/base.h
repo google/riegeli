@@ -61,7 +61,7 @@ namespace internal {
   } while (false)
 #endif
 
-// prints a check failure message and terminates the program.
+// Prints a check failure message and terminates the program.
 class CheckFailed {
  public:
   // Begins formatting the message as:
@@ -91,7 +91,7 @@ class CheckResult {
       : failed_(true), message_(message) {}
 
   // Returns true if a message pointer is stored.
-  operator bool() const { return failed_; }
+  explicit operator bool() const { return failed_; }
 
   // Returns the stored message pointer.
   //
