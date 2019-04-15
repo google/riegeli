@@ -160,8 +160,10 @@ inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
   limit_ = nullptr;
 }
 
-inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_size) {
-  const absl::Span<char> buffer = dest->PrependBuffer(min_size, 0, size_hint_);
+inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest,
+                                                size_t min_length) {
+  const absl::Span<char> buffer =
+      dest->PrependBuffer(min_length, 0, size_hint_);
   limit_ = buffer.data();
   start_ = limit_ + buffer.size();
   cursor_ = start_;

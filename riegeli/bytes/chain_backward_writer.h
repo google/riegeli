@@ -91,7 +91,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
 
   // Prepends some uninitialized space to *dest if this can be done without
   // allocation.
-  void MakeBuffer(Chain* dest, size_t min_size = 1);
+  void MakeBuffer(Chain* dest, size_t min_length = 0);
 
   size_t size_hint_ = 0;
 

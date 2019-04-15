@@ -91,7 +91,7 @@ class ChainWriterBase : public Writer {
 
   // Appends some uninitialized space to *dest if this can be done without
   // allocation.
-  void MakeBuffer(Chain* dest, size_t min_size = 0);
+  void MakeBuffer(Chain* dest, size_t min_length = 0);
 
   size_t size_hint_ = 0;
 

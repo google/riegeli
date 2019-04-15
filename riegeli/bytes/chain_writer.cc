@@ -160,8 +160,8 @@ inline void ChainWriterBase::SyncBuffer(Chain* dest) {
   limit_ = nullptr;
 }
 
-inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_size) {
-  const absl::Span<char> buffer = dest->AppendBuffer(min_size, 0, size_hint_);
+inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_length) {
+  const absl::Span<char> buffer = dest->AppendBuffer(min_length, 0, size_hint_);
   start_ = buffer.data();
   cursor_ = start_;
   limit_ = start_ + buffer.size();
