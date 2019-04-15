@@ -269,7 +269,7 @@ class FdWriter : public FdWriterBase {
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  int dest_fd() const override { return dest_.ptr(); }
+  int dest_fd() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -327,7 +327,7 @@ class FdStreamWriter : public FdStreamWriterBase {
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  int dest_fd() const override { return dest_.ptr(); }
+  int dest_fd() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -381,11 +381,11 @@ template <typename Dest>
 FdWriter<Dest>::FdWriter(type_identity_t<Dest> dest, Options options)
     : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
       dest_(std::move(dest)) {
-  RIEGELI_ASSERT_GE(dest_.ptr(), 0)
+  RIEGELI_ASSERT_GE(dest_.get(), 0)
       << "Failed precondition of FdWriter<Dest>::FdWriter(Dest): "
          "negative file descriptor";
-  SetFilename(dest_.ptr());
-  Initialize(options.initial_pos_, dest_.ptr());
+  SetFilename(dest_.get());
+  Initialize(options.initial_pos_, dest_.get());
 }
 
 template <typename Dest>
@@ -398,7 +398,7 @@ FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
   const int dest = OpenFd(filename, flags, options.permissions_);
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   dest_ = Dependency<int, Dest>(Dest(dest));
-  Initialize(options.initial_pos_, flags, dest_.ptr());
+  Initialize(options.initial_pos_, flags, dest_.get());
 }
 
 template <typename Dest>
@@ -414,9 +414,9 @@ inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
 
 template <typename Dest>
 void FdWriter<Dest>::Done() {
-  if (ABSL_PREDICT_TRUE(PushInternal())) SyncPos(dest_.ptr());
+  if (ABSL_PREDICT_TRUE(PushInternal())) SyncPos(dest_.get());
   FdWriterBase::Done();
-  if (dest_.is_owning() && dest_.ptr() >= 0) {
+  if (dest_.is_owning() && dest_.get() >= 0) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -429,14 +429,14 @@ template <typename Dest>
 FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest> dest,
                                      Options options)
     : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT_GE(dest_.ptr(), 0)
+  RIEGELI_ASSERT_GE(dest_.get(), 0)
       << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
          "negative file descriptor";
   RIEGELI_CHECK(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
-  SetFilename(dest_.ptr());
+  SetFilename(dest_.get());
   start_pos_ = *options.assumed_pos_;
 }
 
@@ -451,7 +451,7 @@ FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
   const int dest = OpenFd(filename, flags, options.permissions_);
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   dest_ = Dependency<int, Dest>(Dest(dest));
-  Initialize(options.assumed_pos_, flags, dest_.ptr());
+  Initialize(options.assumed_pos_, flags, dest_.get());
 }
 
 template <typename Dest>
@@ -470,7 +470,7 @@ template <typename Dest>
 void FdStreamWriter<Dest>::Done() {
   PushInternal();
   FdStreamWriterBase::Done();
-  if (dest_.is_owning() && dest_.ptr() >= 0) {
+  if (dest_.is_owning() && dest_.get() >= 0) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {

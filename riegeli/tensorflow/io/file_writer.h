@@ -186,7 +186,7 @@ class FileWriter : public FileWriterBase {
   // written to. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  ::tensorflow::WritableFile* dest_file() const override { return dest_.ptr(); }
+  ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -217,11 +217,11 @@ inline FileWriterBase& FileWriterBase::operator=(
 template <typename Dest>
 FileWriter<Dest>::FileWriter(Dest dest, Options options)
     : FileWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+  RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of FileWriter<Dest>::FileWriter(Dest): "
          "null WritableFile pointer";
-  InitializeFilename(dest_.ptr());
-  InitializePos(dest_.ptr());
+  InitializeFilename(dest_.get());
+  InitializePos(dest_.get());
 }
 
 template <typename Dest>
@@ -231,7 +231,7 @@ FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
       OpenFile(options.env_, filename, options.append_);
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
   dest_ = Dependency<::tensorflow::WritableFile*, Dest>(Dest(dest.release()));
-  InitializePos(dest_.ptr());
+  InitializePos(dest_.get());
 }
 
 template <typename Dest>
@@ -250,7 +250,7 @@ template <typename Dest>
 void FileWriter<Dest>::Done() {
   PushInternal();
   FileWriterBase::Done();
-  if (dest_.is_owning() && dest_.ptr() != nullptr) {
+  if (dest_.is_owning() && dest_.get() != nullptr) {
     const ::tensorflow::Status close_status = dest_->Close();
     if (ABSL_PREDICT_FALSE(!close_status.ok()) &&
         ABSL_PREDICT_TRUE(healthy())) {

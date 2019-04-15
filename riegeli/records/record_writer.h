@@ -443,8 +443,8 @@ class RecordWriter : public RecordWriterBase {
   // ChunkWriter. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  ChunkWriter* dest_chunk_writer() override { return dest_.ptr(); }
-  const ChunkWriter* dest_chunk_writer() const override { return dest_.ptr(); }
+  ChunkWriter* dest_chunk_writer() override { return dest_.get(); }
+  const ChunkWriter* dest_chunk_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -484,7 +484,7 @@ inline bool RecordWriterBase::WriteRecord(Chain&& record,
 template <typename Dest>
 RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
     : RecordWriterBase(State::kOpen), dest_(std::move(dest)) {
-  Initialize(dest_.ptr(), std::move(options));
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>

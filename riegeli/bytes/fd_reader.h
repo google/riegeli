@@ -292,7 +292,7 @@ class FdReader : public FdReaderBase {
   // the fd is owned then changed to -1 by Close(), otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  int src_fd() const override { return src_.ptr(); }
+  int src_fd() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -348,7 +348,7 @@ class FdStreamReader : public FdStreamReaderBase {
   // -1 by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  int src_fd() const override { return src_.ptr(); }
+  int src_fd() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -402,7 +402,7 @@ class FdMMapReader : public FdMMapReaderBase {
   // the fd is owned then changed to -1 by Close(), otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  int src_fd() const override { return src_.ptr(); }
+  int src_fd() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -469,11 +469,11 @@ template <typename Src>
 FdReader<Src>::FdReader(type_identity_t<Src> src, Options options)
     : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
       src_(std::move(src)) {
-  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+  RIEGELI_ASSERT_GE(src_.get(), 0)
       << "Failed precondition of FdReader<Src>::FdReader(Src): "
          "negative file descriptor";
-  SetFilename(src_.ptr());
-  Initialize(options.initial_pos_, src_.ptr());
+  SetFilename(src_.get());
+  Initialize(options.initial_pos_, src_.get());
 }
 
 template <typename Src>
@@ -486,7 +486,7 @@ FdReader<Src>::FdReader(absl::string_view filename, int flags, Options options)
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_ = Dependency<int, Src>(Src(src));
-  Initialize(options.initial_pos_, src_.ptr());
+  Initialize(options.initial_pos_, src_.get());
 }
 
 template <typename Src>
@@ -502,9 +502,9 @@ inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
 
 template <typename Src>
 void FdReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
+  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdReaderBase::Done();
-  if (src_.is_owning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.get() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -516,14 +516,14 @@ void FdReader<Src>::Done() {
 template <typename Src>
 FdStreamReader<Src>::FdStreamReader(type_identity_t<Src> src, Options options)
     : FdStreamReaderBase(options.buffer_size_), src_(std::move(src)) {
-  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+  RIEGELI_ASSERT_GE(src_.get(), 0)
       << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
          "negative file descriptor";
   RIEGELI_CHECK(options.assumed_pos_.has_value())
       << "Failed precondition of FdStreamReader<Src>::FdStreamReader(Src): "
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
-  SetFilename(src_.ptr());
+  SetFilename(src_.get());
   limit_pos_ = *options.assumed_pos_;
 }
 
@@ -556,7 +556,7 @@ inline FdStreamReader<Src>& FdStreamReader<Src>::operator=(
 template <typename Src>
 void FdStreamReader<Src>::Done() {
   FdStreamReaderBase::Done();
-  if (src_.is_owning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.get() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -569,11 +569,11 @@ template <typename Src>
 FdMMapReader<Src>::FdMMapReader(type_identity_t<Src> src, Options options)
     : FdMMapReaderBase(!options.initial_pos_.has_value()),
       src_(std::move(src)) {
-  RIEGELI_ASSERT_GE(src_.ptr(), 0)
+  RIEGELI_ASSERT_GE(src_.get(), 0)
       << "Failed precondition of FdMMapReader<Src>::FdMMapReader(Src): "
          "negative file descriptor";
-  SetFilename(src_.ptr());
-  Initialize(options.initial_pos_, src_.ptr());
+  SetFilename(src_.get());
+  Initialize(options.initial_pos_, src_.get());
 }
 
 template <typename Src>
@@ -587,7 +587,7 @@ FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_ = Dependency<int, Src>(Src(src));
-  Initialize(options.initial_pos_, src_.ptr());
+  Initialize(options.initial_pos_, src_.get());
 }
 
 template <typename Src>
@@ -604,10 +604,10 @@ inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
 
 template <typename Src>
 void FdMMapReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.ptr());
+  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdMMapReaderBase::Done();
   ChainReader::src().Clear();
-  if (src_.is_owning() && src_.ptr() >= 0) {
+  if (src_.is_owning() && src_.get() >= 0) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {

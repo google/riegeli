@@ -88,8 +88,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   // to. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  absl::Span<char> dest_span() override { return dest_.ptr(); }
-  absl::Span<const char> dest_span() const override { return dest_.ptr(); }
+  absl::Span<char> dest_span() override { return dest_.get(); }
+  absl::Span<const char> dest_span() const override { return dest_.get(); }
 
  private:
   void MoveDest(ArrayBackwardWriter&& that);
@@ -115,8 +115,8 @@ inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
     : ArrayBackwardWriterBase(State::kOpen), dest_(std::move(dest)) {
-  limit_ = dest_.ptr().data();
-  start_ = limit_ + dest_.ptr().size();
+  limit_ = dest_.get().data();
+  start_ = limit_ + dest_.get().size();
   cursor_ = start_;
 }
 
@@ -144,13 +144,13 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
-      limit_ = dest_.ptr().data();
-      start_ = limit_ + dest_.ptr().size();
+      limit_ = dest_.get().data();
+      start_ = limit_ + dest_.get().size();
       cursor_ = start_ - cursor_index;
     }
     if (written_.data() != nullptr) {
       written_ = absl::Span<char>(
-          dest_.ptr().data() + dest_.ptr().size() - written_size, written_size);
+          dest_.get().data() + dest_.get().size() - written_size, written_size);
     }
   }
 }

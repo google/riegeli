@@ -32,7 +32,7 @@ class Dependency<absl::Span<char>, absl::Span<char>>
  public:
   using DependencyBase<absl::Span<char>>::DependencyBase;
 
-  absl::Span<char> ptr() const { return this->manager(); }
+  absl::Span<char> get() const { return this->manager(); }
 
   static constexpr bool kIsStable() { return true; }
 };
@@ -45,7 +45,7 @@ class Dependency<
  public:
   using DependencyBase<M*>::DependencyBase;
 
-  absl::Span<char> ptr() const { return absl::Span<char>(*this->manager()); }
+  absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 
   static constexpr bool kIsStable() { return true; }
 };
@@ -58,8 +58,8 @@ class Dependency<
  public:
   using DependencyBase<M>::DependencyBase;
 
-  absl::Span<char> ptr() { return absl::Span<char>(this->manager()); }
-  absl::Span<const char> ptr() const {
+  absl::Span<char> get() { return absl::Span<char>(this->manager()); }
+  absl::Span<const char> get() const {
     return absl::Span<const char>(this->manager());
   }
 
@@ -75,7 +75,7 @@ class Dependency<
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
-  absl::Span<char> ptr() const { return absl::Span<char>(*this->manager()); }
+  absl::Span<char> get() const { return absl::Span<char>(*this->manager()); }
 
   static constexpr bool kIsStable() { return true; }
 };

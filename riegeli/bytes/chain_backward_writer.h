@@ -124,8 +124,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // to.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Chain* dest_chain() override { return dest_.ptr(); }
-  const Chain* dest_chain() const override { return dest_.ptr(); }
+  Chain* dest_chain() override { return dest_.get(); }
+  const Chain* dest_chain() const override { return dest_.get(); }
 
  private:
   void MoveDest(ChainBackwardWriter&& that);
@@ -155,7 +155,7 @@ template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest dest,
                                                       Options options)
     : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+  RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of "
          "ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest): "
          "null Chain pointer";

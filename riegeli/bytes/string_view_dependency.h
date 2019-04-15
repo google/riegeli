@@ -32,7 +32,7 @@ class Dependency<absl::string_view, absl::string_view>
  public:
   using DependencyBase<absl::string_view>::DependencyBase;
 
-  absl::string_view ptr() const { return this->manager(); }
+  absl::string_view get() const { return this->manager(); }
 
   static constexpr bool kIsStable() { return true; }
 };
@@ -45,7 +45,7 @@ class Dependency<
  public:
   using DependencyBase<M*>::DependencyBase;
 
-  absl::string_view ptr() const { return *this->manager(); }
+  absl::string_view get() const { return *this->manager(); }
 
   static constexpr bool kIsStable() { return true; }
 };
@@ -58,7 +58,7 @@ class Dependency<
  public:
   using DependencyBase<M>::DependencyBase;
 
-  absl::string_view ptr() const { return this->manager(); }
+  absl::string_view get() const { return this->manager(); }
 
   static constexpr bool kIsStable() { return false; }
 };
@@ -71,7 +71,7 @@ class Dependency<
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
-  absl::string_view ptr() const { return *this->manager(); }
+  absl::string_view get() const { return *this->manager(); }
 
   static constexpr bool kIsStable() { return true; }
 };

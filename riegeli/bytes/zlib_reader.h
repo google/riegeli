@@ -188,8 +188,8 @@ class ZlibReader : public ZlibReaderBase {
   // Unchanged by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.ptr(); }
-  const Reader* src_reader() const override { return src_.ptr(); }
+  Reader* src_reader() override { return src_.get(); }
+  const Reader* src_reader() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -219,7 +219,7 @@ template <typename Src>
 ZlibReader<Src>::ZlibReader(Src src, Options options)
     : ZlibReaderBase(options.buffer_size_, options.size_hint_),
       src_(std::move(src)) {
-  Initialize(src_.ptr(),
+  Initialize(src_.get(),
              options.header_ == Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));

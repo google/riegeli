@@ -55,7 +55,7 @@ class OwnedFd {
   }
 
   // Returns the owned file descriptor, or -1 if none.
-  int fd() const { return fd_; }
+  int get() const { return fd_; }
 
   // Releases ans returns the owned file descriptor without closing it.
   int Release() { return absl::exchange(fd_, -1); }
@@ -71,7 +71,7 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
  public:
   using DependencyBase<OwnedFd>::DependencyBase;
 
-  int ptr() const { return this->manager().fd(); }
+  int get() const { return this->manager().get(); }
   int Release() { return this->manager().Release(); }
 
   bool is_owning() const { return true; }
@@ -96,7 +96,7 @@ class Dependency<int, int> {
   int& manager() { return fd_; }
   const int& manager() const { return fd_; }
 
-  int ptr() const { return fd_; }
+  int get() const { return fd_; }
   int Release() {
     RIEGELI_ASSERT_UNREACHABLE() << "Dependency<int, int>::Release() called "
                                     "but is_owning() is false";

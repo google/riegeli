@@ -224,8 +224,8 @@ class ZlibWriter : public ZlibWriterBase {
   // Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.ptr(); }
-  const Writer* dest_writer() const override { return dest_.ptr(); }
+  Writer* dest_writer() override { return dest_.get(); }
+  const Writer* dest_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -252,7 +252,7 @@ template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest dest, Options options)
     : ZlibWriterBase(options.buffer_size_, options.size_hint_),
       dest_(std::move(dest)) {
-  Initialize(dest_.ptr(), options.compression_level_,
+  Initialize(dest_.get(), options.compression_level_,
              options.header_ == Header::kRaw
                  ? -options.window_log_
                  : options.window_log_ + static_cast<int>(options.header_));

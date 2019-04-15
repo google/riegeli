@@ -399,8 +399,8 @@ class RecordReader : public RecordReaderBase {
   // ChunkReader. Unchanged by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  ChunkReader* src_chunk_reader() override { return src_.ptr(); }
-  const ChunkReader* src_chunk_reader() const override { return src_.ptr(); }
+  ChunkReader* src_chunk_reader() override { return src_.get(); }
+  const ChunkReader* src_chunk_reader() const override { return src_.get(); }
 
   // An optimized implementation in a derived class, avoiding a virtual call.
   RecordPosition pos() const;
@@ -498,7 +498,7 @@ inline RecordPosition RecordReaderBase::pos() const {
 template <typename Src>
 RecordReader<Src>::RecordReader(Src src, Options options)
     : RecordReaderBase(State::kOpen), src_(std::move(src)) {
-  Initialize(src_.ptr(), std::move(options));
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>

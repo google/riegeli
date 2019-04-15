@@ -123,8 +123,8 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  BackwardWriter* dest_writer() override { return dest_.ptr(); }
-  const BackwardWriter* dest_writer() const override { return dest_.ptr(); }
+  BackwardWriter* dest_writer() override { return dest_.get(); }
+  const BackwardWriter* dest_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -179,7 +179,7 @@ template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest dest,
                                                             Position size_limit)
     : LimitingBackwardWriterBase(size_limit), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+  RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of "
          "LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest): "
          "null BackwardWriter pointer";
@@ -187,7 +187,7 @@ inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest dest,
       << "Failed precondition of "
          "LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest): "
          "size limit smaller than current position";
-  MakeBuffer(dest_.ptr());
+  MakeBuffer(dest_.get());
 }
 
 template <typename Dest>
@@ -211,9 +211,9 @@ inline void LimitingBackwardWriter<Dest>::MoveDest(
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    SyncBuffer(dest_.ptr());
+    SyncBuffer(dest_.get());
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.ptr());
+    MakeBuffer(dest_.get());
   }
 }
 

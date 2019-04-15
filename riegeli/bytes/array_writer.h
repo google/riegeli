@@ -86,8 +86,8 @@ class ArrayWriter : public ArrayWriterBase {
   // to. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  absl::Span<char> dest_span() override { return dest_.ptr(); }
-  absl::Span<const char> dest_span() const override { return dest_.ptr(); }
+  absl::Span<char> dest_span() override { return dest_.get(); }
+  absl::Span<const char> dest_span() const override { return dest_.get(); }
 
  private:
   void MoveDest(ArrayWriter&& that);
@@ -112,9 +112,9 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
 template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(Dest dest)
     : ArrayWriterBase(State::kOpen), dest_(std::move(dest)) {
-  start_ = dest_.ptr().data();
+  start_ = dest_.get().data();
   cursor_ = start_;
-  limit_ = start_ + dest_.ptr().size();
+  limit_ = start_ + dest_.get().size();
 }
 
 template <typename Dest>
@@ -140,12 +140,12 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
     if (start_ != nullptr) {
-      start_ = dest_.ptr().data();
+      start_ = dest_.get().data();
       cursor_ = start_ + cursor_index;
-      limit_ = start_ + dest_.ptr().size();
+      limit_ = start_ + dest_.get().size();
     }
     if (written_.data() != nullptr) {
-      written_ = absl::Span<char>(dest_.ptr().data(), written_size);
+      written_ = absl::Span<char>(dest_.get().data(), written_size);
     }
   }
 }

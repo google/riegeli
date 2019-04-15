@@ -90,7 +90,7 @@ class ChainReader : public ChainReaderBase {
   // Unchanged by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  const Chain* src_chain() const override { return src_.ptr(); }
+  const Chain* src_chain() const override { return src_.get(); }
 
  private:
   void MoveSrc(ChainReader&& that);
@@ -115,7 +115,7 @@ inline ChainReaderBase& ChainReaderBase::operator=(
 template <typename Src>
 inline ChainReader<Src>::ChainReader(Src src)
     : ChainReaderBase(State::kOpen), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
+  RIEGELI_ASSERT(src_.get() != nullptr)
       << "Failed precondition of ChainReader<Src>::ChainReader(Src): "
          "null Chain pointer";
   iter_ = src_->blocks().cbegin();
@@ -150,7 +150,7 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
     if (iter_.chain() != nullptr) {
-      iter_ = Chain::BlockIterator(src_.ptr(), block_index);
+      iter_ = Chain::BlockIterator(src_.get(), block_index);
       if (start_ != nullptr) {
         start_ = iter_->data();
         cursor_ = start_ + cursor_index;

@@ -105,7 +105,7 @@ Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
   }
   uint64_t decompressed_size;
   if (ABSL_PREDICT_FALSE(
-          !ReadVarint64(compressed_reader.ptr(), &decompressed_size))) {
+          !ReadVarint64(compressed_reader.get(), &decompressed_size))) {
     Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
     return;
   }
@@ -141,7 +141,7 @@ template <typename Src>
 inline Reader* Decompressor<Src>::reader() {
   struct Visitor {
     Reader* operator()(Dependency<Reader*, Src>& reader) const {
-      return reader.ptr();
+      return reader.get();
     }
     Reader* operator()(Reader& reader) const { return &reader; }
   };

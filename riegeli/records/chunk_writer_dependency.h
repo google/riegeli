@@ -45,12 +45,12 @@ class Dependency<ChunkWriter*, M,
   M& manager() { return chunk_writer_.dest(); }
   const M& manager() const { return chunk_writer_.dest(); }
 
-  ChunkWriter* ptr() { return &chunk_writer_; }
-  const ChunkWriter* ptr() const { return &chunk_writer_; }
-  ChunkWriter& operator*() { return *ptr(); }
-  const ChunkWriter& operator*() const { return *ptr(); }
-  ChunkWriter* operator->() { return ptr(); }
-  const ChunkWriter* operator->() const { return ptr(); }
+  ChunkWriter* get() { return &chunk_writer_; }
+  const ChunkWriter* get() const { return &chunk_writer_; }
+  ChunkWriter& operator*() { return *get(); }
+  const ChunkWriter& operator*() const { return *get(); }
+  ChunkWriter* operator->() { return get(); }
+  const ChunkWriter* operator->() const { return get(); }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }

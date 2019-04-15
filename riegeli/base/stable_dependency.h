@@ -96,18 +96,18 @@ class StableDependency<P*, M,
     return dep_->manager();
   }
 
-  P* ptr() {
-    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.ptr();
-    return dep_->ptr();
+  P* get() {
+    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.get();
+    return dep_->get();
   }
-  const P* ptr() const {
-    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.ptr();
-    return dep_->ptr();
+  const P* get() const {
+    if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.get();
+    return dep_->get();
   }
-  P& operator*() { return *ptr(); }
-  const P& operator*() const { return *ptr(); }
-  P* operator->() { return ptr(); }
-  const P* operator->() const { return ptr(); }
+  P& operator*() { return *get(); }
+  const P& operator*() const { return *get(); }
+  P* operator->() { return get(); }
+  const P* operator->() const { return get(); }
 
   bool is_owning() const { return dep_->is_owning(); }
 

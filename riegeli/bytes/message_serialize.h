@@ -61,7 +61,7 @@ template <typename Dest>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                 Dest dest) {
   Dependency<Writer*, Dest> dest_dep(std::move(dest));
-  const Status status = internal::SerializeToWriterImpl(src, dest_dep.ptr());
+  const Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
   if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
   }

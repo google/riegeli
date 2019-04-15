@@ -256,8 +256,8 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.ptr(); }
-  const Reader* src_reader() const override { return src_.ptr(); }
+  Reader* src_reader() override { return src_.get(); }
+  const Reader* src_reader() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -295,7 +295,7 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
 template <typename Src>
 DefaultChunkReader<Src>::DefaultChunkReader(Src src)
     : DefaultChunkReaderBase(State::kOpen), src_(std::move(src)) {
-  Initialize(src_.ptr());
+  Initialize(src_.get());
 }
 
 template <typename Src>

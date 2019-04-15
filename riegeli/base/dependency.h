@@ -60,20 +60,20 @@ namespace riegeli {
 //   //
 //   // A const variant of this method is expected for certain choices of Ptr,
 //   // in particular if Ptr is P*.
-//   Ptr ptr();
+//   Ptr get();
 //
 //   // If Ptr is P*, Dependency<P*, Manager> can be used as a smart pointer to
 //   // P, for convenience.
-//   P& operator*() { return *ptr(); }
-//   const P& operator*() const { return *ptr(); }
-//   P* operator->() { return ptr(); }
-//   const P* operator->() const { return ptr(); }
+//   P& operator*() { return *get(); }
+//   const P& operator*() const { return *get(); }
+//   P* operator->() { return get(); }
+//   const P* operator->() const { return get(); }
 //
 //   // If true, a Dependency owns the dependent object, i.e. the destructor of
 //   // Dependency destroys that object.
 //   bool is_owning() const;
 //
-//   // If true, ptr() stays unchanged when a Dependency is moved.
+//   // If true, get() stays unchanged when a Dependency is moved.
 //   static constexpr bool kIsStable();
 template <typename Ptr, typename Manager, typename Enable = void>
 class Dependency;
@@ -87,7 +87,7 @@ struct IsValidDependency : public std::false_type {};
 template <typename Ptr, typename Manager>
 struct IsValidDependency<
     Ptr, Manager,
-    absl::void_t<decltype(std::declval<Dependency<Ptr, Manager>>().ptr())>>
+    absl::void_t<decltype(std::declval<Dependency<Ptr, Manager>>().get())>>
     : public std::true_type {};
 
 // Implementation shared between most specializations of Dependency.
@@ -121,9 +121,9 @@ class Dependency<P*, M*, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
  public:
   using DependencyBase<M*>::DependencyBase;
 
-  P* ptr() const { return this->manager(); }
-  P& operator*() const { return *ptr(); }
-  P* operator->() const { return ptr(); }
+  P* get() const { return this->manager(); }
+  P& operator*() const { return *get(); }
+  P* operator->() const { return get(); }
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
@@ -136,12 +136,12 @@ class Dependency<P*, M, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
  public:
   using DependencyBase<M>::DependencyBase;
 
-  P* ptr() { return &this->manager(); }
-  const P* ptr() const { return &this->manager(); }
-  P& operator*() { return *ptr(); }
-  const P& operator*() const { return *ptr(); }
-  P* operator->() { return ptr(); }
-  const P* operator->() const { return ptr(); }
+  P* get() { return &this->manager(); }
+  const P* get() const { return &this->manager(); }
+  P& operator*() { return *get(); }
+  const P& operator*() const { return *get(); }
+  P* operator->() { return get(); }
+  const P* operator->() const { return get(); }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
@@ -155,9 +155,9 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
-  P* ptr() const { return this->manager().get(); }
-  P& operator*() const { return *ptr(); }
-  P* operator->() const { return ptr(); }
+  P* get() const { return this->manager().get(); }
+  P& operator*() const { return *get(); }
+  P* operator->() const { return get(); }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return true; }

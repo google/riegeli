@@ -121,8 +121,8 @@ class LimitingReader : public LimitingReaderBase {
   // Unchanged by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  Reader* src_reader() override { return src_.ptr(); }
-  const Reader* src_reader() const override { return src_.ptr(); }
+  Reader* src_reader() override { return src_.get(); }
+  const Reader* src_reader() const override { return src_.get(); }
 
  protected:
   void Done() override;
@@ -203,13 +203,13 @@ inline void LimitingReaderBase::MakeBuffer(Reader* src) {
 template <typename Src>
 inline LimitingReader<Src>::LimitingReader(Src src, Position size_limit)
     : LimitingReaderBase(size_limit), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
+  RIEGELI_ASSERT(src_.get() != nullptr)
       << "Failed precondition of LimitingReader<Src>::LimitingReader(Src): "
          "null Reader pointer";
   RIEGELI_ASSERT_GE(size_limit_, src_->pos())
       << "Failed precondition of LimitingReader<Src>::LimitingReader(Src): "
          "size limit smaller than current position";
-  MakeBuffer(src_.ptr());
+  MakeBuffer(src_.get());
 }
 
 template <typename Src>
@@ -231,9 +231,9 @@ inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
-    SyncBuffer(src_.ptr());
+    SyncBuffer(src_.get());
     src_ = std::move(that.src_);
-    MakeBuffer(src_.ptr());
+    MakeBuffer(src_.get());
   }
 }
 
@@ -249,9 +249,9 @@ template <typename Src>
 void LimitingReader<Src>::VerifyEnd() {
   LimitingReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
-    SyncBuffer(src_.ptr());
+    SyncBuffer(src_.get());
     src_->VerifyEnd();
-    MakeBuffer(src_.ptr());
+    MakeBuffer(src_.get());
   }
 }
 

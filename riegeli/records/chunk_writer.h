@@ -162,8 +162,8 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   // by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.ptr(); }
-  const Writer* dest_writer() const override { return dest_.ptr(); }
+  Writer* dest_writer() override { return dest_.get(); }
+  const Writer* dest_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -198,7 +198,7 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 template <typename Dest>
 DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
     : DefaultChunkWriterBase(State::kOpen), dest_(std::move(dest)) {
-  Initialize(dest_.ptr(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
 }
 
 template <typename Dest>

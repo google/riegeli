@@ -115,8 +115,8 @@ class StringWriter : public StringWriterBase {
   // to. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  std::string* dest_string() override { return dest_.ptr(); }
-  const std::string* dest_string() const override { return dest_.ptr(); }
+  std::string* dest_string() override { return dest_.get(); }
+  const std::string* dest_string() const override { return dest_.get(); }
 
  private:
   void MoveDest(StringWriter&& that);
@@ -141,7 +141,7 @@ inline StringWriterBase& StringWriterBase::operator=(
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest dest, Options options)
     : StringWriterBase(State::kOpen), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+  RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of StringWriter<Dest>::StringWriter(Dest): "
          "null string pointer";
   const size_t size_hint = UnsignedMin(options.size_hint_, dest_->max_size());

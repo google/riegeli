@@ -166,7 +166,7 @@ class FileReader : public FileReaderBase {
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   ::tensorflow::RandomAccessFile* src_file() const override {
-    return src_.ptr();
+    return src_.get();
   }
 
  protected:
@@ -201,10 +201,10 @@ inline FileReaderBase& FileReaderBase::operator=(
 template <typename Src>
 FileReader<Src>::FileReader(Src src, Options options)
     : FileReaderBase(options.buffer_size_), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.ptr() != nullptr)
+  RIEGELI_ASSERT(src_.get() != nullptr)
       << "Failed precondition of FileReader<Src>::FileReader(Src): "
          "null RandomAccessFile pointer";
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(options.env_, src_.ptr()))) {
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(options.env_, src_.get()))) {
     return;
   }
   InitializePos(options.initial_pos_);
@@ -236,7 +236,7 @@ inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
 template <typename Src>
 void FileReader<Src>::Done() {
   FileReaderBase::Done();
-  if (src_.is_owning() && src_.ptr() != nullptr) {
+  if (src_.is_owning() && src_.get() != nullptr) {
     // The only way to close a RandomAccessFile is to delete it.
     src_ = Dependency<::tensorflow::RandomAccessFile*, Src>();
   }

@@ -124,8 +124,8 @@ class LimitingWriter : public LimitingWriterBase {
   // Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.ptr(); }
-  const Writer* dest_writer() const override { return dest_.ptr(); }
+  Writer* dest_writer() override { return dest_.get(); }
+  const Writer* dest_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -179,13 +179,13 @@ inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(Dest dest, Position size_limit)
     : LimitingWriterBase(size_limit), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.ptr() != nullptr)
+  RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of LimitingWriter<Dest>::LimitingWriter(Dest): "
          "null Writer pointer";
   RIEGELI_ASSERT_GE(size_limit_, dest_->pos())
       << "Failed precondition of LimitingWriter<Dest>::LimitingWriter(Dest): "
          "size limit smaller than current position";
-  MakeBuffer(dest_.ptr());
+  MakeBuffer(dest_.get());
 }
 
 template <typename Dest>
@@ -207,9 +207,9 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    SyncBuffer(dest_.ptr());
+    SyncBuffer(dest_.get());
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.ptr());
+    MakeBuffer(dest_.get());
   }
 }
 

@@ -59,7 +59,7 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src);
 template <typename Src>
 inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src src) {
   Dependency<Reader*, Src> src_dep(std::move(src));
-  const Status status = internal::ParseFromReaderImpl(dest, src_dep.ptr());
+  const Status status = internal::ParseFromReaderImpl(dest, src_dep.get());
   if (ABSL_PREDICT_TRUE(status.ok()) && src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) return src_dep->status();
   }

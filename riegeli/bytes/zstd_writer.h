@@ -244,8 +244,8 @@ class ZstdWriter : public ZstdWriterBase {
   // Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
-  Writer* dest_writer() override { return dest_.ptr(); }
-  const Writer* dest_writer() const override { return dest_.ptr(); }
+  Writer* dest_writer() override { return dest_.get(); }
+  const Writer* dest_writer() const override { return dest_.get(); }
 
  protected:
   void Done() override;
@@ -273,7 +273,7 @@ inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
     : ZstdWriterBase(options.buffer_size_,
                      options.final_size_.value_or(options.size_hint_)),
       dest_(std::move(dest)) {
-  Initialize(dest_.ptr(), options.compression_level_, options.window_log_,
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
              options.final_size_,
              options.final_size_.value_or(options.size_hint_),
              options.store_checksum_);

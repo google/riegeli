@@ -77,7 +77,7 @@ class StringReader : public StringReaderBase {
   // read from. Unchanged by Close().
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
-  absl::string_view src_string_view() const override { return src_.ptr(); }
+  absl::string_view src_string_view() const override { return src_.get(); }
 
  private:
   void MoveSrc(StringReader&& that);
@@ -101,10 +101,10 @@ inline StringReaderBase& StringReaderBase::operator=(
 template <typename Src>
 inline StringReader<Src>::StringReader(Src src)
     : StringReaderBase(State::kOpen), src_(std::move(src)) {
-  start_ = src_.ptr().data();
+  start_ = src_.get().data();
   cursor_ = start_;
-  limit_ = start_ + src_.ptr().size();
-  limit_pos_ = src_.ptr().size();
+  limit_ = start_ + src_.get().size();
+  limit_pos_ = src_.get().size();
 }
 
 template <typename Src>
@@ -129,9 +129,9 @@ inline void StringReader<Src>::MoveSrc(StringReader&& that) {
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
     if (start_ != nullptr) {
-      start_ = src_.ptr().data();
+      start_ = src_.get().data();
       cursor_ = start_ + cursor_index;
-      limit_ = start_ + src_.ptr().size();
+      limit_ = start_ + src_.get().size();
     }
   }
 }
