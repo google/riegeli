@@ -84,7 +84,7 @@ bool BufferedReader::PullSlow() {
     start_ = flat_buffer.data();
     cursor_ = start_;
   } else if (start_ == nullptr) {
-    // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+    // buffer_ was empty.
     start_ = iter()->data();
     cursor_ = start_;
   }
@@ -175,7 +175,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       start_ = flat_buffer.data();
       cursor_ = start_;
     } else if (start_ == nullptr) {
-      // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+      // buffer_ was empty.
       start_ = iter()->data();
       cursor_ = start_;
     }
@@ -248,7 +248,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       start_ = flat_buffer.data();
       cursor_ = start_;
     } else if (start_ == nullptr) {
-      // buffer_ was empty and buffer_.AppendBuffer() returned short data.
+      // buffer_ was empty.
       start_ = iter()->data();
       cursor_ = start_;
     }
@@ -308,11 +308,9 @@ bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
 
 void BufferedReader::ClearBuffer() {
   buffer_.Clear();
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer();
-  start_ = flat_buffer.data();
-  cursor_ = start_;
-  limit_ = start_;
-  buffer_.RemoveSuffix(flat_buffer.size());
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
 }
 
 }  // namespace riegeli

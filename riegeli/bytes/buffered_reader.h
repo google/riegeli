@@ -104,8 +104,8 @@ class BufferedReader : public Reader {
   Chain buffer_;
 
   // Invariants:
-  //   start_ == (buffer_.blocks().empty() ? nullptr : iter()->data())
-  //   buffer_size() == (buffer_.blocks().empty() ? 0 : iter()->size())
+  //   start_ == nullptr ? buffer_.empty() : start_ == iter()->data()
+  //   buffer_size() == (start_ == nullptr ? 0 : iter()->size())
 };
 
 // Implementation details follow.
