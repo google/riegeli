@@ -14,22 +14,12 @@
 
 #include "riegeli/bytes/reader_utils.h"
 
-#include <stddef.h>
 #include <stdint.h>
 
-#include <string>
-#include <utility>
-
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
-#include "riegeli/base/base.h"
-#include "riegeli/base/chain.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
-
 namespace internal {
 
 bool ReadVarint32Slow(Reader* src, uint32_t* data) {
@@ -119,76 +109,4 @@ char* CopyVarint64Slow(Reader* src, char* dest) {
 }
 
 }  // namespace internal
-
-bool ReadAll(Reader* src, absl::string_view* dest, std::string* scratch) {
-  if (src->SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    RIEGELI_ASSERT_LE(src->pos(), size)
-        << "Current position is greater than the source size";
-    return src->Read(dest, scratch, size - src->pos());
-  }
-  scratch->clear();
-  const bool ok = ReadAll(src, scratch);
-  *dest = *scratch;
-  return ok;
-}
-
-bool ReadAll(Reader* src, std::string* dest) {
-  if (src->SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    RIEGELI_ASSERT_LE(src->pos(), size)
-        << "Current position is greater than the source size";
-    return src->Read(dest, size - src->pos());
-  }
-  do {
-    const size_t available_length = src->available();
-    dest->append(src->cursor(), available_length);
-    src->set_cursor(src->cursor() + available_length);
-  } while (src->Pull());
-  return src->healthy();
-}
-
-bool ReadAll(Reader* src, Chain* dest) {
-  if (src->SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    RIEGELI_ASSERT_LE(src->pos(), size)
-        << "Current position is greater than the source size";
-    return src->Read(dest, size - src->pos());
-  }
-  do {
-    if (ABSL_PREDICT_FALSE(!src->Read(dest, src->available()))) return false;
-  } while (src->Pull());
-  return src->healthy();
-}
-
-bool CopyAll(Reader* src, Writer* dest) {
-  if (src->SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    RIEGELI_ASSERT_LE(src->pos(), size)
-        << "Current position is greater than the source size";
-    return src->CopyTo(dest, size - src->pos());
-  }
-  do {
-    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, src->available()))) return false;
-  } while (src->Pull());
-  return src->healthy();
-}
-
-bool CopyAll(Reader* src, BackwardWriter* dest) {
-  if (src->SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    RIEGELI_ASSERT_LE(src->pos(), size)
-        << "Current position is greater than the source size";
-    return src->CopyTo(dest, size - src->pos());
-  }
-  Chain data;
-  if (ABSL_PREDICT_FALSE(!ReadAll(src, &data))) return false;
-  return dest->Write(std::move(data));
-}
-
 }  // namespace riegeli

@@ -88,13 +88,9 @@ cc_library(
         "varint.h",
     ],
     deps = [
-        ":backward_writer",
         ":reader",
-        ":writer",
         "//riegeli/base",
-        "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
     ],
 )
 

@@ -17,15 +17,9 @@
 
 #include <stdint.h>
 
-#include <string>
-
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
-#include "riegeli/base/chain.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/varint.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
@@ -59,12 +53,6 @@ char* CopyVarint32(Reader* src, char* dest);
 // Returns the updated dest after the copied value, or nullptr on failure.
 // At least kMaxLengthVarint64 bytes of space at dest[] must be available.
 char* CopyVarint64(Reader* src, char* dest);
-
-bool ReadAll(Reader* src, absl::string_view* dest, std::string* scratch);
-bool ReadAll(Reader* src, std::string* dest);
-bool ReadAll(Reader* src, Chain* dest);
-bool CopyAll(Reader* src, Writer* dest);
-bool CopyAll(Reader* src, BackwardWriter* dest);
 
 // Implementation details follow.
 

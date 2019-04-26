@@ -175,6 +175,110 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
   return dest->Write(std::move(data));
 }
 
+bool Reader::ReadAll(absl::string_view* dest, std::string* scratch) {
+  if (SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > scratch->max_size())) {
+      return Fail(ResourceExhaustedError("Destination size overflow"));
+    }
+    if (ABSL_PREDICT_FALSE(!Read(dest, scratch, IntCast<size_t>(remaining)))) {
+      return healthy();
+    }
+    return true;
+  }
+  scratch->clear();
+  bool ok = ReadAll(scratch);
+  *dest = *scratch;
+  return ok;
+}
+
+bool Reader::ReadAll(std::string* dest) {
+  if (SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > dest->max_size() - dest->size())) {
+      return Fail(ResourceExhaustedError("Destination size overflow"));
+    }
+    if (ABSL_PREDICT_FALSE(!Read(dest, IntCast<size_t>(remaining)))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(available() > dest->max_size() - dest->size())) {
+        return Fail(ResourceExhaustedError("Destination size overflow"));
+      }
+      dest->append(cursor_, available());
+      cursor_ = limit_;
+    } while (PullSlow());
+    return healthy();
+  }
+}
+
+bool Reader::ReadAll(Chain* dest) {
+  if (SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, pos());
+    if (ABSL_PREDICT_FALSE(remaining >
+                           std::numeric_limits<size_t>::max() - dest->size())) {
+      return Fail(ResourceExhaustedError("Destination size overflow"));
+    }
+    if (ABSL_PREDICT_FALSE(!Read(dest, IntCast<size_t>(remaining)))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(available() > std::numeric_limits<size_t>::max() -
+                                               dest->size())) {
+        return Fail(ResourceExhaustedError("Destination size overflow"));
+      }
+      if (ABSL_PREDICT_FALSE(!Read(dest, available()))) return false;
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::CopyAllTo(Writer* dest) {
+  if (SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, pos());
+    if (ABSL_PREDICT_FALSE(!CopyTo(dest, remaining))) {
+      return dest->healthy() && healthy();
+    }
+    return true;
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(!CopyTo(dest, available()))) return false;
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::CopyAllTo(BackwardWriter* dest) {
+  if (SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > std::numeric_limits<size_t>::max())) {
+      return Fail(ResourceExhaustedError("Destination size overflow"));
+    }
+    if (ABSL_PREDICT_FALSE(!CopyTo(dest, IntCast<size_t>(remaining)))) {
+      return dest->healthy() && healthy();
+    }
+    return true;
+  } else {
+    Chain data;
+    if (ABSL_PREDICT_FALSE(!ReadAll(&data))) return false;
+    return dest->Write(std::move(data));
+  }
+}
+
 bool Reader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "

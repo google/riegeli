@@ -127,18 +127,53 @@ class Reader : public Object {
   // Precondition for Read(Chain*):
   //   length <= numeric_limits<size_t>::max() - dest->size()
   //
-  // Return values:
+  // Return values for Read():
   //  * true                    - success (length bytes read)
   //  * false (when healthy())  - source ends (less than length bytes read)
   //  * false (when !healthy()) - failure (less than length bytes read)
   //
-  // If CopyTo() returns false and !dest->healthy(), the problem was at dest.
+  // Return values for CopyTo():
+  //  * true                                        - success
+  //                                                  (length bytes copied)
+  //  * false (when dest->healthy() && healthy())   - source ends (less than
+  //                                                  length bytes copied)
+  //  * false (when !dest->healthy() || !healthy()) - failure (less than
+  //                                                  length bytes copied)
   bool Read(char* dest, size_t length);
   bool Read(std::string* dest, size_t length);
   bool Read(absl::string_view* dest, std::string* scratch, size_t length);
   bool Read(Chain* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
+
+  // Reads all remaining bytes from the buffer and the source to dest.
+  //
+  // ReadAll(string*) and ReadAll(Chain*) append to any
+  // existing data in dest.
+  //
+  // ReadAll(string_view*) points dest to an array holding the data, residing
+  // either in internal buffers or in scratch (resized) if internal buffers are
+  // too small.
+  //
+  // CopyAllTo(Writer*) writes as much as could be read if reading failed, and
+  // reads an unspecified length (between what could be written and the
+  // requested length) if writing failed.
+  //
+  // CopyAllTo(BackwardWriter*) writes nothing if reading failed, and reads the
+  // full requested length even if writing failed.
+  //
+  // Return values for ReadAll():
+  //  * true (healthy())   - success
+  //  * false (!healthy()) - failure
+  //
+  // Return values for CopyAllTo():
+  //  * true (dest->healthy() && healthy())    - success
+  //  * false (!dest->healthy() || !healthy()) - failure
+  bool ReadAll(absl::string_view* dest, std::string* scratch);
+  bool ReadAll(std::string* dest);
+  bool ReadAll(Chain* dest);
+  bool CopyAllTo(Writer* dest);
+  bool CopyAllTo(BackwardWriter* dest);
 
   // Returns the current position.
   //
