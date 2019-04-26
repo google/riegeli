@@ -238,12 +238,26 @@ inline size_t Chain::Block::space_before() const {
   RIEGELI_ASSERT(is_internal())
       << "Failed precondition of Chain::Block::space_before(): "
          "block not internal";
-  return PtrDistance(allocated_begin_, data_begin());
+  return PtrDistance(allocated_begin_, empty() ? allocated_end_ : data_begin());
 }
 
 inline size_t Chain::Block::space_after() const {
   RIEGELI_ASSERT(is_internal())
       << "Failed precondition of Chain::Block::space_after(): "
+         "block not internal";
+  return PtrDistance(empty() ? allocated_begin_ : data_end(), allocated_end_);
+}
+
+inline size_t Chain::Block::raw_space_before() const {
+  RIEGELI_ASSERT(is_internal())
+      << "Failed precondition of Chain::Block::raw_space_before(): "
+         "block not internal";
+  return PtrDistance(allocated_begin_, data_begin());
+}
+
+inline size_t Chain::Block::raw_space_after() const {
+  RIEGELI_ASSERT(is_internal())
+      << "Failed precondition of Chain::Block::raw_space_after(): "
          "block not internal";
   return PtrDistance(data_end(), allocated_end_);
 }
@@ -297,24 +311,13 @@ inline void Chain::Block::DumpStructure(std::ostream& out) const {
   out << "Block {ref_count: " << ref_count_.load(std::memory_order_relaxed)
       << "; size: " << size() << "; ";
   if (is_internal()) {
-    out << "internal; space: " << space_before() << " + " << space_after();
+    out << "internal; space: " << raw_space_before() << " + "
+        << raw_space_after();
   } else {
     out << "external; ";
     external_.methods->dump_structure(this, out);
   }
   out << "}";
-}
-
-inline void Chain::Block::PrepareForAppend() {
-  if (is_internal() && has_unique_owner() && empty()) {
-    data_ = absl::string_view(allocated_begin_, 0);
-  }
-}
-
-inline void Chain::Block::PrepareForPrepend() {
-  if (is_internal() && has_unique_owner() && empty()) {
-    data_ = absl::string_view(allocated_end_, 0);
-  }
 }
 
 inline bool Chain::Block::can_append(size_t length) const {
@@ -337,7 +340,8 @@ inline absl::Span<char> Chain::Block::AppendBuffer(size_t max_length) {
   RIEGELI_ASSERT(can_append(0))
       << "Failed precondition of Chain::Block::AppendBuffer(): "
          "block is immutable";
-  const size_t length = UnsignedMin(space_after(), max_length);
+  if (empty()) data_ = absl::string_view(allocated_begin_, 0);
+  const size_t length = UnsignedMin(raw_space_after(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_end()), length);
   data_ = absl::string_view(
       data_begin(), PtrDistance(data_begin(), buffer.data() + buffer.size()));
@@ -348,7 +352,8 @@ inline absl::Span<char> Chain::Block::PrependBuffer(size_t max_length) {
   RIEGELI_ASSERT(can_prepend(0))
       << "Failed precondition of Chain::Block::PrependBuffer(): "
          "block is immutable";
-  const size_t length = UnsignedMin(space_before(), max_length);
+  if (empty()) data_ = absl::string_view(allocated_end_, 0);
+  const size_t length = UnsignedMin(raw_space_before(), max_length);
   const absl::Span<char> buffer(const_cast<char*>(data_begin()) - length,
                                 length);
   data_ =
@@ -357,6 +362,7 @@ inline absl::Span<char> Chain::Block::PrependBuffer(size_t max_length) {
 }
 
 inline void Chain::Block::Append(absl::string_view src) {
+  if (empty()) data_ = absl::string_view(allocated_begin_, 0);
   return AppendWithExplicitSizeToCopy(src, src.size());
 }
 
@@ -376,6 +382,7 @@ inline void Chain::Block::Prepend(absl::string_view src) {
   RIEGELI_ASSERT(can_prepend(src.size()))
       << "Failed precondition of Chain::Block::Prepend(): "
          "not enough space";
+  if (empty()) data_ = absl::string_view(allocated_end_, 0);
   std::memcpy(const_cast<char*>(data_begin() - src.size()), src.data(),
               src.size());
   data_ = absl::string_view(data_begin() - src.size(), size() + src.size());
@@ -870,7 +877,6 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
     PushBack(block);
   } else {
     Block* const last = back();
-    last->PrepareForAppend();
     if (last->can_append(min_length)) {
       // New space can be appended in place.
       block = last;
@@ -947,7 +953,6 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
     PushFront(block);
   } else {
     Block* const first = front();
-    first->PrepareForPrepend();
     if (first->can_prepend(min_length)) {
       // New space can be prepended in place.
       block = first;
@@ -1043,7 +1048,6 @@ void Chain::Append(const Chain& src, size_t size_hint) {
     }
   } else {
     Block* const last = back();
-    last->PrepareForAppend();
     if (last->tiny() && src_first->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
@@ -1163,7 +1167,6 @@ void Chain::Append(Chain&& src, size_t size_hint) {
     }
   } else {
     Block* const last = back();
-    last->PrepareForAppend();
     if (last->tiny() && src_first->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
@@ -1302,7 +1305,6 @@ void Chain::Prepend(const Chain& src, size_t size_hint) {
     }
   } else {
     Block* const first = front();
-    first->PrepareForPrepend();
     if (first->tiny() && src_last->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
@@ -1419,7 +1421,6 @@ void Chain::Prepend(Chain&& src, size_t size_hint) {
     }
   } else {
     Block* const first = front();
-    first->PrepareForPrepend();
     if (first->tiny() && src_last->tiny()) {
     merge:
       // Boundary blocks must be merged, or they are both empty or wasteful so
@@ -1528,7 +1529,6 @@ inline void Chain::AppendBlock(Block* block, size_t size_hint) {
     }
   } else {
     Block* const last = back();
-    last->PrepareForAppend();
     if (last->tiny() && block->tiny()) {
       // Boundary blocks must be merged.
       if (last->can_append(block->size())) {
@@ -1603,7 +1603,6 @@ void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
       last->Unref();
     } else if (last->wasteful()) {
       // The last block must reduce waste.
-      last->PrepareForAppend();
       if (last->can_append(data.size()) &&
           data.size() <= kAllocationCost * 2 + last->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
@@ -1650,7 +1649,6 @@ void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
       first->Unref();
     } else if (first->wasteful()) {
       // The first block must reduce waste.
-      first->PrepareForPrepend();
       if (first->can_prepend(data.size()) &&
           data.size() <= kAllocationCost * 2 + first->size()) {
         // Prepending in place is possible and is cheaper than rewriting the

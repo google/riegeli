@@ -593,8 +593,6 @@ class Chain::Block {
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
-  void PrepareForAppend();
-  void PrepareForPrepend();
   bool can_append(size_t length) const;
   bool can_prepend(size_t length) const;
   size_t max_can_append() const;
@@ -639,6 +637,8 @@ class Chain::Block {
   size_t capacity() const;
   size_t space_before() const;
   size_t space_after() const;
+  size_t raw_space_before() const;
+  size_t raw_space_after() const;
 
   std::atomic<size_t> ref_count_{1};
   absl::string_view data_;
