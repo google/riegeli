@@ -40,6 +40,7 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
+constexpr size_t Chain::kAnyLength;
 constexpr size_t Chain::kMinBufferSize;
 constexpr size_t Chain::kMaxBufferSize;
 constexpr size_t Chain::kAllocationCost;
@@ -829,7 +830,10 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
 
 absl::Span<char> Chain::AppendBuffer(size_t min_length,
                                      size_t recommended_length,
-                                     size_t size_hint) {
+                                     size_t max_length, size_t size_hint) {
+  RIEGELI_ASSERT_LE(min_length, max_length)
+      << "Failed precondition of Chain::AppendBuffer(): "
+         "min_length > max_length";
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendBuffer(): "
          "Chain size overflow";
@@ -844,9 +848,10 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
                             size_hint <= kMaxShortDataSize)) {
       // Append the new space to short data.
       EnsureHasHere();
-      const absl::Span<char> buffer(block_ptrs_.short_data + size_,
-                                    kMaxShortDataSize - size_);
-      size_ = kMaxShortDataSize;
+      const absl::Span<char> buffer(
+          block_ptrs_.short_data + size_,
+          UnsignedMin(max_length, kMaxShortDataSize - size_));
+      size_ += buffer.size();
       return buffer;
     }
     // Merge short data with the new space to a new block.
@@ -891,8 +896,8 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       PushBack(block);
     }
   }
-  const absl::Span<char> buffer =
-      block->AppendBuffer(std::numeric_limits<size_t>::max() - size_);
+  const absl::Span<char> buffer = block->AppendBuffer(
+      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::Block::AppendBuffer() returned less than the free space";
   size_ += buffer.size();
@@ -901,7 +906,10 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
 
 absl::Span<char> Chain::PrependBuffer(size_t min_length,
                                       size_t recommended_length,
-                                      size_t size_hint) {
+                                      size_t max_length, size_t size_hint) {
+  RIEGELI_ASSERT_LE(min_length, max_length)
+      << "Failed precondition of Chain::PrependBuffer(): "
+         "min_length > max_length";
   RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::PrependBuffer(): "
          "Chain size overflow";
@@ -916,11 +924,12 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
                             size_hint <= kMaxShortDataSize)) {
       // Prepend the new space to short data.
       EnsureHasHere();
-      const absl::Span<char> buffer(block_ptrs_.short_data,
-                                    kMaxShortDataSize - size_);
+      const absl::Span<char> buffer(
+          block_ptrs_.short_data,
+          UnsignedMin(max_length, kMaxShortDataSize - size_));
       std::memmove(buffer.data() + buffer.size(), block_ptrs_.short_data,
                    size_);
-      size_ = kMaxShortDataSize;
+      size_ += buffer.size();
       return buffer;
     }
     // Merge short data with the new space to a new block.
@@ -965,8 +974,8 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       PushFront(block);
     }
   }
-  const absl::Span<char> buffer =
-      block->PrependBuffer(std::numeric_limits<size_t>::max() - size_);
+  const absl::Span<char> buffer = block->PrependBuffer(
+      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::Block::PrependBuffer() returned less than the free space";
   size_ += buffer.size();
@@ -977,14 +986,9 @@ void Chain::Append(absl::string_view src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string_view): "
          "Chain size overflow";
-  if (src.empty()) return;
-  for (;;) {
-    const absl::Span<char> buffer = AppendBuffer(1, src.size(), size_hint);
-    if (src.size() <= buffer.size()) {
-      std::memcpy(buffer.data(), src.data(), src.size());
-      RemoveSuffix(buffer.size() - src.size());
-      return;
-    }
+  while (!src.empty()) {
+    const absl::Span<char> buffer =
+        AppendBuffer(1, src.size(), src.size(), size_hint);
     std::memcpy(buffer.data(), src.data(), buffer.size());
     src.remove_prefix(buffer.size());
   }
@@ -1243,15 +1247,9 @@ void Chain::Prepend(absl::string_view src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string_view): "
          "Chain size overflow";
-  if (src.empty()) return;
-  for (;;) {
-    const absl::Span<char> buffer = PrependBuffer(1, src.size(), size_hint);
-    if (src.size() <= buffer.size()) {
-      std::memcpy(buffer.data() + (buffer.size() - src.size()), src.data(),
-                  src.size());
-      RemovePrefix(buffer.size() - src.size());
-      return;
-    }
+  while (!src.empty()) {
+    const absl::Span<char> buffer =
+        PrependBuffer(1, src.size(), src.size(), size_hint);
     std::memcpy(buffer.data(), src.data() + (src.size() - buffer.size()),
                 buffer.size());
     src.remove_suffix(buffer.size());

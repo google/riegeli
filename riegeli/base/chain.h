@@ -59,6 +59,10 @@ class Chain {
   class BlockIterator;
   struct PinnedBlock;
 
+  // A sentinel value for the max_length parameter of
+  // AppendBuffer()/PrependBuffer().
+  static constexpr size_t kAnyLength = std::numeric_limits<size_t>::max();
+
   constexpr Chain() noexcept {}
 
   explicit Chain(absl::string_view src);
@@ -112,30 +116,29 @@ class Chain {
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
-  // Appends/prepends some uninitialized space.
+  // Appends/prepends some uninitialized space. The buffer will have length at
+  // least min_length, preferably recommended_length, and at most max_length.
   //
-  // The buffer will have length at least min_length.
+  // If min_length == 0, returns whatever space is already allocated (possibly
+  // an empty buffer) without invalidating existing pointers.
   //
-  // The buffer will have length at least recommended_length unless there are
-  // reasons to return a smaller buffer (e.g. a smaller buffer is already
-  // allocated or recommended_length exceeds internal thresholds).
+  // If recommended_length < min_length, it is assumed to be min_length.
   //
-  // size_hint announces the expected final size, including existing data, this
-  // buffer, and future data.
+  // If max_length == kAnyLength, there is no maximum.
   //
-  // If all three parameters are 0, returns whatever space is already allocated
-  // (possibly an empty buffer), without invalidating existing pointers.
-  //
-  // Returns a larger buffer than requested if more space would be allocated
-  // anyway. Use RemoveSuffix()/RemovePrefix() afterwards to trim excessive
-  // length, they do not invalidate existing pointers when called directly after
-  // {Append,Prepend}Buffer() with a length not exceeding the buffer size.
-  absl::Span<char> AppendBuffer(size_t min_length = 0,
+  // Precondition: min_length <= max_length
+  absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
+                                size_t max_length = kAnyLength,
                                 size_t size_hint = 0);
-  absl::Span<char> PrependBuffer(size_t min_length = 0,
+  absl::Span<char> PrependBuffer(size_t min_length,
                                  size_t recommended_length = 0,
+                                 size_t max_length = kAnyLength,
                                  size_t size_hint = 0);
+
+  // Equivalent to AppendBuffer/PrependBuffer with min_length == max_length.
+  absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
+  absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
 
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
@@ -1321,6 +1324,16 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
     default:
       return absl::nullopt;
   }
+}
+
+inline absl::Span<char> Chain::AppendFixedBuffer(size_t length,
+                                                 size_t size_hint) {
+  return AppendBuffer(length, length, length, size_hint);
+}
+
+inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
+                                                  size_t size_hint) {
+  return PrependBuffer(length, length, length, size_hint);
 }
 
 template <typename T>
