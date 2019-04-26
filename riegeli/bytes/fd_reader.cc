@@ -323,7 +323,7 @@ void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
   // was not known in FdMMapReaderBase constructor. This sets the Chain and
   // updates ChainReader to read from it.
   ChainReader::operator=(ChainReader(
-      ChainFromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)))));
+      Chain::FromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)))));
   if (initial_pos.has_value()) {
     cursor_ += UnsignedMin(*initial_pos, available());
   } else {

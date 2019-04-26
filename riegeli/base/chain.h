@@ -68,6 +68,15 @@ class Chain {
                 std::is_convertible<Src, absl::string_view>::value>>
   explicit Chain(const Src& src) : Chain(absl::string_view(src)) {}
 
+  // Given an object which represents a string, converts it to a Chain by
+  // attaching the moved object, avoiding copying the string data.
+  //
+  // See AppendExternal() for details.
+  template <typename T>
+  static Chain FromExternal(T object);
+  template <typename T>
+  static Chain FromExternal(T object, absl::string_view data);
+
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
 
@@ -225,15 +234,6 @@ class Chain {
   friend bool operator>=(absl::string_view a, const Chain& b);
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
-
-  // Given an object which represents a string, converts it to a Chain by
-  // attaching the moved object, avoiding copying the string data.
-  //
-  // See AppendExternal() for details.
-  template <typename T>
-  friend Chain ChainFromExternal(T object);
-  template <typename T>
-  friend Chain ChainFromExternal(T object, absl::string_view data);
 
  private:
   struct ExternalMethods;
@@ -1220,6 +1220,25 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   }
 }
 
+template <typename T>
+inline Chain Chain::FromExternal(T object) {
+  const absl::string_view data = object.data();
+  Chain result;
+  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockImplicitData,
+                           Chain::ExternalMethodsFor<T>::DropObject, &object,
+                           data, data.size());
+  return result;
+}
+
+template <typename T>
+inline Chain Chain::FromExternal(T object, absl::string_view data) {
+  Chain result;
+  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockExplicitData,
+                           Chain::ExternalMethodsFor<T>::DropObject, &object,
+                           data, data.size());
+  return result;
+}
+
 inline Chain::Chain(Chain&& that) noexcept
     : size_(absl::exchange(that.size_, 0)) {
   // Use memcpy() instead of copy constructor to silence -Wmaybe-uninitialized
@@ -1438,25 +1457,6 @@ inline bool operator<=(absl::string_view a, const Chain& b) {
 
 inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
-}
-
-template <typename T>
-inline Chain ChainFromExternal(T object) {
-  const absl::string_view data = object.data();
-  Chain result;
-  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockImplicitData,
-                           Chain::ExternalMethodsFor<T>::DropObject, &object,
-                           data, data.size());
-  return result;
-}
-
-template <typename T>
-inline Chain ChainFromExternal(T object, absl::string_view data) {
-  Chain result;
-  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockExplicitData,
-                           Chain::ExternalMethodsFor<T>::DropObject, &object,
-                           data, data.size());
-  return result;
 }
 
 }  // namespace riegeli
