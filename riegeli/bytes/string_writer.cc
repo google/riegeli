@@ -130,7 +130,7 @@ bool StringWriterBase::Truncate(Position new_size) {
 }
 
 inline void StringWriterBase::SyncBuffer(std::string* dest) {
-  dest->resize(written_to_buffer());
+  dest->erase(written_to_buffer());
   start_ = &(*dest)[0];
   cursor_ = start_ + dest->size();
   limit_ = cursor_;

@@ -84,7 +84,7 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
     const Position length_read = pos() - pos_before;
     RIEGELI_ASSERT_LE(length_read, length)
         << "Reader::ReadSlow(char*) read more than requested";
-    dest->resize(dest_pos + IntCast<size_t>(length_read));
+    dest->erase(dest_pos + IntCast<size_t>(length_read));
     return false;
   }
   return true;
