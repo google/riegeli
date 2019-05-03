@@ -132,7 +132,7 @@ bool FileReaderBase::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
-  if (LengthToReadDirectly()) {
+  if (length >= LengthToReadDirectly()) {
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     ::tensorflow::RandomAccessFile* const src = src_file();
     const size_t available_length = available();
