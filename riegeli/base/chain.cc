@@ -158,36 +158,13 @@ inline Chain::Block* Chain::Block::NewInternal(size_t min_capacity) {
       << "Failed precondition of Chain::Block::NewInternal(): zero capacity";
   size_t raw_capacity;
   return SizeReturningNewAligned<Block>(
-      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity,
-      ForAppend());
+      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity);
 }
 
-inline Chain::Block* Chain::Block::NewInternalForPrepend(size_t min_capacity) {
-  RIEGELI_ASSERT_GT(min_capacity, 0u)
-      << "Failed precondition of Chain::Block::NewInternalForPrepend(): "
-         "zero capacity";
-  size_t raw_capacity;
-  return SizeReturningNewAligned<Block>(
-      kInternalAllocatedOffset() + min_capacity, &raw_capacity, &raw_capacity,
-      ForPrepend());
-}
-
-inline Chain::Block::Block(const size_t* raw_capacity, ForAppend)
+inline Chain::Block::Block(const size_t* raw_capacity)
     : data_(allocated_begin_, 0),
       allocated_end_(data_.data() +
                      (*raw_capacity - kInternalAllocatedOffset())) {
-  RIEGELI_ASSERT(is_internal())
-      << "A Block with allocated_end_ != nullptr should be considered internal";
-  RIEGELI_CHECK_LE(capacity(), Block::kMaxCapacity)
-      << "Chain block capacity overflow";
-}
-
-inline Chain::Block::Block(const size_t* raw_capacity, ForPrepend)
-    // Redundant cast is needed for -fsanitize=bounds.
-    : data_(static_cast<const char*>(allocated_begin_) +
-                (*raw_capacity - kInternalAllocatedOffset()),
-            0),
-      allocated_end_(data_.data()) {
   RIEGELI_ASSERT(is_internal())
       << "A Block with allocated_end_ != nullptr should be considered internal";
   RIEGELI_CHECK_LE(capacity(), Block::kMaxCapacity)
@@ -943,10 +920,10 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       block = Block::NewInternal(kMaxShortDataSize);
       block->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
       PushFront(block);
-      block = Block::NewInternalForPrepend(
+      block = Block::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, size_hint));
     } else {
-      block = Block::NewInternalForPrepend(
+      block = Block::NewInternal(
           NewBlockCapacity(size_, min_length, recommended_length, size_hint));
       block->Prepend(short_data());
     }
@@ -966,7 +943,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
         front() = first->CopyAndUnref();
         goto new_block;
       }
-      block = Block::NewInternalForPrepend(NewBlockCapacity(
+      block = Block::NewInternal(NewBlockCapacity(
           first->size(), min_length, recommended_length, size_hint));
       block->Prepend(first->data());
       first->Unref();
@@ -974,7 +951,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
     } else {
     new_block:
       // Prepend a new block.
-      block = Block::NewInternalForPrepend(
+      block = Block::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, size_hint));
       PushFront(block);
     }
@@ -1291,7 +1268,7 @@ void Chain::Prepend(const Chain& src, size_t size_hint) {
             src.end_ - src.begin_ == 1
                 ? NewBlockCapacity(size_, src_last->size(), 0, size_hint)
                 : size_ + src_last->size();
-        Block* const merged = Block::NewInternalForPrepend(capacity);
+        Block* const merged = Block::NewInternal(capacity);
         merged->Prepend(short_data());
         merged->Prepend(src_last->data());
         PushFront(merged);
@@ -1329,7 +1306,7 @@ void Chain::Prepend(const Chain& src, size_t size_hint) {
                 ? NewBlockCapacity(first->size(), src_last->size(), 0,
                                    size_hint)
                 : first->size() + src_last->size();
-        Block* const merged = Block::NewInternalForPrepend(capacity);
+        Block* const merged = Block::NewInternal(capacity);
         merged->Prepend(first->data());
         merged->Prepend(src_last->data());
         first->Unref();
@@ -1407,7 +1384,7 @@ void Chain::Prepend(Chain&& src, size_t size_hint) {
             src.end_ - src.begin_ == 1
                 ? NewBlockCapacity(size_, src_last->size(), 0, size_hint)
                 : size_ + src_last->size();
-        Block* const merged = Block::NewInternalForPrepend(capacity);
+        Block* const merged = Block::NewInternal(capacity);
         merged->Prepend(short_data());
         merged->Prepend(src_last->data());
         PushFront(merged);
@@ -1445,7 +1422,7 @@ void Chain::Prepend(Chain&& src, size_t size_hint) {
                 ? NewBlockCapacity(first->size(), src_last->size(), 0,
                                    size_hint)
                 : first->size() + src_last->size();
-        Block* const merged = Block::NewInternalForPrepend(capacity);
+        Block* const merged = Block::NewInternal(capacity);
         merged->Prepend(first->data());
         merged->Prepend(src_last->data());
         first->Unref();
