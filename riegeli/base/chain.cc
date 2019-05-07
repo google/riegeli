@@ -45,6 +45,9 @@ constexpr size_t Chain::kMinBufferSize;
 constexpr size_t Chain::kMaxBufferSize;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::Block::kMaxCapacity;
+constexpr size_t FlatChain::kMaxSize;
+constexpr size_t FlatChain::kAnyLength;
+constexpr size_t FlatChain::kMinBufferSize;
 #endif
 
 namespace {
@@ -163,7 +166,8 @@ inline Chain::Block* Chain::Block::NewInternal(size_t min_capacity) {
 
 inline Chain::Block::Block(const size_t* raw_capacity)
     : data_(allocated_begin_, 0),
-      allocated_end_(data_.data() +
+      // Redundant cast is needed for -fsanitize=bounds.
+      allocated_end_(static_cast<char*>(allocated_begin_) +
                      (*raw_capacity - kInternalAllocatedOffset())) {
   RIEGELI_ASSERT(is_internal())
       << "A Block with allocated_end_ != nullptr should be considered internal";
@@ -171,7 +175,7 @@ inline Chain::Block::Block(const size_t* raw_capacity)
       << "Chain block capacity overflow";
 }
 
-inline void Chain::Block::Unref() {
+void Chain::Block::Unref() {
   if (has_unique_owner() ||
       ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
     if (is_internal()) {
@@ -194,14 +198,6 @@ inline Chain::Block* Chain::Block::CopyAndUnref() {
   Block* const block = Copy();
   Unref();
   return block;
-}
-
-inline bool Chain::Block::TryClear() {
-  if (is_internal() && has_unique_owner()) {
-    data_.remove_suffix(size());
-    return true;
-  }
-  return false;
 }
 
 inline size_t Chain::Block::capacity() const {
@@ -305,12 +301,28 @@ inline bool Chain::Block::can_prepend(size_t length) const {
   return is_internal() && has_unique_owner() && space_before() >= length;
 }
 
-inline size_t Chain::Block::max_can_append() const {
-  return is_internal() && has_unique_owner() ? space_after() : size_t{0};
+inline bool Chain::Block::CanAppendMovingData(size_t length) {
+  if (is_internal() && has_unique_owner()) {
+    if (space_after() >= length) return true;
+    if (capacity() - size() >= length) {
+      std::memmove(allocated_begin_, data_.data(), data_.size());
+      data_ = absl::string_view(allocated_begin_, data_.size());
+      return true;
+    }
+  }
+  return false;
 }
 
-inline size_t Chain::Block::max_can_prepend() const {
-  return is_internal() && has_unique_owner() ? space_before() : size_t{0};
+inline bool Chain::Block::CanPrependMovingData(size_t length) {
+  if (is_internal() && has_unique_owner()) {
+    if (space_before() >= length) return true;
+    if (capacity() - size() >= length) {
+      std::memmove(allocated_end_ - data_.size(), data_.data(), data_.size());
+      data_ = absl::string_view(allocated_end_ - data_.size(), data_.size());
+      return true;
+    }
+  }
+  return false;
 }
 
 inline absl::Span<char> Chain::Block::AppendBuffer(size_t max_length) {
@@ -429,10 +441,20 @@ void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
 
 void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                           size_t size_hint) const {
+  if (substr.empty()) return;
   RIEGELI_ASSERT(ptr_ != kEndShortData())
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
          "iterator is end()";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+    RIEGELI_ASSERT(std::greater_equal<const char*>()(
+        substr.data(), chain_->short_data().data()))
+        << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
+           "substring not contained in data";
+    RIEGELI_ASSERT(std::less_equal<const char*>()(
+        substr.data() + substr.size(),
+        chain_->short_data().data() + chain_->short_data().size()))
+        << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
+           "substring not contained in data";
     dest->Append(substr, size_hint);
   } else {
     (*ptr_)->AppendSubstrTo(substr, dest, size_hint);
@@ -800,15 +822,13 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
          "length to replace greater than current size";
   RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
-  const size_t size_before = size_ - replaced_length;
   return UnsignedMax(
       replaced_length + min_length,
       UnsignedMin(
-          size_before < size_hint
-              ? size_hint - size_before
-              : UnsignedMax(kMinBufferSize,
-                            SaturatingAdd(replaced_length, recommended_length),
-                            size_before),
+          size_ < size_hint
+              ? replaced_length + (size_hint - size_)
+              : UnsignedMax(SaturatingAdd(replaced_length, recommended_length),
+                            kMinBufferSize, size_),
           kMaxBufferSize));
 }
 
@@ -1477,7 +1497,7 @@ void Chain::Prepend(Chain&& src, size_t size_hint) {
   src.size_ = 0;
 }
 
-inline void Chain::AppendBlock(Block* block, size_t size_hint) {
+void Chain::AppendBlock(Block* block, size_t size_hint) {
   RIEGELI_ASSERT_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendBlock(): "
          "Chain size overflow";
@@ -1844,6 +1864,122 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
     out.width(0);
   }
   return out;
+}
+
+inline size_t FlatChain::NewBlockCapacity(size_t min_length,
+                                          size_t recommended_length,
+                                          size_t size_hint) const {
+  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
+      << "FlatChain block capacity overflow";
+  return UnsignedMax(
+      size() + min_length,
+      size() < size_hint
+          ? size_hint
+          : UnsignedMax(SaturatingAdd(size(), recommended_length),
+                        kMinBufferSize));
+}
+
+absl::Span<char> FlatChain::AppendBuffer(size_t min_length,
+                                         size_t recommended_length,
+                                         size_t max_length, size_t size_hint) {
+  RIEGELI_ASSERT_LE(min_length, max_length)
+      << "Failed precondition of FlatChain::AppendBuffer(): "
+         "min_length > max_length";
+  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
+      << "Failed precondition of FlatChain::AppendBuffer(): "
+         "FlatChain size overflow";
+  if (block_ == nullptr) {
+    if (min_length == 0) return absl::Span<char>();
+    block_ = Block::NewInternal(
+        NewBlockCapacity(min_length, recommended_length, size_hint));
+  } else if (!block_->CanAppendMovingData(min_length)) {
+    if (min_length == 0) return absl::Span<char>();
+    Block* const block = Block::NewInternal(
+        NewBlockCapacity(min_length, recommended_length, size_hint));
+    block->Append(block_->data());
+    block_->Unref();
+    block_ = block;
+  }
+  const absl::Span<char> buffer = block_->AppendBuffer(max_length);
+  RIEGELI_ASSERT_GE(buffer.size(), min_length)
+      << "Chain::Block::AppendBuffer() returned less than the free space";
+  return buffer;
+}
+
+absl::Span<char> FlatChain::PrependBuffer(size_t min_length,
+                                          size_t recommended_length,
+                                          size_t max_length, size_t size_hint) {
+  RIEGELI_ASSERT_LE(min_length, max_length)
+      << "Failed precondition of FlatChain::PrependBuffer(): "
+         "min_length > max_length";
+  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
+      << "Failed precondition of FlatChain::PrependBuffer(): "
+         "FlatChain size overflow";
+  if (block_ == nullptr) {
+    if (min_length == 0) return absl::Span<char>();
+    block_ = Block::NewInternal(
+        NewBlockCapacity(min_length, recommended_length, size_hint));
+  } else if (!block_->CanPrependMovingData(min_length)) {
+    if (min_length == 0) return absl::Span<char>();
+    Block* const block = Block::NewInternal(
+        NewBlockCapacity(min_length, recommended_length, size_hint));
+    block->Prepend(block_->data());
+    block_->Unref();
+    block_ = block;
+  }
+  const absl::Span<char> buffer = block_->PrependBuffer(max_length);
+  RIEGELI_ASSERT_GE(buffer.size(), min_length)
+      << "Chain::Block::PrependBuffer() returned less than the free space";
+  return buffer;
+}
+
+void FlatChain::RemoveSuffixSlow(size_t length, size_t size_hint) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of FlatChain::RemoveSuffixSlow(): "
+         "nothing to do, use RemoveSuffix() instead";
+  if (length == block_->size()) {
+    block_->Unref();
+    block_ = nullptr;
+    return;
+  }
+  absl::string_view data = block_->data();
+  data.remove_suffix(length);
+  Block* const block =
+      Block::NewInternal(NewBlockCapacity(data.size(), data.size(), size_hint));
+  block->Append(data);
+  block_->Unref();
+  block_ = block;
+}
+
+void FlatChain::RemovePrefixSlow(size_t length, size_t size_hint) {
+  RIEGELI_ASSERT_GT(length, 0u)
+      << "Failed precondition of FlatChain::RemovePrefixSlow(): "
+         "nothing to do, use RemovePrefix() instead";
+  if (length == block_->size()) {
+    block_->Unref();
+    block_ = nullptr;
+    return;
+  }
+  absl::string_view data = block_->data();
+  data.remove_prefix(length);
+  Block* const block =
+      Block::NewInternal(NewBlockCapacity(data.size(), data.size(), size_hint));
+  block->Prepend(data);
+  block_->Unref();
+  block_ = block;
+}
+
+void FlatChain::AppendTo(Chain* dest, size_t size_hint) const {
+  if (block_ != nullptr) block_->AppendTo(dest, size_hint);
+}
+
+void FlatChain::AppendSubstrTo(absl::string_view substr, Chain* dest,
+                               size_t size_hint) const {
+  if (substr.empty()) return;
+  RIEGELI_ASSERT(block_ != nullptr)
+      << "Failed precondition of FlatChain::AppendSubstrTo(): "
+         "substring not contained in data";
+  block_->AppendSubstrTo(substr, dest, size_hint);
 }
 
 }  // namespace riegeli

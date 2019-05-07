@@ -82,30 +82,22 @@ class BufferedReader : public Reader {
 
  private:
   // The size of buffer_ to use for the next allocation.
-  size_t next_buffer_size() const;
+  size_t BufferLength() const;
 
   // Minimum length for which it is better to append current contents of buffer_
   // and read the remaining data directly than to read the data through buffer_.
   size_t LengthToReadDirectly() const;
 
-  // Returns true if flat_buffer_size is considered too small to continue
-  // reading into it and a new buffer should be allocated instead.
-  bool TooSmall(size_t flat_buffer_size) const;
-
-  // Iterator pointing to the block of buffer_ which holds the actual data.
-  //
-  // Precondition: buffer_.blocks().size() == 1
-  Chain::BlockIterator iter() const;
-
+  // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is
   // limit_pos_.
-  Chain buffer_;
+  FlatChain buffer_;
 
   // Invariants:
-  //   start_ == nullptr ? buffer_.empty() : start_ == iter()->data()
-  //   buffer_size() == (start_ == nullptr ? 0 : iter()->size())
+  //   if !buffer_.empty() then start_ == buffer_.data()
+  //   buffer_size() == buffer_.size()
 };
 
 // Implementation details follow.
@@ -122,14 +114,14 @@ inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
     : Reader(std::move(that)),
       buffer_size_(absl::exchange(that.buffer_size_, 0)),
       size_hint_(absl::exchange(that.size_hint_, 0)),
-      buffer_(absl::exchange(that.buffer_, Chain())) {}
+      buffer_(std::move(that.buffer_)) {}
 
 inline BufferedReader& BufferedReader::operator=(
     BufferedReader&& that) noexcept {
   Reader::operator=(std::move(that));
   buffer_size_ = absl::exchange(that.buffer_size_, 0);
   size_hint_ = absl::exchange(that.size_hint_, 0);
-  buffer_ = absl::exchange(that.buffer_, Chain());
+  buffer_ = std::move(that.buffer_);
   return *this;
 }
 

@@ -40,6 +40,8 @@
 
 namespace riegeli {
 
+class FlatChain;
+
 // A Chain represents a sequence of bytes. It supports efficient appending and
 // prepending, and sharing memory with other Chains and other types. It does not
 // support efficient random access.
@@ -67,6 +69,8 @@ class Chain {
 
   explicit Chain(absl::string_view src);
   explicit Chain(std::string&& src);
+  explicit Chain(const FlatChain& src);
+  explicit Chain(FlatChain&& src);
   template <typename Src,
             typename Enable = absl::enable_if_t<
                 std::is_convertible<Src, absl::string_view>::value>>
@@ -119,10 +123,12 @@ class Chain {
   // Appends/prepends some uninitialized space. The buffer will have length at
   // least min_length, preferably recommended_length, and at most max_length.
   //
-  // If min_length == 0, returns whatever space is already allocated (possibly
-  // an empty buffer) without invalidating existing pointers.
+  // If min_length == 0, returns whatever space was already allocated (possibly
+  // an empty buffer) without invalidating existing pointers. If the Chain was
+  // empty then the empty contents can be moved.
   //
-  // If recommended_length < min_length, it is assumed to be min_length.
+  // If recommended_length < min_length, recommended_length is assumed to be
+  // min_length.
   //
   // If max_length == kAnyLength, there is no maximum.
   //
@@ -239,6 +245,8 @@ class Chain {
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
  private:
+  friend class FlatChain;
+
   struct ExternalMethods;
   template <typename T>
   struct ExternalMethodsFor;
@@ -428,9 +436,10 @@ class Chain::BlockIterator {
   // Precondition: this is not past the end iterator.
   void AppendTo(Chain* dest, size_t size_hint = 0) const;
 
-  // Appends substr to *dest. substr must be contained in **this.
+  // Appends substr to *dest. substr must be empty or contained in **this.
   //
-  // Precondition: this is not past the end iterator.
+  // Precondition:
+  //   if substr is not empty then this is not past the end iterator.
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       size_t size_hint = 0) const;
 
@@ -501,6 +510,94 @@ class Chain::Blocks {
   const Chain* chain_ = nullptr;
 };
 
+// A simplified variant of Chain constrained to have at most one block.
+//
+// FlatChain uses the same block representation as Chain and thus can be
+// efficiently appended to a Chain.
+//
+// FlatChain uses no short data optimization.
+class FlatChain {
+ public:
+  // Maximum size of a FlatChain.
+  static constexpr size_t kMaxSize =
+      size_t{std::numeric_limits<ptrdiff_t>::max()};
+
+  // A sentinel value for the max_length parameter of
+  // AppendBuffer()/PrependBuffer().
+  static constexpr size_t kAnyLength = Chain::kAnyLength;
+
+  constexpr FlatChain() noexcept {}
+
+  FlatChain(const FlatChain& that);
+  FlatChain& operator=(const FlatChain& that);
+
+  // The source FlatChain is left cleared.
+  //
+  // Moving a FlatChain keeps its data pointers unchanged.
+  FlatChain(FlatChain&& that) noexcept;
+  FlatChain& operator=(FlatChain&& that) noexcept;
+
+  ~FlatChain();
+
+  void Clear();
+
+  const char* data() const;
+  size_t size() const;
+  bool empty() const;
+
+  // Appends/prepends some uninitialized space. The buffer will have length at
+  // least min_length, preferably recommended_length, and at most max_length.
+  //
+  // If min_length == 0, returns whatever space was already allocated (possibly
+  // an empty buffer). without invalidating existing pointers. If the FlatChain
+  // was empty then the empty contents can be moved.
+  //
+  // If recommended_length < min_length, recommended_length is assumed to be
+  // min_length.
+  //
+  // If max_length == kAnyLength, there is no maximum.
+  //
+  // Precondition: min_length <= max_length
+  absl::Span<char> AppendBuffer(size_t min_length,
+                                size_t recommended_length = 0,
+                                size_t max_length = kAnyLength,
+                                size_t size_hint = 0);
+  absl::Span<char> PrependBuffer(size_t min_length,
+                                 size_t recommended_length = 0,
+                                 size_t max_length = kAnyLength,
+                                 size_t size_hint = 0);
+
+  // Equivalent to AppendBuffer/PrependBuffer with min_length == max_length.
+  absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
+  absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
+
+  void RemoveSuffix(size_t length, size_t size_hint = 0);
+  void RemovePrefix(size_t length, size_t size_hint = 0);
+
+  // Appends *this to *dest.
+  void AppendTo(Chain* dest, size_t size_hint = 0) const;
+
+  // Appends substr to *dest. substr must be empty or contained in *this.
+  void AppendSubstrTo(absl::string_view substr, Chain* dest,
+                      size_t size_hint = 0) const;
+
+ private:
+  friend class Chain;
+
+  using Block = Chain::Block;
+
+  static constexpr size_t kMinBufferSize = Chain::kMinBufferSize;
+
+  // Decides about the capacity of a new block to be appended/prepended.
+  size_t NewBlockCapacity(size_t min_length, size_t recommended_length,
+                          size_t size_hint) const;
+
+  void RemoveSuffixSlow(size_t length, size_t size_hint);
+  void RemovePrefixSlow(size_t length, size_t size_hint);
+
+  Block* block_ = nullptr;
+};
+
 // Implementation details follow.
 
 // Chain representation consists of blocks.
@@ -523,8 +620,7 @@ class Chain::Blocks {
 class Chain::Block {
  public:
   static constexpr size_t kInternalAllocatedOffset();
-  static constexpr size_t kMaxCapacity =
-      size_t{std::numeric_limits<ptrdiff_t>::max()};
+  static constexpr size_t kMaxCapacity = FlatChain::kMaxSize;
 
   // Creates an internal block.
   static Block* NewInternal(size_t min_capacity);
@@ -587,8 +683,8 @@ class Chain::Block {
 
   bool can_append(size_t length) const;
   bool can_prepend(size_t length) const;
-  size_t max_can_append() const;
-  size_t max_can_prepend() const;
+  bool CanAppendMovingData(size_t length);
+  bool CanPrependMovingData(size_t length);
   absl::Span<char> AppendBuffer(size_t max_length);
   absl::Span<char> PrependBuffer(size_t max_length);
   void Append(absl::string_view src);
@@ -636,7 +732,7 @@ class Chain::Block {
   absl::string_view data_;
   // If is_internal(), end of allocated space. If is_external(), nullptr.
   // This distinguishes internal from external blocks.
-  const char* allocated_end_ = nullptr;
+  char* allocated_end_ = nullptr;
   union {
     // If is_internal(), beginning of data (actual allocated size is larger).
     char allocated_begin_[1];
@@ -924,6 +1020,14 @@ inline T* Chain::Block::checked_external_object_with_unique_owner() {
                  has_unique_owner()
              ? unchecked_external_object<T>()
              : nullptr;
+}
+
+inline bool Chain::Block::TryClear() {
+  if (is_internal() && has_unique_owner()) {
+    data_.remove_suffix(size());
+    return true;
+  }
+  return false;
 }
 
 inline bool Chain::Block::TryRemoveSuffix(size_t length) {
@@ -1234,6 +1338,22 @@ inline Chain Chain::FromExternal(T object, absl::string_view data) {
   return result;
 }
 
+inline Chain::Chain(const FlatChain& src) {
+  if (src.block_ != nullptr) {
+    Block* const block = src.block_->Ref();
+    *end_++ = block;
+    size_ = block->size();
+  }
+}
+
+inline Chain::Chain(FlatChain&& src) {
+  if (src.block_ != nullptr) {
+    Block* const block = absl::exchange(src.block_, nullptr);
+    *end_++ = block;
+    size_ = block->size();
+  }
+}
+
 inline Chain::Chain(Chain&& that) noexcept
     : size_(absl::exchange(that.size_, 0)) {
   // Use memcpy() instead of copy constructor to silence -Wmaybe-uninitialized
@@ -1462,6 +1582,84 @@ inline bool operator<=(absl::string_view a, const Chain& b) {
 
 inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
+}
+
+inline FlatChain::FlatChain(FlatChain&& that) noexcept
+    : block_(absl::exchange(that.block_, nullptr)) {}
+
+inline FlatChain& FlatChain::operator=(FlatChain&& that) noexcept {
+  // Exchange that.block_ early to support self-assignment.
+  Block* const block = absl::exchange(that.block_, nullptr);
+  if (block_ != nullptr) block_->Unref();
+  block_ = block;
+  return *this;
+}
+
+inline FlatChain::FlatChain(const FlatChain& that) : block_(that.block_) {
+  if (block_ != nullptr) block_->Ref();
+}
+
+inline FlatChain& FlatChain::operator=(const FlatChain& that) {
+  Block* const block = that.block_;
+  if (block != nullptr) block->Ref();
+  if (block_ != nullptr) block_->Unref();
+  block_ = block;
+  return *this;
+}
+
+inline FlatChain::~FlatChain() {
+  if (block_ != nullptr) block_->Unref();
+}
+
+inline void FlatChain::Clear() {
+  if (block_ != nullptr && !block_->TryClear()) {
+    block_->Unref();
+    block_ = nullptr;
+  }
+}
+
+inline const char* FlatChain::data() const {
+  return block_ == nullptr ? nullptr : block_->data().data();
+}
+
+inline size_t FlatChain::size() const {
+  return block_ == nullptr ? size_t{0} : block_->data().size();
+}
+
+inline bool FlatChain::empty() const {
+  return block_ == nullptr || block_->empty();
+}
+
+inline absl::Span<char> FlatChain::AppendFixedBuffer(size_t length,
+                                                     size_t size_hint) {
+  return AppendBuffer(length, length, length, size_hint);
+}
+
+inline absl::Span<char> FlatChain::PrependFixedBuffer(size_t length,
+                                                      size_t size_hint) {
+  return PrependBuffer(length, length, length, size_hint);
+}
+
+inline void FlatChain::RemoveSuffix(size_t length, size_t size_hint) {
+  if (length == 0) return;
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of FlatChain::RemoveSuffix(): "
+      << "length to remove greater than current size";
+  if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) {
+    return;
+  }
+  RemoveSuffixSlow(length, size_hint);
+}
+
+inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
+  if (length == 0) return;
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of FlatChain::RemovePrefix(): "
+      << "length to remove greater than current size";
+  if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) {
+    return;
+  }
+  RemovePrefixSlow(length, size_hint);
 }
 
 }  // namespace riegeli
