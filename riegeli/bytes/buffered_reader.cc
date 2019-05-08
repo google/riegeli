@@ -32,6 +32,8 @@
 namespace riegeli {
 
 inline size_t BufferedReader::BufferLength() const {
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of BufferedReader: no buffer size specified";
   size_t length = buffer_size_;
   if (limit_pos_ < size_hint_) {
     // Avoid allocating more than needed for size_hint_.
@@ -61,21 +63,23 @@ bool BufferedReader::PullSlow() {
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
   if (flat_buffer.empty()) {
     // Make a new buffer.
-    RIEGELI_ASSERT_GT(buffer_size_, 0u)
-        << "Failed invariant of BufferedReader: no buffer size specified";
     buffer_.Clear();
     flat_buffer = buffer_.AppendBuffer(BufferLength());
     start_ = flat_buffer.data();
     cursor_ = start_;
+    limit_ = flat_buffer.data();
   } else if (flat_buffer.size() == buffer_.size()) {
     // buffer_ was empty.
     start_ = buffer_.data();
     cursor_ = start_;
+    limit_ = start_;
   }
   RIEGELI_ASSERT(start_ == buffer_.data())
-      << "Failed invariant of BufferedReader: "
-         "buffer pointer does not point to buffer_";
-  limit_ = flat_buffer.data();
+      << "Bug in BufferedReader::PullSlow(): "
+         "start_ does not point to buffer_";
+  RIEGELI_ASSERT(limit_ == flat_buffer.data())
+      << "Bug in BufferedReader::PullSlow(): "
+         "limit_ does not point to flat_buffer";
   // Read more data into buffer_.
   const Position pos_before = limit_pos_;
   const bool ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -136,8 +140,6 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
     if (flat_buffer.empty()) {
       // Append a part of buffer_ to dest and make a new buffer.
-      RIEGELI_ASSERT_GT(buffer_size_, 0u)
-          << "Failed invariant of BufferedReader: no buffer size specified";
       const size_t available_length = available();
       buffer_.AppendSubstrTo(absl::string_view(cursor_, available_length),
                              dest);
@@ -146,15 +148,19 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       flat_buffer = buffer_.AppendBuffer(BufferLength());
       start_ = flat_buffer.data();
       cursor_ = start_;
+      limit_ = start_;
     } else if (flat_buffer.size() == buffer_.size()) {
       // buffer_ was empty.
       start_ = buffer_.data();
       cursor_ = start_;
+      limit_ = start_;
     }
     RIEGELI_ASSERT(start_ == buffer_.data())
-        << "Failed invariant of BufferedReader: "
-           "buffer pointer does not point to buffer_";
-    limit_ = flat_buffer.data();
+        << "Bug in BufferedReader::ReadSlow(Chain*): "
+           "start_ does not point to buffer_";
+    RIEGELI_ASSERT(limit_ == flat_buffer.data())
+        << "Bug in BufferedReader::ReadSlow(Chain*): "
+           "limit_ does not point to flat_buffer";
     // Read more data into buffer_.
     const Position pos_before = limit_pos_;
     ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -192,8 +198,6 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
     if (flat_buffer.empty()) {
       // Write a part of buffer_ to dest and make a new buffer.
-      RIEGELI_ASSERT_GT(buffer_size_, 0u)
-          << "Failed invariant of BufferedReader: no buffer size specified";
       const size_t available_length = available();
       if (available_length > 0) {
         bool write_ok;
@@ -215,15 +219,19 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       flat_buffer = buffer_.AppendBuffer(BufferLength());
       start_ = flat_buffer.data();
       cursor_ = start_;
+      limit_ = start_;
     } else if (flat_buffer.size() == buffer_.size()) {
       // buffer_ was empty.
       start_ = buffer_.data();
       cursor_ = start_;
+      limit_ = start_;
     }
     RIEGELI_ASSERT(start_ == buffer_.data())
-        << "Failed invariant of BufferedReader: "
-           "buffer pointer does not point to buffer_";
-    limit_ = flat_buffer.data();
+        << "Bug in BufferedReader::CopyToSlow(Writer*): "
+           "start_ does not point to buffer_";
+    RIEGELI_ASSERT(limit_ == flat_buffer.data())
+        << "Bug in BufferedReader::CopyToSlow(Writer*): "
+           "limit_ does not point to flat_buffer";
     // Read more data into buffer_.
     const Position pos_before = limit_pos_;
     read_ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -262,8 +270,8 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
 
 bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
+         "length too small, use CopyTo(BackwardWriter*) instead";
   if (length <= kMaxBytesToCopy) {
     char buffer[kMaxBytesToCopy];
     if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
