@@ -20,12 +20,17 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env.h"
@@ -95,7 +100,7 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
 inline size_t FileReaderBase::LengthToReadDirectly() const {
   // Read directly if reading through buffer_ would need more than one read,
   // or if buffer_ would be full.
-  return SaturatingAdd(available(), buffer_.size());
+  return SaturatingAdd(available(), buffer_size_);
 }
 
 bool FileReaderBase::PullSlow() {
@@ -103,27 +108,26 @@ bool FileReaderBase::PullSlow() {
       << "Failed precondition of Reader::PullSlow(): "
          "data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of FileReaderBase: no buffer size specified";
   ::tensorflow::RandomAccessFile* const src = src_file();
-  char* const ptr = buffer_.GetData();
-  if (ABSL_PREDICT_FALSE(buffer_.size() >
-                         std::numeric_limits<::tensorflow::uint64>::max() -
-                             limit_pos_)) {
-    return FailOverflow();
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
+  if (flat_buffer.empty()) {
+    // Make a new buffer.
+    buffer_.Clear();
+    flat_buffer = buffer_.AppendBuffer(buffer_size_);
+    start_ = flat_buffer.data();
+    cursor_ = start_;
+    limit_ = start_;
+  } else if (flat_buffer.size() == buffer_.size()) {
+    // buffer_ was empty.
+    start_ = buffer_.data();
+    cursor_ = start_;
+    limit_ = start_;
   }
-  absl::string_view result;
-  const ::tensorflow::Status read_status = src->Read(
-      IntCast<::tensorflow::uint64>(limit_pos_), buffer_.size(), &result, ptr);
-  RIEGELI_ASSERT_LE(result.size(), buffer_.size())
-      << "RandomAccessFile::Read() read more than requested";
-  start_ = result.data();
-  cursor_ = start_;
-  limit_ = start_ + result.size();
-  limit_pos_ += result.size();
-  if (ABSL_PREDICT_FALSE(!read_status.ok())) {
-    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(read_status))) {
-      return FailOperation(read_status, "RandomAccessFile::Read()");
-    }
-    return !result.empty();
+  // Read more data, preferably into buffer_.
+  if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
+    return available() > 0;
   }
   return true;
 }
@@ -141,31 +145,250 @@ bool FileReaderBase::ReadSlow(char* dest, size_t length) {
       dest += available_length;
       length -= available_length;
     }
-    start_ = nullptr;
-    cursor_ = nullptr;
-    limit_ = nullptr;
-    if (ABSL_PREDICT_FALSE(length >
-                           std::numeric_limits<::tensorflow::uint64>::max() -
-                               limit_pos_)) {
-      return FailOverflow();
-    }
-    absl::string_view result;
-    const ::tensorflow::Status read_status = src->Read(
-        IntCast<::tensorflow::uint64>(limit_pos_), length, &result, dest);
-    RIEGELI_ASSERT_LE(result.size(), length)
-        << "RandomAccessFile::Read() read more than requested";
-    if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
-    limit_pos_ += result.size();
-    if (ABSL_PREDICT_FALSE(!read_status.ok())) {
-      if (ABSL_PREDICT_FALSE(
-              !::tensorflow::errors::IsOutOfRange(read_status))) {
-        return FailOperation(read_status, "RandomAccessFile::Read()");
-      }
-      return false;
-    }
-    return true;
+    size_t length_read;
+    return ReadToDest(dest, length, src, &length_read);
   }
   return Reader::ReadSlow(dest, length);
+}
+
+bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "length too small, use Read(Chain*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Chain*): "
+         "Chain size overflow";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of FileReaderBase: no buffer size specified";
+  ::tensorflow::RandomAccessFile* const src = src_file();
+  bool ok = true;
+  while (length > available()) {
+    if (available() == 0 && length >= LengthToReadDirectly()) {
+      const absl::Span<char> flat_buffer = dest->AppendFixedBuffer(length);
+      size_t length_read;
+      if (ABSL_PREDICT_FALSE(!ReadToDest(flat_buffer.data(), flat_buffer.size(),
+                                         src, &length_read))) {
+        dest->RemoveSuffix(flat_buffer.size() - length_read);
+        return false;
+      }
+      return true;
+    }
+    absl::Span<char> flat_buffer;
+    if (available() == 0 || !buffer_.empty()) {
+      // Do not extend buffer_ if available data are outside of buffer_, because
+      // available data would be lost.
+      flat_buffer = buffer_.AppendBuffer(0);
+    }
+    if (flat_buffer.empty()) {
+      // Append available data to dest and make a new buffer.
+      const size_t available_length = available();
+      if (buffer_.empty()) {
+        dest->Append(absl::string_view(cursor_, available_length));
+      } else {
+        buffer_.AppendSubstrTo(absl::string_view(cursor_, available_length),
+                               dest);
+        buffer_.Clear();
+      }
+      length -= available_length;
+      flat_buffer = buffer_.AppendBuffer(buffer_size_);
+      start_ = flat_buffer.data();
+      cursor_ = start_;
+      limit_ = start_;
+    } else if (flat_buffer.size() == buffer_.size()) {
+      // buffer_ was empty.
+      start_ = buffer_.data();
+      cursor_ = start_;
+      limit_ = start_;
+    }
+    // Read more data, preferably into buffer_.
+    if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
+      if (length > available()) {
+        length = available();
+        ok = false;
+      }
+      break;
+    }
+  }
+  RIEGELI_ASSERT_LE(length, available())
+      << "Bug in FileReaderBase::ReadSlow(Chain*): "
+         "remaining length larger than available data";
+  if (buffer_.empty()) {
+    dest->Append(absl::string_view(cursor_, length));
+  } else {
+    buffer_.AppendSubstrTo(absl::string_view(cursor_, length), dest);
+  }
+  cursor_ += length;
+  return ok;
+}
+
+bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::CopyToSlow(Writer*): "
+         "length too small, use CopyTo(Writer*) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of FileReaderBase: no buffer size specified";
+  ::tensorflow::RandomAccessFile* const src = src_file();
+  bool read_ok = true;
+  while (length > available()) {
+    absl::Span<char> flat_buffer;
+    if (available() == 0 || !buffer_.empty()) {
+      // Do not extend buffer_ if available data are outside of buffer_, because
+      // available data would be lost.
+      flat_buffer = buffer_.AppendBuffer(0);
+    }
+    if (flat_buffer.empty()) {
+      // Write available data to dest and make a new buffer.
+      const size_t available_length = available();
+      if (available_length > 0) {
+        bool write_ok;
+        if (buffer_.empty()) {
+          write_ok = dest->Write(absl::string_view(cursor_, available_length));
+        } else if (available_length == buffer_.size()) {
+          write_ok = dest->Write(Chain(buffer_));
+        } else {
+          Chain data;
+          buffer_.AppendSubstrTo(absl::string_view(cursor_, available_length),
+                                 &data, available_length);
+          write_ok = dest->Write(std::move(data));
+        }
+        if (ABSL_PREDICT_FALSE(!write_ok)) {
+          cursor_ = limit_;
+          return false;
+        }
+        length -= available_length;
+      }
+      buffer_.Clear();
+      flat_buffer = buffer_.AppendBuffer(buffer_size_);
+      start_ = flat_buffer.data();
+      cursor_ = start_;
+      limit_ = start_;
+    } else if (flat_buffer.size() == buffer_.size()) {
+      // buffer_ was empty.
+      start_ = buffer_.data();
+      cursor_ = start_;
+      limit_ = start_;
+    }
+    // Read more data, preferably into buffer_.
+    if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
+      if (length > available()) {
+        length = available();
+        read_ok = false;
+      }
+      break;
+    }
+  }
+  RIEGELI_ASSERT_LE(length, available())
+      << "Bug in FileReaderBase::CopyToSlow(Writer*): "
+         "remaining length larger than available data";
+  bool write_ok = true;
+  if (length > 0) {
+    if (buffer_.empty()) {
+      write_ok = dest->Write(absl::string_view(cursor_, length));
+    } else if (length == buffer_.size()) {
+      write_ok = dest->Write(Chain(buffer_));
+    } else {
+      Chain data;
+      buffer_.AppendSubstrTo(absl::string_view(cursor_, length), &data, length);
+      write_ok = dest->Write(std::move(data));
+    }
+    cursor_ += length;
+  }
+  return write_ok && read_ok;
+}
+
+bool FileReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
+         "length too small, use CopyTo(BackwardWriter*) instead";
+  if (length <= available() && buffer_.empty()) {
+    // Avoid writing a string_view if available data are in buffer_, because in
+    // this case it is better to write a Chain.
+    const absl::string_view data(cursor_, length);
+    cursor_ += length;
+    return dest->Write(data);
+  }
+  if (length <= kMaxBytesToCopy) {
+    char buffer[kMaxBytesToCopy];
+    if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
+    return dest->Write(absl::string_view(buffer, length));
+  }
+  Chain data;
+  if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;
+  return dest->Write(std::move(data));
+}
+
+inline bool FileReaderBase::ReadToDest(char* dest, size_t length,
+                                       ::tensorflow::RandomAccessFile* src,
+                                       size_t* length_read) {
+  ClearBuffer();
+  if (ABSL_PREDICT_FALSE(length >
+                         std::numeric_limits<::tensorflow::uint64>::max() -
+                             limit_pos_)) {
+    *length_read = 0;
+    return FailOverflow();
+  }
+  absl::string_view result;
+  const ::tensorflow::Status read_status = src->Read(
+      IntCast<::tensorflow::uint64>(limit_pos_), length, &result, dest);
+  RIEGELI_ASSERT_LE(result.size(), length)
+      << "RandomAccessFile::Read() read more than requested";
+  if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
+  limit_pos_ += result.size();
+  *length_read = result.size();
+  if (ABSL_PREDICT_FALSE(!read_status.ok())) {
+    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(read_status))) {
+      return FailOperation(read_status, "RandomAccessFile::Read()");
+    }
+    return false;
+  }
+  return true;
+}
+
+inline bool FileReaderBase::ReadToBuffer(absl::Span<char> flat_buffer,
+                                         ::tensorflow::RandomAccessFile* src) {
+  RIEGELI_ASSERT(start_ == buffer_.data())
+      << "Failed precondition of FileReaderBase::ReadToBuffer(): "
+         "start_ does not point to buffer_";
+  RIEGELI_ASSERT(limit_ == flat_buffer.data())
+      << "Failed precondition of FileReaderBase::ReadToBuffer(): "
+         "limit_ does not point to flat_buffer";
+  if (ABSL_PREDICT_FALSE(flat_buffer.size() >
+                         std::numeric_limits<::tensorflow::uint64>::max() -
+                             limit_pos_)) {
+    return FailOverflow();
+  }
+  absl::string_view result;
+  const ::tensorflow::Status read_status =
+      src->Read(IntCast<::tensorflow::uint64>(limit_pos_), flat_buffer.size(),
+                &result, flat_buffer.data());
+  RIEGELI_ASSERT_LE(result.size(), flat_buffer.size())
+      << "RandomAccessFile::Read() read more than requested";
+  if (result.data() != flat_buffer.data()) {
+    if (available() > 0) {
+      // Copy newly read data to buffer_ so that they are adjacent to previously
+      // available data.
+      std::memcpy(flat_buffer.data(), result.data(), result.size());
+    } else {
+      buffer_.Clear();
+      start_ = result.data();
+      cursor_ = start_;
+      limit_ = start_;
+    }
+  }
+  limit_ += result.size();
+  limit_pos_ += result.size();
+  if (ABSL_PREDICT_FALSE(!read_status.ok())) {
+    if (!buffer_.empty()) {
+      buffer_.RemoveSuffix(flat_buffer.size() - result.size());
+    }
+    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(read_status))) {
+      return FailOperation(read_status, "RandomAccessFile::Read()");
+    }
+    return false;
+  }
+  return true;
 }
 
 bool FileReaderBase::SeekSlow(Position new_pos) {
@@ -174,9 +397,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SeekSlow(new_pos);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  ClearBuffer();
   if (new_pos > limit_pos_) {
     // Seeking forwards.
     ::tensorflow::uint64 file_size;
@@ -206,6 +427,13 @@ bool FileReaderBase::Size(Position* size) {
   }
   *size = Position{file_size};
   return true;
+}
+
+void FileReaderBase::ClearBuffer() {
+  buffer_.Clear();
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
 }
 
 template class FileReader<std::unique_ptr<::tensorflow::RandomAccessFile>>;

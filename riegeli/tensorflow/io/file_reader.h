@@ -24,12 +24,15 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/buffer.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -121,17 +124,55 @@ class FileReaderBase : public Reader {
   bool PullSlow() override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
+  bool ReadSlow(Chain* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
+  using Reader::CopyToSlow;
+  bool CopyToSlow(Writer* dest, Position length) override;
+  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
 
  private:
   // Minimum length for which it is better to append current contents of buffer_
   // and read the remaining data directly than to read the data through buffer_.
   size_t LengthToReadDirectly() const;
 
+  // Clears buffer_. Reads length bytes from src, from the physical file
+  // position which is limit_pos_, to dest.
+  //
+  // Sets *length_read to the length read.
+  //
+  // Increments limit_pos_ by the length read.
+  bool ReadToDest(char* dest, size_t length,
+                  ::tensorflow::RandomAccessFile* src, size_t* length_read);
+
+  // Reads flat_buffer.size() bytes from src, from the physical file position
+  // which is limit_pos_, preferably to flat_buffer.data(). Newly read data are
+  // adjacent to previously available data, if any.
+  //
+  // Increments limit_ and limit_pos_ by the length read.
+  //
+  // Preconditions:
+  //   start_ == buffer_.data()
+  //   limit_ == flat_buffer.data()
+  bool ReadToBuffer(absl::Span<char> flat_buffer,
+                    ::tensorflow::RandomAccessFile* src);
+
+  // Discards buffer contents.
+  void ClearBuffer();
+
   std::string filename_;
   // Invariant: if healthy() && !filename_.empty() then file_system_ != nullptr
   ::tensorflow::FileSystem* file_system_ = nullptr;
-  Buffer buffer_;
+  // Invariant: if healthy() then buffer_size_ > 0
+  size_t buffer_size_ = 0;
+  // If buffer_ is not empty, it contains buffered data, read directly before
+  // the physical source position which is limit_pos_. Otherwise buffered data
+  // are in memory managed by the RandomAccessFile. In any case start_ points to
+  // them.
+  FlatChain buffer_;
+
+  // Invariants if !buffer_.empty():
+  //   start_ == buffer_.data()
+  //   buffer_size() == buffer_.size()
 };
 
 // A Reader which reads from a RandomAccessFile. It supports random access
@@ -181,12 +222,13 @@ class FileReader : public FileReaderBase {
 // Implementation details follow.
 
 inline FileReaderBase::FileReaderBase(size_t buffer_size)
-    : Reader(State::kOpen), buffer_(buffer_size) {}
+    : Reader(State::kOpen), buffer_size_(buffer_size) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
       file_system_(absl::exchange(that.file_system_, nullptr)),
+      buffer_size_(absl::exchange(that.buffer_size_, 0)),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileReaderBase& FileReaderBase::operator=(
@@ -194,6 +236,7 @@ inline FileReaderBase& FileReaderBase::operator=(
   Reader::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
   file_system_ = absl::exchange(that.file_system_, nullptr);
+  buffer_size_ = absl::exchange(that.buffer_size_, 0);
   buffer_ = std::move(that.buffer_);
   return *this;
 }
