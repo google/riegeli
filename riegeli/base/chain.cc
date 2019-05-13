@@ -168,7 +168,7 @@ inline Chain::Block::Block(const size_t* raw_capacity)
                      (*raw_capacity - kInternalAllocatedOffset())) {
   RIEGELI_ASSERT(is_internal())
       << "A Block with allocated_end_ != nullptr should be considered internal";
-  RIEGELI_CHECK_LE(capacity(), Block::kMaxCapacity)
+  RIEGELI_ASSERT_LE(capacity(), Block::kMaxCapacity)
       << "Chain block capacity overflow";
 }
 
@@ -374,7 +374,7 @@ inline void Chain::Block::Prepend(absl::string_view src) {
 }
 
 inline void Chain::Block::AppendTo(Chain* dest, size_t size_hint) {
-  RIEGELI_CHECK_LE(size(), std::numeric_limits<size_t>::max() - dest->size())
+  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::Block::AppendTo(Chain*): "
          "Chain size overflow";
   dest->AppendBlock(this, size_hint);
@@ -389,8 +389,8 @@ inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
       std::less_equal<const char*>()(substr.data() + substr.size(), data_end()))
       << "Failed precondition of Chain::Block::AppendSubstrTo(Chain*): "
          "substring not contained in data";
-  RIEGELI_CHECK_LE(substr.size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
+  RIEGELI_ASSERT_LE(substr.size(),
+                    std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::Block::AppendSubstrTo(Chain*): "
          "Chain size overflow";
   if (substr.size() == size()) {
@@ -426,8 +426,12 @@ void Chain::PinnedBlock::Unpin(void* token) {
 
 void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData())
-      << "Failed precondition of Chain::BlockIterator::AppendTo(): "
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
          "iterator is end()";
+  RIEGELI_CHECK_LE(chain_->size(),
+                   std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
+         "Chain size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     dest->Append(chain_->short_data(), size_hint);
   } else {
@@ -439,17 +443,23 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                           size_t size_hint) const {
   if (substr.empty()) return;
   RIEGELI_ASSERT(ptr_ != kEndShortData())
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
          "iterator is end()";
+  RIEGELI_CHECK_LE(substr.size(),
+                   std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
+         "Chain size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
     RIEGELI_ASSERT(std::greater_equal<const char*>()(
         substr.data(), chain_->short_data().data()))
-        << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
+        << "Failed precondition of "
+           "Chain::BlockIterator::AppendSubstrTo(Chain*): "
            "substring not contained in data";
     RIEGELI_ASSERT(std::less_equal<const char*>()(
         substr.data() + substr.size(),
         chain_->short_data().data() + chain_->short_data().size()))
-        << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(): "
+        << "Failed precondition of "
+           "Chain::BlockIterator::AppendSubstrTo(Chain*): "
            "substring not contained in data";
     dest->Append(substr, size_hint);
   } else {
@@ -1972,14 +1982,23 @@ void FlatChain::RemovePrefixSlow(size_t length, size_t size_hint) {
 }
 
 void FlatChain::AppendTo(Chain* dest, size_t size_hint) const {
-  if (block_ != nullptr) block_->AppendTo(dest, size_hint);
+  if (block_ == nullptr) return;
+  RIEGELI_CHECK_LE(block_->size(),
+                   std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of FlatChain::AppendTo(Chain*): "
+         "Chain size overflow";
+  block_->AppendTo(dest, size_hint);
 }
 
 void FlatChain::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                size_t size_hint) const {
   if (substr.empty()) return;
+  RIEGELI_CHECK_LE(substr.size(),
+                   std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of FlatChain::AppendSubstrTo(Chain*): "
+         "Chain size overflow";
   RIEGELI_ASSERT(block_ != nullptr)
-      << "Failed precondition of FlatChain::AppendSubstrTo(): "
+      << "Failed precondition of FlatChain::AppendSubstrTo(Chain*): "
          "substring not contained in data";
   block_->AppendSubstrTo(substr, dest, size_hint);
 }
