@@ -284,8 +284,6 @@ class Chain {
     Allocated allocated;
   };
 
-  static constexpr size_t kMinBufferSize = 256;
-  static constexpr size_t kMaxBufferSize = size_t{64} << 10;
   static constexpr size_t kAllocationCost = 256;
 
   bool has_here() const { return begin_ == block_ptrs_.here; }
@@ -585,8 +583,6 @@ class FlatChain {
   friend class Chain;
 
   using Block = Chain::Block;
-
-  static constexpr size_t kMinBufferSize = Chain::kMinBufferSize;
 
   // Decides about the capacity of a new block to be appended/prepended.
   size_t NewBlockCapacity(size_t min_length, size_t recommended_length,

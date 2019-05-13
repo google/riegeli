@@ -523,11 +523,20 @@ enum class FlushType {
 // expensive destination/source.
 RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 
+// Typical bounds of sizes of buffers holding pieces of data in objects.
+RIEGELI_INLINE_CONSTEXPR(size_t, kMinBufferSize, 256);
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
+
 // In the fast path of certain functions, even if enough data is available in a
 // buffer, the data is not copied if more than kMaxBytesToCopy is requested,
 // falling back to a virtual slow path instead. The virtual function might take
 // advantage of sharing instead of copying.
 RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 511);
+
+// Heuristics for whether a partially filled buffer is wasteful.
+inline bool Wasteful(size_t total, size_t used) {
+  return total - used > UnsignedMax(used, kMinBufferSize);
+}
 
 }  // namespace riegeli
 

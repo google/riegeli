@@ -55,6 +55,13 @@ class Buffer {
   // Returns false if GetData() would allocate the buffer.
   bool is_allocated() const { return data_ != nullptr; }
 
+  // Releases the ownership of the data pointer, which must be deleted using
+  // DeleteReleasedData() if not nullptr.
+  char* Release();
+
+  // Deletes the pointer obtained by Release().
+  static void DeleteReleasedData(char* ptr);
+
  private:
   // If the buffer is allocated, deletes it.
   void DeleteBuffer();
@@ -97,6 +104,10 @@ inline char* Buffer::GetData() {
   }
   return data_;
 }
+
+inline char* Buffer::Release() { return absl::exchange(data_, nullptr); }
+
+inline void Buffer::DeleteReleasedData(char* ptr) { operator delete(ptr); }
 
 }  // namespace riegeli
 

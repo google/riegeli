@@ -41,13 +41,10 @@ namespace riegeli {
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
 constexpr size_t Chain::kAnyLength;
-constexpr size_t Chain::kMinBufferSize;
-constexpr size_t Chain::kMaxBufferSize;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::Block::kMaxCapacity;
 constexpr size_t FlatChain::kMaxSize;
 constexpr size_t FlatChain::kAnyLength;
-constexpr size_t FlatChain::kMinBufferSize;
 #endif
 
 namespace {
@@ -264,8 +261,7 @@ inline bool Chain::Block::wasteful(size_t extra_size) const {
            "non-zero extra size of external block";
     return false;
   }
-  const size_t final_size = size() + extra_size;
-  return capacity() - final_size > UnsignedMax(final_size, kMinBufferSize);
+  return Wasteful(capacity(), size() + extra_size);
 }
 
 inline void Chain::Block::RegisterShared(
