@@ -25,6 +25,16 @@
 
 namespace riegeli {
 
+inline size_t BufferedWriter::BufferLength(size_t min_length) const {
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of BufferedWriter: no buffer size specified";
+  size_t length = buffer_size_;
+  if (start_pos_ < size_hint_) {
+    length = UnsignedMin(length, size_hint_ - start_pos_);
+  }
+  return UnsignedMax(length, min_length);
+}
+
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
@@ -47,24 +57,16 @@ inline size_t BufferedWriter::LengthToWriteDirectly() const {
   return length;
 }
 
-bool BufferedWriter::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(min_length >
+                         std::numeric_limits<Position>::max() - start_pos_)) {
     return FailOverflow();
   }
-  if (ABSL_PREDICT_FALSE(!buffer_.is_allocated())) {
-    if (start_pos_ < size_hint_ && buffer_.size() > size_hint_ - start_pos_) {
-      // Avoid allocating more than needed for size_hint_.
-      buffer_ = Buffer(size_hint_ - start_pos_);
-    }
-  } else if (ABSL_PREDICT_FALSE(buffer_.size() < buffer_size_)) {
-    // buffer_ is too small. It must have been tuned for size_hint_ but more
-    // data are being written.
-    buffer_ = Buffer(buffer_size_);
-  }
+  buffer_.Resize(BufferLength(min_length));
   start_ = buffer_.GetData();
   cursor_ = start_;
   limit_ =

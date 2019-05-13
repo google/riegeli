@@ -56,10 +56,6 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail(ResourceExhaustedError("Too many records"));
   }
-  if (ABSL_PREDICT_FALSE(chunk.header.decoded_data_size() >
-                         record_scratch_.max_size())) {
-    return Fail(ResourceExhaustedError("Too large chunk"));
-  }
   Chain values;
   if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
     limits_.clear();  // Ensure that index() == num_records().

@@ -132,7 +132,6 @@ class ChunkDecoder : public Object {
   ChainReader<Chain> values_reader_;
   // Invariant: index_ <= num_records()
   uint64_t index_ = 0;
-  std::string record_scratch_;
   // Whether Recover() is applicable.
   //
   // Invariant: if recoverable_ then !healthy()
@@ -153,7 +152,6 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
       values_reader_(
           absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
       index_(absl::exchange(that.index_, 0)),
-      record_scratch_(absl::exchange(that.record_scratch_, std::string())),
       recoverable_(absl::exchange(that.recoverable_, false)) {}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
@@ -163,7 +161,6 @@ inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   values_reader_ =
       absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
   index_ = absl::exchange(that.index_, 0);
-  record_scratch_ = absl::exchange(that.record_scratch_, std::string());
   recoverable_ = absl::exchange(that.recoverable_, false);
   return *this;
 }
@@ -174,7 +171,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  if (!values_reader_.Read(record, &record_scratch_, limit - start)) {
+  if (!values_reader_.Read(record, limit - start)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.status();
   }

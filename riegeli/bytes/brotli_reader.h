@@ -23,12 +23,13 @@
 #include "brotli/decode.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
 // Template parameter invariant part of BrotliReader.
-class BrotliReaderBase : public Reader {
+class BrotliReaderBase : public PullableReader {
  public:
   class Options {};
 
@@ -37,14 +38,14 @@ class BrotliReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
  protected:
-  explicit BrotliReaderBase(State state) noexcept : Reader(state) {}
+  explicit BrotliReaderBase(State state) noexcept : PullableReader(state) {}
 
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
   void Initialize(Reader* src);
   void Done() override;
-  bool PullSlow() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
 
  private:
   struct BrotliDecoderStateDeleter {
@@ -107,13 +108,13 @@ class BrotliReader : public BrotliReaderBase {
 // Implementation details follow.
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
-    : Reader(std::move(that)),
+    : PullableReader(std::move(that)),
       truncated_(absl::exchange(that.truncated_, false)),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
     BrotliReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
+  PullableReader::operator=(std::move(that));
   truncated_ = absl::exchange(that.truncated_, false);
   decompressor_ = std::move(that.decompressor_);
   return *this;

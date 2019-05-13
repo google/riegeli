@@ -65,13 +65,9 @@ void ZstdReaderBase::Initialize(Reader* src) {
                                       ZSTD_getErrorName(result))));
     }
   }
-  if (ABSL_PREDICT_TRUE(src->Pull())) {
+  src->Pull(ZSTD_FRAMEHEADERSIZE_MAX);
+  if (ABSL_PREDICT_TRUE(src->healthy())) {
     // Tune the buffer size if the uncompressed size is known.
-    //
-    // The uncompressed size of the first and usually the only frame is
-    // optionally stored in the frame header, which has between 6 and 18 bytes.
-    // It is possible that the frame header does not fit in src->available(),
-    // in which case the optimization is skipped for simplicity.
     unsigned long long uncompressed_size =
         ZSTD_getFrameContentSize(src->cursor(), src->available());
     if (uncompressed_size != ZSTD_CONTENTSIZE_UNKNOWN &&
@@ -89,14 +85,14 @@ void ZstdReaderBase::Done() {
   BufferedReader::Done();
 }
 
-bool ZstdReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   // After all data have been decompressed, skip BufferedReader::PullSlow()
   // to avoid allocating the buffer in case it was not allocated yet.
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  return BufferedReader::PullSlow();
+  return BufferedReader::PullSlow(min_length, recommended_length);
 }
 
 bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,

@@ -22,10 +22,10 @@
 
 namespace riegeli {
 
-bool StringReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool StringReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   return false;
 }
 

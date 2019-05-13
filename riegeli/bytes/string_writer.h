@@ -70,7 +70,7 @@ class StringWriterBase : public Writer {
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
   void Done() override;
-  bool PushSlow() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(std::string&& src) override;

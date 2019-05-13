@@ -25,13 +25,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
-#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 // Template parameter invariant part of ChainReader.
-class ChainReaderBase : public Reader {
+class ChainReaderBase : public PullableReader {
  public:
   // Returns the Chain being read from. Unchanged by Close().
   virtual const Chain* src_chain() const = 0;
@@ -40,23 +40,23 @@ class ChainReaderBase : public Reader {
   bool Size(Position* size) override;
 
  protected:
-  explicit ChainReaderBase(State state) noexcept : Reader(state) {}
+  explicit ChainReaderBase(State state) noexcept : PullableReader(state) {}
 
   ChainReaderBase(ChainReaderBase&& that) noexcept;
   ChainReaderBase& operator=(ChainReaderBase&& that) noexcept;
 
   void Done() override;
-  bool PullSlow() override;
-  using Reader::ReadSlow;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  using PullableReader::ReadSlow;
   bool ReadSlow(Chain* dest, size_t length) override;
-  using Reader::CopyToSlow;
+  using PullableReader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
   Chain::BlockIterator iter_;
 
-  // Invariants if healthy():
+  // Invariants if healthy() and scratch is not used:
   //   iter_.chain() == src_chain()
   //   start_ ==
   //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())
@@ -102,12 +102,12 @@ class ChainReader : public ChainReaderBase {
 // Implementation details follow.
 
 inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& that) noexcept
-    : Reader(std::move(that)),
+    : PullableReader(std::move(that)),
       iter_(absl::exchange(that.iter_, Chain::BlockIterator())) {}
 
 inline ChainReaderBase& ChainReaderBase::operator=(
     ChainReaderBase&& that) noexcept {
-  Reader::operator=(std::move(that));
+  PullableReader::operator=(std::move(that));
   iter_ = absl::exchange(that.iter_, Chain::BlockIterator());
   return *this;
 }
@@ -146,6 +146,7 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
+    SwapScratchBegin();
     const size_t block_index = iter_.block_index();
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
@@ -157,6 +158,7 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
         limit_ = start_ + iter_->size();
       }
     }
+    SwapScratchEnd();
   }
 }
 

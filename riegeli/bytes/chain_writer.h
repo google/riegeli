@@ -21,7 +21,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -77,9 +76,8 @@ class ChainWriterBase : public Writer {
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
   void Done() override;
-  bool PushSlow() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
-  bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(std::string&& src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
@@ -89,9 +87,9 @@ class ChainWriterBase : public Writer {
   // only actual data written.
   void SyncBuffer(Chain* dest);
 
-  // Appends some uninitialized space to *dest if this can be done without
-  // allocation.
-  void MakeBuffer(Chain* dest, size_t min_length = 0);
+  // Appends uninitialized space to *dest.
+  void MakeBuffer(Chain* dest, size_t min_length = 0,
+                  size_t recommended_length = 0);
 
   size_t size_hint_ = 0;
 

@@ -41,14 +41,18 @@ namespace riegeli {
 // Sequential writing is supported, random access is not.
 class BackwardWriter : public Object {
  public:
-  // Ensures that some space is available for writing: pushes previously written
-  // data to the destination, and points cursor() and limit() to non-empty
-  // space. If some space was already available, does nothing.
+  // Ensures that enough space is available for writing: pushes previously
+  // written data to the destination, and points cursor() and limit() to space
+  // with length at least min_length, preferably recommended_length. If enough
+  // space was already available, does nothing.
+  //
+  // If recommended_length < min_length, recommended_length is assumed to be
+  // min_length.
   //
   // Return values:
-  //  * true  - success (available() > 0, healthy())
-  //  * false - failure (available() == 0, !healthy())
-  bool Push();
+  //  * true  - success (available() >= min_length)
+  //  * false - failure (available() < min_length, !healthy())
+  bool Push(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Space between start() (exclusive upper bound) and limit()
   // (inclusive lower bound) is available for writing data to it, with cursor()
@@ -179,7 +183,7 @@ class BackwardWriter : public Object {
   // Implementation of the slow part of Push().
   //
   // Precondition: available() == 0
-  virtual bool PushSlow() = 0;
+  virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Implementation of the slow part of Write().
   //
@@ -238,9 +242,15 @@ inline void BackwardWriter::Done() {
   limit_ = nullptr;
 }
 
-inline bool BackwardWriter::Push() {
-  if (ABSL_PREDICT_TRUE(available() > 0)) return true;
-  return PushSlow();
+inline bool BackwardWriter::Push(size_t min_length, size_t recommended_length) {
+  if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
+  if (ABSL_PREDICT_FALSE(!PushSlow(min_length, recommended_length))) {
+    return false;
+  }
+  RIEGELI_ASSERT_GE(available(), min_length)
+      << "Failed postcondition of BackwardWriter::PushSlow(): "
+         "not enough space available";
+  return true;
 }
 
 inline void BackwardWriter::set_cursor(char* cursor) {

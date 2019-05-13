@@ -51,17 +51,15 @@ bool Reader::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
-  if (available() == 0) goto skip_copy;  // memcpy(_, nullptr, 0) is undefined.
   do {
-    {
-      const size_t available_length = available();
+    const size_t available_length = available();
+    if (available_length > 0) {  // memcpy(_, nullptr, 0) is undefined.
       std::memcpy(dest, cursor_, available_length);
       cursor_ = limit_;
       dest += available_length;
       length -= available_length;
     }
-  skip_copy:
-    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
   } while (length > available());
   std::memcpy(dest, cursor_, length);
   cursor_ += length;
@@ -88,28 +86,6 @@ bool Reader::ReadSlow(std::string* dest, size_t length) {
     return false;
   }
   return true;
-}
-
-bool Reader::ReadSlow(absl::string_view* dest, std::string* scratch,
-                      size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
-      << "Failed precondition of Reader::ReadSlow(string_view*): "
-         "length too small, use Read(string_view*) instead";
-  RIEGELI_ASSERT_LE(length, scratch->max_size())
-      << "Failed precondition of Reader::ReadSlow(string_view*): "
-         "string size overflow";
-  if (available() == 0) {
-    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
-    if (length <= available()) {
-      *dest = absl::string_view(cursor_, length);
-      cursor_ += length;
-      return true;
-    }
-  }
-  scratch->clear();
-  const bool ok = ReadSlow(scratch, length);
-  *dest = *scratch;
-  return ok;
 }
 
 bool Reader::ReadSlow(Chain* dest, size_t length) {
@@ -145,7 +121,7 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
     cursor_ = limit_;
     if (ABSL_PREDICT_FALSE(!dest->Write(data))) return false;
     length -= data.size();
-    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
   }
   const absl::string_view data(cursor_, length);
   cursor_ += length;
@@ -162,32 +138,17 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
     return dest->Write(data);
   }
   if (length <= kMaxBytesToCopy) {
-    char buffer[kMaxBytesToCopy];
-    if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
-    return dest->Write(absl::string_view(buffer, length));
+    if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
+    dest->set_cursor(dest->cursor() - length);
+    if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
+      dest->set_cursor(dest->cursor() + length);
+      return false;
+    }
+    return true;
   }
   Chain data;
   if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;
   return dest->Write(std::move(data));
-}
-
-bool Reader::ReadAll(absl::string_view* dest, std::string* scratch) {
-  if (SupportsRandomAccess()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, pos());
-    if (ABSL_PREDICT_FALSE(remaining > scratch->max_size())) {
-      return Fail(ResourceExhaustedError("Destination size overflow"));
-    }
-    if (ABSL_PREDICT_FALSE(!Read(dest, scratch, IntCast<size_t>(remaining)))) {
-      return healthy();
-    }
-    return true;
-  }
-  scratch->clear();
-  bool ok = ReadAll(scratch);
-  *dest = *scratch;
-  return ok;
 }
 
 bool Reader::ReadAll(std::string* dest) {
@@ -209,7 +170,7 @@ bool Reader::ReadAll(std::string* dest) {
       }
       dest->append(cursor_, available());
       cursor_ = limit_;
-    } while (PullSlow());
+    } while (PullSlow(1, 0));
     return healthy();
   }
 }
@@ -285,7 +246,7 @@ bool Reader::SeekSlow(Position new_pos) {
   // Seeking forwards.
   do {
     cursor_ = limit_;
-    if (ABSL_PREDICT_FALSE(!PullSlow())) return false;
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
   } while (new_pos > limit_pos_);
   const Position available_length = limit_pos_ - new_pos;
   RIEGELI_ASSERT_LE(available_length, buffer_size())

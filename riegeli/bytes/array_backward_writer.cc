@@ -28,10 +28,11 @@ void ArrayBackwardWriterBase::Done() {
   BackwardWriter::Done();
 }
 
-bool ArrayBackwardWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool ArrayBackwardWriterBase::PushSlow(size_t min_length,
+                                       size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of BackwardWriter::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   return FailOverflow();
 }
 

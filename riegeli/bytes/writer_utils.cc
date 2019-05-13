@@ -15,46 +15,28 @@
 #include "riegeli/bytes/writer_utils.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <cstring>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 namespace internal {
 
-bool WriteVarint32Slow(Writer* dest, uint32_t data) {
-  char buffer[kMaxLengthVarint32];
-  char* const end = WriteVarint32(buffer, data);
-  return dest->Write(absl::string_view(buffer, PtrDistance(buffer, end)));
-}
-
-bool WriteVarint64Slow(Writer* dest, uint64_t data) {
-  char buffer[kMaxLengthVarint64];
-  char* const end = WriteVarint64(buffer, data);
-  return dest->Write(absl::string_view(buffer, PtrDistance(buffer, end)));
-}
-
 bool WriteZerosSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, dest->available())
       << "Failed precondition of WriteZerosSlow(): "
          "length too small, use WriteZeros() instead";
-  if (dest->available() == 0) {  // memset(nullptr, _, 0) is undefined.
-    goto skip_copy;
-  }
   do {
-    {
-      const size_t available_length = dest->available();
+    const size_t available_length = dest->available();
+    if (available_length > 0) {  // memset(nullptr, _, 0) is undefined.
       std::memset(dest->cursor(), 0, available_length);
       dest->set_cursor(dest->limit());
       length -= available_length;
     }
-  skip_copy:
-    if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
+    if (ABSL_PREDICT_FALSE(!dest->Push(1, length))) return false;
   } while (length > dest->available());
   std::memset(dest->cursor(), 0, length);
   dest->set_cursor(dest->cursor() + length);

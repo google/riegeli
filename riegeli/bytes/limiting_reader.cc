@@ -44,17 +44,21 @@ void LimitingReaderBase::Done() {
   Reader::Done();
 }
 
-bool LimitingReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool LimitingReaderBase::PullSlow(size_t min_length,
+                                  size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  if (ABSL_PREDICT_FALSE(limit_pos_ == size_limit_)) return false;
-  const bool ok = src->Pull();
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
+  const size_t min_length_to_pull =
+      UnsignedMin(min_length, size_limit_ - pos());
+  const bool ok = src->Pull(min_length_to_pull, recommended_length);
   MakeBuffer(src);
-  return ok;
+  return ok && min_length_to_pull == min_length;
 }
 
 bool LimitingReaderBase::ReadSlow(char* dest, size_t length) {

@@ -62,15 +62,19 @@ class Reader : public Object {
   // if not.
   virtual void VerifyEnd();
 
-  // Ensures that some data available for reading: pulls more data from the
-  // source, and points cursor() and limit() to non-empty data. If some data
-  // were already buffered, does nothing.
+  // Ensures that enough data are available for reading: pulls more data from
+  // the source, and points cursor() and limit() to data with length at least
+  // min_length, preferably recommended_length. If enough data were already
+  // available, does nothing.
+  //
+  // If recommended_length < min_length, recommended_length is assumed to be
+  // min_length.
   //
   // Return values:
-  //  * true                    - success (available() > 0)
-  //  * false (when healthy())  - source ends (available() == 0)
-  //  * false (when !healthy()) - failure (available() == 0)
-  bool Pull();
+  //  * true                    - success (available() >= min_length)
+  //  * false (when healthy())  - source ends (available() < min_length)
+  //  * false (when !healthy()) - failure (available() < min_length)
+  bool Pull(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Data between start() and limit() are available for
   // reading, with cursor() pointing to the current position.
@@ -107,9 +111,8 @@ class Reader : public Object {
   // Read(string*) and Read(Chain*) append to any existing data in
   // dest.
   //
-  // Read(string_view*) points dest to an array holding the data, residing
-  // either in internal buffers or in scratch (resized) if internal buffers are
-  // too small.
+  // Read(string_view*) points dest to an array holding the data. The array is
+  // valid until the next non-const operation on the Reader.
   //
   // CopyTo(Writer*) writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
@@ -120,9 +123,6 @@ class Reader : public Object {
   //
   // Precondition for Read(string*):
   //   length <= dest->max_size() - dest->size()
-  //
-  // Precondition for Read(string_view*):
-  //   length <= scratch->max_size()
   //
   // Precondition for Read(Chain*):
   //   length <= numeric_limits<size_t>::max() - dest->size()
@@ -141,7 +141,7 @@ class Reader : public Object {
   //                                                  length bytes copied)
   bool Read(char* dest, size_t length);
   bool Read(std::string* dest, size_t length);
-  bool Read(absl::string_view* dest, std::string* scratch, size_t length);
+  bool Read(absl::string_view* dest, size_t length);
   bool Read(Chain* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
@@ -150,10 +150,6 @@ class Reader : public Object {
   //
   // ReadAll(string*) and ReadAll(Chain*) append to any
   // existing data in dest.
-  //
-  // ReadAll(string_view*) points dest to an array holding the data, residing
-  // either in internal buffers or in scratch (resized) if internal buffers are
-  // too small.
   //
   // CopyAllTo(Writer*) writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
@@ -169,7 +165,6 @@ class Reader : public Object {
   // Return values for CopyAllTo():
   //  * true (dest->healthy() && healthy())    - success
   //  * false (!dest->healthy() || !healthy()) - failure
-  bool ReadAll(absl::string_view* dest, std::string* scratch);
   bool ReadAll(std::string* dest);
   bool ReadAll(Chain* dest);
   bool CopyAllTo(Writer* dest);
@@ -244,7 +239,7 @@ class Reader : public Object {
   // Implementation of the slow part of Pull().
   //
   // Precondition: available() == 0
-  virtual bool PullSlow() = 0;
+  virtual bool PullSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Implementations of the slow part of Read() and CopyTo().
   //
@@ -253,8 +248,7 @@ class Reader : public Object {
   // terms of ReadSlow(char*); and CopyToSlow(BackwardWriter*) is implemented in
   // terms of ReadSlow(char*) and ReadSlow(Chain*).
   //
-  // Precondition for ReadSlow(char*), ReadSlow(string*), and
-  // ReadSlow(string_view*):
+  // Precondition for ReadSlow(char*) and ReadSlow(string*):
   //   length > available()
   //
   // Precondition for ReadSlow(Chain*) and CopyToSlow():
@@ -263,14 +257,10 @@ class Reader : public Object {
   // Precondition for ReadSlow(string*):
   //   length <= dest->max_size() - dest->size()
   //
-  // Precondition for ReadSlow(string_view*):
-  //   length <= scratch->max_size()
-  //
   // Precondition for ReadSlow(Chain*):
   //   length <= numeric_limits<size_t>::max() - dest->size()
   virtual bool ReadSlow(char* dest, size_t length);
   bool ReadSlow(std::string* dest, size_t length);
-  bool ReadSlow(absl::string_view* dest, std::string* scratch, size_t length);
   virtual bool ReadSlow(Chain* dest, size_t length);
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
@@ -318,9 +308,15 @@ inline void Reader::Done() {
   limit_ = nullptr;
 }
 
-inline bool Reader::Pull() {
-  if (ABSL_PREDICT_TRUE(available() > 0)) return true;
-  return PullSlow();
+inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
+  if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
+  if (ABSL_PREDICT_FALSE(!PullSlow(min_length, recommended_length))) {
+    return false;
+  }
+  RIEGELI_ASSERT_GE(available(), min_length)
+      << "Failed postcondition of Reader::PullSlow(): "
+         "not enough data available";
+  return true;
 }
 
 inline void Reader::set_cursor(const char* cursor) {
@@ -358,17 +354,11 @@ inline bool Reader::Read(std::string* dest, size_t length) {
   return ReadSlow(dest, length);
 }
 
-inline bool Reader::Read(absl::string_view* dest, std::string* scratch,
-                         size_t length) {
-  RIEGELI_CHECK_LE(length, scratch->max_size())
-      << "Failed precondition of Reader::Read(string_view*): "
-         "string size overflow";
-  if (ABSL_PREDICT_TRUE(length <= available())) {
-    *dest = absl::string_view(cursor_, length);
-    cursor_ += length;
-    return true;
-  }
-  return ReadSlow(dest, scratch, length);
+inline bool Reader::Read(absl::string_view* dest, size_t length) {
+  if (ABSL_PREDICT_FALSE(!Pull(length))) return false;
+  *dest = absl::string_view(cursor_, length);
+  cursor_ += length;
+  return true;
 }
 
 inline bool Reader::Read(Chain* dest, size_t length) {

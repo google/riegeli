@@ -52,7 +52,7 @@ class BufferedReader : public Reader {
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
   void VerifyEnd() override;
-  bool PullSlow() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -81,8 +81,8 @@ class BufferedReader : public Reader {
   void set_size_hint(Position size_hint) { size_hint_ = size_hint; }
 
  private:
-  // The size of buffer_ to use for the next allocation.
-  size_t BufferLength() const;
+  // Preferred size of the buffer to use.
+  size_t BufferLength(size_t min_length = 0) const;
 
   // Minimum length for which it is better to append current contents of buffer_
   // and read the remaining data directly than to read the data through buffer_.

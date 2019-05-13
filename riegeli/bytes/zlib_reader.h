@@ -140,7 +140,7 @@ class ZlibReaderBase : public BufferedReader {
 
   void Initialize(Reader* src, int window_bits);
   void Done() override;
-  bool PullSlow() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 
  private:

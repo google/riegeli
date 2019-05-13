@@ -53,7 +53,7 @@ class ArrayWriterBase : public Writer {
   ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
 
   void Done() override;
-  bool PushSlow() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
 
   // Written data. Valid only after Close() or Flush().
   absl::Span<char> written_;

@@ -29,31 +29,22 @@ bool WriteVarint64(BackwardWriter* dest, uint64_t data);
 
 // Implementation details follow.
 
-namespace internal {
-
-bool WriteVarint32Slow(BackwardWriter* dest, uint32_t data);
-bool WriteVarint64Slow(BackwardWriter* dest, uint64_t data);
-
-}  // namespace internal
-
 inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32)) {
-    char* start = dest->cursor() - LengthVarint32(data);
-    dest->set_cursor(start);
-    WriteVarint32(start, data);
-    return true;
-  }
-  return internal::WriteVarint32Slow(dest, data);
+  const size_t length = LengthVarint32(data);
+  if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
+  char* start = dest->cursor() - length;
+  dest->set_cursor(start);
+  WriteVarint32(start, data);
+  return true;
 }
 
 inline bool WriteVarint64(BackwardWriter* dest, uint64_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64)) {
-    char* start = dest->cursor() - LengthVarint64(data);
-    dest->set_cursor(start);
-    WriteVarint64(start, data);
-    return true;
-  }
-  return internal::WriteVarint64Slow(dest, data);
+  const size_t length = LengthVarint64(data);
+  if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
+  char* start = dest->cursor() - length;
+  dest->set_cursor(start);
+  WriteVarint64(start, data);
+  return true;
 }
 
 }  // namespace riegeli

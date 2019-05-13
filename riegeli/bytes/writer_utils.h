@@ -47,9 +47,6 @@ bool WriteZeros(Writer* dest, Position length);
 
 namespace internal {
 
-bool WriteVarint32Slow(Writer* dest, uint32_t data);
-bool WriteVarint64Slow(Writer* dest, uint64_t data);
-
 bool WriteZerosSlow(Writer* dest, Position length);
 
 }  // namespace internal
@@ -117,19 +114,19 @@ inline char* WriteVarint64(char* dest, uint64_t data) {
 }
 
 inline bool WriteVarint32(Writer* dest, uint32_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint32)) {
-    dest->set_cursor(WriteVarint32(dest->cursor(), data));
-    return true;
+  if (ABSL_PREDICT_FALSE(dest->available() < kMaxLengthVarint32)) {
+    if (ABSL_PREDICT_FALSE(!dest->Push(LengthVarint32(data)))) return false;
   }
-  return internal::WriteVarint32Slow(dest, data);
+  dest->set_cursor(WriteVarint32(dest->cursor(), data));
+  return true;
 }
 
 inline bool WriteVarint64(Writer* dest, uint64_t data) {
-  if (ABSL_PREDICT_TRUE(dest->available() >= kMaxLengthVarint64)) {
-    dest->set_cursor(WriteVarint64(dest->cursor(), data));
-    return true;
+  if (ABSL_PREDICT_FALSE(dest->available() < kMaxLengthVarint64)) {
+    if (ABSL_PREDICT_FALSE(!dest->Push(LengthVarint64(data)))) return false;
   }
-  return internal::WriteVarint64Slow(dest, data);
+  dest->set_cursor(WriteVarint64(dest->cursor(), data));
+  return true;
 }
 
 inline bool WriteZeros(Writer* dest, Position length) {

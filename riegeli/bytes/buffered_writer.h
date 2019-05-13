@@ -50,7 +50,7 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
-  bool PushSlow() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
 
@@ -72,16 +72,18 @@ class BufferedWriter : public Writer {
   virtual bool WriteInternal(absl::string_view src) = 0;
 
  private:
+  // Preferred size of the buffer to use.
+  size_t BufferLength(size_t min_length) const;
+
   // Minimum length for which it is better to push current contents of buffer_
   // and write the data directly than to write the data through buffer_.
   size_t LengthToWriteDirectly() const;
 
+  // Invariant: if healthy() then buffer_size_ > 0
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, to be written directly after the physical destination
   // position which is start_pos_.
-  //
-  // Invariant: if healthy() then buffer_.size() > 0
   Buffer buffer_;
 };
 

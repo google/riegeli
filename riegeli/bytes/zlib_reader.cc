@@ -84,14 +84,14 @@ inline bool ZlibReaderBase::FailOperation(StatusCode code,
   return Fail(Status(code, message));
 }
 
-bool ZlibReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   // After all data have been decompressed, skip BufferedReader::PullSlow()
   // to avoid allocating the buffer in case it was not allocated yet.
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  return BufferedReader::PullSlow();
+  return BufferedReader::PullSlow(min_length, recommended_length);
 }
 
 bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,

@@ -121,7 +121,7 @@ class FileReaderBase : public Reader {
   void InitializePos(Position initial_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
-  bool PullSlow() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -131,6 +131,9 @@ class FileReaderBase : public Reader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
 
  private:
+  // Preferred size of the buffer to use.
+  size_t BufferLength(size_t min_length = 0) const;
+
   // Minimum length for which it is better to append current contents of buffer_
   // and read the remaining data directly than to read the data through buffer_.
   size_t LengthToReadDirectly() const;

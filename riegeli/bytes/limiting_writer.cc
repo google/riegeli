@@ -44,15 +44,20 @@ void LimitingWriterBase::Done() {
   Writer::Done();
 }
 
-bool LimitingWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool LimitingWriterBase::PushSlow(size_t min_length,
+                                  size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
-  if (ABSL_PREDICT_FALSE(pos() == size_limit_)) return FailOverflow();
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(min_length > size_limit_ - pos())) {
+    return FailOverflow();
+  }
   SyncBuffer(dest);
-  const bool ok = dest->Push();
+  const bool ok = dest->Push(min_length, recommended_length);
   MakeBuffer(dest);
   return ok;
 }
@@ -90,7 +95,7 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingWriter: position exceeds size limit";
+      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     return FailOverflow();
   }

@@ -97,28 +97,45 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
+inline size_t FileReaderBase::BufferLength(size_t min_length) const {
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of FileReaderBase: no buffer size specified";
+  return UnsignedMax(min_length, buffer_size_);
+}
+
 inline size_t FileReaderBase::LengthToReadDirectly() const {
   // Read directly if reading through buffer_ would need more than one read,
   // or if buffer_ would be full.
-  return SaturatingAdd(available(), buffer_size_);
+  return SaturatingAdd(available(), BufferLength());
 }
 
-bool FileReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of FileReaderBase: no buffer size specified";
   ::tensorflow::RandomAccessFile* const src = src_file();
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
-  if (flat_buffer.empty()) {
-    // Make a new buffer.
-    buffer_.Clear();
-    flat_buffer = buffer_.AppendBuffer(buffer_size_);
+  const size_t buffer_length = BufferLength(min_length);
+  if (available() > 0 && buffer_.empty()) {
+    // Copy available data to buffer_ so that newly read data will be adjacent
+    // to available data.
+    absl::Span<char> flat_buffer = buffer_.AppendFixedBuffer(
+        available(), SaturatingAdd(available(), buffer_length));
+    std::memcpy(flat_buffer.data(), cursor_, available());
     start_ = flat_buffer.data();
     cursor_ = start_;
-    limit_ = start_;
+    limit_ = start_ + flat_buffer.size();
+  }
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
+  if (flat_buffer.size() < min_length - available()) {
+    // Make a new buffer, preserving available data.
+    const size_t available_length = available();
+    buffer_.RemoveSuffix(flat_buffer.size());
+    buffer_.RemovePrefix(buffer_.size() - available_length);
+    flat_buffer = buffer_.AppendBuffer(buffer_length);
+    start_ = buffer_.data();
+    cursor_ = start_;
+    limit_ = flat_buffer.data();
   } else if (flat_buffer.size() == buffer_.size()) {
     // buffer_ was empty.
     start_ = buffer_.data();
@@ -127,7 +144,7 @@ bool FileReaderBase::PullSlow() {
   }
   // Read more data, preferably into buffer_.
   if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
-    return available() > 0;
+    return available() >= min_length;
   }
   return true;
 }
@@ -159,8 +176,6 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of FileReaderBase: no buffer size specified";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool ok = true;
   while (length > available()) {
@@ -191,7 +206,7 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
         buffer_.Clear();
       }
       length -= available_length;
-      flat_buffer = buffer_.AppendBuffer(buffer_size_);
+      flat_buffer = buffer_.AppendBuffer(BufferLength());
       start_ = flat_buffer.data();
       cursor_ = start_;
       limit_ = start_;
@@ -227,8 +242,6 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of FileReaderBase: no buffer size specified";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool read_ok = true;
   while (length > available()) {
@@ -260,7 +273,7 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
         length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.AppendBuffer(buffer_size_);
+      flat_buffer = buffer_.AppendBuffer(BufferLength());
       start_ = flat_buffer.data();
       cursor_ = start_;
       limit_ = start_;
@@ -310,9 +323,13 @@ bool FileReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
     return dest->Write(data);
   }
   if (length <= kMaxBytesToCopy) {
-    char buffer[kMaxBytesToCopy];
-    if (ABSL_PREDICT_FALSE(!ReadSlow(buffer, length))) return false;
-    return dest->Write(absl::string_view(buffer, length));
+    if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
+    dest->set_cursor(dest->cursor() - length);
+    if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
+      dest->set_cursor(dest->cursor() + length);
+      return false;
+    }
+    return true;
   }
   Chain data;
   if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;

@@ -64,7 +64,7 @@ class LimitingReaderBase : public Reader {
   LimitingReaderBase& operator=(LimitingReaderBase&& that) noexcept;
 
   void Done() override;
-  bool PullSlow() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;

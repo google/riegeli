@@ -55,6 +55,10 @@ class Buffer {
   // Returns false if GetData() would allocate the buffer.
   bool is_allocated() const { return data_ != nullptr; }
 
+  // Ensure that the data size is at least the given value. Existing contents
+  // are lost.
+  void Resize(size_t size);
+
   // Releases the ownership of the data pointer, which must be deleted using
   // DeleteReleasedData() if not nullptr.
   char* Release();
@@ -103,6 +107,16 @@ inline char* Buffer::GetData() {
     size_ = capacity;
   }
   return data_;
+}
+
+inline void Buffer::Resize(size_t new_size) {
+  if (!is_allocated()) {
+    size_ = new_size;
+  } else if (new_size > size_) {
+    DeleteBuffer();
+    data_ = nullptr;
+    size_ = UnsignedMax(new_size, SaturatingAdd(size_, size_));
+  }
 }
 
 inline char* Buffer::Release() { return absl::exchange(data_, nullptr); }

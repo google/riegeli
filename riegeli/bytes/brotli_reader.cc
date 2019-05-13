@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -55,14 +56,17 @@ void BrotliReaderBase::Done() {
     Fail(DataLossError("Truncated Brotli-compressed stream"));
   }
   decompressor_.reset();
-  Reader::Done();
+  PullableReader::Done();
 }
 
-bool BrotliReaderBase::PullSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
-         "data available, use Pull() instead";
+         "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length))) {
+    return available() >= min_length;
+  }
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader* const src = src_reader();
   truncated_ = false;

@@ -60,13 +60,11 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
     ],
 )
 
 cc_library(
     name = "backward_writer_utils",
-    srcs = ["backward_writer_utils.cc"],
     hdrs = [
         "backward_writer_utils.h",
         "varint.h",
@@ -76,7 +74,6 @@ cc_library(
         ":writer_utils",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -91,6 +88,20 @@ cc_library(
         ":reader",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
+    name = "pullable_reader",
+    srcs = ["pullable_reader.cc"],
+    hdrs = ["pullable_reader.h"],
+    deps = [
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
     ],
 )
 
@@ -240,7 +251,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/utility",
     ],
@@ -255,7 +265,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/utility",
     ],
@@ -267,7 +276,7 @@ cc_library(
     hdrs = ["chain_reader.h"],
     deps = [
         ":backward_writer",
-        ":reader",
+        ":pullable_reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -339,6 +348,7 @@ cc_library(
     srcs = ["brotli_reader.cc"],
     hdrs = ["brotli_reader.h"],
     deps = [
+        ":pullable_reader",
         ":reader",
         "//riegeli/base",
         "//riegeli/base:status",

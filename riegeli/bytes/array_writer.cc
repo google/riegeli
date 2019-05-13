@@ -28,10 +28,10 @@ void ArrayWriterBase::Done() {
   Writer::Done();
 }
 
-bool ArrayWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   return FailOverflow();
 }
 

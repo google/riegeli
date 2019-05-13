@@ -22,6 +22,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/memory.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -36,20 +37,28 @@ void StringWriterBase::Done() {
   Writer::Done();
 }
 
-bool StringWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string* const dest = dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(dest->size() == dest->max_size())) {
-    return FailOverflow();
-  }
-  if (dest->capacity() == dest->size()) {
-    dest->push_back('\0');
-    dest->pop_back();
+  SyncBuffer(dest);
+  if (min_length > dest->capacity() - dest->size()) {
+    if (ABSL_PREDICT_FALSE(min_length > dest->max_size() - dest->size())) {
+      return FailOverflow();
+    }
+    dest->reserve(
+        UnsignedMin(UnsignedMax(SaturatingAdd(dest->size(), recommended_length),
+                                // Double the size, and round up to one below a
+                                // possible allocated size (for NUL terminator).
+                                EstimatedAllocatedSize(SaturatingAdd(
+                                    dest->size(), dest->size(), size_t{1})) -
+                                    1,
+                                dest->size() + min_length),
+                    dest->max_size()));
   }
   MakeBuffer(dest);
   return true;

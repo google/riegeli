@@ -463,11 +463,17 @@ constexpr absl::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
 
 // SaturatingAdd() adds unsigned values, or returns max possible value of the
 // type if addition would overflow.
+
 template <typename T>
 constexpr T SaturatingAdd(T a, T b) {
   static_assert(std::is_unsigned<T>::value,
                 "SaturatingAdd() requires an unsigned type");
   return a + UnsignedMin(b, std::numeric_limits<T>::max() - a);
+}
+
+template <typename T, typename... Rest>
+constexpr T SaturatingAdd(T a, T b, Rest... rest) {
+  return SaturatingAdd(SaturatingAdd(a, b), rest...);
 }
 
 // SaturatingSub() subtracts unsigned values, or returns 0 if subtraction would

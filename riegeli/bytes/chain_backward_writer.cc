@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -39,38 +38,21 @@ void ChainBackwardWriterBase::Done() {
   BackwardWriter::Done();
 }
 
-bool ChainBackwardWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool ChainBackwardWriterBase::PushSlow(size_t min_length,
+                                       size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of BackwardWriter::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain* const dest = dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(dest->size() == std::numeric_limits<size_t>::max())) {
-    return FailOverflow();
-  }
-  start_pos_ = pos();
-  MakeBuffer(dest, 1);
-  return true;
-}
-
-bool ChainBackwardWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
-      << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
-      << "ChainBackwardWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(min_length >
+                         std::numeric_limits<size_t>::max() - dest->size())) {
     return FailOverflow();
   }
   SyncBuffer(dest);
-  start_pos_ += src.size();
-  dest->Prepend(src, size_hint_);
-  MakeBuffer(dest);
+  MakeBuffer(dest, min_length, recommended_length);
   return true;
 }
 
@@ -160,10 +142,10 @@ inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
   limit_ = nullptr;
 }
 
-inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest,
-                                                size_t min_length) {
+inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
+                                                size_t recommended_length) {
   const absl::Span<char> buffer = dest->PrependBuffer(
-      min_length, min_length, Chain::kAnyLength, size_hint_);
+      min_length, recommended_length, Chain::kAnyLength, size_hint_);
   limit_ = buffer.data();
   start_ = limit_ + buffer.size();
   cursor_ = start_;

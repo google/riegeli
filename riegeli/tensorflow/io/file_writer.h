@@ -121,7 +121,7 @@ class FileWriterBase : public Writer {
   void InitializePos(::tensorflow::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
-  bool PushSlow() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not
   // ensure that a buffer is allocated.
@@ -140,14 +140,17 @@ class FileWriterBase : public Writer {
   bool WriteInternal(absl::string_view src);
 
  private:
+  // Preferred size of the buffer to use.
+  size_t BufferLength(size_t min_length) const;
+
   // Minimum length for which it is better to push current contents of buffer_
   // and write the data directly than to write the data through buffer_.
   size_t LengthToWriteDirectly() const;
 
   std::string filename_;
+  // Invariant: if healthy() then buffer_size_ > 0
+  size_t buffer_size_ = 0;
   // Buffered data to be written.
-  //
-  // Invariant: if healthy() then buffer_.size() > 0
   Buffer buffer_;
 };
 
@@ -199,17 +202,19 @@ class FileWriter : public FileWriterBase {
 // Implementation details follow.
 
 inline FileWriterBase::FileWriterBase(size_t buffer_size)
-    : Writer(State::kOpen), buffer_(buffer_size) {}
+    : Writer(State::kOpen), buffer_size_(buffer_size), buffer_(buffer_size) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
       filename_(absl::exchange(that.filename_, std::string())),
+      buffer_size_(absl::exchange(that.buffer_size_, 0)),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
   filename_ = absl::exchange(that.filename_, std::string());
+  buffer_size_ = absl::exchange(that.buffer_size_, 0);
   buffer_ = std::move(that.buffer_);
   return *this;
 }

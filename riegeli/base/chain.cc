@@ -816,16 +816,18 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
   RIEGELI_ASSERT_LE(replaced_length, size_)
       << "Failed precondition of Chain::NewBlockCapacity(): "
          "length to replace greater than current size";
-  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - replaced_length)
+  RIEGELI_ASSERT_LE(min_length, Block::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
-  return UnsignedMax(
-      replaced_length + min_length,
-      UnsignedMin(
-          size_ < size_hint
-              ? replaced_length + (size_hint - size_)
-              : UnsignedMax(SaturatingAdd(replaced_length, recommended_length),
-                            kMinBufferSize, size_),
-          kMaxBufferSize));
+  size_t length = kMaxBufferSize;
+  if (size_ < size_hint) {
+    // Avoid allocating more than needed for size_hint.
+    length = UnsignedMin(length, replaced_length + (size_hint - size_));
+  } else {
+    length = UnsignedMin(
+        length, UnsignedMax(SaturatingAdd(replaced_length, recommended_length),
+                            kMinBufferSize, size_));
+  }
+  return UnsignedMax(length, replaced_length + min_length);
 }
 
 absl::Span<char> Chain::AppendBuffer(size_t min_length,
@@ -1865,14 +1867,18 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
 inline size_t FlatChain::NewBlockCapacity(size_t min_length,
                                           size_t recommended_length,
                                           size_t size_hint) const {
-  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
-      << "FlatChain block capacity overflow";
-  return UnsignedMax(
-      size() + min_length,
-      size() < size_hint
-          ? size_hint
-          : UnsignedMax(SaturatingAdd(size(), recommended_length),
-                        kMinBufferSize));
+  RIEGELI_ASSERT_LE(min_length, kMaxSize - size())
+      << "Failed precondition of FlatChain::NewBlockCapacity(): "
+         "FlatChain size overflow";
+  size_t length;
+  if (size() < size_hint) {
+    // Avoid allocating more than needed for size_hint.
+    length = size_hint;
+  } else {
+    length =
+        UnsignedMax(SaturatingAdd(size(), recommended_length), kMinBufferSize);
+  }
+  return UnsignedMax(length, size() + min_length);
 }
 
 absl::Span<char> FlatChain::AppendBuffer(size_t min_length,
@@ -1881,7 +1887,7 @@ absl::Span<char> FlatChain::AppendBuffer(size_t min_length,
   RIEGELI_ASSERT_LE(min_length, max_length)
       << "Failed precondition of FlatChain::AppendBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
+  RIEGELI_CHECK_LE(min_length, kMaxSize - size())
       << "Failed precondition of FlatChain::AppendBuffer(): "
          "FlatChain size overflow";
   if (block_ == nullptr) {
@@ -1908,7 +1914,7 @@ absl::Span<char> FlatChain::PrependBuffer(size_t min_length,
   RIEGELI_ASSERT_LE(min_length, max_length)
       << "Failed precondition of FlatChain::PrependBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, Block::kMaxCapacity - size())
+  RIEGELI_CHECK_LE(min_length, kMaxSize - size())
       << "Failed precondition of FlatChain::PrependBuffer(): "
          "FlatChain size overflow";
   if (block_ == nullptr) {

@@ -89,6 +89,12 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
+inline size_t FileWriterBase::BufferLength(size_t min_length) const {
+  RIEGELI_ASSERT_GT(buffer_size_, 0u)
+      << "Failed invariant of FileWriterBase: no buffer size specified";
+  return UnsignedMax(buffer_size_, min_length);
+}
+
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
@@ -103,14 +109,16 @@ inline size_t FileWriterBase::LengthToWriteDirectly() const {
   return length;
 }
 
-bool FileWriterBase::PushSlow() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
-         "space available, use Push() instead";
+         "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(min_length >
+                         std::numeric_limits<Position>::max() - start_pos_)) {
     return FailOverflow();
   }
+  buffer_.Resize(BufferLength(min_length));
   start_ = buffer_.GetData();
   cursor_ = start_;
   limit_ =
