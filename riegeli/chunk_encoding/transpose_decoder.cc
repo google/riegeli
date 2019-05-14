@@ -950,63 +950,37 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   } while (false)
 
 // Decode varint value from *node to *dest.
-#define VARINT_CALLBACK(tag_length, data_length)                            \
-  do {                                                                      \
-    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length + data_length)) { \
-      dest->set_cursor(dest->cursor() - (tag_length + data_length));        \
-      char* const buffer = dest->cursor();                                  \
-      if (ABSL_PREDICT_FALSE(                                               \
-              !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        return Fail(*node->buffer,                                          \
-                    DataLossError("Reading varint field failed"));          \
-      }                                                                     \
-      for (size_t i = 0; i < data_length - 1; ++i) {                        \
-        buffer[tag_length + i] |= 0x80;                                     \
-      }                                                                     \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                 \
-    } else {                                                                \
-      char buffer[tag_length + data_length];                                \
-      if (ABSL_PREDICT_FALSE(                                               \
-              !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        return Fail(*node->buffer,                                          \
-                    DataLossError("Reading varint field failed"));          \
-      }                                                                     \
-      for (size_t i = 0; i < data_length - 1; ++i) {                        \
-        buffer[tag_length + i] |= 0x80;                                     \
-      }                                                                     \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                 \
-      if (ABSL_PREDICT_FALSE(!dest->Write(                                  \
-              absl::string_view(buffer, tag_length + data_length)))) {      \
-        return Fail(*dest);                                                 \
-      }                                                                     \
-    }                                                                       \
+#define VARINT_CALLBACK(tag_length, data_length)                      \
+  do {                                                                \
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {  \
+      return Fail(*dest);                                             \
+    }                                                                 \
+    dest->set_cursor(dest->cursor() - (tag_length + data_length));    \
+    char* const buffer = dest->cursor();                              \
+    if (ABSL_PREDICT_FALSE(                                           \
+            !node->buffer->Read(buffer + tag_length, data_length))) { \
+      return Fail(*node->buffer,                                      \
+                  DataLossError("Reading varint field failed"));      \
+    }                                                                 \
+    for (size_t i = 0; i < data_length - 1; ++i) {                    \
+      buffer[tag_length + i] |= 0x80;                                 \
+    }                                                                 \
+    std::memcpy(buffer, node->tag_data.data, tag_length);             \
   } while (false)
 
 // Decode fixed32 or fixed64 value from *node to *dest.
-#define FIXED_CALLBACK(tag_length, data_length)                             \
-  do {                                                                      \
-    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length + data_length)) { \
-      dest->set_cursor(dest->cursor() - (tag_length + data_length));        \
-      char* const buffer = dest->cursor();                                  \
-      if (ABSL_PREDICT_FALSE(                                               \
-              !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        return Fail(*node->buffer,                                          \
-                    DataLossError("Reading fixed field failed"));           \
-      }                                                                     \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                 \
-    } else {                                                                \
-      char buffer[tag_length + data_length];                                \
-      if (ABSL_PREDICT_FALSE(                                               \
-              !node->buffer->Read(buffer + tag_length, data_length))) {     \
-        return Fail(*node->buffer,                                          \
-                    DataLossError("Reading fixed field failed"));           \
-      }                                                                     \
-      std::memcpy(buffer, node->tag_data.data, tag_length);                 \
-      if (ABSL_PREDICT_FALSE(!dest->Write(                                  \
-              absl::string_view(buffer, tag_length + data_length)))) {      \
-        return Fail(*dest);                                                 \
-      }                                                                     \
-    }                                                                       \
+#define FIXED_CALLBACK(tag_length, data_length)                                \
+  do {                                                                         \
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {           \
+      return Fail(*dest);                                                      \
+    }                                                                          \
+    dest->set_cursor(dest->cursor() - (tag_length + data_length));             \
+    char* const buffer = dest->cursor();                                       \
+    if (ABSL_PREDICT_FALSE(                                                    \
+            !node->buffer->Read(buffer + tag_length, data_length))) {          \
+      return Fail(*node->buffer, DataLossError("Reading fixed field failed")); \
+    }                                                                          \
+    std::memcpy(buffer, node->tag_data.data, tag_length);                      \
   } while (false)
 
 // Decode string value from *node to *dest.
