@@ -79,7 +79,6 @@ cc_library(
 
 cc_library(
     name = "reader_utils",
-    srcs = ["reader_utils.cc"],
     hdrs = [
         "reader_utils.h",
         "varint.h",

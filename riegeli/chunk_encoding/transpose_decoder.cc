@@ -986,27 +986,15 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 // Decode string value from *node to *dest.
 #define STRING_CALLBACK(tag_length)                                           \
   do {                                                                        \
+    node->buffer->Pull(kMaxLengthVarint32);                                   \
     uint32_t length;                                                          \
-    size_t length_length;                                                     \
-    if (ABSL_PREDICT_TRUE(node->buffer->available() >= kMaxLengthVarint32)) { \
-      const char* cursor = node->buffer->cursor();                            \
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(&cursor, &length))) {              \
-        node->buffer->set_cursor(cursor);                                     \
-        return Fail(DataLossError("Reading string length failed"));           \
-      }                                                                       \
-      length_length = PtrDistance(node->buffer->cursor(), cursor);            \
-    } else {                                                                  \
-      const Position pos_before = node->buffer->pos();                        \
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(node->buffer, &length))) {         \
-        return Fail(*node->buffer,                                            \
-                    DataLossError("Reading string length failed"));           \
-      }                                                                       \
-      length_length = IntCast<size_t>(node->buffer->pos() - pos_before);      \
-      if (!node->buffer->Seek(pos_before)) {                                  \
-        RIEGELI_ASSERT_UNREACHABLE()                                          \
-            << "Seeking buffer failed: " << node->buffer->status();           \
-      }                                                                       \
+    const char* cursor = node->buffer->cursor();                              \
+    if (ABSL_PREDICT_FALSE(                                                   \
+            !ReadVarint32(&cursor, node->buffer->limit(), &length))) {        \
+      node->buffer->set_cursor(cursor);                                       \
+      return Fail(DataLossError("Reading string length failed"));             \
     }                                                                         \
+    const size_t length_length = PtrDistance(node->buffer->cursor(), cursor); \
     if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -    \
                                         length_length)) {                     \
       return Fail(DataLossError("String length overflow"));                   \
@@ -1291,7 +1279,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       for (const SubmessageStackElement& elem : submessage_stack) {
         uint32_t tag;
         const char* cursor = elem.tag_data.data;
-        if (!ReadVarint32(&cursor, &tag)) {
+        if (!ReadVarint32(&cursor, elem.tag_data.data + kMaxLengthVarint32,
+                          &tag)) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         }
         const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
@@ -1321,7 +1310,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
       const char* cursor = node->tag_data.data;
-      if (!ReadVarint32(&cursor, &tag)) {
+      if (!ReadVarint32(&cursor, node->tag_data.data + kMaxLengthVarint32,
+                        &tag)) {
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       }
       const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
