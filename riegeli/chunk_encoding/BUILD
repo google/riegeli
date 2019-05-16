@@ -247,6 +247,7 @@ cc_library(
 
 cc_library(
     name = "field_projection",
+    srcs = ["field_projection.cc"],
     hdrs = ["field_projection.h"],
     deps = [
         "//riegeli/base",

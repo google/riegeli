@@ -33,7 +33,7 @@ __all__ = ('RiegeliError', 'CancelledError', 'UnknownError',
            'UnimplementedError', 'InternalError', 'UnavailableError',
            'DataLossError', 'FlushType', 'RecordPosition', 'SkippedRegion',
            'RecordsMetadata', 'set_record_type', 'RecordWriter',
-           'get_record_type', 'RecordReader')
+           'EXISTENCE_ONLY', 'get_record_type', 'RecordReader')
 
 # pylint: disable=invalid-name
 RiegeliError = riegeli_error.RiegeliError
@@ -59,5 +59,6 @@ RecordsMetadata = records_metadata_pb2.RecordsMetadata
 FlushType = record_writer.FlushType
 set_record_type = record_writer.set_record_type
 RecordWriter = record_writer.RecordWriter
+EXISTENCE_ONLY = record_reader.EXISTENCE_ONLY
 get_record_type = record_reader.get_record_type
 RecordReader = record_reader.RecordReader

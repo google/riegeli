@@ -120,7 +120,8 @@ enum class CallbackType : uint8_t {
       kVarint_3_##tag_length, kVarint_4_##tag_length, kVarint_5_##tag_length, \
       kVarint_6_##tag_length, kVarint_7_##tag_length, kVarint_8_##tag_length, \
       kVarint_9_##tag_length, kVarint_10_##tag_length, kFixed32_##tag_length, \
-      kFixed64_##tag_length, kString_##tag_length,                            \
+      kFixed64_##tag_length, kFixed32Existence_##tag_length,                  \
+      kFixed64Existence_##tag_length, kString_##tag_length,                   \
       kStartProjectionGroup_##tag_length, kEndProjectionGroup_##tag_length
 
   TYPES_FOR_TAG_LEN(1),
@@ -173,7 +174,7 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
              (CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1);
 }
 
-// Returns numeric callback type for "subtype" and "tag_length".
+// Returns varint callback type for "subtype" and "tag_length".
 inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -188,7 +189,7 @@ inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
              (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1);
 }
 
-// Returns FLOAT binary callback type for "tag_length".
+// Returns fixed32 callback type for "tag_length".
 inline CallbackType GetFixed32CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -197,13 +198,31 @@ inline CallbackType GetFixed32CallbackType(size_t tag_length) {
              (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
 }
 
-// Returns DOUBLE binary callback type for "tag_length".
+// Returns fixed64 callback type for "tag_length".
 inline CallbackType GetFixed64CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed64_1 +
          (tag_length - 1) *
              (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
+}
+
+// Returns fixed32 existence callback type for "tag_length".
+inline CallbackType GetFixed32ExistenceCallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  return CallbackType::kFixed32Existence_1 +
+         (tag_length - 1) * (CallbackType::kFixed32Existence_2 -
+                             CallbackType::kFixed32Existence_1);
+}
+
+// Returns fixed64 existence callback type for "tag_length".
+inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
+  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
+  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  return CallbackType::kFixed64Existence_1 +
+         (tag_length - 1) * (CallbackType::kFixed64Existence_2 -
+                             CallbackType::kFixed64Existence_1);
 }
 
 // Returns string callback type for "subtype" and "tag_length".
@@ -250,8 +269,6 @@ inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
     case Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in TagData. This decodes as
       // an empty string in proto decoder.
-      // Note: Only submessages can be "existence only" projected, but we encode
-      // empty submessages as strings so we need to handle this callback type.
       return GetCopyTagCallbackType(tag_length + 1);
     case Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
@@ -322,11 +339,12 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
     case FieldIncluded::kExistenceOnly:
       switch (static_cast<WireType>(tag & 7)) {
         case WireType::kVarint:
+          return GetCopyTagCallbackType(tag_length + 1);
         case WireType::kFixed32:
+          return GetFixed32ExistenceCallbackType(tag_length);
         case WireType::kFixed64:
-          return CallbackType::kUnknown;
+          return GetFixed64ExistenceCallbackType(tag_length);
         case WireType::kLengthDelimited:
-          // Only submessage fields should be allowed to be "existence only".
           return GetStringExistenceCallbackType(subtype, tag_length);
         case WireType::kStartGroup:
           return GetStartProjectionGroupCallbackType(tag_length);
@@ -417,17 +435,19 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (projection_enabled) {
     for (const Field& include_field : field_projection.fields()) {
       uint32_t current_index = kInvalidPos;
-      for (size_t i = 0; i < include_field.path().size(); ++i) {
+      for (const uint32_t tag : include_field.path()) {
+        if (tag == Field::kExistenceOnly) goto existence_only;
         const std::pair<absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
                                             uint32_t>::iterator,
                         bool>
             insert_result = context->include_fields.emplace(
-                std::make_pair(current_index, include_field.path()[i]),
+                std::make_pair(current_index, tag),
                 IntCast<uint32_t>(context->existence_only.size()));
         if (insert_result.second) context->existence_only.push_back(true);
         current_index = insert_result.first->second;
       }
       context->existence_only[current_index] = false;
+    existence_only:;
     }
   }
 
@@ -983,6 +1003,18 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     std::memcpy(buffer, node->tag_data.data, tag_length);                      \
   } while (false)
 
+// Create zero fixed32 or fixed64 value in *dest.
+#define FIXED_EXISTENCE_CALLBACK(tag_length, data_length)            \
+  do {                                                               \
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) { \
+      return Fail(*dest);                                            \
+    }                                                                \
+    dest->set_cursor(dest->cursor() - (tag_length + data_length));   \
+    char* const buffer = dest->cursor();                             \
+    std::memset(buffer + tag_length, '\0', data_length);             \
+    std::memcpy(buffer, node->tag_data.data, tag_length);            \
+  } while (false)
+
 // Decode string value from *node to *dest.
 #define STRING_CALLBACK(tag_length)                                           \
   do {                                                                        \
@@ -1052,8 +1084,9 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
       &&varint_5_##tag_length, &&varint_6_##tag_length,                      \
       &&varint_7_##tag_length, &&varint_8_##tag_length,                      \
       &&varint_9_##tag_length, &&varint_10_##tag_length,                     \
-      &&fixed32_##tag_length, &&fixed64_##tag_length, &&string_##tag_length, \
-      &&start_projection_group_##tag_length,                                 \
+      &&fixed32_##tag_length, &&fixed64_##tag_length,                        \
+      &&fixed32_existence_##tag_length, &&fixed64_existence_##tag_length,    \
+      &&string_##tag_length, &&start_projection_group_##tag_length,          \
       &&end_projection_group_##tag_length
 
       LABELS_FOR_TAG_LEN(1),
@@ -1126,46 +1159,50 @@ submessage_start : {
 }
   goto do_transition;
 
-#define ACTIONS_FOR_TAG_LEN(tag_length)                       \
-  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);      \
-  goto do_transition;                                         \
-  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);     \
-  goto do_transition;                                         \
-  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);     \
-  goto do_transition;                                         \
-  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);     \
-  goto do_transition;                                         \
-  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);     \
-  goto do_transition;                                         \
-  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);     \
-  goto do_transition;                                         \
-  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);     \
-  goto do_transition;                                         \
-  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);     \
-  goto do_transition;                                         \
-  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);     \
-  goto do_transition;                                         \
-  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);     \
-  goto do_transition;                                         \
-  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);   \
-  goto do_transition;                                         \
-  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);       \
-  goto do_transition;                                         \
-  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);       \
-  goto do_transition;                                         \
-  string_##tag_length : STRING_CALLBACK(tag_length);          \
-  goto do_transition;                                         \
-  start_projection_group_##tag_length                         \
-      : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {   \
-    return Fail(DataLossError("Submessage stack underflow")); \
-  }                                                           \
-  submessage_stack.pop_back();                                \
-  COPY_TAG_CALLBACK(tag_length);                              \
-  goto do_transition;                                         \
-  end_projection_group_##tag_length                           \
-      : submessage_stack.push_back(                           \
-            {IntCast<size_t>(dest->pos()), node->tag_data});  \
-  COPY_TAG_CALLBACK(tag_length);                              \
+#define ACTIONS_FOR_TAG_LEN(tag_length)                                     \
+  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);                    \
+  goto do_transition;                                                       \
+  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);                   \
+  goto do_transition;                                                       \
+  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);                   \
+  goto do_transition;                                                       \
+  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);                   \
+  goto do_transition;                                                       \
+  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);                   \
+  goto do_transition;                                                       \
+  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);                   \
+  goto do_transition;                                                       \
+  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);                   \
+  goto do_transition;                                                       \
+  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);                   \
+  goto do_transition;                                                       \
+  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);                   \
+  goto do_transition;                                                       \
+  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);                   \
+  goto do_transition;                                                       \
+  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);                 \
+  goto do_transition;                                                       \
+  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);                     \
+  goto do_transition;                                                       \
+  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);                     \
+  goto do_transition;                                                       \
+  fixed32_existence_##tag_length : FIXED_EXISTENCE_CALLBACK(tag_length, 4); \
+  goto do_transition;                                                       \
+  fixed64_existence_##tag_length : FIXED_EXISTENCE_CALLBACK(tag_length, 8); \
+  goto do_transition;                                                       \
+  string_##tag_length : STRING_CALLBACK(tag_length);                        \
+  goto do_transition;                                                       \
+  start_projection_group_##tag_length                                       \
+      : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                 \
+    return Fail(DataLossError("Submessage stack underflow"));               \
+  }                                                                         \
+  submessage_stack.pop_back();                                              \
+  COPY_TAG_CALLBACK(tag_length);                                            \
+  goto do_transition;                                                       \
+  end_projection_group_##tag_length                                         \
+      : submessage_stack.push_back(                                         \
+            {IntCast<size_t>(dest->pos()), node->tag_data});                \
+  COPY_TAG_CALLBACK(tag_length);                                            \
   goto do_transition
 
   ACTIONS_FOR_TAG_LEN(1);
@@ -1346,6 +1383,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     node->callback_type = GetCallbackType(field_included, node_template->tag,
                                           node_template->subtype,
                                           node_template->tag_length, true);
+    if (field_included == FieldIncluded::kExistenceOnly &&
+        static_cast<internal::WireType>(node_template->tag & 7) ==
+            internal::WireType::kVarint) {
+      // The tag in TagData was followed by a subtype but must be followed by
+      // zero now.
+      node->tag_data.data[node_template->tag_length] = 0;
+    }
   }
   if (is_implicit) node->callback_type |= internal::CallbackType::kImplicit;
   return true;

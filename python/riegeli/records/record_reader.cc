@@ -189,8 +189,9 @@ extern "C" int RecordReaderClear(PyRecordReaderObject* self) {
 }
 
 bool VerifyTag(unsigned long tag_value, uint32_t* value) {
-  if (ABSL_PREDICT_FALSE(tag_value == 0 ||
-                         tag_value > (uint32_t{1} << 29) - 1)) {
+  static_assert(Field::kExistenceOnly == 0,
+                "VerifyTag() assumes that Field::kExistenceOnly == 0");
+  if (ABSL_PREDICT_FALSE(tag_value > (uint32_t{1} << 29) - 1)) {
     PyErr_Format(PyExc_OverflowError, "Field tag out of range: %lu", tag_value);
     return false;
   }
@@ -1013,8 +1014,11 @@ Args:
     is effective if the file has been written with "transpose" in RecordWriter
     options. Additionally, "bucket_fraction" in RecordWriter options with a
     lower value can make reading with projection faster. A field projection is
-    specified as an iterable of field paths, and a field path is specified as an
-    iterable of proto field tags descending from the root message.
+    specified as an iterable of field paths. A field path is specified as an
+    iterable of proto field tags descending from the root message. A special
+    tag value EXISTENCE_ONLY can be added to the end of the path; it preserves
+    field existence but ignores its value; warning: for a repeated field this
+    preserves the field count only if the field is not packed.
   recovery: If None, then invalid file contents cause RecordReader to raise
     RiegeliError. If not None, then invalid file contents cause RecordReader to
     skip over the invalid region and call this recovery function with a
@@ -1210,6 +1214,12 @@ PyObject* InitModule() {
       kModuleName, const_cast<PyMethodDef*>(kModuleMethods), kModuleDoc));
 #endif
   if (ABSL_PREDICT_FALSE(module == nullptr)) return nullptr;
+  PythonPtr existence_only = IntToPython(Field::kExistenceOnly);
+  if (ABSL_PREDICT_FALSE(existence_only == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(PyModule_AddObject(module.get(), "EXISTENCE_ONLY",
+                                            existence_only.release()) < 0)) {
+    return nullptr;
+  }
   Py_INCREF(&PyRecordReader_Type);
   if (ABSL_PREDICT_FALSE(PyModule_AddObject(module.get(), "RecordReader",
                                             reinterpret_cast<PyObject*>(

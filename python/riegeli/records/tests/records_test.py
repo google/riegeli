@@ -523,11 +523,42 @@ class RecordsTest(parameterized.TestCase):
               .number
           ]]) as reader:
         for i in range(23):
-          projected_message = records_test_pb2.SimpleMessage()
-          projected_message.id = i
           self.assertEqual(
               reader.read_message(records_test_pb2.SimpleMessage),
-              projected_message)
+              records_test_pb2.SimpleMessage(id=i))
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_field_projection_existence_only(self, file_spec, random_access,
+                                           parallelism):
+    with contextlib.closing(file_spec(self.create_tempfile,
+                                      random_access)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism) + ',transpose') as writer:
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          field_projection=[
+              [
+                  records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
+                  .number
+              ],
+              [
+                  records_test_pb2.SimpleMessage.DESCRIPTOR
+                  .fields_by_name['payload'].number,
+                  riegeli.EXISTENCE_ONLY,
+              ],
+          ]) as reader:
+        for i in range(23):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              records_test_pb2.SimpleMessage(id=i, payload=b''))
         self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM

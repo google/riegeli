@@ -30,6 +30,19 @@ class Field {
  public:
   using Path = absl::InlinedVector<uint32_t, 1>;
 
+  // A special tag value which can be added to the end of the path.
+  //
+  // It preserves field existence but ignores its value, which is replaced with
+  // a default value for the type (zero, empty string, empty message).
+  //
+  // This is useful to include a required field which is not otherwise needed.
+  // This works similarly to specifying a non-existent child tag, but applies
+  // not only to submessages.
+  //
+  // Warning: for a repeated field this preserves the field count only if the
+  // field is not packed.
+  static constexpr uint32_t kExistenceOnly = 0;
+
   // Specifies the path using a sequence of proto field tags descending from the
   // root message.
   //
@@ -101,7 +114,8 @@ inline Field::Field(std::initializer_list<uint32_t> path) : path_(path) {
 }
 
 inline void Field::AssertValid(uint32_t tag) {
-  RIEGELI_ASSERT_GE(tag, 1u) << "Field tag out of range";
+  static_assert(kExistenceOnly == 0,
+                "Field::AssertValid() assumes that kExistenceOnly == 0");
   RIEGELI_ASSERT_LE(tag, (uint32_t{1} << 29) - 1) << "Field tag out of range";
 }
 
