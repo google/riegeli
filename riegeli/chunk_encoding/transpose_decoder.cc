@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -379,15 +380,28 @@ struct TransposeDecoder::Context {
   // State machine transitions. One byte = one transition.
   internal::Decompressor<> transitions;
 
+  enum class IncludeType : uint8_t {
+    // Field is included.
+    kIncludeFully,
+    // Some child fields are included.
+    kIncludeChild,
+    // Field is existence only.
+    kExistenceOnly,
+  };
+
   // --- Fields used in projection. ---
-  // We number used fields with indices into "existence_only" vector below.
+  // Holds information about included field.
+  struct IncludedField {
+    // IDs are sequentially assigned to fields from FieldProjection.
+    uint32_t field_id;
+    IncludeType include_type;
+  };
   // Fields form a tree structure stored in "include_fields" map. If "p" is
-  // the index of parent submessage then "include_fields[<p,f>]" is the index
-  // of the child with field number "f". The root index is assumed to be
-  // "kInvalidPos".
-  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, uint32_t> include_fields;
-  // Are we interested in the existence of the field only?
-  std::vector<bool> existence_only;
+  // the ID of parent submessage then "include_fields[<p,f>]" holds the include
+  // information of the child with field number "f". The root ID is assumed to
+  // be "kInvalidPos" and the root IncludeType is assumed to be kIncludeChild.
+  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, IncludedField>
+      include_fields;
   // Data buckets.
   std::vector<DataBucket> buckets;
   // Template that can later be used later to finalize StateMachineNode.
@@ -431,23 +445,43 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
 
 inline bool TransposeDecoder::Parse(Context* context, Reader* src,
                                     const FieldProjection& field_projection) {
-  const bool projection_enabled = !field_projection.includes_all();
-  if (projection_enabled) {
-    for (const Field& include_field : field_projection.fields()) {
-      uint32_t current_index = kInvalidPos;
-      for (const uint32_t tag : include_field.path()) {
-        if (tag == Field::kExistenceOnly) goto existence_only;
-        const std::pair<absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
-                                            uint32_t>::iterator,
-                        bool>
-            insert_result = context->include_fields.emplace(
-                std::make_pair(current_index, tag),
-                IntCast<uint32_t>(context->existence_only.size()));
-        if (insert_result.second) context->existence_only.push_back(true);
-        current_index = insert_result.first->second;
+  bool projection_enabled = true;
+  for (const Field& include_field : field_projection.fields()) {
+    if (include_field.path().empty()) {
+      projection_enabled = false;
+      break;
+    }
+    size_t path_len = include_field.path().size();
+    bool existence_only =
+        include_field.path()[path_len - 1] == Field::kExistenceOnly;
+    if (existence_only) {
+      --path_len;
+      if (path_len == 0) continue;
+    }
+    uint32_t current_id = kInvalidPos;
+    for (size_t i = 0; i < path_len; ++i) {
+      const uint32_t tag = include_field.path()[i];
+      if (tag == Field::kExistenceOnly) {
+        return false;
       }
-      context->existence_only[current_index] = false;
-    existence_only:;
+      uint32_t next_id = context->include_fields.size();
+      Context::IncludeType include_type = Context::IncludeType::kIncludeChild;
+      if (i + 1 == path_len) {
+        include_type = existence_only ? Context::IncludeType::kExistenceOnly
+                                      : Context::IncludeType::kIncludeFully;
+      }
+      Context::IncludedField& val =
+          context->include_fields
+              .emplace(std::make_pair(current_id, tag),
+                       Context::IncludedField{next_id, include_type})
+              .first->second;
+      current_id = val.field_id;
+      static_assert(Context::IncludeType::kExistenceOnly >
+                            Context::IncludeType::kIncludeChild &&
+                        Context::IncludeType::kIncludeChild >
+                            Context::IncludeType::kIncludeFully,
+                    "Statement below assumes this ordering");
+      val.include_type = std::min(val.include_type, include_type);
     }
   }
 
@@ -1310,7 +1344,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     }
   } else {
     FieldIncluded field_included = FieldIncluded::kNo;
-    uint32_t index = kInvalidPos;
+    uint32_t field_id = kInvalidPos;
     if (skipped_submessage_level == 0) {
       field_included = FieldIncluded::kExistenceOnly;
       for (const SubmessageStackElement& elem : submessage_stack) {
@@ -1321,17 +1355,17 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         }
         const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
-                                  uint32_t>::const_iterator iter =
-            context->include_fields.find(std::make_pair(index, tag >> 3));
+                                  Context::IncludedField>::const_iterator iter =
+            context->include_fields.find(std::make_pair(field_id, tag >> 3));
         if (iter == context->include_fields.end()) {
           field_included = FieldIncluded::kNo;
           break;
         }
-        index = iter->second;
-        if (!context->existence_only[index]) {
+        if (iter->second.include_type == Context::IncludeType::kIncludeFully) {
           field_included = FieldIncluded::kYes;
           break;
         }
+        field_id = iter->second.field_id;
       }
     }
     // If tag is a STARTGROUP, there are two options:
@@ -1352,13 +1386,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       }
       const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
-                                uint32_t>::const_iterator iter =
-          context->include_fields.find(std::make_pair(index, tag >> 3));
+                                Context::IncludedField>::const_iterator iter =
+          context->include_fields.find(std::make_pair(field_id, tag >> 3));
       if (iter == context->include_fields.end()) {
         field_included = FieldIncluded::kNo;
       } else {
-        index = iter->second;
-        if (!context->existence_only[index]) {
+        if (iter->second.include_type == Context::IncludeType::kIncludeFully ||
+            iter->second.include_type == Context::IncludeType::kIncludeChild) {
           field_included = FieldIncluded::kYes;
         }
       }
