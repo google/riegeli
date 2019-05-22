@@ -887,20 +887,23 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       block = last;
     } else if (min_length == 0) {
       return absl::Span<char>();
-    } else if (last->tiny() || last->wasteful()) {
+    } else if (last->tiny() &&
+               ABSL_PREDICT_TRUE(min_length <=
+                                 Block::kMaxCapacity - last->size())) {
       // The last block must be rewritten. Merge it with the new space to a
       // new block.
-      if (ABSL_PREDICT_FALSE(min_length > Block::kMaxCapacity - last->size())) {
-        back() = last->CopyAndUnref();
-        goto new_block;
-      }
       block = Block::NewInternal(NewBlockCapacity(
           last->size(), min_length, recommended_length, size_hint));
       block->Append(last->data());
       last->Unref();
       back() = block;
     } else {
-    new_block:
+      if (last->wasteful()) {
+        // The last block must be rewritten. Rewrite it separately from the new
+        // block to avoid rewriting the same data again if the new block gets
+        // only partially filled.
+        back() = last->CopyAndUnref();
+      }
       // Append a new block.
       block = Block::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, size_hint));
@@ -963,21 +966,23 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       block = first;
     } else if (min_length == 0) {
       return absl::Span<char>();
-    } else if (first->tiny() || first->wasteful()) {
+    } else if (first->tiny() &&
+               ABSL_PREDICT_TRUE(min_length <=
+                                 Block::kMaxCapacity - first->size())) {
       // The first block must be rewritten. Merge it with the new space to a
       // new block.
-      if (ABSL_PREDICT_FALSE(min_length >
-                             Block::kMaxCapacity - first->size())) {
-        front() = first->CopyAndUnref();
-        goto new_block;
-      }
       block = Block::NewInternal(NewBlockCapacity(
           first->size(), min_length, recommended_length, size_hint));
       block->Prepend(first->data());
       first->Unref();
       front() = block;
     } else {
-    new_block:
+      if (first->wasteful()) {
+        // The first block must be rewritten. Rewrite it separately from the new
+        // block to avoid rewriting the same data again if the new block gets
+        // only partially filled.
+        front() = first->CopyAndUnref();
+      }
       // Prepend a new block.
       block = Block::NewInternal(
           NewBlockCapacity(0, min_length, recommended_length, size_hint));
