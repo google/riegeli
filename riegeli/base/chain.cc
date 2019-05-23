@@ -898,15 +898,24 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       last->Unref();
       back() = block;
     } else {
+      block = nullptr;
       if (last->wasteful()) {
         // The last block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        back() = last->CopyAndUnref();
+        back() = last->Copy();
+        if (last->TryClear() && last->can_append(min_length)) {
+          // Reuse this block.
+          block = last;
+        } else {
+          last->Unref();
+        }
       }
-      // Append a new block.
-      block = Block::NewInternal(
-          NewBlockCapacity(0, min_length, recommended_length, size_hint));
+      if (block == nullptr) {
+        // Append a new block.
+        block = Block::NewInternal(
+            NewBlockCapacity(0, min_length, recommended_length, size_hint));
+      }
       PushBack(block);
     }
   }
@@ -977,15 +986,24 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       first->Unref();
       front() = block;
     } else {
+      block = nullptr;
       if (first->wasteful()) {
         // The first block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        front() = first->CopyAndUnref();
+        front() = first->Copy();
+        if (first->TryClear() && first->can_prepend(min_length)) {
+          // Reuse this block.
+          block = first;
+        } else {
+          first->Unref();
+        }
       }
-      // Prepend a new block.
-      block = Block::NewInternal(
-          NewBlockCapacity(0, min_length, recommended_length, size_hint));
+      if (block == nullptr) {
+        // Prepend a new block.
+        block = Block::NewInternal(
+            NewBlockCapacity(0, min_length, recommended_length, size_hint));
+      }
       PushFront(block);
     }
   }
