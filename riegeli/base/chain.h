@@ -69,12 +69,9 @@ class Chain {
 
   explicit Chain(absl::string_view src);
   explicit Chain(std::string&& src);
+  explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
   explicit Chain(const FlatChain& src);
   explicit Chain(FlatChain&& src);
-  template <typename Src,
-            typename Enable = absl::enable_if_t<
-                std::is_convertible<Src, absl::string_view>::value>>
-  explicit Chain(const Src& src) : Chain(absl::string_view(src)) {}
 
   // Given an object which represents a string, converts it to a Chain by
   // attaching the moved object, avoiding copying the string data.
@@ -148,20 +145,12 @@ class Chain {
 
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
-  template <typename Src>
-  absl::enable_if_t<std::is_convertible<Src, absl::string_view>::value, void>
-  Append(const Src& src, size_t size_hint = 0) {
-    Append(absl::string_view(src), size_hint);
-  }
+  void Append(const char* src, size_t size_hint = 0);
   void Append(const Chain& src, size_t size_hint = 0);
   void Append(Chain&& src, size_t size_hint = 0);
   void Prepend(absl::string_view src, size_t size_hint = 0);
   void Prepend(std::string&& src, size_t size_hint = 0);
-  template <typename Src>
-  absl::enable_if_t<std::is_convertible<Src, absl::string_view>::value, void>
-  Prepend(const Src& src, size_t size_hint = 0) {
-    Prepend(absl::string_view(src), size_hint);
-  }
+  void Prepend(const char* src, size_t size_hint = 0);
   void Prepend(const Chain& src, size_t size_hint = 0);
   void Prepend(Chain&& src, size_t size_hint = 0);
 
@@ -1442,6 +1431,14 @@ inline absl::Span<char> Chain::AppendFixedBuffer(size_t length,
 inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
                                                   size_t size_hint) {
   return PrependBuffer(length, length, length, size_hint);
+}
+
+inline void Chain::Append(const char* src, size_t size_hint) {
+  Append(absl::string_view(src), size_hint);
+}
+
+inline void Chain::Prepend(const char* src, size_t size_hint) {
+  Prepend(absl::string_view(src), size_hint);
 }
 
 template <typename T>

@@ -19,10 +19,8 @@
 #include <stdint.h>
 
 #include <string>
-#include <type_traits>
 #include <vector>
 
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
@@ -54,11 +52,7 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(absl::string_view record) = 0;
   virtual bool AddRecord(std::string&& record) = 0;
-  template <typename Record>
-  absl::enable_if_t<std::is_convertible<Record, absl::string_view>::value, bool>
-  AddRecord(const Record& record) {
-    return AddRecord(absl::string_view(record));
-  }
+  bool AddRecord(const char* record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
@@ -104,6 +98,12 @@ inline void ChunkEncoder::Reset() {
   MarkHealthy();
   num_records_ = 0;
   decoded_data_size_ = 0;
+}
+
+// Implementation details follow.
+
+inline bool ChunkEncoder::AddRecord(const char* record) {
+  return AddRecord(absl::string_view(record));
 }
 
 }  // namespace riegeli
