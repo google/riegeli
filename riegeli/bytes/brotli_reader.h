@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_BROTLI_READER_H_
 #define RIEGELI_BYTES_BROTLI_READER_H_
 
+#include <stddef.h>
+
 #include <memory>
 #include <utility>
 

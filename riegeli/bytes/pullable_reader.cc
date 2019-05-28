@@ -20,8 +20,9 @@
 #include <memory>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"

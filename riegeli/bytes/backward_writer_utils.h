@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_BACKWARD_WRITER_UTILS_H_
 #define RIEGELI_BYTES_BACKWARD_WRITER_UTILS_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "absl/base/optimization.h"

@@ -99,6 +99,8 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

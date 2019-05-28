@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/varint.h"
 

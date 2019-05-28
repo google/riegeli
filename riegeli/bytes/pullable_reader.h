@@ -17,10 +17,12 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
