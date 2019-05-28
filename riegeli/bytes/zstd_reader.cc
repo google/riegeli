@@ -36,7 +36,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZstdReader<Src>::ZstdReader(Src): "
          "null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
   }
@@ -66,14 +66,12 @@ void ZstdReaderBase::Initialize(Reader* src) {
     }
   }
   src->Pull(ZSTD_FRAMEHEADERSIZE_MAX);
-  if (ABSL_PREDICT_TRUE(src->healthy())) {
-    // Tune the buffer size if the uncompressed size is known.
-    unsigned long long uncompressed_size =
-        ZSTD_getFrameContentSize(src->cursor(), src->available());
-    if (uncompressed_size != ZSTD_CONTENTSIZE_UNKNOWN &&
-        uncompressed_size != ZSTD_CONTENTSIZE_ERROR) {
-      set_size_hint(UnsignedMax(size_t{1}, uncompressed_size));
-    }
+  // Tune the buffer size if the uncompressed size is known.
+  unsigned long long uncompressed_size =
+      ZSTD_getFrameContentSize(src->cursor(), src->available());
+  if (uncompressed_size != ZSTD_CONTENTSIZE_UNKNOWN &&
+      uncompressed_size != ZSTD_CONTENTSIZE_ERROR) {
+    set_size_hint(UnsignedMax(size_t{1}, uncompressed_size));
   }
 }
 

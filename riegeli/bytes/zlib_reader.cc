@@ -48,7 +48,7 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
          "null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
   }

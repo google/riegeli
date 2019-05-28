@@ -34,7 +34,7 @@ void BrotliReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of BrotliReader<Src>::BrotliReader(Src): "
          "null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
   }
