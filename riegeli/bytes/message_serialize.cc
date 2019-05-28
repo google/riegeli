@@ -107,6 +107,11 @@ Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                      " because it is missing required fields: ",
                      src.InitializationErrorString()));
   }
+  return SerializePartialToWriterImpl(src, dest);
+}
+
+Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
+                                    Writer* dest) {
   const size_t size = src.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return ResourceExhaustedError(absl::StrCat(
@@ -129,6 +134,14 @@ Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest) {
   dest->Clear();
   return SerializeToWriter(
+      src, ChainWriter<>(dest, ChainWriterBase::Options().set_size_hint(
+                                   src.ByteSizeLong())));
+}
+
+Status SerializePartialToChain(const google::protobuf::MessageLite& src,
+                               Chain* dest) {
+  dest->Clear();
+  return SerializePartialToWriter(
       src, ChainWriter<>(dest, ChainWriterBase::Options().set_size_hint(
                                    src.ByteSizeLong())));
 }

@@ -26,8 +26,9 @@
 
 namespace riegeli {
 
-// Writes the message in binary format to the given Writer. Fails if some
-// required fields are missing.
+// Writes the message in binary format to the given Writer.
+//
+// SerializePartialToWriter() allows missing required fields.
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the Writer. Dest must support Dependency<Writer*, Dest>,
@@ -39,14 +40,20 @@ namespace riegeli {
 //  * !status.ok() - failure (dest is unspecified)
 template <typename Dest = Writer*>
 Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest dest);
+template <typename Dest = Writer*>
+Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
+                                Dest dest);
 
 // Writes the message in binary format to the given Chain, clearing it first.
-// Fails if some required fields are missing.
+//
+// SerializePartialToChain() allows missing required fields.
 //
 // Returns status:
 //  * status.ok()  - success (*dest is filled)
 //  * !status.ok() - failure (*dest is unspecified)
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest);
+Status SerializePartialToChain(const google::protobuf::MessageLite& src,
+                               Chain* dest);
 
 // Implementation details follow.
 
@@ -54,6 +61,8 @@ namespace internal {
 
 Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                              Writer* dest);
+Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
+                                    Writer* dest);
 
 }  // namespace internal
 
@@ -62,6 +71,18 @@ inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                 Dest dest) {
   Dependency<Writer*, Dest> dest_dep(std::move(dest));
   const Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
+  if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
+  }
+  return status;
+}
+
+template <typename Dest>
+inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
+                                       Dest dest) {
+  Dependency<Writer*, Dest> dest_dep(std::move(dest));
+  const Status status =
+      internal::SerializePartialToWriterImpl(src, dest_dep.get());
   if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
   }

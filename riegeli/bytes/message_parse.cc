@@ -115,11 +115,9 @@ google::protobuf::int64 ReaderInputStream::ByteCount() const {
 namespace internal {
 
 Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
-  ReaderInputStream input_stream(src);
-  if (ABSL_PREDICT_FALSE(
-          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
-    return DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+  {
+    const Status status = ParsePartialFromReaderImpl(dest, src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
   }
   if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
     return DataLossError(
@@ -130,10 +128,26 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
   return OkStatus();
 }
 
+Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
+                                  Reader* src) {
+  ReaderInputStream input_stream(src);
+  if (ABSL_PREDICT_FALSE(
+          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+    return DataLossError(
+        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+  }
+  return OkStatus();
+}
+
 }  // namespace internal
 
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
   return ParseFromReader(dest, ChainReader<>(&src));
+}
+
+Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
+                             const Chain& src) {
+  return ParsePartialFromReader(dest, ChainReader<>(&src));
 }
 
 }  // namespace riegeli
