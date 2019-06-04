@@ -275,6 +275,8 @@ class Chain {
 
   static constexpr size_t kAllocationCost = 256;
 
+  void ClearSlow();
+
   bool has_here() const { return begin_ == block_ptrs_.here; }
   bool has_allocated() const { return begin_ != block_ptrs_.here; }
 
@@ -1388,6 +1390,11 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
 inline Chain::~Chain() {
   UnrefBlocks();
   DeleteBlockPtrs();
+}
+
+inline void Chain::Clear() {
+  if (begin_ != end_) ClearSlow();
+  size_ = 0;
 }
 
 inline absl::string_view Chain::short_data() const {

@@ -501,13 +501,13 @@ Chain& Chain::operator=(const Chain& that) {
   return *this;
 }
 
-void Chain::Clear() {
-  if (begin_ != end_) {
-    Block** const new_end = begin_ + ((*begin_)->TryClear() ? 1 : 0);
-    UnrefBlocks(new_end, end_);
-    end_ = new_end;
-  }
-  size_ = 0;
+void Chain::ClearSlow() {
+  RIEGELI_ASSERT(begin_ != end_)
+      << "Failed precondition of Chain::ClearSlow(): "
+         "no blocks, use Clear() instead";
+  Block** const new_end = begin_ + ((*begin_)->TryClear() ? 1 : 0);
+  UnrefBlocks(new_end, end_);
+  end_ = new_end;
 }
 
 inline Chain::Block** Chain::NewBlockPtrs(size_t capacity) {
@@ -526,7 +526,7 @@ inline void Chain::EnsureHasHere() {
 
 void Chain::UnrefBlocksSlow(Block* const* begin, Block* const* end) {
   RIEGELI_ASSERT(begin < end)
-      << "Failed invariant of Chain::UnrefBlocksSlow(): "
+      << "Failed precondition of Chain::UnrefBlocksSlow(): "
          "no blocks, use UnrefBlocks() instead";
   do {
     (*begin++)->Unref();
