@@ -150,7 +150,7 @@ Status RecordWriterBase::Options::FromString(absl::string_view text) {
 class RecordWriterBase::Worker : public Object {
  public:
   explicit Worker(ChunkWriter* chunk_writer, Options&& options)
-      : Object(State::kOpen),
+      : Object(kInitiallyOpen),
         options_(std::move(options)),
         chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
         chunk_encoder_(MakeChunkEncoder()) {
@@ -625,7 +625,11 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
       chunk_encoder_ == nullptr ? uint64_t{0} : chunk_encoder_->num_records());
 }
 
-RecordWriterBase::RecordWriterBase(State state) noexcept : Object(state) {}
+RecordWriterBase::RecordWriterBase(InitiallyClosed) noexcept
+    : Object(kInitiallyClosed) {}
+
+RecordWriterBase::RecordWriterBase(InitiallyOpen) noexcept
+    : Object(kInitiallyOpen) {}
 
 RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
     : Object(std::move(that)),

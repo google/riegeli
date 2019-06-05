@@ -136,7 +136,7 @@ class ValueParser : public Object {
 
 class OptionsParser : public Object {
  public:
-  OptionsParser() : Object(State::kOpen) {}
+  OptionsParser() : Object(kInitiallyOpen) {}
 
   OptionsParser(const OptionsParser&) = delete;
   OptionsParser& operator=(const OptionsParser&) = delete;

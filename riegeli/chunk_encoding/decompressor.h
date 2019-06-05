@@ -54,7 +54,7 @@ template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
   // Creates a closed Decompressor.
-  Decompressor() noexcept : Object(State::kClosed) {}
+  Decompressor() noexcept : Object(kInitiallyClosed) {}
 
   // Will read from the compressed stream provided by src.
   //
@@ -97,7 +97,7 @@ class Decompressor : public Object {
 
 template <typename Src>
 Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
-    : Object(State::kOpen) {
+    : Object(kInitiallyOpen) {
   Dependency<Reader*, Src> compressed_reader(std::move(src));
   if (compression_type == CompressionType::kNone) {
     reader_ = std::move(compressed_reader);

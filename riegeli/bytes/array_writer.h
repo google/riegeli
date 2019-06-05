@@ -47,7 +47,9 @@ class ArrayWriterBase : public Writer {
   bool Truncate(Position new_size) override;
 
  protected:
-  explicit ArrayWriterBase(State state) noexcept : Writer(state) {}
+  explicit ArrayWriterBase(InitiallyClosed) noexcept
+      : Writer(kInitiallyClosed) {}
+  explicit ArrayWriterBase(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
 
   ArrayWriterBase(ArrayWriterBase&& that) noexcept;
   ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
@@ -74,7 +76,7 @@ template <typename Dest = absl::Span<char>>
 class ArrayWriter : public ArrayWriterBase {
  public:
   // Creates a closed ArrayWriter.
-  ArrayWriter() noexcept : ArrayWriterBase(State::kClosed) {}
+  ArrayWriter() noexcept : ArrayWriterBase(kInitiallyClosed) {}
 
   // Will write to the array provided by dest.
   explicit ArrayWriter(Dest dest);
@@ -111,7 +113,7 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
 
 template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(Dest dest)
-    : ArrayWriterBase(State::kOpen), dest_(std::move(dest)) {
+    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
   start_ = dest_.get().data();
   cursor_ = start_;
   limit_ = start_ + dest_.get().size();

@@ -37,7 +37,7 @@ namespace riegeli {
 class BufferedWriter : public Writer {
  protected:
   // Creates a closed BufferedWriter.
-  BufferedWriter() noexcept : Writer(State::kClosed) {}
+  BufferedWriter() noexcept : Writer(kInitiallyClosed) {}
 
   // Creates a BufferedWriter with the given buffer size and size hint.
   //
@@ -91,7 +91,7 @@ class BufferedWriter : public Writer {
 
 inline BufferedWriter::BufferedWriter(size_t buffer_size,
                                       Position size_hint) noexcept
-    : Writer(State::kOpen),
+    : Writer(kInitiallyOpen),
       buffer_size_(buffer_size),
       size_hint_(size_hint),
       buffer_(buffer_size) {

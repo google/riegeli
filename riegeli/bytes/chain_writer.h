@@ -65,10 +65,10 @@ class ChainWriterBase : public Writer {
   bool Truncate(Position new_size) override;
 
  protected:
-  ChainWriterBase() noexcept : Writer(State::kClosed) {}
+  ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
   explicit ChainWriterBase(Position size_hint)
-      : Writer(State::kOpen),
+      : Writer(kInitiallyOpen),
         size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
   }
 

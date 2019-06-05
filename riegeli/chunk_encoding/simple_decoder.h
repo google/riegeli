@@ -29,7 +29,7 @@ namespace riegeli {
 
 class SimpleDecoder : public Object {
  public:
-  SimpleDecoder() noexcept : Object(State::kClosed) {}
+  SimpleDecoder() noexcept : Object(kInitiallyClosed) {}
 
   SimpleDecoder(const SimpleDecoder&) = delete;
   SimpleDecoder& operator=(const SimpleDecoder&) = delete;

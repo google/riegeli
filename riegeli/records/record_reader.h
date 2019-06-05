@@ -271,7 +271,8 @@ class RecordReaderBase : public Object {
  protected:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
 
-  explicit RecordReaderBase(State state) noexcept;
+  explicit RecordReaderBase(InitiallyClosed) noexcept;
+  explicit RecordReaderBase(InitiallyOpen) noexcept;
 
   RecordReaderBase(RecordReaderBase&& that) noexcept;
   RecordReaderBase& operator=(RecordReaderBase&& that) noexcept;
@@ -387,7 +388,7 @@ template <typename Src = Reader*>
 class RecordReader : public RecordReaderBase {
  public:
   // Creates a closed RecordReader.
-  RecordReader() noexcept : RecordReaderBase(State::kClosed) {}
+  RecordReader() noexcept : RecordReaderBase(kInitiallyClosed) {}
 
   // Will read from the byte Reader or ChunkReader provided by src.
   explicit RecordReader(Src src, Options options = Options());
@@ -497,7 +498,7 @@ inline RecordPosition RecordReaderBase::pos() const {
 
 template <typename Src>
 RecordReader<Src>::RecordReader(Src src, Options options)
-    : RecordReaderBase(State::kOpen), src_(std::move(src)) {
+    : RecordReaderBase(kInitiallyOpen), src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
 }
 

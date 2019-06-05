@@ -72,7 +72,7 @@ class Compressor : public Object {
   };
 
   // Creates a closed Compressor.
-  Compressor() noexcept : Object(State::kClosed) {}
+  Compressor() noexcept : Object(kInitiallyClosed) {}
 
   // Creates an empty Compressor.
   explicit Compressor(CompressorOptions compressor_options,

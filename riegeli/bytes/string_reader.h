@@ -39,7 +39,9 @@ class StringReaderBase : public Reader {
   bool Size(Position* size) override;
 
  protected:
-  explicit StringReaderBase(State state) noexcept : Reader(state) {}
+  explicit StringReaderBase(InitiallyClosed) noexcept
+      : Reader(kInitiallyClosed) {}
+  explicit StringReaderBase(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
 
   StringReaderBase(StringReaderBase&& that) noexcept;
   StringReaderBase& operator=(StringReaderBase&& that) noexcept;
@@ -65,7 +67,7 @@ template <typename Src = absl::string_view>
 class StringReader : public StringReaderBase {
  public:
   // Creates a closed StringReader.
-  StringReader() noexcept : StringReaderBase(State::kClosed) {}
+  StringReader() noexcept : StringReaderBase(kInitiallyClosed) {}
 
   // Will read from the string or array provided by src.
   explicit StringReader(Src src);
@@ -100,7 +102,7 @@ inline StringReaderBase& StringReaderBase::operator=(
 
 template <typename Src>
 inline StringReader<Src>::StringReader(Src src)
-    : StringReaderBase(State::kOpen), src_(std::move(src)) {
+    : StringReaderBase(kInitiallyOpen), src_(std::move(src)) {
   start_ = src_.get().data();
   cursor_ = start_;
   limit_ = start_ + src_.get().size();

@@ -39,7 +39,8 @@ class Reader;
 // writes.
 class ChunkWriter : public Object {
  public:
-  explicit ChunkWriter(State state) noexcept : Object(state) {}
+  explicit ChunkWriter(InitiallyClosed) : Object(kInitiallyClosed) {}
+  explicit ChunkWriter(InitiallyOpen) : Object(kInitiallyOpen) {}
 
   ChunkWriter(ChunkWriter&& that) noexcept;
   ChunkWriter& operator=(ChunkWriter&& that) noexcept;
@@ -123,7 +124,10 @@ class DefaultChunkWriterBase : public ChunkWriter {
   bool Flush(FlushType flush_type) override;
 
  protected:
-  explicit DefaultChunkWriterBase(State state) noexcept : ChunkWriter(state) {}
+  explicit DefaultChunkWriterBase(InitiallyClosed)
+      : ChunkWriter(kInitiallyClosed) {}
+  explicit DefaultChunkWriterBase(InitiallyOpen)
+      : ChunkWriter(kInitiallyOpen) {}
 
   DefaultChunkWriterBase(DefaultChunkWriterBase&& that) noexcept;
   DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& that) noexcept;
@@ -150,7 +154,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
 template <typename Dest = Writer*>
 class DefaultChunkWriter : public DefaultChunkWriterBase {
  public:
-  DefaultChunkWriter() noexcept : DefaultChunkWriterBase(State::kClosed) {}
+  DefaultChunkWriter() noexcept : DefaultChunkWriterBase(kInitiallyClosed) {}
 
   // Will write to the byte Writer provided by dest.
   explicit DefaultChunkWriter(Dest dest, Options options = Options());
@@ -197,7 +201,7 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 
 template <typename Dest>
 DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
-    : DefaultChunkWriterBase(State::kOpen), dest_(std::move(dest)) {
+    : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
 }
 

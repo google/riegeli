@@ -58,10 +58,10 @@ class LimitingWriterBase : public Writer {
   bool Truncate(Position new_size) override;
 
  protected:
-  LimitingWriterBase() noexcept : Writer(State::kClosed) {}
+  LimitingWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
   explicit LimitingWriterBase(Position size_limit)
-      : Writer(State::kOpen), size_limit_(size_limit) {}
+      : Writer(kInitiallyOpen), size_limit_(size_limit) {}
 
   LimitingWriterBase(LimitingWriterBase&& that) noexcept;
   LimitingWriterBase& operator=(LimitingWriterBase&& that) noexcept;

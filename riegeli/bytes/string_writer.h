@@ -64,7 +64,9 @@ class StringWriterBase : public Writer {
   bool Truncate(Position new_size) override;
 
  protected:
-  explicit StringWriterBase(State state) noexcept : Writer(state) {}
+  explicit StringWriterBase(InitiallyClosed) noexcept
+      : Writer(kInitiallyClosed) {}
+  explicit StringWriterBase(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
 
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
@@ -103,7 +105,7 @@ template <typename Dest = std::string*>
 class StringWriter : public StringWriterBase {
  public:
   // Creates a closed StringWriter.
-  StringWriter() noexcept : StringWriterBase(State::kClosed) {}
+  StringWriter() noexcept : StringWriterBase(kInitiallyClosed) {}
 
   // Will append to the string provided by dest.
   explicit StringWriter(Dest dest, Options options = Options());
@@ -140,7 +142,7 @@ inline StringWriterBase& StringWriterBase::operator=(
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest dest, Options options)
-    : StringWriterBase(State::kOpen), dest_(std::move(dest)) {
+    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
   RIEGELI_ASSERT(dest_.get() != nullptr)
       << "Failed precondition of StringWriter<Dest>::StringWriter(Dest): "
          "null string pointer";

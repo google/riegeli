@@ -47,8 +47,10 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   bool Truncate(Position new_size) override;
 
  protected:
-  explicit ArrayBackwardWriterBase(State state) noexcept
-      : BackwardWriter(state) {}
+  explicit ArrayBackwardWriterBase(InitiallyClosed) noexcept
+      : BackwardWriter(kInitiallyClosed) {}
+  explicit ArrayBackwardWriterBase(InitiallyOpen) noexcept
+      : BackwardWriter(kInitiallyOpen) {}
 
   ArrayBackwardWriterBase(ArrayBackwardWriterBase&& that) noexcept;
   ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& that) noexcept;
@@ -76,7 +78,7 @@ template <typename Dest = absl::Span<char>>
 class ArrayBackwardWriter : public ArrayBackwardWriterBase {
  public:
   // Creates a closed ArrayBackwardWriter.
-  ArrayBackwardWriter() noexcept : ArrayBackwardWriterBase(State::kClosed) {}
+  ArrayBackwardWriter() noexcept : ArrayBackwardWriterBase(kInitiallyClosed) {}
 
   // Will write to the array provided by dest.
   explicit ArrayBackwardWriter(Dest dest);
@@ -114,7 +116,7 @@ inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
 
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
-    : ArrayBackwardWriterBase(State::kOpen), dest_(std::move(dest)) {
+    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
   limit_ = dest_.get().data();
   start_ = limit_ + dest_.get().size();
   cursor_ = start_;

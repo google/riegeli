@@ -175,7 +175,8 @@ class Writer : public Object {
 
  protected:
   // Creates a Writer with the given initial state.
-  explicit Writer(State state) noexcept : Object(state) {}
+  explicit Writer(InitiallyClosed) noexcept : Object(kInitiallyClosed) {}
+  explicit Writer(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
 
   // Moves the part of the object defined in this class.
   //

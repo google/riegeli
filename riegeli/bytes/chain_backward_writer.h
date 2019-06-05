@@ -65,10 +65,10 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool Truncate(Position new_size) override;
 
  protected:
-  ChainBackwardWriterBase() noexcept : BackwardWriter(State::kClosed) {}
+  ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
   explicit ChainBackwardWriterBase(Position size_hint)
-      : BackwardWriter(State::kOpen),
+      : BackwardWriter(kInitiallyOpen),
         size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
   }
 

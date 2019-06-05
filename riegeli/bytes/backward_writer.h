@@ -145,7 +145,9 @@ class BackwardWriter : public Object {
 
  protected:
   // Creates a BackwardWriter with the given initial state.
-  explicit BackwardWriter(State state) noexcept : Object(state) {}
+  explicit BackwardWriter(InitiallyClosed) noexcept
+      : Object(kInitiallyClosed) {}
+  explicit BackwardWriter(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
 
   // Moves the part of the object defined in this class.
   //

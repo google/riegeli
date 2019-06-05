@@ -141,7 +141,7 @@ class ChunkDecoder : public Object {
 // Implementation details follow.
 
 inline ChunkDecoder::ChunkDecoder(Options options)
-    : Object(State::kOpen),
+    : Object(kInitiallyOpen),
       field_projection_(std::move(options.field_projection_)),
       values_reader_(Chain()) {}
 

@@ -78,7 +78,7 @@ class RecordsMetadataDescriptors::ErrorCollector
 
 RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     const RecordsMetadata& metadata)
-    : Object(State::kOpen), record_type_name_(metadata.record_type_name()) {
+    : Object(kInitiallyOpen), record_type_name_(metadata.record_type_name()) {
   if (record_type_name_.empty() || metadata.file_descriptor().empty()) return;
   pool_ = absl::make_unique<google::protobuf::DescriptorPool>();
   ErrorCollector error_collector(this);
@@ -97,7 +97,11 @@ const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
   return pool_->FindMessageTypeByName(record_type_name_);
 }
 
-RecordReaderBase::RecordReaderBase(State state) noexcept : Object(state) {}
+RecordReaderBase::RecordReaderBase(InitiallyClosed) noexcept
+    : Object(kInitiallyClosed) {}
+
+RecordReaderBase::RecordReaderBase(InitiallyOpen) noexcept
+    : Object(kInitiallyOpen) {}
 
 RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),

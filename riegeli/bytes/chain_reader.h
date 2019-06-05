@@ -40,7 +40,10 @@ class ChainReaderBase : public PullableReader {
   bool Size(Position* size) override;
 
  protected:
-  explicit ChainReaderBase(State state) noexcept : PullableReader(state) {}
+  explicit ChainReaderBase(InitiallyClosed) noexcept
+      : PullableReader(kInitiallyClosed) {}
+  explicit ChainReaderBase(InitiallyOpen) noexcept
+      : PullableReader(kInitiallyOpen) {}
 
   ChainReaderBase(ChainReaderBase&& that) noexcept;
   ChainReaderBase& operator=(ChainReaderBase&& that) noexcept;
@@ -78,7 +81,7 @@ template <typename Src = const Chain*>
 class ChainReader : public ChainReaderBase {
  public:
   // Creates a closed ChainReader.
-  ChainReader() noexcept : ChainReaderBase(State::kClosed) {}
+  ChainReader() noexcept : ChainReaderBase(kInitiallyClosed) {}
 
   // Will read from the Chain provided by src.
   explicit ChainReader(Src src);
@@ -114,7 +117,7 @@ inline ChainReaderBase& ChainReaderBase::operator=(
 
 template <typename Src>
 inline ChainReader<Src>::ChainReader(Src src)
-    : ChainReaderBase(State::kOpen), src_(std::move(src)) {
+    : ChainReaderBase(kInitiallyOpen), src_(std::move(src)) {
   RIEGELI_ASSERT(src_.get() != nullptr)
       << "Failed precondition of ChainReader<Src>::ChainReader(Src): "
          "null Chain pointer";

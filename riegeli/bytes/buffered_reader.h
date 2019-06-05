@@ -38,7 +38,7 @@ namespace riegeli {
 class BufferedReader : public Reader {
  protected:
   // Creates a closed BufferedReader.
-  BufferedReader() noexcept : Reader(State::kClosed) {}
+  BufferedReader() noexcept : Reader(kInitiallyClosed) {}
 
   // Creates a BufferedReader with the given buffer size and size hint.
   //
@@ -104,7 +104,7 @@ class BufferedReader : public Reader {
 
 inline BufferedReader::BufferedReader(size_t buffer_size,
                                       Position size_hint) noexcept
-    : Reader(State::kOpen), buffer_size_(buffer_size), size_hint_(size_hint) {
+    : Reader(kInitiallyOpen), buffer_size_(buffer_size), size_hint_(size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::BufferedReader(size_t): "
          "zero buffer size";

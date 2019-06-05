@@ -40,7 +40,10 @@ class BrotliReaderBase : public PullableReader {
   virtual const Reader* src_reader() const = 0;
 
  protected:
-  explicit BrotliReaderBase(State state) noexcept : PullableReader(state) {}
+  explicit BrotliReaderBase(InitiallyClosed) noexcept
+      : PullableReader(kInitiallyClosed) {}
+  explicit BrotliReaderBase(InitiallyOpen) noexcept
+      : PullableReader(kInitiallyOpen) {}
 
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
@@ -83,7 +86,7 @@ template <typename Src = Reader*>
 class BrotliReader : public BrotliReaderBase {
  public:
   // Creates a closed BrotliReader.
-  BrotliReader() noexcept : BrotliReaderBase(State::kClosed) {}
+  BrotliReader() noexcept : BrotliReaderBase(kInitiallyClosed) {}
 
   // Will read from the compressed Reader provided by src.
   explicit BrotliReader(Src src, Options options = Options());
@@ -124,7 +127,7 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
 
 template <typename Src>
 BrotliReader<Src>::BrotliReader(Src src, Options options)
-    : BrotliReaderBase(State::kOpen), src_(std::move(src)) {
+    : BrotliReaderBase(kInitiallyOpen), src_(std::move(src)) {
   Initialize(src_.get());
 }
 

@@ -55,10 +55,10 @@ class LimitingReaderBase : public Reader {
   bool Size(Position* size) override;
 
  protected:
-  LimitingReaderBase() noexcept : Reader(State::kClosed) {}
+  LimitingReaderBase() noexcept : Reader(kInitiallyClosed) {}
 
   explicit LimitingReaderBase(Position size_limit)
-      : Reader(State::kOpen), size_limit_(size_limit) {}
+      : Reader(kInitiallyOpen), size_limit_(size_limit) {}
 
   LimitingReaderBase(LimitingReaderBase&& that) noexcept;
   LimitingReaderBase& operator=(LimitingReaderBase&& that) noexcept;

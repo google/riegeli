@@ -365,7 +365,8 @@ class RecordWriterBase : public Object {
   FutureRecordPosition Pos() const;
 
  protected:
-  explicit RecordWriterBase(State state) noexcept;
+  explicit RecordWriterBase(InitiallyClosed) noexcept;
+  explicit RecordWriterBase(InitiallyOpen) noexcept;
 
   RecordWriterBase(RecordWriterBase&& that) noexcept;
   RecordWriterBase& operator=(RecordWriterBase&& that) noexcept;
@@ -423,7 +424,7 @@ template <typename Dest = Writer*>
 class RecordWriter : public RecordWriterBase {
  public:
   // Creates a closed RecordWriter.
-  RecordWriter() noexcept : RecordWriterBase(State::kClosed) {}
+  RecordWriter() noexcept : RecordWriterBase(kInitiallyClosed) {}
 
   // Will write to the byte Writer or ChunkWriter provided by dest.
   explicit RecordWriter(Dest dest, Options options = Options());
@@ -482,7 +483,7 @@ inline bool RecordWriterBase::WriteRecord(Chain&& record,
 
 template <typename Dest>
 RecordWriter<Dest>::RecordWriter(Dest dest, Options options)
-    : RecordWriterBase(State::kOpen), dest_(std::move(dest)) {
+    : RecordWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
 }
 

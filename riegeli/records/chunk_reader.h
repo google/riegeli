@@ -139,7 +139,8 @@ class DefaultChunkReaderBase : public Object {
   bool Size(Position* size);
 
  protected:
-  explicit DefaultChunkReaderBase(State state) : Object(state) {}
+  explicit DefaultChunkReaderBase(InitiallyClosed) : Object(kInitiallyClosed) {}
+  explicit DefaultChunkReaderBase(InitiallyOpen) : Object(kInitiallyOpen) {}
 
   DefaultChunkReaderBase(DefaultChunkReaderBase&& that) noexcept;
   DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& that) noexcept;
@@ -244,7 +245,7 @@ using ChunkReader = DefaultChunkReaderBase;
 template <typename Src = Reader*>
 class DefaultChunkReader : public DefaultChunkReaderBase {
  public:
-  DefaultChunkReader() : DefaultChunkReaderBase(State::kClosed) {}
+  DefaultChunkReader() : DefaultChunkReaderBase(kInitiallyClosed) {}
 
   // Will read from the byte Reader provided by src.
   explicit DefaultChunkReader(Src src);
@@ -294,7 +295,7 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
 
 template <typename Src>
 DefaultChunkReader<Src>::DefaultChunkReader(Src src)
-    : DefaultChunkReaderBase(State::kOpen), src_(std::move(src)) {
+    : DefaultChunkReaderBase(kInitiallyOpen), src_(std::move(src)) {
   Initialize(src_.get());
 }
 

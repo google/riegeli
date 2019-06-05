@@ -62,7 +62,7 @@ struct AndFunction {
 
 ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
                          absl::string_view value)
-    : Object(State::kOpen),
+    : Object(kInitiallyOpen),
       options_parser_(RIEGELI_ASSERT_NOTNULL(options_parser)),
       key_(key),
       value_(value) {}

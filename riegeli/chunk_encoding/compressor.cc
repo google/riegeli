@@ -36,7 +36,7 @@ namespace internal {
 
 Compressor::Compressor(CompressorOptions compressor_options,
                        TuningOptions tuning_options)
-    : Object(State::kOpen),
+    : Object(kInitiallyOpen),
       compressor_options_(std::move(compressor_options)),
       tuning_options_(std::move(tuning_options)) {
   Reset();

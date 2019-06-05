@@ -108,7 +108,7 @@ class FileWriterBase : public Writer {
   bool Flush(FlushType flush_type) override;
 
  protected:
-  FileWriterBase() noexcept : Writer(State::kClosed) {}
+  FileWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
   explicit FileWriterBase(size_t buffer_size);
 
@@ -202,7 +202,7 @@ class FileWriter : public FileWriterBase {
 // Implementation details follow.
 
 inline FileWriterBase::FileWriterBase(size_t buffer_size)
-    : Writer(State::kOpen), buffer_size_(buffer_size), buffer_(buffer_size) {}
+    : Writer(kInitiallyOpen), buffer_size_(buffer_size), buffer_(buffer_size) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),

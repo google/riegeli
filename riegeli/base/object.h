@@ -120,14 +120,22 @@ class Object {
   virtual TypeId GetTypeId() const;
 
  protected:
-  // Initial state of the Object.
-  enum class State : uintptr_t {
-    kOpen = 0,
-    kClosed = 1,
-  };
+  // By a common convention default-constructed objects are closed, and objects
+  // constructed with non-empty parameter lists are open.
+  //
+  // This convention is not applicable to abstract classes with no natural
+  // constructor parameters. Instead, these classes (such as Object itself) have
+  // no default constructor, and constructors with a dummy parameter of type
+  // InitiallyClosed or InitiallyOpen disambiguate the intent.
+  struct InitiallyClosed {};
+  struct InitiallyOpen {};
+
+  static constexpr InitiallyClosed kInitiallyClosed{};
+  static constexpr InitiallyOpen kInitiallyOpen{};
 
   // Creates an Object with the given initial state.
-  explicit Object(State state) noexcept;
+  explicit Object(InitiallyClosed) noexcept;
+  explicit Object(InitiallyOpen) noexcept;
 
   // Moves the part of the object defined in the Object class.
   //
@@ -214,9 +222,8 @@ class Object {
     Status status;
   };
 
-  static constexpr uintptr_t kHealthy = static_cast<uintptr_t>(State::kOpen);
-  static constexpr uintptr_t kClosedSuccessfully =
-      static_cast<uintptr_t>(State::kClosed);
+  static constexpr uintptr_t kHealthy = 0;
+  static constexpr uintptr_t kClosedSuccessfully = 1;
 
   static void DeleteStatus(uintptr_t status_ptr);
 
@@ -233,11 +240,10 @@ inline TypeId TypeId::For() {
   return TypeId(&token);
 }
 
-inline Object::Object(State state) noexcept
-    : status_ptr_(static_cast<uintptr_t>(state)) {
-  RIEGELI_ASSERT(state == State::kOpen || state == State::kClosed)
-      << "Unknown state: " << static_cast<uintptr_t>(state);
-}
+inline Object::Object(InitiallyClosed) noexcept
+    : status_ptr_(kClosedSuccessfully) {}
+
+inline Object::Object(InitiallyOpen) noexcept : status_ptr_(kHealthy) {}
 
 inline Object::Object(Object&& that) noexcept
     : status_ptr_(that.status_ptr_.exchange(kClosedSuccessfully,

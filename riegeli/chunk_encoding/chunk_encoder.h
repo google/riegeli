@@ -33,7 +33,7 @@ namespace riegeli {
 class ChunkEncoder : public Object {
  public:
   // Creates an empty ChunkEncoder.
-  ChunkEncoder() noexcept : Object(State::kOpen) {}
+  ChunkEncoder() noexcept : Object(kInitiallyOpen) {}
 
   ChunkEncoder(const ChunkEncoder&) = delete;
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;

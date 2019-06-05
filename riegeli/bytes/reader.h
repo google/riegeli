@@ -215,7 +215,8 @@ class Reader : public Object {
 
  protected:
   // Creates a Reader with the given initial state.
-  explicit Reader(State state) noexcept : Object(state) {}
+  explicit Reader(InitiallyClosed) noexcept : Object(kInitiallyClosed) {}
+  explicit Reader(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
 
   // Moves the part of the object defined in this class.
   //

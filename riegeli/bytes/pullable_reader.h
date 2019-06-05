@@ -37,7 +37,9 @@ namespace riegeli {
 class PullableReader : public Reader {
  protected:
   // Creates a PullableReader with the given initial state.
-  explicit PullableReader(State state) noexcept : Reader(state) {}
+  explicit PullableReader(InitiallyClosed) noexcept
+      : Reader(kInitiallyClosed) {}
+  explicit PullableReader(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
 
   PullableReader(PullableReader&& that) noexcept;
   PullableReader& operator=(PullableReader&& that) noexcept;

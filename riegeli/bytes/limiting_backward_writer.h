@@ -56,10 +56,10 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool Truncate(Position new_size) override;
 
  protected:
-  LimitingBackwardWriterBase() noexcept : BackwardWriter(State::kClosed) {}
+  LimitingBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
   explicit LimitingBackwardWriterBase(Position size_limit)
-      : BackwardWriter(State::kOpen), size_limit_(size_limit) {}
+      : BackwardWriter(kInitiallyOpen), size_limit_(size_limit) {}
 
   LimitingBackwardWriterBase(LimitingBackwardWriterBase&& that) noexcept;
   LimitingBackwardWriterBase& operator=(

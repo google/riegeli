@@ -107,7 +107,7 @@ class FileReaderBase : public Reader {
   bool Size(Position* size) override;
 
  protected:
-  FileReaderBase() noexcept : Reader(State::kClosed) {}
+  FileReaderBase() noexcept : Reader(kInitiallyClosed) {}
 
   explicit FileReaderBase(size_t buffer_size);
 
@@ -225,7 +225,7 @@ class FileReader : public FileReaderBase {
 // Implementation details follow.
 
 inline FileReaderBase::FileReaderBase(size_t buffer_size)
-    : Reader(State::kOpen), buffer_size_(buffer_size) {}
+    : Reader(kInitiallyOpen), buffer_size_(buffer_size) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
