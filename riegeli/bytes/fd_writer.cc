@@ -58,6 +58,8 @@ void FdWriterCommon::SetFilename(int dest) {
 
 int FdWriterCommon::OpenFd(absl::string_view filename, int flags,
                            mode_t permissions) {
+  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
   const int dest = open(filename_.c_str(), flags, permissions);

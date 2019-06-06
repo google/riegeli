@@ -116,6 +116,8 @@ void FdReaderCommon::SetFilename(int src) {
 }
 
 int FdReaderCommon::OpenFd(absl::string_view filename, int flags) {
+  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
   const int src = open(filename_.c_str(), flags, 0666);
@@ -279,6 +281,8 @@ void FdMMapReaderBase::SetFilename(int src) {
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
+  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
   const int src = open(filename_.c_str(), flags, 0666);

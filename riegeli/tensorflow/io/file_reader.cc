@@ -55,6 +55,8 @@ bool FileReaderBase::InitializeFilename(::tensorflow::Env* env,
 
 bool FileReaderBase::InitializeFilename(::tensorflow::Env* env,
                                         absl::string_view filename) {
+  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
   const ::tensorflow::Status get_file_system_status =
