@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -30,12 +31,14 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
 
 namespace riegeli {
+
 namespace tensorflow {
 
 // Template parameter invariant part of FileWriter.
@@ -115,12 +118,16 @@ class FileWriterBase : public Writer {
   FileWriterBase(FileWriterBase&& that) noexcept;
   FileWriterBase& operator=(FileWriterBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size);
+  void Initialize(::tensorflow::WritableFile* dest);
   void InitializeFilename(::tensorflow::WritableFile* dest);
   std::unique_ptr<::tensorflow::WritableFile> OpenFile(
       ::tensorflow::Env* env, absl::string_view filename, bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
+
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
   // Writes buffered data to the destination, but unlike PushSlow(), does not
@@ -177,13 +184,29 @@ class FileWriter : public FileWriterBase {
   FileWriter() noexcept {}
 
   // Will write to the WritableFile provided by dest.
-  explicit FileWriter(Dest dest, Options options);
+  explicit FileWriter(const Dest& dest, Options options = Options());
+  explicit FileWriter(Dest&& dest, Options options = Options());
+
+  // Will write to the WritableFile provided by a Dest constructed from elements
+  // of dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit FileWriter(std::tuple<DestArgs...> dest_args,
+                      Options options = Options());
 
   // Opens a WritableFile for writing.
   explicit FileWriter(absl::string_view filename, Options options = Options());
 
   FileWriter(FileWriter&& that) noexcept;
   FileWriter& operator=(FileWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed FileWriter. This avoids
+  // constructing a temporary FileWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the WritableFile being
   // written to. Unchanged by Close().
@@ -195,6 +218,10 @@ class FileWriter : public FileWriterBase {
   void Done() override;
 
  private:
+  using FileWriterBase::Initialize;
+  void Initialize(absl::string_view filename, ::tensorflow::Env* env,
+                  bool append);
+
   // The object providing and possibly owning the WritableFile being written to.
   Dependency<::tensorflow::WritableFile*, Dest> dest_;
 };
@@ -219,24 +246,50 @@ inline FileWriterBase& FileWriterBase::operator=(
   return *this;
 }
 
-template <typename Dest>
-FileWriter<Dest>::FileWriter(Dest dest, Options options)
-    : FileWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of FileWriter<Dest>::FileWriter(Dest): "
-         "null WritableFile pointer";
-  InitializeFilename(dest_.get());
-  InitializePos(dest_.get());
+inline void FileWriterBase::Reset() {
+  Writer::Reset(kInitiallyClosed);
+  filename_.clear();
+  buffer_size_ = 0;
+}
+
+inline void FileWriterBase::Reset(size_t buffer_size) {
+  Writer::Reset(kInitiallyOpen);
+  filename_.clear();
+  buffer_size_ = buffer_size;
+  buffer_.Resize(buffer_size);
+}
+
+inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of FileWriter: null WritableFile pointer";
+  InitializeFilename(dest);
+  InitializePos(dest);
 }
 
 template <typename Dest>
-FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
+inline FileWriter<Dest>::FileWriter(const Dest& dest, Options options)
+    : FileWriterBase(options.buffer_size_), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline FileWriter<Dest>::FileWriter(Dest&& dest, Options options)
+    : FileWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
+                                    Options options)
+    : FileWriterBase(options.buffer_size_), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
     : FileWriterBase(options.buffer_size_) {
-  std::unique_ptr<::tensorflow::WritableFile> dest =
-      OpenFile(options.env_, filename, options.append_);
-  if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
-  dest_ = Dependency<::tensorflow::WritableFile*, Dest>(Dest(dest.release()));
-  InitializePos(dest_.get());
+  Initialize(filename, options.env_, options.append_);
 }
 
 template <typename Dest>
@@ -252,6 +305,54 @@ inline FileWriter<Dest>& FileWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void FileWriter<Dest>::Reset() {
+  FileWriterBase::Reset();
+  dest_.Reset();
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void FileWriter<Dest>::Reset(const Dest& dest, Options options) {
+  FileWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void FileWriter<Dest>::Reset(Dest&& dest, Options options) {
+  FileWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                    Options options) {
+  FileWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void FileWriter<Dest>::Reset(absl::string_view filename,
+                                    Options options) {
+  FileWriterBase::Reset(options.buffer_size_);
+  dest_.Reset();  // In case OpenFile() fails.
+  Initialize(filename, options.env_, options.append_);
+}
+
+template <typename Dest>
+inline void FileWriter<Dest>::Initialize(absl::string_view filename,
+                                         ::tensorflow::Env* env, bool append) {
+  std::unique_ptr<::tensorflow::WritableFile> dest =
+      OpenFile(env, filename, append);
+  if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
+  dest_.Reset(std::forward_as_tuple(dest.release()));
+  InitializePos(dest_.get());
+}
+
+template <typename Dest>
 void FileWriter<Dest>::Done() {
   PushInternal();
   FileWriterBase::Done();
@@ -264,10 +365,12 @@ void FileWriter<Dest>::Done() {
   }
 }
 
-extern template class FileWriter<std::unique_ptr<::tensorflow::WritableFile>>;
-extern template class FileWriter<::tensorflow::WritableFile*>;
-
 }  // namespace tensorflow
+
+template <typename Dest>
+struct Resetter<tensorflow::FileWriter<Dest>>
+    : ResetterByReset<tensorflow::FileWriter<Dest>> {};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_TENSORFLOW_IO_FILE_WRITER_H_

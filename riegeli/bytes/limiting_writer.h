@@ -18,8 +18,8 @@
 #include <stddef.h>
 
 #include <limits>
-#include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -29,6 +29,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -60,11 +61,14 @@ class LimitingWriterBase : public Writer {
  protected:
   LimitingWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit LimitingWriterBase(Position size_limit)
-      : Writer(kInitiallyOpen), size_limit_(size_limit) {}
+  explicit LimitingWriterBase(Position size_limit);
 
   LimitingWriterBase(LimitingWriterBase&& that) noexcept;
   LimitingWriterBase& operator=(LimitingWriterBase&& that) noexcept;
+
+  void Reset();
+  void Reset(Position size_limit);
+  void Initialize(Writer* dest);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -115,10 +119,29 @@ class LimitingWriter : public LimitingWriterBase {
   // Will write to the original Writer provided by dest.
   //
   // Precondition: size_limit >= dest->pos()
-  explicit LimitingWriter(Dest dest, Position size_limit = kNoSizeLimit);
+  explicit LimitingWriter(const Dest& dest, Position size_limit = kNoSizeLimit);
+  explicit LimitingWriter(Dest&& dest, Position size_limit = kNoSizeLimit);
+
+  // Will write to the original Writer provided by a Dest constructed from
+  // elements of dest_args. This avoids constructing a temporary Dest and moving
+  // from it.
+  //
+  // Precondition: size_limit >= dest->pos()
+  template <typename... DestArgs>
+  explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
+                          Position size_limit = kNoSizeLimit);
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed LimitingWriter. This avoids
+  // constructing a temporary LimitingWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
+  void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args,
+             Position size_limit = kNoSizeLimit);
 
   // Returns the object providing and possibly owning the original Writer.
   // Unchanged by Close().
@@ -139,6 +162,9 @@ class LimitingWriter : public LimitingWriterBase {
 
 // Implementation details follow.
 
+inline LimitingWriterBase::LimitingWriterBase(Position size_limit)
+    : Writer(kInitiallyOpen), size_limit_(size_limit) {}
+
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
     : Writer(std::move(that)),
@@ -149,6 +175,25 @@ inline LimitingWriterBase& LimitingWriterBase::operator=(
   Writer::operator=(std::move(that));
   size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
+}
+
+inline void LimitingWriterBase::Reset() {
+  Writer::Reset(kInitiallyClosed);
+  size_limit_ = kNoSizeLimit;
+}
+
+inline void LimitingWriterBase::Reset(Position size_limit) {
+  Writer::Reset(kInitiallyOpen);
+  size_limit_ = size_limit;
+}
+
+inline void LimitingWriterBase::Initialize(Writer* dest) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of LimitingWriter: null Writer pointer";
+  RIEGELI_ASSERT_GE(size_limit_, dest->pos())
+      << "Failed precondition of LimitingWriter: "
+         "size limit smaller than current position";
+  MakeBuffer(dest);
 }
 
 inline void LimitingWriterBase::set_size_limit(Position size_limit) {
@@ -177,15 +222,24 @@ inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
 }
 
 template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(Dest dest, Position size_limit)
+inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest,
+                                            Position size_limit)
+    : LimitingWriterBase(size_limit), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Position size_limit)
     : LimitingWriterBase(size_limit), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of LimitingWriter<Dest>::LimitingWriter(Dest): "
-         "null Writer pointer";
-  RIEGELI_ASSERT_GE(size_limit_, dest_->pos())
-      << "Failed precondition of LimitingWriter<Dest>::LimitingWriter(Dest): "
-         "size limit smaller than current position";
-  MakeBuffer(dest_.get());
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
+                                            Position size_limit)
+    : LimitingWriterBase(size_limit), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -200,6 +254,35 @@ inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
   LimitingWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
+}
+
+template <typename Dest>
+inline void LimitingWriter<Dest>::Reset() {
+  LimitingWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void LimitingWriter<Dest>::Reset(const Dest& dest, Position size_limit) {
+  LimitingWriterBase::Reset(size_limit);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void LimitingWriter<Dest>::Reset(Dest&& dest, Position size_limit) {
+  LimitingWriterBase::Reset(size_limit);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void LimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                        Position size_limit) {
+  LimitingWriterBase::Reset(size_limit);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -221,8 +304,9 @@ void LimitingWriter<Dest>::Done() {
   }
 }
 
-extern template class LimitingWriter<Writer*>;
-extern template class LimitingWriter<std::unique_ptr<Writer>>;
+template <typename Dest>
+struct Resetter<LimitingWriter<Dest>> : ResetterByReset<LimitingWriter<Dest>> {
+};
 
 }  // namespace riegeli
 

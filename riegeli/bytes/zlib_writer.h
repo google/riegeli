@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -26,6 +26,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -135,6 +136,7 @@ class ZlibWriterBase : public BufferedWriter {
     }
 
    private:
+    friend class ZlibWriterBase;
     template <typename Dest>
     friend class ZlibWriter;
 
@@ -154,13 +156,16 @@ class ZlibWriterBase : public BufferedWriter {
  protected:
   ZlibWriterBase() noexcept {}
 
-  explicit ZlibWriterBase(size_t buffer_size, Position size_hint) noexcept
-      : BufferedWriter(buffer_size, size_hint) {}
+  explicit ZlibWriterBase(size_t buffer_size, Position size_hint);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint);
+  static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level, int window_bits);
+
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -215,10 +220,26 @@ class ZlibWriter : public ZlibWriterBase {
   ZlibWriter() noexcept {}
 
   // Will write to the compressed Writer provided by dest.
-  explicit ZlibWriter(Dest dest, Options options = Options());
+  explicit ZlibWriter(const Dest& dest, Options options = Options());
+  explicit ZlibWriter(Dest&& dest, Options options = Options());
+
+  // Will write to the compressed Writer provided by a Dest constructed from
+  // elements of dest_args. This avoids constructing a temporary Dest and moving
+  // from it.
+  template <typename... DestArgs>
+  explicit ZlibWriter(std::tuple<DestArgs...> dest_args,
+                      Options options = Options());
 
   ZlibWriter(ZlibWriter&& that) noexcept;
   ZlibWriter& operator=(ZlibWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ZlibWriter. This avoids
+  // constructing a temporary ZlibWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Writer.
   // Unchanged by Close().
@@ -237,6 +258,9 @@ class ZlibWriter : public ZlibWriterBase {
 
 // Implementation details follow.
 
+inline ZlibWriterBase::ZlibWriterBase(size_t buffer_size, Position size_hint)
+    : BufferedWriter(buffer_size, size_hint) {}
+
 inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       compressor_(std::move(that.compressor_)) {}
@@ -248,14 +272,42 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
   return *this;
 }
 
+inline void ZlibWriterBase::Reset() {
+  BufferedWriter::Reset();
+  compressor_.reset();
+}
+
+inline void ZlibWriterBase::Reset(size_t buffer_size, Position size_hint) {
+  BufferedWriter::Reset(buffer_size, size_hint);
+  compressor_.reset();
+}
+
+inline int ZlibWriterBase::GetWindowBits(const Options& options) {
+  return options.header_ == Header::kRaw
+             ? -options.window_log_
+             : options.window_log_ + static_cast<int>(options.header_);
+}
+
 template <typename Dest>
-inline ZlibWriter<Dest>::ZlibWriter(Dest dest, Options options)
+inline ZlibWriter<Dest>::ZlibWriter(const Dest& dest, Options options)
+    : ZlibWriterBase(options.buffer_size_, options.size_hint_), dest_(dest) {
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+}
+
+template <typename Dest>
+inline ZlibWriter<Dest>::ZlibWriter(Dest&& dest, Options options)
     : ZlibWriterBase(options.buffer_size_, options.size_hint_),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level_,
-             options.header_ == Header::kRaw
-                 ? -options.window_log_
-                 : options.window_log_ + static_cast<int>(options.header_));
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
+                                    Options options)
+    : ZlibWriterBase(options.buffer_size_, options.size_hint_),
+      dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
 }
 
 template <typename Dest>
@@ -271,6 +323,35 @@ inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void ZlibWriter<Dest>::Reset() {
+  ZlibWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ZlibWriter<Dest>::Reset(const Dest& dest, Options options) {
+  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+}
+
+template <typename Dest>
+inline void ZlibWriter<Dest>::Reset(Dest&& dest, Options options) {
+  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ZlibWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                    Options options) {
+  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+}
+
+template <typename Dest>
 void ZlibWriter<Dest>::Done() {
   ZlibWriterBase::Done();
   if (dest_.is_owning()) {
@@ -278,8 +359,8 @@ void ZlibWriter<Dest>::Done() {
   }
 }
 
-extern template class ZlibWriter<Writer*>;
-extern template class ZlibWriter<std::unique_ptr<Writer>>;
+template <typename Dest>
+struct Resetter<ZlibWriter<Dest>> : ResetterByReset<ZlibWriter<Dest>> {};
 
 }  // namespace riegeli
 

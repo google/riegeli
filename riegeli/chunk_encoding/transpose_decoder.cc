@@ -21,6 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -416,7 +417,7 @@ bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
   RIEGELI_ASSERT_EQ(dest->pos(), 0u)
       << "Failed precondition of TransposeDecoder::Reset(): "
          "non-zero destination position";
-  MarkHealthy();
+  Object::Reset(kInitiallyOpen);
   if (ABSL_PREDICT_FALSE(num_records > limits->max_size())) {
     return Fail(ResourceExhaustedError("Too many records"));
   }
@@ -501,7 +502,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     return Fail(*src, DataLossError("Reading header failed"));
   }
   internal::Decompressor<ChainReader<>> header_decompressor(
-      (ChainReader<>(&header)), context->compression_type);
+      std::forward_as_tuple(&header), context->compression_type);
   if (ABSL_PREDICT_FALSE(!header_decompressor.healthy())) {
     return Fail(header_decompressor);
   }
@@ -747,8 +748,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (ABSL_PREDICT_FALSE(!header_decompressor.VerifyEndAndClose())) {
     return Fail(header_decompressor);
   }
-  context->transitions =
-      internal::Decompressor<>(src, context->compression_type);
+  context->transitions.Reset(src, context->compression_type);
   if (ABSL_PREDICT_FALSE(!context->transitions.healthy())) {
     return Fail(context->transitions);
   }
@@ -797,7 +797,7 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
             !src->Read(&bucket, IntCast<size_t>(bucket_length)))) {
       return Fail(*src, DataLossError("Reading bucket failed"));
     }
-    bucket_decompressors.emplace_back(ChainReader<Chain>(std::move(bucket)),
+    bucket_decompressors.emplace_back(std::forward_as_tuple(std::move(bucket)),
                                       context->compression_type);
     if (ABSL_PREDICT_FALSE(!bucket_decompressors.back().healthy())) {
       return Fail(bucket_decompressors.back());
@@ -944,8 +944,8 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
   while (index_within_bucket >= bucket.buffers.size()) {
     if (bucket.buffers.empty()) {
       // This is the first buffer to be decompressed from this bucket.
-      bucket.decompressor = internal::Decompressor<ChainReader<>>(
-          ChainReader<>(&bucket.compressed_data), context->compression_type);
+      bucket.decompressor.Reset(std::forward_as_tuple(&bucket.compressed_data),
+                                context->compression_type);
       if (ABSL_PREDICT_FALSE(!bucket.decompressor.healthy())) {
         Fail(bucket.decompressor);
         return nullptr;

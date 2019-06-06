@@ -21,6 +21,7 @@
 #include <limits>
 #include <queue>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -177,7 +178,7 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
       bucket_size_(options.compression_type() == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
                        : bucket_size),
-      nonproto_lengths_writer_(Chain()) {}
+      nonproto_lengths_writer_(std::forward_as_tuple()) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
@@ -188,7 +189,7 @@ void TransposeEncoder::Reset() {
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   group_stack_.clear();
   message_nodes_.clear();
-  nonproto_lengths_writer_ = ChainBackwardWriter<Chain>(Chain());
+  nonproto_lengths_writer_.Reset(std::forward_as_tuple());
   next_message_id_ = internal::MessageId::kRoot + 1;
 }
 
@@ -214,7 +215,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
-  LimitingReader<ChainReader<>> record_reader((ChainReader<>(&records)));
+  LimitingReader<ChainReader<>> record_reader(std::forward_as_tuple(&records));
   for (const size_t limit : limits) {
     RIEGELI_ASSERT_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
@@ -1317,8 +1318,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   const std::vector<StateInfo> state_machine =
       CreateStateMachine(max_transition, min_count_for_state);
 
-  ChainWriter<Chain> header_writer((Chain()));
-  ChainWriter<Chain> data_writer((Chain()));
+  ChainWriter<Chain> header_writer(std::forward_as_tuple());
+  ChainWriter<Chain> data_writer(std::forward_as_tuple());
   if (ABSL_PREDICT_FALSE(!WriteStatesAndData(max_transition, state_machine,
                                              &header_writer, &data_writer))) {
     return false;
@@ -1326,7 +1327,7 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!header_writer.Close())) return Fail(header_writer);
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
-  ChainWriter<Chain> compressed_header_writer((Chain()));
+  ChainWriter<Chain> compressed_header_writer(std::forward_as_tuple());
   internal::Compressor header_compressor(
       compressor_options_, internal::Compressor::TuningOptions().set_final_size(
                                header_writer.dest().size()));

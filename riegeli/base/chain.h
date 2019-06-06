@@ -37,6 +37,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/resetter.h"
 
 namespace riegeli {
 
@@ -1661,6 +1662,25 @@ inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
   }
   RemovePrefixSlow(length, size_hint);
 }
+
+template <>
+struct Resetter<Chain> {
+  static void Reset(Chain* object) { object->Clear(); }
+
+  static void Reset(Chain* object, absl::string_view src) {
+    object->Clear();
+    object->Append(src, src.size());
+  }
+
+  static void Reset(Chain* object, const Chain& src) { *object = src; }
+
+  static void Reset(Chain* object, Chain&& src) { *object = std::move(src); }
+
+  template <typename... Args>
+  static void Reset(Chain* object, Args&&... args) {
+    *object = T(std::forward<Args>(args)...);
+  }
+};
 
 }  // namespace riegeli
 

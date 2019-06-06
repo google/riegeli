@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,8 @@ class DeferredEncoder : public ChunkEncoder {
  public:
   explicit DeferredEncoder(std::unique_ptr<ChunkEncoder> base_encoder);
 
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
   void Reset() override;
 
   using ChunkEncoder::AddRecord;
@@ -74,7 +77,8 @@ class DeferredEncoder : public ChunkEncoder {
 
 inline DeferredEncoder::DeferredEncoder(
     std::unique_ptr<ChunkEncoder> base_encoder)
-    : base_encoder_(std::move(base_encoder)), records_writer_(Chain()) {}
+    : base_encoder_(std::move(base_encoder)),
+      records_writer_(std::forward_as_tuple()) {}
 
 }  // namespace riegeli
 

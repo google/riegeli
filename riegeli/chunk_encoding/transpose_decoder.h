@@ -52,6 +52,9 @@ class TransposeDecoder : public Object {
   //  * true  - success (healthy())
   //  * false - failure (!healthy());
   //            if !dest->healthy() then the problem was at dest
+  //
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
   bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
              const FieldProjection& field_projection, BackwardWriter* dest,
              std::vector<size_t>* limits);

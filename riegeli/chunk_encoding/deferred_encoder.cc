@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -38,7 +39,7 @@ namespace riegeli {
 void DeferredEncoder::Reset() {
   ChunkEncoder::Reset();
   base_encoder_->Reset();
-  records_writer_ = ChainWriter<Chain>(Chain());
+  records_writer_.Reset(std::forward_as_tuple());
   limits_.clear();
 }
 
@@ -55,7 +56,7 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
-  Status serialize_status = SerializeToWriter<>(record, &records_writer_);
+  Status serialize_status = SerializeToWriter(record, &records_writer_);
   if (ABSL_PREDICT_FALSE(!serialize_status.ok())) {
     return Fail(std::move(serialize_status));
   }

@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <new>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -61,6 +62,10 @@ class StableDependency<P*, M,
   explicit StableDependency(M&& manager) noexcept
       : dep_(absl::make_unique<Dependency<P*, M>>(std::move(manager))) {}
 
+  template <typename... MArgs>
+  explicit StableDependency(std::tuple<MArgs...> manager_args)
+      : dep_(absl::make_unique<Dependency<P*, M>>(std::move(manager_args))) {}
+
   ~StableDependency() {
     if (dep_ == nullptr) dummy_.~Dependency<P*, M>();
   }
@@ -85,6 +90,40 @@ class StableDependency<P*, M,
     dep_ = std::move(that.dep_);
     new (&that.dummy_) Dependency<P*, M>();
     return *this;
+  }
+
+  void Reset() {
+    if (dep_ != nullptr) {
+      dep_.reset();
+      new (&dummy_) Dependency<P*, M>();
+    }
+  }
+
+  void Reset(const M& manager) {
+    if (dep_ == nullptr) {
+      dummy_.~Dependency<P*, M>();
+      dep_ = absl::make_unique<Dependency<P*, M>>(manager);
+    } else {
+      dep_->Reset(manager);
+    }
+  }
+  void Reset(M&& manager) {
+    if (dep_ == nullptr) {
+      dummy_.~Dependency<P*, M>();
+      dep_ = absl::make_unique<Dependency<P*, M>>(std::move(manager));
+    } else {
+      dep_->Reset(std::move(manager));
+    }
+  }
+
+  template <typename... ManagerArgs>
+  void Reset(std::tuple<ManagerArgs...> manager_args) {
+    if (dep_ == nullptr) {
+      dummy_.~Dependency<P*, M>();
+      dep_ = absl::make_unique<Dependency<P*, M>>(std::move(manager_args));
+    } else {
+      dep_->Reset(std::move(manager_args));
+    }
   }
 
   M& manager() {

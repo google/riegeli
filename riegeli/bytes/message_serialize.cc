@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
@@ -133,17 +134,17 @@ Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
 
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest) {
   dest->Clear();
-  return SerializeToWriter(
-      src, ChainWriter<>(dest, ChainWriterBase::Options().set_size_hint(
-                                   src.ByteSizeLong())));
+  return SerializeToWriter<ChainWriter<>>(
+      src, std::forward_as_tuple(dest, ChainWriterBase::Options().set_size_hint(
+                                           src.ByteSizeLong())));
 }
 
 Status SerializePartialToChain(const google::protobuf::MessageLite& src,
                                Chain* dest) {
   dest->Clear();
-  return SerializePartialToWriter(
-      src, ChainWriter<>(dest, ChainWriterBase::Options().set_size_hint(
-                                   src.ByteSizeLong())));
+  return SerializePartialToWriter<ChainWriter<>>(
+      src, std::forward_as_tuple(dest, ChainWriterBase::Options().set_size_hint(
+                                           src.ByteSizeLong())));
 }
 
 }  // namespace riegeli

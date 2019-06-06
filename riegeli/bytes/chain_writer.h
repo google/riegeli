@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/utility/utility.h"
@@ -26,6 +27,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -67,13 +69,14 @@ class ChainWriterBase : public Writer {
  protected:
   ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit ChainWriterBase(Position size_hint)
-      : Writer(kInitiallyOpen),
-        size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
-  }
+  explicit ChainWriterBase(Position size_hint);
 
   ChainWriterBase(ChainWriterBase&& that) noexcept;
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
+
+  void Reset();
+  void Reset(Position size_hint);
+  void Initialize(Chain* dest);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -114,10 +117,25 @@ class ChainWriter : public ChainWriterBase {
   ChainWriter() noexcept {}
 
   // Will append to the Chain provided by dest.
-  explicit ChainWriter(Dest dest, Options options = Options());
+  explicit ChainWriter(const Dest& dest, Options options = Options());
+  explicit ChainWriter(Dest&& dest, Options options = Options());
+
+  // Will append to the Chain provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit ChainWriter(std::tuple<DestArgs...> dest_args,
+                       Options options = Options());
 
   ChainWriter(ChainWriter&& that) noexcept;
   ChainWriter& operator=(ChainWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ChainWriter. This avoids
+  // constructing a temporary ChainWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the Chain being written
   // to. Unchanged by Close().
@@ -138,6 +156,10 @@ class ChainWriter : public ChainWriterBase {
 
 // Implementation details follow.
 
+inline ChainWriterBase::ChainWriterBase(Position size_hint)
+    : Writer(kInitiallyOpen),
+      size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {}
+
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
     : Writer(std::move(that)), size_hint_(absl::exchange(that.size_hint_, 0)) {}
 
@@ -148,13 +170,40 @@ inline ChainWriterBase& ChainWriterBase::operator=(
   return *this;
 }
 
+inline void ChainWriterBase::Reset() {
+  Writer::Reset(kInitiallyClosed);
+  size_hint_ = 0;
+}
+
+inline void ChainWriterBase::Reset(Position size_hint) {
+  Writer::Reset(kInitiallyOpen);
+  size_hint_ = UnsignedMin(size_hint, std::numeric_limits<size_t>::max());
+}
+
+inline void ChainWriterBase::Initialize(Chain* dest) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of ChainWriter: null Chain pointer";
+  start_pos_ = dest->size();
+}
+
 template <typename Dest>
-inline ChainWriter<Dest>::ChainWriter(Dest dest, Options options)
+inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
+    : ChainWriterBase(options.size_hint_), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline ChainWriter<Dest>::ChainWriter(Dest&& dest, Options options)
     : ChainWriterBase(options.size_hint_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of ChainWriter<Dest>::ChainWriter(Dest): "
-         "null Chain pointer";
-  start_pos_ = dest_->size();
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
+                                      Options options)
+    : ChainWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -169,6 +218,35 @@ inline ChainWriter<Dest>& ChainWriter<Dest>::operator=(
   ChainWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
+}
+
+template <typename Dest>
+inline void ChainWriter<Dest>::Reset() {
+  ChainWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ChainWriter<Dest>::Reset(const Dest& dest, Options options) {
+  ChainWriterBase::Reset(options.size_hint_);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void ChainWriter<Dest>::Reset(Dest&& dest, Options options) {
+  ChainWriterBase::Reset(options.size_hint_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                     Options options) {
+  ChainWriterBase::Reset(options.size_hint_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -187,8 +265,8 @@ inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
   }
 }
 
-extern template class ChainWriter<Chain*>;
-extern template class ChainWriter<Chain>;
+template <typename Dest>
+struct Resetter<ChainWriter<Dest>> : ResetterByReset<ChainWriter<Dest>> {};
 
 }  // namespace riegeli
 

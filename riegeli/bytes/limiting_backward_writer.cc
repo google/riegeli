@@ -130,7 +130,4 @@ bool LimitingBackwardWriterBase::Truncate(Position new_size) {
   return ok;
 }
 
-template class LimitingBackwardWriter<BackwardWriter*>;
-template class LimitingBackwardWriter<std::unique_ptr<BackwardWriter>>;
-
 }  // namespace riegeli

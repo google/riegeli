@@ -47,8 +47,4 @@ bool StringReaderBase::Size(Position* size) {
   return true;
 }
 
-template class StringReader<absl::string_view>;
-template class StringReader<const std::string*>;
-template class StringReader<std::string>;
-
 }  // namespace riegeli

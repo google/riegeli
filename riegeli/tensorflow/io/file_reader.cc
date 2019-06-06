@@ -40,8 +40,8 @@
 namespace riegeli {
 namespace tensorflow {
 
-bool FileReaderBase::InitializeFilename(::tensorflow::Env* env,
-                                        ::tensorflow::RandomAccessFile* src) {
+bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
+                                        ::tensorflow::Env* env) {
   absl::string_view filename;
   const ::tensorflow::Status name_status = src->Name(&filename);
   if (ABSL_PREDICT_FALSE(!name_status.ok())) {
@@ -50,11 +50,11 @@ bool FileReaderBase::InitializeFilename(::tensorflow::Env* env,
     }
     return true;
   }
-  return InitializeFilename(env, filename);
+  return InitializeFilename(filename, env);
 }
 
-bool FileReaderBase::InitializeFilename(::tensorflow::Env* env,
-                                        absl::string_view filename) {
+bool FileReaderBase::InitializeFilename(absl::string_view filename,
+                                        ::tensorflow::Env* env) {
   // TODO: When absl::string_view becomes C++17 std::string_view:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
@@ -454,9 +454,6 @@ void FileReaderBase::ClearBuffer() {
   cursor_ = nullptr;
   limit_ = nullptr;
 }
-
-template class FileReader<std::unique_ptr<::tensorflow::RandomAccessFile>>;
-template class FileReader<::tensorflow::RandomAccessFile*>;
 
 }  // namespace tensorflow
 }  // namespace riegeli

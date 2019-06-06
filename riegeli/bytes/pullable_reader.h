@@ -44,6 +44,12 @@ class PullableReader : public Reader {
   PullableReader(PullableReader&& that) noexcept;
   PullableReader& operator=(PullableReader&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed PullableReader. This avoids
+  // constructing a temporary PullableReader and moving from it. Derived classes
+  // which override Reset() should include a call to PullableReader::Reset().
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+
   void Done() override;
 
   // Helps to implement PullSlow(min_length, recommended_length) if
@@ -143,6 +149,16 @@ inline PullableReader& PullableReader::operator=(
   Reader::operator=(std::move(that));
   scratch_ = std::move(that.scratch_);
   return *this;
+}
+
+inline void PullableReader::Reset(InitiallyClosed) {
+  Reader::Reset(kInitiallyClosed);
+  if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
+}
+
+inline void PullableReader::Reset(InitiallyOpen) {
+  Reader::Reset(kInitiallyOpen);
+  if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 
 inline bool PullableReader::scratch_used() const {

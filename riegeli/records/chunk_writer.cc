@@ -40,12 +40,10 @@ ChunkWriter::~ChunkWriter() {}
 
 void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of "
-         "DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest): "
-         "null Writer pointer";
+      << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos))) {
     const Position length = internal::RemainingInBlock(pos);
-    if (ABSL_PREDICT_FALSE(!WriteZeros(dest, length))) Fail(*dest);
+    WriteZeros(dest, length);
     pos += length;
   }
   ChunkWriter::Initialize(pos);
@@ -156,8 +154,5 @@ bool DefaultChunkWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
-
-template class DefaultChunkWriter<Writer*>;
-template class DefaultChunkWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

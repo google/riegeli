@@ -48,8 +48,7 @@ constexpr ZlibWriterBase::Header ZlibWriterBase::Options::kDefaultHeader;
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
                                 int window_bits) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of ZlibWriter<Dest>::ZlibWriter(Dest): "
-         "null Writer pointer";
+      << "Failed precondition of ZlibWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -173,8 +172,5 @@ bool ZlibWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
-
-template class ZlibWriter<Writer*>;
-template class ZlibWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

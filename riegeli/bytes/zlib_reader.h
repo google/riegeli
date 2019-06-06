@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -27,6 +27,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -116,6 +117,7 @@ class ZlibReaderBase : public BufferedReader {
     }
 
    private:
+    friend class ZlibReaderBase;
     template <typename Src>
     friend class ZlibReader;
 
@@ -132,13 +134,16 @@ class ZlibReaderBase : public BufferedReader {
  protected:
   ZlibReaderBase() noexcept {}
 
-  explicit ZlibReaderBase(size_t buffer_size, Position size_hint) noexcept
-      : BufferedReader(buffer_size, size_hint) {}
+  explicit ZlibReaderBase(size_t buffer_size, Position size_hint);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint);
+  static int GetWindowBits(const Options& options);
   void Initialize(Reader* src, int window_bits);
+
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
@@ -179,10 +184,26 @@ class ZlibReader : public ZlibReaderBase {
   ZlibReader() noexcept {}
 
   // Will read from the compressed Reader provided by src.
-  explicit ZlibReader(Src src, Options options = Options());
+  explicit ZlibReader(const Src& src, Options options = Options());
+  explicit ZlibReader(Src&& src, Options options = Options());
+
+  // Will read from the compressed Reader provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit ZlibReader(std::tuple<SrcArgs...> src_args,
+                      Options options = Options());
 
   ZlibReader(ZlibReader&&) noexcept;
   ZlibReader& operator=(ZlibReader&&) noexcept;
+
+  // Makes *this equivalent to a newly constructed ZlibReader. This avoids
+  // constructing a temporary ZlibReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Reader.
   // Unchanged by Close().
@@ -202,6 +223,9 @@ class ZlibReader : public ZlibReaderBase {
 
 // Implementation details follow.
 
+inline ZlibReaderBase::ZlibReaderBase(size_t buffer_size, Position size_hint)
+    : BufferedReader(buffer_size, size_hint) {}
+
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       truncated_(absl::exchange(that.truncated_, false)),
@@ -215,14 +239,44 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   return *this;
 }
 
+inline void ZlibReaderBase::Reset() {
+  BufferedReader::Reset();
+  truncated_ = false;
+  decompressor_.reset();
+}
+
+inline void ZlibReaderBase::Reset(size_t buffer_size, Position size_hint) {
+  BufferedReader::Reset(buffer_size, size_hint);
+  truncated_ = false;
+  decompressor_.reset();
+}
+
+inline int ZlibReaderBase::GetWindowBits(const Options& options) {
+  return options.header_ == Header::kRaw
+             ? -options.window_log_
+             : options.window_log_ + static_cast<int>(options.header_);
+}
+
 template <typename Src>
-ZlibReader<Src>::ZlibReader(Src src, Options options)
+inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
+    : ZlibReaderBase(options.buffer_size_, options.size_hint_), src_(src) {
+  Initialize(src_.get(), GetWindowBits(options));
+}
+
+template <typename Src>
+inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
     : ZlibReaderBase(options.buffer_size_, options.size_hint_),
       src_(std::move(src)) {
-  Initialize(src_.get(),
-             options.header_ == Header::kRaw
-                 ? -options.window_log_
-                 : options.window_log_ + static_cast<int>(options.header_));
+  Initialize(src_.get(), GetWindowBits(options));
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
+                                   Options options)
+    : ZlibReaderBase(options.buffer_size_, options.size_hint_),
+      src_(std::move(src_args)) {
+  Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
@@ -234,6 +288,35 @@ inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
   ZlibReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;
+}
+
+template <typename Src>
+inline void ZlibReader<Src>::Reset() {
+  ZlibReaderBase::Reset();
+  src_.Reset();
+}
+
+template <typename Src>
+inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
+  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(src);
+  Initialize(src_.get(), GetWindowBits(options));
+}
+
+template <typename Src>
+inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
+  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(std::move(src));
+  Initialize(src_.get(), GetWindowBits(options));
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                   Options options) {
+  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
@@ -250,8 +333,8 @@ void ZlibReader<Src>::VerifyEnd() {
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
-extern template class ZlibReader<Reader*>;
-extern template class ZlibReader<std::unique_ptr<Reader>>;
+template <typename Src>
+struct Resetter<ZlibReader<Src>> : ResetterByReset<ZlibReader<Src>> {};
 
 }  // namespace riegeli
 

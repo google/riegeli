@@ -15,7 +15,7 @@
 #ifndef RIEGELI_RECORDS_CHUNK_READER_H_
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -23,6 +23,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/records/block.h"
@@ -145,7 +146,10 @@ class DefaultChunkReaderBase : public Object {
   DefaultChunkReaderBase(DefaultChunkReaderBase&& that) noexcept;
   DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& that) noexcept;
 
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
   void Initialize(Reader* src);
+
   void Done() override;
 
  private:
@@ -248,10 +252,24 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   DefaultChunkReader() : DefaultChunkReaderBase(kInitiallyClosed) {}
 
   // Will read from the byte Reader provided by src.
-  explicit DefaultChunkReader(Src src);
+  explicit DefaultChunkReader(const Src& src);
+  explicit DefaultChunkReader(Src&& src);
+
+  // Will read from the byte Reader provided by a Src constructed from elements
+  // of src_args. This avoids constructing a temporary Src and moving from it.
+  template <typename... SrcArgs>
+  explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args);
 
   DefaultChunkReader(DefaultChunkReader&& that) noexcept;
   DefaultChunkReader& operator=(DefaultChunkReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed DefaultChunkReader. This
+  // avoids constructing a temporary DefaultChunkReader and moving from it.
+  void Reset();
+  void Reset(const Src& src);
+  void Reset(Src&& src);
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args);
 
   // Returns the object providing and possibly owning the byte Reader. Unchanged
   // by Close().
@@ -293,9 +311,41 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
   return *this;
 }
 
+inline void DefaultChunkReaderBase::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  truncated_ = false;
+  pos_ = 0;
+  chunk_.Reset();
+  recoverable_ = Recoverable::kNo;
+  recoverable_pos_ = 0;
+}
+
+inline void DefaultChunkReaderBase::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  truncated_ = false;
+  pos_ = 0;
+  chunk_.Reset();
+  recoverable_ = Recoverable::kNo;
+  recoverable_pos_ = 0;
+}
+
 template <typename Src>
-DefaultChunkReader<Src>::DefaultChunkReader(Src src)
+inline DefaultChunkReader<Src>::DefaultChunkReader(const Src& src)
+    : DefaultChunkReaderBase(kInitiallyOpen), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline DefaultChunkReader<Src>::DefaultChunkReader(Src&& src)
     : DefaultChunkReaderBase(kInitiallyOpen), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline DefaultChunkReader<Src>::DefaultChunkReader(
+    std::tuple<SrcArgs...> src_args)
+    : DefaultChunkReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -313,6 +363,34 @@ inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
 }
 
 template <typename Src>
+inline void DefaultChunkReader<Src>::Reset() {
+  DefaultChunkReaderBase::Reset(kInitiallyClosed);
+  src_.Reset();
+}
+
+template <typename Src>
+inline void DefaultChunkReader<Src>::Reset(const Src& src) {
+  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void DefaultChunkReader<Src>::Reset(Src&& src) {
+  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void DefaultChunkReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
+  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
+}
+
+template <typename Src>
 void DefaultChunkReader<Src>::Done() {
   DefaultChunkReaderBase::Done();
   if (src_.is_owning()) {
@@ -320,8 +398,9 @@ void DefaultChunkReader<Src>::Done() {
   }
 }
 
-extern template class DefaultChunkReader<Reader*>;
-extern template class DefaultChunkReader<std::unique_ptr<Reader>>;
+template <typename Src>
+struct Resetter<DefaultChunkReader<Src>>
+    : ResetterByReset<DefaultChunkReader<Src>> {};
 
 }  // namespace riegeli
 

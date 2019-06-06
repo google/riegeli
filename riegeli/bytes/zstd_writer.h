@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -26,6 +26,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -172,15 +173,17 @@ class ZstdWriterBase : public BufferedWriter {
  protected:
   ZstdWriterBase() noexcept {}
 
-  explicit ZstdWriterBase(size_t buffer_size, Position size_hint) noexcept
-      : BufferedWriter(buffer_size, size_hint) {}
+  explicit ZstdWriterBase(size_t buffer_size, Position size_hint);
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   absl::optional<Position> final_size, Position size_hint,
                   bool store_checksum);
+
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -235,10 +238,26 @@ class ZstdWriter : public ZstdWriterBase {
   ZstdWriter() noexcept {}
 
   // Will write to the compressed Writer provided by dest.
-  explicit ZstdWriter(Dest dest, Options options = Options());
+  explicit ZstdWriter(const Dest& dest, Options options = Options());
+  explicit ZstdWriter(Dest&& dest, Options options = Options());
+
+  // Will write to the compressed Writer provided by a Dest constructed from
+  // elements of dest_args. This avoids constructing a temporary Dest and moving
+  // from it.
+  template <typename... DestArgs>
+  explicit ZstdWriter(std::tuple<DestArgs...> dest_args,
+                      Options options = Options());
 
   ZstdWriter(ZstdWriter&& that) noexcept;
   ZstdWriter& operator=(ZstdWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ZstdWriter. This avoids
+  // constructing a temporary ZstdWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Writer.
   // Unchanged by Close().
@@ -257,6 +276,9 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Implementation details follow.
 
+inline ZstdWriterBase::ZstdWriterBase(size_t buffer_size, Position size_hint)
+    : BufferedWriter(buffer_size, size_hint) {}
+
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       compressor_(std::move(that.compressor_)) {}
@@ -268,11 +290,45 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   return *this;
 }
 
+inline void ZstdWriterBase::Reset() {
+  BufferedWriter::Reset();
+  compressor_.reset();
+}
+
+inline void ZstdWriterBase::Reset(size_t buffer_size, Position size_hint) {
+  BufferedWriter::Reset(buffer_size, size_hint);
+  compressor_.reset();
+}
+
 template <typename Dest>
-inline ZstdWriter<Dest>::ZstdWriter(Dest dest, Options options)
+inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
+    : ZstdWriterBase(options.buffer_size_,
+                     options.final_size_.value_or(options.size_hint_)),
+      dest_(dest) {
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
+}
+
+template <typename Dest>
+inline ZstdWriter<Dest>::ZstdWriter(Dest&& dest, Options options)
     : ZstdWriterBase(options.buffer_size_,
                      options.final_size_.value_or(options.size_hint_)),
       dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
+                                    Options options)
+    : ZstdWriterBase(options.buffer_size_,
+                     options.final_size_.value_or(options.size_hint_)),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level_, options.window_log_,
              options.final_size_,
              options.final_size_.value_or(options.size_hint_),
@@ -292,6 +348,47 @@ inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void ZstdWriter<Dest>::Reset() {
+  ZstdWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
+  ZstdWriterBase::Reset(options.buffer_size_,
+                        options.final_size_.value_or(options.size_hint_));
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
+}
+
+template <typename Dest>
+inline void ZstdWriter<Dest>::Reset(Dest&& dest, Options options) {
+  ZstdWriterBase::Reset(options.buffer_size_,
+                        options.final_size_.value_or(options.size_hint_));
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ZstdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                    Options options) {
+  ZstdWriterBase::Reset(options.buffer_size_,
+                        options.final_size_.value_or(options.size_hint_));
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.final_size_,
+             options.final_size_.value_or(options.size_hint_),
+             options.store_checksum_);
+}
+
+template <typename Dest>
 void ZstdWriter<Dest>::Done() {
   ZstdWriterBase::Done();
   if (dest_.is_owning()) {
@@ -299,8 +396,8 @@ void ZstdWriter<Dest>::Done() {
   }
 }
 
-extern template class ZstdWriter<Writer*>;
-extern template class ZstdWriter<std::unique_ptr<Writer>>;
+template <typename Dest>
+struct Resetter<ZstdWriter<Dest>> : ResetterByReset<ZstdWriter<Dest>> {};
 
 }  // namespace riegeli
 

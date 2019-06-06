@@ -46,7 +46,6 @@
 #include "riegeli/base/parallelism.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
-#include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -631,6 +630,20 @@ RecordWriterBase::RecordWriterBase(InitiallyClosed) noexcept
 RecordWriterBase::RecordWriterBase(InitiallyOpen) noexcept
     : Object(kInitiallyOpen) {}
 
+void RecordWriterBase::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  desired_chunk_size_ = 0;
+  chunk_size_so_far_ = 0;
+  worker_.reset();
+}
+
+void RecordWriterBase::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  desired_chunk_size_ = 0;
+  chunk_size_so_far_ = 0;
+  worker_.reset();
+}
+
 RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
     : Object(std::move(that)),
       desired_chunk_size_(absl::exchange(that.desired_chunk_size_, 0)),
@@ -650,8 +663,11 @@ RecordWriterBase::~RecordWriterBase() {}
 
 void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of RecordWriter<Dest>::RecordWriter(Dest): "
-         "null ChunkWriter pointer";
+      << "Failed precondition of RecordWriter: null ChunkWriter pointer";
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    Fail(*dest);
+    return;
+  }
   // Ensure that num_records does not overflow when WriteRecordImpl() keeps
   // num_records * sizeof(uint64_t) under desired_chunk_size_.
   desired_chunk_size_ =
@@ -731,12 +747,5 @@ FutureRecordPosition RecordWriterBase::Pos() const {
   if (ABSL_PREDICT_FALSE(worker_ == nullptr)) return FutureRecordPosition();
   return worker_->Pos();
 }
-
-template class RecordWriter<Writer*>;
-template class RecordWriter<std::unique_ptr<Writer>>;
-template class RecordWriter<ChunkWriter*>;
-template class RecordWriter<std::unique_ptr<ChunkWriter>>;
-template class RecordWriter<DefaultChunkWriter<Writer*>>;
-template class RecordWriter<DefaultChunkWriter<std::unique_ptr<Writer>>>;
 
 }  // namespace riegeli

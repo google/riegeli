@@ -46,8 +46,7 @@ constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 
 void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of ZlibReader<Src>::ZlibReader(Src): "
-         "null Reader pointer";
+      << "Failed precondition of ZlibReader: null Reader pointer";
   if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
@@ -146,8 +145,5 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
     return length_read >= min_length;
   }
 }
-
-template class ZlibReader<Reader*>;
-template class ZlibReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

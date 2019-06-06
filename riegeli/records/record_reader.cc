@@ -39,7 +39,6 @@
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/message_parse.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -120,13 +119,31 @@ RecordReaderBase& RecordReaderBase::operator=(
   return *this;
 }
 
+void RecordReaderBase::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  chunk_begin_ = 0;
+  chunk_decoder_.Reset();
+  recoverable_ = Recoverable::kNo;
+  recovery_ = nullptr;
+}
+
+void RecordReaderBase::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  chunk_begin_ = 0;
+  chunk_decoder_.Reset();
+  recoverable_ = Recoverable::kNo;
+  recovery_ = nullptr;
+}
+
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of RecordReader<Src>::RecordReader(Src): "
-         "null ChunkReader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
+      << "Failed precondition of RecordReader: null ChunkReader pointer";
+  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+    Fail(*src);
+    return;
+  }
   chunk_begin_ = src->pos();
-  chunk_decoder_ = ChunkDecoder(ChunkDecoder::Options().set_field_projection(
+  chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
       std::move(options.field_projection_)));
   recovery_ = std::move(options.recovery_);
 }
@@ -425,12 +442,5 @@ inline bool RecordReaderBase::ReadChunk() {
   }
   return true;
 }
-
-template class RecordReader<Reader*>;
-template class RecordReader<std::unique_ptr<Reader>>;
-template class RecordReader<ChunkReader*>;
-template class RecordReader<std::unique_ptr<ChunkReader>>;
-template class RecordReader<DefaultChunkReader<Reader*>>;
-template class RecordReader<DefaultChunkReader<std::unique_ptr<Reader>>>;
 
 }  // namespace riegeli

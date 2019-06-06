@@ -44,8 +44,7 @@ constexpr int BrotliWriterBase::Options::kDefaultWindowLog;
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
                                   int window_log, Position size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of BrotliWriter<Dest>::BrotliWriter(Dest): "
-         "null Writer pointer";
+      << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -156,8 +155,5 @@ bool BrotliWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
   return true;
 }
-
-template class BrotliWriter<Writer*>;
-template class BrotliWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
@@ -40,7 +41,7 @@ void SimpleDecoder::Done() {
 bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
                           uint64_t decoded_data_size,
                           std::vector<size_t>* limits) {
-  MarkHealthy();
+  Object::Reset(kInitiallyOpen);
   if (ABSL_PREDICT_FALSE(num_records > limits->max_size())) {
     return Fail(ResourceExhaustedError("Too many records"));
   }
@@ -66,7 +67,7 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
     return Fail(ResourceExhaustedError("Size of sizes too large"));
   }
   internal::Decompressor<LimitingReader<>> sizes_decompressor(
-      LimitingReader<>(src, src->pos() + sizes_size), compression_type);
+      std::forward_as_tuple(src, src->pos() + sizes_size), compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
     return Fail(sizes_decompressor);
   }
@@ -91,7 +92,7 @@ bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
     return Fail(DataLossError("Decoded data size smaller than expected"));
   }
 
-  values_decompressor_ = internal::Decompressor<>(src, compression_type);
+  values_decompressor_.Reset(src, compression_type);
   if (ABSL_PREDICT_FALSE(!values_decompressor_.healthy())) {
     return Fail(values_decompressor_);
   }

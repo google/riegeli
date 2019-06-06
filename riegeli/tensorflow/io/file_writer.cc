@@ -197,8 +197,5 @@ bool FileWriterBase::Flush(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
-template class FileWriter<std::unique_ptr<::tensorflow::WritableFile>>;
-template class FileWriter<::tensorflow::WritableFile*>;
-
 }  // namespace tensorflow
 }  // namespace riegeli

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -28,6 +29,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
@@ -35,6 +37,7 @@
 #include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {
+
 namespace internal {
 
 // Sets *uncompressed_size to uncompressed size of compressed_data.
@@ -50,6 +53,10 @@ bool UncompressedSize(const Chain& compressed_data,
                       CompressionType compression_type,
                       uint64_t* uncompressed_size);
 
+// Decompresses a compressed stream.
+//
+// If compression_type is not kNone, reads uncompressed size as a varint from
+// the beginning of compressed data.
 template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
@@ -57,13 +64,26 @@ class Decompressor : public Object {
   Decompressor() noexcept : Object(kInitiallyClosed) {}
 
   // Will read from the compressed stream provided by src.
-  //
-  // If compression_type is not kNone, reads uncompressed size as a varint from
-  // the beginning of compressed data.
-  explicit Decompressor(Src src, CompressionType compression_type);
+  explicit Decompressor(const Src& src, CompressionType compression_type);
+  explicit Decompressor(Src&& src, CompressionType compression_type);
+
+  // Will read from the compressed stream provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit Decompressor(std::tuple<SrcArgs...> src_args,
+                        CompressionType compression_type);
 
   Decompressor(Decompressor&& that) noexcept;
   Decompressor& operator=(Decompressor&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed Decompressor. This avoids
+  // constructing a temporary Decompressor and moving from it.
+  void Reset();
+  void Reset(const Src& src, CompressionType compression_type);
+  void Reset(Src&& src, CompressionType compression_type);
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, CompressionType compression_type);
 
   // Returns the Reader from which uncompressed data should be read.
   //
@@ -89,6 +109,9 @@ class Decompressor : public Object {
   void Done() override;
 
  private:
+  template <typename SrcInit>
+  void Initialize(SrcInit&& src_init, CompressionType compression_type);
+
   absl::variant<Dependency<Reader*, Src>, BrotliReader<Src>, ZstdReader<Src>>
       reader_;
 };
@@ -96,33 +119,25 @@ class Decompressor : public Object {
 // Implementation details follow.
 
 template <typename Src>
-Decompressor<Src>::Decompressor(Src src, CompressionType compression_type)
+inline Decompressor<Src>::Decompressor(const Src& src,
+                                       CompressionType compression_type)
     : Object(kInitiallyOpen) {
-  Dependency<Reader*, Src> compressed_reader(std::move(src));
-  if (compression_type == CompressionType::kNone) {
-    reader_ = std::move(compressed_reader);
-    return;
-  }
-  uint64_t decompressed_size;
-  if (ABSL_PREDICT_FALSE(
-          !ReadVarint64(compressed_reader.get(), &decompressed_size))) {
-    Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
-    return;
-  }
-  switch (compression_type) {
-    case CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
-    case CompressionType::kBrotli:
-      reader_ = BrotliReader<Src>(std::move(compressed_reader.manager()));
-      return;
-    case CompressionType::kZstd:
-      reader_ = ZstdReader<Src>(
-          std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(decompressed_size));
-      return;
-  }
-  Fail(DataLossError(absl::StrCat("Unknown compression type: ",
-                                  static_cast<unsigned>(compression_type))));
+  Initialize(src, compression_type);
+}
+
+template <typename Src>
+inline Decompressor<Src>::Decompressor(Src&& src,
+                                       CompressionType compression_type)
+    : Object(kInitiallyOpen) {
+  Initialize(std::move(src), compression_type);
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline Decompressor<Src>::Decompressor(std::tuple<SrcArgs...> src_args,
+                                       CompressionType compression_type)
+    : Object(kInitiallyOpen) {
+  Initialize(std::move(src_args), compression_type);
 }
 
 template <typename Src>
@@ -135,6 +150,67 @@ inline Decompressor<Src>& Decompressor<Src>::operator=(
   Object::operator=(std::move(that));
   reader_ = std::move(that.reader_);
   return *this;
+}
+
+template <typename Src>
+inline void Decompressor<Src>::Reset() {
+  Object::Reset(kInitiallyClosed);
+  reader_.template emplace<Dependency<Reader*, Src>>();
+}
+
+template <typename Src>
+inline void Decompressor<Src>::Reset(const Src& src,
+                                     CompressionType compression_type) {
+  Object::Reset(kInitiallyOpen);
+  Initialize(src, compression_type);
+}
+
+template <typename Src>
+inline void Decompressor<Src>::Reset(Src&& src,
+                                     CompressionType compression_type) {
+  Object::Reset(kInitiallyOpen);
+  Initialize(std::move(src), compression_type);
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void Decompressor<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                     CompressionType compression_type) {
+  Object::Reset(kInitiallyOpen);
+  Initialize(std::move(src_args), compression_type);
+}
+
+template <typename Src>
+template <typename SrcInit>
+void Decompressor<Src>::Initialize(SrcInit&& src_init,
+                                   CompressionType compression_type) {
+  if (compression_type == CompressionType::kNone) {
+    reader_.template emplace<Dependency<Reader*, Src>>(
+        std::forward<SrcInit>(src_init));
+    return;
+  }
+  Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
+  uint64_t decompressed_size;
+  if (ABSL_PREDICT_FALSE(
+          !ReadVarint64(compressed_reader.get(), &decompressed_size))) {
+    Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
+    return;
+  }
+  switch (compression_type) {
+    case CompressionType::kNone:
+      RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
+    case CompressionType::kBrotli:
+      reader_.template emplace<BrotliReader<Src>>(
+          std::move(compressed_reader.manager()));
+      return;
+    case CompressionType::kZstd:
+      reader_.template emplace<ZstdReader<Src>>(
+          std::move(compressed_reader.manager()),
+          ZstdReaderBase::Options().set_size_hint(decompressed_size));
+      return;
+  }
+  Fail(DataLossError(absl::StrCat("Unknown compression type: ",
+                                  static_cast<unsigned>(compression_type))));
 }
 
 template <typename Src>
@@ -183,10 +259,12 @@ inline void Decompressor<Src>::VerifyEnd() {
   if (ABSL_PREDICT_TRUE(healthy())) absl::visit(Visitor(), reader_);
 }
 
-extern template class Decompressor<Reader*>;
-extern template class Decompressor<std::unique_ptr<Reader>>;
-
 }  // namespace internal
+
+template <typename Src>
+struct Resetter<internal::Decompressor<Src>>
+    : ResetterByReset<internal::Decompressor<Src>> {};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_DECOMPRESSOR_H_

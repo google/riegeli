@@ -18,12 +18,14 @@
 #include <stddef.h>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_view_dependency.h"
 
@@ -45,6 +47,8 @@ class StringReaderBase : public Reader {
 
   StringReaderBase(StringReaderBase&& that) noexcept;
   StringReaderBase& operator=(StringReaderBase&& that) noexcept;
+
+  void Initialize(absl::string_view src);
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
@@ -70,10 +74,25 @@ class StringReader : public StringReaderBase {
   StringReader() noexcept : StringReaderBase(kInitiallyClosed) {}
 
   // Will read from the string or array provided by src.
-  explicit StringReader(Src src);
+  explicit StringReader(const Src& src);
+  explicit StringReader(Src&& src);
+
+  // Will read from the string or array provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit StringReader(std::tuple<SrcArgs...> src_args);
 
   StringReader(StringReader&& that) noexcept;
   StringReader& operator=(StringReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed StringReader. This avoids
+  // constructing a temporary StringReader and moving from it.
+  void Reset();
+  void Reset(const Src& src);
+  void Reset(Src&& src);
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args);
 
   // Returns the object providing and possibly owning the string or array being
   // read from. Unchanged by Close().
@@ -100,13 +119,30 @@ inline StringReaderBase& StringReaderBase::operator=(
   return *this;
 }
 
-template <typename Src>
-inline StringReader<Src>::StringReader(Src src)
-    : StringReaderBase(kInitiallyOpen), src_(std::move(src)) {
-  start_ = src_.get().data();
+inline void StringReaderBase::Initialize(absl::string_view src) {
+  start_ = src.data();
   cursor_ = start_;
-  limit_ = start_ + src_.get().size();
-  limit_pos_ = src_.get().size();
+  limit_ = start_ + src.size();
+  limit_pos_ = src.size();
+}
+
+template <typename Src>
+inline StringReader<Src>::StringReader(const Src& src)
+    : StringReaderBase(kInitiallyOpen), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline StringReader<Src>::StringReader(Src&& src)
+    : StringReaderBase(kInitiallyOpen), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
+    : StringReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -124,6 +160,34 @@ inline StringReader<Src>& StringReader<Src>::operator=(
 }
 
 template <typename Src>
+inline void StringReader<Src>::Reset() {
+  StringReaderBase::Reset(kInitiallyClosed);
+  src_.Reset();
+}
+
+template <typename Src>
+inline void StringReader<Src>::Reset(const Src& src) {
+  StringReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void StringReader<Src>::Reset(Src&& src) {
+  StringReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
+  StringReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
+}
+
+template <typename Src>
 inline void StringReader<Src>::MoveSrc(StringReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
@@ -138,9 +202,8 @@ inline void StringReader<Src>::MoveSrc(StringReader&& that) {
   }
 }
 
-extern template class StringReader<absl::string_view>;
-extern template class StringReader<const std::string*>;
-extern template class StringReader<std::string>;
+template <typename Src>
+struct Resetter<StringReader<Src>> : ResetterByReset<StringReader<Src>> {};
 
 }  // namespace riegeli
 

@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -48,21 +49,18 @@ void Compressor::Reset(TuningOptions tuning_options) {
 }
 
 void Compressor::Reset() {
-  MarkHealthy();
+  Object::Reset(kInitiallyOpen);
   compressed_.Clear();
-  ChainWriter<> compressed_writer(
-      &compressed_,
-      ChainWriterBase::Options().set_size_hint(
-          compressor_options_.compression_type() == CompressionType::kNone
-              ? tuning_options_.final_size_.value_or(tuning_options_.size_hint_)
-              : Position{0}));
   switch (compressor_options_.compression_type()) {
     case CompressionType::kNone:
-      writer_ = std::move(compressed_writer);
+      writer_.emplace<ChainWriter<>>(&compressed_,
+                                     ChainWriterBase::Options().set_size_hint(
+                                         tuning_options_.final_size_.value_or(
+                                             tuning_options_.size_hint_)));
       return;
     case CompressionType::kBrotli:
-      writer_ = BrotliWriter<ChainWriter<>>(
-          std::move(compressed_writer),
+      writer_.emplace<BrotliWriter<ChainWriter<>>>(
+          std::forward_as_tuple(&compressed_),
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.window_log())
@@ -70,8 +68,8 @@ void Compressor::Reset() {
                   tuning_options_.size_hint_)));
       return;
     case CompressionType::kZstd:
-      writer_ = ZstdWriter<ChainWriter<>>(
-          std::move(compressed_writer),
+      writer_.emplace<ZstdWriter<ChainWriter<>>>(
+          std::forward_as_tuple(&compressed_),
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.window_log())

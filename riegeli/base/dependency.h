@@ -15,12 +15,17 @@
 #ifndef RIEGELI_BASE_DEPENDENCY_H_
 #define RIEGELI_BASE_DEPENDENCY_H_
 
+#include <stddef.h>
+
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
+#include "riegeli/base/resetter.h"
 
 namespace riegeli {
 
@@ -36,6 +41,11 @@ namespace riegeli {
 // ownership of the dependent object, and sometimes narrows its type, by
 // choosing the Manager type.
 //
+// Dependency<Ptr, Manager> uses Resetter<Manager>. An appropriate
+// specialization of Resetter can be defined if a Manager can be made equivalent
+// to a newly constructed Manager while avoiding constructing a temporary
+// Manager and moving from it.
+//
 // The following operations are typically provided by specializations of
 // Dependency<Ptr, Manager> (operations may differ depending on Ptr):
 //
@@ -48,9 +58,23 @@ namespace riegeli {
 //   explicit Dependency(const Manager& manager);
 //   explicit Dependency(Manager&& manager);
 //
+//   // Constructs a Manager from elements of manager_args. This is used to
+//   // specify the initial value of the dependent object. This avoids
+//   // constructing a temporary Manager and moving from it.
+//   template <typename... ManagerArgs>
+//   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
+//
 //   // Moves the dependency. The moved from state contains a dummy Manager.
 //   Dependency(Dependency&& that);
 //   Dependency& operator=(Dependency&& that);
+//
+//   // Makes *this equivalent to a newly constructed Dependency. This avoids
+//   // constructing a temporary Dependency and moving from it.
+//   void Reset();
+//   void Reset(const Manager& manager);
+//   void Reset(Manager&& manager);
+//   template <typename... ManagerArgs>
+//   void Reset(std::tuple<ManagerArgs...> manager_args);
 //
 //   // Exposes the contained Manager.
 //   Manager& manager();
@@ -100,17 +124,44 @@ class DependencyBase {
   explicit DependencyBase(Manager&& manager) noexcept
       : manager_(std::move(manager)) {}
 
+  template <typename... ManagerArgs>
+  explicit DependencyBase(std::tuple<ManagerArgs...> manager_args)
+      : DependencyBase(std::move(manager_args),
+                       absl::index_sequence_for<ManagerArgs...>()) {}
+
   DependencyBase(DependencyBase&& that) noexcept
-      : manager_(absl::exchange(that.manager_, Manager())) {}
+      : manager_(std::move(that.manager_)) {}
   DependencyBase& operator=(DependencyBase&& that) noexcept {
-    manager_ = absl::exchange(that.manager_, Manager());
+    manager_ = std::move(that.manager_);
     return *this;
+  }
+
+  void Reset() { Resetter<Manager>::Reset(&manager_); }
+
+  void Reset(const Manager& manager) { manager_ = manager; }
+  void Reset(Manager&& manager) { manager_ = std::move(manager); }
+
+  template <typename... ManagerArgs>
+  void Reset(std::tuple<ManagerArgs...> manager_args) {
+    Reset(std::move(manager_args), absl::index_sequence_for<ManagerArgs...>());
   }
 
   Manager& manager() { return manager_; }
   const Manager& manager() const { return manager_; }
 
  private:
+  template <typename... ManagerArgs, size_t... Indices>
+  explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
+                          absl::index_sequence<Indices...>)
+      : manager_(std::get<Indices>(std::move(manager_args))...) {}
+
+  template <typename... ManagerArgs, size_t... Indices>
+  void Reset(std::tuple<ManagerArgs...>&& manager_args,
+             absl::index_sequence<Indices...>) {
+    Resetter<Manager>::Reset(&manager_,
+                             std::get<Indices>(std::move(manager_args))...);
+  }
+
   Manager manager_;
 };
 

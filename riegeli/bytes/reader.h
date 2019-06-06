@@ -225,6 +225,12 @@ class Reader : public Object {
   Reader(Reader&& that) noexcept;
   Reader& operator=(Reader&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed Reader. This avoids
+  // constructing a temporary Reader and moving from it. Derived classes which
+  // override Reset() should include a call to Reader::Reset().
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+
   // Reader overrides Object::Done() to set buffer pointers to nullptr. Derived
   // classes which override it further should include a call to Reader::Done().
   void Done() override;
@@ -300,6 +306,22 @@ inline Reader& Reader::operator=(Reader&& that) noexcept {
   limit_ = absl::exchange(that.limit_, nullptr);
   limit_pos_ = absl::exchange(that.limit_pos_, 0);
   return *this;
+}
+
+inline void Reader::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  limit_pos_ = 0;
+}
+
+inline void Reader::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  limit_pos_ = 0;
 }
 
 inline void Reader::Done() {

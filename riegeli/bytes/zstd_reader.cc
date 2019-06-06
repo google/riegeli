@@ -34,8 +34,7 @@ namespace riegeli {
 
 void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of ZstdReader<Src>::ZstdReader(Src): "
-         "null Reader pointer";
+      << "Failed precondition of ZstdReader: null Reader pointer";
   if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
@@ -142,8 +141,5 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
     }
   }
 }
-
-template class ZstdReader<Reader*>;
-template class ZstdReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

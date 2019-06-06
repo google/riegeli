@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
@@ -87,10 +88,23 @@ class Dependency<int, int> {
 
   explicit Dependency(int fd) : fd_(fd) {}
 
+  template <typename FdArg>
+  explicit Dependency(std::tuple<FdArg> fd_args)
+      : fd_(std::get<0>(std::move(fd_args))) {}
+
   Dependency(Dependency&& that) noexcept : fd_(absl::exchange(that.fd_, -1)) {}
   Dependency& operator=(Dependency&& that) noexcept {
     fd_ = absl::exchange(that.fd_, -1);
     return *this;
+  }
+
+  void Reset() { fd_ = -1; }
+
+  void Reset(int fd) { fd_ = fd; }
+
+  template <typename FdArg>
+  void Reset(std::tuple<FdArg> fd_args) {
+    fd_ = std::get<0>(std::move(fd_args));
   }
 
   int& manager() { return fd_; }

@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -163,7 +164,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
     return Fail(*dest);
   }
 
-  ChainWriter<Chain> compressed_sizes_writer((Chain()));
+  ChainWriter<Chain> compressed_sizes_writer(std::forward_as_tuple());
   if (ABSL_PREDICT_FALSE(
           !sizes_compressor_.EncodeAndClose(&compressed_sizes_writer))) {
     return Fail(sizes_compressor_);

@@ -153,7 +153,4 @@ inline void StringWriterBase::MakeBuffer(std::string* dest) {
   limit_ = start_ + dest->size();
 }
 
-template class StringWriter<std::string*>;
-template class StringWriter<std::string>;
-
 }  // namespace riegeli

@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,6 +26,7 @@
 #include "brotli/decode.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -48,7 +50,10 @@ class BrotliReaderBase : public PullableReader {
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
   void Initialize(Reader* src);
+
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
 
@@ -89,10 +94,26 @@ class BrotliReader : public BrotliReaderBase {
   BrotliReader() noexcept : BrotliReaderBase(kInitiallyClosed) {}
 
   // Will read from the compressed Reader provided by src.
-  explicit BrotliReader(Src src, Options options = Options());
+  explicit BrotliReader(const Src& src, Options options = Options());
+  explicit BrotliReader(Src&& src, Options options = Options());
+
+  // Will read from the compressed Reader provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit BrotliReader(std::tuple<SrcArgs...> src_args,
+                        Options options = Options());
 
   BrotliReader(BrotliReader&& that) noexcept;
   BrotliReader& operator=(BrotliReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed BrotliReader. This avoids
+  // constructing a temporary BrotliReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Reader.
   // Unchanged by Close().
@@ -125,9 +146,35 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   return *this;
 }
 
+inline void BrotliReaderBase::Reset(InitiallyClosed) {
+  PullableReader::Reset(kInitiallyClosed);
+  truncated_ = false;
+  decompressor_.reset();
+}
+
+inline void BrotliReaderBase::Reset(InitiallyOpen) {
+  PullableReader::Reset(kInitiallyOpen);
+  truncated_ = false;
+  decompressor_.reset();
+}
+
 template <typename Src>
-BrotliReader<Src>::BrotliReader(Src src, Options options)
+inline BrotliReader<Src>::BrotliReader(const Src& src, Options options)
+    : BrotliReaderBase(kInitiallyOpen), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline BrotliReader<Src>::BrotliReader(Src&& src, Options options)
     : BrotliReaderBase(kInitiallyOpen), src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
+                                       Options options)
+    : BrotliReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -144,6 +191,35 @@ inline BrotliReader<Src>& BrotliReader<Src>::operator=(
 }
 
 template <typename Src>
+inline void BrotliReader<Src>::Reset() {
+  BrotliReaderBase::Reset(kInitiallyClosed);
+  src_.Reset();
+}
+
+template <typename Src>
+inline void BrotliReader<Src>::Reset(const Src& src, Options options) {
+  BrotliReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void BrotliReader<Src>::Reset(Src&& src, Options options) {
+  BrotliReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void BrotliReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                     Options options) {
+  BrotliReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
+}
+
+template <typename Src>
 void BrotliReader<Src>::Done() {
   BrotliReaderBase::Done();
   if (src_.is_owning()) {
@@ -157,8 +233,8 @@ void BrotliReader<Src>::VerifyEnd() {
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
-extern template class BrotliReader<Reader*>;
-extern template class BrotliReader<std::unique_ptr<Reader>>;
+template <typename Src>
+struct Resetter<BrotliReader<Src>> : ResetterByReset<BrotliReader<Src>> {};
 
 }  // namespace riegeli
 

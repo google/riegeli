@@ -266,7 +266,4 @@ bool ChainReaderBase::Size(Position* size) {
   return true;
 }
 
-template class ChainReader<const Chain*>;
-template class ChainReader<Chain>;
-
 }  // namespace riegeli

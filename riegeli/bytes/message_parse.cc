@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
@@ -142,12 +143,13 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
 }  // namespace internal
 
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
-  return ParseFromReader(dest, ChainReader<>(&src));
+  return ParseFromReader<ChainReader<>>(dest, std::forward_as_tuple(&src));
 }
 
 Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src) {
-  return ParsePartialFromReader(dest, ChainReader<>(&src));
+  return ParsePartialFromReader<ChainReader<>>(dest,
+                                               std::forward_as_tuple(&src));
 }
 
 }  // namespace riegeli

@@ -15,6 +15,7 @@
 #ifndef RIEGELI_RECORDS_CHUNK_READER_DEPENDENCY_H_
 #define RIEGELI_RECORDS_CHUNK_READER_DEPENDENCY_H_
 
+#include <tuple>
 #include <utility>
 
 #include "absl/meta/type_traits.h"
@@ -35,11 +36,25 @@ class Dependency<ChunkReader*, M,
   explicit Dependency(const M& manager) : chunk_reader_(manager) {}
   explicit Dependency(M&& manager) : chunk_reader_(std::move(manager)) {}
 
+  template <typename... MArgs>
+  explicit Dependency(std::tuple<MArgs...> manager_args)
+      : chunk_reader_(std::move(manager_args)) {}
+
   Dependency(Dependency&& that) noexcept
       : chunk_reader_(std::move(that.chunk_reader_)) {}
   Dependency& operator=(Dependency&& that) noexcept {
     chunk_reader_ = std::move(that.chunk_reader_);
     return *this;
+  }
+
+  void Reset() { chunk_reader_.Reset(); }
+
+  void Reset(const M& manager) { chunk_reader_.Reset(manager); }
+  void Reset(M&& manager) { chunk_reader_.Reset(std::move(manager)); }
+
+  template <typename... MArgs>
+  void Reset(std::tuple<MArgs...> manager_args) {
+    chunk_reader_.Reset(std::move(manager_args));
   }
 
   M& manager() { return chunk_reader_.src(); }

@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 #include <limits>
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -27,6 +27,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -57,11 +58,14 @@ class LimitingReaderBase : public Reader {
  protected:
   LimitingReaderBase() noexcept : Reader(kInitiallyClosed) {}
 
-  explicit LimitingReaderBase(Position size_limit)
-      : Reader(kInitiallyOpen), size_limit_(size_limit) {}
+  explicit LimitingReaderBase(Position size_limit);
 
   LimitingReaderBase(LimitingReaderBase&& that) noexcept;
   LimitingReaderBase& operator=(LimitingReaderBase&& that) noexcept;
+
+  void Reset();
+  void Reset(Position size_limit);
+  void Initialize(Reader* src);
 
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
@@ -112,10 +116,29 @@ class LimitingReader : public LimitingReaderBase {
   // Will read from the original Reader provided by src.
   //
   // Precondition: size_limit >= src->pos()
-  explicit LimitingReader(Src src, Position size_limit = kNoSizeLimit);
+  explicit LimitingReader(const Src& src, Position size_limit = kNoSizeLimit);
+  explicit LimitingReader(Src&& src, Position size_limit = kNoSizeLimit);
+
+  // Will read from the original Reader provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  //
+  // Precondition: size_limit >= src->pos()
+  template <typename... SrcArgs>
+  explicit LimitingReader(std::tuple<SrcArgs...> src_args,
+                          Position size_limit = kNoSizeLimit);
 
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed LimitingReader. This avoids
+  // constructing a temporary LimitingReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Position size_limit = kNoSizeLimit);
+  void Reset(Src&& src, Position size_limit = kNoSizeLimit);
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args,
+             Position size_limit = kNoSizeLimit);
 
   // Returns the object providing and possibly owning the original Reader.
   // Unchanged by Close().
@@ -161,6 +184,9 @@ class SizeLimitSetter {
 
 // Implementation details follow.
 
+inline LimitingReaderBase::LimitingReaderBase(Position size_limit)
+    : Reader(kInitiallyOpen), size_limit_(size_limit) {}
+
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
     : Reader(std::move(that)),
@@ -171,6 +197,25 @@ inline LimitingReaderBase& LimitingReaderBase::operator=(
   Reader::operator=(std::move(that));
   size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
+}
+
+inline void LimitingReaderBase::Reset() {
+  Reader::Reset(kInitiallyClosed);
+  size_limit_ = kNoSizeLimit;
+}
+
+inline void LimitingReaderBase::Reset(Position size_limit) {
+  Reader::Reset(kInitiallyOpen);
+  size_limit_ = size_limit;
+}
+
+inline void LimitingReaderBase::Initialize(Reader* src) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of LimitingReader: null Reader pointer";
+  RIEGELI_ASSERT_GE(size_limit_, src->pos())
+      << "Failed precondition of LimitingReader: "
+         "size limit smaller than current position";
+  MakeBuffer(src);
 }
 
 inline void LimitingReaderBase::set_size_limit(Position size_limit) {
@@ -201,15 +246,23 @@ inline void LimitingReaderBase::MakeBuffer(Reader* src) {
 }
 
 template <typename Src>
-inline LimitingReader<Src>::LimitingReader(Src src, Position size_limit)
+inline LimitingReader<Src>::LimitingReader(const Src& src, Position size_limit)
+    : LimitingReaderBase(size_limit), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline LimitingReader<Src>::LimitingReader(Src&& src, Position size_limit)
     : LimitingReaderBase(size_limit), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.get() != nullptr)
-      << "Failed precondition of LimitingReader<Src>::LimitingReader(Src): "
-         "null Reader pointer";
-  RIEGELI_ASSERT_GE(size_limit_, src_->pos())
-      << "Failed precondition of LimitingReader<Src>::LimitingReader(Src): "
-         "size limit smaller than current position";
-  MakeBuffer(src_.get());
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
+                                           Position size_limit)
+    : LimitingReaderBase(size_limit), src_(std::move(src_args)) {
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -224,6 +277,35 @@ inline LimitingReader<Src>& LimitingReader<Src>::operator=(
   LimitingReaderBase::operator=(std::move(that));
   MoveSrc(std::move(that));
   return *this;
+}
+
+template <typename Src>
+inline void LimitingReader<Src>::Reset() {
+  LimitingReaderBase::Reset();
+  src_.Reset();
+}
+
+template <typename Src>
+inline void LimitingReader<Src>::Reset(const Src& src, Position size_limit) {
+  LimitingReaderBase::Reset(size_limit);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void LimitingReader<Src>::Reset(Src&& src, Position size_limit) {
+  LimitingReaderBase::Reset(size_limit);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void LimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                       Position size_limit) {
+  LimitingReaderBase::Reset(size_limit);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -255,8 +337,8 @@ void LimitingReader<Src>::VerifyEnd() {
   }
 }
 
-extern template class LimitingReader<Reader*>;
-extern template class LimitingReader<std::unique_ptr<Reader>>;
+template <typename Src>
+struct Resetter<LimitingReader<Src>> : ResetterByReset<LimitingReader<Src>> {};
 
 }  // namespace riegeli
 

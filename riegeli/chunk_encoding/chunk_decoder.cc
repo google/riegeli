@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -42,14 +43,6 @@ namespace riegeli {
 
 void ChunkDecoder::Done() { recoverable_ = false; }
 
-void ChunkDecoder::Reset() {
-  MarkHealthy();
-  limits_.clear();
-  values_reader_ = ChainReader<Chain>(Chain());
-  index_ = 0;
-  recoverable_ = false;
-}
-
 bool ChunkDecoder::Reset(const Chunk& chunk) {
   Reset();
   ChainReader<> data_reader(&chunk.data);
@@ -74,7 +67,7 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
     RIEGELI_ASSERT_LE(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   }
-  values_reader_ = ChainReader<Chain>(std::move(values));
+  values_reader_.Reset(std::move(values));
   return true;
 }
 
@@ -166,8 +159,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  Status parse_status =
-      ParseFromReader(record, LimitingReader<>(&values_reader_, limit));
+  Status parse_status = ParseFromReader<LimitingReader<>>(
+      record, std::forward_as_tuple(&values_reader_, limit));
   if (ABSL_PREDICT_FALSE(!parse_status.ok())) {
     if (!values_reader_.Seek(limit)) {
       RIEGELI_ASSERT_UNREACHABLE()

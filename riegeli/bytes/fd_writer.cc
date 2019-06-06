@@ -40,7 +40,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/bytes/buffered_writer.h"
-#include "riegeli/bytes/fd_dependency.h"
 
 namespace riegeli {
 
@@ -82,7 +81,8 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
 
 }  // namespace internal
 
-void FdWriterBase::Initialize(absl::optional<Position> initial_pos, int dest) {
+void FdWriterBase::InitializePos(int dest,
+                                 absl::optional<Position> initial_pos) {
   int flags = 0;
   if (!initial_pos.has_value()) {
     // If initial_pos.has_value() then flags are not needed, so avoid fcntl().
@@ -92,11 +92,11 @@ void FdWriterBase::Initialize(absl::optional<Position> initial_pos, int dest) {
       return;
     }
   }
-  return Initialize(initial_pos, flags, dest);
+  return InitializePos(dest, flags, initial_pos);
 }
 
-void FdWriterBase::Initialize(absl::optional<Position> initial_pos, int flags,
-                              int dest) {
+void FdWriterBase::InitializePos(int dest, int flags,
+                                 absl::optional<Position> initial_pos) {
   if (initial_pos.has_value()) {
     if (ABSL_PREDICT_FALSE(*initial_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -240,8 +240,8 @@ again:
   return true;
 }
 
-void FdStreamWriterBase::Initialize(absl::optional<Position> assumed_pos,
-                                    int flags, int dest) {
+void FdStreamWriterBase::InitializePos(int dest, int flags,
+                                       absl::optional<Position> assumed_pos) {
   if (assumed_pos.has_value()) {
     start_pos_ = *assumed_pos;
   } else if ((flags & O_APPEND) != 0) {
@@ -302,10 +302,5 @@ bool FdStreamWriterBase::Flush(FlushType flush_type) {
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
-
-template class FdWriter<OwnedFd>;
-template class FdWriter<int>;
-template class FdStreamWriter<OwnedFd>;
-template class FdStreamWriter<int>;
 
 }  // namespace riegeli

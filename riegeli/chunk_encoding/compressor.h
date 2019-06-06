@@ -85,6 +85,8 @@ class Compressor : public Object {
   void Reset(TuningOptions tuning_options);
 
   // Resets the Compressor back to empty. Keeps tuning options unchanged.
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
   void Reset();
 
   // Returns the Writer to which uncompressed data should be written.

@@ -18,8 +18,8 @@
 #include <stddef.h>
 
 #include <limits>
-#include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -29,6 +29,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
@@ -58,12 +59,15 @@ class LimitingBackwardWriterBase : public BackwardWriter {
  protected:
   LimitingBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit LimitingBackwardWriterBase(Position size_limit)
-      : BackwardWriter(kInitiallyOpen), size_limit_(size_limit) {}
+  explicit LimitingBackwardWriterBase(Position size_limit);
 
   LimitingBackwardWriterBase(LimitingBackwardWriterBase&& that) noexcept;
   LimitingBackwardWriterBase& operator=(
       LimitingBackwardWriterBase&& that) noexcept;
+
+  void Reset();
+  void Reset(Position size_limit);
+  void Initialize(BackwardWriter* dest);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -113,11 +117,31 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // Will write to the original BackwardWriter provided by dest.
   //
   // Precondition: size_limit >= dest->pos()
-  explicit LimitingBackwardWriter(Dest dest,
+  explicit LimitingBackwardWriter(const Dest& dest,
+                                  Position size_limit = kNoSizeLimit);
+  explicit LimitingBackwardWriter(Dest&& dest,
+                                  Position size_limit = kNoSizeLimit);
+
+  // Will write to the original BackwardWriter provided by a Dest constructed
+  // from elements of dest_args. This avoids constructing a temporary Dest and
+  // moving from it.
+  //
+  // Precondition: size_limit >= dest->pos()
+  template <typename... DestArgs>
+  explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
                                   Position size_limit = kNoSizeLimit);
 
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed LimitingBackwardWriter. This
+  // avoids constructing a temporary LimitingBackwardWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
+  void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args,
+             Position size_limit = kNoSizeLimit);
 
   // Returns the object providing and possibly owning the original Writer.
   // Unchanged by Close().
@@ -139,6 +163,10 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 // Implementation details follow.
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
+    Position size_limit)
+    : BackwardWriter(kInitiallyOpen), size_limit_(size_limit) {}
+
+inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
       size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
@@ -148,6 +176,26 @@ inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
   BackwardWriter::operator=(std::move(that));
   size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
   return *this;
+}
+
+inline void LimitingBackwardWriterBase::Reset() {
+  BackwardWriter::Reset(kInitiallyClosed);
+  size_limit_ = kNoSizeLimit;
+}
+
+inline void LimitingBackwardWriterBase::Reset(Position size_limit) {
+  BackwardWriter::Reset(kInitiallyOpen);
+  size_limit_ = size_limit;
+}
+
+inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of LimitingBackwardWriter: "
+         "null BackwardWriter pointer";
+  RIEGELI_ASSERT_GE(size_limit_, dest->pos())
+      << "Failed precondition of LimitingBackwardWriter: "
+         "size limit smaller than current position";
+  MakeBuffer(dest);
 }
 
 inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
@@ -176,18 +224,25 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
 }
 
 template <typename Dest>
-inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest dest,
+inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(const Dest& dest,
+                                                            Position size_limit)
+    : LimitingBackwardWriterBase(size_limit), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest&& dest,
                                                             Position size_limit)
     : LimitingBackwardWriterBase(size_limit), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of "
-         "LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest): "
-         "null BackwardWriter pointer";
-  RIEGELI_ASSERT_GE(size_limit_, dest_->pos())
-      << "Failed precondition of "
-         "LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest): "
-         "size limit smaller than current position";
-  MakeBuffer(dest_.get());
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
+    std::tuple<DestArgs...> dest_args, Position size_limit)
+    : LimitingBackwardWriterBase(size_limit), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -203,6 +258,37 @@ inline LimitingBackwardWriter<Dest>& LimitingBackwardWriter<Dest>::operator=(
   LimitingBackwardWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
+}
+
+template <typename Dest>
+inline void LimitingBackwardWriter<Dest>::Reset() {
+  LimitingBackwardWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void LimitingBackwardWriter<Dest>::Reset(const Dest& dest,
+                                                Position size_limit) {
+  LimitingBackwardWriterBase::Reset(size_limit);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void LimitingBackwardWriter<Dest>::Reset(Dest&& dest,
+                                                Position size_limit) {
+  LimitingBackwardWriterBase::Reset(size_limit);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void LimitingBackwardWriter<Dest>::Reset(
+    std::tuple<DestArgs...> dest_args, Position size_limit) {
+  LimitingBackwardWriterBase::Reset(size_limit);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -225,8 +311,9 @@ void LimitingBackwardWriter<Dest>::Done() {
   }
 }
 
-extern template class LimitingBackwardWriter<BackwardWriter*>;
-extern template class LimitingBackwardWriter<std::unique_ptr<BackwardWriter>>;
+template <typename Dest>
+struct Resetter<LimitingBackwardWriter<Dest>>
+    : ResetterByReset<LimitingBackwardWriter<Dest>> {};
 
 }  // namespace riegeli
 

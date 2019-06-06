@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/utility/utility.h"
@@ -26,6 +27,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
@@ -67,13 +69,14 @@ class ChainBackwardWriterBase : public BackwardWriter {
  protected:
   ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit ChainBackwardWriterBase(Position size_hint)
-      : BackwardWriter(kInitiallyOpen),
-        size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {
-  }
+  explicit ChainBackwardWriterBase(Position size_hint);
 
   ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
   ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
+
+  void Reset();
+  void Reset(Position size_hint);
+  void Initialize(Chain* dest);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -113,10 +116,25 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   ChainBackwardWriter() noexcept {}
 
   // Will prepend to the Chain provided by dest.
-  explicit ChainBackwardWriter(Dest dest, Options options = Options());
+  explicit ChainBackwardWriter(const Dest& dest, Options options = Options());
+  explicit ChainBackwardWriter(Dest&& dest, Options options = Options());
+
+  // Will prepend to the Chain provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
+                               Options options = Options());
 
   ChainBackwardWriter(ChainBackwardWriter&& that) noexcept;
   ChainBackwardWriter& operator=(ChainBackwardWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ChainBackwardWriter. This
+  // avoids constructing a temporary ChainBackwardWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the Chain being written
   // to.
@@ -137,6 +155,10 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 // Implementation details follow.
 
+inline ChainBackwardWriterBase::ChainBackwardWriterBase(Position size_hint)
+    : BackwardWriter(kInitiallyOpen),
+      size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {}
+
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
@@ -149,15 +171,42 @@ inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
   return *this;
 }
 
+inline void ChainBackwardWriterBase::Reset() {
+  BackwardWriter::Reset(kInitiallyClosed);
+  size_hint_ = 0;
+}
+
+inline void ChainBackwardWriterBase::Reset(Position size_hint) {
+  BackwardWriter::Reset(kInitiallyOpen);
+  size_hint_ = UnsignedMin(size_hint, std::numeric_limits<size_t>::max());
+}
+
+inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of ChainBackwardWriter: null Chain pointer";
+  start_pos_ = dest->size();
+}
+
 template <typename Dest>
-inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest dest,
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
+                                                      Options options)
+    : ChainBackwardWriterBase(options.size_hint_), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest&& dest,
                                                       Options options)
     : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of "
-         "ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest): "
-         "null Chain pointer";
-  start_pos_ = dest_->size();
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
+    std::tuple<DestArgs...> dest_args, Options options)
+    : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -176,6 +225,36 @@ inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void ChainBackwardWriter<Dest>::Reset() {
+  ChainBackwardWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ChainBackwardWriter<Dest>::Reset(const Dest& dest,
+                                             Options options) {
+  ChainBackwardWriterBase::Reset(options.size_hint_);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void ChainBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
+  ChainBackwardWriterBase::Reset(options.size_hint_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                             Options options) {
+  ChainBackwardWriterBase::Reset(options.size_hint_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
 inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
@@ -190,8 +269,9 @@ inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   }
 }
 
-extern template class ChainBackwardWriter<Chain*>;
-extern template class ChainBackwardWriter<Chain>;
+template <typename Dest>
+struct Resetter<ChainBackwardWriter<Dest>>
+    : ResetterByReset<ChainBackwardWriter<Dest>> {};
 
 }  // namespace riegeli
 

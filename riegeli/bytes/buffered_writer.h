@@ -50,6 +50,12 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed BufferedWriter. This avoids
+  // constructing a temporary BufferedWriter and moving from it. Derived classes
+  // which override Reset() should include a call to BufferedWriter::Reset().
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint = 0);
+
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
@@ -113,6 +119,21 @@ inline BufferedWriter& BufferedWriter::operator=(
   size_hint_ = absl::exchange(that.size_hint_, 0);
   buffer_ = std::move(that.buffer_);
   return *this;
+}
+
+inline void BufferedWriter::Reset() {
+  Writer::Reset(kInitiallyClosed);
+  buffer_size_ = 0;
+  size_hint_ = 0;
+}
+
+inline void BufferedWriter::Reset(size_t buffer_size, Position size_hint) {
+  RIEGELI_ASSERT_GT(buffer_size, 0u)
+      << "Failed precondition of BufferedWriter::Reset(): zero buffer size";
+  Writer::Reset(kInitiallyOpen);
+  buffer_size_ = buffer_size;
+  size_hint_ = size_hint;
+  buffer_.Resize(buffer_size);
 }
 
 }  // namespace riegeli

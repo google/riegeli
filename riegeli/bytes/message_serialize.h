@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -35,14 +36,23 @@ namespace riegeli {
 // e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
 // ChainWriter<> (owned).
 //
+// With a dest_args parameter, writes to a Dest constructed from elements of
+// dest_args. This avoids constructing a temporary Dest and moving from it.
+//
 // Returns status:
 //  * status.ok()  - success (dest is written to)
 //  * !status.ok() - failure (dest is unspecified)
-template <typename Dest = Writer*>
-Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest dest);
-template <typename Dest = Writer*>
+template <typename Dest>
+Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest&& dest);
+template <typename Dest, typename... DestArgs>
+Status SerializeToWriter(const google::protobuf::MessageLite& src,
+                         std::tuple<DestArgs...> dest_args);
+template <typename Dest>
 Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
-                                Dest dest);
+                                Dest&& dest);
+template <typename Dest, typename... DestArgs>
+Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
+                                std::tuple<DestArgs...> dest_args);
 
 // Writes the message in binary format to the given Chain, clearing it first.
 //
@@ -68,8 +78,19 @@ Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
 
 template <typename Dest>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                Dest dest) {
-  Dependency<Writer*, Dest> dest_dep(std::move(dest));
+                                Dest&& dest) {
+  Dependency<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
+  const Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
+  if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
+  }
+  return status;
+}
+
+template <typename Dest, typename... DestArgs>
+inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
+                                std::tuple<DestArgs...> dest_args) {
+  Dependency<Writer*, Dest> dest_dep(std::move(dest_args));
   const Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
   if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
@@ -79,8 +100,20 @@ inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
 
 template <typename Dest>
 inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
-                                       Dest dest) {
-  Dependency<Writer*, Dest> dest_dep(std::move(dest));
+                                       Dest&& dest) {
+  Dependency<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
+  const Status status =
+      internal::SerializePartialToWriterImpl(src, dest_dep.get());
+  if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) return dest_dep->status();
+  }
+  return status;
+}
+
+template <typename Dest, typename... DestArgs>
+inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
+                                       std::tuple<DestArgs...> dest_args) {
+  Dependency<Writer*, Dest> dest_dep(std::move(dest_args));
   const Status status =
       internal::SerializePartialToWriterImpl(src, dest_dep.get());
   if (ABSL_PREDICT_TRUE(status.ok()) && dest_dep.is_owning()) {

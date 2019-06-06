@@ -36,11 +36,9 @@ namespace riegeli {
 
 void DefaultChunkReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of "
-         "DefaultChunkReader<Src>::DefaultChunkReader(Src): "
-         "null Reader pointer";
+      << "Failed precondition of DefaultChunkReader: null Reader pointer";
   pos_ = src->pos();
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
   }
@@ -514,8 +512,5 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     chunk_begin = chunk_end;
   }
 }
-
-template class DefaultChunkReader<Reader*>;
-template class DefaultChunkReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

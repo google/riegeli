@@ -150,7 +150,4 @@ inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_length,
   limit_ = start_ + buffer.size();
 }
 
-template class ChainWriter<Chain*>;
-template class ChainWriter<Chain>;
-
 }  // namespace riegeli

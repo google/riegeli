@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -229,7 +230,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
      private:
       void OpenFile(::tensorflow::data::IteratorContext* ctx)
           EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-        reader_.emplace(tensorflow::FileReader<>(
+        reader_.emplace(std::forward_as_tuple(
             dataset()->filenames_[current_file_index_],
             tensorflow::FileReaderBase::Options().set_env(ctx->env())));
       }

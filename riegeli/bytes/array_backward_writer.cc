@@ -49,8 +49,4 @@ bool ArrayBackwardWriterBase::Truncate(Position new_size) {
   return true;
 }
 
-template class ArrayBackwardWriter<absl::Span<char>>;
-template class ArrayBackwardWriter<std::string*>;
-template class ArrayBackwardWriter<std::string>;
-
 }  // namespace riegeli

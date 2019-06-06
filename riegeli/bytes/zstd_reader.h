@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -81,13 +82,15 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   ZstdReaderBase() noexcept {}
 
-  explicit ZstdReaderBase(size_t buffer_size, Position size_hint) noexcept
-      : BufferedReader(buffer_size, size_hint) {}
+  explicit ZstdReaderBase(size_t buffer_size, Position size_hint);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint);
   void Initialize(Reader* src);
+
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
@@ -124,10 +127,26 @@ class ZstdReader : public ZstdReaderBase {
   ZstdReader() noexcept {}
 
   // Will read from the compressed Reader provided by src.
-  explicit ZstdReader(Src src, Options options = Options());
+  explicit ZstdReader(const Src& src, Options options = Options());
+  explicit ZstdReader(Src&& src, Options options = Options());
+
+  // Will read from the compressed Reader provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit ZstdReader(std::tuple<SrcArgs...> src_args,
+                      Options options = Options());
 
   ZstdReader(ZstdReader&& that) noexcept;
   ZstdReader& operator=(ZstdReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ZstdReader. This avoids
+  // constructing a temporary ZstdReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Reader.
   // Unchanged by Close().
@@ -147,6 +166,9 @@ class ZstdReader : public ZstdReaderBase {
 
 // Implementation details follow.
 
+inline ZstdReaderBase::ZstdReaderBase(size_t buffer_size, Position size_hint)
+    : BufferedReader(buffer_size, size_hint) {}
+
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       truncated_(absl::exchange(that.truncated_, false)),
@@ -160,10 +182,37 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   return *this;
 }
 
+inline void ZstdReaderBase::Reset() {
+  BufferedReader::Reset();
+  truncated_ = false;
+  decompressor_.reset();
+}
+
+inline void ZstdReaderBase::Reset(size_t buffer_size, Position size_hint) {
+  BufferedReader::Reset(buffer_size, size_hint);
+  truncated_ = false;
+  decompressor_.reset();
+}
+
 template <typename Src>
-ZstdReader<Src>::ZstdReader(Src src, Options options)
+inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
+    : ZstdReaderBase(options.buffer_size_, options.size_hint_), src_(src) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
     : ZstdReaderBase(options.buffer_size_, options.size_hint_),
       src_(std::move(src)) {
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
+                                   Options options)
+    : ZstdReaderBase(options.buffer_size_, options.size_hint_),
+      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -176,6 +225,35 @@ inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
   ZstdReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;
+}
+
+template <typename Src>
+inline void ZstdReader<Src>::Reset() {
+  ZstdReaderBase::Reset();
+  src_.Reset();
+}
+
+template <typename Src>
+inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
+  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
+  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                   Options options) {
+  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -192,8 +270,8 @@ void ZstdReader<Src>::VerifyEnd() {
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
 
-extern template class ZstdReader<Reader*>;
-extern template class ZstdReader<std::unique_ptr<Reader>>;
+template <typename Src>
+struct Resetter<ZstdReader<Src>> : ResetterByReset<ZstdReader<Src>> {};
 
 }  // namespace riegeli
 

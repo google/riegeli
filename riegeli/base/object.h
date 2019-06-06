@@ -149,13 +149,15 @@ class Object {
   Object(Object&& that) noexcept;
   Object& operator=(Object&& that) noexcept;
 
-  // Marks the Object as healthy. This can be used if the Object supports
-  // resetting to a clean state after a failure (apart from assignment).
+  // Makes *this equivalent to a newly constructed Object. This avoids
+  // constructing a temporary Object and moving from it. Derived classes which
+  // override Reset() should include a call to Object::Reset().
   //
   // If a derived class uses background threads, its methods which call
-  // MarkHealthy() should cause background threads to stop interacting with
-  // the Object before MarkHealthy() is called.
-  void MarkHealthy();
+  // Object::Reset() should cause background threads to stop interacting with
+  // the Object before Object::Reset() is called.
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
 
   // Marks the Object as not failed, keeping its closed() status unchanged.
   // This can be used if the Object supports recovery after some failures.
@@ -313,7 +315,12 @@ inline Status Object::status() const {
   return reinterpret_cast<const FailedStatus*>(status_ptr)->status;
 }
 
-inline void Object::MarkHealthy() {
+inline void Object::Reset(InitiallyClosed) {
+  DeleteStatus(
+      status_ptr_.exchange(kClosedSuccessfully, std::memory_order_relaxed));
+}
+
+inline void Object::Reset(InitiallyOpen) {
   DeleteStatus(status_ptr_.exchange(kHealthy, std::memory_order_relaxed));
 }
 

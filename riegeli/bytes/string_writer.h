@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/strings/string_view.h"
@@ -25,6 +26,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -71,6 +73,8 @@ class StringWriterBase : public Writer {
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
+  void Initialize(std::string* dest, Position size_hint);
+
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
@@ -108,10 +112,25 @@ class StringWriter : public StringWriterBase {
   StringWriter() noexcept : StringWriterBase(kInitiallyClosed) {}
 
   // Will append to the string provided by dest.
-  explicit StringWriter(Dest dest, Options options = Options());
+  explicit StringWriter(const Dest& dest, Options options = Options());
+  explicit StringWriter(Dest&& dest, Options options = Options());
+
+  // Will append to the string provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit StringWriter(std::tuple<DestArgs...> dest_args,
+                        Options options = Options());
 
   StringWriter(StringWriter&& that) noexcept;
   StringWriter& operator=(StringWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed StringWriter. This avoids
+  // constructing a temporary StringWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the string being written
   // to. Unchanged by Close().
@@ -140,17 +159,35 @@ inline StringWriterBase& StringWriterBase::operator=(
   return *this;
 }
 
-template <typename Dest>
-inline StringWriter<Dest>::StringWriter(Dest dest, Options options)
-    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  RIEGELI_ASSERT(dest_.get() != nullptr)
-      << "Failed precondition of StringWriter<Dest>::StringWriter(Dest): "
-         "null string pointer";
-  const size_t size_hint = UnsignedMin(options.size_hint_, dest_->max_size());
-  if (dest_->capacity() < size_hint) dest_->reserve(size_hint);
-  start_ = &(*dest_)[0];
-  cursor_ = start_ + dest_->size();
+inline void StringWriterBase::Initialize(std::string* dest,
+                                         Position size_hint) {
+  RIEGELI_ASSERT(dest != nullptr)
+      << "Failed precondition of StringWriter: null string pointer";
+  const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
+  if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
+  start_ = &(*dest)[0];
+  cursor_ = start_ + dest->size();
   limit_ = cursor_;
+}
+
+template <typename Dest>
+inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
+    : StringWriterBase(kInitiallyOpen), dest_(dest) {
+  Initialize(dest_.get(), options.size_hint_);
+}
+
+template <typename Dest>
+inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
+    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.size_hint_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
+                                        Options options)
+    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.size_hint_);
 }
 
 template <typename Dest>
@@ -168,6 +205,35 @@ inline StringWriter<Dest>& StringWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void StringWriter<Dest>::Reset() {
+  StringWriterBase::Reset(kInitiallyClosed);
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
+  StringWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.size_hint_);
+}
+
+template <typename Dest>
+inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
+  StringWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.size_hint_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                      Options options) {
+  StringWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.size_hint_);
+}
+
+template <typename Dest>
 inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
@@ -182,8 +248,8 @@ inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   }
 }
 
-extern template class StringWriter<std::string*>;
-extern template class StringWriter<std::string>;
+template <typename Dest>
+struct Resetter<StringWriter<Dest>> : ResetterByReset<StringWriter<Dest>> {};
 
 }  // namespace riegeli
 

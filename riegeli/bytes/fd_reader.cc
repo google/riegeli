@@ -34,6 +34,7 @@
 #include <cerrno>
 #include <limits>
 #include <string>
+#include <tuple>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -48,7 +49,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/fd_dependency.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -140,7 +140,8 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
 
 }  // namespace internal
 
-void FdReaderBase::Initialize(absl::optional<Position> initial_pos, int src) {
+void FdReaderBase::InitializePos(int src,
+                                 absl::optional<Position> initial_pos) {
   if (initial_pos.has_value()) {
     if (ABSL_PREDICT_FALSE(*initial_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -303,8 +304,8 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
       error_number, absl::StrCat(operation, " failed reading ", filename_)));
 }
 
-void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
-                                  int src) {
+void FdMMapReaderBase::InitializePos(int src,
+                                     absl::optional<Position> initial_pos) {
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
@@ -325,9 +326,9 @@ void FdMMapReaderBase::Initialize(absl::optional<Position> initial_pos,
   }
   // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
   // was not known in FdMMapReaderBase constructor. This sets the Chain and
-  // updates ChainReader to read from it.
-  ChainReader::operator=(ChainReader(
-      Chain::FromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size)))));
+  // updates the ChainReader to read from it.
+  ChainReader::Reset(
+      Chain::FromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size))));
   if (initial_pos.has_value()) {
     cursor_ += UnsignedMin(*initial_pos, available());
   } else {
@@ -347,12 +348,5 @@ void FdMMapReaderBase::SyncPos(int src) {
     }
   }
 }
-
-template class FdReader<OwnedFd>;
-template class FdReader<int>;
-template class FdStreamReader<OwnedFd>;
-template class FdStreamReader<int>;
-template class FdMMapReader<OwnedFd>;
-template class FdMMapReader<int>;
 
 }  // namespace riegeli

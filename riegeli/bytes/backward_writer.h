@@ -156,6 +156,12 @@ class BackwardWriter : public Object {
   BackwardWriter(BackwardWriter&& that) noexcept;
   BackwardWriter& operator=(BackwardWriter&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed BackwardWriter. This avoids
+  // constructing a temporary BackwardWriter and moving from it. Derived classes
+  // which override Reset() should include a call to BackwardWriter::Reset().
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+
   // BackwardWriter overrides Object::Done() to set buffer pointers to nullptr.
   // Derived classes which override it further should include a call to
   // BackwardWriter::Done().
@@ -229,6 +235,22 @@ inline BackwardWriter& BackwardWriter::operator=(
   limit_ = absl::exchange(that.limit_, nullptr);
   start_pos_ = absl::exchange(that.start_pos_, 0);
   return *this;
+}
+
+inline void BackwardWriter::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  start_pos_ = 0;
+}
+
+inline void BackwardWriter::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  start_pos_ = 0;
 }
 
 inline void BackwardWriter::Done() {

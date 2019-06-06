@@ -34,6 +34,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -243,7 +244,7 @@ void Benchmarks::WriteRiegeli(
     riegeli::RecordWriterBase::Options record_writer_options,
     const std::vector<std::string>& records) {
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
-      riegeli::FdWriter<>(filename, O_WRONLY | O_CREAT | O_TRUNC),
+      std::forward_as_tuple(filename, O_WRONLY | O_CREAT | O_TRUNC),
       std::move(record_writer_options));
   for (const std::string& record : records) {
     RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
@@ -258,7 +259,7 @@ bool Benchmarks::ReadRiegeli(
   size_t max_size_storage = std::numeric_limits<size_t>::max();
   if (max_size == nullptr) max_size = &max_size_storage;
   riegeli::RecordReader<riegeli::FdReader<>> record_reader(
-      riegeli::FdReader<>(filename, O_RDONLY),
+      std::forward_as_tuple(filename, O_RDONLY),
       std::move(record_reader_options));
   std::string record;
   while (record_reader.ReadRecord(&record)) {

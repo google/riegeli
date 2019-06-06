@@ -154,7 +154,4 @@ bool LimitingReaderBase::Size(Position* size) {
   return true;
 }
 
-template class LimitingReader<Reader*>;
-template class LimitingReader<std::unique_ptr<Reader>>;
-
 }  // namespace riegeli

@@ -48,8 +48,4 @@ bool ArrayWriterBase::Truncate(Position new_size) {
   return true;
 }
 
-template class ArrayWriter<absl::Span<char>>;
-template class ArrayWriter<std::string*>;
-template class ArrayWriter<std::string>;
-
 }  // namespace riegeli

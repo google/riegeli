@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -30,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -38,6 +40,7 @@
 #include "tensorflow/core/platform/file_system.h"
 
 namespace riegeli {
+
 namespace tensorflow {
 
 // Template parameter invariant part of FileReader.
@@ -114,13 +117,18 @@ class FileReaderBase : public Reader {
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
-  bool InitializeFilename(::tensorflow::Env* env,
-                          ::tensorflow::RandomAccessFile* src);
-  bool InitializeFilename(::tensorflow::Env* env, absl::string_view filename);
+  void Reset();
+  void Reset(size_t buffer_size);
+  void Initialize(::tensorflow::RandomAccessFile* src, ::tensorflow::Env* env,
+                  Position initial_pos);
+  bool InitializeFilename(::tensorflow::RandomAccessFile* src,
+                          ::tensorflow::Env* env);
+  bool InitializeFilename(absl::string_view filename, ::tensorflow::Env* env);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
+
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
@@ -196,13 +204,30 @@ class FileReader : public FileReaderBase {
   FileReader() noexcept {}
 
   // Will read from the RandomAccessFile provided by src.
-  explicit FileReader(Src src, Options options = Options());
+  explicit FileReader(const Src& src, Options options = Options());
+  explicit FileReader(Src&& src, Options options = Options());
+
+  // Will read from the RandomAccessFile provided by a Src constructed from
+  // elements of src_args. This avoids constructing a temporary Src and moving
+  // from it.
+  template <typename... SrcArgs>
+  explicit FileReader(std::tuple<SrcArgs...> src_args,
+                      Options options = Options());
 
   // Opens a RandomAccessFile for reading.
   explicit FileReader(absl::string_view filename, Options options = Options());
 
   FileReader(FileReader&& that) noexcept;
   FileReader& operator=(FileReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed FileReader. This avoids
+  // constructing a temporary FileReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
+  void Reset(absl::string_view filename, Options options = Options());
 
   // Returns the object providing and possibly owning the RandomAccessFile being
   // read from. If the RandomAccessFile is owned then changed to nullptr by
@@ -217,6 +242,10 @@ class FileReader : public FileReaderBase {
   void Done() override;
 
  private:
+  using FileReaderBase::Initialize;
+  void Initialize(absl::string_view filename, ::tensorflow::Env* env,
+                  Position initial_pos);
+
   // The object providing and possibly owning the RandomAccessFile being read
   // from.
   Dependency<::tensorflow::RandomAccessFile*, Src> src_;
@@ -244,28 +273,103 @@ inline FileReaderBase& FileReaderBase::operator=(
   return *this;
 }
 
-template <typename Src>
-FileReader<Src>::FileReader(Src src, Options options)
-    : FileReaderBase(options.buffer_size_), src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.get() != nullptr)
-      << "Failed precondition of FileReader<Src>::FileReader(Src): "
-         "null RandomAccessFile pointer";
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(options.env_, src_.get()))) {
-    return;
-  }
-  InitializePos(options.initial_pos_);
+inline void FileReaderBase::Reset() {
+  Reader::Reset(kInitiallyClosed);
+  filename_.clear();
+  file_system_ = nullptr;
+  buffer_size_ = 0;
+  buffer_.Clear();
+}
+
+inline void FileReaderBase::Reset(size_t buffer_size) {
+  Reader::Reset(kInitiallyOpen);
+  filename_.clear();
+  file_system_ = nullptr;
+  buffer_size_ = buffer_size;
+  buffer_.Clear();
+}
+
+inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
+                                       ::tensorflow::Env* env,
+                                       Position initial_pos) {
+  RIEGELI_ASSERT(src != nullptr)
+      << "Failed precondition of FileReader: null RandomAccessFile pointer";
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(src, env))) return;
+  InitializePos(initial_pos);
 }
 
 template <typename Src>
-FileReader<Src>::FileReader(absl::string_view filename, Options options)
+inline FileReader<Src>::FileReader(const Src& src, Options options)
+    : FileReaderBase(options.buffer_size_), src_(src) {
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline FileReader<Src>::FileReader(Src&& src, Options options)
+    : FileReaderBase(options.buffer_size_), src_(std::move(src)) {
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
+                                   Options options)
+    : FileReaderBase(options.buffer_size_), src_(std::move(src_args)) {
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
     : FileReaderBase(options.buffer_size_) {
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(options.env_, filename))) {
-    return;
-  }
+  Initialize(filename, options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline void FileReader<Src>::Reset() {
+  FileReaderBase::Reset();
+  src_.Reset();
+}
+
+template <typename Src>
+inline void FileReader<Src>::Reset(const Src& src, Options options) {
+  FileReaderBase::Reset(options.buffer_size_);
+  src_.Reset(src);
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline void FileReader<Src>::Reset(Src&& src, Options options) {
+  FileReaderBase::Reset(options.buffer_size_);
+  src_.Reset(std::move(src));
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                   Options options) {
+  FileReaderBase::Reset(options.buffer_size_);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get(), options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline void FileReader<Src>::Reset(absl::string_view filename,
+                                   Options options) {
+  FileReaderBase::Reset(options.buffer_size_);
+  src_.Reset();  // In case OpenFile() fails.
+  Initialize(filename, options.env_, options.initial_pos_);
+}
+
+template <typename Src>
+inline void FileReader<Src>::Initialize(absl::string_view filename,
+                                        ::tensorflow::Env* env,
+                                        Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(filename, env))) return;
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
-  src_ = Dependency<::tensorflow::RandomAccessFile*, Src>(Src(src.release()));
-  InitializePos(options.initial_pos_);
+  src_.Reset(std::forward_as_tuple(src.release()));
+  InitializePos(initial_pos);
 }
 
 template <typename Src>
@@ -284,15 +388,16 @@ void FileReader<Src>::Done() {
   FileReaderBase::Done();
   if (src_.is_owning() && src_.get() != nullptr) {
     // The only way to close a RandomAccessFile is to delete it.
-    src_ = Dependency<::tensorflow::RandomAccessFile*, Src>();
+    src_.Reset();
   }
 }
 
-extern template class FileReader<
-    std::unique_ptr<::tensorflow::RandomAccessFile>>;
-extern template class FileReader<::tensorflow::RandomAccessFile*>;
-
 }  // namespace tensorflow
+
+template <typename Src>
+struct Resetter<tensorflow::FileReader<Src>>
+    : ResetterByReset<tensorflow::FileReader<Src>> {};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_TENSORFLOW_IO_FILE_READER_H_

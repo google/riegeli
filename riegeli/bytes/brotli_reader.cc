@@ -32,8 +32,7 @@ namespace riegeli {
 
 void BrotliReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
-      << "Failed precondition of BrotliReader<Src>::BrotliReader(Src): "
-         "null Reader pointer";
+      << "Failed precondition of BrotliReader: null Reader pointer";
   if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
@@ -127,8 +126,5 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
         << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
   }
 }
-
-template class BrotliReader<Reader*>;
-template class BrotliReader<std::unique_ptr<Reader>>;
 
 }  // namespace riegeli

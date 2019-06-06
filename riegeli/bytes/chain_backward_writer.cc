@@ -151,7 +151,4 @@ inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
   cursor_ = start_;
 }
 
-template class ChainBackwardWriter<Chain*>;
-template class ChainBackwardWriter<Chain>;
-
 }  // namespace riegeli

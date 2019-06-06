@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/types/span.h"
@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/span_dependency.h"
 
@@ -55,6 +56,10 @@ class ArrayBackwardWriterBase : public BackwardWriter {
   ArrayBackwardWriterBase(ArrayBackwardWriterBase&& that) noexcept;
   ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& that) noexcept;
 
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+  void Initialize(absl::Span<char> dest);
+
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
@@ -81,10 +86,24 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   ArrayBackwardWriter() noexcept : ArrayBackwardWriterBase(kInitiallyClosed) {}
 
   // Will write to the array provided by dest.
-  explicit ArrayBackwardWriter(Dest dest);
+  explicit ArrayBackwardWriter(const Dest& dest);
+  explicit ArrayBackwardWriter(Dest&& dest);
 
   ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
   ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) noexcept;
+
+  // Will write to the array provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args);
+
+  // Makes *this equivalent to a newly constructed ArrayBackwardWriter. This
+  // avoids constructing a temporary ArrayBackwardWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest);
+  void Reset(Dest&& dest);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args);
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by Close().
@@ -114,12 +133,40 @@ inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
   return *this;
 }
 
-template <typename Dest>
-inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest dest)
-    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  limit_ = dest_.get().data();
-  start_ = limit_ + dest_.get().size();
+inline void ArrayBackwardWriterBase::Reset(InitiallyClosed) {
+  BackwardWriter::Reset(kInitiallyClosed);
+  written_ = absl::Span<char>();
+}
+
+inline void ArrayBackwardWriterBase::Reset(InitiallyOpen) {
+  BackwardWriter::Reset(kInitiallyOpen);
+  written_ = absl::Span<char>();
+}
+
+inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
+  limit_ = dest.data();
+  start_ = limit_ + dest.size();
   cursor_ = start_;
+}
+
+template <typename Dest>
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(const Dest& dest)
+    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest&& dest)
+    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
+    std::tuple<DestArgs...> dest_args)
+    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -135,6 +182,35 @@ inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
   ArrayBackwardWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
+}
+
+template <typename Dest>
+inline void ArrayBackwardWriter<Dest>::Reset() {
+  ArrayBackwardWriterBase::Reset(kInitiallyClosed);
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ArrayBackwardWriter<Dest>::Reset(const Dest& dest) {
+  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void ArrayBackwardWriter<Dest>::Reset(Dest&& dest) {
+  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ArrayBackwardWriter<Dest>::Reset(
+    std::tuple<DestArgs...> dest_args) {
+  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -157,9 +233,9 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   }
 }
 
-extern template class ArrayBackwardWriter<absl::Span<char>>;
-extern template class ArrayBackwardWriter<std::string*>;
-extern template class ArrayBackwardWriter<std::string>;
+template <typename Dest>
+struct Resetter<ArrayBackwardWriter<Dest>>
+    : ResetterByReset<ArrayBackwardWriter<Dest>> {};
 
 }  // namespace riegeli
 

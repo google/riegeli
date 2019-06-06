@@ -68,8 +68,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<Position> final_size,
                                 Position size_hint, bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
-      << "Failed precondition of ZstdWriter<Dest>::ZstdWriter(Dest): "
-         "null Writer pointer";
+      << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -185,8 +184,5 @@ bool ZstdWriterBase::FlushInternal(Function function,
     if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
   }
 }
-
-template class ZstdWriter<Writer*>;
-template class ZstdWriter<std::unique_ptr<Writer>>;
 
 }  // namespace riegeli

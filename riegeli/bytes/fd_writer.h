@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -29,6 +30,7 @@
 #include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
 
@@ -55,6 +57,8 @@ class FdWriterCommon : public BufferedWriter {
   FdWriterCommon(FdWriterCommon&& that) noexcept;
   FdWriterCommon& operator=(FdWriterCommon&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size);
   void SetFilename(int dest);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -131,15 +135,18 @@ class FdWriterBase : public internal::FdWriterCommon {
  protected:
   FdWriterBase() noexcept {}
 
-  explicit FdWriterBase(size_t buffer_size, bool sync_pos)
-      : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
+  explicit FdWriterBase(size_t buffer_size, bool sync_pos);
 
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
-  void Initialize(absl::optional<Position> initial_pos, int dest);
-  void Initialize(absl::optional<Position> initial_pos, int flags, int dest);
+  void Reset();
+  void Reset(size_t buffer_size, bool sync_pos);
+  void Initialize(int dest, absl::optional<Position> initial_pos);
+  void InitializePos(int dest, absl::optional<Position> initial_pos);
+  void InitializePos(int dest, int flags, absl::optional<Position> initial_pos);
   bool SyncPos(int dest);
+
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -218,7 +225,9 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   FdStreamWriterBase(FdStreamWriterBase&& that) noexcept;
   FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
-  void Initialize(absl::optional<Position> assumed_pos, int flags, int dest);
+  void Initialize(int dest, absl::optional<Position> assumed_pos);
+  void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos);
+
   bool WriteInternal(absl::string_view src) override;
 };
 
@@ -250,7 +259,15 @@ class FdWriter : public FdWriterBase {
   // type_identity_t<Dest> disables template parameter deduction (C++17),
   // letting FdWriter(fd) mean FdWriter<OwnedFd>(fd) rather than
   // FdWriter<int>(fd).
-  explicit FdWriter(type_identity_t<Dest> dest, Options options = Options());
+  explicit FdWriter(const type_identity_t<Dest>& dest,
+                    Options options = Options());
+  explicit FdWriter(type_identity_t<Dest>&& dest, Options options = Options());
+
+  // Will write to the fd provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit FdWriter(std::tuple<DestArgs...> dest_args,
+                    Options options = Options());
 
   // Opens a file for writing.
   //
@@ -258,12 +275,22 @@ class FdWriter : public FdWriterBase {
   //  * O_WRONLY | O_CREAT | O_TRUNC
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
-  // flags must include O_WRONLY or O_RDWR.
+  // flags must include either O_WRONLY or O_RDWR.
   explicit FdWriter(absl::string_view filename, int flags,
                     Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
   FdWriter& operator=(FdWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed FdWriter. This avoids
+  // constructing a temporary FdWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
+  void Reset(absl::string_view filename, int flags,
+             Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -275,6 +302,10 @@ class FdWriter : public FdWriterBase {
   void Done() override;
 
  private:
+  using FdWriterBase::Initialize;
+  void Initialize(absl::string_view filename, int flags, mode_t permissions,
+                  absl::optional<Position> initial_pos);
+
   // The object providing and possibly owning the fd being written to.
   Dependency<int, Dest> dest_;
 };
@@ -308,7 +339,15 @@ class FdStreamWriter : public FdStreamWriterBase {
   // type_identity_t<Dest> disables template parameter deduction (C++17),
   // letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather than
   // FdStreamWriter<int>(fd).
-  explicit FdStreamWriter(type_identity_t<Dest> dest, Options options);
+  explicit FdStreamWriter(const type_identity_t<Dest>& dest, Options options);
+  explicit FdStreamWriter(type_identity_t<Dest>&& dest, Options options);
+
+  // Will write to the fd provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  //
+  // Requires Options::set_assumed_pos(pos).
+  template <typename... DestArgs>
+  explicit FdStreamWriter(std::tuple<DestArgs...> dest_args, Options options);
 
   // Opens a file for writing.
   //
@@ -316,12 +355,22 @@ class FdStreamWriter : public FdStreamWriterBase {
   //  * O_WRONLY | O_CREAT | O_TRUNC
   //  * O_WRONLY | O_CREAT | O_APPEND
   //
-  // flags must include O_WRONLY or O_RDWR.
+  // flags must include either O_WRONLY or O_RDWR.
   explicit FdStreamWriter(absl::string_view filename, int flags,
                           Options options = Options());
 
   FdStreamWriter(FdStreamWriter&& that) noexcept;
   FdStreamWriter& operator=(FdStreamWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed FdStreamWriter. This avoids
+  // constructing a temporary FdStreamWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options);
+  void Reset(Dest&& dest, Options options);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options);
+  void Reset(absl::string_view filename, int flags,
+             Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
@@ -333,6 +382,10 @@ class FdStreamWriter : public FdStreamWriterBase {
   void Done() override;
 
  private:
+  using FdStreamWriterBase::Initialize;
+  void Initialize(absl::string_view filename, int flags, mode_t permissions,
+                  absl::optional<Position> assumed_pos);
+
   // The object providing and possibly owning the fd being written to.
   Dependency<int, Dest> dest_;
 };
@@ -355,7 +408,20 @@ inline FdWriterCommon& FdWriterCommon::operator=(
   return *this;
 }
 
+inline void FdWriterCommon::Reset() {
+  BufferedWriter::Reset();
+  filename_.clear();
+}
+
+inline void FdWriterCommon::Reset(size_t buffer_size) {
+  BufferedWriter::Reset(buffer_size);
+  // filename_ will be set by Initialize().
+}
+
 }  // namespace internal
+
+inline FdWriterBase::FdWriterBase(size_t buffer_size, bool sync_pos)
+    : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : FdWriterCommon(std::move(that)),
@@ -365,6 +431,24 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   FdWriterCommon::operator=(std::move(that));
   sync_pos_ = absl::exchange(that.sync_pos_, false);
   return *this;
+}
+
+inline void FdWriterBase::Reset() {
+  FdWriterCommon::Reset();
+  sync_pos_ = false;
+}
+
+inline void FdWriterBase::Reset(size_t buffer_size, bool sync_pos) {
+  FdWriterCommon::Reset(buffer_size);
+  sync_pos_ = sync_pos;
+}
+
+inline void FdWriterBase::Initialize(int dest,
+                                     absl::optional<Position> initial_pos) {
+  RIEGELI_ASSERT_GE(dest, 0)
+      << "Failed precondition of FdWriter: negative file descriptor";
+  SetFilename(dest);
+  InitializePos(dest, initial_pos);
 }
 
 inline FdStreamWriterBase::FdStreamWriterBase(
@@ -377,28 +461,47 @@ inline FdStreamWriterBase& FdStreamWriterBase::operator=(
   return *this;
 }
 
-template <typename Dest>
-FdWriter<Dest>::FdWriter(type_identity_t<Dest> dest, Options options)
-    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
-      dest_(std::move(dest)) {
-  RIEGELI_ASSERT_GE(dest_.get(), 0)
-      << "Failed precondition of FdWriter<Dest>::FdWriter(Dest): "
-         "negative file descriptor";
-  SetFilename(dest_.get());
-  Initialize(options.initial_pos_, dest_.get());
+inline void FdStreamWriterBase::Initialize(
+    int dest, absl::optional<Position> assumed_pos) {
+  RIEGELI_ASSERT_GE(dest, 0)
+      << "Failed precondition of FdStreamWriter: negative file descriptor";
+  RIEGELI_CHECK(assumed_pos.has_value())
+      << "Failed precondition of FdStreamWriter: "
+         "assumed file position must be specified "
+         "if FdStreamWriter does not open the file";
+  SetFilename(dest);
+  start_pos_ = *assumed_pos;
 }
 
 template <typename Dest>
-FdWriter<Dest>::FdWriter(absl::string_view filename, int flags, Options options)
+inline FdWriter<Dest>::FdWriter(const type_identity_t<Dest>& dest,
+                                Options options)
+    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+      dest_(dest) {
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+inline FdWriter<Dest>::FdWriter(type_identity_t<Dest>&& dest, Options options)
+    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+      dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
+                                Options options)
+    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+      dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
+                                Options options)
     : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdWriter::FdWriter(string_view): "
-         "flags must include O_WRONLY or O_RDWR";
-  const int dest = OpenFd(filename, flags, options.permissions_);
-  if (ABSL_PREDICT_FALSE(dest < 0)) return;
-  dest_ = Dependency<int, Dest>(Dest(dest));
-  Initialize(options.initial_pos_, flags, dest_.get());
+  Initialize(filename, flags, options.permissions_, options.initial_pos_);
 }
 
 template <typename Dest>
@@ -410,6 +513,57 @@ inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
   FdWriterBase::operator=(std::move(that));
   dest_ = std::move(that.dest_);
   return *this;
+}
+
+template <typename Dest>
+inline void FdWriter<Dest>::Reset() {
+  FdWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
+  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
+  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                  Options options) {
+  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.initial_pos_);
+}
+
+template <typename Dest>
+inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
+                                  Options options) {
+  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  dest_.Reset();  // In case OpenFd() fails.
+  Initialize(filename, flags, options.permissions_, options.initial_pos_);
+}
+
+template <typename Dest>
+inline void FdWriter<Dest>::Initialize(absl::string_view filename, int flags,
+                                       mode_t permissions,
+                                       absl::optional<Position> initial_pos) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdWriter: "
+         "flags must include either O_WRONLY or O_RDWR";
+  const int dest = OpenFd(filename, flags, permissions);
+  if (ABSL_PREDICT_FALSE(dest < 0)) return;
+  dest_.Reset(std::forward_as_tuple(dest));
+  InitializePos(dest_.get(), flags, initial_pos);
 }
 
 template <typename Dest>
@@ -426,32 +580,32 @@ void FdWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest> dest,
-                                     Options options)
-    : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  RIEGELI_ASSERT_GE(dest_.get(), 0)
-      << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
-         "negative file descriptor";
-  RIEGELI_CHECK(options.assumed_pos_.has_value())
-      << "Failed precondition of FdStreamWriter<Dest>::FdStreamWriter(Dest): "
-         "assumed file position must be specified "
-         "if FdStreamWriter does not open the file";
-  SetFilename(dest_.get());
-  start_pos_ = *options.assumed_pos_;
+inline FdStreamWriter<Dest>::FdStreamWriter(const type_identity_t<Dest>& dest,
+                                            Options options)
+    : FdStreamWriterBase(options.buffer_size_), dest_(dest) {
+  Initialize(dest_.get(), options.assumed_pos_);
 }
 
 template <typename Dest>
-FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename, int flags,
-                                     Options options)
+inline FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest>&& dest,
+                                            Options options)
+    : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.assumed_pos_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline FdStreamWriter<Dest>::FdStreamWriter(std::tuple<DestArgs...> dest_args,
+                                            Options options)
+    : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.assumed_pos_);
+}
+
+template <typename Dest>
+inline FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename,
+                                            int flags, Options options)
     : FdStreamWriterBase(options.buffer_size_) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdStreamWriter::FdStreamWriter(string_view): "
-         "flags must include O_WRONLY or O_RDWR";
-  const int dest = OpenFd(filename, flags, options.permissions_);
-  if (ABSL_PREDICT_FALSE(dest < 0)) return;
-  dest_ = Dependency<int, Dest>(Dest(dest));
-  Initialize(options.assumed_pos_, flags, dest_.get());
+  Initialize(filename, flags, options.permissions_, options.assumed_pos_);
 }
 
 template <typename Dest>
@@ -467,6 +621,57 @@ inline FdStreamWriter<Dest>& FdStreamWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void FdStreamWriter<Dest>::Reset() {
+  FdStreamWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void FdStreamWriter<Dest>::Reset(const Dest& dest, Options options) {
+  FdStreamWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.assumed_pos_);
+}
+
+template <typename Dest>
+inline void FdStreamWriter<Dest>::Reset(Dest&& dest, Options options) {
+  FdStreamWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.assumed_pos_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void FdStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                        Options options) {
+  FdStreamWriterBase::Reset(options.buffer_size_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.assumed_pos_);
+}
+
+template <typename Dest>
+inline void FdStreamWriter<Dest>::Reset(absl::string_view filename, int flags,
+                                        Options options) {
+  FdStreamWriterBase::Reset(options.buffer_size_);
+  dest_.Reset();  // In case OpenFd() fails.
+  Initialize(filename, flags, options.permissions_, options.assumed_pos_);
+}
+
+template <typename Dest>
+inline void FdStreamWriter<Dest>::Initialize(
+    absl::string_view filename, int flags, mode_t permissions,
+    absl::optional<Position> assumed_pos) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdStreamWriter: "
+         "flags must include either O_WRONLY or O_RDWR";
+  const int dest = OpenFd(filename, flags, permissions);
+  if (ABSL_PREDICT_FALSE(dest < 0)) return;
+  dest_.Reset(std::forward_as_tuple(dest));
+  InitializePos(dest_.get(), flags, assumed_pos);
+}
+
+template <typename Dest>
 void FdStreamWriter<Dest>::Done() {
   PushInternal();
   FdStreamWriterBase::Done();
@@ -479,10 +684,11 @@ void FdStreamWriter<Dest>::Done() {
   }
 }
 
-extern template class FdWriter<OwnedFd>;
-extern template class FdWriter<int>;
-extern template class FdStreamWriter<OwnedFd>;
-extern template class FdStreamWriter<int>;
+template <typename Dest>
+struct Resetter<FdWriter<Dest>> : ResetterByReset<FdWriter<Dest>> {};
+template <typename Dest>
+struct Resetter<FdStreamWriter<Dest>> : ResetterByReset<FdStreamWriter<Dest>> {
+};
 
 }  // namespace riegeli
 

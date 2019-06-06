@@ -185,6 +185,12 @@ class Writer : public Object {
   Writer(Writer&& that) noexcept;
   Writer& operator=(Writer&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed Writer. This avoids
+  // constructing a temporary Writer and moving from it. Derived classes which
+  // override Reset() should include a call to Write::Reset().
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+
   // Writer overrides Object::Done() to set buffer pointers to nullptr. Derived
   // classes which override it further should include a call to Writer::Done().
   void Done() override;
@@ -260,6 +266,22 @@ inline Writer& Writer::operator=(Writer&& that) noexcept {
   limit_ = absl::exchange(that.limit_, nullptr);
   start_pos_ = absl::exchange(that.start_pos_, 0);
   return *this;
+}
+
+inline void Writer::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  start_pos_ = 0;
+}
+
+inline void Writer::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  start_pos_ = 0;
 }
 
 inline void Writer::Done() {

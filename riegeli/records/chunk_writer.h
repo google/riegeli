@@ -15,7 +15,7 @@
 #ifndef RIEGELI_RECORDS_CHUNK_WRITER_H_
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
-#include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -24,6 +24,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 
@@ -82,6 +83,8 @@ class ChunkWriter : public Object {
   Position pos() const { return pos_; }
 
  protected:
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
   void Initialize(Position pos) { pos_ = pos; }
 
   Position pos_ = 0;
@@ -157,10 +160,25 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   DefaultChunkWriter() noexcept : DefaultChunkWriterBase(kInitiallyClosed) {}
 
   // Will write to the byte Writer provided by dest.
-  explicit DefaultChunkWriter(Dest dest, Options options = Options());
+  explicit DefaultChunkWriter(const Dest& dest, Options options = Options());
+  explicit DefaultChunkWriter(Dest&& dest, Options options = Options());
+
+  // Will write to the byte Writer provided by a Dest constructed from elements
+  // of dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit DefaultChunkWriter(std::tuple<DestArgs...> dest_args,
+                              Options options = Options());
 
   DefaultChunkWriter(DefaultChunkWriter&& that) noexcept;
   DefaultChunkWriter& operator=(DefaultChunkWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed DefaultChunkWriter. This
+  // avoids constructing a temporary DefaultChunkWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the byte Writer. Unchanged
   // by Close().
@@ -189,6 +207,16 @@ inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
   return *this;
 }
 
+inline void ChunkWriter::Reset(InitiallyClosed) {
+  Object::Reset(kInitiallyClosed);
+  pos_ = 0;
+}
+
+inline void ChunkWriter::Reset(InitiallyOpen) {
+  Object::Reset(kInitiallyOpen);
+  pos_ = 0;
+}
+
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(
     DefaultChunkWriterBase&& that) noexcept
     : ChunkWriter(std::move(that)) {}
@@ -200,8 +228,24 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 }
 
 template <typename Dest>
-DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest dest, Options options)
+inline DefaultChunkWriter<Dest>::DefaultChunkWriter(const Dest& dest,
+                                                    Options options)
+    : DefaultChunkWriterBase(kInitiallyOpen), dest_(dest) {
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
+inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest&& dest,
+                                                    Options options)
     : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
+    std::tuple<DestArgs...> dest_args, Options options)
+    : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
 }
 
@@ -219,6 +263,35 @@ inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void DefaultChunkWriter<Dest>::Reset() {
+  DefaultChunkWriterBase::Reset(kInitiallyClosed);
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void DefaultChunkWriter<Dest>::Reset(const Dest& dest, Options options) {
+  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
+inline void DefaultChunkWriter<Dest>::Reset(Dest&& dest, Options options) {
+  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void DefaultChunkWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                            Options options) {
+  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+}
+
+template <typename Dest>
 void DefaultChunkWriter<Dest>::Done() {
   DefaultChunkWriterBase::Done();
   if (dest_.is_owning()) {
@@ -226,8 +299,9 @@ void DefaultChunkWriter<Dest>::Done() {
   }
 }
 
-extern template class DefaultChunkWriter<Writer*>;
-extern template class DefaultChunkWriter<std::unique_ptr<Writer>>;
+template <typename Dest>
+struct Resetter<DefaultChunkWriter<Dest>>
+    : ResetterByReset<DefaultChunkWriter<Dest>> {};
 
 }  // namespace riegeli
 

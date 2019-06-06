@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -65,7 +66,15 @@ class ChunkDecoder : public Object {
   ChunkDecoder(ChunkDecoder&& that) noexcept;
   ChunkDecoder& operator=(ChunkDecoder&& that) noexcept;
 
-  // Resets the ChunkDecoder to an empty chunk.
+  // Makes *this equivalent to a newly constructed ChunkDecoder. This avoids
+  // constructing a temporary ChunkDecoder and moving from it.
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
+  void Reset(Options options);
+
+  // Resets the ChunkDecoder to an empty chunk. Keeps options unchanged.
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
   void Reset();
 
   // Resets the ChunkDecoder and parses the chunk.
@@ -73,6 +82,9 @@ class ChunkDecoder : public Object {
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
+  //
+  // TODO: This does not conform to the general Reset() contract;
+  // should be renamed.
   bool Reset(const Chunk& chunk);
 
   // Reads the next record.
@@ -143,26 +155,42 @@ class ChunkDecoder : public Object {
 inline ChunkDecoder::ChunkDecoder(Options options)
     : Object(kInitiallyOpen),
       field_projection_(std::move(options.field_projection_)),
-      values_reader_(Chain()) {}
+      values_reader_(std::forward_as_tuple()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
     : Object(std::move(that)),
       field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
-      values_reader_(
-          absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()))),
+      values_reader_(std::move(that.values_reader_)),
       index_(absl::exchange(that.index_, 0)),
-      recoverable_(absl::exchange(that.recoverable_, false)) {}
+      recoverable_(absl::exchange(that.recoverable_, false)) {
+  that.values_reader_.Reset(std::forward_as_tuple());
+}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
-  Object::operator=(std::move(that));
-  field_projection_ = std::move(that.field_projection_);
-  limits_ = std::move(that.limits_);
-  values_reader_ =
-      absl::exchange(that.values_reader_, ChainReader<Chain>(Chain()));
-  index_ = absl::exchange(that.index_, 0);
-  recoverable_ = absl::exchange(that.recoverable_, false);
+  if (ABSL_PREDICT_TRUE(&that != this)) {
+    Object::operator=(std::move(that));
+    field_projection_ = std::move(that.field_projection_);
+    limits_ = std::move(that.limits_);
+    values_reader_ = std::move(that.values_reader_);
+    that.values_reader_.Reset(std::forward_as_tuple());
+    index_ = absl::exchange(that.index_, 0);
+    recoverable_ = absl::exchange(that.recoverable_, false);
+  }
   return *this;
+}
+
+inline void ChunkDecoder::Reset(Options options) {
+  field_projection_ = std::move(options.field_projection_);
+  Reset();
+}
+
+inline void ChunkDecoder::Reset() {
+  Object::Reset(kInitiallyOpen);
+  limits_.clear();
+  values_reader_.Reset(std::forward_as_tuple());
+  index_ = 0;
+  recoverable_ = false;
 }
 
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {

@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/types/span.h"
@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/span_dependency.h"
 #include "riegeli/bytes/writer.h"
 
@@ -54,6 +55,10 @@ class ArrayWriterBase : public Writer {
   ArrayWriterBase(ArrayWriterBase&& that) noexcept;
   ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
 
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
+  void Initialize(absl::Span<char> dest);
+
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
@@ -79,10 +84,24 @@ class ArrayWriter : public ArrayWriterBase {
   ArrayWriter() noexcept : ArrayWriterBase(kInitiallyClosed) {}
 
   // Will write to the array provided by dest.
-  explicit ArrayWriter(Dest dest);
+  explicit ArrayWriter(const Dest& dest);
+  explicit ArrayWriter(Dest&& dest);
+
+  // Will write to the array provided by a Dest constructed from elements of
+  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  template <typename... DestArgs>
+  explicit ArrayWriter(std::tuple<DestArgs...> dest_args);
 
   ArrayWriter(ArrayWriter&& that) noexcept;
   ArrayWriter& operator=(ArrayWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed ArrayWriter. This avoids
+  // constructing a temporary ArrayWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest);
+  void Reset(Dest&& dest);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args);
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by Close().
@@ -111,12 +130,39 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
   return *this;
 }
 
-template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(Dest dest)
-    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  start_ = dest_.get().data();
+inline void ArrayWriterBase::Reset(InitiallyClosed) {
+  Writer::Reset(kInitiallyClosed);
+  written_ = absl::Span<char>();
+}
+
+inline void ArrayWriterBase::Reset(InitiallyOpen) {
+  Writer::Reset(kInitiallyOpen);
+  written_ = absl::Span<char>();
+}
+
+inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
+  start_ = dest.data();
   cursor_ = start_;
-  limit_ = start_ + dest_.get().size();
+  limit_ = start_ + dest.size();
+}
+
+template <typename Dest>
+inline ArrayWriter<Dest>::ArrayWriter(const Dest& dest)
+    : ArrayWriterBase(kInitiallyOpen), dest_(dest) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline ArrayWriter<Dest>::ArrayWriter(Dest&& dest)
+    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
+    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -131,6 +177,34 @@ inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
   ArrayWriterBase::operator=(std::move(that));
   MoveDest(std::move(that));
   return *this;
+}
+
+template <typename Dest>
+inline void ArrayWriter<Dest>::Reset() {
+  ArrayWriterBase::Reset(kInitiallyClosed);
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void ArrayWriter<Dest>::Reset(const Dest& dest) {
+  ArrayWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void ArrayWriter<Dest>::Reset(Dest&& dest) {
+  ArrayWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void ArrayWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
+  ArrayWriterBase::Reset(kInitiallyOpen);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -152,9 +226,8 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   }
 }
 
-extern template class ArrayWriter<absl::Span<char>>;
-extern template class ArrayWriter<std::string*>;
-extern template class ArrayWriter<std::string>;
+template <typename Dest>
+struct Resetter<ArrayWriter<Dest>> : ResetterByReset<ArrayWriter<Dest>> {};
 
 }  // namespace riegeli
 

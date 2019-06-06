@@ -18,7 +18,6 @@
 
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/constants.h"
 
@@ -35,9 +34,6 @@ bool UncompressedSize(const Chain& compressed_data,
   ChainReader<> compressed_data_reader(&compressed_data);
   return ReadVarint64(&compressed_data_reader, uncompressed_size);
 }
-
-template class Decompressor<Reader*>;
-template class Decompressor<std::unique_ptr<Reader>>;
 
 }  // namespace internal
 }  // namespace riegeli

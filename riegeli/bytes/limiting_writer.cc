@@ -157,7 +157,4 @@ bool LimitingWriterBase::Truncate(Position new_size) {
   return ok;
 }
 
-template class LimitingWriter<Writer*>;
-template class LimitingWriter<std::unique_ptr<Writer>>;
-
 }  // namespace riegeli

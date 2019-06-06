@@ -51,6 +51,12 @@ class BufferedReader : public Reader {
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
+  // Makes *this equivalent to a newly constructed BufferedReader. This avoids
+  // constructing a temporary BufferedReader and moving from it. Derived classes
+  // which override Reset() should include a call to BufferedReader::Reset().
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint = 0);
+
   void VerifyEnd() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
@@ -123,6 +129,22 @@ inline BufferedReader& BufferedReader::operator=(
   size_hint_ = absl::exchange(that.size_hint_, 0);
   buffer_ = std::move(that.buffer_);
   return *this;
+}
+
+inline void BufferedReader::Reset() {
+  Reader::Reset(kInitiallyClosed);
+  buffer_size_ = 0;
+  size_hint_ = 0;
+  buffer_.Clear();
+}
+
+inline void BufferedReader::Reset(size_t buffer_size, Position size_hint) {
+  RIEGELI_ASSERT_GT(buffer_size, 0u)
+      << "Failed precondition of BufferedReader::Reset(): zero buffer size";
+  Reader::Reset(kInitiallyOpen);
+  buffer_size_ = buffer_size;
+  size_hint_ = size_hint;
+  buffer_.Clear();
 }
 
 }  // namespace riegeli

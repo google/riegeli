@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -29,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/field_projection.h"
@@ -277,7 +279,10 @@ class RecordReaderBase : public Object {
   RecordReaderBase(RecordReaderBase&& that) noexcept;
   RecordReaderBase& operator=(RecordReaderBase&& that) noexcept;
 
+  void Reset(InitiallyClosed);
+  void Reset(InitiallyOpen);
   void Initialize(ChunkReader* src, Options&& options);
+
   void Done() override;
 
   bool TryRecovery();
@@ -391,10 +396,26 @@ class RecordReader : public RecordReaderBase {
   RecordReader() noexcept : RecordReaderBase(kInitiallyClosed) {}
 
   // Will read from the byte Reader or ChunkReader provided by src.
-  explicit RecordReader(Src src, Options options = Options());
+  explicit RecordReader(const Src& src, Options options = Options());
+  explicit RecordReader(Src&& src, Options options = Options());
+
+  // Will read from the byte Reader or ChunkReader provided by a Src constructed
+  // from elements of src_args. This avoids constructing a temporary Src and
+  // moving from it.
+  template <typename... SrcArgs>
+  explicit RecordReader(std::tuple<SrcArgs...> src_args,
+                        Options options = Options());
 
   RecordReader(RecordReader&& that) noexcept;
   RecordReader& operator=(RecordReader&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed RecordReader. This avoids
+  // constructing a temporary RecordReader and moving from it.
+  void Reset();
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
   // Returns the object providing and possibly owning the byte Reader or
   // ChunkReader. Unchanged by Close().
@@ -497,8 +518,22 @@ inline RecordPosition RecordReaderBase::pos() const {
 }
 
 template <typename Src>
-RecordReader<Src>::RecordReader(Src src, Options options)
+inline RecordReader<Src>::RecordReader(const Src& src, Options options)
+    : RecordReaderBase(kInitiallyOpen), src_(src) {
+  Initialize(src_.get(), std::move(options));
+}
+
+template <typename Src>
+inline RecordReader<Src>::RecordReader(Src&& src, Options options)
     : RecordReaderBase(kInitiallyOpen), src_(std::move(src)) {
+  Initialize(src_.get(), std::move(options));
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline RecordReader<Src>::RecordReader(std::tuple<SrcArgs...> src_args,
+                                       Options options)
+    : RecordReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -512,6 +547,35 @@ inline RecordReader<Src>& RecordReader<Src>::operator=(
   RecordReaderBase::operator=(std::move(that));
   src_ = std::move(that.src_);
   return *this;
+}
+
+template <typename Src>
+inline void RecordReader<Src>::Reset() {
+  RecordReaderBase::Reset(kInitiallyClosed);
+  src_.Reset();
+}
+
+template <typename Src>
+inline void RecordReader<Src>::Reset(const Src& src, Options options) {
+  RecordReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(src);
+  Initialize(src_.get(), std::move(options));
+}
+
+template <typename Src>
+inline void RecordReader<Src>::Reset(Src&& src, Options options) {
+  RecordReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src));
+  Initialize(src_.get(), std::move(options));
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void RecordReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
+                                     Options options) {
+  RecordReaderBase::Reset(kInitiallyOpen);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
@@ -536,12 +600,8 @@ inline RecordPosition RecordReader<Src>::pos() const {
   return RecordPosition(src_->pos(), 0);
 }
 
-extern template class RecordReader<Reader*>;
-extern template class RecordReader<std::unique_ptr<Reader>>;
-extern template class RecordReader<ChunkReader*>;
-extern template class RecordReader<std::unique_ptr<ChunkReader>>;
-extern template class RecordReader<DefaultChunkReader<Reader*>>;
-extern template class RecordReader<DefaultChunkReader<std::unique_ptr<Reader>>>;
+template <typename Src>
+struct Resetter<RecordReader<Src>> : ResetterByReset<RecordReader<Src>> {};
 
 }  // namespace riegeli
 

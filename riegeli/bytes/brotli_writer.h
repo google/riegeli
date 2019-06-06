@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,6 +26,7 @@
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -132,14 +134,16 @@ class BrotliWriterBase : public BufferedWriter {
  protected:
   BrotliWriterBase() noexcept {}
 
-  explicit BrotliWriterBase(size_t buffer_size, Position size_hint) noexcept
-      : BufferedWriter(buffer_size, size_hint) {}
+  explicit BrotliWriterBase(size_t buffer_size, Position size_hint);
 
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
+  void Reset();
+  void Reset(size_t buffer_size, Position size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   Position size_hint);
+
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
 
@@ -174,10 +178,26 @@ class BrotliWriter : public BrotliWriterBase {
   BrotliWriter() noexcept {}
 
   // Will write to the compressed Writer provided by dest.
-  explicit BrotliWriter(Dest dest, Options options = Options());
+  explicit BrotliWriter(const Dest& dest, Options options = Options());
+  explicit BrotliWriter(Dest&& dest, Options options = Options());
+
+  // Will write to the compressed Writer provided by a Dest constructed from
+  // elements of dest_args. This avoids constructing a temporary Dest and moving
+  // from it.
+  template <typename... DestArgs>
+  explicit BrotliWriter(std::tuple<DestArgs...> dest_args,
+                        Options options = Options());
 
   BrotliWriter(BrotliWriter&& that) noexcept;
   BrotliWriter& operator=(BrotliWriter&& that) noexcept;
+
+  // Makes *this equivalent to a newly constructed BrotliWriter. This avoids
+  // constructing a temporary BrotliWriter and moving from it.
+  void Reset();
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the compressed Writer.
   // Unchanged by Close().
@@ -196,6 +216,10 @@ class BrotliWriter : public BrotliWriterBase {
 
 // Implementation details follow.
 
+inline BrotliWriterBase::BrotliWriterBase(size_t buffer_size,
+                                          Position size_hint)
+    : BufferedWriter(buffer_size, size_hint) {}
+
 inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       compressor_(std::move(that.compressor_)) {}
@@ -207,10 +231,37 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
   return *this;
 }
 
+inline void BrotliWriterBase::Reset() {
+  BufferedWriter::Reset();
+  compressor_.reset();
+}
+
+inline void BrotliWriterBase::Reset(size_t buffer_size, Position size_hint) {
+  BufferedWriter::Reset(buffer_size, size_hint);
+  compressor_.reset();
+}
+
 template <typename Dest>
-BrotliWriter<Dest>::BrotliWriter(Dest dest, Options options)
+inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
+    : BrotliWriterBase(options.buffer_size_, options.size_hint_), dest_(dest) {
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
+inline BrotliWriter<Dest>::BrotliWriter(Dest&& dest, Options options)
     : BrotliWriterBase(options.buffer_size_, options.size_hint_),
       dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
+                                        Options options)
+    : BrotliWriterBase(options.buffer_size_, options.size_hint_),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level_, options.window_log_,
              options.size_hint_);
 }
@@ -228,6 +279,32 @@ inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
+  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(dest);
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
+inline void BrotliWriter<Dest>::Reset(Dest&& dest, Options options) {
+  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void BrotliWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
+                                      Options options) {
+  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get(), options.compression_level_, options.window_log_,
+             options.size_hint_);
+}
+
+template <typename Dest>
 void BrotliWriter<Dest>::Done() {
   BrotliWriterBase::Done();
   if (dest_.is_owning()) {
@@ -235,8 +312,8 @@ void BrotliWriter<Dest>::Done() {
   }
 }
 
-extern template class BrotliWriter<Writer*>;
-extern template class BrotliWriter<std::unique_ptr<Writer>>;
+template <typename Dest>
+struct Resetter<BrotliWriter<Dest>> : ResetterByReset<BrotliWriter<Dest>> {};
 
 }  // namespace riegeli
 
