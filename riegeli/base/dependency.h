@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/resetter.h"
