@@ -471,6 +471,17 @@ class RecordWriter : public RecordWriterBase {
 
 // Implementation details follow.
 
+extern template bool RecordWriterBase::WriteRecordImpl(
+    const google::protobuf::MessageLite& record, FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecordImpl(
+    const absl::string_view& record, FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecordImpl(
+    std::string&& record, FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecordImpl(
+    const Chain& record, FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecordImpl(
+    Chain&& record, FutureRecordPosition* key);
+
 inline bool RecordWriterBase::WriteRecord(
     const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
   return WriteRecordImpl(record, key);

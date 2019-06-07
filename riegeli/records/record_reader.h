@@ -451,6 +451,15 @@ inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
   return *this;
 }
 
+extern template bool RecordReaderBase::ReadRecordSlow(
+    google::protobuf::MessageLite* record, RecordPosition* key);
+extern template bool RecordReaderBase::ReadRecordSlow(absl::string_view* record,
+                                                      RecordPosition* key);
+extern template bool RecordReaderBase::ReadRecordSlow(std::string* record,
+                                                      RecordPosition* key);
+extern template bool RecordReaderBase::ReadRecordSlow(Chain* record,
+                                                      RecordPosition* key);
+
 inline bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite* record,
                                          RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
