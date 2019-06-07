@@ -206,8 +206,8 @@ inline void RecyclingPool<T, Deleter, Key>::Recycler::operator()(T* ptr) const {
 
 template <typename T, class Deleter, typename Key>
 RecyclingPool<T, Deleter, Key>& RecyclingPool<T, Deleter, Key>::global() {
-  static NoDestructor<RecyclingPool> kStaticIdlePool;
-  return *kStaticIdlePool;
+  static NoDestructor<RecyclingPool> kStaticRecyclingPool;
+  return *kStaticRecyclingPool;
 }
 
 template <typename T, class Deleter, typename Key>
@@ -314,8 +314,8 @@ inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
 
 template <typename T, class Deleter>
 RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global() {
-  static NoDestructor<RecyclingPool> kStaticIdlePool;
-  return *kStaticIdlePool;
+  static NoDestructor<RecyclingPool> kStaticRecyclingPool;
+  return *kStaticRecyclingPool;
 }
 
 template <typename T, class Deleter>
