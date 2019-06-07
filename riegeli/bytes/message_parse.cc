@@ -131,9 +131,29 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
 
 Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
                                   Reader* src) {
+  if (src->SupportsRandomAccess()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return src->status();
+    src->Pull();
+    if (src->pos() + src->available() == size &&
+        ABSL_PREDICT_TRUE(src->available() <=
+                          size_t{std::numeric_limits<int>::max()})) {
+      // The data are flat. ParsePartialFromArray() is faster than
+      // ParsePartialFromZeroCopyStream().
+      bool ok = dest->ParsePartialFromArray(src->cursor(),
+                                            IntCast<int>(src->available()));
+      src->set_cursor(src->cursor() + src->available());
+      if (ABSL_PREDICT_FALSE(!ok)) {
+        return DataLossError(absl::StrCat("Failed to parse message of type ",
+                                          dest->GetTypeName()));
+      }
+      return OkStatus();
+    }
+  }
   ReaderInputStream input_stream(src);
   if (ABSL_PREDICT_FALSE(
           !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
     return DataLossError(
         absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
   }
