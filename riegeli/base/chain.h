@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_CHAIN_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <atomic>
 #include <cstring>
@@ -241,8 +242,17 @@ class Chain {
   template <typename T>
   struct ExternalMethodsFor;
   class Block;
+  struct BlockPtrPtr;
   class BlockRef;
   class StringRef;
+
+  friend ptrdiff_t operator-(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator==(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator!=(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator<(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator>(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator<=(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator>=(BlockPtrPtr a, BlockPtrPtr b);
 
   struct Empty {};
 
@@ -251,7 +261,7 @@ class Chain {
     Block** end;
   };
 
-  static constexpr size_t kMaxShortDataSize = sizeof(Block*) * 2;
+  static constexpr size_t kMaxShortDataSize = 2 * sizeof(Block*);
 
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
@@ -356,6 +366,30 @@ class Chain {
   size_t size_ = 0;
 };
 
+// Represents either Block* const*, or one of two special values
+// (kBeginShortData and kEndShortData) behaving as if they were pointers in a
+// single-element Block* array.
+struct Chain::BlockPtrPtr {
+ public:
+  static BlockPtrPtr from_ptr(Block* const* ptr);
+
+  bool is_special() const;
+  Block* const* as_ptr() const;
+
+  BlockPtrPtr operator+(ptrdiff_t n) const;
+  BlockPtrPtr operator-(ptrdiff_t n) const;
+  friend ptrdiff_t operator-(BlockPtrPtr a, BlockPtrPtr b);
+
+  friend bool operator==(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator!=(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator<(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator>(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator<=(BlockPtrPtr a, BlockPtrPtr b);
+  friend bool operator>=(BlockPtrPtr a, BlockPtrPtr b);
+
+  intptr_t repr;
+};
+
 class Chain::BlockIterator {
  public:
   using iterator_category = std::input_iterator_tag;
@@ -436,16 +470,17 @@ class Chain::BlockIterator {
  private:
   friend class Chain;
 
-  // Sentinel values for iterators over a pseudo-block pointer representing
-  // short data of a Chain.
-  static Block* const kShortData[1];
-  static Block* const* kBeginShortData() { return kShortData; }
-  static Block* const* kEndShortData() { return kShortData + 1; }
+  static constexpr BlockPtrPtr kBeginShortData{0};
+  static constexpr BlockPtrPtr kEndShortData{sizeof(Block*)};
 
-  BlockIterator(const Chain* chain, Block* const* ptr) noexcept;
+  BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
   const Chain* chain_ = nullptr;
-  Block* const* ptr_ = nullptr;
+  // If chain_ == nullptr, kBeginShortData.
+  // If *chain_ has no block pointers and no short data, kEndShortData.
+  // If *chain_ has short data, kBeginShortData or kEndShortData.
+  // If *chain_ has block pointers, a pointer to the block pointer array.
+  BlockPtrPtr ptr_ = kBeginShortData;
 };
 
 // The result of BlockIterator::Pin(). Consists of a data pointer valid for the
@@ -1040,19 +1075,113 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
   return false;
 }
 
+inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(Block* const* ptr) {
+  return BlockPtrPtr{reinterpret_cast<intptr_t>(ptr)};
+}
+
+inline bool Chain::BlockPtrPtr::is_special() const {
+  return repr >= 0 && repr <= sizeof(Block*);
+}
+
+inline Chain::Block* const* Chain::BlockPtrPtr::as_ptr() const {
+  RIEGELI_ASSERT(!is_special()) << "Unexpected special BlockPtrPtr value";
+  return reinterpret_cast<Block* const*>(repr);
+}
+
+// Code conditional on is_special() is written such that both branches typically
+// compile to the same code, allowing the compiler eliminate the is_special()
+// checks.
+
+inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
+  if (is_special()) {
+    return BlockPtrPtr{repr + n * ptrdiff_t{sizeof(Block*)}};
+  }
+  return BlockPtrPtr::from_ptr(as_ptr() + n);
+}
+
+inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator-(ptrdiff_t n) const {
+  if (is_special()) {
+    return BlockPtrPtr{repr - n * ptrdiff_t{sizeof(Block*)}};
+  }
+  return BlockPtrPtr::from_ptr(as_ptr() - n);
+}
+
+inline ptrdiff_t operator-(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+      << "Incompatible BlockPtrPtr values";
+  if (a.is_special()) {
+    // Pointer subtraction with the element size being a power of 2 typically
+    // rounds in the same way as right shift (towards -inf), not as division
+    // (towards zero), so the right shift allows the compiler to eliminate the
+    // is_special() check.
+    switch (sizeof(Chain::Block*)) {
+      case 1 << 2:
+        return ptrdiff_t{a.repr - b.repr} >> 2;
+      case 1 >> 3:
+        return ptrdiff_t{a.repr - b.repr} >> 3;
+      default:
+        return ptrdiff_t{a.repr - b.repr} / sizeof(Chain::Block*);
+    }
+  }
+  return a.as_ptr() - b.as_ptr();
+}
+
+inline bool operator==(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  return a.repr == b.repr;
+}
+
+inline bool operator!=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  return a.repr != b.repr;
+}
+
+inline bool operator<(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+      << "Incompatible BlockPtrPtr values";
+  if (a.is_special()) {
+    return a.repr < b.repr;
+  }
+  return a.as_ptr() < b.as_ptr();
+}
+
+inline bool operator>(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+      << "Incompatible BlockPtrPtr values";
+  if (a.is_special()) {
+    return a.repr > b.repr;
+  }
+  return a.as_ptr() > b.as_ptr();
+}
+
+inline bool operator<=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+      << "Incompatible BlockPtrPtr values";
+  if (a.is_special()) {
+    return a.repr <= b.repr;
+  }
+  return a.as_ptr() <= b.as_ptr();
+}
+
+inline bool operator>=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
+  RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+      << "Incompatible BlockPtrPtr values";
+  if (a.is_special()) {
+    return a.repr >= b.repr;
+  }
+  return a.as_ptr() >= b.as_ptr();
+}
+
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            size_t block_index)
     : chain_(chain),
       ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr)
-                ? nullptr
+                ? kBeginShortData
                 : chain_->begin_ == chain_->end_
-                      ? chain_->empty() ? BlockIterator::kEndShortData()
-                                        : BlockIterator::kBeginShortData()
-                      : chain_->begin_) +
-           block_index) {}
+                      ? kBeginShortData + (chain_->empty() ? 1 : 0)
+                      : BlockPtrPtr::from_ptr(chain_->begin_)) +
+           IntCast<ptrdiff_t>(block_index)) {}
 
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
-                                           Block* const* ptr) noexcept
+                                           BlockPtrPtr ptr) noexcept
     : chain_(chain), ptr_(ptr) {}
 
 inline Chain::BlockIterator::BlockIterator(const BlockIterator& that) noexcept
@@ -1066,24 +1195,22 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator=(
 }
 
 inline size_t Chain::BlockIterator::block_index() const {
-  return PtrDistance(ABSL_PREDICT_FALSE(chain_ == nullptr)
-                         ? nullptr
-                         : chain_->begin_ == chain_->end_
-                               ? chain_->empty()
-                                     ? BlockIterator::kEndShortData()
-                                     : BlockIterator::kBeginShortData()
-                               : chain_->begin_,
-                     ptr_);
+  return IntCast<size_t>(
+      ptr_ - (ABSL_PREDICT_FALSE(chain_ == nullptr)
+                  ? kBeginShortData
+                  : chain_->begin_ == chain_->end_
+                        ? kBeginShortData + (chain_->empty() ? 1 : 0)
+                        : BlockPtrPtr::from_ptr(chain_->begin_)));
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::operator*(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return chain_->short_data();
   } else {
-    return (*ptr_)->data();
+    return (*ptr_.as_ptr())->data();
   }
 }
 
@@ -1092,7 +1219,7 @@ inline Chain::BlockIterator::pointer Chain::BlockIterator::operator->() const {
 }
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator++() {
-  ++ptr_;
+  ptr_ = ptr_ + 1;
   return *this;
 }
 
@@ -1103,7 +1230,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator++(int) {
 }
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator--() {
-  --ptr_;
+  ptr_ = ptr_ - 1;
   return *this;
 }
 
@@ -1115,7 +1242,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator--(int) {
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator+=(
     difference_type n) {
-  ptr_ += n;
+  ptr_ = ptr_ + n;
   return *this;
 }
 
@@ -1126,7 +1253,7 @@ inline Chain::BlockIterator Chain::BlockIterator::operator+(
 
 inline Chain::BlockIterator& Chain::BlockIterator::operator-=(
     difference_type n) {
-  ptr_ -= n;
+  ptr_ = ptr_ - n;
   return *this;
 }
 
@@ -1197,13 +1324,13 @@ inline Chain::BlockIterator operator+(Chain::BlockIterator::difference_type n,
 
 template <typename T>
 inline const T* Chain::BlockIterator::external_object() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::external_object(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return nullptr;
   } else {
-    return (*ptr_)->checked_external_object<T>();
+    return (*ptr_.as_ptr())->checked_external_object<T>();
   }
 }
 
@@ -1216,17 +1343,16 @@ inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& that) noexcept {
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
-  return BlockIterator(chain_, chain_->begin_ == chain_->end_
-                                   ? chain_->empty()
-                                         ? BlockIterator::kEndShortData()
-                                         : BlockIterator::kBeginShortData()
-                                   : chain_->begin_);
+  return BlockIterator(
+      chain_, chain_->begin_ == chain_->end_
+                  ? BlockIterator::kBeginShortData + (chain_->empty() ? 1 : 0)
+                  : BlockPtrPtr::from_ptr(chain_->begin_));
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::end() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
-                                   ? BlockIterator::kEndShortData()
-                                   : chain_->end_);
+                                   ? BlockIterator::kEndShortData
+                                   : BlockPtrPtr::from_ptr(chain_->end_));
 }
 
 inline Chain::Blocks::const_iterator Chain::Blocks::cbegin() const {

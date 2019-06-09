@@ -43,6 +43,8 @@ namespace riegeli {
 constexpr size_t Chain::kAnyLength;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::Block::kMaxCapacity;
+constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
+constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
 constexpr size_t FlatChain::kMaxSize;
 constexpr size_t FlatChain::kAnyLength;
 #endif
@@ -404,19 +406,17 @@ inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
   dest->AppendExternal(BlockRef(this, true), substr, size_hint);
 }
 
-Chain::Block* const Chain::BlockIterator::kShortData[1] = {nullptr};
-
 Chain::PinnedBlock Chain::BlockIterator::Pin() {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::Pin(): "
          "iterator is end()";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     Block* const block = Block::NewInternal(kMaxShortDataSize);
     block->AppendWithExplicitSizeToCopy(chain_->short_data(),
                                         kMaxShortDataSize);
     return {block->data(), block};
   } else {
-    return {(*ptr_)->data(), (*ptr_)->Ref()};
+    return {(*ptr_.as_ptr())->data(), (*ptr_.as_ptr())->Ref()};
   }
 }
 
@@ -425,31 +425,31 @@ void Chain::PinnedBlock::Unpin(void* token) {
 }
 
 void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
          "iterator is end()";
   RIEGELI_CHECK_LE(chain_->size(),
                    std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     dest->Append(chain_->short_data(), size_hint);
   } else {
-    (*ptr_)->AppendTo(dest, size_hint);
+    (*ptr_.as_ptr())->AppendTo(dest, size_hint);
   }
 }
 
 void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
                                           size_t size_hint) const {
   if (substr.empty()) return;
-  RIEGELI_ASSERT(ptr_ != kEndShortData())
+  RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
          "iterator is end()";
   RIEGELI_CHECK_LE(substr.size(),
                    std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData())) {
+  if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     RIEGELI_ASSERT(std::greater_equal<const char*>()(
         substr.data(), chain_->short_data().data()))
         << "Failed precondition of "
@@ -463,7 +463,7 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
            "substring not contained in data";
     dest->Append(substr, size_hint);
   } else {
-    (*ptr_)->AppendSubstrTo(substr, dest, size_hint);
+    (*ptr_.as_ptr())->AppendSubstrTo(substr, dest, size_hint);
   }
 }
 
@@ -592,8 +592,8 @@ size_t Chain::EstimateMemory() const {
 void Chain::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
   if (has_allocated()) {
     memory_estimator->RegisterMemory(
-        sizeof(Block*) *
-        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end));
+        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end) *
+        sizeof(Block*));
   }
   for (Block* const* iter = begin_; iter != end_; ++iter) {
     (*iter)->RegisterShared(memory_estimator);
@@ -726,7 +726,7 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
     Block** const new_begin =
         old_allocated_begin + (old_capacity - final_size) / 2;
     Block** const new_end = new_begin + (end_ - begin_);
-    std::memmove(new_begin, begin_, sizeof(Block*) * (end_ - begin_));
+    std::memmove(new_begin, begin_, (end_ - begin_) * sizeof(Block*));
     begin_ = new_begin;
     end_ = new_end;
     return;
@@ -745,7 +745,7 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   Block** const new_begin =
       new_allocated_begin + (begin_ - old_allocated_begin);
   Block** const new_end = new_begin + (end_ - begin_);
-  std::memcpy(new_begin, begin_, sizeof(Block*) * PtrDistance(begin_, end_));
+  std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(Block*));
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;
   block_ptrs_.allocated.end = new_allocated_end;
@@ -794,7 +794,7 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     // adding one element constant.
     Block** const new_end = old_allocated_end - (old_capacity - final_size) / 2;
     Block** const new_begin = new_end - (end_ - begin_);
-    std::memmove(new_begin, begin_, sizeof(Block*) * (end_ - begin_));
+    std::memmove(new_begin, begin_, (end_ - begin_) * sizeof(Block*));
     begin_ = new_begin;
     end_ = new_end;
     return;
@@ -812,7 +812,7 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   Block** const new_allocated_end = new_allocated_begin + new_capacity;
   Block** const new_end = new_allocated_end - (old_allocated_end - end_);
   Block** const new_begin = new_end - (end_ - begin_);
-  std::memcpy(new_begin, begin_, sizeof(Block*) * PtrDistance(begin_, end_));
+  std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(Block*));
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;
   block_ptrs_.allocated.end = new_allocated_end;
