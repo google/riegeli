@@ -553,8 +553,8 @@ class FlatChain {
 
   constexpr FlatChain() noexcept {}
 
-  FlatChain(const FlatChain& that);
-  FlatChain& operator=(const FlatChain& that);
+  FlatChain(const FlatChain& that) noexcept;
+  FlatChain& operator=(const FlatChain& that) noexcept;
 
   // The source FlatChain is left cleared.
   //
@@ -1724,11 +1724,12 @@ inline FlatChain& FlatChain::operator=(FlatChain&& that) noexcept {
   return *this;
 }
 
-inline FlatChain::FlatChain(const FlatChain& that) : block_(that.block_) {
+inline FlatChain::FlatChain(const FlatChain& that) noexcept
+    : block_(that.block_) {
   if (block_ != nullptr) block_->Ref();
 }
 
-inline FlatChain& FlatChain::operator=(const FlatChain& that) {
+inline FlatChain& FlatChain::operator=(const FlatChain& that) noexcept {
   Block* const block = that.block_;
   if (block != nullptr) block->Ref();
   if (block_ != nullptr) block_->Unref();

@@ -115,8 +115,8 @@ class FutureRecordPosition {
   FutureRecordPosition(Position pos_before_chunks, std::vector<Action> actions,
                        uint64_t record_index);
 
-  FutureRecordPosition(const FutureRecordPosition& that);
-  FutureRecordPosition& operator=(const FutureRecordPosition& that);
+  FutureRecordPosition(const FutureRecordPosition& that) noexcept;
+  FutureRecordPosition& operator=(const FutureRecordPosition& that) noexcept;
 
   FutureRecordPosition(FutureRecordPosition&& that) noexcept;
   FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
@@ -230,13 +230,13 @@ inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
     : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
 
 inline FutureRecordPosition::FutureRecordPosition(
-    const FutureRecordPosition& that)
+    const FutureRecordPosition& that) noexcept
     : future_chunk_begin_(that.future_chunk_begin_),
       chunk_begin_(that.chunk_begin_),
       record_index_(that.record_index_) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
-    const FutureRecordPosition& that) {
+    const FutureRecordPosition& that) noexcept {
   future_chunk_begin_ = that.future_chunk_begin_;
   chunk_begin_ = that.chunk_begin_;
   record_index_ = that.record_index_;
