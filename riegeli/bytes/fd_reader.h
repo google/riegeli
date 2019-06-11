@@ -706,7 +706,7 @@ template <typename Src>
 void FdReader<Src>::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdReaderBase::Done();
-  if (src_.is_owning() && src_.get() >= 0) {
+  if (src_.is_owning()) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -810,7 +810,7 @@ inline void FdStreamReader<Src>::Initialize(
 template <typename Src>
 void FdStreamReader<Src>::Done() {
   FdStreamReaderBase::Done();
-  if (src_.is_owning() && src_.get() >= 0) {
+  if (src_.is_owning()) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -918,7 +918,7 @@ void FdMMapReader<Src>::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdMMapReaderBase::Done();
   ChainReader::src().Clear();
-  if (src_.is_owning() && src_.get() >= 0) {
+  if (src_.is_owning()) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {

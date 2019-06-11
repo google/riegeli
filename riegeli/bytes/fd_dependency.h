@@ -75,7 +75,7 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
   int get() const { return this->manager().get(); }
   int Release() { return this->manager().Release(); }
 
-  bool is_owning() const { return true; }
+  bool is_owning() const { return get() >= 0; }
   static constexpr bool kIsStable() { return true; }
 };
 

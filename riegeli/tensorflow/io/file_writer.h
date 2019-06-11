@@ -356,7 +356,7 @@ template <typename Dest>
 void FileWriter<Dest>::Done() {
   PushInternal();
   FileWriterBase::Done();
-  if (dest_.is_owning() && dest_.get() != nullptr) {
+  if (dest_.is_owning()) {
     const ::tensorflow::Status close_status = dest_->Close();
     if (ABSL_PREDICT_FALSE(!close_status.ok()) &&
         ABSL_PREDICT_TRUE(healthy())) {

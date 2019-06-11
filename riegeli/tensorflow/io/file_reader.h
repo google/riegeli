@@ -386,7 +386,7 @@ inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
 template <typename Src>
 void FileReader<Src>::Done() {
   FileReaderBase::Done();
-  if (src_.is_owning() && src_.get() != nullptr) {
+  if (src_.is_owning()) {
     // The only way to close a RandomAccessFile is to delete it.
     src_.Reset();
   }

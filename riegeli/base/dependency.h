@@ -209,7 +209,7 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
   P& operator*() const { return *get(); }
   P* operator->() const { return get(); }
 
-  bool is_owning() const { return true; }
+  bool is_owning() const { return this->manager() != nullptr; }
   static constexpr bool kIsStable() { return true; }
 };
 

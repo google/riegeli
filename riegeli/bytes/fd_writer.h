@@ -570,7 +570,7 @@ template <typename Dest>
 void FdWriter<Dest>::Done() {
   if (ABSL_PREDICT_TRUE(PushInternal())) SyncPos(dest_.get());
   FdWriterBase::Done();
-  if (dest_.is_owning() && dest_.get() >= 0) {
+  if (dest_.is_owning()) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
@@ -675,7 +675,7 @@ template <typename Dest>
 void FdStreamWriter<Dest>::Done() {
   PushInternal();
   FdStreamWriterBase::Done();
-  if (dest_.is_owning() && dest_.get() >= 0) {
+  if (dest_.is_owning()) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&
         ABSL_PREDICT_TRUE(healthy())) {
