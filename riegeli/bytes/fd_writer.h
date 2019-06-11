@@ -398,13 +398,12 @@ inline FdWriterCommon::FdWriterCommon(size_t buffer_size)
     : BufferedWriter(buffer_size) {}
 
 inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
-    : BufferedWriter(std::move(that)),
-      filename_(absl::exchange(that.filename_, std::string())) {}
+    : BufferedWriter(std::move(that)), filename_(std::move(that.filename_)) {}
 
 inline FdWriterCommon& FdWriterCommon::operator=(
     FdWriterCommon&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
-  filename_ = absl::exchange(that.filename_, std::string());
+  filename_ = std::move(that.filename_);
   return *this;
 }
 
@@ -424,12 +423,11 @@ inline FdWriterBase::FdWriterBase(size_t buffer_size, bool sync_pos)
     : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
-    : FdWriterCommon(std::move(that)),
-      sync_pos_(absl::exchange(that.sync_pos_, false)) {}
+    : FdWriterCommon(std::move(that)), sync_pos_(that.sync_pos_) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   FdWriterCommon::operator=(std::move(that));
-  sync_pos_ = absl::exchange(that.sync_pos_, false);
+  sync_pos_ = that.sync_pos_;
   return *this;
 }
 

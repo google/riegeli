@@ -154,7 +154,7 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
 }
 
 bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
-  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)

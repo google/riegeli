@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -123,13 +122,12 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
     ArrayBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      written_(absl::exchange(that.written_, absl::Span<char>())) {}
+    : BackwardWriter(std::move(that)), written_(that.written_) {}
 
 inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
     ArrayBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  written_ = absl::exchange(that.written_, absl::Span<char>());
+  written_ = that.written_;
   return *this;
 }
 

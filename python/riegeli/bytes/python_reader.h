@@ -29,7 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/utility/utility.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -143,24 +142,22 @@ class PythonReader : public BufferedReader {
 inline PythonReader::PythonReader(PythonReader&& that) noexcept
     : BufferedReader(std::move(that)),
       src_(std::move(that.src_)),
-      close_(absl::exchange(that.close_, false)),
-      random_access_(absl::exchange(that.random_access_, false)),
+      close_(that.close_),
+      random_access_(that.random_access_),
       exception_(std::move(that.exception_)),
       read_function_(std::move(that.read_function_)),
-      read_function_name_(
-          absl::exchange(that.read_function_name_, absl::string_view())),
-      use_bytes_(absl::exchange(that.use_bytes_, false)) {}
+      read_function_name_(that.read_function_name_),
+      use_bytes_(that.use_bytes_) {}
 
 inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
   BufferedReader::operator=(std::move(that));
   src_ = std::move(that.src_);
-  close_ = absl::exchange(that.close_, false);
-  random_access_ = absl::exchange(that.random_access_, false);
+  close_ = that.close_;
+  random_access_ = that.random_access_;
   exception_ = std::move(that.exception_);
   read_function_ = std::move(that.read_function_);
-  read_function_name_ =
-      absl::exchange(that.read_function_name_, absl::string_view());
-  use_bytes_ = absl::exchange(that.use_bytes_, false);
+  read_function_name_ = that.read_function_name_;
+  use_bytes_ = that.use_bytes_;
   return *this;
 }
 

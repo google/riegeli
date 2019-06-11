@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -233,15 +232,15 @@ inline FileWriterBase::FileWriterBase(size_t buffer_size)
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
-      filename_(absl::exchange(that.filename_, std::string())),
-      buffer_size_(absl::exchange(that.buffer_size_, 0)),
+      filename_(std::move(that.filename_)),
+      buffer_size_(that.buffer_size_),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  filename_ = absl::exchange(that.filename_, std::string());
-  buffer_size_ = absl::exchange(that.buffer_size_, 0);
+  filename_ = std::move(that.filename_);
+  buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }

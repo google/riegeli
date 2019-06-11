@@ -19,7 +19,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -84,14 +83,14 @@ inline SkippedRegion& SkippedRegion::operator=(const SkippedRegion& that) {
 }
 
 inline SkippedRegion::SkippedRegion(SkippedRegion&& that) noexcept
-    : begin_(absl::exchange(that.begin_, 0)),
-      end_(absl::exchange(that.end_, 0)),
-      message_(absl::exchange(that.message_, std::string())) {}
+    : begin_(that.begin_),
+      end_(that.end_),
+      message_(std::move(that.message_)) {}
 
 inline SkippedRegion& SkippedRegion::operator=(SkippedRegion&& that) noexcept {
-  begin_ = absl::exchange(that.begin_, 0);
-  end_ = absl::exchange(that.end_, 0);
-  message_ = absl::exchange(that.message_, std::string());
+  begin_ = that.begin_;
+  end_ = that.end_;
+  message_ = std::move(that.message_);
   return *this;
 }
 

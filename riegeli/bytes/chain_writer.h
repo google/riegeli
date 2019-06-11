@@ -22,7 +22,6 @@
 #include <tuple>
 #include <utility>
 
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -161,12 +160,12 @@ inline ChainWriterBase::ChainWriterBase(Position size_hint)
       size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {}
 
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
-    : Writer(std::move(that)), size_hint_(absl::exchange(that.size_hint_, 0)) {}
+    : Writer(std::move(that)), size_hint_(that.size_hint_) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
     ChainWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  size_hint_ = absl::exchange(that.size_hint_, 0);
+  size_hint_ = that.size_hint_;
   return *this;
 }
 

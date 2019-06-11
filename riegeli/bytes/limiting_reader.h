@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -189,13 +188,12 @@ inline LimitingReaderBase::LimitingReaderBase(Position size_limit)
 
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
-    : Reader(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
+    : Reader(std::move(that)), size_limit_(that.size_limit_) {}
 
 inline LimitingReaderBase& LimitingReaderBase::operator=(
     LimitingReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
+  size_limit_ = that.size_limit_;
   return *this;
 }
 

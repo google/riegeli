@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -120,13 +119,12 @@ class ArrayWriter : public ArrayWriterBase {
 // Implementation details follow.
 
 inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
-    : Writer(std::move(that)),
-      written_(absl::exchange(that.written_, absl::Span<char>())) {}
+    : Writer(std::move(that)), written_(that.written_) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
     ArrayWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  written_ = absl::exchange(that.written_, absl::Span<char>());
+  written_ = that.written_;
   return *this;
 }
 

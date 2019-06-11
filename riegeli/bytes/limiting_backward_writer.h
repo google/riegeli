@@ -24,7 +24,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -168,13 +167,12 @@ inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
+    : BackwardWriter(std::move(that)), size_limit_(that.size_limit_) {}
 
 inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
     LimitingBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
+  size_limit_ = that.size_limit_;
   return *this;
 }
 

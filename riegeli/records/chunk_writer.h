@@ -20,7 +20,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -199,11 +198,11 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 // Implementation details follow.
 
 inline ChunkWriter::ChunkWriter(ChunkWriter&& that) noexcept
-    : Object(std::move(that)), pos_(absl::exchange(that.pos_, 0)) {}
+    : Object(std::move(that)), pos_(that.pos_) {}
 
 inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
   Object::operator=(std::move(that));
-  pos_ = absl::exchange(that.pos_, 0);
+  pos_ = that.pos_;
   return *this;
 }
 

@@ -24,7 +24,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -167,13 +166,12 @@ inline LimitingWriterBase::LimitingWriterBase(Position size_limit)
 
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
-    : Writer(std::move(that)),
-      size_limit_(absl::exchange(that.size_limit_, kNoSizeLimit)) {}
+    : Writer(std::move(that)), size_limit_(that.size_limit_) {}
 
 inline LimitingWriterBase& LimitingWriterBase::operator=(
     LimitingWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  size_limit_ = absl::exchange(that.size_limit_, kNoSizeLimit);
+  size_limit_ = that.size_limit_;
   return *this;
 }
 

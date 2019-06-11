@@ -23,7 +23,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -440,13 +439,13 @@ class RecordReader : public RecordReaderBase {
 inline RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     RecordsMetadataDescriptors&& that) noexcept
     : Object(std::move(that)),
-      record_type_name_(absl::exchange(that.record_type_name_, std::string())),
+      record_type_name_(std::move(that.record_type_name_)),
       pool_(std::move(that.pool_)) {}
 
 inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
     RecordsMetadataDescriptors&& that) {
   Object::operator=(std::move(that));
-  record_type_name_ = absl::exchange(that.record_type_name_, std::string()),
+  record_type_name_ = std::move(that.record_type_name_),
   pool_ = std::move(that.pool_);
   return *this;
 }

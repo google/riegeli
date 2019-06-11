@@ -142,7 +142,7 @@ class ChunkDecoder : public Object {
   //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()
   std::vector<size_t> limits_;
   ChainReader<Chain> values_reader_;
-  // Invariant: index_ <= num_records()
+  // Invariant: if healthy() then index_ <= num_records()
   uint64_t index_ = 0;
   // Whether Recover() is applicable.
   //
@@ -162,21 +162,16 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
       field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
       values_reader_(std::move(that.values_reader_)),
-      index_(absl::exchange(that.index_, 0)),
-      recoverable_(absl::exchange(that.recoverable_, false)) {
-  that.values_reader_.Reset(std::forward_as_tuple());
-}
+      index_(that.index_),
+      recoverable_(absl::exchange(that.recoverable_, false)) {}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
-  if (ABSL_PREDICT_TRUE(&that != this)) {
-    Object::operator=(std::move(that));
-    field_projection_ = std::move(that.field_projection_);
-    limits_ = std::move(that.limits_);
-    values_reader_ = std::move(that.values_reader_);
-    that.values_reader_.Reset(std::forward_as_tuple());
-    index_ = absl::exchange(that.index_, 0);
-    recoverable_ = absl::exchange(that.recoverable_, false);
-  }
+  Object::operator=(std::move(that));
+  field_projection_ = std::move(that.field_projection_);
+  limits_ = std::move(that.limits_);
+  values_reader_ = std::move(that.values_reader_);
+  index_ = that.index_;
+  recoverable_ = absl::exchange(that.recoverable_, false);
   return *this;
 }
 
@@ -194,7 +189,7 @@ inline void ChunkDecoder::Reset() {
 }
 
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
-  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -208,7 +203,7 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(std::string* record) {
-  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
@@ -223,7 +218,7 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record) {
-  if (ABSL_PREDICT_FALSE(index() == num_records() || !healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)

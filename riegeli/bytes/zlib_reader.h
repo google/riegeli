@@ -23,7 +23,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
@@ -228,13 +227,13 @@ inline ZlibReaderBase::ZlibReaderBase(size_t buffer_size, Position size_hint)
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
-      truncated_(absl::exchange(that.truncated_, false)),
+      truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
     ZlibReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
-  truncated_ = absl::exchange(that.truncated_, false);
+  truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }

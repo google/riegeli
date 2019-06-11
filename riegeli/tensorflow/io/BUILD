@@ -10,7 +10,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:status",
@@ -33,7 +32,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
         "//riegeli/base",
         "//riegeli/base:buffer",
         "//riegeli/base:chain",

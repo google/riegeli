@@ -292,22 +292,22 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 inline DefaultChunkReaderBase::DefaultChunkReaderBase(
     DefaultChunkReaderBase&& that) noexcept
     : Object(std::move(that)),
-      truncated_(absl::exchange(that.truncated_, false)),
-      pos_(absl::exchange(that.pos_, 0)),
-      chunk_(absl::exchange(that.chunk_, Chunk())),
+      truncated_(that.truncated_),
+      pos_(that.pos_),
+      chunk_(std::move(that.chunk_)),
       block_header_(that.block_header_),
       recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)),
-      recoverable_pos_(absl::exchange(that.recoverable_pos_, 0)) {}
+      recoverable_pos_(that.recoverable_pos_) {}
 
 inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
     DefaultChunkReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
-  truncated_ = absl::exchange(that.truncated_, false);
-  pos_ = absl::exchange(that.pos_, 0);
-  chunk_ = absl::exchange(that.chunk_, Chunk());
+  truncated_ = that.truncated_;
+  pos_ = that.pos_;
+  chunk_ = that.chunk_;
   block_header_ = that.block_header_;
   recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
-  recoverable_pos_ = absl::exchange(that.recoverable_pos_, 0);
+  recoverable_pos_ = that.recoverable_pos_;
   return *this;
 }
 

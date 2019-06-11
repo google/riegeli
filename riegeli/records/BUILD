@@ -34,7 +34,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:variant",
-        "@com_google_absl//absl/utility",
         "@com_google_protobuf//:cc_wkt_protos",
         "@com_google_protobuf//:protobuf",
     ],
@@ -99,7 +98,6 @@ cc_library(
     deps = [
         "//riegeli/base",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -122,7 +120,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
     ],
 )
 

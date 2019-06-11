@@ -29,7 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/utility/utility.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -145,20 +144,20 @@ class PythonWriter : public BufferedWriter {
 inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
     : BufferedWriter(std::move(that)),
       dest_(std::move(that.dest_)),
-      close_(absl::exchange(that.close_, false)),
-      random_access_(absl::exchange(that.random_access_, false)),
+      close_(that.close_),
+      random_access_(that.random_access_),
       exception_(std::move(that.exception_)),
       write_function_(std::move(that.write_function_)),
-      use_bytes_(absl::exchange(that.use_bytes_, false)) {}
+      use_bytes_(that.use_bytes_) {}
 
 inline PythonWriter& PythonWriter::operator=(PythonWriter&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
   dest_ = std::move(that.dest_);
-  close_ = absl::exchange(that.close_, false);
-  random_access_ = absl::exchange(that.random_access_, false);
+  close_ = that.close_;
+  random_access_ = that.random_access_;
   exception_ = std::move(that.exception_);
   write_function_ = std::move(that.write_function_);
-  use_bytes_ = absl::exchange(that.use_bytes_, false);
+  use_bytes_ = that.use_bytes_;
   return *this;
 }
 

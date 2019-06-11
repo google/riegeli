@@ -26,7 +26,6 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -258,17 +257,17 @@ inline FileReaderBase::FileReaderBase(size_t buffer_size)
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
-      filename_(absl::exchange(that.filename_, std::string())),
-      file_system_(absl::exchange(that.file_system_, nullptr)),
-      buffer_size_(absl::exchange(that.buffer_size_, 0)),
+      filename_(std::move(that.filename_)),
+      file_system_(that.file_system_),
+      buffer_size_(that.buffer_size_),
       buffer_(std::move(that.buffer_)) {}
 
 inline FileReaderBase& FileReaderBase::operator=(
     FileReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
-  filename_ = absl::exchange(that.filename_, std::string());
-  file_system_ = absl::exchange(that.file_system_, nullptr);
-  buffer_size_ = absl::exchange(that.buffer_size_, 0);
+  filename_ = std::move(that.filename_);
+  file_system_ = that.file_system_;
+  buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }

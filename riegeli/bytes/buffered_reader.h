@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -118,15 +117,15 @@ inline BufferedReader::BufferedReader(size_t buffer_size,
 
 inline BufferedReader::BufferedReader(BufferedReader&& that) noexcept
     : Reader(std::move(that)),
-      buffer_size_(absl::exchange(that.buffer_size_, 0)),
-      size_hint_(absl::exchange(that.size_hint_, 0)),
+      buffer_size_(that.buffer_size_),
+      size_hint_(that.size_hint_),
       buffer_(std::move(that.buffer_)) {}
 
 inline BufferedReader& BufferedReader::operator=(
     BufferedReader&& that) noexcept {
   Reader::operator=(std::move(that));
-  buffer_size_ = absl::exchange(that.buffer_size_, 0);
-  size_hint_ = absl::exchange(that.size_hint_, 0);
+  buffer_size_ = that.buffer_size_;
+  size_hint_ = that.size_hint_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }

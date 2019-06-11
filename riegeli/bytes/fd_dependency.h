@@ -51,9 +51,7 @@ class OwnedFd {
   OwnedFd(OwnedFd&& that) noexcept;
   OwnedFd& operator=(OwnedFd&& that) noexcept;
 
-  ~OwnedFd() {
-    if (fd_ >= 0) internal::CloseFd(fd_);
-  }
+  ~OwnedFd();
 
   // Returns the owned file descriptor, or -1 if none.
   int get() const { return fd_; }
@@ -92,9 +90,9 @@ class Dependency<int, int> {
   explicit Dependency(std::tuple<FdArg> fd_args)
       : fd_(std::get<0>(std::move(fd_args))) {}
 
-  Dependency(Dependency&& that) noexcept : fd_(absl::exchange(that.fd_, -1)) {}
+  Dependency(Dependency&& that) noexcept : fd_(that.fd_) {}
   Dependency& operator=(Dependency&& that) noexcept {
-    fd_ = absl::exchange(that.fd_, -1);
+    fd_ = that.fd_;
     return *this;
   }
 
@@ -165,6 +163,10 @@ inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
   if (fd_ >= 0) internal::CloseFd(fd_);
   fd_ = fd;
   return *this;
+}
+
+inline OwnedFd::~OwnedFd() {
+  if (fd_ >= 0) internal::CloseFd(fd_);
 }
 
 }  // namespace riegeli

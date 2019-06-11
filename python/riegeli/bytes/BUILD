@@ -14,7 +14,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/utility",
         "@local_config_python//:python_headers",
     ],
 )
@@ -31,7 +30,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/utility",
         "@local_config_python//:python_headers",
     ],
 )
