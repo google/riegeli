@@ -63,7 +63,7 @@ namespace riegeli {
 //   template <typename... ManagerArgs>
 //   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
 //
-//   // Moves the dependency. The moved from state contains a dummy Manager.
+//   // Moves the dependency.
 //   Dependency(Dependency&& that);
 //   Dependency& operator=(Dependency&& that);
 //

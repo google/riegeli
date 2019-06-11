@@ -32,13 +32,13 @@ namespace riegeli {
 // instead of Dependency if Ptr stability is required, e.g. if background
 // threads access the Ptr.
 //
-// Exception: a dummy Manager created by a default constructed or moved from
-// StableDependency may change its address when the StableDependency is moved.
-// The dummy Manager should not be used by the host object, so making its
-// address change is not a problem. Since the Manager is exposed, making it
-// unconditionally available avoids a special case in the public interface where
-// accessing the dependency would be invalid. This exception avoids dynamic
-// allocation in the default constructor and moving.
+// Exception: a dummy Manager created by a default constructed StableDependency
+// may change its address when the StableDependency is moved. The dummy Manager
+// should not be used by the host object, so making its address change is not a
+// problem. Since the Manager is exposed, making it unconditionally available
+// avoids a special case in the public interface where accessing the dependency
+// would be invalid. This exception avoids dynamic allocation in the default
+// constructor.
 template <typename Ptr, typename Manager, typename Enable = void>
 class StableDependency;
 
