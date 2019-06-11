@@ -150,10 +150,10 @@ inline Status::Status(const Status& that) noexcept : rep_(that.rep_) {
 }
 
 inline Status& Status::operator=(const Status& that) noexcept {
-  Rep* const old_rep = rep_;
-  rep_ = that.rep_;
-  if (rep_ != nullptr) rep_->Ref();
-  if (old_rep != nullptr) old_rep->Unref();
+  Rep* const rep = that.rep_;
+  if (rep != nullptr) rep->Ref();
+  if (rep_ != nullptr) rep_->Unref();
+  rep_ = rep;
   return *this;
 }
 
@@ -161,9 +161,10 @@ inline Status::Status(Status&& that) noexcept
     : rep_(absl::exchange(that.rep_, nullptr)) {}
 
 inline Status& Status::operator=(Status&& that) noexcept {
-  Rep* const old_rep = rep_;
-  rep_ = absl::exchange(that.rep_, nullptr);
-  if (old_rep != nullptr) old_rep->Unref();
+  // Exchange that.rep_ early to support self-assignment.
+  Rep* const rep = absl::exchange(that.rep_, nullptr);
+  if (rep_ != nullptr) rep_->Unref();
+  rep_ = rep;
   return *this;
 }
 
