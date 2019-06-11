@@ -387,7 +387,7 @@ struct Chain::BlockPtrPtr {
   friend bool operator<=(BlockPtrPtr a, BlockPtrPtr b);
   friend bool operator>=(BlockPtrPtr a, BlockPtrPtr b);
 
-  intptr_t repr;
+  uintptr_t repr;
 };
 
 class Chain::BlockIterator {
@@ -1076,11 +1076,11 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
 }
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(Block* const* ptr) {
-  return BlockPtrPtr{reinterpret_cast<intptr_t>(ptr)};
+  return BlockPtrPtr{reinterpret_cast<uintptr_t>(ptr)};
 }
 
 inline bool Chain::BlockPtrPtr::is_special() const {
-  return repr >= 0 && repr <= sizeof(Block*);
+  return repr <= sizeof(Block*);
 }
 
 inline Chain::Block* const* Chain::BlockPtrPtr::as_ptr() const {
@@ -1110,17 +1110,19 @@ inline ptrdiff_t operator-(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
   RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
       << "Incompatible BlockPtrPtr values";
   if (a.is_special()) {
+    const ptrdiff_t byte_diff =
+        static_cast<ptrdiff_t>(a.repr) - static_cast<ptrdiff_t>(b.repr);
     // Pointer subtraction with the element size being a power of 2 typically
     // rounds in the same way as right shift (towards -inf), not as division
     // (towards zero), so the right shift allows the compiler to eliminate the
     // is_special() check.
     switch (sizeof(Chain::Block*)) {
       case 1 << 2:
-        return ptrdiff_t{a.repr - b.repr} >> 2;
-      case 1 >> 3:
-        return ptrdiff_t{a.repr - b.repr} >> 3;
+        return byte_diff >> 2;
+      case 1 << 3:
+        return byte_diff >> 3;
       default:
-        return ptrdiff_t{a.repr - b.repr} / sizeof(Chain::Block*);
+        return byte_diff / ptrdiff_t{sizeof(Chain::Block*)};
     }
   }
   return a.as_ptr() - b.as_ptr();
