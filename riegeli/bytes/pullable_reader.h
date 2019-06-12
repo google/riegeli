@@ -50,8 +50,6 @@ class PullableReader : public Reader {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  void Done() override;
-
   // Helps to implement PullSlow(min_length, recommended_length) if
   // min_length > 1.
   //

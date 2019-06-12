@@ -46,11 +46,6 @@ inline bool PullableReader::ScratchEnds(size_t min_length) {
   return false;
 }
 
-void PullableReader::Done() {
-  Reader::Done();
-  scratch_.reset();
-}
-
 void PullableReader::PullToScratchSlow(size_t min_length) {
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
