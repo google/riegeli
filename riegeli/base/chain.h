@@ -71,7 +71,7 @@ class Chain {
 
   explicit Chain(absl::string_view src);
   explicit Chain(std::string&& src);
-  explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
+  explicit Chain(const char* src);
   explicit Chain(const FlatChain& src);
   explicit Chain(FlatChain&& src);
 
@@ -95,6 +95,15 @@ class Chain {
   Chain& operator=(Chain&& that) noexcept;
 
   ~Chain();
+
+  // Makes *this equivalent to a newly constructed Chain. This avoids
+  // constructing a temporary Chain and moving from it.
+  void Reset();
+  void Reset(absl::string_view src);
+  void Reset(std::string&& src);
+  void Reset(const char* src);
+  void Reset(const FlatChain& src);
+  void Reset(FlatChain&& src);
 
   void Clear();
 
@@ -332,6 +341,7 @@ class Chain {
                           size_t recommended_length, size_t size_hint) const;
 
   void AppendBlock(Block* block, size_t size_hint);
+  void AppendBlockAndUnref(Block* block, size_t size_hint);
 
   void RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
                          void (*drop_object)(void*, absl::string_view),
@@ -1454,6 +1464,12 @@ inline Chain Chain::FromExternal(T object, absl::string_view data) {
   return result;
 }
 
+inline Chain::Chain(absl::string_view src) { Append(src, src.size()); }
+
+inline Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
+
+inline Chain::Chain(const char* src) : Chain(absl::string_view(src)) {}
+
 inline Chain::Chain(const FlatChain& src) {
   if (src.block_ != nullptr) {
     Block* const block = src.block_->Ref();
@@ -1519,6 +1535,33 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
 inline Chain::~Chain() {
   UnrefBlocks();
   DeleteBlockPtrs();
+}
+
+inline void Chain::Reset() { Clear(); }
+
+inline void Chain::Reset(absl::string_view src) {
+  Clear();
+  Append(src, src.size());
+}
+
+inline void Chain::Reset(std::string&& src) {
+  Clear();
+  Append(std::move(src), src.size());
+}
+
+inline void Chain::Reset(const char* src) { Reset(absl::string_view(src)); }
+
+inline void Chain::Reset(const FlatChain& src) {
+  Clear();
+  if (src.block_ != nullptr) AppendBlock(src.block_, src.block_->size());
+}
+
+inline void Chain::Reset(FlatChain&& src) {
+  Clear();
+  if (src.block_ != nullptr) {
+    const size_t size = src.block_->size();
+    AppendBlockAndUnref(absl::exchange(src.block_, nullptr), size);
+  }
 }
 
 inline void Chain::Clear() {
@@ -1793,23 +1836,7 @@ inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
 }
 
 template <>
-struct Resetter<Chain> {
-  static void Reset(Chain* object) { object->Clear(); }
-
-  static void Reset(Chain* object, absl::string_view src) {
-    object->Clear();
-    object->Append(src, src.size());
-  }
-
-  static void Reset(Chain* object, const Chain& src) { *object = src; }
-
-  static void Reset(Chain* object, Chain&& src) { *object = std::move(src); }
-
-  template <typename... Args>
-  static void Reset(Chain* object, Args&&... args) {
-    *object = T(std::forward<Args>(args)...);
-  }
-};
+struct Resetter<Chain> : ResetterByReset<Chain> {};
 
 }  // namespace riegeli
 

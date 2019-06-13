@@ -473,10 +473,6 @@ constexpr size_t Chain::kMaxShortDataSize;
 // the case when the resulting Chain will not be appended to further, reducing
 // the size of allocations.
 
-Chain::Chain(absl::string_view src) { Append(src, src.size()); }
-
-Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
-
 Chain::Chain(const Chain& that) : size_(that.size_) {
   if (that.begin_ == that.end_) {
     std::memcpy(block_ptrs_.short_data, that.block_ptrs_.short_data,
@@ -1601,6 +1597,89 @@ void Chain::AppendBlock(Block* block, size_t size_hint) {
     }
   }
   PushBack(block->Ref());
+  size_ += block->size();
+}
+
+void Chain::AppendBlockAndUnref(Block* block, size_t size_hint) {
+  RIEGELI_ASSERT_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::AppendBlockUnref(): "
+         "Chain size overflow";
+  if (block->empty()) {
+    block->Unref();
+    return;
+  }
+  if (begin_ == end_) {
+    if (block->tiny()) {
+      // The block must be rewritten. Merge short data with it to a new block.
+      RIEGELI_ASSERT_LE(block->size(), Block::kMaxCapacity - size_)
+          << "Sum of sizes of short data and a tiny block exceeds "
+             "Block::kMaxCapacity";
+      const size_t capacity = NewBlockCapacity(
+          size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
+          size_hint);
+      Block* const merged = Block::NewInternal(capacity);
+      merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+      merged->Append(block->data());
+      PushBack(merged);
+      size_ += block->size();
+      block->Unref();
+      return;
+    }
+    if (!empty()) {
+      // Copy short data to a real block.
+      Block* const real = Block::NewInternal(kMaxShortDataSize);
+      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+      PushBack(real);
+    }
+  } else {
+    Block* const last = back();
+    if (last->tiny() && block->tiny()) {
+      // Boundary blocks must be merged.
+      if (last->can_append(block->size())) {
+        // Boundary blocks can be appended in place; this is always cheaper than
+        // merging them to a new block.
+        last->Append(block->data());
+      } else {
+        // Boundary blocks cannot be appended in place. Merge them to a new
+        // block.
+        RIEGELI_ASSERT_LE(block->size(), Block::kMaxCapacity - last->size())
+            << "Sum of sizes of two tiny blocks exceeds Block::kMaxCapacity";
+        Block* const merged = Block::NewInternal(
+            NewBlockCapacity(last->size(), block->size(), 0, size_hint));
+        merged->Append(last->data());
+        merged->Append(block->data());
+        last->Unref();
+        back() = merged;
+      }
+      size_ += block->size();
+      block->Unref();
+      return;
+    }
+    if (last->empty()) {
+      // The last block is empty and must be removed.
+      last->Unref();
+      back() = block->Ref();
+      size_ += block->size();
+      block->Unref();
+      return;
+    }
+    if (last->wasteful()) {
+      // The last block must reduce waste.
+      if (last->can_append(block->size()) &&
+          block->size() <= kAllocationCost + last->size()) {
+        // Appending in place is possible and is cheaper than rewriting the last
+        // block.
+        last->Append(block->data());
+        size_ += block->size();
+        block->Unref();
+        return;
+      }
+      // Appending in place is not possible, or rewriting the last block is
+      // cheaper.
+      back() = last->CopyAndUnref();
+    }
+  }
+  PushBack(block);
   size_ += block->size();
 }
 
