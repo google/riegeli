@@ -122,7 +122,7 @@ RecordReaderBase& RecordReaderBase::operator=(
 void RecordReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   chunk_begin_ = 0;
-  chunk_decoder_.Reset();
+  chunk_decoder_.Clear();
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -130,7 +130,7 @@ void RecordReaderBase::Reset(InitiallyClosed) {
 void RecordReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   chunk_begin_ = 0;
-  chunk_decoder_.Reset();
+  chunk_decoder_.Clear();
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -158,7 +158,7 @@ bool RecordReaderBase::CheckFileFormat() {
   ChunkReader* const src = src_chunk_reader();
   if (chunk_decoder_.index() < chunk_decoder_.num_records()) return true;
   if (ABSL_PREDICT_FALSE(!src->CheckFileFormat())) {
-    chunk_decoder_.Reset();
+    chunk_decoder_.Clear();
     if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*src);
@@ -250,7 +250,7 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
       metadata, ChainBackwardWriterBase::Options().set_size_hint(
                     chunk.header.decoded_data_size()));
   std::vector<size_t> limits;
-  const bool ok = transpose_decoder.Reset(
+  const bool ok = transpose_decoder.Decode(
       &data_reader, 1, chunk.header.decoded_data_size(), FieldProjection::All(),
       &serialized_metadata_writer, &limits);
   if (ABSL_PREDICT_FALSE(!serialized_metadata_writer.Close())) {
@@ -333,7 +333,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       return true;
     case Recoverable::kRecoverChunkDecoder: {
       const uint64_t index_before = chunk_decoder_.index();
-      if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) chunk_decoder_.Reset();
+      if (ABSL_PREDICT_FALSE(!chunk_decoder_.Recover())) chunk_decoder_.Clear();
       if (skipped_region != nullptr) {
         const Position region_begin = chunk_begin_ + index_before;
         const Position region_end = pos().numeric();
@@ -373,7 +373,7 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
   } else {
     if (ABSL_PREDICT_FALSE(!src->Seek(new_pos.chunk_begin()))) {
       chunk_begin_ = src->pos();
-      chunk_decoder_.Reset();
+      chunk_decoder_.Clear();
       recoverable_ = Recoverable::kRecoverChunkReader;
       Fail(*src);
       return TryRecovery();
@@ -382,7 +382,7 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
       chunk_begin_ = src->pos();
-      chunk_decoder_.Reset();
+      chunk_decoder_.Clear();
       return true;
     }
   }
@@ -402,7 +402,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
   } else {
     if (ABSL_PREDICT_FALSE(!src->SeekToChunkContaining(new_pos))) {
       chunk_begin_ = src->pos();
-      chunk_decoder_.Reset();
+      chunk_decoder_.Clear();
       recoverable_ = Recoverable::kRecoverChunkReader;
       Fail(*src);
       return TryRecovery();
@@ -415,7 +415,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
       // new_pos falls after all records of the previous chunk. This also seeks
       // to the beginning of the chunk.
       chunk_begin_ = src->pos();
-      chunk_decoder_.Reset();
+      chunk_decoder_.Clear();
       return true;
     }
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();
@@ -429,14 +429,14 @@ inline bool RecordReaderBase::ReadChunk() {
   chunk_begin_ = src->pos();
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
-    chunk_decoder_.Reset();
+    chunk_decoder_.Clear();
     if (ABSL_PREDICT_FALSE(!src->healthy())) {
       recoverable_ = Recoverable::kRecoverChunkReader;
       return Fail(*src);
     }
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Reset(chunk))) {
+  if (ABSL_PREDICT_FALSE(!chunk_decoder_.Decode(chunk))) {
     recoverable_ = Recoverable::kRecoverChunkDecoder;
     return Fail(chunk_decoder_);
   }

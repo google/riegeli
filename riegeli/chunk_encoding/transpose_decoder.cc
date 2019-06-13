@@ -409,11 +409,11 @@ struct TransposeDecoder::Context {
   std::vector<StateMachineNodeTemplate> node_templates;
 };
 
-bool TransposeDecoder::Reset(Reader* src, uint64_t num_records,
-                             uint64_t decoded_data_size,
-                             const FieldProjection& field_projection,
-                             BackwardWriter* dest,
-                             std::vector<size_t>* limits) {
+bool TransposeDecoder::Decode(Reader* src, uint64_t num_records,
+                              uint64_t decoded_data_size,
+                              const FieldProjection& field_projection,
+                              BackwardWriter* dest,
+                              std::vector<size_t>* limits) {
   RIEGELI_ASSERT_EQ(dest->pos(), 0u)
       << "Failed precondition of TransposeDecoder::Reset(): "
          "non-zero destination position";

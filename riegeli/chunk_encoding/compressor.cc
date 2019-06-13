@@ -40,17 +40,21 @@ Compressor::Compressor(CompressorOptions compressor_options,
     : Object(kInitiallyOpen),
       compressor_options_(std::move(compressor_options)),
       tuning_options_(std::move(tuning_options)) {
-  Reset();
+  Initialize();
 }
 
-void Compressor::Reset(TuningOptions tuning_options) {
+void Compressor::Clear(TuningOptions tuning_options) {
   tuning_options_ = std::move(tuning_options);
-  Reset();
+  Clear();
 }
 
-void Compressor::Reset() {
+void Compressor::Clear() {
   Object::Reset(kInitiallyOpen);
   compressed_.Clear();
+  Initialize();
+}
+
+void Compressor::Initialize() {
   switch (compressor_options_.compression_type()) {
     case CompressionType::kNone:
       writer_.emplace<ChainWriter<>>(&compressed_,

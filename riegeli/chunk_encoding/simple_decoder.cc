@@ -38,9 +38,9 @@ void SimpleDecoder::Done() {
   }
 }
 
-bool SimpleDecoder::Reset(Reader* src, uint64_t num_records,
-                          uint64_t decoded_data_size,
-                          std::vector<size_t>* limits) {
+bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
+                           uint64_t decoded_data_size,
+                           std::vector<size_t>* limits) {
   Object::Reset(kInitiallyOpen);
   if (ABSL_PREDICT_FALSE(num_records > limits->max_size())) {
     return Fail(ResourceExhaustedError("Too many records"));

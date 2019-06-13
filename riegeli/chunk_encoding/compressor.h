@@ -81,13 +81,13 @@ class Compressor : public Object {
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
 
-  // Resets the Compressor back to empty. Changes tuning options.
-  void Reset(TuningOptions tuning_options);
+  // Resets the Compressor back to empty. Keeps compressor options unchanged.
+  // Changes tuning options.
+  void Clear(TuningOptions tuning_options);
 
-  // Resets the Compressor back to empty. Keeps tuning options unchanged.
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset();
+  // Resets the Compressor back to empty. Keeps compressor options and tuning
+  // options unchanged.
+  void Clear();
 
   // Returns the Writer to which uncompressed data should be written.
   //
@@ -105,6 +105,8 @@ class Compressor : public Object {
   bool EncodeAndClose(Writer* dest);
 
  private:
+  void Initialize();
+
   CompressorOptions compressor_options_;
   TuningOptions tuning_options_;
   Chain compressed_;

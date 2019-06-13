@@ -72,9 +72,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   ~TransposeEncoder();
 
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset() override;
+  void Clear() override;
 
   // "record" should be a protocol message in binary format. Transpose works
   // just fine even if "record" is a corrupted protocol message or an arbitrary

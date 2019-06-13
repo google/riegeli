@@ -39,9 +39,7 @@ class ChunkEncoder : public Object {
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;
 
   // Resets the ChunkEncoder back to empty.
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  virtual void Reset();
+  virtual void Clear();
 
   // Adds the next record.
   //
@@ -96,13 +94,11 @@ class ChunkEncoder : public Object {
 
 // Implementation details follow.
 
-inline void ChunkEncoder::Reset() {
+inline void ChunkEncoder::Clear() {
   Object::Reset(kInitiallyOpen);
   num_records_ = 0;
   decoded_data_size_ = 0;
 }
-
-// Implementation details follow.
 
 inline bool ChunkEncoder::AddRecord(const char* record) {
   return AddRecord(absl::string_view(record));

@@ -48,9 +48,7 @@ class SimpleEncoder : public ChunkEncoder {
   // Creates an empty SimpleEncoder.
   explicit SimpleEncoder(CompressorOptions options, uint64_t size_hint);
 
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset() override;
+  void Clear() override;
 
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record) override;

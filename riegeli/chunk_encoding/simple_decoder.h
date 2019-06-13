@@ -45,11 +45,8 @@ class SimpleDecoder : public Object {
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  //
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  bool Reset(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
-             std::vector<size_t>* limits);
+  bool Decode(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
+              std::vector<size_t>* limits);
 
   // Returns the Reader from which concatenated record values should be read.
   //

@@ -302,7 +302,7 @@ class RecordWriterBase::SerialWorker : public Worker {
  public:
   explicit SerialWorker(ChunkWriter* chunk_writer, Options&& options);
 
-  void OpenChunk() override { chunk_encoder_->Reset(); }
+  void OpenChunk() override { chunk_encoder_->Clear(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;

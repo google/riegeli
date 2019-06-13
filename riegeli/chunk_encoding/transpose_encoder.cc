@@ -182,8 +182,8 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
 
 TransposeEncoder::~TransposeEncoder() {}
 
-void TransposeEncoder::Reset() {
-  ChunkEncoder::Reset();
+void TransposeEncoder::Clear() {
+  ChunkEncoder::Clear();
   tags_list_.clear();
   encoded_tags_.clear();
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
@@ -466,7 +466,7 @@ inline bool TransposeEncoder::AddBuffer(
       compressed_bucket_sizes->push_back(
           IntCast<size_t>(data_writer->pos() - pos_before));
     }
-    bucket_compressor->Reset(
+    bucket_compressor->Clear(
         internal::Compressor::TuningOptions().set_final_size(
             *new_uncompressed_bucket_size));
   }

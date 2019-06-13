@@ -43,8 +43,8 @@ namespace riegeli {
 
 void ChunkDecoder::Done() { recoverable_ = false; }
 
-bool ChunkDecoder::Reset(const Chunk& chunk) {
-  Reset();
+bool ChunkDecoder::Decode(const Chunk& chunk) {
+  Clear();
   ChainReader<> data_reader(&chunk.data);
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
     return Fail(ResourceExhaustedError("Too many records"));
@@ -71,7 +71,8 @@ bool ChunkDecoder::Reset(const Chunk& chunk) {
   return true;
 }
 
-bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
+inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
+                                Chain* dest) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
@@ -111,9 +112,9 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
       return true;
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
-      if (ABSL_PREDICT_FALSE(!simple_decoder.Reset(src, header.num_records(),
-                                                   header.decoded_data_size(),
-                                                   &limits_))) {
+      if (ABSL_PREDICT_FALSE(!simple_decoder.Decode(src, header.num_records(),
+                                                    header.decoded_data_size(),
+                                                    &limits_))) {
         return Fail(simple_decoder);
       }
       dest->Clear();
@@ -136,7 +137,7 @@ bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src, Chain* dest) {
           ChainBackwardWriterBase::Options().set_size_hint(
               field_projection_.includes_all() ? header.decoded_data_size()
                                                : uint64_t{0}));
-      const bool ok = transpose_decoder.Reset(
+      const bool ok = transpose_decoder.Decode(
           src, header.num_records(), header.decoded_data_size(),
           field_projection_, &dest_writer, &limits_);
       if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);

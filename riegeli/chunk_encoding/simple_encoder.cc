@@ -47,10 +47,10 @@ SimpleEncoder::SimpleEncoder(CompressorOptions options, uint64_t size_hint)
           options,
           internal::Compressor::TuningOptions().set_size_hint(size_hint)) {}
 
-void SimpleEncoder::Reset() {
-  ChunkEncoder::Reset();
-  sizes_compressor_.Reset();
-  values_compressor_.Reset();
+void SimpleEncoder::Clear() {
+  ChunkEncoder::Clear();
+  sizes_compressor_.Clear();
+  values_compressor_.Clear();
 }
 
 bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {

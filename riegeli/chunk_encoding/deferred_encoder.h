@@ -41,9 +41,7 @@ class DeferredEncoder : public ChunkEncoder {
  public:
   explicit DeferredEncoder(std::unique_ptr<ChunkEncoder> base_encoder);
 
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset() override;
+  void Clear() override;
 
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record) override;

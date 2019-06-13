@@ -30,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -68,24 +69,17 @@ class ChunkDecoder : public Object {
 
   // Makes *this equivalent to a newly constructed ChunkDecoder. This avoids
   // constructing a temporary ChunkDecoder and moving from it.
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset(Options options);
+  void Reset(Options options = Options());
 
   // Resets the ChunkDecoder to an empty chunk. Keeps options unchanged.
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  void Reset();
+  void Clear();
 
-  // Resets the ChunkDecoder and parses the chunk.
+  // Resets the ChunkDecoder and parses the chunk. Keeps options unchanged.
   //
   // Return values:
   //  * true  - success (healthy())
   //  * false - failure (!healthy())
-  //
-  // TODO: This does not conform to the general Reset() contract;
-  // should be renamed.
-  bool Reset(const Chunk& chunk);
+  bool Decode(const Chunk& chunk);
 
   // Reads the next record.
   //
@@ -177,10 +171,10 @@ inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
 
 inline void ChunkDecoder::Reset(Options options) {
   field_projection_ = std::move(options.field_projection_);
-  Reset();
+  Clear();
 }
 
-inline void ChunkDecoder::Reset() {
+inline void ChunkDecoder::Clear() {
   Object::Reset(kInitiallyOpen);
   limits_.clear();
   values_reader_.Reset(std::forward_as_tuple());
@@ -243,6 +237,9 @@ inline void ChunkDecoder::SetIndex(uint64_t index) {
         << "Failed seeking values reader: " << values_reader_.status();
   }
 }
+
+template <>
+struct Resetter<ChunkDecoder> : ResetterByReset<ChunkDecoder> {};
 
 }  // namespace riegeli
 
