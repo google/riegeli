@@ -293,6 +293,17 @@ class Chain {
     Allocated allocated;
   };
 
+  // Specifies how ownership of a potentially shared object is transferred,
+  // for cases when this is not implied by parameter types.
+  enum class Ownership {
+    // The original owner keeps its reference. The reference count is increased
+    // if the new owner also gets a reference.
+    kShare,
+    // The original owner drops its reference. The reference count is decreased
+    // unless the new owner gets a reference instead.
+    kSteal,
+  };
+
   static constexpr size_t kAllocationCost = 256;
 
   void ClearSlow();
@@ -314,6 +325,10 @@ class Chain {
   static void UnrefBlocks(Block* const* begin, Block* const* end);
   static void UnrefBlocksSlow(Block* const* begin, Block* const* end);
 
+  void DropStolenBlocks(
+      std::integral_constant<Ownership, Ownership::kShare>) const;
+  void DropStolenBlocks(std::integral_constant<Ownership, Ownership::kSteal>);
+
   Block*& back() { return end_[-1]; }
   Block* const& back() const { return end_[-1]; }
   Block*& front() { return begin_[0]; }
@@ -323,9 +338,9 @@ class Chain {
   void PushFront(Block* block);
   void PopBack();
   void PopFront();
-  void RefAndAppendBlocks(Block* const* begin, Block* const* end);
-  void RefAndPrependBlocks(Block* const* begin, Block* const* end);
+  template <Ownership ownership>
   void AppendBlocks(Block* const* begin, Block* const* end);
+  template <Ownership ownership>
   void PrependBlocks(Block* const* begin, Block* const* end);
   void ReserveBack(size_t extra_capacity);
   void ReserveFront(size_t extra_capacity);
@@ -340,8 +355,13 @@ class Chain {
   size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
                           size_t recommended_length, size_t size_hint) const;
 
+  template <Ownership ownership, typename ChainRef>
+  void AppendImpl(ChainRef&& src, size_t size_hint);
+  template <Ownership ownership, typename ChainRef>
+  void PrependImpl(ChainRef&& src, size_t size_hint);
+
+  template <Ownership ownership>
   void AppendBlock(Block* block, size_t size_hint);
-  void AppendBlockAndUnref(Block* block, size_t size_hint);
 
   void RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
                          void (*drop_object)(void*, absl::string_view),
@@ -674,11 +694,14 @@ class Chain::Block {
   template <typename T>
   explicit Block(T* object, absl::string_view data);
 
+  template <Ownership ownership = Ownership::kShare>
   Block* Ref();
+
+  template <Ownership ownership = Ownership::kSteal>
   void Unref();
 
+  template <Ownership ownership>
   Block* Copy();
-  Block* CopyAndUnref();
 
   bool TryClear();
 
@@ -1012,13 +1035,36 @@ constexpr size_t Chain::Block::kExternalObjectOffset() {
                              offsetof(External, object_lower_bound));
 }
 
+template <Chain::Ownership ownership>
 inline Chain::Block* Chain::Block::Ref() {
-  ref_count_.fetch_add(1, std::memory_order_relaxed);
+  if (ownership == Ownership::kShare) {
+    ref_count_.fetch_add(1, std::memory_order_relaxed);
+  }
   return this;
+}
+
+template <Chain::Ownership ownership>
+void Chain::Block::Unref() {
+  if (ownership == Ownership::kSteal &&
+      (has_unique_owner() ||
+       ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1)) {
+    if (is_internal()) {
+      DeleteAligned<Block>(this, kInternalAllocatedOffset() + capacity());
+    } else {
+      external_.methods->delete_block(this);
+    }
+  }
 }
 
 inline bool Chain::Block::has_unique_owner() const {
   return ref_count_.load(std::memory_order_acquire) == 1;
+}
+
+inline size_t Chain::Block::capacity() const {
+  RIEGELI_ASSERT(is_internal())
+      << "Failed precondition of Chain::Block::capacity(): "
+         "block not internal";
+  return PtrDistance(allocated_begin_, allocated_end_);
 }
 
 template <typename T>
@@ -1553,14 +1599,16 @@ inline void Chain::Reset(const char* src) { Reset(absl::string_view(src)); }
 
 inline void Chain::Reset(const FlatChain& src) {
   Clear();
-  if (src.block_ != nullptr) AppendBlock(src.block_, src.block_->size());
+  if (src.block_ != nullptr) {
+    AppendBlock<Ownership::kShare>(src.block_, src.block_->size());
+  }
 }
 
 inline void Chain::Reset(FlatChain&& src) {
   Clear();
   if (src.block_ != nullptr) {
     const size_t size = src.block_->size();
-    AppendBlockAndUnref(absl::exchange(src.block_, nullptr), size);
+    AppendBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr), size);
   }
 }
 
