@@ -83,13 +83,7 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
   if (ABSL_PREDICT_FALSE(iter_ == src->blocks().cend())) return false;
   iter_.AppendSubstrTo(absl::string_view(cursor_, available()), dest);
   length -= available();
-  for (;;) {
-    if (ABSL_PREDICT_FALSE(++iter_ == src->blocks().cend())) {
-      start_ = nullptr;
-      cursor_ = nullptr;
-      limit_ = nullptr;
-      return false;
-    }
+  while (++iter_ != src->blocks().cend()) {
     RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos_)
         << "ChainReader source changed unexpectedly";
     limit_pos_ += iter_->size();
@@ -103,6 +97,10 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
     iter_.AppendTo(dest);
     length -= iter_->size();
   }
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
+  return false;
 }
 
 bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
