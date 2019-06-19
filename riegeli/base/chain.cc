@@ -389,7 +389,7 @@ inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
       substr, size_hint);
 }
 
-Chain::PinnedBlock Chain::BlockIterator::Pin() {
+Chain::Block* Chain::BlockIterator::PinImpl() {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::Pin(): "
          "iterator is end()";
@@ -397,14 +397,9 @@ Chain::PinnedBlock Chain::BlockIterator::Pin() {
     Block* const block = Block::NewInternal(kMaxShortDataSize);
     block->AppendWithExplicitSizeToCopy(chain_->short_data(),
                                         kMaxShortDataSize);
-    return {block->data(), block};
-  } else {
-    return {(*ptr_.as_ptr())->data(), (*ptr_.as_ptr())->Ref()};
+    return block;
   }
-}
-
-void Chain::PinnedBlock::Unpin(void* token) {
-  static_cast<Block*>(token)->Unref();
+  return (*ptr_.as_ptr())->Ref();
 }
 
 void Chain::BlockIterator::AppendTo(Chain* dest, size_t size_hint) const {

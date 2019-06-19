@@ -61,7 +61,6 @@ class Chain {
  public:
   class Blocks;
   class BlockIterator;
-  struct PinnedBlock;
 
   // A sentinel value for the max_length parameter of
   // AppendBuffer()/PrependBuffer().
@@ -470,13 +469,17 @@ class Chain::BlockIterator {
   friend difference_type operator-(BlockIterator a, BlockIterator b);
   friend BlockIterator operator+(difference_type n, BlockIterator a);
 
-  // Pins the block pointed to by this iterator, keeping it alive and unchanged,
-  // until PinnedBlock::Unpin() is called. Returns a PinnedBlock which contains
-  // a data pointer valid for the pinned block and a void* token to be passed to
-  // PinnedBlock::Unpin().
+  // Returns a FlatChain which pins the block pointed to by this iterator,
+  // keeping it alive and unchanged, until either the FlatChain is destroyed or
+  // FlatChain::Release() and FlatChain::DeleteReleased() are called.
+  //
+  // Warning: the data pointer of the returned FlatChain is not necessarily the
+  // same as the data pointer of this BlockIterator (because of short Chain
+  // optimization). Convert the FlatChain to string_view or use
+  // FlatChain::data() for a data pointer valid for the pinned block.
   //
   // Precondition: this is not past the end iterator.
-  PinnedBlock Pin();
+  FlatChain Pin();
 
   // Returns a pointer to the external object if this points to an external
   // block holding an object of type T, otherwise returns nullptr.
@@ -505,21 +508,14 @@ class Chain::BlockIterator {
 
   BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
+  Block* PinImpl();
+
   const Chain* chain_ = nullptr;
   // If chain_ == nullptr, kBeginShortData.
   // If *chain_ has no block pointers and no short data, kEndShortData.
   // If *chain_ has short data, kBeginShortData or kEndShortData.
   // If *chain_ has block pointers, a pointer to the block pointer array.
   BlockPtrPtr ptr_ = kBeginShortData;
-};
-
-// The result of BlockIterator::Pin(). Consists of a data pointer valid for the
-// pinned block and a void* token to be passed to Unpin().
-struct Chain::PinnedBlock {
-  static void Unpin(void* token);
-
-  absl::string_view data;
-  void* token;
 };
 
 class Chain::Blocks {
@@ -596,6 +592,7 @@ class FlatChain {
 
   void Clear();
 
+  explicit operator absl::string_view() const;
   const char* data() const;
   size_t size() const;
   bool empty() const;
@@ -636,10 +633,19 @@ class FlatChain {
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       size_t size_hint = 0) const;
 
+  // Releases the ownership of the block, which must be deleted using
+  // DeleteReleased() if not nullptr.
+  void* Release();
+
+  // Deletes the pointer obtained by Release().
+  static void DeleteReleased(void* ptr);
+
  private:
   friend class Chain;
 
   using Block = Chain::Block;
+
+  explicit FlatChain(Block* block) : block_(block) {}
 
   // Decides about the capacity of a new block to be appended/prepended.
   size_t NewBlockCapacity(size_t min_length, size_t recommended_length,
@@ -1392,6 +1398,8 @@ inline const T* Chain::BlockIterator::external_object() const {
   }
 }
 
+inline FlatChain Chain::BlockIterator::Pin() { return FlatChain(PinImpl()); }
+
 inline Chain::Blocks::Blocks(const Blocks& that) noexcept
     : chain_(that.chain_) {}
 
@@ -1839,6 +1847,10 @@ inline void FlatChain::Clear() {
   }
 }
 
+inline FlatChain::operator absl::string_view() const {
+  return block_ == nullptr ? absl::string_view() : block_->data();
+}
+
 inline const char* FlatChain::data() const {
   return block_ == nullptr ? nullptr : block_->data().data();
 }
@@ -1881,6 +1893,12 @@ inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
     return;
   }
   RemovePrefixSlow(length, size_hint);
+}
+
+inline void* FlatChain::Release() { return absl::exchange(block_, nullptr); }
+
+inline void FlatChain::DeleteReleased(void* ptr) {
+  if (ptr != nullptr) static_cast<Block*>(ptr)->Unref();
 }
 
 template <>

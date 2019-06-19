@@ -60,11 +60,11 @@ class Buffer {
   void Resize(size_t size);
 
   // Releases the ownership of the data pointer, which must be deleted using
-  // DeleteReleasedData() if not nullptr.
+  // DeleteReleased() if not nullptr.
   char* Release();
 
   // Deletes the pointer obtained by Release().
-  static void DeleteReleasedData(char* ptr);
+  static void DeleteReleased(char* ptr);
 
  private:
   // If the buffer is allocated, deletes it.
@@ -121,7 +121,7 @@ inline void Buffer::Resize(size_t new_size) {
 
 inline char* Buffer::Release() { return absl::exchange(data_, nullptr); }
 
-inline void Buffer::DeleteReleasedData(char* ptr) { operator delete(ptr); }
+inline void Buffer::DeleteReleased(char* ptr) { operator delete(ptr); }
 
 }  // namespace riegeli
 
