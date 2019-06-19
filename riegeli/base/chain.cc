@@ -23,6 +23,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -68,8 +69,8 @@ class Chain::BlockRef {
   template <Ownership ownership>
   explicit BlockRef(Block* block, std::integral_constant<Ownership, ownership>);
 
-  BlockRef(BlockRef&& that) noexcept;
-  BlockRef& operator=(BlockRef&& that) noexcept;
+  BlockRef(const BlockRef&) = delete;
+  BlockRef& operator=(const BlockRef&) = delete;
 
   ~BlockRef();
 
@@ -97,17 +98,6 @@ inline Chain::BlockRef::BlockRef(Block* block,
   block_ = block;
 }
 
-inline Chain::BlockRef::BlockRef(BlockRef&& that) noexcept
-    : block_(absl::exchange(that.block_, nullptr)) {}
-
-inline Chain::BlockRef& Chain::BlockRef::operator=(BlockRef&& that) noexcept {
-  // Exchange that.block_ early to support self-assignment.
-  Block* const block = absl::exchange(that.block_, nullptr);
-  if (block_ != nullptr) block_->Unref();
-  block_ = block;
-  return *this;
-}
-
 inline Chain::BlockRef::~BlockRef() {
   if (block_ != nullptr) block_->Unref();
 }
@@ -127,8 +117,8 @@ class Chain::StringRef {
  public:
   explicit StringRef(std::string src) : src_(std::move(src)) {}
 
-  StringRef(StringRef&& that) noexcept;
-  StringRef& operator=(StringRef&& that) noexcept;
+  StringRef(const StringRef&) = delete;
+  StringRef& operator=(const StringRef&) = delete;
 
   absl::string_view data() const { return src_; }
   void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
@@ -139,15 +129,6 @@ class Chain::StringRef {
 
   std::string src_;
 };
-
-inline Chain::StringRef::StringRef(StringRef&& that) noexcept
-    : src_(std::move(that.src_)) {}
-
-inline Chain::StringRef& Chain::StringRef::operator=(
-    StringRef&& that) noexcept {
-  src_ = std::move(that.src_);
-  return *this;
-}
 
 inline void Chain::StringRef::RegisterSubobjects(
     MemoryEstimator* memory_estimator) const {
@@ -384,9 +365,12 @@ inline void Chain::Block::AppendSubstrTo(absl::string_view substr, Chain* dest,
     dest->Append(substr, size_hint);
     return;
   }
-  dest->AppendExternal(
-      BlockRef(this, std::integral_constant<Ownership, Ownership::kShare>()),
-      substr, size_hint);
+  dest->Append(
+      FlatChain::FromExternal<BlockRef>(
+          std::forward_as_tuple(
+              this, std::integral_constant<Ownership, Ownership::kShare>()),
+          substr),
+      size_hint);
 }
 
 Chain::Block* Chain::BlockIterator::PinImpl() {
@@ -1002,7 +986,14 @@ void Chain::Append(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
-  AppendExternal(StringRef(std::move(src)), size_hint);
+  if (src.size() <= kMaxBytesToCopy) {
+    // Not std::move(src): forward to Append(string_view).
+    Append(src, size_hint);
+    return;
+  }
+  Append(
+      FlatChain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
+      size_hint);
 }
 
 void Chain::Append(const Chain& src, size_t size_hint) {
@@ -1152,7 +1143,14 @@ void Chain::Prepend(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
-  PrependExternal(StringRef(std::move(src)), size_hint);
+  if (src.size() <= kMaxBytesToCopy) {
+    // Not std::move(src): forward to Prepend(string_view).
+    Prepend(src, size_hint);
+    return;
+  }
+  Prepend(
+      FlatChain::FromExternal<StringRef>(std::forward_as_tuple(std::move(src))),
+      size_hint);
 }
 
 void Chain::Prepend(const Chain& src, size_t size_hint) {
@@ -1366,65 +1364,31 @@ void Chain::AppendBlock(Block* block, size_t size_hint) {
   size_ += block->size();
 }
 
-void Chain::RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
-                              void (*drop_object)(void*, absl::string_view),
-                              void* object, absl::string_view data,
-                              size_t size_hint) {
-  RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::AppendExternal(): "
+template <Chain::Ownership ownership>
+void Chain::PrependBlock(Block* block, size_t size_hint) {
+  RIEGELI_ASSERT_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::PrependBlock(): "
          "Chain size overflow";
-  if (data.size() <= kMaxBytesToCopy) {
-    Append(data, size_hint);
-    drop_object(object, data);
+  if (block->empty()) {
+    block->Unref<ownership>();
     return;
   }
   if (begin_ == end_) {
-    if (!empty()) {
-      // Copy short data to a real block.
-      Block* const real = Block::NewInternal(kMaxShortDataSize);
-      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(real);
+    if (block->tiny()) {
+      // The block must be rewritten. Merge short data with it to a new block.
+      RIEGELI_ASSERT_LE(block->size(), Block::kMaxCapacity - size_)
+          << "Sum of sizes of short data and a tiny block exceeds "
+             "Block::kMaxCapacity";
+      const size_t capacity =
+          NewBlockCapacity(size_, block->size(), 0, size_hint);
+      Block* const merged = Block::NewInternal(capacity);
+      merged->Prepend(short_data());
+      merged->Prepend(block->data());
+      PushFront(merged);
+      size_ += block->size();
+      block->Unref<ownership>();
+      return;
     }
-  } else {
-    Block* const last = back();
-    if (last->empty()) {
-      // The last block is empty and must be removed.
-      PopBack();
-      last->Unref();
-    } else if (last->wasteful()) {
-      // The last block must reduce waste.
-      if (last->can_append(data.size()) &&
-          data.size() <= kAllocationCost * 2 + last->size()) {
-        // Appending in place is possible and is cheaper than rewriting the last
-        // block and allocating an external block.
-        last->Append(data);
-        size_ += data.size();
-        drop_object(object, data);
-        return;
-      }
-      // Appending in place is not possible, or rewriting the last block and
-      // allocating an external block is cheaper.
-      back() = last->Copy<Ownership::kSteal>();
-    }
-  }
-  Block* const block = new_block(object, data);
-  PushBack(block);
-  size_ += block->size();
-}
-
-void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
-                               void (*drop_object)(void*, absl::string_view),
-                               void* object, absl::string_view data,
-                               size_t size_hint) {
-  RIEGELI_CHECK_LE(data.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::PrependExternal(): "
-         "Chain size overflow";
-  if (data.size() <= kMaxBytesToCopy) {
-    Prepend(data, size_hint);
-    drop_object(object, data);
-    return;
-  }
-  if (begin_ == end_) {
     if (!empty()) {
       // Copy short data to a real block.
       Block* const real = Block::NewInternal(kMaxShortDataSize);
@@ -1433,30 +1397,64 @@ void Chain::RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
     }
   } else {
     Block* const first = front();
+    if (first->tiny() && block->tiny()) {
+      // Boundary blocks must be merged.
+      if (first->can_prepend(block->size())) {
+        // Boundary blocks can be prepended in place; this is always cheaper
+        // than merging them to a new block.
+        first->Prepend(block->data());
+      } else {
+        // Boundary blocks cannot be prepended in place. Merge them to a new
+        // block.
+        RIEGELI_ASSERT_LE(block->size(), Block::kMaxCapacity - first->size())
+            << "Sum of sizes of two tiny blocks exceeds Block::kMaxCapacity";
+        Block* const merged = Block::NewInternal(
+            NewBlockCapacity(first->size(), block->size(), 0, size_hint));
+        merged->Prepend(first->data());
+        merged->Prepend(block->data());
+        first->Unref();
+        front() = merged;
+      }
+      size_ += block->size();
+      block->Unref<ownership>();
+      return;
+    }
     if (first->empty()) {
       // The first block is empty and must be removed.
-      PopFront();
       first->Unref();
-    } else if (first->wasteful()) {
+      front() = block->Ref();
+      size_ += block->size();
+      block->Unref<ownership>();
+      return;
+    }
+    if (first->wasteful()) {
       // The first block must reduce waste.
-      if (first->can_prepend(data.size()) &&
-          data.size() <= kAllocationCost * 2 + first->size()) {
+      if (first->can_prepend(block->size()) &&
+          block->size() <= kAllocationCost + first->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
-        // first block and allocating an external block.
-        first->Prepend(data);
-        size_ += data.size();
-        drop_object(object, data);
+        // first block.
+        first->Prepend(block->data());
+        size_ += block->size();
+        block->Unref<ownership>();
         return;
       }
-      // Prepending in place is not possible, or rewriting the first block and
-      // allocating an external block is cheaper.
+      // Prepending in place is not possible, or rewriting the first block is
+      // cheaper.
       front() = first->Copy<Ownership::kSteal>();
     }
   }
-  Block* const block = new_block(object, data);
-  PushFront(block);
+  PushFront(block->Ref<ownership>());
   size_ += block->size();
 }
+
+template void Chain::AppendBlock<Chain::Ownership::kShare>(Block* block,
+                                                           size_t size_hint);
+template void Chain::AppendBlock<Chain::Ownership::kSteal>(Block* block,
+                                                           size_t size_hint);
+template void Chain::PrependBlock<Chain::Ownership::kShare>(Block* block,
+                                                            size_t size_hint);
+template void Chain::PrependBlock<Chain::Ownership::kSteal>(Block* block,
+                                                            size_t size_hint);
 
 void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   RIEGELI_ASSERT_GT(length, 0u)
@@ -1487,16 +1485,18 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = block->data();
   data.remove_suffix(length);
-  // Compensate for increasing size_ by Append() or AppendExternal().
+  // Compensate for increasing size_ by Append().
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Append(data, size_hint);
     block->Unref();
     return;
   }
-  AppendExternal(
-      BlockRef(block, std::integral_constant<Ownership, Ownership::kSteal>()),
-      data, size_hint);
+  Append(FlatChain::FromExternal<BlockRef>(
+             std::forward_as_tuple(
+                 block, std::integral_constant<Ownership, Ownership::kSteal>()),
+             data),
+         size_hint);
 }
 
 void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
@@ -1544,16 +1544,19 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = block->data();
   data.remove_prefix(length);
-  // Compensate for increasing size_ by Prepend() or PrependExternal().
+  // Compensate for increasing size_ by Prepend().
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Prepend(data, size_hint);
     block->Unref();
     return;
   }
-  PrependExternal(
-      BlockRef(block, std::integral_constant<Ownership, Ownership::kSteal>()),
-      data, size_hint);
+  Prepend(
+      FlatChain::FromExternal<BlockRef>(
+          std::forward_as_tuple(
+              block, std::integral_constant<Ownership, Ownership::kSteal>()),
+          data),
+      size_hint);
 }
 
 void swap(Chain& a, Chain& b) noexcept {

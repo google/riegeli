@@ -26,6 +26,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -66,6 +67,53 @@ class Chain {
   // AppendBuffer()/PrependBuffer().
   static constexpr size_t kAnyLength = std::numeric_limits<size_t>::max();
 
+  // Given an object which owns a byte array, converts it to a Chain by
+  // attaching the object, avoiding copying the bytes.
+  //
+  // If an object of type T is given, it is copied or moved to the Chain.
+  //
+  // If a tuple is given, an object of type T is constructed from elements of
+  // the tuple. This avoids constructing a temporary object and moving from it.
+  //
+  // After the object or tuple, if the data parameter is given, data must be
+  // valid for the copied, moved, or newly constructed object.
+  //
+  // If the data parameter is not given, T must support:
+  //
+  //   // Contents of the object.
+  //   absl::string_view data() const;
+  //
+  // T may also support the following member functions, either with or without
+  // the data parameter, with the following definitions assumed by default:
+  //
+  //   // Called once before the destructor, except on a moved-from object.
+  //   void operator()(absl::string_view data) const {}
+  //
+  //   // Registers this object with MemoryEstimator.
+  //   void RegisterSubobjects(absl::string_view data,
+  //                           MemoryEstimator* memory_estimator) const {
+  //     if (memory_estimator->RegisterNode(data.data())) {
+  //       memory_estimator->RegisterDynamicMemory(data.size());
+  //     }
+  //   }
+  //
+  //   // Shows internal structure in a human-readable way, for debugging.
+  //   void DumpStructure(absl::string_view data, std::ostream& out) const {
+  //     out << "External";
+  //   }
+  //
+  // The data parameter of these member functions, if present, will get the data
+  // used by FromExternal(). Having data available in these functions might
+  // avoid storing data in the external object.
+  template <typename T>
+  static Chain FromExternal(T&& object);
+  template <typename T>
+  static Chain FromExternal(T&& object, absl::string_view data);
+  template <typename T, typename... Args>
+  static Chain FromExternal(std::tuple<Args...> args);
+  template <typename T, typename... Args>
+  static Chain FromExternal(std::tuple<Args...> args, absl::string_view data);
+
   constexpr Chain() noexcept {}
 
   explicit Chain(absl::string_view src);
@@ -73,15 +121,6 @@ class Chain {
   explicit Chain(const char* src);
   explicit Chain(const FlatChain& src);
   explicit Chain(FlatChain&& src);
-
-  // Given an object which represents a string, converts it to a Chain by
-  // attaching the moved object, avoiding copying the string data.
-  //
-  // See AppendExternal() for details.
-  template <typename T>
-  static Chain FromExternal(T object);
-  template <typename T>
-  static Chain FromExternal(T object, absl::string_view data);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -156,61 +195,17 @@ class Chain {
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
   void Append(const char* src, size_t size_hint = 0);
+  void Append(const FlatChain& src, size_t size_hint = 0);
+  void Append(FlatChain&& src, size_t size_hint = 0);
   void Append(const Chain& src, size_t size_hint = 0);
   void Append(Chain&& src, size_t size_hint = 0);
   void Prepend(absl::string_view src, size_t size_hint = 0);
   void Prepend(std::string&& src, size_t size_hint = 0);
   void Prepend(const char* src, size_t size_hint = 0);
+  void Prepend(const FlatChain& src, size_t size_hint = 0);
+  void Prepend(FlatChain&& src, size_t size_hint = 0);
   void Prepend(const Chain& src, size_t size_hint = 0);
   void Prepend(Chain&& src, size_t size_hint = 0);
-
-  // Given an object which represents a string, appends/prepends it by attaching
-  // the moved object, avoiding copying the string data.
-  //
-  // The type T of the object must be movable.
-  //
-  // If the data parameter is not given, T must support:
-  //
-  //   // Contents of the object.
-  //   absl::string_view data() const;
-  //
-  // If the data parameter is given, data must remain valid after the object is
-  // moved.
-  //
-  // T may also support the following member functions, either with or without
-  // the data parameter, with the following definitions assumed by default:
-  //
-  //   // Called once before the destructor, except on a moved-from object.
-  //   void operator()(absl::string_view data) const {}
-  //
-  //   // Registers this object with MemoryEstimator.
-  //   void RegisterSubobjects(absl::string_view data,
-  //                           MemoryEstimator* memory_estimator) const {
-  //     if (memory_estimator->RegisterNode(data.data())) {
-  //       memory_estimator->RegisterDynamicMemory(data.size());
-  //     }
-  //   }
-  //
-  //   // Shows internal structure in a human-readable way, for debugging.
-  //   void DumpStructure(absl::string_view data, std::ostream& out) const {
-  //     out << "External";
-  //   }
-  //
-  // Their data parameter, if present, will get the original value of the data
-  // parameter of AppendExternal()/PrependExternal() (if given) or data()
-  // (otherwise). Having data available in these functions might avoid storing
-  // data in the external object.
-  //
-  // AppendExternal()/PrependExternal() can decide to copy data instead. This is
-  // always the case if data.size() <= kMaxBytesToCopy.
-  template <typename T>
-  void AppendExternal(T object, size_t size_hint = 0);
-  template <typename T>
-  void AppendExternal(T object, absl::string_view data, size_t size_hint = 0);
-  template <typename T>
-  void PrependExternal(T object, size_t size_hint = 0);
-  template <typename T>
-  void PrependExternal(T object, absl::string_view data, size_t size_hint = 0);
 
   void RemoveSuffix(size_t length, size_t size_hint = 0);
   void RemovePrefix(size_t length, size_t size_hint = 0);
@@ -361,15 +356,8 @@ class Chain {
 
   template <Ownership ownership>
   void AppendBlock(Block* block, size_t size_hint);
-
-  void RawAppendExternal(Block* (*new_block)(void*, absl::string_view),
-                         void (*drop_object)(void*, absl::string_view),
-                         void* object, absl::string_view data,
-                         size_t size_hint);
-  void RawPrependExternal(Block* (*new_block)(void*, absl::string_view),
-                          void (*drop_object)(void*, absl::string_view),
-                          void* object, absl::string_view data,
-                          size_t size_hint);
+  template <Ownership ownership>
+  void PrependBlock(Block* block, size_t size_hint);
 
   void RemoveSuffixSlow(size_t length, size_t size_hint);
   void RemovePrefixSlow(size_t length, size_t size_hint);
@@ -577,6 +565,20 @@ class FlatChain {
   // AppendBuffer()/PrependBuffer().
   static constexpr size_t kAnyLength = Chain::kAnyLength;
 
+  // Given an object which owns a byte array, converts it to a FlatChain by
+  // attaching the object, avoiding copying the bytes.
+  //
+  // See Chain::FromExternal() for details.
+  template <typename T>
+  static FlatChain FromExternal(T&& object);
+  template <typename T>
+  static FlatChain FromExternal(T&& object, absl::string_view data);
+  template <typename T, typename... Args>
+  static FlatChain FromExternal(std::tuple<Args...> args);
+  template <typename T, typename... Args>
+  static FlatChain FromExternal(std::tuple<Args...> args,
+                                absl::string_view data);
+
   constexpr FlatChain() noexcept {}
 
   FlatChain(const FlatChain& that) noexcept;
@@ -678,6 +680,9 @@ class FlatChain {
 //  - Tiny blocks must not be adjacent.
 class Chain::Block {
  public:
+  template <typename T>
+  struct ExternalType {};
+
   static constexpr size_t kInternalAllocatedOffset();
   static constexpr size_t kMaxCapacity = FlatChain::kMaxSize;
 
@@ -688,17 +693,18 @@ class Chain::Block {
   // SizeReturningNewAligned().
   explicit Block(const size_t* raw_capacity);
 
-  // Constructs an external block containing the moved object and sets block
-  // data to moved_object.data() (the size parameter is used for an assertion).
-  // This constructor is public for NewAligned().
-  template <typename T>
-  explicit Block(T* object, size_t expected_size);
+  // Constructs an external block containing an external object constructed from
+  // args, and sets block data to object.data(). This constructor is public for
+  // NewAligned().
+  template <typename T, typename... Args>
+  explicit Block(ExternalType<T>, std::tuple<Args...> args);
 
-  // Constructs an external block containing the moved object and sets block
-  // data to the data parameter, which must remain valid after the object is
-  // moved. This constructor is public for NewAligned().
-  template <typename T>
-  explicit Block(T* object, absl::string_view data);
+  // Constructs an external block containing an external object constructed from
+  // args, and sets block data to the data parameter. This constructor is public
+  // for NewAligned().
+  template <typename T, typename... Args>
+  explicit Block(ExternalType<T>, std::tuple<Args...> args,
+                 absl::string_view data);
 
   template <Ownership ownership = Ownership::kShare>
   Block* Ref();
@@ -779,6 +785,10 @@ class Chain::Block {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
+  template <typename T, typename... Args, size_t... Indices>
+  void ConstructExternal(std::tuple<Args...> args,
+                         absl::index_sequence<Indices...>);
+
   bool has_unique_owner() const;
 
   bool is_internal() const { return allocated_end_ != nullptr; }
@@ -801,9 +811,6 @@ class Chain::Block {
     // If is_external(), the remaining fields.
     External external_;
   };
-
-  // Invariant: if is_external(), data() is the same as external_object.data()
-  // where external_object is the stored external object.
 };
 
 struct Chain::ExternalMethods {
@@ -939,19 +946,15 @@ DumpStructure(T* object, absl::string_view data, std::ostream& out) {
 
 template <typename T>
 struct Chain::ExternalMethodsFor {
-  // object has type T*. Creates an external block containing the moved object
-  // and sets block data to moved_object.data() (the data parameter is used
-  // for an assertion).
-  static Block* NewBlockImplicitData(void* object, absl::string_view data);
+  // Creates an external block containing an external object constructed from
+  // args, and sets block data to object.data().
+  template <typename... Args>
+  static Block* NewBlock(std::tuple<Args...> args);
 
-  // object has type T*. Creates an external block containing the moved object
-  // and sets block data to the data parameter, which must remain valid after
-  // the object is moved.
-  static Block* NewBlockExplicitData(void* object, absl::string_view data);
-
-  // object has type T*. Calls T::operator() to prepare for destruction of the
-  // object.
-  static void DropObject(void* object, absl::string_view data);
+  // Creates an external block containing an external object constructed from
+  // args, and sets block data to the data parameter.
+  template <typename... Args>
+  static Block* NewBlock(std::tuple<Args...> args, absl::string_view data);
 
   static const Chain::ExternalMethods methods;
 
@@ -963,25 +966,21 @@ struct Chain::ExternalMethodsFor {
 };
 
 template <typename T>
-inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockImplicitData(
-    void* object, absl::string_view data) {
+template <typename... Args>
+inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlock(
+    std::tuple<Args...> args) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
-      data.size());
+      Block::kExternalObjectOffset<T>() + sizeof(T), Block::ExternalType<T>(),
+      std::move(args));
 }
 
 template <typename T>
-inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlockExplicitData(
-    void* object, absl::string_view data) {
+template <typename... Args>
+inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlock(
+    std::tuple<Args...> args, absl::string_view data) {
   return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      Block::kExternalObjectOffset<T>() + sizeof(T), static_cast<T*>(object),
-      data);
-}
-
-template <typename T>
-inline void Chain::ExternalMethodsFor<T>::DropObject(void* object,
-                                                     absl::string_view data) {
-  internal::CallOperator(static_cast<T*>(object), data);
+      Block::kExternalObjectOffset<T>() + sizeof(T), Block::ExternalType<T>(),
+      std::move(args), data);
 }
 
 template <typename T>
@@ -1012,21 +1011,19 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const Block* block,
                           out);
 }
 
-template <typename T>
-inline Chain::Block::Block(T* object, size_t expected_size) {
-  external_.methods = &ExternalMethodsFor<T>::methods;
-  new (unchecked_external_object<T>()) T(std::move(*object));
+template <typename T, typename... Args>
+inline Chain::Block::Block(ExternalType<T>, std::tuple<Args...> args) {
+  ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
   data_ = unchecked_external_object<T>()->data();
-  RIEGELI_ASSERT_EQ(data_.size(), expected_size)
-      << "Moving an external object changed its data size";
   RIEGELI_ASSERT(is_external())
       << "A Block with allocated_end_ == nullptr should be considered external";
 }
 
-template <typename T>
-inline Chain::Block::Block(T* object, absl::string_view data) : data_(data) {
-  external_.methods = &ExternalMethodsFor<T>::methods;
-  new (unchecked_external_object<T>()) T(std::move(*object));
+template <typename T, typename... Args>
+inline Chain::Block::Block(ExternalType<T>, std::tuple<Args...> args,
+                           absl::string_view data)
+    : data_(data) {
+  ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
   RIEGELI_ASSERT(is_external())
       << "A Block with allocated_end_ == nullptr should be considered external";
 }
@@ -1060,6 +1057,13 @@ void Chain::Block::Unref() {
       external_.methods->delete_block(this);
     }
   }
+}
+
+template <typename T, typename... Args, size_t... Indices>
+inline void Chain::Block::ConstructExternal(std::tuple<Args...> args,
+                                            absl::index_sequence<Indices...>) {
+  external_.methods = &ExternalMethodsFor<T>::methods;
+  new (unchecked_external_object<T>()) T(std::move(std::get<Indices>(args))...);
 }
 
 inline bool Chain::Block::has_unique_owner() const {
@@ -1500,22 +1504,24 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
 }
 
 template <typename T>
-inline Chain Chain::FromExternal(T object) {
-  const absl::string_view data = object.data();
-  Chain result;
-  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockImplicitData,
-                           Chain::ExternalMethodsFor<T>::DropObject, &object,
-                           data, data.size());
-  return result;
+inline Chain Chain::FromExternal(T&& object) {
+  return Chain(FlatChain::FromExternal(std::forward<T>(object)));
 }
 
 template <typename T>
-inline Chain Chain::FromExternal(T object, absl::string_view data) {
-  Chain result;
-  result.RawAppendExternal(Chain::ExternalMethodsFor<T>::NewBlockExplicitData,
-                           Chain::ExternalMethodsFor<T>::DropObject, &object,
-                           data, data.size());
-  return result;
+inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
+  return Chain(FlatChain::FromExternal(std::forward<T>(object), data));
+}
+
+template <typename T, typename... Args>
+inline Chain Chain::FromExternal(std::tuple<Args...> args) {
+  return Chain(FlatChain::FromExternal(std::move(args)));
+}
+
+template <typename T, typename... Args>
+inline Chain Chain::FromExternal(std::tuple<Args...> args,
+                                 absl::string_view data) {
+  return Chain(FlatChain::FromExternal(std::move(args), data));
 }
 
 inline Chain::Chain(absl::string_view src) { Append(src, src.size()); }
@@ -1607,17 +1613,12 @@ inline void Chain::Reset(const char* src) { Reset(absl::string_view(src)); }
 
 inline void Chain::Reset(const FlatChain& src) {
   Clear();
-  if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kShare>(src.block_, src.block_->size());
-  }
+  Append(src, src.size());
 }
 
 inline void Chain::Reset(FlatChain&& src) {
   Clear();
-  if (src.block_ != nullptr) {
-    const size_t size = src.block_->size();
-    AppendBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr), size);
-  }
+  Append(std::move(src), src.size());
 }
 
 inline void Chain::Clear() {
@@ -1676,35 +1677,40 @@ inline void Chain::Prepend(const char* src, size_t size_hint) {
   Prepend(absl::string_view(src), size_hint);
 }
 
-template <typename T>
-inline void Chain::AppendExternal(T object, size_t size_hint) {
-  RawAppendExternal(ExternalMethodsFor<T>::NewBlockImplicitData,
-                    ExternalMethodsFor<T>::DropObject, &object, object.data(),
-                    size_hint);
+inline void Chain::Append(const FlatChain& src, size_t size_hint) {
+  if (src.block_ != nullptr) {
+    AppendBlock<Ownership::kShare>(src.block_, size_hint);
+  }
 }
 
-template <typename T>
-inline void Chain::AppendExternal(T object, absl::string_view data,
-                                  size_t size_hint) {
-  RawAppendExternal(ExternalMethodsFor<T>::NewBlockExplicitData,
-                    ExternalMethodsFor<T>::DropObject, &object, data,
-                    size_hint);
+inline void Chain::Prepend(const FlatChain& src, size_t size_hint) {
+  if (src.block_ != nullptr) {
+    PrependBlock<Ownership::kShare>(src.block_, size_hint);
+  }
 }
 
-template <typename T>
-inline void Chain::PrependExternal(T object, size_t size_hint) {
-  RawPrependExternal(ExternalMethodsFor<T>::NewBlockImplicitData,
-                     ExternalMethodsFor<T>::DropObject, &object, object.data(),
-                     size_hint);
+inline void Chain::Append(FlatChain&& src, size_t size_hint) {
+  if (src.block_ != nullptr) {
+    AppendBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
+                                   size_hint);
+  }
 }
 
-template <typename T>
-inline void Chain::PrependExternal(T object, absl::string_view data,
-                                   size_t size_hint) {
-  RawPrependExternal(ExternalMethodsFor<T>::NewBlockExplicitData,
-                     ExternalMethodsFor<T>::DropObject, &object, data,
-                     size_hint);
+inline void Chain::Prepend(FlatChain&& src, size_t size_hint) {
+  if (src.block_ != nullptr) {
+    PrependBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
+                                    size_hint);
+  }
 }
+
+extern template void Chain::AppendBlock<Chain::Ownership::kShare>(
+    Block* block, size_t size_hint);
+extern template void Chain::AppendBlock<Chain::Ownership::kSteal>(
+    Block* block, size_t size_hint);
+extern template void Chain::PrependBlock<Chain::Ownership::kShare>(
+    Block* block, size_t size_hint);
+extern template void Chain::PrependBlock<Chain::Ownership::kSteal>(
+    Block* block, size_t size_hint);
 
 inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
   if (length == 0) return;
@@ -1810,6 +1816,30 @@ inline bool operator<=(absl::string_view a, const Chain& b) {
 
 inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
+}
+
+template <typename T>
+inline FlatChain FlatChain::FromExternal(T&& object) {
+  return FlatChain(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+      std::forward_as_tuple(std::forward<T>(object))));
+}
+
+template <typename T>
+inline FlatChain FlatChain::FromExternal(T&& object, absl::string_view data) {
+  return FlatChain(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+      std::forward_as_tuple(std::forward<T>(object)), data));
+}
+
+template <typename T, typename... Args>
+inline FlatChain FlatChain::FromExternal(std::tuple<Args...> args) {
+  return FlatChain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
+}
+
+template <typename T, typename... Args>
+inline FlatChain FlatChain::FromExternal(std::tuple<Args...> args,
+                                         absl::string_view data) {
+  return FlatChain(
+      Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
 }
 
 inline FlatChain::FlatChain(FlatChain&& that) noexcept

@@ -36,11 +36,9 @@
 #include <string>
 #include <tuple>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -58,45 +56,19 @@ namespace {
 
 class MMapRef {
  public:
-  MMapRef(void* data, size_t size) : data_(data), size_(size) {}
+  MMapRef() noexcept {}
 
-  MMapRef(MMapRef&& that) noexcept;
-  ABSL_ATTRIBUTE_UNUSED MMapRef& operator=(MMapRef&& that) noexcept;
+  MMapRef(const MMapRef&) = delete;
+  MMapRef& operator=(const MMapRef&) = delete;
 
-  ~MMapRef();
-
-  absl::string_view data() const {
-    return absl::string_view(static_cast<const char*>(data_), size_);
-  }
+  void operator()(absl::string_view data) const;
   void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
-
- private:
-  void* data_;
-  size_t size_;
 };
 
-MMapRef::MMapRef(MMapRef&& that) noexcept
-    : data_(absl::exchange(that.data_, nullptr)),
-      size_(absl::exchange(that.size_, 0)) {}
-
-MMapRef& MMapRef::operator=(MMapRef&& that) noexcept {
-  // Exchange that.data_ early to support self-assignment.
-  void* const data = absl::exchange(that.data_, nullptr);
-  if (data_ != nullptr) {
-    RIEGELI_CHECK_EQ(munmap(data_, size_), 0)
-        << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
-  }
-  data_ = data;
-  size_ = absl::exchange(that.size_, 0);
-  return *this;
-}
-
-MMapRef::~MMapRef() {
-  if (data_ != nullptr) {
-    RIEGELI_CHECK_EQ(munmap(data_, size_), 0)
-        << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
-  }
+void MMapRef::operator()(absl::string_view data) const {
+  RIEGELI_CHECK_EQ(munmap(const_cast<char*>(data.data()), data.size()), 0)
+      << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
 }
 
 void MMapRef::RegisterSubobjects(MemoryEstimator* memory_estimator) const {}
@@ -327,8 +299,10 @@ void FdMMapReaderBase::InitializePos(int src,
   // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
   // was not known in FdMMapReaderBase constructor. This sets the Chain and
   // updates the ChainReader to read from it.
-  ChainReader::Reset(
-      Chain::FromExternal(MMapRef(data, IntCast<size_t>(stat_info.st_size))));
+  ChainReader::Reset(std::forward_as_tuple(FlatChain::FromExternal<MMapRef>(
+      std::forward_as_tuple(),
+      absl::string_view(static_cast<const char*>(data),
+                        IntCast<size_t>(stat_info.st_size)))));
   if (initial_pos.has_value()) {
     cursor_ += UnsignedMin(*initial_pos, available());
   } else {
