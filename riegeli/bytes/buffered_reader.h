@@ -98,7 +98,7 @@ class BufferedReader : public Reader {
   Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is
   // limit_pos_.
-  FlatChain buffer_;
+  ChainBlock buffer_;
 
   // Invariants:
   //   if !buffer_.empty() then start_ == buffer_.data()

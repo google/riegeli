@@ -299,7 +299,7 @@ void FdMMapReaderBase::InitializePos(int src,
   // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
   // was not known in FdMMapReaderBase constructor. This sets the Chain and
   // updates the ChainReader to read from it.
-  ChainReader::Reset(std::forward_as_tuple(FlatChain::FromExternal<MMapRef>(
+  ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
       std::forward_as_tuple(),
       absl::string_view(static_cast<const char*>(data),
                         IntCast<size_t>(stat_info.st_size)))));

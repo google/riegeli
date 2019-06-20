@@ -111,7 +111,7 @@ class PullableReader : public Reader {
 
  private:
   struct Scratch {
-    FlatChain buffer;
+    ChainBlock buffer;
     const char* original_start = nullptr;
     const char* original_cursor = nullptr;
     const char* original_limit = nullptr;

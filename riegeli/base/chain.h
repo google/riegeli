@@ -43,7 +43,7 @@
 
 namespace riegeli {
 
-class FlatChain;
+class ChainBlock;
 
 // A Chain represents a sequence of bytes. It supports efficient appending and
 // prepending, and sharing memory with other Chains and other types. It does not
@@ -119,8 +119,8 @@ class Chain {
   explicit Chain(absl::string_view src);
   explicit Chain(std::string&& src);
   explicit Chain(const char* src);
-  explicit Chain(const FlatChain& src);
-  explicit Chain(FlatChain&& src);
+  explicit Chain(const ChainBlock& src);
+  explicit Chain(ChainBlock&& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -140,8 +140,8 @@ class Chain {
   void Reset(absl::string_view src);
   void Reset(std::string&& src);
   void Reset(const char* src);
-  void Reset(const FlatChain& src);
-  void Reset(FlatChain&& src);
+  void Reset(const ChainBlock& src);
+  void Reset(ChainBlock&& src);
 
   void Clear();
 
@@ -195,15 +195,15 @@ class Chain {
   void Append(absl::string_view src, size_t size_hint = 0);
   void Append(std::string&& src, size_t size_hint = 0);
   void Append(const char* src, size_t size_hint = 0);
-  void Append(const FlatChain& src, size_t size_hint = 0);
-  void Append(FlatChain&& src, size_t size_hint = 0);
+  void Append(const ChainBlock& src, size_t size_hint = 0);
+  void Append(ChainBlock&& src, size_t size_hint = 0);
   void Append(const Chain& src, size_t size_hint = 0);
   void Append(Chain&& src, size_t size_hint = 0);
   void Prepend(absl::string_view src, size_t size_hint = 0);
   void Prepend(std::string&& src, size_t size_hint = 0);
   void Prepend(const char* src, size_t size_hint = 0);
-  void Prepend(const FlatChain& src, size_t size_hint = 0);
-  void Prepend(FlatChain&& src, size_t size_hint = 0);
+  void Prepend(const ChainBlock& src, size_t size_hint = 0);
+  void Prepend(ChainBlock&& src, size_t size_hint = 0);
   void Prepend(const Chain& src, size_t size_hint = 0);
   void Prepend(Chain&& src, size_t size_hint = 0);
 
@@ -239,12 +239,12 @@ class Chain {
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
  private:
-  friend class FlatChain;
+  friend class ChainBlock;
 
   struct ExternalMethods;
   template <typename T>
   struct ExternalMethodsFor;
-  class Block;
+  class RawBlock;
   struct BlockPtrPtr;
   class BlockRef;
   class StringRef;
@@ -260,11 +260,11 @@ class Chain {
   struct Empty {};
 
   struct Allocated {
-    Block** begin;
-    Block** end;
+    RawBlock** begin;
+    RawBlock** end;
   };
 
-  static constexpr size_t kMaxShortDataSize = 2 * sizeof(Block*);
+  static constexpr size_t kMaxShortDataSize = 2 * sizeof(RawBlock*);
 
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
@@ -281,7 +281,7 @@ class Chain {
     char short_data[kMaxShortDataSize];
     // If has_here(), array of block pointers between begin_ == here and end_
     // (0 to 2 pointers).
-    Block* here[2];
+    RawBlock* here[2];
     // If has_allocated(), pointers to a heap-allocated array of block
     // pointers.
     Allocated allocated;
@@ -307,7 +307,7 @@ class Chain {
 
   absl::string_view short_data() const;
 
-  static Block** NewBlockPtrs(size_t capacity);
+  static RawBlock** NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();
   // If has_allocated(), delete the block pointer array and make has_here()
   // true. This is used before appending to short_data.
@@ -316,26 +316,26 @@ class Chain {
   void EnsureHasHere();
 
   void UnrefBlocks();
-  static void UnrefBlocks(Block* const* begin, Block* const* end);
-  static void UnrefBlocksSlow(Block* const* begin, Block* const* end);
+  static void UnrefBlocks(RawBlock* const* begin, RawBlock* const* end);
+  static void UnrefBlocksSlow(RawBlock* const* begin, RawBlock* const* end);
 
   void DropStolenBlocks(
       std::integral_constant<Ownership, Ownership::kShare>) const;
   void DropStolenBlocks(std::integral_constant<Ownership, Ownership::kSteal>);
 
-  Block*& back() { return end_[-1]; }
-  Block* const& back() const { return end_[-1]; }
-  Block*& front() { return begin_[0]; }
-  Block* const& front() const { return begin_[0]; }
+  RawBlock*& back() { return end_[-1]; }
+  RawBlock* const& back() const { return end_[-1]; }
+  RawBlock*& front() { return begin_[0]; }
+  RawBlock* const& front() const { return begin_[0]; }
 
-  void PushBack(Block* block);
-  void PushFront(Block* block);
+  void PushBack(RawBlock* block);
+  void PushFront(RawBlock* block);
   void PopBack();
   void PopFront();
   template <Ownership ownership>
-  void AppendBlocks(Block* const* begin, Block* const* end);
+  void AppendBlocks(RawBlock* const* begin, RawBlock* const* end);
   template <Ownership ownership>
-  void PrependBlocks(Block* const* begin, Block* const* end);
+  void PrependBlocks(RawBlock* const* begin, RawBlock* const* end);
   void ReserveBack(size_t extra_capacity);
   void ReserveFront(size_t extra_capacity);
 
@@ -355,9 +355,9 @@ class Chain {
   void PrependImpl(ChainRef&& src, size_t size_hint);
 
   template <Ownership ownership>
-  void AppendBlock(Block* block, size_t size_hint);
+  void AppendBlock(RawBlock* block, size_t size_hint);
   template <Ownership ownership>
-  void PrependBlock(Block* block, size_t size_hint);
+  void PrependBlock(RawBlock* block, size_t size_hint);
 
   void RemoveSuffixSlow(size_t length, size_t size_hint);
   void RemovePrefixSlow(size_t length, size_t size_hint);
@@ -372,8 +372,8 @@ class Chain {
   //                  and end_ <= block_ptrs_.here + 2
   //   if has_allocated() then begin_ >= block_ptrs_.allocated.begin
   //                       and end_ <= block_ptrs_.allocated.end
-  Block** begin_ = block_ptrs_.here;
-  Block** end_ = block_ptrs_.here;
+  RawBlock** begin_ = block_ptrs_.here;
+  RawBlock** end_ = block_ptrs_.here;
 
   // Invariants:
   //   if begin_ == end_ then size_ <= kMaxShortDataSize
@@ -383,15 +383,15 @@ class Chain {
   size_t size_ = 0;
 };
 
-// Represents either Block* const*, or one of two special values
+// Represents either RawBlock* const*, or one of two special values
 // (kBeginShortData and kEndShortData) behaving as if they were pointers in a
-// single-element Block* array.
+// single-element RawBlock* array.
 struct Chain::BlockPtrPtr {
  public:
-  static BlockPtrPtr from_ptr(Block* const* ptr);
+  static BlockPtrPtr from_ptr(RawBlock* const* ptr);
 
   bool is_special() const;
-  Block* const* as_ptr() const;
+  RawBlock* const* as_ptr() const;
 
   BlockPtrPtr operator+(ptrdiff_t n) const;
   BlockPtrPtr operator-(ptrdiff_t n) const;
@@ -457,17 +457,17 @@ class Chain::BlockIterator {
   friend difference_type operator-(BlockIterator a, BlockIterator b);
   friend BlockIterator operator+(difference_type n, BlockIterator a);
 
-  // Returns a FlatChain which pins the block pointed to by this iterator,
-  // keeping it alive and unchanged, until either the FlatChain is destroyed or
-  // FlatChain::Release() and FlatChain::DeleteReleased() are called.
+  // Returns a ChainBlock which pins the block pointed to by this iterator,
+  // keeping it alive and unchanged, until either the ChainBlock is destroyed or
+  // ChainBlock::Release() and ChainBlock::DeleteReleased() are called.
   //
-  // Warning: the data pointer of the returned FlatChain is not necessarily the
+  // Warning: the data pointer of the returned ChainBlock is not necessarily the
   // same as the data pointer of this BlockIterator (because of short Chain
-  // optimization). Convert the FlatChain to string_view or use
-  // FlatChain::data() for a data pointer valid for the pinned block.
+  // optimization). Convert the ChainBlock to string_view or use
+  // ChainBlock::data() for a data pointer valid for the pinned block.
   //
   // Precondition: this is not past the end iterator.
-  FlatChain Pin();
+  ChainBlock Pin();
 
   // Returns a pointer to the external object if this points to an external
   // block holding an object of type T, otherwise returns nullptr.
@@ -492,11 +492,11 @@ class Chain::BlockIterator {
   friend class Chain;
 
   static constexpr BlockPtrPtr kBeginShortData{0};
-  static constexpr BlockPtrPtr kEndShortData{sizeof(Block*)};
+  static constexpr BlockPtrPtr kEndShortData{sizeof(RawBlock*)};
 
   BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
-  Block* PinImpl();
+  RawBlock* PinImpl();
 
   const Chain* chain_ = nullptr;
   // If chain_ == nullptr, kBeginShortData.
@@ -551,13 +551,13 @@ class Chain::Blocks {
 
 // A simplified variant of Chain constrained to have at most one block.
 //
-// FlatChain uses the same block representation as Chain and thus can be
+// ChainBlock uses the same block representation as Chain and thus can be
 // efficiently appended to a Chain.
 //
-// FlatChain uses no short data optimization.
-class FlatChain {
+// ChainBlock uses no short data optimization.
+class ChainBlock {
  public:
-  // Maximum size of a FlatChain.
+  // Maximum size of a ChainBlock.
   static constexpr size_t kMaxSize =
       size_t{std::numeric_limits<ptrdiff_t>::max()};
 
@@ -565,32 +565,32 @@ class FlatChain {
   // AppendBuffer()/PrependBuffer().
   static constexpr size_t kAnyLength = Chain::kAnyLength;
 
-  // Given an object which owns a byte array, converts it to a FlatChain by
+  // Given an object which owns a byte array, converts it to a ChainBlock by
   // attaching the object, avoiding copying the bytes.
   //
   // See Chain::FromExternal() for details.
   template <typename T>
-  static FlatChain FromExternal(T&& object);
+  static ChainBlock FromExternal(T&& object);
   template <typename T>
-  static FlatChain FromExternal(T&& object, absl::string_view data);
+  static ChainBlock FromExternal(T&& object, absl::string_view data);
   template <typename T, typename... Args>
-  static FlatChain FromExternal(std::tuple<Args...> args);
+  static ChainBlock FromExternal(std::tuple<Args...> args);
   template <typename T, typename... Args>
-  static FlatChain FromExternal(std::tuple<Args...> args,
-                                absl::string_view data);
+  static ChainBlock FromExternal(std::tuple<Args...> args,
+                                 absl::string_view data);
 
-  constexpr FlatChain() noexcept {}
+  constexpr ChainBlock() noexcept {}
 
-  FlatChain(const FlatChain& that) noexcept;
-  FlatChain& operator=(const FlatChain& that) noexcept;
+  ChainBlock(const ChainBlock& that) noexcept;
+  ChainBlock& operator=(const ChainBlock& that) noexcept;
 
-  // The source FlatChain is left cleared.
+  // The source ChainBlock is left cleared.
   //
-  // Moving a FlatChain keeps its data pointers unchanged.
-  FlatChain(FlatChain&& that) noexcept;
-  FlatChain& operator=(FlatChain&& that) noexcept;
+  // Moving a ChainBlock keeps its data pointers unchanged.
+  ChainBlock(ChainBlock&& that) noexcept;
+  ChainBlock& operator=(ChainBlock&& that) noexcept;
 
-  ~FlatChain();
+  ~ChainBlock();
 
   void Clear();
 
@@ -603,7 +603,7 @@ class FlatChain {
   // least min_length, preferably recommended_length, and at most max_length.
   //
   // If min_length == 0, returns whatever space was already allocated (possibly
-  // an empty buffer). without invalidating existing pointers. If the FlatChain
+  // an empty buffer). without invalidating existing pointers. If the ChainBlock
   // was empty then the empty contents can be moved.
   //
   // If recommended_length < min_length, recommended_length is assumed to be
@@ -645,9 +645,9 @@ class FlatChain {
  private:
   friend class Chain;
 
-  using Block = Chain::Block;
+  using RawBlock = Chain::RawBlock;
 
-  explicit FlatChain(Block* block) : block_(block) {}
+  explicit ChainBlock(RawBlock* block) : block_(block) {}
 
   // Decides about the capacity of a new block to be appended/prepended.
   size_t NewBlockCapacity(size_t min_length, size_t recommended_length,
@@ -656,7 +656,7 @@ class FlatChain {
   void RemoveSuffixSlow(size_t length, size_t size_hint);
   void RemovePrefixSlow(size_t length, size_t size_hint);
 
-  Block* block_ = nullptr;
+  RawBlock* block_ = nullptr;
 };
 
 // Implementation details follow.
@@ -678,42 +678,42 @@ class FlatChain {
 // Invariants of a Chain:
 //  - A block can be empty or wasteful only if it is the first or last block.
 //  - Tiny blocks must not be adjacent.
-class Chain::Block {
+class Chain::RawBlock {
  public:
   template <typename T>
   struct ExternalType {};
 
   static constexpr size_t kInternalAllocatedOffset();
-  static constexpr size_t kMaxCapacity = FlatChain::kMaxSize;
+  static constexpr size_t kMaxCapacity = ChainBlock::kMaxSize;
 
   // Creates an internal block.
-  static Block* NewInternal(size_t min_capacity);
+  static RawBlock* NewInternal(size_t min_capacity);
 
   // Constructs an internal block. This constructor is public for
   // SizeReturningNewAligned().
-  explicit Block(const size_t* raw_capacity);
+  explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object constructed from
   // args, and sets block data to object.data(). This constructor is public for
   // NewAligned().
   template <typename T, typename... Args>
-  explicit Block(ExternalType<T>, std::tuple<Args...> args);
+  explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
 
   // Constructs an external block containing an external object constructed from
   // args, and sets block data to the data parameter. This constructor is public
   // for NewAligned().
   template <typename T, typename... Args>
-  explicit Block(ExternalType<T>, std::tuple<Args...> args,
-                 absl::string_view data);
+  explicit RawBlock(ExternalType<T>, std::tuple<Args...> args,
+                    absl::string_view data);
 
   template <Ownership ownership = Ownership::kShare>
-  Block* Ref();
+  RawBlock* Ref();
 
   template <Ownership ownership = Ownership::kSteal>
   void Unref();
 
   template <Ownership ownership>
-  Block* Copy();
+  RawBlock* Copy();
 
   bool TryClear();
 
@@ -744,7 +744,7 @@ class Chain::Block {
   bool tiny(size_t extra_size = 0) const;
   bool wasteful(size_t extra_size = 0) const;
 
-  // Registers this Block with MemoryEstimator.
+  // Registers this RawBlock with MemoryEstimator.
   void RegisterShared(MemoryEstimator* memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
@@ -814,10 +814,10 @@ class Chain::Block {
 };
 
 struct Chain::ExternalMethods {
-  void (*delete_block)(Block* block);
-  void (*register_unique)(const Block* block,
+  void (*delete_block)(RawBlock* block);
+  void (*register_unique)(const RawBlock* block,
                           MemoryEstimator* memory_estimator);
-  void (*dump_structure)(const Block* block, std::ostream& out);
+  void (*dump_structure)(const RawBlock* block, std::ostream& out);
 };
 
 namespace internal {
@@ -949,38 +949,38 @@ struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
   // args, and sets block data to object.data().
   template <typename... Args>
-  static Block* NewBlock(std::tuple<Args...> args);
+  static RawBlock* NewBlock(std::tuple<Args...> args);
 
   // Creates an external block containing an external object constructed from
   // args, and sets block data to the data parameter.
   template <typename... Args>
-  static Block* NewBlock(std::tuple<Args...> args, absl::string_view data);
+  static RawBlock* NewBlock(std::tuple<Args...> args, absl::string_view data);
 
   static const Chain::ExternalMethods methods;
 
  private:
-  static void DeleteBlock(Block* block);
-  static void RegisterUnique(const Block* block,
+  static void DeleteBlock(RawBlock* block);
+  static void RegisterUnique(const RawBlock* block,
                              MemoryEstimator* memory_estimator);
-  static void DumpStructure(const Block* block, std::ostream& out);
+  static void DumpStructure(const RawBlock* block, std::ostream& out);
 };
 
 template <typename T>
 template <typename... Args>
-inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlock(
+inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     std::tuple<Args...> args) {
-  return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      Block::kExternalObjectOffset<T>() + sizeof(T), Block::ExternalType<T>(),
-      std::move(args));
+  return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
+      RawBlock::kExternalObjectOffset<T>() + sizeof(T),
+      RawBlock::ExternalType<T>(), std::move(args));
 }
 
 template <typename T>
 template <typename... Args>
-inline Chain::Block* Chain::ExternalMethodsFor<T>::NewBlock(
+inline Chain::RawBlock* Chain::ExternalMethodsFor<T>::NewBlock(
     std::tuple<Args...> args, absl::string_view data) {
-  return NewAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      Block::kExternalObjectOffset<T>() + sizeof(T), Block::ExternalType<T>(),
-      std::move(args), data);
+  return NewAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
+      RawBlock::kExternalObjectOffset<T>() + sizeof(T),
+      RawBlock::ExternalType<T>(), std::move(args), data);
 }
 
 template <typename T>
@@ -988,58 +988,58 @@ const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
     DeleteBlock, RegisterUnique, DumpStructure};
 
 template <typename T>
-void Chain::ExternalMethodsFor<T>::DeleteBlock(Block* block) {
+void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
   internal::CallOperator(block->unchecked_external_object<T>(), block->data());
   block->unchecked_external_object<T>()->~T();
-  DeleteAligned<Block, UnsignedMax(alignof(Block), alignof(T))>(
-      block, Block::kExternalObjectOffset<T>() + sizeof(T));
+  DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
+      block, RawBlock::kExternalObjectOffset<T>() + sizeof(T));
 }
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::RegisterUnique(
-    const Block* block, MemoryEstimator* memory_estimator) {
-  memory_estimator->RegisterDynamicMemory(Block::kExternalObjectOffset<T>() +
+    const RawBlock* block, MemoryEstimator* memory_estimator) {
+  memory_estimator->RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
                                           sizeof(T));
   internal::RegisterSubobjects(block->unchecked_external_object<T>(),
                                block->data(), memory_estimator);
 }
 
 template <typename T>
-void Chain::ExternalMethodsFor<T>::DumpStructure(const Block* block,
+void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
                                                  std::ostream& out) {
   internal::DumpStructure(block->unchecked_external_object<T>(), block->data(),
                           out);
 }
 
 template <typename T, typename... Args>
-inline Chain::Block::Block(ExternalType<T>, std::tuple<Args...> args) {
+inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
   ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
   data_ = unchecked_external_object<T>()->data();
-  RIEGELI_ASSERT(is_external())
-      << "A Block with allocated_end_ == nullptr should be considered external";
+  RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
+                                   "should be considered external";
 }
 
 template <typename T, typename... Args>
-inline Chain::Block::Block(ExternalType<T>, std::tuple<Args...> args,
-                           absl::string_view data)
+inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
+                                 absl::string_view data)
     : data_(data) {
   ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
-  RIEGELI_ASSERT(is_external())
-      << "A Block with allocated_end_ == nullptr should be considered external";
+  RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
+                                   "should be considered external";
 }
 
-constexpr size_t Chain::Block::kInternalAllocatedOffset() {
-  return offsetof(Block, allocated_begin_);
+constexpr size_t Chain::RawBlock::kInternalAllocatedOffset() {
+  return offsetof(RawBlock, allocated_begin_);
 }
 
 template <typename T>
-constexpr size_t Chain::Block::kExternalObjectOffset() {
-  return RoundUp<alignof(T)>(offsetof(Block, external_) +
+constexpr size_t Chain::RawBlock::kExternalObjectOffset() {
+  return RoundUp<alignof(T)>(offsetof(RawBlock, external_) +
                              offsetof(External, object_lower_bound));
 }
 
 template <Chain::Ownership ownership>
-inline Chain::Block* Chain::Block::Ref() {
+inline Chain::RawBlock* Chain::RawBlock::Ref() {
   if (ownership == Ownership::kShare) {
     ref_count_.fetch_add(1, std::memory_order_relaxed);
   }
@@ -1047,12 +1047,12 @@ inline Chain::Block* Chain::Block::Ref() {
 }
 
 template <Chain::Ownership ownership>
-void Chain::Block::Unref() {
+void Chain::RawBlock::Unref() {
   if (ownership == Ownership::kSteal &&
       (has_unique_owner() ||
        ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1)) {
     if (is_internal()) {
-      DeleteAligned<Block>(this, kInternalAllocatedOffset() + capacity());
+      DeleteAligned<RawBlock>(this, kInternalAllocatedOffset() + capacity());
     } else {
       external_.methods->delete_block(this);
     }
@@ -1060,50 +1060,50 @@ void Chain::Block::Unref() {
 }
 
 template <typename T, typename... Args, size_t... Indices>
-inline void Chain::Block::ConstructExternal(std::tuple<Args...> args,
-                                            absl::index_sequence<Indices...>) {
+inline void Chain::RawBlock::ConstructExternal(
+    std::tuple<Args...> args, absl::index_sequence<Indices...>) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(std::get<Indices>(args))...);
 }
 
-inline bool Chain::Block::has_unique_owner() const {
+inline bool Chain::RawBlock::has_unique_owner() const {
   return ref_count_.load(std::memory_order_acquire) == 1;
 }
 
-inline size_t Chain::Block::capacity() const {
+inline size_t Chain::RawBlock::capacity() const {
   RIEGELI_ASSERT(is_internal())
-      << "Failed precondition of Chain::Block::capacity(): "
+      << "Failed precondition of Chain::RawBlock::capacity(): "
          "block not internal";
   return PtrDistance(allocated_begin_, allocated_end_);
 }
 
 template <typename T>
-inline T* Chain::Block::unchecked_external_object() {
+inline T* Chain::RawBlock::unchecked_external_object() {
   RIEGELI_ASSERT(is_external())
-      << "Failed precondition of Chain::Block::unchecked_external_object(): "
+      << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
   return reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
                               kExternalObjectOffset<T>());
 }
 
 template <typename T>
-inline const T* Chain::Block::unchecked_external_object() const {
+inline const T* Chain::RawBlock::unchecked_external_object() const {
   RIEGELI_ASSERT(is_external())
-      << "Failed precondition of Chain::Block::unchecked_external_object(): "
+      << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
   return reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
                                     kExternalObjectOffset<T>());
 }
 
 template <typename T>
-inline const T* Chain::Block::checked_external_object() const {
+inline const T* Chain::RawBlock::checked_external_object() const {
   return is_external() && external_.methods == &ExternalMethodsFor<T>::methods
              ? unchecked_external_object<T>()
              : nullptr;
 }
 
 template <typename T>
-inline T* Chain::Block::checked_external_object_with_unique_owner() {
+inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
   return is_external() &&
                  external_.methods == &ExternalMethodsFor<T>::methods &&
                  has_unique_owner()
@@ -1111,7 +1111,7 @@ inline T* Chain::Block::checked_external_object_with_unique_owner() {
              : nullptr;
 }
 
-inline bool Chain::Block::TryClear() {
+inline bool Chain::RawBlock::TryClear() {
   if (is_internal() && has_unique_owner()) {
     data_.remove_suffix(size());
     return true;
@@ -1119,9 +1119,9 @@ inline bool Chain::Block::TryClear() {
   return false;
 }
 
-inline bool Chain::Block::TryRemoveSuffix(size_t length) {
+inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
-      << "Failed precondition of Chain::Block::TryRemoveSuffix(): "
+      << "Failed precondition of Chain::RawBlock::TryRemoveSuffix(): "
       << "length to remove greater than current size";
   if (is_internal() && has_unique_owner()) {
     data_.remove_suffix(length);
@@ -1130,9 +1130,9 @@ inline bool Chain::Block::TryRemoveSuffix(size_t length) {
   return false;
 }
 
-inline bool Chain::Block::TryRemovePrefix(size_t length) {
+inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
-      << "Failed precondition of Chain::Block::TryRemovePrefix(): "
+      << "Failed precondition of Chain::RawBlock::TryRemovePrefix(): "
       << "length to remove greater than current size";
   if (is_internal() && has_unique_owner()) {
     data_.remove_prefix(length);
@@ -1141,17 +1141,17 @@ inline bool Chain::Block::TryRemovePrefix(size_t length) {
   return false;
 }
 
-inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(Block* const* ptr) {
+inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(RawBlock* const* ptr) {
   return BlockPtrPtr{reinterpret_cast<uintptr_t>(ptr)};
 }
 
 inline bool Chain::BlockPtrPtr::is_special() const {
-  return repr <= sizeof(Block*);
+  return repr <= sizeof(RawBlock*);
 }
 
-inline Chain::Block* const* Chain::BlockPtrPtr::as_ptr() const {
+inline Chain::RawBlock* const* Chain::BlockPtrPtr::as_ptr() const {
   RIEGELI_ASSERT(!is_special()) << "Unexpected special BlockPtrPtr value";
-  return reinterpret_cast<Block* const*>(repr);
+  return reinterpret_cast<RawBlock* const*>(repr);
 }
 
 // Code conditional on is_special() is written such that both branches typically
@@ -1160,14 +1160,14 @@ inline Chain::Block* const* Chain::BlockPtrPtr::as_ptr() const {
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
   if (is_special()) {
-    return BlockPtrPtr{repr + n * ptrdiff_t{sizeof(Block*)}};
+    return BlockPtrPtr{repr + n * ptrdiff_t{sizeof(RawBlock*)}};
   }
   return BlockPtrPtr::from_ptr(as_ptr() + n);
 }
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator-(ptrdiff_t n) const {
   if (is_special()) {
-    return BlockPtrPtr{repr - n * ptrdiff_t{sizeof(Block*)}};
+    return BlockPtrPtr{repr - n * ptrdiff_t{sizeof(RawBlock*)}};
   }
   return BlockPtrPtr::from_ptr(as_ptr() - n);
 }
@@ -1182,13 +1182,13 @@ inline ptrdiff_t operator-(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
     // rounds in the same way as right shift (towards -inf), not as division
     // (towards zero), so the right shift allows the compiler to eliminate the
     // is_special() check.
-    switch (sizeof(Chain::Block*)) {
+    switch (sizeof(Chain::RawBlock*)) {
       case 1 << 2:
         return byte_diff >> 2;
       case 1 << 3:
         return byte_diff >> 3;
       default:
-        return byte_diff / ptrdiff_t{sizeof(Chain::Block*)};
+        return byte_diff / ptrdiff_t{sizeof(Chain::RawBlock*)};
     }
   }
   return a.as_ptr() - b.as_ptr();
@@ -1402,7 +1402,7 @@ inline const T* Chain::BlockIterator::external_object() const {
   }
 }
 
-inline FlatChain Chain::BlockIterator::Pin() { return FlatChain(PinImpl()); }
+inline ChainBlock Chain::BlockIterator::Pin() { return ChainBlock(PinImpl()); }
 
 inline Chain::Blocks::Blocks(const Blocks& that) noexcept
     : chain_(that.chain_) {}
@@ -1505,23 +1505,23 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object) {
-  return Chain(FlatChain::FromExternal(std::forward<T>(object)));
+  return Chain(ChainBlock::FromExternal(std::forward<T>(object)));
 }
 
 template <typename T>
 inline Chain Chain::FromExternal(T&& object, absl::string_view data) {
-  return Chain(FlatChain::FromExternal(std::forward<T>(object), data));
+  return Chain(ChainBlock::FromExternal(std::forward<T>(object), data));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args) {
-  return Chain(FlatChain::FromExternal(std::move(args)));
+  return Chain(ChainBlock::FromExternal(std::move(args)));
 }
 
 template <typename T, typename... Args>
 inline Chain Chain::FromExternal(std::tuple<Args...> args,
                                  absl::string_view data) {
-  return Chain(FlatChain::FromExternal(std::move(args), data));
+  return Chain(ChainBlock::FromExternal(std::move(args), data));
 }
 
 inline Chain::Chain(absl::string_view src) { Append(src, src.size()); }
@@ -1530,17 +1530,17 @@ inline Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
 
 inline Chain::Chain(const char* src) : Chain(absl::string_view(src)) {}
 
-inline Chain::Chain(const FlatChain& src) {
+inline Chain::Chain(const ChainBlock& src) {
   if (src.block_ != nullptr) {
-    Block* const block = src.block_->Ref();
+    RawBlock* const block = src.block_->Ref();
     *end_++ = block;
     size_ = block->size();
   }
 }
 
-inline Chain::Chain(FlatChain&& src) {
+inline Chain::Chain(ChainBlock&& src) {
   if (src.block_ != nullptr) {
-    Block* const block = absl::exchange(src.block_, nullptr);
+    RawBlock* const block = absl::exchange(src.block_, nullptr);
     *end_++ = block;
     size_ = block->size();
   }
@@ -1568,8 +1568,8 @@ inline Chain::Chain(Chain&& that) noexcept
 
 inline Chain& Chain::operator=(Chain&& that) noexcept {
   // Exchange that.begin_ and that.end_ early to support self-assignment.
-  Block** begin;
-  Block** end;
+  RawBlock** begin;
+  RawBlock** end;
   if (that.has_here()) {
     // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
@@ -1611,12 +1611,12 @@ inline void Chain::Reset(std::string&& src) {
 
 inline void Chain::Reset(const char* src) { Reset(absl::string_view(src)); }
 
-inline void Chain::Reset(const FlatChain& src) {
+inline void Chain::Reset(const ChainBlock& src) {
   Clear();
   Append(src, src.size());
 }
 
-inline void Chain::Reset(FlatChain&& src) {
+inline void Chain::Reset(ChainBlock&& src) {
   Clear();
   Append(std::move(src), src.size());
 }
@@ -1634,7 +1634,7 @@ inline absl::string_view Chain::short_data() const {
 
 inline void Chain::DeleteBlockPtrs() {
   if (has_allocated()) {
-    std::allocator<Block*>().deallocate(
+    std::allocator<RawBlock*>().deallocate(
         block_ptrs_.allocated.begin,
         block_ptrs_.allocated.end - block_ptrs_.allocated.begin);
   }
@@ -1642,7 +1642,7 @@ inline void Chain::DeleteBlockPtrs() {
 
 inline void Chain::UnrefBlocks() { UnrefBlocks(begin_, end_); }
 
-inline void Chain::UnrefBlocks(Block* const* begin, Block* const* end) {
+inline void Chain::UnrefBlocks(RawBlock* const* begin, RawBlock* const* end) {
   if (begin != end) UnrefBlocksSlow(begin, end);
 }
 
@@ -1677,26 +1677,26 @@ inline void Chain::Prepend(const char* src, size_t size_hint) {
   Prepend(absl::string_view(src), size_hint);
 }
 
-inline void Chain::Append(const FlatChain& src, size_t size_hint) {
+inline void Chain::Append(const ChainBlock& src, size_t size_hint) {
   if (src.block_ != nullptr) {
     AppendBlock<Ownership::kShare>(src.block_, size_hint);
   }
 }
 
-inline void Chain::Prepend(const FlatChain& src, size_t size_hint) {
+inline void Chain::Prepend(const ChainBlock& src, size_t size_hint) {
   if (src.block_ != nullptr) {
     PrependBlock<Ownership::kShare>(src.block_, size_hint);
   }
 }
 
-inline void Chain::Append(FlatChain&& src, size_t size_hint) {
+inline void Chain::Append(ChainBlock&& src, size_t size_hint) {
   if (src.block_ != nullptr) {
     AppendBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
                                    size_hint);
   }
 }
 
-inline void Chain::Prepend(FlatChain&& src, size_t size_hint) {
+inline void Chain::Prepend(ChainBlock&& src, size_t size_hint) {
   if (src.block_ != nullptr) {
     PrependBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
                                     size_hint);
@@ -1704,13 +1704,13 @@ inline void Chain::Prepend(FlatChain&& src, size_t size_hint) {
 }
 
 extern template void Chain::AppendBlock<Chain::Ownership::kShare>(
-    Block* block, size_t size_hint);
+    RawBlock* block, size_t size_hint);
 extern template void Chain::AppendBlock<Chain::Ownership::kSteal>(
-    Block* block, size_t size_hint);
+    RawBlock* block, size_t size_hint);
 extern template void Chain::PrependBlock<Chain::Ownership::kShare>(
-    Block* block, size_t size_hint);
+    RawBlock* block, size_t size_hint);
 extern template void Chain::PrependBlock<Chain::Ownership::kSteal>(
-    Block* block, size_t size_hint);
+    RawBlock* block, size_t size_hint);
 
 inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
   if (length == 0) return;
@@ -1819,94 +1819,94 @@ inline bool operator>=(absl::string_view a, const Chain& b) {
 }
 
 template <typename T>
-inline FlatChain FlatChain::FromExternal(T&& object) {
-  return FlatChain(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+inline ChainBlock ChainBlock::FromExternal(T&& object) {
+  return ChainBlock(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
       std::forward_as_tuple(std::forward<T>(object))));
 }
 
 template <typename T>
-inline FlatChain FlatChain::FromExternal(T&& object, absl::string_view data) {
-  return FlatChain(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+inline ChainBlock ChainBlock::FromExternal(T&& object, absl::string_view data) {
+  return ChainBlock(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
       std::forward_as_tuple(std::forward<T>(object)), data));
 }
 
 template <typename T, typename... Args>
-inline FlatChain FlatChain::FromExternal(std::tuple<Args...> args) {
-  return FlatChain(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
+inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args) {
+  return ChainBlock(Chain::ExternalMethodsFor<T>::NewBlock(std::move(args)));
 }
 
 template <typename T, typename... Args>
-inline FlatChain FlatChain::FromExternal(std::tuple<Args...> args,
-                                         absl::string_view data) {
-  return FlatChain(
+inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args,
+                                           absl::string_view data) {
+  return ChainBlock(
       Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
 }
 
-inline FlatChain::FlatChain(FlatChain&& that) noexcept
+inline ChainBlock::ChainBlock(ChainBlock&& that) noexcept
     : block_(absl::exchange(that.block_, nullptr)) {}
 
-inline FlatChain& FlatChain::operator=(FlatChain&& that) noexcept {
+inline ChainBlock& ChainBlock::operator=(ChainBlock&& that) noexcept {
   // Exchange that.block_ early to support self-assignment.
-  Block* const block = absl::exchange(that.block_, nullptr);
+  RawBlock* const block = absl::exchange(that.block_, nullptr);
   if (block_ != nullptr) block_->Unref();
   block_ = block;
   return *this;
 }
 
-inline FlatChain::FlatChain(const FlatChain& that) noexcept
+inline ChainBlock::ChainBlock(const ChainBlock& that) noexcept
     : block_(that.block_) {
   if (block_ != nullptr) block_->Ref();
 }
 
-inline FlatChain& FlatChain::operator=(const FlatChain& that) noexcept {
-  Block* const block = that.block_;
+inline ChainBlock& ChainBlock::operator=(const ChainBlock& that) noexcept {
+  RawBlock* const block = that.block_;
   if (block != nullptr) block->Ref();
   if (block_ != nullptr) block_->Unref();
   block_ = block;
   return *this;
 }
 
-inline FlatChain::~FlatChain() {
+inline ChainBlock::~ChainBlock() {
   if (block_ != nullptr) block_->Unref();
 }
 
-inline void FlatChain::Clear() {
+inline void ChainBlock::Clear() {
   if (block_ != nullptr && !block_->TryClear()) {
     block_->Unref();
     block_ = nullptr;
   }
 }
 
-inline FlatChain::operator absl::string_view() const {
+inline ChainBlock::operator absl::string_view() const {
   return block_ == nullptr ? absl::string_view() : block_->data();
 }
 
-inline const char* FlatChain::data() const {
+inline const char* ChainBlock::data() const {
   return block_ == nullptr ? nullptr : block_->data().data();
 }
 
-inline size_t FlatChain::size() const {
+inline size_t ChainBlock::size() const {
   return block_ == nullptr ? size_t{0} : block_->data().size();
 }
 
-inline bool FlatChain::empty() const {
+inline bool ChainBlock::empty() const {
   return block_ == nullptr || block_->empty();
 }
 
-inline absl::Span<char> FlatChain::AppendFixedBuffer(size_t length,
-                                                     size_t size_hint) {
+inline absl::Span<char> ChainBlock::AppendFixedBuffer(size_t length,
+                                                      size_t size_hint) {
   return AppendBuffer(length, length, length, size_hint);
 }
 
-inline absl::Span<char> FlatChain::PrependFixedBuffer(size_t length,
-                                                      size_t size_hint) {
+inline absl::Span<char> ChainBlock::PrependFixedBuffer(size_t length,
+                                                       size_t size_hint) {
   return PrependBuffer(length, length, length, size_hint);
 }
 
-inline void FlatChain::RemoveSuffix(size_t length, size_t size_hint) {
+inline void ChainBlock::RemoveSuffix(size_t length, size_t size_hint) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of FlatChain::RemoveSuffix(): "
+      << "Failed precondition of ChainBlock::RemoveSuffix(): "
       << "length to remove greater than current size";
   if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) {
     return;
@@ -1914,10 +1914,10 @@ inline void FlatChain::RemoveSuffix(size_t length, size_t size_hint) {
   RemoveSuffixSlow(length, size_hint);
 }
 
-inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
+inline void ChainBlock::RemovePrefix(size_t length, size_t size_hint) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of FlatChain::RemovePrefix(): "
+      << "Failed precondition of ChainBlock::RemovePrefix(): "
       << "length to remove greater than current size";
   if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) {
     return;
@@ -1925,10 +1925,10 @@ inline void FlatChain::RemovePrefix(size_t length, size_t size_hint) {
   RemovePrefixSlow(length, size_hint);
 }
 
-inline void* FlatChain::Release() { return absl::exchange(block_, nullptr); }
+inline void* ChainBlock::Release() { return absl::exchange(block_, nullptr); }
 
-inline void FlatChain::DeleteReleased(void* ptr) {
-  if (ptr != nullptr) static_cast<Block*>(ptr)->Unref();
+inline void ChainBlock::DeleteReleased(void* ptr) {
+  if (ptr != nullptr) static_cast<RawBlock*>(ptr)->Unref();
 }
 
 template <>

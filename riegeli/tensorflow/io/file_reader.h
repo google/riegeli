@@ -178,7 +178,7 @@ class FileReaderBase : public Reader {
   // the physical source position which is limit_pos_. Otherwise buffered data
   // are in memory managed by the RandomAccessFile. In any case start_ points to
   // them.
-  FlatChain buffer_;
+  ChainBlock buffer_;
 
   // Invariants if !buffer_.empty():
   //   start_ == buffer_.data()
