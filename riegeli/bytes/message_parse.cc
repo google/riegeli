@@ -213,6 +213,7 @@ Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
   }
   ChainReader<> reader(&src);
   return internal::ParsePartialFromReaderImpl(dest, &reader);
+  // Do not bother closing the ChainReader<>, it can never fail.
 }
 
 }  // namespace riegeli
