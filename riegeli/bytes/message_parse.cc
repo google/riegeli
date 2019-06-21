@@ -150,6 +150,26 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
       return OkStatus();
     }
   }
+  return ParsePartialFromReaderUsingInputStream(dest, src);
+}
+
+Status ParseFromReaderUsingInputStream(google::protobuf::MessageLite* dest,
+                                       Reader* src) {
+  {
+    const Status status = ParsePartialFromReaderUsingInputStream(dest, src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+  }
+  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
+    return DataLossError(
+        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
+                     " because it is missing required fields: ",
+                     dest->InitializationErrorString()));
+  }
+  return OkStatus();
+}
+
+Status ParsePartialFromReaderUsingInputStream(
+    google::protobuf::MessageLite* dest, Reader* src) {
   ReaderInputStream input_stream(src);
   if (ABSL_PREDICT_FALSE(
           !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
@@ -163,13 +183,36 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
 }  // namespace internal
 
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
-  return ParseFromReader<ChainReader<>>(dest, std::forward_as_tuple(&src));
+  {
+    const Status status = ParsePartialFromChain(dest, src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+  }
+  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
+    return DataLossError(
+        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
+                     " because it is missing required fields: ",
+                     dest->InitializationErrorString()));
+  }
+  return OkStatus();
 }
 
 Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src) {
-  return ParsePartialFromReader<ChainReader<>>(dest,
-                                               std::forward_as_tuple(&src));
+  if (absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (ABSL_PREDICT_TRUE(flat->size() <=
+                          size_t{std::numeric_limits<int>::max()})) {
+      // The data are flat. ParsePartialFromArray() is faster than
+      // ParsePartialFromZeroCopyStream().
+      if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
+              flat->data(), IntCast<int>(flat->size())))) {
+        return DataLossError(absl::StrCat("Failed to parse message of type ",
+                                          dest->GetTypeName()));
+      }
+      return OkStatus();
+    }
+  }
+  ChainReader<> reader(&src);
+  return internal::ParsePartialFromReaderImpl(dest, &reader);
 }
 
 }  // namespace riegeli

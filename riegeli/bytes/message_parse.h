@@ -75,6 +75,11 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src);
 Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
                                   Reader* src);
 
+Status ParseFromReaderUsingInputStream(google::protobuf::MessageLite* dest,
+                                       Reader* src);
+Status ParsePartialFromReaderUsingInputStream(
+    google::protobuf::MessageLite* dest, Reader* src);
+
 }  // namespace internal
 
 template <typename Src>
