@@ -30,6 +30,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
@@ -1061,7 +1062,8 @@ void Chain::RawBlock::Unref() {
 
 template <typename T, typename... Args, size_t... Indices>
 inline void Chain::RawBlock::ConstructExternal(
-    std::tuple<Args...> args, absl::index_sequence<Indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Args...> args,
+    absl::index_sequence<Indices...>) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(std::get<Indices>(args))...);
 }
