@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -68,13 +67,6 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
   return WriteInternal(src);
-}
-
-bool LimitingBackwardWriterBase::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
-      << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
-         "length too small, use Write(string&&) instead";
-  return WriteInternal(std::move(src));
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {

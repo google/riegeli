@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
 
@@ -72,7 +71,6 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
-  bool WriteSlow(std::string&& src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
 

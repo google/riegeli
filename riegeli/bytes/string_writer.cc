@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
@@ -81,27 +82,6 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
   return true;
 }
 
-bool StringWriterBase::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Writer::WriteSlow(string&&): "
-         "length too small, use Write(string&&) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  std::string* const dest = dest_string();
-  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
-      << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
-    return FailOverflow();
-  }
-  SyncBuffer(dest);
-  if (dest->empty() && dest->capacity() <= src.capacity()) {
-    *dest = std::move(src);
-  } else {
-    dest->append(src);
-  }
-  MakeBuffer(dest);
-  return true;
-}
-
 bool StringWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -115,6 +95,23 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
   }
   SyncBuffer(dest);
   src.AppendTo(dest);
+  MakeBuffer(dest);
+  return true;
+}
+
+bool StringWriterBase::WriteSlow(Chain&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Chain&&): "
+         "length too small, use Write(Chain) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  std::move(src).AppendTo(dest);
   MakeBuffer(dest);
   return true;
 }

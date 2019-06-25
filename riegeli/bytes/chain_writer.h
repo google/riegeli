@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
 
@@ -80,7 +79,6 @@ class ChainWriterBase : public Writer {
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
-  bool WriteSlow(std::string&& src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
 

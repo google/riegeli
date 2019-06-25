@@ -153,7 +153,8 @@ class Chain {
   bool empty() const { return size_ == 0; }
 
   void CopyTo(char* dest) const;
-  void AppendTo(std::string* dest) const;
+  void AppendTo(std::string* dest) const&;
+  void AppendTo(std::string* dest) &&;
   explicit operator std::string() const&;
   explicit operator std::string() &&;
 

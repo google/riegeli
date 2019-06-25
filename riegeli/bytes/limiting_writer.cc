@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -67,13 +66,6 @@ bool LimitingWriterBase::WriteSlow(absl::string_view src) {
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "length too small, use Write(string_view) instead";
   return WriteInternal(src);
-}
-
-bool LimitingWriterBase::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
-      << "Failed precondition of Writer::WriteSlow(string&&): "
-         "length too small, use Write(string&&) instead";
-  return WriteInternal(std::move(src));
 }
 
 bool LimitingWriterBase::WriteSlow(const Chain& src) {

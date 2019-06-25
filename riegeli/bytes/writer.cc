@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <cstring>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -57,14 +56,6 @@ bool Writer::WriteSlow(absl::string_view src) {
   std::memcpy(cursor_, src.data(), src.size());
   cursor_ += src.size();
   return true;
-}
-
-bool Writer::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Writer::WriteSlow(string&&): "
-         "length too small, use Write(string&&) instead";
-  // Not std::move(src): forward to Write(string_view).
-  return Write(src);
 }
 
 bool Writer::WriteSlow(const Chain& src) {

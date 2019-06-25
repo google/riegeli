@@ -116,7 +116,7 @@ inline void Chain::BlockRef::DumpStructure(absl::string_view data,
 
 class Chain::StringRef {
  public:
-  explicit StringRef(std::string src) : src_(std::move(src)) {}
+  explicit StringRef(std::string&& src) : src_(std::move(src)) {}
 
   StringRef(const StringRef&) = delete;
   StringRef& operator=(const StringRef&) = delete;
@@ -517,11 +517,36 @@ void Chain::CopyTo(char* dest) const {
   }
 }
 
-void Chain::AppendTo(std::string* dest) const {
+void Chain::AppendTo(std::string* dest) const& {
   const size_t size_before = dest->size();
   RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
       << "Failed precondition of Chain::AppendTo(string*): "
          "string size overflow";
+  dest->resize(size_before + size_);
+  CopyTo(&(*dest)[size_before]);
+}
+
+void Chain::AppendTo(std::string* dest) && {
+  const size_t size_before = dest->size();
+  RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
+      << "Failed precondition of Chain::AppendTo(string*): "
+         "string size overflow";
+  if (dest->empty() && end_ - begin_ == 1) {
+    RawBlock* const block = front();
+    if (StringRef* const string_ref =
+            block->checked_external_object_with_unique_owner<StringRef>()) {
+      RIEGELI_ASSERT_EQ(block->size(), string_ref->data().size())
+          << "Failed invariant of Chain::RawBlock: "
+             "block size differs from string size";
+      if (dest->capacity() <= string_ref->src_.capacity()) {
+        *dest = std::move(string_ref->src_);
+        block->Unref();
+        end_ = begin_;
+        size_ = 0;
+        return;
+      }
+    }
+  }
   dest->resize(size_before + size_);
   CopyTo(&(*dest)[size_before]);
 }

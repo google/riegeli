@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -53,25 +52,6 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
   }
   SyncBuffer(dest);
   MakeBuffer(dest, min_length, recommended_length);
-  return true;
-}
-
-bool ChainBackwardWriterBase::WriteSlow(std::string&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of BackwardWriter::WriteSlow(string&&): "
-         "length too small, use Write(string&&) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
-      << "ChainBackwardWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
-    return FailOverflow();
-  }
-  SyncBuffer(dest);
-  start_pos_ += src.size();
-  dest->Prepend(std::move(src), size_hint_);
-  MakeBuffer(dest);
   return true;
 }
 

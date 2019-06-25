@@ -190,18 +190,16 @@ class BackwardWriter : public Object {
   // Implementation of the slow part of Write().
   //
   // By default WriteSlow(string_view) is implemented in terms of Push();
-  // WriteSlow(string&&) and WriteSlow(const Chain&) are
-  // implemented in terms of WriteSlow(string_view); and WriteSlow(Chain&&) is
-  // implemented in terms of WriteSlow(const Chain&).
+  // WriteSlow(const Chain&) is implemented in terms of
+  // WriteSlow(string_view); and WriteSlow(Chain&&) is implemented in terms of
+  // WriteSlow(const Chain&).
   //
   // Precondition for WriteSlow(string_view):
   //   src.size() > available()
   //
-  // Precondition for WriteSlow(string&&), WriteSlow(const Chain&), and
-  // WriteSlow(Chain&&):
+  // Precondition for WriteSlow(Chain&&):
   //   src.size() > UnsignedMin(available(), kMaxBytesToCopy)
   virtual bool WriteSlow(absl::string_view src);
-  virtual bool WriteSlow(std::string&& src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
 
@@ -304,7 +302,7 @@ inline bool BackwardWriter::Write(std::string&& src) {
     }
     return true;
   }
-  return WriteSlow(std::move(src));
+  return WriteSlow(Chain(std::move(src)));
 }
 
 inline bool BackwardWriter::Write(const char* src) {
