@@ -14,8 +14,6 @@
 
 #include "riegeli/bytes/string_reader.h"
 
-#include <string>
-
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
