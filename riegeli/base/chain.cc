@@ -1321,23 +1321,23 @@ void Chain::AppendBlock(RawBlock* block, size_t size_hint) {
     return;
   }
   if (begin_ == end_) {
-    if (block->tiny()) {
-      // The block must be rewritten. Merge short data with it to a new block.
-      RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
-          << "Sum of sizes of short data and a tiny block exceeds "
-             "RawBlock::kMaxCapacity";
-      const size_t capacity = NewBlockCapacity(
-          size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
-          size_hint);
-      RawBlock* const merged = RawBlock::NewInternal(capacity);
-      merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      merged->Append(block->data());
-      PushBack(merged);
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (!empty()) {
+    if (!short_data().empty()) {
+      if (block->tiny()) {
+        // The block must be rewritten. Merge short data with it to a new block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+            << "Sum of sizes of short data and a tiny block exceeds "
+               "RawBlock::kMaxCapacity";
+        const size_t capacity = NewBlockCapacity(
+            size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
+            size_hint);
+        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+        merged->Append(block->data());
+        PushBack(merged);
+        size_ += block->size();
+        block->Unref<ownership>();
+        return;
+      }
       // Copy short data to a real block.
       RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
@@ -1405,22 +1405,22 @@ void Chain::PrependBlock(RawBlock* block, size_t size_hint) {
     return;
   }
   if (begin_ == end_) {
-    if (block->tiny()) {
-      // The block must be rewritten. Merge short data with it to a new block.
-      RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
-          << "Sum of sizes of short data and a tiny block exceeds "
-             "RawBlock::kMaxCapacity";
-      const size_t capacity =
-          NewBlockCapacity(size_, block->size(), 0, size_hint);
-      RawBlock* const merged = RawBlock::NewInternal(capacity);
-      merged->Prepend(short_data());
-      merged->Prepend(block->data());
-      PushFront(merged);
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (!empty()) {
+    if (!short_data().empty()) {
+      if (block->tiny()) {
+        // The block must be rewritten. Merge short data with it to a new block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+            << "Sum of sizes of short data and a tiny block exceeds "
+               "RawBlock::kMaxCapacity";
+        const size_t capacity =
+            NewBlockCapacity(size_, block->size(), 0, size_hint);
+        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        merged->Prepend(short_data());
+        merged->Prepend(block->data());
+        PushFront(merged);
+        size_ += block->size();
+        block->Unref<ownership>();
+        return;
+      }
       // Copy short data to a real block.
       RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
       real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
