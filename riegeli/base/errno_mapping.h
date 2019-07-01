@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_STR_ERROR_H_
-#define RIEGELI_BASE_STR_ERROR_H_
+#ifndef RIEGELI_BASE_ERRNO_MAPPING_H_
+#define RIEGELI_BASE_ERRNO_MAPPING_H_
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/status.h"
@@ -25,4 +25,4 @@ Status ErrnoToCanonicalStatus(int error_number, absl::string_view message);
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_STR_ERROR_H_
+#endif  // RIEGELI_BASE_ERRNO_MAPPING_H_
