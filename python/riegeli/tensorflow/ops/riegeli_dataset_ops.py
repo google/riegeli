@@ -47,5 +47,5 @@ class RiegeliDataset(dataset_ops.DatasetSource):
     super(RiegeliDataset, self).__init__(variant_tensor)
 
   @property
-  def _element_structure(self):
+  def element_spec(self):
     return structure.TensorStructure(tf.dtypes.string, [])
