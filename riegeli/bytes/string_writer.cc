@@ -51,15 +51,15 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     if (ABSL_PREDICT_FALSE(min_length > dest->max_size() - dest->size())) {
       return FailOverflow();
     }
-    dest->reserve(
-        UnsignedMin(UnsignedMax(SaturatingAdd(dest->size(), recommended_length),
-                                // Double the size, and round up to one below a
-                                // possible allocated size (for NUL terminator).
-                                EstimatedAllocatedSize(SaturatingAdd(
-                                    dest->size(), dest->size(), size_t{1})) -
-                                    1,
-                                dest->size() + min_length),
-                    dest->max_size()));
+    dest->reserve(UnsignedMin(
+        UnsignedMax(SaturatingAdd(dest->size(),
+                                  UnsignedMax(min_length, recommended_length)),
+                    // Double the capacity, and round up to one below a possible
+                    // allocated size (for NUL terminator).
+                    EstimatedAllocatedSize(SaturatingAdd(
+                        dest->capacity(), dest->capacity(), size_t{1})) -
+                        1),
+        dest->max_size()));
   }
   MakeBuffer(dest);
   return true;
