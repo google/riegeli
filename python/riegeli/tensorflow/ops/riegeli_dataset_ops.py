@@ -17,6 +17,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import distutils.version
 from riegeli.tensorflow.ops import gen_riegeli_dataset_ops
 import tensorflow as tf
 
@@ -49,3 +50,9 @@ class RiegeliDataset(dataset_ops.DatasetSource):
   @property
   def element_spec(self):
     return structure.TensorStructure(tf.dtypes.string, [])
+
+  _tf_version = distutils.version.LooseVersion(tf.__version__)
+  if (_tf_version < distutils.version.LooseVersion('1.15') or
+      _tf_version >= distutils.version.LooseVersion('2') and
+      _tf_version < distutils.version.LooseVersion('2.1')):
+    _element_structure = element_spec
