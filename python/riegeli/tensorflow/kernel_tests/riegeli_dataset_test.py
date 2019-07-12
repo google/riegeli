@@ -30,6 +30,7 @@ from tensorflow.python.eager import context
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import sparse_tensor
 from tensorflow.python.framework import test_util
+from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.platform import test
 
 
@@ -38,7 +39,7 @@ from tensorflow.python.platform import test
 class DatasetTestBase(test.TestCase):
   """Base class for dataset tests."""
 
-  def getNext(self, dataset, requires_initialization=False):
+  def getNext(self, dataset, requires_initialization=False, shared_name=None):
     """Returns a callable that returns the next element of the dataset.
 
     Example use:
@@ -54,21 +55,37 @@ class DatasetTestBase(test.TestCase):
       requires_initialization: Indicates that when the test is executed in graph
         mode, it should use an initializable iterator to iterate through the
         dataset (e.g. when it contains stateful nodes). Defaults to False.
+      shared_name: (Optional.) If non-empty, the returned iterator will be
+        shared under the given name across multiple sessions that share the same
+        devices (e.g. when using a remote server).
 
     Returns:
-      A callable that returns the next element of `dataset`.
+      A callable that returns the next element of `dataset`. Any `TensorArray`
+      objects `dataset` outputs are stacked.
     """
+
+    def ta_wrapper(gn):
+
+      def _wrapper():
+        r = gn()
+        if isinstance(r, tensor_array_ops.TensorArray):
+          return r.stack()
+        else:
+          return r
+
+      return _wrapper
+
     if context.executing_eagerly():
       iterator = iter(dataset)
-      return iterator._next_internal  # pylint: disable=protected-access
+      return ta_wrapper(iterator._next_internal)  # pylint: disable=protected-access
     else:
       if requires_initialization:
-        iterator = dataset_ops.make_initializable_iterator(dataset)
+        iterator = dataset_ops.make_initializable_iterator(dataset, shared_name)
         self.evaluate(iterator.initializer)
       else:
         iterator = dataset_ops.make_one_shot_iterator(dataset)
       get_next = iterator.get_next()
-      return lambda: get_next
+      return ta_wrapper(lambda: get_next)
 
   def _compareOutputToExpected(self, result_values, expected_values,
                                assert_items_equal):
@@ -79,10 +96,7 @@ class DatasetTestBase(test.TestCase):
       nest.assert_same_structure(result_values[i], expected_values[i])
       for result_value, expected_value in zip(
           nest.flatten(result_values[i]), nest.flatten(expected_values[i])):
-        if sparse_tensor.is_sparse(result_value):
-          self.assertSparseValuesEqual(result_value, expected_value)
-        else:
-          self.assertAllEqual(result_value, expected_value)
+        self.assertValuesEqual(expected_value, result_value)
 
   def assertDatasetProduces(self,
                             dataset,
@@ -91,7 +105,8 @@ class DatasetTestBase(test.TestCase):
                             expected_error=None,
                             requires_initialization=False,
                             num_test_iterations=1,
-                            assert_items_equal=False):
+                            assert_items_equal=False,
+                            expected_error_iter=1):
     """Asserts that a dataset produces the expected output / error.
 
     Args:
@@ -113,6 +128,8 @@ class DatasetTestBase(test.TestCase):
         to 2.
       assert_items_equal: Tests expected_output has (only) the same elements
         regardless of order.
+      expected_error_iter: How many times to iterate before expecting an error,
+        if an error is expected.
     """
     self.assertTrue(
         expected_error is not None or expected_output is not None,
@@ -126,7 +143,8 @@ class DatasetTestBase(test.TestCase):
                                                expected_error[1]):
         get_next = self.getNext(
             dataset, requires_initialization=requires_initialization)
-        self.evaluate(get_next())
+        for _ in range(expected_error_iter):
+          self.evaluate(get_next())
       return
     if expected_shapes:
       self.assertEqual(expected_shapes,
