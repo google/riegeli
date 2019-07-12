@@ -89,7 +89,7 @@ extern "C" PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
   std::unique_ptr<PyRecordPositionObject, Deleter> self(
       reinterpret_cast<PyRecordPositionObject*>(cls->tp_alloc(cls, 0)));
   if (ABSL_PREDICT_FALSE(self == nullptr)) return nullptr;
-  self.get()->record_position.emplace(RecordPosition(
+  self->record_position.emplace(RecordPosition(
       IntCast<uint64_t>(chunk_begin), IntCast<uint64_t>(record_index)));
   return self.release();
 }
@@ -184,7 +184,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
   std::unique_ptr<PyRecordPositionObject, Deleter> self(
       reinterpret_cast<PyRecordPositionObject*>(cls->tp_alloc(cls, 0)));
   if (ABSL_PREDICT_FALSE(self == nullptr)) return nullptr;
-  self.get()->record_position.emplace(pos);
+  self->record_position.emplace(pos);
   return self.release();
 }
 
@@ -225,7 +225,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
   std::unique_ptr<PyRecordPositionObject, Deleter> self(
       reinterpret_cast<PyRecordPositionObject*>(cls->tp_alloc(cls, 0)));
   if (ABSL_PREDICT_FALSE(self == nullptr)) return nullptr;
-  self.get()->record_position.emplace(pos);
+  self->record_position.emplace(pos);
   return self.release();
 }
 
