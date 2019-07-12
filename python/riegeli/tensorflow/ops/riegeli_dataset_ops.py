@@ -22,7 +22,6 @@ from riegeli.tensorflow.ops import gen_riegeli_dataset_ops
 import tensorflow as tf
 
 from tensorflow.python.data.ops import dataset_ops
-from tensorflow.python.data.util import structure
 from tensorflow.python.framework import load_library
 from tensorflow.python.platform import resource_loader
 
@@ -49,10 +48,13 @@ class RiegeliDataset(dataset_ops.DatasetSource):
 
   @property
   def element_spec(self):
-    return structure.TensorStructure(tf.dtypes.string, [])
+    return tf.TensorSpec([], tf.dtypes.string)
 
   _tf_version = distutils.version.LooseVersion(tf.__version__)
   if (_tf_version < distutils.version.LooseVersion('1.15') or
       _tf_version >= distutils.version.LooseVersion('2') and
       _tf_version < distutils.version.LooseVersion('2.1')):
-    _element_structure = element_spec
+
+    @property
+    def _element_structure(self):
+      return tf.data.experimental.TensorStructure(tf.dtypes.string, [])
