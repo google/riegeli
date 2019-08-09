@@ -49,7 +49,7 @@ class Buffer {
 
   // Returns the data size, or the planned size if not allocated yet. The size
   // can increase when GetData() is called.
-  const size_t size() const { return size_; }
+  size_t size() const { return size_; }
 
   // Returns true if the buffer is already allocated and GetData() is fast.
   // Returns false if GetData() would allocate the buffer.
