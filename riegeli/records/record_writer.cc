@@ -680,6 +680,11 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
 }
 
 void RecordWriterBase::Done() {
+  if (ABSL_PREDICT_FALSE(worker_ == nullptr)) {
+    RIEGELI_ASSERT(!healthy()) << "Failed invariant of RecordWriterBase: "
+                                  "null worker_ but RecordWriterBase healthy()";
+    return;
+  }
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) Fail(*worker_);
     chunk_size_so_far_ = 0;
