@@ -533,11 +533,13 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 RIEGELI_INLINE_CONSTEXPR(size_t, kMinBufferSize, 256);
 RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
 
-// In the fast path of certain functions, even if enough data is available in a
-// buffer, the data is not copied if more than kMaxBytesToCopy is requested,
-// falling back to a virtual slow path instead. The virtual function might take
-// advantage of sharing instead of copying.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 511);
+// When deciding whether to copy an array of bytes or share memory, prefer
+// copying up to this length.
+//
+// Copying can often be done in an inlined fast path. Sharing has more overhead,
+// especially in a virtual slow path, so copying sufficiently short lengths
+// performs better.
+RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 
 // Heuristics for whether a partially filled buffer is wasteful.
 inline bool Wasteful(size_t total, size_t used) {

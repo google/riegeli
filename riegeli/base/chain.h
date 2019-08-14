@@ -300,6 +300,8 @@ class Chain {
     kSteal,
   };
 
+  // When deciding whether to copy an array of bytes or perform a small memory
+  // allocation, prefer copying up to this length.
   static constexpr size_t kAllocationCost = 256;
 
   void ClearSlow();

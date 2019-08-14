@@ -42,6 +42,7 @@ namespace riegeli {
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
 constexpr size_t Chain::kAnyLength;
+constexpr size_t Chain::kMaxShortDataSize;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::RawBlock::kMaxCapacity;
 constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
@@ -431,8 +432,6 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
     (*ptr_.as_ptr())->AppendSubstrTo(substr, dest, size_hint);
   }
 }
-
-constexpr size_t Chain::kMaxShortDataSize;
 
 // In converting constructors below, size_hint being src.size() optimizes for
 // the case when the resulting Chain will not be appended to further, reducing
