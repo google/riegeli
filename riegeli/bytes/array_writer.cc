@@ -14,6 +14,8 @@
 
 #include "riegeli/bytes/array_writer.h"
 
+#include <stddef.h>
+
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"

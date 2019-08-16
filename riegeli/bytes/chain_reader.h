@@ -28,6 +28,7 @@
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

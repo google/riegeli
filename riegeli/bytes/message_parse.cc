@@ -17,10 +17,10 @@
 #include <stddef.h>
 
 #include <limits>
-#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"

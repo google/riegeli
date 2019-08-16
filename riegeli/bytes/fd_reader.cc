@@ -26,6 +26,7 @@
 
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -39,16 +40,14 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
-#include "riegeli/base/object.h"
-#include "riegeli/bytes/backward_writer.h"
-#include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
+#include "riegeli/base/status.h"
+#include "riegeli/bytes/chain_reader.h"
 
 namespace riegeli {
 

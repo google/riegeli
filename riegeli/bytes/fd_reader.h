@@ -29,14 +29,10 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
-#include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 

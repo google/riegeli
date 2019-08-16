@@ -17,15 +17,14 @@
 #include <stddef.h>
 
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

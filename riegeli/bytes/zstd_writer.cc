@@ -21,6 +21,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
@@ -29,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"

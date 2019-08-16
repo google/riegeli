@@ -18,12 +18,14 @@
 #include <stdint.h>
 
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 

@@ -26,6 +26,7 @@
 
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,9 +38,10 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
-#include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 

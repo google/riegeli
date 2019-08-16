@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <cstring>
+#include <iterator>
 #include <utility>
 
 #include "absl/base/optimization.h"

@@ -18,13 +18,13 @@
 #include <stdint.h>
 
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/object.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 

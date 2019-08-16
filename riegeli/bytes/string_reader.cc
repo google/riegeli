@@ -14,9 +14,10 @@
 
 #include "riegeli/bytes/string_reader.h"
 
+#include <stddef.h>
+
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
