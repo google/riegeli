@@ -100,11 +100,13 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       return "RiegeliDatasetOp::Dataset";
     }
 
-// The `DatasetBase::IsStateful()` method was introduced on 7/26/2019. We use
-// the `TF_GRAPH_DEF_VERSION` value (which is updated daily) to determine if
+// The `DatasetBase::CheckExternalState()` method was introduced on 8/7/2019. We
+// use the `TF_GRAPH_DEF_VERSION` value (which is updated daily) to determine if
 // we should add its override.
-#if TF_GRAPH_DEF_VERSION > 110
-    bool IsStateful() const override { return false; }
+#if TF_GRAPH_DEF_VERSION > 125
+    ::tensorflow::Status CheckExternalDataset() const override {
+      return ::tensorflow::Status::OK();
+    }
 #endif
 
    protected:
