@@ -20,7 +20,6 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -30,7 +29,6 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"

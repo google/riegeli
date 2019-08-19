@@ -26,7 +26,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/string_view_dependency.h"  // IWYU pragma: keep
+#include "riegeli/bytes/string_view_dependency.h"
 
 namespace riegeli {
 

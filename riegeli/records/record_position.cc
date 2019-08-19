@@ -20,6 +20,7 @@
 #include <cstring>
 #include <future>
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <utility>

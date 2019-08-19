@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"

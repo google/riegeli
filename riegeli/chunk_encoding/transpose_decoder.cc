@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -44,6 +45,7 @@
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
 
 namespace riegeli {

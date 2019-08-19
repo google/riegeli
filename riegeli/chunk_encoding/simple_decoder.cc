@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <tuple>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"

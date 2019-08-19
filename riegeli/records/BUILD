@@ -108,6 +108,8 @@ cc_library(
     deps = [
         ":block",
         "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
@@ -131,6 +133,7 @@ cc_library(
         ":block",
         ":skipped_region",
         "//riegeli/base",
+        "//riegeli/base:chain",
         "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/chunk_encoding:chunk",

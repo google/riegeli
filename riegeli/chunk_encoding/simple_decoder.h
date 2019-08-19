@@ -22,6 +22,7 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 

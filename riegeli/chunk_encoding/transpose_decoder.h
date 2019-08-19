@@ -22,7 +22,6 @@
 
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
-#include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/field_projection.h"

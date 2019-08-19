@@ -19,6 +19,7 @@
 
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
@@ -26,16 +27,15 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/message_parse.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/simple_decoder.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 

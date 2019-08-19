@@ -31,8 +31,9 @@ bool TFRecordRecognizer::CheckFileFormat(
     tensorflow::io::RecordReaderOptions* record_reader_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
-    if (ABSL_PREDICT_FALSE(!byte_reader_->healthy()))
+    if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
       return Fail(*byte_reader_);
+    }
     // Empty file: return false but leave healthy() as true. This mimics the
     // behavior of reading functions at end of file.
     return false;

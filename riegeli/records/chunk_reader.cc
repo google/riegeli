@@ -17,20 +17,22 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/object.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/hash.h"
 #include "riegeli/records/block.h"
+#include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
 

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -32,6 +33,8 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/message_serialize.h"
+#include "riegeli/bytes/writer.h"
+#include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {

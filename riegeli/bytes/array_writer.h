@@ -25,7 +25,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/bytes/span_dependency.h"  // IWYU pragma: keep
+#include "riegeli/bytes/span_dependency.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

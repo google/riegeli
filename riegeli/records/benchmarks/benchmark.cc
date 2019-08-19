@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <sstream>

@@ -28,7 +28,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/writer.h"

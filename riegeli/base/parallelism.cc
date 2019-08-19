@@ -14,6 +14,9 @@
 
 #include "riegeli/base/parallelism.h"
 
+#include <stddef.h>
+
+#include <deque>
 #include <functional>
 #include <thread>
 #include <utility>

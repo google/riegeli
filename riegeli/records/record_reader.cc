@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -30,7 +31,6 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
-#include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -42,6 +42,7 @@
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_position.h"

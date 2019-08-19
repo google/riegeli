@@ -18,7 +18,9 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
+#include <memory>
 #include <queue>
 #include <string>
 #include <tuple>
@@ -27,12 +29,14 @@
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -44,6 +48,7 @@
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
+#include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"

@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"

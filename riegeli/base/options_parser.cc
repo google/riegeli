@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <utility>
@@ -31,6 +32,8 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/object.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 

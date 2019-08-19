@@ -36,7 +36,6 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message_lite.h"
-#include "google/protobuf/repeated_field.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -47,12 +46,14 @@
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
+#include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/deferred_encoder.h"
 #include "riegeli/chunk_encoding/simple_encoder.h"
 #include "riegeli/chunk_encoding/transpose_encoder.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"
+#include "riegeli/records/records_metadata.pb.h"
 
 namespace riegeli {
 

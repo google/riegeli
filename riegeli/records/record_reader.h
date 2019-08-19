@@ -31,6 +31,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/records/chunk_reader.h"
@@ -40,8 +41,6 @@
 #include "riegeli/records/skipped_region.h"
 
 namespace riegeli {
-
-struct Chunk;
 
 // Interprets record_type_name and file_descriptor from metadata.
 class RecordsMetadataDescriptors : public Object {

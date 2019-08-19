@@ -14,6 +14,9 @@
 
 #include "riegeli/chunk_encoding/compressor_options.h"
 
+#include <string>
+#include <utility>
+
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
