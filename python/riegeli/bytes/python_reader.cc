@@ -27,13 +27,16 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
