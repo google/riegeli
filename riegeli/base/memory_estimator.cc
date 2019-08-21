@@ -14,6 +14,8 @@
 
 #include "riegeli/base/memory_estimator.h"
 
+#include <stddef.h>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/utility/utility.h"
 

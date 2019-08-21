@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
