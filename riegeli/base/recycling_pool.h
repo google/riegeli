@@ -196,7 +196,7 @@ class RecyclingPool<T, Deleter, void> {
 
 // Implementation details follow.
 
-template <typename T, class Deleter, typename Key>
+template <typename T, typename Deleter, typename Key>
 inline void RecyclingPool<T, Deleter, Key>::Recycler::operator()(T* ptr) const {
   RIEGELI_ASSERT(pool_ != nullptr)
       << "Failed precondition of RecyclingPool::Recycler: "
@@ -204,13 +204,13 @@ inline void RecyclingPool<T, Deleter, Key>::Recycler::operator()(T* ptr) const {
   pool_->Put(key_, std::unique_ptr<T, Deleter>(ptr, original_deleter()));
 }
 
-template <typename T, class Deleter, typename Key>
+template <typename T, typename Deleter, typename Key>
 RecyclingPool<T, Deleter, Key>& RecyclingPool<T, Deleter, Key>::global() {
   static NoDestructor<RecyclingPool> kStaticRecyclingPool;
   return *kStaticRecyclingPool;
 }
 
-template <typename T, class Deleter, typename Key>
+template <typename T, typename Deleter, typename Key>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter, Key>::Handle
 RecyclingPool<T, Deleter, Key>::Get(Key key, Factory factory,
@@ -253,7 +253,7 @@ RecyclingPool<T, Deleter, Key>::Get(Key key, Factory factory,
       Recycler(this, std::move(key), std::move(returned.get_deleter())));
 }
 
-template <typename T, class Deleter, typename Key>
+template <typename T, typename Deleter, typename Key>
 void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
                                          std::unique_ptr<T, Deleter> object) {
   std::unique_ptr<T, Deleter> evicted;
@@ -304,7 +304,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
   // Destroy evicted after releasing mutex_.
 }
 
-template <typename T, class Deleter>
+template <typename T, typename Deleter>
 inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
   RIEGELI_ASSERT(pool_ != nullptr)
       << "Failed precondition of RecyclingPool::Recycler: "
@@ -312,13 +312,13 @@ inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
   pool_->Put(std::unique_ptr<T, Deleter>(ptr, original_deleter()));
 }
 
-template <typename T, class Deleter>
+template <typename T, typename Deleter>
 RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global() {
   static NoDestructor<RecyclingPool> kStaticRecyclingPool;
   return *kStaticRecyclingPool;
 }
 
-template <typename T, class Deleter>
+template <typename T, typename Deleter>
 template <typename Factory, typename Refurbisher>
 typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
     Factory factory, Refurbisher refurbisher) {
@@ -340,7 +340,7 @@ typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
                 Recycler(this, std::move(returned.get_deleter())));
 }
 
-template <typename T, class Deleter>
+template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
   std::unique_ptr<T, Deleter> evicted;
   absl::MutexLock lock(&mutex_);
