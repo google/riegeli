@@ -19,7 +19,6 @@ from __future__ import print_function
 
 import os
 
-from builtins import range  # pylint: disable=redefined-builtin
 import riegeli
 from riegeli.tensorflow.ops import riegeli_dataset_ops
 import tensorflow as tf
@@ -38,6 +37,15 @@ from tensorflow.python.platform import test
 # which has restricted visibility.
 class DatasetTestBase(test.TestCase):
   """Base class for dataset tests."""
+
+  def assertValuesEqual(self, expected, actual):
+    """Asserts that two values are equal."""
+    if sparse_tensor.is_sparse(expected):
+      self.assertAllEqual(expected.indices, actual.indices)
+      self.assertAllEqual(expected.values, actual.values)
+      self.assertAllEqual(expected.dense_shape, actual.dense_shape)
+    else:
+      self.assertAllEqual(expected, actual)
 
   def getNext(self, dataset, requires_initialization=False, shared_name=None):
     """Returns a callable that returns the next element of the dataset.
@@ -191,7 +199,7 @@ class RiegeliDatasetTest(DatasetTestBase):
 
       # Note: if records were serialized proto messages, passing
       # options='transpose' to RecordWriter would make compression better.
-      with riegeli.RecordWriter(tf.gfile.GFile(filename, 'wb')) as writer:
+      with riegeli.RecordWriter(tf.io.gfile.GFile(filename, 'wb')) as writer:
         for j in range(self._num_records):
           writer.write_record(self._record(i, j))
     return filenames

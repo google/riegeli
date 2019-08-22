@@ -24,10 +24,8 @@ import itertools
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
-from builtins import bytes  # pylint: disable=redefined-builtin
-from builtins import range  # pylint: disable=redefined-builtin
-import future.utils as future_utils
 import riegeli
+import six
 import tensorflow as tf
 
 from riegeli.records.tests import records_test_pb2
@@ -82,7 +80,7 @@ class UnseekableWrapper(object):
     return getattr(self._wrapped, name)
 
 
-class FileSpecBase(future_utils.with_metaclass(abc.ABCMeta, object)):
+class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
 
   __slots__ = ('_random_access', '_file')
 
@@ -201,10 +199,10 @@ class TensorFlowGFileSpec(LocalFileSpecBase):
   __slots__ = ()
 
   def _open_for_writing(self):
-    self._file = tf.gfile.GFile(self._filename, mode='wb')
+    self._file = tf.io.gfile.GFile(self._filename, mode='wb')
 
   def _open_for_reading(self):
-    self._file = tf.gfile.GFile(self._filename, mode='rb')
+    self._file = tf.io.gfile.GFile(self._filename, mode='rb')
 
 
 def sample_string(i, size):
@@ -254,7 +252,10 @@ class RecordsTest(parameterized.TestCase):
     byte_reader = files.reading_open()
     contents1 = byte_reader.read(index)
     contents2 = byte_reader.read(1)
-    contents2 = bytes([(bytes(contents2)[0] + 1) % 256])
+    if six.PY3:
+      contents2 = bytes([(contents2[0] + 1) % 256])
+    else:
+      contents2 = chr((ord(contents2) + 1) % 256)
     contents3 = byte_reader.read()
     if files.reading_should_close:
       byte_reader.close()

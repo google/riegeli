@@ -1,9 +1,9 @@
 include .bazelrc
 include *.md
-include *BUILD
 include LICENSE
 include MANIFEST.in
 include WORKSPACE
 recursive-include doc *
 recursive-include python *
 recursive-include riegeli *
+recursive-include third_party *

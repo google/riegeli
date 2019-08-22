@@ -10,6 +10,7 @@ cc_library(
         "compress/*.c",
         "compress/*.h",
         "decompress/*.c",
+        "decompress/*.h",
     ]),
     hdrs = ["zstd.h"],
     includes = [
