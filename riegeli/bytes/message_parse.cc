@@ -131,10 +131,10 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
 
 Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
                                   Reader* src) {
-  if (src->SupportsRandomAccess()) {
+  src->Pull();
+  if (src->available() <= kMaxBytesToCopy && src->SupportsRandomAccess()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return src->status();
-    src->Pull();
     if (src->pos() + src->available() == size &&
         ABSL_PREDICT_TRUE(src->available() <=
                           size_t{std::numeric_limits<int>::max()})) {
@@ -198,9 +198,8 @@ Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
 
 Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src) {
-  if (absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (ABSL_PREDICT_TRUE(flat->size() <=
-                          size_t{std::numeric_limits<int>::max()})) {
+  if (src.size() <= kMaxBytesToCopy) {
+    if (absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. ParsePartialFromArray() is faster than
       // ParsePartialFromZeroCopyStream().
       if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
