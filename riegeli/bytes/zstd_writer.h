@@ -188,22 +188,22 @@ class ZstdWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src) override;
 
  private:
-  struct ZSTD_CStreamDeleter {
-    void operator()(ZSTD_CStream* ptr) const { ZSTD_freeCStream(ptr); }
+  struct ZSTD_CCtxDeleter {
+    void operator()(ZSTD_CCtx* ptr) const { ZSTD_freeCCtx(ptr); }
   };
-  struct ZSTD_CStreamKey {
-    friend bool operator==(ZSTD_CStreamKey a, ZSTD_CStreamKey b) {
+  struct ZSTD_CCtxKey {
+    friend bool operator==(ZSTD_CCtxKey a, ZSTD_CCtxKey b) {
       return a.compression_level == b.compression_level &&
              a.window_log == b.window_log &&
              a.size_hint_class == b.size_hint_class;
     }
-    friend bool operator!=(ZSTD_CStreamKey a, ZSTD_CStreamKey b) {
+    friend bool operator!=(ZSTD_CCtxKey a, ZSTD_CCtxKey b) {
       return a.compression_level != b.compression_level ||
              a.window_log != b.window_log ||
              a.size_hint_class != b.size_hint_class;
     }
     template <typename HashState>
-    friend HashState AbslHashValue(HashState hash_state, ZSTD_CStreamKey self) {
+    friend HashState AbslHashValue(HashState hash_state, ZSTD_CCtxKey self) {
       return HashState::combine(std::move(hash_state), self.compression_level,
                                 self.window_log, self.size_hint_class);
     }
@@ -213,12 +213,9 @@ class ZstdWriterBase : public BufferedWriter {
     int size_hint_class;
   };
 
-  template <typename Function>
-  bool FlushInternal(Function function, absl::string_view function_name,
-                     Writer* dest);
+  bool FlushInternal(Writer* dest, ZSTD_EndDirective end_op);
 
-  RecyclingPool<ZSTD_CStream, ZSTD_CStreamDeleter, ZSTD_CStreamKey>::Handle
-      compressor_;
+  RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxKey>::Handle compressor_;
 };
 
 // A Writer which compresses data with Zstd before passing it to another Writer.

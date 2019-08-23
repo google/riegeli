@@ -95,8 +95,8 @@ class ZstdReaderBase : public BufferedReader {
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 
  private:
-  struct ZSTD_DStreamDeleter {
-    void operator()(ZSTD_DStream* ptr) const { ZSTD_freeDStream(ptr); }
+  struct ZSTD_DCtxDeleter {
+    void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
 
   // If true, the source is truncated (without a clean end of the compressed
@@ -106,7 +106,7 @@ class ZstdReaderBase : public BufferedReader {
   // If healthy() but decompressor_ == nullptr then all data have been
   // decompressed. In this case ZSTD_decompressStream() must not be called
   // again.
-  RecyclingPool<ZSTD_DStream, ZSTD_DStreamDeleter>::Handle decompressor_;
+  RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
 };
 
 // A Reader which decompresses data with Zstd after getting it from another

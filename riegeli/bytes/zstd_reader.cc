@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make ZSTD_DCtx_setMaxWindowSize() and ZSTD_WINDOWLOG_MAX available.
-#define ZSTD_STATIC_LINKING_ONLY
-
 #include "riegeli/bytes/zstd_reader.h"
 
 #include <stddef.h>
@@ -41,32 +38,34 @@ void ZstdReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  decompressor_ =
-      RecyclingPool<ZSTD_DStream, ZSTD_DStreamDeleter>::global().Get([] {
-        return std::unique_ptr<ZSTD_DStream, ZSTD_DStreamDeleter>(
-            ZSTD_createDStream());
+  decompressor_ = RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::global().Get(
+      [] {
+        return std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxDeleter>(ZSTD_createDCtx());
+      },
+      [](ZSTD_DCtx* compressor) {
+        const size_t result =
+            ZSTD_DCtx_reset(compressor, ZSTD_reset_session_and_parameters);
+        RIEGELI_ASSERT(!ZSTD_isError(result))
+            << "ZSTD_DCtx_reset() failed: " << ZSTD_getErrorName(result);
       });
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
-    Fail(InternalError("ZSTD_createDStream() failed"));
+    Fail(InternalError("ZSTD_createDCtx() failed"));
     return;
   }
   {
-    const size_t result = ZSTD_initDStream(decompressor_.get());
+    // Maximum window size could also be found with
+    // ZSTD_dParam_getBounds(ZSTD_d_windowLogMax)
+    const size_t result =
+        ZSTD_DCtx_setParameter(decompressor_.get(), ZSTD_d_windowLogMax,
+                               sizeof(size_t) == 4 ? 30 : 31);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_initDStream() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(InternalError(
+          absl::StrCat("ZSTD_DCtx_setParameter(ZSTD_d_windowLogMax) failed: ",
+                       ZSTD_getErrorName(result))));
       return;
     }
   }
-  {
-    const size_t result = ZSTD_DCtx_setMaxWindowSize(
-        decompressor_.get(), size_t{1} << ZSTD_WINDOWLOG_MAX);
-    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_DCtx_setMaxWindowSize() failed: ",
-                                      ZSTD_getErrorName(result))));
-    }
-  }
-  src->Pull(ZSTD_FRAMEHEADERSIZE_MAX);
+  src->Pull(18 /* ZSTD_FRAMEHEADERSIZE_MAX */);
   // Tune the buffer size if the uncompressed size is known.
   unsigned long long uncompressed_size =
       ZSTD_getFrameContentSize(src->cursor(), src->available());
