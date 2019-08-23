@@ -16,14 +16,13 @@
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
-#include <getopt.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
 #include <algorithm>
 #include <array>
@@ -41,7 +40,9 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/numbers.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/flags/usage.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "riegeli/base/base.h"
@@ -62,6 +63,24 @@
 #include "tensorflow/core/lib/io/record_writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
+
+ABSL_FLAG(std::string, tfrecord_benchmarks, "uncompressed gzip",
+          "Whitespace-separated TFRecord RecordWriter/RecordReader options");
+ABSL_FLAG(std::string, riegeli_benchmarks,
+          "uncompressed "
+          "brotli:6 "
+          "brotli:6,parallelism:10 "
+          "zstd:9 "
+          "transpose,uncompressed "
+          "transpose,brotli:6 "
+          "transpose,brotli:6,parallelism:10 "
+          "transpose,zstd:9",
+          "Whitespace-separated Riegeli RecordWriter options");
+ABSL_FLAG(uint64_t, max_size, uint64_t{100} * 1000 * 1000,
+          "Maximum size of records to read, in bytes");
+ABSL_FLAG(std::string, output_dir, "/tmp",
+          "Directory to write files to (files are named record_benchmark_*)");
+ABSL_FLAG(int32_t, repetitions, 5, "Number of times to repeat each benchmark");
 
 namespace {
 
@@ -444,29 +463,7 @@ void Benchmarks::RunOne(
 const char kUsage[] =
     "Usage: benchmark (OPTION|FILE)...\n"
     "\n"
-    "FILEs may be TFRecord or Riegeli/records files.\n"
-    "\n"
-    "OPTIONs:\n"
-    "  --tfrecord_benchmarks=BENCHMARKS\n"
-    "      Whitespace-separated TFRecord RecordWriter/RecordReader options\n"
-    "  --riegeli_benchmarks=BENCHMARKS\n"
-    "      Whitespace-separated Riegeli RecordWriter options\n"
-    "  --max_size=BYTES\n"
-    "      Maximum size of records to read, in bytes, default 10000000\n"
-    "  --output_dir=DIR\n"
-    "      Directory to write files to (files are named record_benchmark_*),\n"
-    "      default /tmp\n"
-    "  --repetitions=N\n"
-    "      Number of times to repeat each benchmark, default 5";
-
-const struct option kOptions[] = {
-    {"help", no_argument, nullptr, 0},
-    {"tfrecord_benchmarks", required_argument, nullptr, 1},
-    {"riegeli_benchmarks", required_argument, nullptr, 2},
-    {"max_size", required_argument, nullptr, 3},
-    {"output_dir", required_argument, nullptr, 4},
-    {"repetitions", required_argument, nullptr, 5},
-    {nullptr, 0, nullptr, 0}};
+    "FILEs may be TFRecord or Riegeli/records files.\n";
 
 template <typename Function>
 void ForEachWord(const std::string& words, Function f) {
@@ -478,71 +475,27 @@ void ForEachWord(const std::string& words, Function f) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string tfrecord_benchmarks = "uncompressed gzip";
-  std::string riegeli_benchmarks =
-      "uncompressed "
-      "brotli:6 "
-      "brotli:6,parallelism:10 "
-      "zstd:9 "
-      "transpose,uncompressed "
-      "transpose,brotli:6 "
-      "transpose,brotli:6,parallelism:10 "
-      "transpose,zstd:9";
-  size_t max_size = size_t{100} * 1000 * 1000;
-  std::string output_dir = "/tmp";
-  int repetitions = 5;
-  for (;;) {
-    int option_index;
-    const int option =
-        getopt_long_only(argc, argv, "", kOptions, &option_index);
-    if (option == -1) break;
-    switch (option) {
-      case 0:  // --help
-        std::cout << kUsage << std::endl;
-        return 0;
-      case 1:  // --tfrecord_benchmarks
-        tfrecord_benchmarks = optarg;
-        break;
-      case 2:  // --riegeli_benchmarks
-        riegeli_benchmarks = optarg;
-        break;
-      case 3:  // --max_size
-        if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(optarg, &max_size))) break;
-        std::cerr << argv[0]
-                  << ": option '--max_size' requires an integer argument\n";
-        return 1;
-      case 4:  // --output_dir
-        output_dir = std::string(optarg);
-        break;
-      case 5:  // --repetitions
-        if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(optarg, &repetitions))) break;
-        std::cerr << argv[0]
-                  << ": option '--repetitions' requires an integer argument\n";
-        return 1;
-      case '?':
-        return 1;
-      default:
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "getopt_long_only() returned " << option;
-    }
-  }
-  argc -= optind - 1;
-  argv += optind - 1;
+  absl::SetProgramUsageMessage(kUsage);
+  const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   std::vector<std::string> records;
-  if (argc == 1) {
+  if (args.size() <= 1) {
     std::cerr << kUsage << std::endl;
     return 1;
   }
   std::cout << std::endl;
-  for (int i = 1; i < argc; ++i) {
-    if (!Benchmarks::ReadFile(argv[i], &records, &max_size)) break;
+  size_t max_size = riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size));
+  for (size_t i = 1; i < args.size(); ++i) {
+    if (!Benchmarks::ReadFile(args[i], &records, &max_size)) break;
   }
-  Benchmarks benchmarks(std::move(records), std::move(output_dir), repetitions);
-  ForEachWord(tfrecord_benchmarks, [&](std::string tfrecord_options) {
-    benchmarks.RegisterTFRecord(std::move(tfrecord_options));
-  });
-  ForEachWord(riegeli_benchmarks, [&](std::string riegeli_options) {
-    benchmarks.RegisterRiegeli(std::move(riegeli_options));
-  });
+  Benchmarks benchmarks(std::move(records), absl::GetFlag(FLAGS_output_dir),
+                        absl::GetFlag(FLAGS_repetitions));
+  ForEachWord(absl::GetFlag(FLAGS_tfrecord_benchmarks),
+              [&](std::string tfrecord_options) {
+                benchmarks.RegisterTFRecord(std::move(tfrecord_options));
+              });
+  ForEachWord(absl::GetFlag(FLAGS_riegeli_benchmarks),
+              [&](std::string riegeli_options) {
+                benchmarks.RegisterRiegeli(std::move(riegeli_options));
+              });
   benchmarks.RunAll();
 }
