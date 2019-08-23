@@ -15,6 +15,7 @@
 #include "riegeli/bytes/message_serialize.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 #include <tuple>
@@ -42,7 +43,7 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 
   bool Next(void** data, int* size) override;
   void BackUp(int length) override;
-  google::protobuf::int64 ByteCount() const override;
+  int64_t ByteCount() const override;
 
  private:
   Position relative_pos() const;
@@ -50,8 +51,7 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
   Writer* dest_;
   // Invariants:
   //   dest_->pos() >= initial_pos_
-  //   dest_->pos() - initial_pos_ <=
-  //   numeric_limits<google::protobuf::int64>::max()
+  //   dest_->pos() - initial_pos_ <= numeric_limits<int64_t>::max()
   Position initial_pos_;
 };
 
@@ -60,24 +60,22 @@ inline Position WriterOutputStream::relative_pos() const {
       << "Failed invariant of WriterOutputStream: "
          "current position smaller than initial position";
   const Position pos = dest_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(
-      pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<int64_t>::max()})
       << "Failed invariant of WriterOutputStream: relative position overflow";
   return pos;
 }
 
 bool WriterOutputStream::Next(void** data, int* size) {
   const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(
-          pos ==
-          Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(pos ==
+                         Position{std::numeric_limits<int64_t>::max()})) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest_->Push())) return false;
   *data = dest_->cursor();
-  *size = IntCast<int>(UnsignedMin(
-      dest_->available(), size_t{std::numeric_limits<int>::max()},
-      Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  *size = IntCast<int>(
+      UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
+                  Position{std::numeric_limits<int64_t>::max()} - pos));
   dest_->set_cursor(dest_->cursor() + *size);
   return true;
 }
@@ -92,8 +90,8 @@ void WriterOutputStream::BackUp(int length) {
   dest_->set_cursor(dest_->cursor() - length);
 }
 
-google::protobuf::int64 WriterOutputStream::ByteCount() const {
-  return IntCast<google::protobuf::int64>(relative_pos());
+int64_t WriterOutputStream::ByteCount() const {
+  return IntCast<int64_t>(relative_pos());
 }
 
 }  // namespace

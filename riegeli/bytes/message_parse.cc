@@ -15,6 +15,7 @@
 #include "riegeli/bytes/message_parse.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 
@@ -43,7 +44,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   bool Next(const void** data, int* size) override;
   void BackUp(int length) override;
   bool Skip(int length) override;
-  google::protobuf::int64 ByteCount() const override;
+  int64_t ByteCount() const override;
 
  private:
   Position relative_pos() const;
@@ -51,8 +52,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
   Reader* src_;
   // Invariants:
   //   src_->pos() >= initial_pos_
-  //   src_->pos() - initial_pos_ <=
-  //   numeric_limits<google::protobuf::int64>::max()
+  //   src_->pos() - initial_pos_ <= numeric_limits<int64_t>::max()
   Position initial_pos_;
 };
 
@@ -61,8 +61,7 @@ inline Position ReaderInputStream::relative_pos() const {
       << "Failed invariant of ReaderInputStream: "
          "current position smaller than initial position";
   const Position pos = src_->pos() - initial_pos_;
-  RIEGELI_ASSERT_LE(
-      pos, Position{std::numeric_limits<google::protobuf::int64>::max()})
+  RIEGELI_ASSERT_LE(pos, Position{std::numeric_limits<int64_t>::max()})
       << "Failed invariant of ReaderInputStream: "
          "relative position overflow";
   return pos;
@@ -70,16 +69,15 @@ inline Position ReaderInputStream::relative_pos() const {
 
 bool ReaderInputStream::Next(const void** data, int* size) {
   const Position pos = relative_pos();
-  if (ABSL_PREDICT_FALSE(
-          pos ==
-          Position{std::numeric_limits<google::protobuf::int64>::max()})) {
+  if (ABSL_PREDICT_FALSE(pos ==
+                         Position{std::numeric_limits<int64_t>::max()})) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!src_->Pull())) return false;
   *data = src_->cursor();
-  *size = IntCast<int>(UnsignedMin(
-      src_->available(), size_t{std::numeric_limits<int>::max()},
-      Position{std::numeric_limits<google::protobuf::int64>::max()} - pos));
+  *size = IntCast<int>(
+      UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
+                  Position{std::numeric_limits<int64_t>::max()} - pos));
   src_->set_cursor(src_->cursor() + *size);
   return true;
 }
@@ -98,8 +96,7 @@ bool ReaderInputStream::Skip(int length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
   const Position max_length =
-      Position{std::numeric_limits<google::protobuf::int64>::max()} -
-      relative_pos();
+      Position{std::numeric_limits<int64_t>::max()} - relative_pos();
   if (ABSL_PREDICT_FALSE(IntCast<size_t>(length) > max_length)) {
     src_->Skip(max_length);
     return false;
@@ -107,8 +104,8 @@ bool ReaderInputStream::Skip(int length) {
   return src_->Skip(IntCast<size_t>(length));
 }
 
-google::protobuf::int64 ReaderInputStream::ByteCount() const {
-  return IntCast<google::protobuf::int64>(relative_pos());
+int64_t ReaderInputStream::ByteCount() const {
+  return IntCast<int64_t>(relative_pos());
 }
 
 }  // namespace
