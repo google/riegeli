@@ -43,10 +43,10 @@ class ThreadPool {
 
  private:
   absl::Mutex mutex_;
-  bool exiting_ GUARDED_BY(mutex_) = false;
-  size_t num_threads_ GUARDED_BY(mutex_) = 0;
-  size_t num_idle_threads_ GUARDED_BY(mutex_) = 0;
-  std::deque<std::function<void()>> tasks_ GUARDED_BY(mutex_);
+  bool exiting_ ABSL_GUARDED_BY(mutex_) = false;
+  size_t num_threads_ ABSL_GUARDED_BY(mutex_) = 0;
+  size_t num_idle_threads_ ABSL_GUARDED_BY(mutex_) = 0;
+  std::deque<std::function<void()>> tasks_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace internal

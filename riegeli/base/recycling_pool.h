@@ -130,15 +130,15 @@ class RecyclingPool {
   absl::Mutex mutex_;
   // The key of each object, ordered by the freshness of the object (older to
   // newer).
-  ByFreshness by_freshness_ GUARDED_BY(mutex_);
+  ByFreshness by_freshness_ ABSL_GUARDED_BY(mutex_);
   // Objects grouped by their keys. Within each map value the list of objects is
   // non-empty and is ordered by their freshness (older to newer). Each object
   // is associated with the matching by_freshness_ iterator.
-  ByKey by_key_ GUARDED_BY(mutex_);
+  ByKey by_key_ ABSL_GUARDED_BY(mutex_);
   // Optimization for Get() followed by Put() with a matching key.
   // If cache_ != by_key_.end(), then cache_->second.back().object is replaced
   // with nullptr instead of erasing its entries.
-  typename ByKey::iterator cache_ GUARDED_BY(mutex_);
+  typename ByKey::iterator cache_ ABSL_GUARDED_BY(mutex_);
 };
 
 // Specialization of RecyclingPool when Key is void. In this case Get() does not
@@ -191,7 +191,7 @@ class RecyclingPool<T, Deleter, void> {
   size_t max_size_;
   absl::Mutex mutex_;
   // All objects, ordered by freshness (older to newer).
-  std::deque<std::unique_ptr<T, Deleter>> by_freshness_ GUARDED_BY(mutex_);
+  std::deque<std::unique_ptr<T, Deleter>> by_freshness_ ABSL_GUARDED_BY(mutex_);
 };
 
 // Implementation details follow.

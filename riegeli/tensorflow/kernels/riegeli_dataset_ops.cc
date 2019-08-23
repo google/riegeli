@@ -130,7 +130,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       ::tensorflow::Status GetNextInternal(
           ::tensorflow::data::IteratorContext* ctx,
           std::vector<::tensorflow::Tensor>* out_tensors,
-          bool* end_of_sequence) override LOCKS_EXCLUDED(mu_) {
+          bool* end_of_sequence) override ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         for (;;) {
           if (reader_.has_value()) {
@@ -186,7 +186,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
      protected:
       ::tensorflow::Status SaveInternal(
           ::tensorflow::data::IteratorStateWriter* writer) override
-          LOCKS_EXCLUDED(mu_) {
+          ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         TF_RETURN_IF_ERROR(writer->WriteScalar(
             full_name("current_file_index"),
@@ -201,7 +201,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       ::tensorflow::Status RestoreInternal(
           ::tensorflow::data::IteratorContext* ctx,
           ::tensorflow::data::IteratorStateReader* reader) override
-          LOCKS_EXCLUDED(mu_) {
+          ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         current_file_index_ = 0;
         reader_.reset();
@@ -240,7 +240,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
 
      private:
       void OpenFile(::tensorflow::data::IteratorContext* ctx)
-          EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
         reader_.emplace(std::forward_as_tuple(
             dataset()->filenames_[current_file_index_],
             tensorflow::FileReaderBase::Options().set_env(ctx->env())));
@@ -252,10 +252,10 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       //       !reader_.has_value()
 
       absl::Mutex mu_;
-      size_t current_file_index_ GUARDED_BY(mu_) = 0;
+      size_t current_file_index_ ABSL_GUARDED_BY(mu_) = 0;
       // nullopt means not open yet.
       absl::optional<RecordReader<tensorflow::FileReader<>>> reader_
-          GUARDED_BY(mu_);
+          ABSL_GUARDED_BY(mu_);
     };
 
     const std::vector<std::string> filenames_;

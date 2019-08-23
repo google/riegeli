@@ -53,7 +53,7 @@ void ThreadPool::Schedule(std::function<void()> task) {
       ++num_idle_threads_;
       mutex_.AwaitWithTimeout(
           absl::Condition(
-              +[](ThreadPool* self) EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+              +[](ThreadPool* self) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
                 return !self->tasks_.empty() || self->exiting_;
               },
               this),

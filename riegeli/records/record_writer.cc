@@ -422,9 +422,9 @@ class RecordWriterBase::ParallelWorker : public Worker {
   bool HasCapacityForRequest() const;
 
   mutable absl::Mutex mutex_;
-  std::deque<ChunkWriterRequest> chunk_writer_requests_ GUARDED_BY(mutex_);
+  std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
   // Position before handling chunk_writer_requests_.
-  Position pos_before_chunks_ GUARDED_BY(mutex_);
+  Position pos_before_chunks_ ABSL_GUARDED_BY(mutex_);
 };
 
 inline RecordWriterBase::ParallelWorker::ParallelWorker(
@@ -513,7 +513,7 @@ void RecordWriterBase::ParallelWorker::Done() {
 }
 
 bool RecordWriterBase::ParallelWorker::HasCapacityForRequest() const
-    EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
   return chunk_writer_requests_.size() < IntCast<size_t>(options_.parallelism_);
 }
 
