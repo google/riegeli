@@ -494,10 +494,11 @@ class RecordsTest(parameterized.TestCase):
         metadata_read = reader.read_metadata()
         self.assertEqual(metadata_read, metadata_written)
         record_type = riegeli.get_record_type(metadata_read)
-        self.assertIsNotNone(record_type)
+        assert record_type is not None
         self.assertEqual(record_type.DESCRIPTOR.full_name,
                          'riegeli.tests.SimpleMessage')
         message_read = reader.read_message(record_type)
+        assert message_read is not None
         # Serialize and deserialize because messages have descriptors of
         # different origins.
         self.assertEqual(
