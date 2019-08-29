@@ -1,5 +1,8 @@
+# Use old C++ ABI, required by TensorFlow dependency.
+build --copt=-D_GLIBCXX_USE_CXX11_ABI=0
+
 # Make Python protos faster by backing them with C++ protos.
 build --define=use_fast_cpp_protos=true
 
-# Tensorflow requires building GRPC with no ARES support.
-build --define=grpc_no_ares=true
+# Options from ./configure
+import %workspace%/configure.bazelrc

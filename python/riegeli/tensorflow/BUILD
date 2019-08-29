@@ -1,40 +1,25 @@
-load("@org_tensorflow//tensorflow:tensorflow.bzl", "tf_custom_op_library")
-load("@org_tensorflow//tensorflow:tensorflow.bzl", "tf_gen_op_wrapper_py")
-load("@org_tensorflow//tensorflow:tensorflow.bzl", "tf_custom_op_py_library")
+load("@local_config_python//:build_defs.bzl", "python_version")
 
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
 
-tf_custom_op_py_library(
+py_library(
     name = "riegeli_dataset_ops",
     srcs = ["ops/riegeli_dataset_ops.py"],
-    dso = [":ops/_riegeli_dataset_ops.so"],
-    kernels = [
-        "//riegeli/tensorflow:riegeli_dataset_kernel",
-        "//riegeli/tensorflow:riegeli_dataset_ops_op_lib",
-    ],
-    deps = [
-        ":gen_riegeli_dataset_ops",
-        "@org_tensorflow//tensorflow:tensorflow_py",
-        "@org_tensorflow//tensorflow/python:platform",
-    ],
+    data = [":ops/_riegeli_dataset_ops.so"],
 )
 
-tf_gen_op_wrapper_py(
-    name = "gen_riegeli_dataset_ops",
-    out = "ops/gen_riegeli_dataset_ops.py",
-    deps = ["//riegeli/tensorflow:riegeli_dataset_ops_op_lib"],
-)
-
-tf_custom_op_library(
+cc_binary(
     name = "ops/_riegeli_dataset_ops.so",
     srcs = [
         "//riegeli/tensorflow:kernels/riegeli_dataset_ops.cc",
         "//riegeli/tensorflow:ops/riegeli_dataset_ops.cc",
     ],
-    # Merge @com_google_protobuf and @protobuf_archive.
-    linkopts = ["-Wl,--allow-multiple-definition"],
+    # tensorflow/core/lib/core/refcount.h needs NDEBUG consistency between
+    # translation units.
+    copts = ["-DNDEBUG"],
+    linkshared = True,
     deps = [
         "//riegeli/base",
         "//riegeli/base:status",
@@ -46,17 +31,17 @@ tf_custom_op_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
-        "@org_tensorflow//tensorflow/core:lib",
-        "@org_tensorflow//tensorflow/core:protos_all_cc",
+        "@local_config_tf//:libtensorflow_framework",
+        "@local_config_tf//:tf_header_lib",
     ],
 )
 
 py_test(
     name = "riegeli_dataset_test",
     srcs = ["kernel_tests/riegeli_dataset_test.py"],
+    python_version = python_version,
     deps = [
         ":riegeli_dataset_ops",
         "//python/riegeli",
-        "@org_tensorflow//tensorflow:tensorflow_py",
     ],
 )

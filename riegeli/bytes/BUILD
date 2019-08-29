@@ -391,7 +391,7 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@zlib_archive//:zlib",
+        "@zlib",
     ],
 )
 
@@ -407,7 +407,7 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@zlib_archive//:zlib",
+        "@zlib",
     ],
 )
 

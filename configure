@@ -1,0 +1,40 @@
+#!/bin/bash
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e
+
+PYTHON_BIN_PATH=`which python`
+
+if [[ $PYTHON_BIN_PATH ]] && $PYTHON_BIN_PATH -c "import tensorflow" &>/dev/null; then
+  TF_CFLAGS=$($PYTHON_BIN_PATH -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
+  TF_LFLAGS=$($PYTHON_BIN_PATH -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
+
+  TF_HEADER_DIR=${TF_CFLAGS%% *}
+  TF_HEADER_DIR=${TF_HEADER_DIR#-I}
+  TF_SHARED_LIBRARY_DIR=${TF_LFLAGS%% *}
+  TF_SHARED_LIBRARY_DIR=${TF_SHARED_LIBRARY_DIR#-L}
+  TF_SHARED_LIBRARY_NAME=${TF_LFLAGS##* -l:}
+else
+  TF_HEADER_DIR=
+  TF_SHARED_LIBRARY_DIR=
+  TF_SHARED_LIBRARY_NAME=
+fi
+
+{
+  printf 'build --action_env PYTHON_BIN_PATH="%s"\n' "$PYTHON_BIN_PATH"
+  printf 'build --action_env TF_HEADER_DIR="%s"\n' "$TF_HEADER_DIR"
+  printf 'build --action_env TF_SHARED_LIBRARY_DIR="%s"\n' "$TF_SHARED_LIBRARY_DIR"
+  printf 'build --action_env TF_SHARED_LIBRARY_NAME="%s"\n' "$TF_SHARED_LIBRARY_NAME"
+} >configure.bazelrc

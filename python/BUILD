@@ -1,3 +1,5 @@
+load("@local_config_python//:build_defs.bzl", "python_version")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])
@@ -7,6 +9,7 @@ licenses(["notice"])
 py_binary(
     name = "dummy_binary",
     srcs = ["dummy_binary.py"],
+    python_version = python_version,
     deps = [
         "//python/riegeli",
         "//python/riegeli/tensorflow:riegeli_dataset_ops",

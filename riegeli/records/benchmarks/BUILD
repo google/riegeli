@@ -22,7 +22,8 @@ cc_binary(
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@org_tensorflow//tensorflow/core:lib",
+        "@local_config_tf//:libtensorflow_framework",
+        "@local_config_tf//:tf_header_lib",
     ],
 )
 
@@ -37,6 +38,6 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:zlib_reader",
         "@com_google_absl//absl/base:core_headers",
-        "@org_tensorflow//tensorflow/core:lib",
+        "@local_config_tf//:tf_header_lib",
     ],
 )

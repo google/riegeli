@@ -40,10 +40,10 @@ setuptools.setup(
     python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4',
     install_requires=[
         'enum34;python_version<"3.4"',
-        'protobuf>=3.6.0,<4',
+        'protobuf>=3.8.0,<4',
     ],
     extras_require={
-        'tensorflow': ['tensorflow>=1.14,<3'],
+        'tensorflow': ['tensorflow>=1.15,<3'],
     },
     packages=setuptools.find_packages(),
     include_package_data=True,

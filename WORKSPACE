@@ -1,14 +1,16 @@
 workspace(name = "com_google_riegeli")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//python/riegeli:python_configure.bzl", "python_configure")
+load("//tf_dependency:tf_configure.bzl", "tf_configure")
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "0b62fc2d00c2b2bc3761a892a17ac3b8af3578bd28535d90b4c914b0a7460d4e",
-    strip_prefix = "abseil-cpp-20190808",
+    sha256 = "a100cb47d12b16cea253309d249fa3c20b8575b7cf9cd8b234ddb2d124ffd330",
+    strip_prefix = "abseil-cpp-f0afae0d49af3e15a7169e019634d7719143d94d",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/20190808.zip",
-        "https://github.com/abseil/abseil-cpp/archive/20190808.zip",  # 2019-08-08
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/f0afae0d49af3e15a7169e019634d7719143d94d.zip",
+        "https://github.com/abseil/abseil-cpp/archive/f0afae0d49af3e15a7169e019634d7719143d94d.zip",  # 2019-08-20
     ],
 )
 
@@ -34,7 +36,7 @@ http_archive(
 )
 
 http_archive(
-    name = "zlib_archive",
+    name = "zlib",
     build_file = "//third_party:zlib.BUILD",
     sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
     strip_prefix = "zlib-1.2.11",
@@ -55,41 +57,89 @@ http_archive(
     ],
 )
 
-# This includes @com_google_protobuf, @six_archive, @absl_py,
-# and @local_config_python.
 http_archive(
-    name = "org_tensorflow",
-    sha256 = "4e574181721b366cc0b807a8683a57122465760a24c6c8422228997afa6178d0",
-    strip_prefix = "tensorflow-2.0.0-beta1",
+    name = "com_google_protobuf",
+    sha256 = "1e622ce4b84b88b6d2cdf1db38d1a634fe2392d74f0b7b74ff98f3a51838ee53",
+    strip_prefix = "protobuf-3.8.0",
     urls = [
-        "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/v2.0.0-beta1.zip",
-        "https://github.com/tensorflow/tensorflow/archive/v2.0.0-beta1.zip",  # 2019-06-13
+        "http://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.8.0.zip",
+        "https://github.com/protocolbuffers/protobuf/archive/v3.8.0.zip",  # 2019-05-24
     ],
 )
 
-# Needed for @org_tensorflow.
 http_archive(
-    name = "io_bazel_rules_closure",
-    sha256 = "e0a111000aeed2051f29fcc7a3f83be3ad8c6c93c186e64beb1ad313f0c7f9f9",
-    strip_prefix = "rules_closure-cf1e44edb908e9616030cc83d085989b8e6cd6df",
+    name = "six_archive",
+    build_file = "//third_party:six.BUILD",
+    sha256 = "d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73",
+    strip_prefix = "six-1.12.0",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",
-        "https://github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",  # 2019-04-04
+        "http://mirror.bazel.build/pypi.python.org/packages/source/s/six/six-1.12.0.tar.gz",
+        "https://pypi.python.org/packages/source/s/six/six-1.12.0.tar.gz",  # 2018-12-10
     ],
 )
 
-# Needed for @com_google_protobuf.
-# TODO: @com_google_protobuf >= 3.8.0 will provide protobuf_deps()
-# in @com_google_protobuf//:protobuf_deps.bzl.
+http_archive(
+    name = "absl_py",
+    sha256 = "3d0f39e0920379ff1393de04b573bca3484d82a5f8b939e9e83b20b6106c9bbe",
+    strip_prefix = "abseil-py-pypi-v0.7.1",
+    urls = [
+        "http://mirror.bazel.build/github.com/abseil/abseil-py/archive/pypi-v0.7.1.tar.gz",
+        "https://github.com/abseil/abseil-py/archive/pypi-v0.7.1.tar.gz",  # 2019-03-12
+    ],
+)
+
+# Needed by @com_google_absl and soon other packages:
+# https://github.com/abseil/abseil-cpp/commit/36910d3d7e9fccadd6603f232d0c4f54dcd47c7e
+http_archive(
+    name = "rules_cc",
+    sha256 = "67412176974bfce3f4cf8bdaff39784a72ed709fc58def599d1f68710b58d68b",
+    strip_prefix = "rules_cc-b7fe9697c0c76ab2fd431a891dbb9a6a32ed7c3e",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_cc/archive/b7fe9697c0c76ab2fd431a891dbb9a6a32ed7c3e.zip",
+        "https://github.com/bazelbuild/rules_cc/archive/b7fe9697c0c76ab2fd431a891dbb9a6a32ed7c3e.zip",
+    ],
+)
+
+# Needed by @com_google_protobuf.
 http_archive(
     name = "bazel_skylib",
-    sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
+    sha256 = "2e351c3b4861b0c5de8db86fdd100869b544c759161008cd93949dddcbfaba53",
+    strip_prefix = "bazel-skylib-0.8.0",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/0.8.0/bazel-skylib.0.8.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/0.8.0/bazel-skylib.0.8.0.tar.gz",  # 2019-03-20
+        "http://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/archive/0.8.0.zip",
+        "https://github.com/bazelbuild/bazel-skylib/archive/0.8.0.zip",  # 2019-03-20
     ],
 )
 
-load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
+# Needed by @absl_py for Python2.
+http_archive(
+    name = "enum34_archive",
+    build_file = "//third_party:enum34.BUILD",
+    sha256 = "8ad8c4783bf61ded74527bffb48ed9b54166685e4230386a9ed9b1279e2df5b1",
+    urls = [
+        "https://mirror.bazel.build/pypi.python.org/packages/bf/3e/31d502c25302814a7c2f1d3959d2a3b3f78e509002ba91aea64993936876/enum34-1.1.6.tar.gz",
+        "https://pypi.python.org/packages/bf/3e/31d502c25302814a7c2f1d3959d2a3b3f78e509002ba91aea64993936876/enum34-1.1.6.tar.gz",
+    ],
+)
 
-tf_workspace("", "@org_tensorflow")
+# Needed by @com_google_protobuf.
+bind(
+    name = "python_headers",
+    actual = "@local_config_python//:python_headers",
+)
+
+# Needed by @com_google_protobuf.
+# TODO: @com_google_protobuf > 3.9.1 will not need this
+# (it will use @six//:six instead of //external:six). Use this:
+# load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+# protobuf_deps()
+bind(
+    name = "six",
+    actual = "@six_archive//:six",
+)
+
+python_configure(name = "local_config_python")
+
+register_toolchains("@local_config_python//:toolchain")
+
+tf_configure(name = "local_config_tf")
