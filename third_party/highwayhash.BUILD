@@ -12,6 +12,11 @@ config_setting(
     values = {"cpu": "k8"},
 )
 
+config_setting(
+    name = "cpu_ppc",
+    values = {"cpu": "ppc"},
+)
+
 #-----------------------------------------------------------------------------
 # Platform-specific
 
@@ -233,7 +238,16 @@ cc_library(
     }),
 )
 
-config_setting(
-    name = "cpu_ppc",
-    values = {"cpu": "ppc"},
+# For users of InstructionSets<HighwayHash> runtime dispatch
+cc_library(
+    name = "highwayhash_dynamic",
+    hdrs = ["highwayhash/highwayhash_target.h"],
+    deps = [
+        ":arch_specific",
+        ":compiler_specific",
+        ":hh_avx2",
+        ":hh_portable",
+        ":hh_sse41",
+        ":hh_types",
+    ],
 )

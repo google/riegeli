@@ -16,8 +16,12 @@
 
 #include <stdint.h>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
-#include "highwayhash/highwayhash.h"
+#include "absl/types/optional.h"
+#include "highwayhash/hh_types.h"
+#include "highwayhash/highwayhash_target.h"
+#include "highwayhash/instruction_sets.h"
 #include "riegeli/base/chain.h"
 
 namespace riegeli {
@@ -35,19 +39,25 @@ const highwayhash::HHKey kHashKey HH_ALIGNAS(32) = {
 }  // namespace
 
 uint64_t Hash(absl::string_view data) {
-  highwayhash::HHStateT<HH_TARGET> state(kHashKey);
   highwayhash::HHResult64 result;
-  highwayhash::HighwayHashT(&state, data.data(), data.size(), &result);
+  highwayhash::InstructionSets::Run<highwayhash::HighwayHash>(
+      kHashKey, data.data(), data.size(), &result);
   return result;
 }
 
 uint64_t Hash(const Chain& data) {
-  highwayhash::HighwayHashCatT<HH_TARGET> state(kHashKey);
+  if (absl::optional<absl::string_view> flat = data.TryFlat()) {
+    return Hash(*flat);
+  }
+  absl::InlinedVector<highwayhash::StringView, 16> fragments;
+  fragments.reserve(data.blocks().size());
   for (const absl::string_view fragment : data.blocks()) {
-    state.Append(fragment.data(), fragment.size());
+    fragments.push_back(
+        highwayhash::StringView{fragment.data(), fragment.size()});
   }
   highwayhash::HHResult64 result;
-  state.Finalize(&result);
+  highwayhash::InstructionSets::Run<highwayhash::HighwayHashCat>(
+      kHashKey, fragments.data(), fragments.size(), &result);
   return result;
 }
 
