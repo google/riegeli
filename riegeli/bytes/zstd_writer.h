@@ -213,7 +213,8 @@ class ZstdWriterBase : public BufferedWriter {
     int size_hint_class;
   };
 
-  bool FlushInternal(Writer* dest, ZSTD_EndDirective end_op);
+  bool WriteInternal(absl::string_view src, Writer* dest,
+                     ZSTD_EndDirective end_op);
 
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxKey>::Handle compressor_;
 };
