@@ -184,7 +184,8 @@ class OptionsParser : public Object {
 
 namespace internal {
 
-// This is a struct rather than a lambda to capture value by move.
+// TODO: Replace the struct with a lambda with
+// [value = std::move(value)] when C++17 is available.
 template <typename T>
 struct EmptyFunction {
   bool operator()(ValueParser* value_parser) const {
@@ -199,7 +200,8 @@ struct EmptyFunction {
   T value;
 };
 
-// This is a struct rather than a lambda to capture possible_values by move.
+// TODO: Replace the struct with a lambda with
+// [possible_values = std::move(possible_values)] when C++17 is available.
 template <typename T>
 struct EnumOptionFunction {
   bool operator()(ValueParser* value_parser) const {

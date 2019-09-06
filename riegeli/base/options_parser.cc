@@ -39,8 +39,9 @@ namespace riegeli {
 
 namespace {
 
-// This is a struct rather than a lambda to capture function1 and function2 by
-// move.
+// TODO: Replace the struct with a lambda with
+// [function1 = std::move(function1), function2 = std::move(function2)]
+// when C++17 is available.
 struct OrFunction {
   bool operator()(ValueParser* value_parser) const {
     return function1(value_parser) || function2(value_parser);
@@ -50,8 +51,9 @@ struct OrFunction {
   ValueParser::Function function2;
 };
 
-// This is a struct rather than a lambda to capture function1 and function2 by
-// move.
+// TODO: Replace the struct with a lambda with
+// [function1 = std::move(function1), function2 = std::move(function2)]
+// when C++17 is available.
 struct AndFunction {
   bool operator()(ValueParser* value_parser) const {
     return function1(value_parser) && function2(value_parser);
