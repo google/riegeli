@@ -18,6 +18,7 @@ py_extension(
         "//riegeli/records:record_position",
         "//riegeli/records:record_writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
         "@local_config_python//:python_headers",
     ],
 )

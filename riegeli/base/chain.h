@@ -81,7 +81,7 @@ class Chain {
   // If the data parameter is not given, T must support:
   //
   //   // Contents of the object.
-  //   absl::string_view data() const;
+  //   explicit operator absl::string_view() const;
   //
   // T may also support the following member functions, either with or without
   // the data parameter, with the following definitions assumed by default:
@@ -697,8 +697,8 @@ class Chain::RawBlock {
   explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object constructed from
-  // args, and sets block data to object.data(). This constructor is public for
-  // NewAligned().
+  // args, and sets block data to string_view(object). This constructor is
+  // public for NewAligned().
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
 
@@ -720,7 +720,7 @@ class Chain::RawBlock {
 
   bool TryClear();
 
-  const absl::string_view& data() const { return data_; }
+  explicit operator absl::string_view() const { return data_; }
   size_t size() const { return data_.size(); }
   bool empty() const { return data_.empty(); }
   const char* data_begin() const { return data_.data(); }
@@ -759,7 +759,7 @@ class Chain::RawBlock {
   absl::Span<char> AppendBuffer(size_t max_length);
   absl::Span<char> PrependBuffer(size_t max_length);
   void Append(absl::string_view src);
-  // Reads size_to_copy from src.data() but account for src.size(). Faster
+  // Reads size_to_copy from src.data() but accounts for src.size(). Faster
   // than Append() if size_to_copy is a compile time constant, but requires
   // size_to_copy bytes to be readable, possibly past the end of src.
   //
@@ -950,7 +950,7 @@ DumpStructure(T* object, absl::string_view data, std::ostream& out) {
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // args, and sets block data to object.data().
+  // args, and sets block data to string_view(object).
   template <typename... Args>
   static RawBlock* NewBlock(std::tuple<Args...> args);
 
@@ -992,7 +992,8 @@ const Chain::ExternalMethods Chain::ExternalMethodsFor<T>::methods = {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
-  internal::CallOperator(block->unchecked_external_object<T>(), block->data());
+  internal::CallOperator(block->unchecked_external_object<T>(),
+                         absl::string_view(*block));
   block->unchecked_external_object<T>()->~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
       block, RawBlock::kExternalObjectOffset<T>() + sizeof(T));
@@ -1004,20 +1005,20 @@ void Chain::ExternalMethodsFor<T>::RegisterUnique(
   memory_estimator->RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
                                           sizeof(T));
   internal::RegisterSubobjects(block->unchecked_external_object<T>(),
-                               block->data(), memory_estimator);
+                               absl::string_view(*block), memory_estimator);
 }
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
                                                  std::ostream& out) {
-  internal::DumpStructure(block->unchecked_external_object<T>(), block->data(),
-                          out);
+  internal::DumpStructure(block->unchecked_external_object<T>(),
+                          absl::string_view(*block), out);
 }
 
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
   ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
-  data_ = unchecked_external_object<T>()->data();
+  data_ = absl::string_view(*unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1282,7 +1283,7 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return chain_->short_data();
   } else {
-    return (*ptr_.as_ptr())->data();
+    return absl::string_view(**ptr_.as_ptr());
   }
 }
 
@@ -1473,7 +1474,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::operator[](
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return chain_->begin_[n]->data();
+    return absl::string_view(*chain_->begin_[n]);
   }
 }
 
@@ -1483,7 +1484,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return chain_->begin_[n]->data();
+    return absl::string_view(*chain_->begin_[n]);
   }
 }
 
@@ -1493,7 +1494,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::front() const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return chain_->begin_[0]->data();
+    return absl::string_view(*chain_->begin_[0]);
   }
 }
 
@@ -1503,7 +1504,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return chain_->end_[-1]->data();
+    return absl::string_view(*chain_->end_[-1]);
   }
 }
 
@@ -1657,7 +1658,7 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
     case 0:
       return short_data();
     case 1:
-      return front()->data();
+      return absl::string_view(*front());
     default:
       return absl::nullopt;
   }
@@ -1882,15 +1883,15 @@ inline void ChainBlock::Clear() {
 }
 
 inline ChainBlock::operator absl::string_view() const {
-  return block_ == nullptr ? absl::string_view() : block_->data();
+  return block_ == nullptr ? absl::string_view() : absl::string_view(*block_);
 }
 
 inline const char* ChainBlock::data() const {
-  return block_ == nullptr ? nullptr : block_->data().data();
+  return block_ == nullptr ? nullptr : absl::string_view(*block_).data();
 }
 
 inline size_t ChainBlock::size() const {
-  return block_ == nullptr ? size_t{0} : block_->data().size();
+  return block_ == nullptr ? size_t{0} : absl::string_view(*block_).size();
 }
 
 inline bool ChainBlock::empty() const {

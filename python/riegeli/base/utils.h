@@ -437,7 +437,7 @@ class BytesLike {
   }
 
   // Returns the binary contents.
-  absl::string_view data() const {
+  explicit operator absl::string_view() const {
     return absl::string_view(static_cast<const char*>(buffer_.buf),
                              IntCast<size_t>(buffer_.len));
   }
@@ -476,7 +476,7 @@ class TextOrBytes {
   bool FromPython(PyObject* object);
 
   // Returns the text contents.
-  absl::string_view data() const { return data_; }
+  explicit operator absl::string_view() const { return data_; }
 
  private:
   absl::string_view data_;

@@ -120,7 +120,7 @@ class Chain::StringRef {
   StringRef(const StringRef&) = delete;
   StringRef& operator=(const StringRef&) = delete;
 
-  absl::string_view data() const { return src_; }
+  explicit operator absl::string_view() const { return src_; }
   void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
 
@@ -161,7 +161,7 @@ inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
 template <Chain::Ownership ownership>
 inline Chain::RawBlock* Chain::RawBlock::Copy() {
   RawBlock* const block = NewInternal(size());
-  block->Append(data());
+  block->Append(absl::string_view(*this));
   RIEGELI_ASSERT(!block->wasteful())
       << "A full block should not be considered wasteful";
   Unref<ownership>();
@@ -532,7 +532,7 @@ void Chain::AppendTo(std::string* dest) && {
     RawBlock* const block = front();
     if (StringRef* const string_ref =
             block->checked_external_object_with_unique_owner<StringRef>()) {
-      RIEGELI_ASSERT_EQ(block->size(), string_ref->data().size())
+      RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       if (dest->capacity() <= string_ref->src_.capacity()) {
@@ -559,7 +559,7 @@ Chain::operator std::string() && {
     RawBlock* const block = front();
     if (StringRef* const string_ref =
             block->checked_external_object_with_unique_owner<StringRef>()) {
-      RIEGELI_ASSERT_EQ(block->size(), string_ref->data().size())
+      RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       const std::string dest = std::move(string_ref->src_);
@@ -875,7 +875,7 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       // new block.
       block = RawBlock::NewInternal(NewBlockCapacity(
           last->size(), min_length, recommended_length, size_hint));
-      block->Append(last->data());
+      block->Append(absl::string_view(*last));
       last->Unref();
       back() = block;
     } else {
@@ -963,7 +963,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       // new block.
       block = RawBlock::NewInternal(NewBlockCapacity(
           first->size(), min_length, recommended_length, size_hint));
-      block->Prepend(first->data());
+      block->Prepend(absl::string_view(*first));
       first->Unref();
       front() = block;
     } else {
@@ -1062,7 +1062,7 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
                 : UnsignedMax(size_ + src_first->size(), kMaxShortDataSize);
         RawBlock* const merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(src_first->data());
+        merged->Append(absl::string_view(*src_first));
         PushBack(merged);
       }
       (*src_iter++)->Unref<ownership>();
@@ -1086,7 +1086,7 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
                   !last->wasteful(src_first->size()))) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        last->Append(src_first->data());
+        last->Append(absl::string_view(*src_first));
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
@@ -1100,8 +1100,8 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
                                    size_hint)
                 : last->size() + src_first->size();
         RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->Append(last->data());
-        merged->Append(src_first->data());
+        merged->Append(absl::string_view(*last));
+        merged->Append(absl::string_view(*src_first));
         last->Unref();
         back() = merged;
       }
@@ -1122,7 +1122,7 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
           src_first->size() <= kAllocationCost + last->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        last->Append(src_first->data());
+        last->Append(absl::string_view(*src_first));
         (*src_iter++)->Unref<ownership>();
       } else {
         // Appending in place is not possible, or rewriting the last block is
@@ -1139,7 +1139,7 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
             !last->wasteful(src_first->size())) {
           // Appending in place is possible; this is always cheaper than
           // rewriting the first block of src.
-          last->Append(src_first->data());
+          last->Append(absl::string_view(*src_first));
         } else {
           // Appending in place is not possible.
           PushBack(src_first->Copy<Ownership::kShare>());
@@ -1217,7 +1217,7 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
                 : size_ + src_last->size();
         RawBlock* const merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
-        merged->Prepend(src_last->data());
+        merged->Prepend(absl::string_view(*src_last));
         PushFront(merged);
       }
       (*--src_iter)->Unref<ownership>();
@@ -1241,7 +1241,7 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
                   !first->wasteful(src_last->size()))) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        first->Prepend(src_last->data());
+        first->Prepend(absl::string_view(*src_last));
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
@@ -1255,8 +1255,8 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
                                    size_hint)
                 : first->size() + src_last->size();
         RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->Prepend(first->data());
-        merged->Prepend(src_last->data());
+        merged->Prepend(absl::string_view(*first));
+        merged->Prepend(absl::string_view(*src_last));
         first->Unref();
         front() = merged;
       }
@@ -1277,7 +1277,7 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
           src_last->size() <= kAllocationCost + first->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        first->Prepend(src_last->data());
+        first->Prepend(absl::string_view(*src_last));
         (*--src_iter)->Unref<ownership>();
       } else {
         // Prepending in place is not possible, or rewriting the first block is
@@ -1294,7 +1294,7 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
             !first->wasteful(src_last->size())) {
           // Prepending in place is possible; this is always cheaper than
           // rewriting the last block of src.
-          first->Prepend(src_last->data());
+          first->Prepend(absl::string_view(*src_last));
         } else {
           // Prepending in place is not possible.
           PushFront(src_last->Copy<Ownership::kShare>());
@@ -1329,7 +1329,7 @@ void Chain::AppendBlock(RawBlock* block, size_t size_hint) {
             size_hint);
         RawBlock* const merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(block->data());
+        merged->Append(absl::string_view(*block));
         PushBack(merged);
         size_ += block->size();
         block->Unref<ownership>();
@@ -1347,7 +1347,7 @@ void Chain::AppendBlock(RawBlock* block, size_t size_hint) {
       if (last->can_append(block->size())) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        last->Append(block->data());
+        last->Append(absl::string_view(*block));
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
@@ -1355,8 +1355,8 @@ void Chain::AppendBlock(RawBlock* block, size_t size_hint) {
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         RawBlock* const merged = RawBlock::NewInternal(
             NewBlockCapacity(last->size(), block->size(), 0, size_hint));
-        merged->Append(last->data());
-        merged->Append(block->data());
+        merged->Append(absl::string_view(*last));
+        merged->Append(absl::string_view(*block));
         last->Unref();
         back() = merged;
       }
@@ -1378,7 +1378,7 @@ void Chain::AppendBlock(RawBlock* block, size_t size_hint) {
           block->size() <= kAllocationCost + last->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        last->Append(block->data());
+        last->Append(absl::string_view(*block));
         size_ += block->size();
         block->Unref<ownership>();
         return;
@@ -1412,7 +1412,7 @@ void Chain::PrependBlock(RawBlock* block, size_t size_hint) {
             NewBlockCapacity(size_, block->size(), 0, size_hint);
         RawBlock* const merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
-        merged->Prepend(block->data());
+        merged->Prepend(absl::string_view(*block));
         PushFront(merged);
         size_ += block->size();
         block->Unref<ownership>();
@@ -1430,7 +1430,7 @@ void Chain::PrependBlock(RawBlock* block, size_t size_hint) {
       if (first->can_prepend(block->size())) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        first->Prepend(block->data());
+        first->Prepend(absl::string_view(*block));
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
@@ -1438,8 +1438,8 @@ void Chain::PrependBlock(RawBlock* block, size_t size_hint) {
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         RawBlock* const merged = RawBlock::NewInternal(
             NewBlockCapacity(first->size(), block->size(), 0, size_hint));
-        merged->Prepend(first->data());
-        merged->Prepend(block->data());
+        merged->Prepend(absl::string_view(*first));
+        merged->Prepend(absl::string_view(*block));
         first->Unref();
         front() = merged;
       }
@@ -1461,7 +1461,7 @@ void Chain::PrependBlock(RawBlock* block, size_t size_hint) {
           block->size() <= kAllocationCost + first->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        first->Prepend(block->data());
+        first->Prepend(absl::string_view(*block));
         size_ += block->size();
         block->Unref<ownership>();
         return;
@@ -1511,7 +1511,7 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
     block->Unref();
     return;
   }
-  absl::string_view data = block->data();
+  absl::string_view data = absl::string_view(*block);
   data.remove_suffix(length);
   // Compensate for increasing size_ by Append().
   size_ -= data.size();
@@ -1570,7 +1570,7 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
     block->Unref();
     return;
   }
-  absl::string_view data = block->data();
+  absl::string_view data = absl::string_view(*block);
   data.remove_prefix(length);
   // Compensate for increasing size_ by Prepend().
   size_ -= data.size();
@@ -1728,7 +1728,7 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
     if (min_length == 0) return absl::Span<char>();
     RawBlock* const block = RawBlock::NewInternal(
         NewBlockCapacity(min_length, recommended_length, size_hint));
-    block->Append(block_->data());
+    block->Append(absl::string_view(*block_));
     block_->Unref();
     block_ = block;
   }
@@ -1756,7 +1756,7 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
     if (min_length == 0) return absl::Span<char>();
     RawBlock* const block = RawBlock::NewInternal(
         NewBlockCapacity(min_length, recommended_length, size_hint));
-    block->Prepend(block_->data());
+    block->Prepend(absl::string_view(*block_));
     block_->Unref();
     block_ = block;
   }
@@ -1775,7 +1775,7 @@ void ChainBlock::RemoveSuffixSlow(size_t length, size_t size_hint) {
     block_ = nullptr;
     return;
   }
-  absl::string_view data = block_->data();
+  absl::string_view data = absl::string_view(*block_);
   data.remove_suffix(length);
   RawBlock* const block = RawBlock::NewInternal(
       NewBlockCapacity(data.size(), data.size(), size_hint));
@@ -1793,7 +1793,7 @@ void ChainBlock::RemovePrefixSlow(size_t length, size_t size_hint) {
     block_ = nullptr;
     return;
   }
-  absl::string_view data = block_->data();
+  absl::string_view data = absl::string_view(*block_);
   data.remove_prefix(length);
   RawBlock* const block = RawBlock::NewInternal(
       NewBlockCapacity(data.size(), data.size(), size_hint));

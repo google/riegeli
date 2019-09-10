@@ -96,7 +96,9 @@ std::string Exception::message() const {
     absl::StrAppend(&message, ": <TextOrBytes::FromPython() failed>");
     return message;
   }
-  if (!str.data().empty()) absl::StrAppend(&message, ": ", str.data());
+  if (!absl::string_view(str).empty()) {
+    absl::StrAppend(&message, ": ", absl::string_view(str));
+  }
   return message;
 }
 

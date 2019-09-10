@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_writer.h"
 #include "python/riegeli/records/record_position.h"
@@ -278,7 +279,7 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     TextOrBytes options;
     if (ABSL_PREDICT_FALSE(!options.FromPython(options_arg))) return -1;
     const Status from_string_status =
-        record_writer_options.FromString(options.data());
+        record_writer_options.FromString(absl::string_view(options));
     if (ABSL_PREDICT_FALSE(!from_string_status.ok())) {
       SetRiegeliError(from_string_status);
       return -1;
@@ -403,8 +404,9 @@ extern "C" PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
   BytesLike record;
   if (ABSL_PREDICT_FALSE(!record.FromPython(record_arg))) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  const bool ok = PythonUnlocked(
-      [&] { return self->record_writer->WriteRecord(record.data()); });
+  const bool ok = PythonUnlocked([&] {
+    return self->record_writer->WriteRecord(absl::string_view(record));
+  });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
@@ -426,8 +428,9 @@ extern "C" PyObject* RecordWriterWriteRecordWithKey(PyRecordWriterObject* self,
   if (ABSL_PREDICT_FALSE(!record.FromPython(record_arg))) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
   FutureRecordPosition key;
-  const bool ok = PythonUnlocked(
-      [&] { return self->record_writer->WriteRecord(record.data(), &key); });
+  const bool ok = PythonUnlocked([&] {
+    return self->record_writer->WriteRecord(absl::string_view(record), &key);
+  });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
@@ -456,8 +459,9 @@ extern "C" PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  const bool ok = PythonUnlocked(
-      [&] { return self->record_writer->WriteRecord(serialized.data()); });
+  const bool ok = PythonUnlocked([&] {
+    return self->record_writer->WriteRecord(absl::string_view(serialized));
+  });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordWriter(self);
     return nullptr;
@@ -487,7 +491,8 @@ extern "C" PyObject* RecordWriterWriteMessageWithKey(PyRecordWriterObject* self,
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
   FutureRecordPosition key;
   const bool ok = PythonUnlocked([&] {
-    return self->record_writer->WriteRecord(serialized.data(), &key);
+    return self->record_writer->WriteRecord(absl::string_view(serialized),
+                                            &key);
   });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordWriter(self);
@@ -517,8 +522,9 @@ extern "C" PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
       return nullptr;
     }
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    const bool ok = PythonUnlocked(
-        [&] { return self->record_writer->WriteRecord(record.data()); });
+    const bool ok = PythonUnlocked([&] {
+      return self->record_writer->WriteRecord(absl::string_view(record));
+    });
     if (ABSL_PREDICT_FALSE(!ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
@@ -550,8 +556,9 @@ extern "C" PyObject* RecordWriterWriteRecordsWithKeys(
     }
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
     FutureRecordPosition key;
-    const bool ok = PythonUnlocked(
-        [&] { return self->record_writer->WriteRecord(record.data(), &key); });
+    const bool ok = PythonUnlocked([&] {
+      return self->record_writer->WriteRecord(absl::string_view(record), &key);
+    });
     if (ABSL_PREDICT_FALSE(!ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
@@ -593,8 +600,9 @@ extern "C" PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
       return nullptr;
     }
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    const bool ok = PythonUnlocked(
-        [&] { return self->record_writer->WriteRecord(serialized.data()); });
+    const bool ok = PythonUnlocked([&] {
+      return self->record_writer->WriteRecord(absl::string_view(serialized));
+    });
     if (ABSL_PREDICT_FALSE(!ok)) {
       SetExceptionFromRecordWriter(self);
       return nullptr;
@@ -631,7 +639,8 @@ extern "C" PyObject* RecordWriterWriteMessagesWithKeys(
     if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
     FutureRecordPosition key;
     const bool ok = PythonUnlocked([&] {
-      return self->record_writer->WriteRecord(serialized.data(), &key);
+      return self->record_writer->WriteRecord(absl::string_view(serialized),
+                                              &key);
     });
     if (ABSL_PREDICT_FALSE(!ok)) {
       SetExceptionFromRecordWriter(self);

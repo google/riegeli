@@ -32,6 +32,7 @@
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/records/record_position.h"
@@ -177,7 +178,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
     return nullptr;
   }
   RecordPosition pos;
-  if (ABSL_PREDICT_FALSE(!pos.FromString(serialized.data()))) {
+  if (ABSL_PREDICT_FALSE(!pos.FromString(absl::string_view(serialized)))) {
     PyErr_SetString(PyExc_ValueError, "RecordPosition.from_str() failed");
     return nullptr;
   }
@@ -218,7 +219,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
     return nullptr;
   }
   RecordPosition pos;
-  if (ABSL_PREDICT_FALSE(!pos.FromBytes(serialized.data()))) {
+  if (ABSL_PREDICT_FALSE(!pos.FromBytes(absl::string_view(serialized)))) {
     PyErr_SetString(PyExc_ValueError, "RecordPosition.from_bytes() failed");
     return nullptr;
   }
