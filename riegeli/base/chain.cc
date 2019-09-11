@@ -348,11 +348,10 @@ inline void Chain::RawBlock::AppendTo(Chain* dest, size_t size_hint) {
 
 inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
                                             Chain* dest, size_t size_hint) {
-  RIEGELI_ASSERT(std::greater_equal<const char*>()(substr.data(), data_begin()))
+  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data_begin()))
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain*): "
          "substring not contained in data";
-  RIEGELI_ASSERT(
-      std::less_equal<const char*>()(substr.data() + substr.size(), data_end()))
+  RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(), data_end()))
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain*): "
          "substring not contained in data";
   RIEGELI_ASSERT_LE(substr.size(),
@@ -414,12 +413,12 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
       << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    RIEGELI_ASSERT(std::greater_equal<const char*>()(
-        substr.data(), chain_->short_data().data()))
+    RIEGELI_ASSERT(
+        std::greater_equal<>()(substr.data(), chain_->short_data().data()))
         << "Failed precondition of "
            "Chain::BlockIterator::AppendSubstrTo(Chain*): "
            "substring not contained in data";
-    RIEGELI_ASSERT(std::less_equal<const char*>()(
+    RIEGELI_ASSERT(std::less_equal<>()(
         substr.data() + substr.size(),
         chain_->short_data().data() + chain_->short_data().size()))
         << "Failed precondition of "

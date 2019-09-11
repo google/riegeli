@@ -22,7 +22,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 
 namespace riegeli {
 
@@ -158,11 +157,11 @@ inline Status& Status::operator=(const Status& that) noexcept {
 }
 
 inline Status::Status(Status&& that) noexcept
-    : rep_(absl::exchange(that.rep_, nullptr)) {}
+    : rep_(std::exchange(that.rep_, nullptr)) {}
 
 inline Status& Status::operator=(Status&& that) noexcept {
   // Exchange that.rep_ early to support self-assignment.
-  Rep* const rep = absl::exchange(that.rep_, nullptr);
+  Rep* const rep = std::exchange(that.rep_, nullptr);
   if (rep_ != nullptr) rep_->Unref();
   rep_ = rep;
   return *this;

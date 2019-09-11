@@ -25,7 +25,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -158,7 +157,7 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
       limits_(std::move(that.limits_)),
       values_reader_(std::move(that.values_reader_)),
       index_(that.index_),
-      recoverable_(absl::exchange(that.recoverable_, false)) {}
+      recoverable_(std::exchange(that.recoverable_, false)) {}
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   Object::operator=(std::move(that));
@@ -166,7 +165,7 @@ inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   limits_ = std::move(that.limits_);
   values_reader_ = std::move(that.values_reader_);
   index_ = that.index_;
-  recoverable_ = absl::exchange(that.recoverable_, false);
+  recoverable_ = std::exchange(that.recoverable_, false);
   return *this;
 }
 

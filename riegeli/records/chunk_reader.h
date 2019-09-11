@@ -19,7 +19,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -296,7 +295,7 @@ inline DefaultChunkReaderBase::DefaultChunkReaderBase(
       pos_(that.pos_),
       chunk_(std::move(that.chunk_)),
       block_header_(that.block_header_),
-      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)),
+      recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
       recoverable_pos_(that.recoverable_pos_) {}
 
 inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
@@ -306,7 +305,7 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
   pos_ = that.pos_;
   chunk_ = that.chunk_;
   block_header_ = that.block_header_;
-  recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
+  recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);
   recoverable_pos_ = that.recoverable_pos_;
   return *this;
 }

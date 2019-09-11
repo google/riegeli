@@ -16,9 +16,9 @@
 #define RIEGELI_RECORDS_CHUNK_WRITER_DEPENDENCY_H_
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/records/chunk_writer.h"
@@ -29,7 +29,7 @@ namespace riegeli {
 // Dependency<Writer*, M> by wrapping M in DefaultChunkWriter<M>.
 template <typename M>
 class Dependency<ChunkWriter*, M,
-                 absl::enable_if_t<IsValidDependency<Writer*, M>::value>> {
+                 std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
  public:
   Dependency() noexcept {}
 

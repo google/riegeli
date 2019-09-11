@@ -29,11 +29,11 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -158,11 +158,11 @@ const StaticObject* all_static_objects = nullptr;
 
 void FreeStaticObjectsImpl() {
   const StaticObject* static_object =
-      absl::exchange(all_static_objects, nullptr);
+      std::exchange(all_static_objects, nullptr);
   while (static_object != nullptr) {
     Py_DECREF(static_object->value_);
     static_object->value_ = nullptr;
-    static_object = absl::exchange(static_object->next_, nullptr);
+    static_object = std::exchange(static_object->next_, nullptr);
   }
 }
 
@@ -179,7 +179,7 @@ void StaticObject::RegisterThis() const {
     // This is the first registered StaticObject since Py_Initialize().
     Py_AtExit(FreeStaticObjects);
   }
-  next_ = absl::exchange(all_static_objects, this);
+  next_ = std::exchange(all_static_objects, this);
 }
 
 bool ImportedCapsuleBase::ImportValue() const {

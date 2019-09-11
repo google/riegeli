@@ -16,8 +16,9 @@
 
 #include <stddef.h>
 
+#include <utility>
+
 #include "absl/container/flat_hash_set.h"
-#include "absl/utility/utility.h"
 
 namespace riegeli {
 
@@ -31,14 +32,14 @@ MemoryEstimator& MemoryEstimator::operator=(const MemoryEstimator& that) {
 }
 
 MemoryEstimator::MemoryEstimator(MemoryEstimator&& that) noexcept
-    : total_memory_(absl::exchange(that.total_memory_, 0)),
-      objects_seen_(absl::exchange(that.objects_seen_,
-                                   absl::flat_hash_set<const void*>())) {}
+    : total_memory_(std::exchange(that.total_memory_, 0)),
+      objects_seen_(std::exchange(that.objects_seen_,
+                                  absl::flat_hash_set<const void*>())) {}
 
 MemoryEstimator& MemoryEstimator::operator=(MemoryEstimator&& that) noexcept {
-  total_memory_ = absl::exchange(that.total_memory_, 0);
+  total_memory_ = std::exchange(that.total_memory_, 0);
   objects_seen_ =
-      absl::exchange(that.objects_seen_, absl::flat_hash_set<const void*>());
+      std::exchange(that.objects_seen_, absl::flat_hash_set<const void*>());
   return *this;
 }
 

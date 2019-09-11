@@ -37,34 +37,6 @@
 
 namespace riegeli {
 
-namespace {
-
-// TODO: Replace the struct with a lambda with
-// [function1 = std::move(function1), function2 = std::move(function2)]
-// when C++17 is available.
-struct OrFunction {
-  bool operator()(ValueParser* value_parser) const {
-    return function1(value_parser) || function2(value_parser);
-  }
-
-  ValueParser::Function function1;
-  ValueParser::Function function2;
-};
-
-// TODO: Replace the struct with a lambda with
-// [function1 = std::move(function1), function2 = std::move(function2)]
-// when C++17 is available.
-struct AndFunction {
-  bool operator()(ValueParser* value_parser) const {
-    return function1(value_parser) && function2(value_parser);
-  }
-
-  ValueParser::Function function1;
-  ValueParser::Function function2;
-};
-
-}  // namespace
-
 ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
                          absl::string_view value)
     : Object(kInitiallyOpen),
@@ -165,11 +137,17 @@ ValueParser::Function ValueParser::Real(double* out, double min_value,
 }
 
 ValueParser::Function ValueParser::Or(Function function1, Function function2) {
-  return OrFunction{std::move(function1), std::move(function2)};
+  return [function1 = std::move(function1),
+          function2 = std::move(function2)](ValueParser* value_parser) {
+    return function1(value_parser) || function2(value_parser);
+  };
 }
 
 ValueParser::Function ValueParser::And(Function function1, Function function2) {
-  return AndFunction{std::move(function1), std::move(function2)};
+  return [function1 = std::move(function1),
+          function2 = std::move(function2)](ValueParser* value_parser) {
+    return function1(value_parser) && function2(value_parser);
+  };
 }
 
 ValueParser::Function ValueParser::CopyTo(std::string* text) {

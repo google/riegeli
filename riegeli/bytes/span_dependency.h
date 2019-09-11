@@ -18,7 +18,6 @@
 #include <memory>
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
 #include "absl/types/span.h"
 #include "riegeli/base/dependency.h"
 
@@ -40,8 +39,8 @@ class Dependency<absl::Span<char>, absl::Span<char>>
 template <typename M>
 class Dependency<
     absl::Span<char>, M*,
-    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                      !std::is_pointer<M>::value>> : public DependencyBase<M*> {
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>> : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
 
@@ -53,8 +52,8 @@ class Dependency<
 template <typename M>
 class Dependency<
     absl::Span<char>, M,
-    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                      !std::is_pointer<M>::value>> : public DependencyBase<M> {
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>> : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
 
@@ -69,8 +68,8 @@ class Dependency<
 template <typename M, typename Deleter>
 class Dependency<
     absl::Span<char>, std::unique_ptr<M, Deleter>,
-    absl::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
-                      !std::is_pointer<M>::value>>
+    std::enable_if_t<std::is_constructible<absl::Span<char>, M&>::value &&
+                     !std::is_pointer<M>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;

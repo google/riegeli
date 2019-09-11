@@ -19,10 +19,10 @@
 
 #include <cerrno>
 #include <tuple>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
@@ -57,7 +57,7 @@ class OwnedFd {
   int get() const { return fd_; }
 
   // Releases ans returns the owned file descriptor without closing it.
-  int Release() { return absl::exchange(fd_, -1); }
+  int Release() { return std::exchange(fd_, -1); }
 
  private:
   int fd_ = -1;
@@ -155,11 +155,11 @@ inline absl::string_view CloseFunctionName() {
 }  // namespace internal
 
 inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
-    : fd_(absl::exchange(that.fd_, -1)) {}
+    : fd_(std::exchange(that.fd_, -1)) {}
 
 inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
   // Exchange that.fd_ early to support self-assignment.
-  const int fd = absl::exchange(that.fd_, -1);
+  const int fd = std::exchange(that.fd_, -1);
   if (fd_ >= 0) internal::CloseFd(fd_);
   fd_ = fd;
   return *this;

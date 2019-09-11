@@ -29,8 +29,6 @@ cc_library(
         "//riegeli/chunk_encoding:transpose_encoder",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:variant",
@@ -64,10 +62,7 @@ cc_library(
         "//riegeli/chunk_encoding:field_projection",
         "//riegeli/chunk_encoding:transpose_decoder",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
         "@com_google_protobuf//:cc_wkt_protos",
         "@com_google_protobuf//:protobuf",
     ],
@@ -84,10 +79,8 @@ cc_library(
         "//riegeli/chunk_encoding:chunk",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -141,7 +134,6 @@ cc_library(
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 

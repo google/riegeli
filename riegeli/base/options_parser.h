@@ -182,29 +182,22 @@ class OptionsParser : public Object {
 
 // Implementation details follow.
 
-namespace internal {
-
-// TODO: Replace the struct with a lambda with
-// [value = std::move(value)] when C++17 is available.
 template <typename T>
-struct EmptyFunction {
-  bool operator()(ValueParser* value_parser) const {
+ValueParser::Function ValueParser::Empty(T* out, T value) {
+  return [out, value = std::move(value)](ValueParser* value_parser) {
     if (ABSL_PREDICT_TRUE(value_parser->value().empty())) {
       *out = value;
       return true;
     }
     return value_parser->InvalidValue("(empty)");
-  }
+  };
+}
 
-  T* out;
-  T value;
-};
-
-// TODO: Replace the struct with a lambda with
-// [possible_values = std::move(possible_values)] when C++17 is available.
 template <typename T>
-struct EnumOptionFunction {
-  bool operator()(ValueParser* value_parser) const {
+ValueParser::Function ValueParser::Enum(
+    T* out, std::vector<std::pair<std::string, T>> possible_values) {
+  return [out, possible_values =
+                   std::move(possible_values)](ValueParser* value_parser) {
     for (const std::pair<std::string, T>& possible_value : possible_values) {
       if (value_parser->value() == possible_value.first) {
         *out = possible_value.second;
@@ -217,23 +210,7 @@ struct EnumOptionFunction {
                                      : absl::string_view(possible_value.first));
     }
     return false;
-  }
-
-  T* out;
-  std::vector<std::pair<std::string, T>> possible_values;
-};
-
-}  // namespace internal
-
-template <typename T>
-ValueParser::Function ValueParser::Empty(T* out, T value) {
-  return internal::EmptyFunction<T>{out, std::move(value)};
-}
-
-template <typename T>
-ValueParser::Function ValueParser::Enum(
-    T* out, std::vector<std::pair<std::string, T>> possible_values) {
-  return internal::EnumOptionFunction<T>{out, std::move(possible_values)};
+  };
 }
 
 template <typename... Functions>

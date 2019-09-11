@@ -27,10 +27,10 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -102,7 +102,7 @@ class PythonUnlock {
 //   return std::invoke(std::forward<Function>(f), std::forward<Args>(args)...);
 // }
 template <typename Function>
-absl::result_of_t<Function()> PythonUnlocked(Function&& f) {
+std::result_of_t<Function()> PythonUnlocked(Function&& f) {
   PythonUnlock unlock;
   return std::forward<Function>(f)();
 }

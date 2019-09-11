@@ -16,10 +16,10 @@
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -80,7 +80,7 @@ Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
 template <typename Dest>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                 Dest&& dest) {
-  Dependency<Writer*, absl::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
+  Dependency<Writer*, std::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
   Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
   if (dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
@@ -106,7 +106,7 @@ inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
 template <typename Dest>
 inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
                                        Dest&& dest) {
-  Dependency<Writer*, absl::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
+  Dependency<Writer*, std::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
   Status status = internal::SerializePartialToWriterImpl(src, dest_dep.get());
   if (dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {

@@ -18,11 +18,10 @@
 #include <memory>
 #include <new>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -44,7 +43,7 @@ class StableDependency;
 
 // Specialization when Dependency<P*, M> is already stable.
 template <typename P, typename M>
-class StableDependency<P*, M, absl::enable_if_t<Dependency<P*, M>::kIsStable()>>
+class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable()>>
     : public Dependency<P*, M> {
   using Dependency<P*, M>::Dependency;
 };
@@ -53,18 +52,18 @@ class StableDependency<P*, M, absl::enable_if_t<Dependency<P*, M>::kIsStable()>>
 // dynamically.
 template <typename P, typename M>
 class StableDependency<P*, M,
-                       absl::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
+                       std::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
  public:
   StableDependency() noexcept : dummy_() {}
 
   explicit StableDependency(const M& manager)
-      : dep_(absl::make_unique<Dependency<P*, M>>(manager)) {}
+      : dep_(std::make_unique<Dependency<P*, M>>(manager)) {}
   explicit StableDependency(M&& manager) noexcept
-      : dep_(absl::make_unique<Dependency<P*, M>>(std::move(manager))) {}
+      : dep_(std::make_unique<Dependency<P*, M>>(std::move(manager))) {}
 
   template <typename... MArgs>
   explicit StableDependency(std::tuple<MArgs...> manager_args)
-      : dep_(absl::make_unique<Dependency<P*, M>>(std::move(manager_args))) {}
+      : dep_(std::make_unique<Dependency<P*, M>>(std::move(manager_args))) {}
 
   ~StableDependency() {
     if (dep_ == nullptr) dummy_.~Dependency<P*, M>();
@@ -102,7 +101,7 @@ class StableDependency<P*, M,
   void Reset(const M& manager) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
-      dep_ = absl::make_unique<Dependency<P*, M>>(manager);
+      dep_ = std::make_unique<Dependency<P*, M>>(manager);
     } else {
       dep_->Reset(manager);
     }
@@ -110,7 +109,7 @@ class StableDependency<P*, M,
   void Reset(M&& manager) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
-      dep_ = absl::make_unique<Dependency<P*, M>>(std::move(manager));
+      dep_ = std::make_unique<Dependency<P*, M>>(std::move(manager));
     } else {
       dep_->Reset(std::move(manager));
     }
@@ -120,7 +119,7 @@ class StableDependency<P*, M,
   void Reset(std::tuple<ManagerArgs...> manager_args) {
     if (dep_ == nullptr) {
       dummy_.~Dependency<P*, M>();
-      dep_ = absl::make_unique<Dependency<P*, M>>(std::move(manager_args));
+      dep_ = std::make_unique<Dependency<P*, M>>(std::move(manager_args));
     } else {
       dep_->Reset(std::move(manager_args));
     }

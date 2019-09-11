@@ -30,7 +30,6 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -175,7 +174,7 @@ inline TransposeEncoder::EncodedTagInfo::EncodedTagInfo(
       base(kInvalidPos) {}
 
 inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
-    : buffer(absl::make_unique<Chain>()), node_id(node_id) {}
+    : buffer(std::make_unique<Chain>()), node_id(node_id) {}
 
 TransposeEncoder::TransposeEncoder(CompressorOptions options,
                                    uint64_t bucket_size)
@@ -294,7 +293,7 @@ inline BackwardWriter* TransposeEncoder::GetBuffer(Node* node,
         data_[static_cast<uint32_t>(type)];
     buffers.emplace_back(node->first);
     node->second.writer =
-        absl::make_unique<ChainBackwardWriter<>>(buffers.back().buffer.get());
+        std::make_unique<ChainBackwardWriter<>>(buffers.back().buffer.get());
   }
   return node->second.writer.get();
 }

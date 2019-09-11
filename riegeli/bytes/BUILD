@@ -12,7 +12,6 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -26,7 +25,6 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -43,7 +41,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -184,7 +181,6 @@ cc_library(
         ":writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -200,7 +196,6 @@ cc_library(
         ":backward_writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -229,7 +224,6 @@ cc_library(
         ":reader",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -273,7 +267,6 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -291,7 +284,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -312,7 +304,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -422,7 +413,6 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf_lite",
     ],
@@ -439,7 +429,6 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_protobuf//:protobuf_lite",

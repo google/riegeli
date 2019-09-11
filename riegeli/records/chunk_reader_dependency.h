@@ -16,9 +16,9 @@
 #define RIEGELI_RECORDS_CHUNK_READER_DEPENDENCY_H_
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/records/chunk_reader.h"
@@ -29,7 +29,7 @@ namespace riegeli {
 // Dependency<Reader*, M> by wrapping M in DefaultChunkReader<M>.
 template <typename M>
 class Dependency<ChunkReader*, M,
-                 absl::enable_if_t<IsValidDependency<Reader*, M>::value>> {
+                 std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
  public:
   Dependency() noexcept {}
 

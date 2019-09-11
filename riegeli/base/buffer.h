@@ -17,8 +17,9 @@
 
 #include <stddef.h>
 
+#include <utility>
+
 #include "absl/base/optimization.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 
@@ -77,11 +78,11 @@ class Buffer {
 // Implementation details follow.
 
 inline Buffer::Buffer(Buffer&& that) noexcept
-    : data_(absl::exchange(that.data_, nullptr)), size_(that.size_) {}
+    : data_(std::exchange(that.data_, nullptr)), size_(that.size_) {}
 
 inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
   // Exchange that.data_ early to support self-assignment.
-  char* const data = absl::exchange(that.data_, nullptr);
+  char* const data = std::exchange(that.data_, nullptr);
   DeleteBuffer();
   data_ = data;
   size_ = that.size_;
@@ -119,7 +120,7 @@ inline void Buffer::Resize(size_t new_size) {
   }
 }
 
-inline char* Buffer::Release() { return absl::exchange(data_, nullptr); }
+inline char* Buffer::Release() { return std::exchange(data_, nullptr); }
 
 inline void Buffer::DeleteReleased(char* ptr) { operator delete(ptr); }
 

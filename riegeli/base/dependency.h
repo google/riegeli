@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/resetter.h"
 
 namespace riegeli {
@@ -126,7 +125,7 @@ class DependencyBase {
   template <typename... ManagerArgs>
   explicit DependencyBase(std::tuple<ManagerArgs...> manager_args)
       : DependencyBase(std::move(manager_args),
-                       absl::index_sequence_for<ManagerArgs...>()) {}
+                       std::index_sequence_for<ManagerArgs...>()) {}
 
   DependencyBase(DependencyBase&& that) noexcept
       : manager_(std::move(that.manager_)) {}
@@ -142,7 +141,7 @@ class DependencyBase {
 
   template <typename... ManagerArgs>
   void Reset(std::tuple<ManagerArgs...> manager_args) {
-    Reset(std::move(manager_args), absl::index_sequence_for<ManagerArgs...>());
+    Reset(std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
   }
 
   Manager& manager() { return manager_; }
@@ -151,12 +150,12 @@ class DependencyBase {
  private:
   template <typename... ManagerArgs, size_t... Indices>
   explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
-                          absl::index_sequence<Indices...>)
+                          std::index_sequence<Indices...>)
       : manager_(std::move(std::get<Indices>(manager_args))...) {}
 
   template <typename... ManagerArgs, size_t... Indices>
   void Reset(std::tuple<ManagerArgs...>&& manager_args,
-             absl::index_sequence<Indices...>) {
+             std::index_sequence<Indices...>) {
     Resetter<Manager>::Reset(&manager_,
                              std::move(std::get<Indices>(manager_args))...);
   }
@@ -166,7 +165,7 @@ class DependencyBase {
 
 // Specialization of Dependency<P*, M*> when M* is convertible to P*.
 template <typename P, typename M>
-class Dependency<P*, M*, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
+class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
  public:
   using DependencyBase<M*>::DependencyBase;
@@ -181,7 +180,7 @@ class Dependency<P*, M*, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
 
 // Specialization of Dependency<P*, M> when M* is convertible to P*.
 template <typename P, typename M>
-class Dependency<P*, M, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
+class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M> {
  public:
   using DependencyBase<M>::DependencyBase;
@@ -200,7 +199,7 @@ class Dependency<P*, M, absl::enable_if_t<std::is_convertible<M*, P*>::value>>
 // Specialization of Dependency<P*, unique_ptr<M>> when M* is convertible to P*.
 template <typename P, typename M, typename Deleter>
 class Dependency<P*, std::unique_ptr<M, Deleter>,
-                 absl::enable_if_t<std::is_convertible<M*, P*>::value>>
+                 std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<std::unique_ptr<M, Deleter>> {
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;

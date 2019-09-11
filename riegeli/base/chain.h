@@ -35,7 +35,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
@@ -790,7 +789,7 @@ class Chain::RawBlock {
 
   template <typename T, typename... Args, size_t... Indices>
   void ConstructExternal(std::tuple<Args...> args,
-                         absl::index_sequence<Indices...>);
+                         std::index_sequence<Indices...>);
 
   bool has_unique_owner() const;
 
@@ -924,23 +923,23 @@ struct HasDumpStructureWithoutData<
            std::declval<std::ostream&>()))>> : public std::true_type {};
 
 template <typename T>
-inline absl::enable_if_t<HasDumpStructureWithData<T>::value, void>
-DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+inline std::enable_if_t<HasDumpStructureWithData<T>::value, void> DumpStructure(
+    T* object, absl::string_view data, std::ostream& out) {
   object->DumpStructure(data, out);
 }
 
 template <typename T>
-inline absl::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                             HasDumpStructureWithoutData<T>::value,
-                         void>
+inline std::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                            HasDumpStructureWithoutData<T>::value,
+                        void>
 DumpStructure(T* object, absl::string_view data, std::ostream& out) {
   object->DumpStructure(out);
 }
 
 template <typename T>
-inline absl::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                             !HasDumpStructureWithoutData<T>::value,
-                         void>
+inline std::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                            !HasDumpStructureWithoutData<T>::value,
+                        void>
 DumpStructure(T* object, absl::string_view data, std::ostream& out) {
   out << "External";
 }
@@ -1017,7 +1016,7 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
 
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
-  ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
+  ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
   data_ = absl::string_view(*unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
@@ -1027,7 +1026,7 @@ template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args,
                                  absl::string_view data)
     : data_(data) {
-  ConstructExternal<T>(std::move(args), absl::index_sequence_for<Args...>());
+  ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1066,7 +1065,7 @@ void Chain::RawBlock::Unref() {
 template <typename T, typename... Args, size_t... Indices>
 inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...> args,
-    absl::index_sequence<Indices...>) {
+    std::index_sequence<Indices...>) {
   external_.methods = &ExternalMethodsFor<T>::methods;
   new (unchecked_external_object<T>()) T(std::move(std::get<Indices>(args))...);
 }
@@ -1545,14 +1544,14 @@ inline Chain::Chain(const ChainBlock& src) {
 
 inline Chain::Chain(ChainBlock&& src) {
   if (src.block_ != nullptr) {
-    RawBlock* const block = absl::exchange(src.block_, nullptr);
+    RawBlock* const block = std::exchange(src.block_, nullptr);
     *end_++ = block;
     size_ = block->size();
   }
 }
 
 inline Chain::Chain(Chain&& that) noexcept
-    : size_(absl::exchange(that.size_, 0)) {
+    : size_(std::exchange(that.size_, 0)) {
   // Use memcpy() instead of copy constructor to silence -Wmaybe-uninitialized
   // in gcc.
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
@@ -1560,12 +1559,11 @@ inline Chain::Chain(Chain&& that) noexcept
     // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
     begin_ = block_ptrs_.here;
-    end_ =
-        block_ptrs_.here + (absl::exchange(that.end_, that.block_ptrs_.here) -
-                            that.block_ptrs_.here);
+    end_ = block_ptrs_.here + (std::exchange(that.end_, that.block_ptrs_.here) -
+                               that.block_ptrs_.here);
   } else {
-    begin_ = absl::exchange(that.begin_, that.block_ptrs_.here);
-    end_ = absl::exchange(that.end_, that.block_ptrs_.here);
+    begin_ = std::exchange(that.begin_, that.block_ptrs_.here);
+    end_ = std::exchange(that.end_, that.block_ptrs_.here);
   }
   // It does not matter what is left in that.block_ptrs_ because that.begin_ and
   // that.end_ point to the empty prefix of that.block_ptrs_.here[].
@@ -1579,11 +1577,11 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
     // that.has_here() implies that that.begin_ == that.block_ptrs_.here
     // already.
     begin = block_ptrs_.here;
-    end = block_ptrs_.here + (absl::exchange(that.end_, that.block_ptrs_.here) -
+    end = block_ptrs_.here + (std::exchange(that.end_, that.block_ptrs_.here) -
                               that.block_ptrs_.here);
   } else {
-    begin = absl::exchange(that.begin_, that.block_ptrs_.here);
-    end = absl::exchange(that.end_, that.block_ptrs_.here);
+    begin = std::exchange(that.begin_, that.block_ptrs_.here);
+    end = std::exchange(that.end_, that.block_ptrs_.here);
   }
   UnrefBlocks();
   DeleteBlockPtrs();
@@ -1593,7 +1591,7 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   begin_ = begin;
   end_ = end;
-  size_ = absl::exchange(that.size_, 0);
+  size_ = std::exchange(that.size_, 0);
   return *this;
 }
 
@@ -1696,14 +1694,14 @@ inline void Chain::Prepend(const ChainBlock& src, size_t size_hint) {
 
 inline void Chain::Append(ChainBlock&& src, size_t size_hint) {
   if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
+    AppendBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr),
                                    size_hint);
   }
 }
 
 inline void Chain::Prepend(ChainBlock&& src, size_t size_hint) {
   if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kSteal>(absl::exchange(src.block_, nullptr),
+    PrependBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr),
                                     size_hint);
   }
 }
@@ -1825,13 +1823,13 @@ inline bool operator>=(absl::string_view a, const Chain& b) {
 
 template <typename T>
 inline ChainBlock ChainBlock::FromExternal(T&& object) {
-  return ChainBlock(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+  return ChainBlock(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
       std::forward_as_tuple(std::forward<T>(object))));
 }
 
 template <typename T>
 inline ChainBlock ChainBlock::FromExternal(T&& object, absl::string_view data) {
-  return ChainBlock(Chain::ExternalMethodsFor<absl::decay_t<T>>::NewBlock(
+  return ChainBlock(Chain::ExternalMethodsFor<std::decay_t<T>>::NewBlock(
       std::forward_as_tuple(std::forward<T>(object)), data));
 }
 
@@ -1848,11 +1846,11 @@ inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args,
 }
 
 inline ChainBlock::ChainBlock(ChainBlock&& that) noexcept
-    : block_(absl::exchange(that.block_, nullptr)) {}
+    : block_(std::exchange(that.block_, nullptr)) {}
 
 inline ChainBlock& ChainBlock::operator=(ChainBlock&& that) noexcept {
   // Exchange that.block_ early to support self-assignment.
-  RawBlock* const block = absl::exchange(that.block_, nullptr);
+  RawBlock* const block = std::exchange(that.block_, nullptr);
   if (block_ != nullptr) block_->Unref();
   block_ = block;
   return *this;
@@ -1930,7 +1928,7 @@ inline void ChainBlock::RemovePrefix(size_t length, size_t size_hint) {
   RemovePrefixSlow(length, size_hint);
 }
 
-inline void* ChainBlock::Release() { return absl::exchange(block_, nullptr); }
+inline void* ChainBlock::Release() { return std::exchange(block_, nullptr); }
 
 inline void ChainBlock::DeleteReleased(void* ptr) {
   if (ptr != nullptr) static_cast<RawBlock*>(ptr)->Unref();

@@ -16,10 +16,10 @@
 #define RIEGELI_BYTES_MESSAGE_PARSE_H_
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -84,7 +84,7 @@ Status ParsePartialFromReaderUsingInputStream(
 
 template <typename Src>
 inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src) {
-  Dependency<Reader*, absl::decay_t<Src>> src_dep(std::forward<Src>(src));
+  Dependency<Reader*, std::decay_t<Src>> src_dep(std::forward<Src>(src));
   Status status = internal::ParseFromReaderImpl(dest, src_dep.get());
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
@@ -110,7 +110,7 @@ inline Status ParseFromReader(google::protobuf::MessageLite* dest,
 template <typename Src>
 inline Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
                                      Src&& src) {
-  Dependency<Reader*, absl::decay_t<Src>> src_dep(std::forward<Src>(src));
+  Dependency<Reader*, std::decay_t<Src>> src_dep(std::forward<Src>(src));
   Status status = internal::ParsePartialFromReaderImpl(dest, src_dep.get());
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {

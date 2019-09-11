@@ -39,7 +39,6 @@ cc_library(
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/utility",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -204,7 +203,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
     ],

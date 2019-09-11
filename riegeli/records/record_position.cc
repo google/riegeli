@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -123,7 +122,7 @@ FutureRecordPosition::FutureRecordPosition(Position pos_before_chunks,
                                            uint64_t record_index)
     : future_chunk_begin_(actions.empty()
                               ? nullptr
-                              : absl::make_unique<FutureChunkBegin>(
+                              : std::make_unique<FutureChunkBegin>(
                                     pos_before_chunks, std::move(actions))),
       chunk_begin_(pos_before_chunks),
       record_index_(record_index) {}

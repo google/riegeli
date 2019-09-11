@@ -24,10 +24,8 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
@@ -80,7 +78,7 @@ RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     const RecordsMetadata& metadata)
     : Object(kInitiallyOpen), record_type_name_(metadata.record_type_name()) {
   if (record_type_name_.empty() || metadata.file_descriptor().empty()) return;
-  pool_ = absl::make_unique<google::protobuf::DescriptorPool>();
+  pool_ = std::make_unique<google::protobuf::DescriptorPool>();
   ErrorCollector error_collector(this);
   for (const google::protobuf::FileDescriptorProto& file_descriptor :
        metadata.file_descriptor()) {
@@ -107,7 +105,7 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),
       chunk_begin_(that.chunk_begin_),
       chunk_decoder_(std::move(that.chunk_decoder_)),
-      recoverable_(absl::exchange(that.recoverable_, Recoverable::kNo)),
+      recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
       recovery_(std::move(that.recovery_)) {}
 
 RecordReaderBase& RecordReaderBase::operator=(
@@ -115,7 +113,7 @@ RecordReaderBase& RecordReaderBase::operator=(
   Object::operator=(std::move(that));
   chunk_begin_ = that.chunk_begin_;
   chunk_decoder_ = std::move(that.chunk_decoder_);
-  recoverable_ = absl::exchange(that.recoverable_, Recoverable::kNo);
+  recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);
   recovery_ = std::move(that.recovery_);
   return *this;
 }

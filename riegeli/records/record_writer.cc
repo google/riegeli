@@ -29,7 +29,6 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/variant.h"
@@ -231,16 +230,16 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
             : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
                   ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
-    chunk_encoder = absl::make_unique<TransposeEncoder>(
+    chunk_encoder = std::make_unique<TransposeEncoder>(
         options_.compressor_options_, bucket_size);
   } else {
-    chunk_encoder = absl::make_unique<SimpleEncoder>(
+    chunk_encoder = std::make_unique<SimpleEncoder>(
         options_.compressor_options_, options_.chunk_size_);
   }
   if (options_.parallelism_ == 0) {
     return chunk_encoder;
   } else {
-    return absl::make_unique<DeferredEncoder>(std::move(chunk_encoder));
+    return std::make_unique<DeferredEncoder>(std::move(chunk_encoder));
   }
 }
 
@@ -673,9 +672,9 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   desired_chunk_size_ =
       UnsignedMin(options.chunk_size_, kMaxNumRecords * sizeof(uint64_t));
   if (options.parallelism_ == 0) {
-    worker_ = absl::make_unique<SerialWorker>(dest, std::move(options));
+    worker_ = std::make_unique<SerialWorker>(dest, std::move(options));
   } else {
-    worker_ = absl::make_unique<ParallelWorker>(dest, std::move(options));
+    worker_ = std::make_unique<ParallelWorker>(dest, std::move(options));
   }
   if (ABSL_PREDICT_FALSE(!worker_->healthy())) Fail(*worker_);
 }

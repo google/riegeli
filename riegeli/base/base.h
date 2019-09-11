@@ -28,7 +28,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -295,7 +294,7 @@ using type_identity_t = typename type_identity<T>::type;
 namespace internal {
 
 template <typename A, typename B>
-inline absl::enable_if_t<
+inline std::enable_if_t<
     std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
@@ -304,29 +303,28 @@ IntCastImpl(B value) {
 }
 
 template <typename A, typename B>
-inline absl::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
-                         A>
+inline std::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
+                        A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, 0) << "Value out of range";
-  RIEGELI_ASSERT_LE(static_cast<absl::make_unsigned_t<B>>(value),
+  RIEGELI_ASSERT_LE(static_cast<std::make_unsigned_t<B>>(value),
                     std::numeric_limits<A>::max())
       << "Value out of range";
   return static_cast<A>(value);
 }
 
 template <typename A, typename B>
-inline absl::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
-                         A>
+inline std::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
+                        A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value,
-                    absl::make_unsigned_t<A>{std::numeric_limits<A>::max()})
+                    std::make_unsigned_t<A>{std::numeric_limits<A>::max()})
       << "Value out of range";
   return static_cast<A>(value);
 }
 
 template <typename A, typename B>
-inline absl::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
-                         A>
+inline std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value, A>
 IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Value out of range";
@@ -359,14 +357,14 @@ inline size_t PtrDistance(const A* first, const A* last) {
 // integers, as their widest type.
 
 template <typename A, typename B>
-constexpr absl::common_type_t<A, B> SignedMin(A a, B b) {
+constexpr std::common_type_t<A, B> SignedMin(A a, B b) {
   static_assert(std::is_signed<A>::value, "SignedMin() requires signed types");
   static_assert(std::is_signed<B>::value, "SignedMin() requires signed types");
   return a < b ? b : a;
 }
 
 template <typename A, typename B, typename... Rest>
-constexpr absl::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
+constexpr std::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
   return SignedMin(SignedMin(a, b), rest...);
 }
 
@@ -374,14 +372,14 @@ constexpr absl::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
 // integers, as their widest type.
 
 template <typename A, typename B>
-constexpr absl::common_type_t<A, B> SignedMax(A a, B b) {
+constexpr std::common_type_t<A, B> SignedMax(A a, B b) {
   static_assert(std::is_signed<A>::value, "SignedMax() requires signed types");
   static_assert(std::is_signed<B>::value, "SignedMax() requires signed types");
   return a < b ? b : a;
 }
 
 template <typename A, typename B, typename... Rest>
-constexpr absl::common_type_t<A, B, Rest...> SignedMax(A a, B b, Rest... rest) {
+constexpr std::common_type_t<A, B, Rest...> SignedMax(A a, B b, Rest... rest) {
   return SignedMax(SignedMax(a, b), rest...);
 }
 
@@ -423,7 +421,7 @@ struct IntersectionType<A> {
 
 template <typename A, typename B>
 struct IntersectionType<A, B>
-    : internal::IntersectionTypeImpl<A, B, absl::common_type_t<A, B>> {};
+    : internal::IntersectionTypeImpl<A, B, std::common_type_t<A, B>> {};
 
 template <typename A, typename B, typename... Rest>
 struct IntersectionType<A, B, Rest...>
@@ -447,7 +445,7 @@ constexpr IntersectionTypeT<A, B, Rest...> UnsignedMin(A a, B b, Rest... rest) {
 // integers, as their widest type.
 
 template <typename A, typename B>
-constexpr absl::common_type_t<A, B> UnsignedMax(A a, B b) {
+constexpr std::common_type_t<A, B> UnsignedMax(A a, B b) {
   static_assert(std::is_unsigned<A>::value,
                 "UnsignedMax() requires unsigned types");
   static_assert(std::is_unsigned<B>::value,
@@ -456,8 +454,8 @@ constexpr absl::common_type_t<A, B> UnsignedMax(A a, B b) {
 }
 
 template <typename A, typename B, typename... Rest>
-constexpr absl::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
-                                                         Rest... rest) {
+constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
+                                                        Rest... rest) {
   return UnsignedMax(UnsignedMax(a, b), rest...);
 }
 
@@ -512,8 +510,7 @@ constexpr T RoundUp(T value) {
 // This is an unsigned integer type at least as wide as size_t, streamoff, and
 // uint64_t.
 using Position =
-    absl::common_type_t<size_t, absl::make_unsigned_t<std::streamoff>,
-                        uint64_t>;
+    std::common_type_t<size_t, std::make_unsigned_t<std::streamoff>, uint64_t>;
 
 // Specifies how durable data should be.
 enum class FlushType {
