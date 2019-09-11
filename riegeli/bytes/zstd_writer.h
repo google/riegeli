@@ -43,11 +43,11 @@ class ZstdWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel (-32) and
+    // compression_level must be between kMinCompressionLevel (-131072) and
     // kMaxCompressionLevel (22). Level 0 is currently equivalent to 3.
     // Default: kDefaultCompressionLevel (9).
-    static constexpr int kMinCompressionLevel = -32;
-    static constexpr int kMaxCompressionLevel = 22;  // ZSTD_maxCLevel();
+    static constexpr int kMinCompressionLevel = -(1 << 17);  // ZSTD_minCLevel()
+    static constexpr int kMaxCompressionLevel = 22;          // ZSTD_maxCLevel()
     static constexpr int kDefaultCompressionLevel = 9;
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
