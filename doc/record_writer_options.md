@@ -16,7 +16,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "pad_to_block_boundary" (":" ("true" | "false"))? |
     "parallelism" ":" parallelism
   brotli_level ::= integer 0..11 (default 9)
-  zstd_level ::= integer -32..22 (default 9)
+  zstd_level ::= integer -131072..22 (default 9)
   window_log ::= "auto" or integer 10..31
   chunk_size ::=
     integer expressed as real with optional suffix [BkKMGTPE], 1..
@@ -59,8 +59,8 @@ Changes compression algorithm to [Zstd](https://facebook.github.io/zstd/). Sets
 compression level which tunes the tradeoff between compression density and
 compression speed (higher = better density but slower).
 
-`zstd_level` must be between -32 and 22. Level 0 is currently equivalent to 3.
-Default: `9`.
+`zstd_level` must be between -131072 and 22. Level 0 is currently equivalent to
+3. Default: `9`.
 
 ## `window_log`
 
