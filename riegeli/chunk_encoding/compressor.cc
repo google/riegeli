@@ -27,6 +27,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/chain_writer.h"
+#include "riegeli/bytes/snappy_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/bytes/zstd_writer.h"
@@ -80,6 +81,12 @@ void Compressor::Initialize() {
               .set_window_log(compressor_options_.window_log())
               .set_final_size(tuning_options_.final_size_)
               .set_size_hint(tuning_options_.size_hint_));
+      return;
+    case CompressionType::kSnappy:
+      writer_.emplace<SnappyWriter<ChainWriter<>>>(
+          std::forward_as_tuple(&compressed_),
+          SnappyWriterBase::Options().set_size_hint(
+              tuning_options_.size_hint_));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()

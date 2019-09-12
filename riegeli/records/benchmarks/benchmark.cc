@@ -68,13 +68,20 @@ ABSL_FLAG(std::string, tfrecord_benchmarks, "uncompressed gzip",
           "Whitespace-separated TFRecord RecordWriter/RecordReader options");
 ABSL_FLAG(std::string, riegeli_benchmarks,
           "uncompressed "
-          "brotli:6 "
-          "brotli:6,parallelism:10 "
+          "brotli:0 "
+          "brotli:5 "
+          "brotli:9 "
+          "brotli:9,parallelism:10 "
+          "zstd:-8 "
+          "zstd:1 "
+          "zstd:5 "
           "zstd:9 "
+          "snappy "
           "transpose,uncompressed "
-          "transpose,brotli:6 "
-          "transpose,brotli:6,parallelism:10 "
-          "transpose,zstd:9",
+          "transpose,brotli:9 "
+          "transpose,brotli:9,parallelism:10 "
+          "transpose,zstd:9 "
+          "transpose,snappy",
           "Whitespace-separated Riegeli RecordWriter options");
 ABSL_FLAG(uint64_t, max_size, uint64_t{100} * 1000 * 1000,
           "Maximum size of records to read, in bytes");

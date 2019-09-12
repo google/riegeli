@@ -96,6 +96,7 @@ specified as `compression_type` (byte):
 *   0 — none
 *   0x62 ('b') — [Brotli](https://github.com/google/brotli)
 *   0x7a ('z') — [Zstd](https://facebook.github.io/zstd/)
+*   0x73 ('s') — [Snappy](https://google.github.io/snappy/)
 
 Any compressed block is prefixed with its decompressed size (varint64) unless
 `compression_type` is 0.

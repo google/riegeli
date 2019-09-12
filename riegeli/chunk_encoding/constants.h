@@ -37,6 +37,7 @@ enum class CompressionType : uint8_t {
   kNone = 0,
   kBrotli = 'b',
   kZstd = 'z',
+  kSnappy = 's',
 };
 
 RIEGELI_INLINE_CONSTEXPR(uint64_t, kMaxNumRecords,

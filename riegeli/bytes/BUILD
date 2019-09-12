@@ -403,6 +403,57 @@ cc_library(
 )
 
 cc_library(
+    name = "snappy_writer",
+    srcs = ["snappy_writer.cc"],
+    hdrs = ["snappy_writer.h"],
+    deps = [
+        ":chain_reader",
+        ":snappy_streams",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@snappy",
+    ],
+)
+
+cc_library(
+    name = "snappy_reader",
+    srcs = ["snappy_reader.cc"],
+    hdrs = ["snappy_reader.h"],
+    deps = [
+        ":chain_reader",
+        ":chain_writer",
+        ":reader",
+        ":snappy_streams",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@snappy",
+    ],
+)
+
+cc_library(
+    name = "snappy_streams",
+    srcs = ["snappy_streams.cc"],
+    hdrs = ["snappy_streams.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@snappy",
+    ],
+)
+
+cc_library(
     name = "message_serialize",
     srcs = ["message_serialize.cc"],
     hdrs = ["message_serialize.h"],

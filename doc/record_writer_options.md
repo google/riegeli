@@ -10,6 +10,7 @@ Options for writing Riegeli/records files can be specified as a string:
     "uncompressed" |
     "brotli" (":" brotli_level)? |
     "zstd" (":" zstd_level)? |
+    "snappy" |
     "window_log" ":" window_log |
     "chunk_size" ":" chunk_size |
     "bucket_fraction" ":" bucket_fraction |
@@ -62,6 +63,12 @@ compression speed (higher = better density but slower).
 `zstd_level` must be between -131072 and 22. Level 0 is currently equivalent to
 3. Default: `9`.
 
+### `snappy`
+
+Changes compression algorithm to [Snappy](https://google.github.io/snappy/).
+
+There are no Snappy compression levels to tune.
+
 ## `window_log`
 
 Logarithm of the LZ77 sliding window size. This tunes the tradeoff between
@@ -70,9 +77,9 @@ compression density and memory usage (higher = better density but more memory).
 Special value `auto` means to keep the default (`brotli`: 22, `zstd`: derived
 from compression level and chunk size).
 
-For `uncompressed`, `window_log` must be `auto`. For `brotli`, `window_log` must
-be `auto` or between 10 and 30. For `zstd`, `window_log` must be `auto` or
-between 10 and 30 in 32-bit build, 31 in 64-bit build.
+For `uncompressed` and `snappy`, `window_log` must be `auto`. For `brotli`,
+`window_log` must be `auto` or between 10 and 30. For `zstd`, `window_log` must
+be `auto` or between 10 and 30 in 32-bit build, 31 in 64-bit build.
 
 Default: `auto`.
 

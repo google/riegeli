@@ -50,25 +50,32 @@ Status CompressorOptions::FromString(absl::string_view text) {
     OptionsParser options_parser;
     options_parser.AddOption(
         "uncompressed",
-        ValueParser::And(ValueParser::FailIfSeen("brotli", "zstd"),
+        ValueParser::And(ValueParser::FailIfSeen("brotli", "zstd", "snappy"),
                          [this](ValueParser* value_parser) {
                            compression_type_ = CompressionType::kNone;
                            return true;
                          }));
     options_parser.AddOption(
-        "brotli",
-        ValueParser::And(ValueParser::FailIfSeen("uncompressed", "zstd"),
-                         [this](ValueParser* value_parser) {
-                           compression_type_ = CompressionType::kBrotli;
-                           return true;
-                         }));
+        "brotli", ValueParser::And(
+                      ValueParser::FailIfSeen("uncompressed", "zstd", "snappy"),
+                      [this](ValueParser* value_parser) {
+                        compression_type_ = CompressionType::kBrotli;
+                        return true;
+                      }));
     options_parser.AddOption(
-        "zstd",
-        ValueParser::And(ValueParser::FailIfSeen("uncompressed", "brotli"),
-                         [this](ValueParser* value_parser) {
-                           compression_type_ = CompressionType::kZstd;
-                           return true;
-                         }));
+        "zstd", ValueParser::And(
+                    ValueParser::FailIfSeen("uncompressed", "brotli", "snappy"),
+                    [this](ValueParser* value_parser) {
+                      compression_type_ = CompressionType::kZstd;
+                      return true;
+                    }));
+    options_parser.AddOption(
+        "snappy", ValueParser::And(
+                      ValueParser::FailIfSeen("uncompressed", "brotli", "zstd"),
+                      [this](ValueParser* value_parser) {
+                        compression_type_ = CompressionType::kSnappy;
+                        return true;
+                      }));
     options_parser.AddOption("window_log",
                              [](ValueParser* value_parser) { return true; });
     if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
@@ -97,6 +104,9 @@ Status CompressorOptions::FromString(absl::string_view text) {
           ValueParser::Int(&compression_level_,
                            ZstdWriterBase::Options::kMinCompressionLevel,
                            ZstdWriterBase::Options::kMaxCompressionLevel)));
+  options_parser.AddOption(
+      "snappy", ValueParser::And(ValueParser::FailIfSeen("window_log"),
+                                 ValueParser::Empty(&compression_level_, 0)));
   options_parser.AddOption("window_log", [&] {
     switch (compression_type_) {
       case CompressionType::kNone:
@@ -113,6 +123,8 @@ Status CompressorOptions::FromString(absl::string_view text) {
             ValueParser::Int(&window_log_,
                              ZstdWriterBase::Options::kMinWindowLog,
                              ZstdWriterBase::Options::kMaxWindowLog));
+      case CompressionType::kSnappy:
+        return ValueParser::FailIfSeen("snappy");
     }
     RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                  << static_cast<unsigned>(compression_type_);
@@ -153,6 +165,10 @@ int CompressorOptions::window_log() const {
                "window log out of range for zstd";
         return window_log_;
       }
+    case CompressionType::kSnappy:
+      RIEGELI_ASSERT_UNREACHABLE()
+          << "Failed precondition of CompressorOptions::window_log(): "
+             "snappy";
   }
   RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
                                << static_cast<unsigned>(compression_type_);

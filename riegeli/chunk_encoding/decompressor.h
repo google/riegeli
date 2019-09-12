@@ -33,6 +33,7 @@
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
+#include "riegeli/bytes/snappy_reader.h"
 #include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 
@@ -112,7 +113,8 @@ class Decompressor : public Object {
   template <typename SrcInit>
   void Initialize(SrcInit&& src_init, CompressionType compression_type);
 
-  absl::variant<Dependency<Reader*, Src>, BrotliReader<Src>, ZstdReader<Src>>
+  absl::variant<Dependency<Reader*, Src>, BrotliReader<Src>, ZstdReader<Src>,
+                SnappyReader<Src>>
       reader_;
 };
 
@@ -207,6 +209,10 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
       reader_.template emplace<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
           ZstdReaderBase::Options().set_size_hint(decompressed_size));
+      return;
+    case CompressionType::kSnappy:
+      reader_.template emplace<SnappyReader<Src>>(
+          std::move(compressed_reader.manager()));
       return;
   }
   Fail(DataLossError(absl::StrCat("Unknown compression type: ",

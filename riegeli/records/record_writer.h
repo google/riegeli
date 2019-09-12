@@ -65,6 +65,7 @@ class RecordWriterBase : public Object {
     //     "uncompressed" |
     //     "brotli" (":" brotli_level)? |
     //     "zstd" (":" zstd_level)? |
+    //     "snappy" |
     //     "window_log" ":" window_log |
     //     "chunk_size" ":" chunk_size |
     //     "bucket_fraction" ":" bucket_fraction |
@@ -147,6 +148,15 @@ class RecordWriterBase : public Object {
       return std::move(set_zstd(compression_level));
     }
 
+    // Changes compression algorithm to Snappy.
+    //
+    // There are no Snappy compression levels to tune.
+    Options& set_snappy() & {
+      compressor_options_.set_snappy();
+      return *this;
+    }
+    Options&& set_snappy() && { return std::move(set_snappy()); }
+
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
     // between compression density and memory usage (higher = better density but
     // more memory).
@@ -154,7 +164,7 @@ class RecordWriterBase : public Object {
     // Special value kDefaultWindowLog (-1) means to keep the default
     // (brotli: 22, zstd: derived from compression level and chunk size).
     //
-    // For uncompressed, window_log must be kDefaultWindowLog (-1).
+    // For uncompressed and snappy, window_log must be kDefaultWindowLog (-1).
     //
     // For brotli, window_log must be kDefaultWindowLog (-1) or between
     // BrotliWriterBase::Options::kMinWindowLog (10) and

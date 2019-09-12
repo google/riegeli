@@ -37,6 +37,7 @@ class CompressorOptions {
   //     "uncompressed" |
   //     "brotli" (":" brotli_level)? |
   //     "zstd" (":" zstd_level)? |
+  //     "snappy" |
   //     "window_log" ":" window_log
   //   brotli_level ::= integer 0..11 (default 9)
   //   zstd_level ::= integer -131072..22 (default 9)
@@ -111,6 +112,16 @@ class CompressorOptions {
     return std::move(set_zstd(compression_level));
   }
 
+  // Changes compression algorithm to Snappy.
+  //
+  // There are no Snappy compression levels to tune.
+  CompressorOptions& set_snappy() & {
+    compression_type_ = CompressionType::kSnappy;
+    compression_level_ = 0;
+    return *this;
+  }
+  CompressorOptions&& set_snappy() && { return std::move(set_snappy()); }
+
   CompressionType compression_type() const { return compression_type_; }
 
   int compression_level() const { return compression_level_; }
@@ -122,7 +133,7 @@ class CompressorOptions {
   // Special value kDefaultWindowLog (-1) means to keep the default
   // (brotli: 22, zstd: derived from compression level and chunk size).
   //
-  // For uncompressed, window_log must be kDefaultWindowLog (-1).
+  // For uncompressed and snappy, window_log must be kDefaultWindowLog (-1).
   //
   // For brotli, window_log must be kDefaultWindowLog (-1) or between
   // BrotliWriterBase::Options::kMinWindowLog (10) and

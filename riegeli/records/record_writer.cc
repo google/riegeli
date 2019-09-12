@@ -126,6 +126,7 @@ Status RecordWriterBase::Options::FromString(absl::string_view text) {
                            ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("brotli", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("zstd", ValueParser::CopyTo(&compressor_text));
+  options_parser.AddOption("snappy", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("window_log", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption(
       "chunk_size", ValueParser::Bytes(&chunk_size_, 1,

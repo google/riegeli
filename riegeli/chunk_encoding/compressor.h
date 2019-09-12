@@ -25,6 +25,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/chain_writer.h"
+#include "riegeli/bytes/snappy_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -115,7 +116,7 @@ class Compressor : public Object {
   //   options_.compression_type() is consistent with
   //       the active member of writer_
   absl::variant<ChainWriter<>, BrotliWriter<ChainWriter<>>,
-                ZstdWriter<ChainWriter<>>>
+                ZstdWriter<ChainWriter<>>, SnappyWriter<ChainWriter<>>>
       writer_;
 };
 

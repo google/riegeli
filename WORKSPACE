@@ -36,6 +36,17 @@ http_archive(
 )
 
 http_archive(
+    name = "snappy",
+    build_file = "//third_party:snappy.BUILD",
+    sha256 = "61e05a0295fd849072668b1f3494801237d809427cfe8fd014cda455036c3ef7",
+    strip_prefix = "snappy-1.1.7",
+    urls = [
+        "https://mirror.bazel.build/github.com/google/snappy/archive/1.1.7.zip",
+        "https://github.com/google/snappy/archive/1.1.7.zip",  # 2017-08-25
+    ],
+)
+
+http_archive(
     name = "zlib",
     build_file = "//third_party:zlib.BUILD",
     sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
