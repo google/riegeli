@@ -90,7 +90,7 @@ class SnappyWriterBase : public Writer {
   // Appends uninitialized space to uncompressed_.
   void MakeBuffer(size_t min_length = 0);
 
-  size_t size_hint_;
+  size_t size_hint_ = 0;
   // Writer methods are similar to ChainWriter methods writing to uncompressed_.
   //
   // snappy::Compress() reads data in 64KB blocks, and copies a block to a
