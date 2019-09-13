@@ -41,6 +41,7 @@ namespace riegeli {
 #if __cplusplus < 201703
 constexpr size_t Chain::kAnyLength;
 constexpr size_t Chain::kMaxShortDataSize;
+constexpr size_t Chain::kMaxBytesToCopyToChain;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::RawBlock::kMaxCapacity;
 constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
@@ -362,7 +363,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
     dest->AppendBlock<Ownership::kShare>(this, size_hint);
     return;
   }
-  if (substr.size() <= kMaxBytesToCopy) {
+  if (substr.size() <= kMaxBytesToCopyToChain) {
     dest->Append(substr, size_hint);
     return;
   }
@@ -1011,7 +1012,7 @@ void Chain::Append(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopy) {
+  if (src.size() <= kMaxBytesToCopyToChain) {
     // Not std::move(src): forward to Append(string_view).
     Append(src, size_hint);
     return;
@@ -1169,7 +1170,7 @@ void Chain::Prepend(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopy) {
+  if (src.size() <= kMaxBytesToCopyToChain) {
     // Not std::move(src): forward to Prepend(string_view).
     Prepend(src, size_hint);
     return;
@@ -1514,7 +1515,7 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   data.remove_suffix(length);
   // Compensate for increasing size_ by Append().
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopy) {
+  if (data.size() <= kMaxBytesToCopyToChain) {
     Append(data, size_hint);
     block->Unref();
     return;
@@ -1573,7 +1574,7 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   data.remove_prefix(length);
   // Compensate for increasing size_ by Prepend().
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopy) {
+  if (data.size() <= kMaxBytesToCopyToChain) {
     Prepend(data, size_hint);
     block->Unref();
     return;

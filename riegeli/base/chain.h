@@ -266,6 +266,10 @@ class Chain {
 
   static constexpr size_t kMaxShortDataSize = 2 * sizeof(RawBlock*);
 
+  // When deciding whether to copy an array of bytes or share memory to a Chain,
+  // prefer copying up to this length.
+  static constexpr size_t kMaxBytesToCopyToChain = kMaxShortDataSize;
+
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
 
