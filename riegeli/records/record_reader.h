@@ -341,7 +341,7 @@ class RecordReaderBase : public Object {
 //     ... Process record.
 //   }
 //   if (!record_reader_.Close()) {
-//     ... Failed with reason: record_reader_.message()
+//     ... Failed with reason: record_reader_.status()
 //   }
 //
 // For reading records while skipping errors, pass options like these:
@@ -372,7 +372,7 @@ class RecordReaderBase : public Object {
 //     if (record_reader_.Recover(&skipped_region)) {
 //       skipped_bytes += skipped_region.length();
 //     } else {
-//       ... Failed with reason: record_reader_.message()
+//       ... Failed with reason: record_reader_.status()
 //     }
 //   }
 //

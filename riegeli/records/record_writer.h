@@ -419,7 +419,7 @@ class RecordWriterBase : public Object {
 //     }
 //   }
 //   if (!record_writer_.Close()) {
-//     ... Failed with reason: record_writer_.message()
+//     ... Failed with reason: record_writer_.status()
 //   }
 //
 // The Dest template parameter specifies the type of the object providing and
