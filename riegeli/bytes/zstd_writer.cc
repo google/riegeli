@@ -80,19 +80,21 @@ struct ZSTD_CCtxParamsDeleter {
 
 }  // namespace
 
-void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
-                                int window_log,
-                                absl::optional<Position> final_size,
-                                Position size_hint, bool store_checksum) {
+void ZstdWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
   }
+}
+
+inline bool ZstdWriterBase::CreateCompressor() {
   compressor_ =
       RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxKey>::global().Get(
-          ZSTD_CCtxKey{compression_level, window_log, SizeHintClass(size_hint)},
+          ZSTD_CCtxKey{compressor_options_.compression_level,
+                       compressor_options_.window_log,
+                       SizeHintClass(compressor_options_.size_hint)},
           [] {
             return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(
                 ZSTD_createCCtx());
@@ -104,80 +106,80 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                 << "ZSTD_CCtx_reset() failed: " << ZSTD_getErrorName(result);
           });
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-    Fail(InternalError("ZSTD_createCCtx() failed"));
-    return;
+    return Fail(InternalError("ZSTD_createCCtx() failed"));
   }
 #ifdef ZSTD_STATIC_LINKING_ONLY
-  if (size_hint > 0) {
+  // size_hint is redundant if final_size is present.
+  if (compressor_options_.size_hint > 0 &&
+      !compressor_options_.final_size.has_value()) {
     const std::unique_ptr<ZSTD_CCtx_params, ZSTD_CCtxParamsDeleter> params(
         ZSTD_createCCtxParams());
     if (ABSL_PREDICT_FALSE(params == nullptr)) {
-      Fail(InternalError("ZSTD_createCCtxParams() failed"));
-      return;
+      return Fail(InternalError("ZSTD_createCCtxParams() failed"));
     }
     {
       const size_t result = ZSTD_CCtxParams_init_advanced(
           params.get(),
-          ZSTD_getParams(compression_level,
-                         IntCast<unsigned long long>(size_hint), 0));
+          ZSTD_getParams(
+              compressor_options_.compression_level,
+              IntCast<unsigned long long>(compressor_options_.size_hint), 0));
       if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-        Fail(InternalError(
+        return Fail(InternalError(
             absl::StrCat("ZSTD_CCtxParams_init_advanced() failed: ",
                          ZSTD_getErrorName(result))));
-        return;
       }
     }
     {
       const size_t result = ZSTD_CCtx_setParametersUsingCCtxParams(
           compressor_.get(), params.get());
       if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-        Fail(InternalError(
+        return Fail(InternalError(
             absl::StrCat("ZSTD_CCtx_setParametersUsingCCtxParams() failed: ",
                          ZSTD_getErrorName(result))));
-        return;
       }
     }
   }
 #endif
   {
-    const size_t result = ZSTD_CCtx_setParameter(
-        compressor_.get(), ZSTD_c_compressionLevel, compression_level);
+    const size_t result =
+        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_compressionLevel,
+                               compressor_options_.compression_level);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat(
+      return Fail(InternalError(absl::StrCat(
           "ZSTD_CCtx_setParameter(ZSTD_c_compressionLevel) failed: ",
           ZSTD_getErrorName(result))));
-      return;
     }
   }
-  if (window_log != Options::kDefaultWindowLog) {
-    const size_t result =
-        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_windowLog, window_log);
+  if (compressor_options_.window_log != Options::kDefaultWindowLog) {
+    const size_t result = ZSTD_CCtx_setParameter(
+        compressor_.get(), ZSTD_c_windowLog, compressor_options_.window_log);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      return Fail(InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_windowLog) failed: ",
                        ZSTD_getErrorName(result))));
-      return;
     }
   }
   {
-    const size_t result = ZSTD_CCtx_setParameter(
-        compressor_.get(), ZSTD_c_checksumFlag, store_checksum ? 1 : 0);
+    const size_t result =
+        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_checksumFlag,
+                               compressor_options_.store_checksum ? 1 : 0);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      return Fail(InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_checksumFlag) failed: ",
                        ZSTD_getErrorName(result))));
-      return;
     }
   }
-  if (final_size.has_value()) {
+  if (compressor_options_.final_size.has_value()) {
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
-        compressor_.get(), IntCast<unsigned long long>(*final_size));
+        compressor_.get(),
+        IntCast<unsigned long long>(*compressor_options_.final_size));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",
-                                      ZSTD_getErrorName(result))));
-      return;
+      return Fail(
+          InternalError(absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",
+                                     ZSTD_getErrorName(result))));
     }
   }
+  return true;
 }
 
 void ZstdWriterBase::Done() {
@@ -211,6 +213,16 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     return FailOverflow();
   }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
+  if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
+    if (end_op == ZSTD_e_end) {
+      // The input is flat and its size is known. This causes zstdlib to tune
+      // compression parameters for that size, which should be reflected in
+      // ZSTD_CCtxKey::size_hint_class.
+      compressor_options_.final_size = input.size;
+      compressor_options_.size_hint = input.size;
+    }
+    if (ABSL_PREDICT_FALSE(!CreateCompressor())) return false;
+  }
   for (;;) {
     ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
     const size_t result =
