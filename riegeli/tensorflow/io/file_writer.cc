@@ -40,12 +40,14 @@ namespace tensorflow {
 
 void FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
-  const ::tensorflow::Status name_status = dest->Name(&filename);
-  if (ABSL_PREDICT_FALSE(!name_status.ok())) {
-    if (!::tensorflow::errors::IsUnimplemented(name_status)) {
-      FailOperation(name_status, "WritableFile::Name()");
+  {
+    const ::tensorflow::Status status = dest->Name(&filename);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (!::tensorflow::errors::IsUnimplemented(status)) {
+        FailOperation(status, "WritableFile::Name()");
+      }
+      return;
     }
-    return;
   }
   // TODO: When absl::string_view becomes C++17 std::string_view:
   // filename_ = filename;
@@ -59,24 +61,28 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
   std::unique_ptr<::tensorflow::WritableFile> dest;
-  const ::tensorflow::Status new_file_status =
-      append ? env->NewAppendableFile(filename_, &dest)
-             : env->NewWritableFile(filename_, &dest);
-  if (ABSL_PREDICT_FALSE(!new_file_status.ok())) {
-    FailOperation(new_file_status,
-                  append ? absl::string_view("Env::NewAppendableFile()")
-                         : absl::string_view("Env::NewWritableFile()"));
-    return nullptr;
+  {
+    const ::tensorflow::Status status =
+        append ? env->NewAppendableFile(filename_, &dest)
+               : env->NewWritableFile(filename_, &dest);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailOperation(status, append
+                                ? absl::string_view("Env::NewAppendableFile()")
+                                : absl::string_view("Env::NewWritableFile()"));
+      return nullptr;
+    }
   }
   return dest;
 }
 
 void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
   ::tensorflow::int64 file_pos;
-  const ::tensorflow::Status tell_status = dest->Tell(&file_pos);
-  if (ABSL_PREDICT_FALSE(!tell_status.ok())) {
-    FailOperation(tell_status, "WritableFile::Tell()");
-    return;
+  {
+    const ::tensorflow::Status status = dest->Tell(&file_pos);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailOperation(status, "WritableFile::Tell()");
+      return;
+    }
   }
   start_pos_ = IntCast<Position>(file_pos);
 }
@@ -164,9 +170,11 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
                          std::numeric_limits<Position>::max() - start_pos_)) {
     return FailOverflow();
   }
-  const ::tensorflow::Status append_status = dest->Append(src);
-  if (ABSL_PREDICT_FALSE(!append_status.ok())) {
-    return FailOperation(append_status, "WritableFile::Append(string_view)");
+  {
+    const ::tensorflow::Status status = dest->Append(src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return FailOperation(status, "WritableFile::Append(string_view)");
+    }
   }
   start_pos_ += src.size();
   return true;
@@ -179,19 +187,19 @@ bool FileWriterBase::Flush(FlushType flush_type) {
     case FlushType::kFromObject:
       return true;
     case FlushType::kFromProcess: {
-      const ::tensorflow::Status flush_status = dest->Flush();
-      if (ABSL_PREDICT_FALSE(!flush_status.ok())) {
-        return FailOperation(flush_status, "WritableFile::Flush()");
+      const ::tensorflow::Status status = dest->Flush();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "WritableFile::Flush()");
       }
-      return true;
     }
+      return true;
     case FlushType::kFromMachine: {
-      const ::tensorflow::Status sync_status = dest->Sync();
-      if (ABSL_PREDICT_FALSE(!sync_status.ok())) {
-        return FailOperation(sync_status, "WritableFile::Sync()");
+      const ::tensorflow::Status status = dest->Sync();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "WritableFile::Sync()");
       }
-      return true;
     }
+      return true;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);

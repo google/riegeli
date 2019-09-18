@@ -44,12 +44,14 @@ namespace tensorflow {
 bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
                                         ::tensorflow::Env* env) {
   absl::string_view filename;
-  const ::tensorflow::Status name_status = src->Name(&filename);
-  if (ABSL_PREDICT_FALSE(!name_status.ok())) {
-    if (!::tensorflow::errors::IsUnimplemented(name_status)) {
-      return FailOperation(name_status, "RandomAccessFile::Name()");
+  {
+    const ::tensorflow::Status status = src->Name(&filename);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      if (!::tensorflow::errors::IsUnimplemented(status)) {
+        return FailOperation(status, "RandomAccessFile::Name()");
+      }
+      return true;
     }
-    return true;
   }
   return InitializeFilename(filename, env);
 }
@@ -60,21 +62,25 @@ bool FileReaderBase::InitializeFilename(absl::string_view filename,
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
-  const ::tensorflow::Status get_file_system_status =
-      env->GetFileSystemForFile(filename_, &file_system_);
-  if (ABSL_PREDICT_FALSE(!get_file_system_status.ok())) {
-    return FailOperation(get_file_system_status, "Env::GetFileSystemForFile()");
+  {
+    const ::tensorflow::Status status =
+        env->GetFileSystemForFile(filename_, &file_system_);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return FailOperation(status, "Env::GetFileSystemForFile()");
+    }
   }
   return true;
 }
 
 std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
   std::unique_ptr<::tensorflow::RandomAccessFile> src;
-  const ::tensorflow::Status new_file_status =
-      file_system_->NewRandomAccessFile(filename_, &src);
-  if (ABSL_PREDICT_FALSE(!new_file_status.ok())) {
-    FailOperation(new_file_status, "FileSystem::NewRandomAccessFile()");
-    return nullptr;
+  {
+    const ::tensorflow::Status status =
+        file_system_->NewRandomAccessFile(filename_, &src);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailOperation(status, "FileSystem::NewRandomAccessFile()");
+      return nullptr;
+    }
   }
   return src;
 }
@@ -350,16 +356,16 @@ inline bool FileReaderBase::ReadToDest(char* dest, size_t length,
     return FailOverflow();
   }
   absl::string_view result;
-  const ::tensorflow::Status read_status = src->Read(
+  const ::tensorflow::Status status = src->Read(
       IntCast<::tensorflow::uint64>(limit_pos_), length, &result, dest);
   RIEGELI_ASSERT_LE(result.size(), length)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
   limit_pos_ += result.size();
   *length_read = result.size();
-  if (ABSL_PREDICT_FALSE(!read_status.ok())) {
-    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(read_status))) {
-      return FailOperation(read_status, "RandomAccessFile::Read()");
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
+    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
+      return FailOperation(status, "RandomAccessFile::Read()");
     }
     return false;
   }
@@ -380,7 +386,7 @@ inline bool FileReaderBase::ReadToBuffer(absl::Span<char> flat_buffer,
     return FailOverflow();
   }
   absl::string_view result;
-  const ::tensorflow::Status read_status =
+  const ::tensorflow::Status status =
       src->Read(IntCast<::tensorflow::uint64>(limit_pos_), flat_buffer.size(),
                 &result, flat_buffer.data());
   RIEGELI_ASSERT_LE(result.size(), flat_buffer.size())
@@ -399,12 +405,12 @@ inline bool FileReaderBase::ReadToBuffer(absl::Span<char> flat_buffer,
   }
   limit_ += result.size();
   limit_pos_ += result.size();
-  if (ABSL_PREDICT_FALSE(!read_status.ok())) {
+  if (ABSL_PREDICT_FALSE(!status.ok())) {
     if (!buffer_.empty()) {
       buffer_.RemoveSuffix(flat_buffer.size() - result.size());
     }
-    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(read_status))) {
-      return FailOperation(read_status, "RandomAccessFile::Read()");
+    if (ABSL_PREDICT_FALSE(!::tensorflow::errors::IsOutOfRange(status))) {
+      return FailOperation(status, "RandomAccessFile::Read()");
     }
     return false;
   }
@@ -421,10 +427,12 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   if (new_pos > limit_pos_) {
     // Seeking forwards.
     ::tensorflow::uint64 file_size;
-    const ::tensorflow::Status get_file_size_status =
-        file_system_->GetFileSize(filename_, &file_size);
-    if (ABSL_PREDICT_FALSE(!get_file_size_status.ok())) {
-      return FailOperation(get_file_size_status, "FileSystem::GetFileSize()");
+    {
+      const ::tensorflow::Status status =
+          file_system_->GetFileSize(filename_, &file_size);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "FileSystem::GetFileSize()");
+      }
     }
     if (ABSL_PREDICT_FALSE(new_pos > file_size)) {
       // File ends.
@@ -440,10 +448,12 @@ bool FileReaderBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::Size(size);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ::tensorflow::uint64 file_size;
-  const ::tensorflow::Status get_file_size_status =
-      file_system_->GetFileSize(filename_, &file_size);
-  if (ABSL_PREDICT_FALSE(!get_file_size_status.ok())) {
-    return FailOperation(get_file_size_status, "FileSystem::GetFileSize()");
+  {
+    const ::tensorflow::Status status =
+        file_system_->GetFileSize(filename_, &file_size);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return FailOperation(status, "FileSystem::GetFileSize()");
+    }
   }
   *size = Position{file_size};
   return true;

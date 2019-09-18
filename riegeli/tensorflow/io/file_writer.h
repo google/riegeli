@@ -356,10 +356,11 @@ void FileWriter<Dest>::Done() {
   PushInternal();
   FileWriterBase::Done();
   if (dest_.is_owning()) {
-    const ::tensorflow::Status close_status = dest_->Close();
-    if (ABSL_PREDICT_FALSE(!close_status.ok()) &&
-        ABSL_PREDICT_TRUE(healthy())) {
-      FailOperation(close_status, "WritableFile::Close()");
+    {
+      const ::tensorflow::Status status = dest_->Close();
+      if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(healthy())) {
+        FailOperation(status, "WritableFile::Close()");
+      }
     }
   }
 }

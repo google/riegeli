@@ -115,7 +115,9 @@ namespace internal {
 Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
   {
     const Status status = ParsePartialFromReaderImpl(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
   }
   if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
     return DataLossError(
@@ -154,7 +156,9 @@ Status ParseFromReaderUsingInputStream(google::protobuf::MessageLite* dest,
                                        Reader* src) {
   {
     const Status status = ParsePartialFromReaderUsingInputStream(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
   }
   if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
     return DataLossError(
@@ -182,7 +186,9 @@ Status ParsePartialFromReaderUsingInputStream(
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
   {
     const Status status = ParsePartialFromChain(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
   }
   if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
     return DataLossError(

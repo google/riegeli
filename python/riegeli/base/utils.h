@@ -94,15 +94,13 @@ class PythonUnlock {
 // run.
 //
 // Same as Py_BEGIN_ALLOW_THREADS / Py_END_ALLOW_THREADS.
-//
-// TODO: When C++17 is available:
-// template <typename Function, typename... Args>
-// std::invoke_result_t<Function> PythonUnlocked(Function&& f, Args&&... args) {
-//   PythonUnlock unlock;
-//   return std::invoke(std::forward<Function>(f), std::forward<Args>(args)...);
-// }
 template <typename Function>
-std::result_of_t<Function()> PythonUnlocked(Function&& f) {
+#if __cpp_lib_is_invocable
+std::invoke_result_t<Function>
+#else
+std::result_of_t<Function()>
+#endif
+PythonUnlocked(Function&& f) {
   PythonUnlock unlock;
   return std::forward<Function>(f)();
 }
