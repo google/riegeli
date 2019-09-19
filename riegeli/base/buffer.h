@@ -90,13 +90,7 @@ inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
 }
 
 inline void Buffer::DeleteBuffer() {
-  if (data_ != nullptr) {
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-    operator delete(data_, size_);
-#else
-    operator delete(data_);
-#endif
-  }
+  if (data_ != nullptr) operator delete(data_, size_);
 }
 
 inline char* Buffer::GetData() {
