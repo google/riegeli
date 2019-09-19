@@ -110,6 +110,10 @@ inline bool ZstdWriterBase::CreateCompressor() {
   }
 #ifdef ZSTD_STATIC_LINKING_ONLY
   // size_hint is redundant if final_size is present.
+  //
+  // TODO: When https://github.com/facebook/zstd/pull/1733 is available,
+  // use ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) instead, moving that to the
+  // else branch after if (compressor_options_.final_size.has_value()).
   if (compressor_options_.size_hint > 0 &&
       !compressor_options_.final_size.has_value()) {
     const std::unique_ptr<ZSTD_CCtx_params, ZSTD_CCtxParamsDeleter> params(
@@ -218,6 +222,9 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       // The input is flat and its size is known. This causes zstdlib to tune
       // compression parameters for that size, which should be reflected in
       // ZSTD_CCtxKey::size_hint_class.
+      //
+      // TODO: When https://github.com/facebook/zstd/pull/1780 is
+      // available, there will be no ZSTD_CCtxKey so this will be unnecessary.
       compressor_options_.final_size = input.size;
       compressor_options_.size_hint = input.size;
     }

@@ -239,6 +239,10 @@ class ZstdWriterBase : public BufferedWriter {
   CompressorOptions compressor_options_;
   // If healthy but compressor_ == nullptr then the compressor was not created
   // yet.
+  //
+  // TODO: When https://github.com/facebook/zstd/pull/1780 is available,
+  // create the compressor in Initialize() and do not use ZSTD_CCtxKey. This
+  // will be efficient.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxKey>::Handle compressor_;
 };
 
