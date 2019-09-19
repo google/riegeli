@@ -32,12 +32,12 @@
 
 namespace riegeli {
 
-// Entities defined in namespace riegeli and macros beginning with RIEGELI_ are
-// a part of the public API, except for entities defined in namespace
-// riegeli::internal and macros beginning with RIEGELI_INTERNAL_.
+// Entities defined in namespace `riegeli` and macros beginning with `RIEGELI_`
+// are a part of the public API, except for entities defined in namespace
+// `riegeli::internal` and macros beginning with `RIEGELI_INTERNAL_`.
 
-// RIEGELI_DEBUG determines whether assertions are verified or just assumed.
-// By default it follows NDEBUG.
+// `RIEGELI_DEBUG` determines whether assertions are verified or just assumed.
+// By default it follows `NDEBUG`.
 
 #ifndef RIEGELI_DEBUG
 #ifdef NDEBUG
@@ -89,12 +89,12 @@ class CheckResult {
   explicit CheckResult(const char* message)
       : failed_(true), message_(message) {}
 
-  // Returns true if a message pointer is stored.
+  // Returns `true` if a message pointer is stored.
   explicit operator bool() const { return failed_; }
 
   // Returns the stored message pointer.
   //
-  // Precondition: *this is true.
+  // Precondition: `*this` is `true`.
   const char* message() { return message_; }
 
  private:
@@ -111,9 +111,9 @@ ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
   return (new std::string(stream.str()))->c_str();
 }
 
-// These functions allow to use a and b multiple times without reevaluation.
+// These functions allow to use `a` and `b` multiple times without reevaluation.
 // They are small enough to be inlined, with the slow path delegated to
-// FormatCheckOpMessage().
+// `FormatCheckOpMessage()`.
 #define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                \
   template <typename A, typename B>                               \
   inline CheckResult Check##name(const char* message, const A& a, \
@@ -170,23 +170,24 @@ inline T AssertNotNull(T&& value) {
 
 }  // namespace internal
 
-// RIEGELI_CHECK(expr) checks that expr is true, terminating the program if not.
+// `RIEGELI_CHECK(expr)` checks that `expr` is `true`, terminating the program
+// if not.
 //
-// RIEGELI_CHECK_{EQ,NE,LT,GT,LE,GE}(a, b) check the relationship between a and
-// b, and include values of a and b in the failure message.
+// `RIEGELI_CHECK_{EQ,NE,LT,GT,LE,GE}(a, b)` check the relationship between `a`
+// and `b`, and include values of `a` and `b` in the failure message.
 //
-// RIEGELI_CHECK_NOTNULL(expr) checks that expr is not nullptr.
+// `RIEGELI_CHECK_NOTNULL(expr)` checks that `expr` is not `nullptr`.
 //
-// RIEGELI_CHECK_UNREACHABLE() checks  that this expression is not reached.
+// `RIEGELI_CHECK_UNREACHABLE()` checks  that this expression is not reached.
 //
-// RIEGELI_CHECK_NOTNULL(expr) is an expression which evaluates to expr.
-// The remaining RIEGELI_CHECK* macros can be followed by streaming <<
+// `RIEGELI_CHECK_NOTNULL(expr)` is an expression which evaluates to `expr`.
+// The remaining `RIEGELI_CHECK*` macros can be followed by streaming `<<`
 // operators in order to append more details to the failure message
 // (streamed expressions are evaluated only on assertion failure).
 //
-// If RIEGELI_DEBUG is true, RIEGELI_ASSERT* macros are equivalent to the
-// corresponding RIEGELI_CHECK* macros; if RIEGELI_DEBUG is false, they do
-// nothing, but the behavior is undefined if RIEGELI_ASSERT_UNREACHABLE() is
+// If `RIEGELI_DEBUG` is true, `RIEGELI_ASSERT*` macros are equivalent to the
+// corresponding `RIEGELI_CHECK*` macros; if `RIEGELI_DEBUG` is false, they do
+// nothing, but the behavior is undefined if `RIEGELI_ASSERT_UNREACHABLE()` is
 // reached.
 
 #if defined(__clang__) || RIEGELI_INTERNAL_IS_GCC_VERSION(2, 6)
@@ -253,7 +254,8 @@ inline T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
-// riegeli::type_identity_t<T> is T, but does not deduce the T in templates.
+// `riegeli::type_identity_t<T>` is `T`, but does not deduce the `T` in
+// templates.
 
 template <typename T>
 struct type_identity {
@@ -263,8 +265,8 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
-// RIEGELI_INLINE_CONSTEXPR(type, name, init) emulates namespace-scope
-//   inline constexpr type name = init;
+// `RIEGELI_INLINE_CONSTEXPR(type, name, init)` emulates namespace-scope
+//   `inline constexpr type name = init;`
 // from C++17, but is available since C++11.
 
 #if __cpp_inline_variables
@@ -288,7 +290,7 @@ using type_identity_t = typename type_identity<T>::type;
 
 #endif
 
-// IntCast<A>(value) converts between integral types, asserting that the value
+// `IntCast<A>(value)` converts between integral types, asserting that the value
 // fits in the target type.
 
 namespace internal {
@@ -344,8 +346,8 @@ inline A IntCast(B value) {
   return internal::IntCastImpl<A>(value);
 }
 
-// PtrDistance(first, last) returns last - first as size_t, asserting that
-// first <= last.
+// `PtrDistance(first, last)` returns `last - first` as `size_t`, asserting that
+// `first <= last`.
 template <typename A>
 inline size_t PtrDistance(const A* first, const A* last) {
   RIEGELI_ASSERT(first <= last)
@@ -353,7 +355,7 @@ inline size_t PtrDistance(const A* first, const A* last) {
   return static_cast<size_t>(last - first);
 }
 
-// SignedMin() returns the minimum of its arguments, which must be signed
+// `SignedMin()` returns the minimum of its arguments, which must be signed
 // integers, as their widest type.
 
 template <typename A, typename B>
@@ -368,7 +370,7 @@ constexpr std::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
   return SignedMin(SignedMin(a, b), rest...);
 }
 
-// SignedMax() returns the maximum of its arguments, which must be signed
+// `SignedMax()` returns the maximum of its arguments, which must be signed
 // integers, as their widest type.
 
 template <typename A, typename B>
@@ -383,7 +385,7 @@ constexpr std::common_type_t<A, B, Rest...> SignedMax(A a, B b, Rest... rest) {
   return SignedMax(SignedMax(a, b), rest...);
 }
 
-// UnsignedMin() returns the minimum of its arguments, which must be unsigned
+// `UnsignedMin()` returns the minimum of its arguments, which must be unsigned
 // integers, as their narrowest type.
 
 namespace internal {
@@ -441,7 +443,7 @@ constexpr IntersectionTypeT<A, B, Rest...> UnsignedMin(A a, B b, Rest... rest) {
   return UnsignedMin(UnsignedMin(a, b), rest...);
 }
 
-// UnsignedMax() returns the maximum of its arguments, which must be unsigned
+// `UnsignedMax()` returns the maximum of its arguments, which must be unsigned
 // integers, as their widest type.
 
 template <typename A, typename B>
@@ -459,7 +461,7 @@ constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
   return UnsignedMax(UnsignedMax(a, b), rest...);
 }
 
-// SaturatingAdd() adds unsigned values, or returns max possible value of the
+// `SaturatingAdd()` adds unsigned values, or returns max possible value of the
 // type if addition would overflow.
 
 template <typename T>
@@ -474,8 +476,8 @@ constexpr T SaturatingAdd(T a, T b, Rest... rest) {
   return SaturatingAdd(SaturatingAdd(a, b), rest...);
 }
 
-// SaturatingSub() subtracts unsigned values, or returns 0 if subtraction would
-// underflow.
+// `SaturatingSub()` subtracts unsigned values, or returns 0 if subtraction
+// would underflow.
 template <typename T>
 constexpr T SaturatingSub(T a, T b) {
   static_assert(std::is_unsigned<T>::value,
@@ -483,8 +485,8 @@ constexpr T SaturatingSub(T a, T b) {
   return a - UnsignedMin(b, a);
 }
 
-// RoundDown() rounds an unsigned value downwards to the nearest multiple of the
-// given power of 2.
+// `RoundDown()` rounds an unsigned value downwards to the nearest multiple of
+// the given power of 2.
 template <size_t alignment, typename T>
 constexpr T RoundDown(T value) {
   static_assert(std::is_unsigned<T>::value,
@@ -494,7 +496,7 @@ constexpr T RoundDown(T value) {
   return value & ~T{alignment - 1};
 }
 
-// RoundUp() rounds an unsigned value upwards to the nearest multiple of the
+// `RoundUp()` rounds an unsigned value upwards to the nearest multiple of the
 // given power of 2.
 template <size_t alignment, typename T>
 constexpr T RoundUp(T value) {
@@ -507,8 +509,8 @@ constexpr T RoundUp(T value) {
 
 // Position in a stream of bytes, used also for stream sizes.
 //
-// This is an unsigned integer type at least as wide as size_t, streamoff, and
-// uint64_t.
+// This is an unsigned integer type at least as wide as `size_t`, `streamoff`,
+// and `uint64_t`.
 using Position =
     std::common_type_t<size_t, std::make_unsigned_t<std::streamoff>, uint64_t>;
 

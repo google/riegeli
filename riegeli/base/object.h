@@ -27,8 +27,9 @@
 
 namespace riegeli {
 
-// TypeId::For<A>() is a token which is equal to TypeId::For<B>() whenever
-// A and B are the same type. TypeId() is another value not equal to any other.
+// `TypeId::For<A>()` is a token which is equal to `TypeId::For<B>()` whenever
+// `A` and `B` are the same type. `TypeId()` is another value not equal to any
+// other.
 class TypeId {
  public:
   TypeId() noexcept {}
@@ -45,40 +46,41 @@ class TypeId {
   void* ptr_ = nullptr;
 };
 
-// Object is an abstract base class for data readers and writers, managing their
-// state: whether they are closed, and whether they failed (with an associated
-// Status). An Object is healthy when it is not closed nor failed.
+// `Object` is an abstract base class for data readers and writers, managing
+// their state: whether they are closed, and whether they failed (with an
+// associated `Status`). An `Object` is healthy when it is not closed nor
+// failed.
 //
-// An Object becomes closed when Close() finishes, when constructed as closed
-// (usually with no parameters), or when moved from.
+// An `Object` becomes closed when `Close()` finishes, when constructed as
+// closed (usually with no parameters), or when moved from.
 //
-// An Object fails when it could not perform an operation due to an unexpected
+// An `Object` fails when it could not perform an operation due to an unexpected
 // reason.
 //
-// Derived Object classes can be movable but not copyable. After a move the
-// source Object is left closed.
+// Derived `Object` classes can be movable but not copyable. After a move the
+// source `Object` is left closed.
 //
-// Derived Object classes should be thread-compatible: const member functions
+// Derived `Object` classes should be thread-compatible: const member functions
 // may be called concurrently with const member functions, but non-const member
 // functions may not be called concurrently with any member functions unless
 // specified otherwise.
 //
-// A derived class may use background threads which may cause the Object to
+// A derived class may use background threads which may cause the `Object` to
 // fail asynchronously. See comments in the protected section for rules
-// regarding background threads and asynchronous Fail() calls.
+// regarding background threads and asynchronous `Fail()` calls.
 class Object {
  public:
   Object(const Object&) = delete;
   Object& operator=(const Object&) = delete;
 
   // If a derived class uses background threads, its destructor must cause
-  // background threads to stop interacting with the Object.
+  // background threads to stop interacting with the `Object`.
   virtual ~Object();
 
-  // Indicates that the Object is no longer needed, but in the case of a writer
-  // that its destination is needed.
+  // Indicates that the `Object` is no longer needed, but in the case of a
+  // writer that its destination is needed.
   //
-  // If closed(), does nothing. Otherwise:
+  // If `closed()`, does nothing. Otherwise:
   //
   // In the case of a writer, pushes buffered data to the destination. In the
   // case of a reader, verifies that the source is not truncated at the current
@@ -87,36 +89,38 @@ class Object {
   //
   // Closes owned dependencies.
   //
-  // Returns true if the Object did not fail, i.e. if it was healthy just before
-  // becoming closed.
+  // Returns true if the `Object` did not fail, i.e. if it was healthy just
+  // before becoming closed.
   bool Close();
 
-  // Returns true if the Object is healthy, i.e. not closed nor failed.
+  // Returns true if the `Object` is healthy, i.e. not closed nor failed.
   bool healthy() const;
 
-  // Returns true if the Object is closed.
+  // Returns true if the `Object` is closed.
   bool closed() const;
 
-  // Returns a Status describing the failure if the Object is failed,
-  // or OkStatus() otherwise.
+  // Returns a `Status` describing the failure if the `Object` is failed,
+  // or `OkStatus()` otherwise.
   Status status() const;
 
-  // Returns a token which allows to detect the class of the Object at
+  // Returns a token which allows to detect the class of the `Object` at
   // runtime.
   //
-  // By default returns TypeId(). In order for a class to participate in class
-  // detection at runtime, it must override GetTypeId():
-  //
+  // By default returns `TypeId()`. In order for a class to participate in class
+  // detection at runtime, it must override `GetTypeId()`:
+  // ```
   //   TypeId A::GetTypeId() const override { return TypeId::For<A>(); }
+  // ```
   //
   // Then, to actually cast:
-  //
+  // ```
   //   if (object->GetTypeId() == TypeId::For<A>()) {
   //     A* a = static_cast<A*>(object);
   //     ...
   //   }
+  // ```
   //
-  // This solution is more limited but faster than typeid or dynamic_cast.
+  // This solution is more limited but faster than `typeid` or `dynamic_cast`.
   virtual TypeId GetTypeId() const;
 
  protected:
@@ -124,103 +128,105 @@ class Object {
   // constructed with non-empty parameter lists are open.
   //
   // This convention is not applicable to abstract classes with no natural
-  // constructor parameters. Instead, these classes (such as Object itself) have
-  // no default constructor, and constructors with a dummy parameter of type
-  // InitiallyClosed or InitiallyOpen disambiguate the intent.
+  // constructor parameters. Instead, these classes (such as `Object` itself)
+  // have no default constructor, and constructors with a dummy parameter of
+  // type `InitiallyClosed` or `InitiallyOpen` disambiguate the intent.
   struct InitiallyClosed {};
   struct InitiallyOpen {};
 
   static constexpr InitiallyClosed kInitiallyClosed{};
   static constexpr InitiallyOpen kInitiallyOpen{};
 
-  // Creates an Object with the given initial state.
+  // Creates an `Object` with the given initial state.
   explicit Object(InitiallyClosed) noexcept;
   explicit Object(InitiallyOpen) noexcept;
 
-  // Moves the part of the object defined in the Object class.
+  // Moves the part of the object defined in the `Object` class.
   //
   // If a derived class uses background threads, its assignment operator, if
   // defined, should cause background threads of the target Object to stop
-  // interacting with the Object before Object::Object(Object&&) is called.
+  // interacting with the `Object` before `Object::Object(Object&&)` is called.
   // Also, its move constructor and move assignment operator, if defined,
   // should cause background threads of the source Object to pause interacting
-  // with the Object while Object::operator=(Object&&) is called, and then
-  // continue interacting with the target Object instead.
+  // with the `Object` while `Object::operator=(Object&&)` is called, and then
+  // continue interacting with the target `Object` instead.
   Object(Object&& that) noexcept;
   Object& operator=(Object&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed Object. This avoids
-  // constructing a temporary Object and moving from it. Derived classes which
-  // override Reset() should include a call to Object::Reset().
+  // Makes `*this` equivalent to a newly constructed `Object`. This avoids
+  // constructing a temporary `Object` and moving from it. Derived classes which
+  // override `Reset()` should include a call to `Object::Reset()`.
   //
   // If a derived class uses background threads, its methods which call
-  // Object::Reset() should cause background threads to stop interacting with
-  // the Object before Object::Reset() is called.
+  // `Object::Reset()` should cause background threads to stop interacting with
+  // the `Object` before `Object::Reset()` is called.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Marks the Object as not failed, keeping its closed() status unchanged.
-  // This can be used if the Object supports recovery after some failures.
+  // Marks the `Object` as not failed, keeping its `closed()` status unchanged.
+  // This can be used if the `Object` supports recovery after some failures.
   //
   // If a derived class uses background threads, its methods which call
-  // MarkNotFailed() should cause background threads to stop interacting with
-  // the Object before MarkNotFailed() is called.
+  // `MarkNotFailed()` should cause background threads to stop interacting with
+  // the `Object` before `MarkNotFailed()` is called.
   void MarkNotFailed();
 
-  // Implementation of Close(), called if the Object is not closed yet.
+  // Implementation of `Close()`, called if the `Object` is not closed yet.
   //
-  // Close() returns early if closed(), otherwise calls Done() and marks the
-  // Object as closed. See Close() for details of the responsibility of
-  // Done().
+  // `Close()` returns early if `closed()`, otherwise calls `Done()` and marks
+  // the `Object` as closed. See `Close()` for details of the responsibility of
+  // `Done()`.
   //
-  // If a derived class uses background threads, Done() should cause
-  // background threads to stop interacting with the Object.
+  // If a derived class uses background threads, `Done()` should cause
+  // background threads to stop interacting with the `Object`.
   //
-  // Precondition: !closed()
+  // Precondition: `!closed()`
   virtual void Done() {}
 
-  // Marks the Object as failed with the specified Status.
+  // Marks the `Object` as failed with the specified `Status`.
   //
-  // Fail() always returns false, for convenience of reporting the failure as
-  // a false result of a failing function.
+  // `Fail()` always returns `false`, for convenience of reporting the failure
+  // as a `false` result of a failing function.
   //
-  // Even though Fail() is not const, it may be called concurrently with
+  // Even though `Fail()` is not const, it may be called concurrently with
   // public member functions, with const member functions, and with other
-  // Fail() calls. If Fail() is called multiple times, the first Status wins.
+  // `Fail()` calls. If `Fail()` is called multiple times, the first `Status`
+  // wins.
   //
   // Preconditions:
-  //   !status.ok()
-  //   !closed()
+  //   `!status.ok()`
+  //   `!closed()`
   ABSL_ATTRIBUTE_COLD virtual bool Fail(Status status);
 
-  // Propagates failure from another Object.
+  // Propagates failure from another `Object`.
   //
-  // Equivalent to Fail(dependency.status()).
+  // Equivalent to `Fail(dependency.status())`.
   //
   // Preconditions:
-  //   !dependency.healthy()
-  //   !closed()
+  //   `!dependency.healthy()`
+  //   `!closed()`
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
 
-  // Propagates failure from another Object, with a fallback status to use if
-  // the other Object is healthy.
+  // Propagates failure from another `Object`, with a fallback status to use if
+  // the other `Object` is healthy.
   //
-  // Equivalent to Fail(!dependency.healthy() ? dependency.status() : fallback).
+  // Equivalent to
+  // `Fail(!dependency.healthy() ? dependency.status() : fallback)`.
   //
   // Preconditions:
-  //   !fallback.ok()
-  //   !closed()
+  //   `!fallback.ok()`
+  //   `!closed()`
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency, Status fallback);
 
  private:
   struct FailedStatus {
     explicit FailedStatus(Status&& status);
 
-    // The closed flag may be changed from false to true by Close(). This
-    // happens after Done() finishes, and thus any background threads should
-    // have stopped interacting with the Object.
+    // The `closed` flag may be changed from `false` to `true` by `Close()`.
+    // This happens after `Done()` finishes, and thus any background threads
+    // should have stopped interacting with the `Object`.
     bool closed = false;
-    // The actual status, never OkStatus().
+    // The actual `Status`, never `OkStatus()`.
     Status status;
   };
 
@@ -229,8 +235,8 @@ class Object {
 
   static void DeleteStatus(uintptr_t status_ptr);
 
-  // status_ptr_ is either kHealthy, or kClosedSuccessfully, or FailedStatus*
-  // reinterpret_cast to uintptr_t.
+  // `status_ptr_` is either `kHealthy`, or `kClosedSuccessfully`, or
+  // `FailedStatus*` `reinterpret_cast` to `uintptr_t`.
   std::atomic<uintptr_t> status_ptr_;
 };
 

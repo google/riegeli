@@ -171,7 +171,7 @@ StatusCode ErrnoToCode(int error_number) {
   }
 }
 
-// POSIX strerror_r returns int.
+// POSIX `strerror_r()` returns `int`.
 ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(int result, const char* buffer,
                                                  int error_code) {
   if (ABSL_PREDICT_FALSE(result != 0)) {
@@ -180,7 +180,7 @@ ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(int result, const char* buffer,
   return buffer;
 }
 
-// GNU strerror_r returns char*.
+// GNU `strerror_r()` returns `char*`.
 ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(char* result,
                                                  const char* buffer,
                                                  int error_code) {

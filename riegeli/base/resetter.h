@@ -24,12 +24,12 @@
 
 namespace riegeli {
 
-// Resetter<T>::Reset(object, args...) makes *object equivalent to a newly
-// constructed object with the given arguments, like *object = T(args...).
+// `Resetter<T>::Reset(object, args...)` makes `*object` equivalent to a newly
+// constructed object with the given arguments, like `*object = T(args...)`.
 //
-// It uses *object = arg for a single argument of the same type.
+// It uses `*object = arg` for a single argument of the same type.
 //
-// Resetter can be specialized to avoid constructing a temporary object and
+// `Resetter` can be specialized to avoid constructing a temporary object and
 // moving from it.
 template <typename T>
 struct Resetter {
@@ -43,13 +43,15 @@ struct Resetter {
   }
 };
 
-// ResetterByReset<T> can be used to provide a specialization of Resetter<T>
-// if object->Reset(args...) is a good replacement of *object = T(args...).
+// `ResetterByReset<T>` can be used to provide a specialization of `Resetter<T>`
+// if `object->Reset(args...)` is a good replacement of `*object = T(args...)`.
 //
-// It uses *object = arg for a single argument of the same type.
+// It uses `*object = arg` for a single argument of the same type.
 //
+// ```
 // template <>
 // struct Resetter<T> : ResetterByReset<T> {};
+// ```
 
 template <typename T>
 struct ResetterByReset {
@@ -72,7 +74,7 @@ struct Resetter<std::string> {
   }
 
   static void Reset(std::string* object, absl::string_view src) {
-    // TODO: When absl::string_view becomes C++17 std::string_view:
+    // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
     // object->assign(src);
     object->assign(src.data(), src.size());
   }

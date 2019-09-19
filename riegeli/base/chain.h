@@ -44,47 +44,49 @@ namespace riegeli {
 
 class ChainBlock;
 
-// A Chain represents a sequence of bytes. It supports efficient appending and
-// prepending, and sharing memory with other Chains and other types. It does not
-// support efficient random access.
+// A `Chain` represents a sequence of bytes. It supports efficient appending and
+// prepending, and sharing memory with other `Chain`s and other types. It does
+// not support efficient random access.
 //
-// Chains can be written using ChainWriter and ChainBackwardWriter, and can be
-// read using ChainReader. Chain itself exposes lower level appending/prepending
-// and iteration functions.
+// A `Chain` can be written using `ChainWriter` and `ChainBackwardWriter`,
+// and can be read using `ChainReader`. `Chain` itself exposes lower level
+// appending/prepending and iteration functions.
 //
-// Any parameter named size_hint announces the expected final size, or 0 if
+// Any parameter named `size_hint` announces the expected final size, or 0 if
 // unknown. Providing it may improve performance and memory usage. If the size
 // hint turns out to not match reality, nothing breaks.
 //
-// A Chain is implemented with a sequence of blocks holding flat data fragments.
+// A `Chain` is implemented with a sequence of blocks holding flat data
+// fragments.
 class Chain {
  public:
   class Blocks;
   class BlockIterator;
 
-  // A sentinel value for the max_length parameter of
-  // AppendBuffer()/PrependBuffer().
+  // A sentinel value for the `max_length` parameter of
+  // `AppendBuffer()/PrependBuffer()`.
   static constexpr size_t kAnyLength = std::numeric_limits<size_t>::max();
 
-  // Given an object which owns a byte array, converts it to a Chain by
+  // Given an object which owns a byte array, converts it to a `Chain` by
   // attaching the object, avoiding copying the bytes.
   //
-  // If an object of type T is given, it is copied or moved to the Chain.
+  // If an object of type `T` is given, it is copied or moved to the `Chain`.
   //
-  // If a tuple is given, an object of type T is constructed from elements of
+  // If a tuple is given, an object of type `T` is constructed from elements of
   // the tuple. This avoids constructing a temporary object and moving from it.
   //
-  // After the object or tuple, if the data parameter is given, data must be
+  // After the object or tuple, if the `data` parameter is given, `data` must be
   // valid for the copied, moved, or newly constructed object.
   //
-  // If the data parameter is not given, T must support:
-  //
+  // If the `data` parameter is not given, `T` must support:
+  // ```
   //   // Contents of the object.
   //   explicit operator absl::string_view() const;
+  // ```
   //
-  // T may also support the following member functions, either with or without
-  // the data parameter, with the following definitions assumed by default:
-  //
+  // `T` may also support the following member functions, either with or without
+  // the `data` parameter, with the following definitions assumed by default:
+  // ```
   //   // Called once before the destructor, except on a moved-from object.
   //   void operator()(absl::string_view data) const {}
   //
@@ -100,10 +102,11 @@ class Chain {
   //   void DumpStructure(absl::string_view data, std::ostream& out) const {
   //     out << "External";
   //   }
+  // ```
   //
-  // The data parameter of these member functions, if present, will get the data
-  // used by FromExternal(). Having data available in these functions might
-  // avoid storing data in the external object.
+  // The `data` parameter of these member functions, if present, will get the
+  // `data` used by `FromExternal()`. Having `data` available in these functions
+  // might avoid storing `data` in the external object.
   template <typename T>
   static Chain FromExternal(T&& object);
   template <typename T>
@@ -124,17 +127,17 @@ class Chain {
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
 
-  // The source Chain is left cleared.
+  // The source `Chain` is left cleared.
   //
-  // Moving a Chain invalidates its BlockIterators and data pointers, but the
-  // shape of blocks (their number and sizes) remains unchanged.
+  // Moving a `Chain` invalidates its `BlockIterator`s and data pointers, but
+  // the shape of blocks (their number and sizes) remains unchanged.
   Chain(Chain&& that) noexcept;
   Chain& operator=(Chain&& that) noexcept;
 
   ~Chain();
 
-  // Makes *this equivalent to a newly constructed Chain. This avoids
-  // constructing a temporary Chain and moving from it.
+  // Makes `*this` equivalent to a newly constructed `Chain`. This avoids
+  // constructing a temporary `Chain` and moving from it.
   void Reset();
   void Reset(absl::string_view src);
   void Reset(std::string&& src);
@@ -144,7 +147,7 @@ class Chain {
 
   void Clear();
 
-  // A container of string_view blocks comprising data of the Chain.
+  // A container of `string_view` blocks comprising data of the `Chain`.
   Blocks blocks() const;
 
   size_t size() const { return size_; }
@@ -156,29 +159,31 @@ class Chain {
   explicit operator std::string() const&;
   explicit operator std::string() &&;
 
-  // If the Chain contents are flat, returns them, otherwise returns nullopt.
+  // If the `Chain` contents are flat, returns them, otherwise returns
+  // `nullopt`.
   absl::optional<absl::string_view> TryFlat() const;
 
-  // Estimates the amount of memory used by this Chain.
+  // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
-  // Registers this Chain with MemoryEstimator.
+  // Registers this `Chain` with `MemoryEstimator`.
   void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
   // Appends/prepends some uninitialized space. The buffer will have length at
-  // least min_length, preferably recommended_length, and at most max_length.
+  // least `min_length`, preferably `recommended_length`, and at most
+  // `max_length`.
   //
-  // If min_length == 0, returns whatever space was already allocated (possibly
-  // an empty buffer) without invalidating existing pointers. If the Chain was
-  // empty then the empty contents can be moved.
+  // If `min_length == 0`, returns whatever space was already allocated
+  // (possibly an empty buffer) without invalidating existing pointers. If the
+  // `Chain` was empty then the empty contents can be moved.
   //
-  // If recommended_length < min_length, recommended_length is assumed to be
-  // min_length.
+  // If `recommended_length < min_length`, `recommended_length` is assumed to be
+  // `min_length`.
   //
-  // If max_length == kAnyLength, there is no maximum.
+  // If `max_length == kAnyLength`, there is no maximum.
   //
-  // Precondition: min_length <= max_length
+  // Precondition: `min_length <= max_length`
   absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
                                 size_t max_length = kAnyLength,
@@ -188,7 +193,8 @@ class Chain {
                                  size_t max_length = kAnyLength,
                                  size_t size_hint = 0);
 
-  // Equivalent to AppendBuffer/PrependBuffer with min_length == max_length.
+  // Equivalent to `AppendBuffer()`/`PrependBuffer()` with `min_length ==
+  // max_length`.
   absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
   absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
 
@@ -266,27 +272,27 @@ class Chain {
 
   static constexpr size_t kMaxShortDataSize = 2 * sizeof(RawBlock*);
 
-  // When deciding whether to copy an array of bytes or share memory to a Chain,
-  // prefer copying up to this length.
+  // When deciding whether to copy an array of bytes or share memory to a
+  // `Chain`, prefer copying up to this length.
   static constexpr size_t kMaxBytesToCopyToChain = kMaxShortDataSize;
 
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
 
-    // If the Chain is empty, no block pointers are needed. Some union member is
-    // needed though for the default constructor to be constexpr.
+    // If the `Chain` is empty, no block pointers are needed. Some union member
+    // is needed though for the default constructor to be constexpr.
     Empty empty;
-    // If begin_ == end_, size_ characters.
+    // If `begin_ == end_`, `size_` characters.
     //
-    // If also has_here(), then there are 0 pointers in here so short_data
-    // can safely contain size_ characters. If also has_allocated(), then
-    // size_ == 0, and EnsureHasHere() must be called before writing to
-    // short_data.
+    // If also `has_here()`, then there are 0 pointers in here so `short_data`
+    // can safely contain `size_` characters. If also `has_allocated()`, then
+    // `size_ == 0`, and `EnsureHasHere()` must be called before writing to
+    // `short_data`.
     char short_data[kMaxShortDataSize];
-    // If has_here(), array of block pointers between begin_ == here and end_
-    // (0 to 2 pointers).
+    // If `has_here()`, array of block pointers between `begin_` i.e. `here` and
+    // `end_` (0 to 2 pointers).
     RawBlock* here[2];
-    // If has_allocated(), pointers to a heap-allocated array of block
+    // If `has_allocated()`, pointers to a heap-allocated array of block
     // pointers.
     Allocated allocated;
   };
@@ -315,10 +321,10 @@ class Chain {
 
   static RawBlock** NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();
-  // If has_allocated(), delete the block pointer array and make has_here()
-  // true. This is used before appending to short_data.
+  // If `has_allocated()`, delete the block pointer array and make `has_here()`
+  // `true`. This is used before appending to `short_data`.
   //
-  // Precondition: begin_ == end_
+  // Precondition: `begin_ == end_`
   void EnsureHasHere();
 
   void UnrefBlocks();
@@ -349,9 +355,9 @@ class Chain {
   void ReserveFrontSlow(size_t extra_capacity);
 
   // Decides about the capacity of a new block to be appended/prepended.
-  // If replaced_length > 0, the block will replace an existing block of that
-  // size. In addition to replaced_length, it requires the capacity of at least
-  // min_length, preferably recommended_length.
+  // If `replaced_length > 0`, the block will replace an existing block of that
+  // size. In addition to `replaced_length`, it requires the capacity of at
+  // least `min_length`, preferably `recommended_length`.
   size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
                           size_t recommended_length, size_t size_hint) const;
 
@@ -373,25 +379,25 @@ class Chain {
   // The range of the block pointers array which is actually used.
   //
   // Invariants:
-  //   begin_ <= end_
-  //   if has_here() then begin_ == block_ptrs_.here
-  //                  and end_ <= block_ptrs_.here + 2
-  //   if has_allocated() then begin_ >= block_ptrs_.allocated.begin
-  //                       and end_ <= block_ptrs_.allocated.end
+  //   `begin_ <= end_`
+  //   if `has_here()` then `begin_ == block_ptrs_.here`
+  //                    and `end_ <= block_ptrs_.here + 2`
+  //   if `has_allocated()` then `begin_ >= block_ptrs_.allocated.begin`
+  //                         and `end_ <= block_ptrs_.allocated.end`
   RawBlock** begin_ = block_ptrs_.here;
   RawBlock** end_ = block_ptrs_.here;
 
   // Invariants:
-  //   if begin_ == end_ then size_ <= kMaxShortDataSize
-  //   if begin_ == end_ && has_allocated() then size_ == 0
-  //   if begin_ != end_ then
-  //       size_ is the sum of sizes of blocks in [begin_, end_)
+  //   if `begin_ == end_` then `size_ <= kMaxShortDataSize`
+  //   if `begin_ == end_ && has_allocated()` then `size_ == 0`
+  //   if `begin_ != end_` then
+  //       `size_` is the sum of sizes of blocks in [`begin_`, `end_`)
   size_t size_ = 0;
 };
 
-// Represents either RawBlock* const*, or one of two special values
-// (kBeginShortData and kEndShortData) behaving as if they were pointers in a
-// single-element RawBlock* array.
+// Represents either `RawBlock* const*`, or one of two special values
+// (`kBeginShortData` and `kEndShortData`) behaving as if they were pointers in
+// a single-element `RawBlock*` array.
 struct Chain::BlockPtrPtr {
  public:
   static BlockPtrPtr from_ptr(RawBlock* const* ptr);
@@ -463,34 +469,35 @@ class Chain::BlockIterator {
   friend difference_type operator-(BlockIterator a, BlockIterator b);
   friend BlockIterator operator+(difference_type n, BlockIterator a);
 
-  // Returns a ChainBlock which pins the block pointed to by this iterator,
-  // keeping it alive and unchanged, until either the ChainBlock is destroyed or
-  // ChainBlock::Release() and ChainBlock::DeleteReleased() are called.
+  // Returns a `ChainBlock` which pins the block pointed to by this iterator,
+  // keeping it alive and unchanged, until either the `ChainBlock` is destroyed
+  // or `ChainBlock::Release()` and `ChainBlock::DeleteReleased()` are called.
   //
-  // Warning: the data pointer of the returned ChainBlock is not necessarily the
-  // same as the data pointer of this BlockIterator (because of short Chain
-  // optimization). Convert the ChainBlock to string_view or use
-  // ChainBlock::data() for a data pointer valid for the pinned block.
+  // Warning: the data pointer of the returned `ChainBlock` is not necessarily
+  // the same as the data pointer of this `BlockIterator` (because of short
+  // `Chain` optimization). Convert the `ChainBlock` to `string_view` or use
+  // `ChainBlock::data()` for a data pointer valid for the pinned block.
   //
   // Precondition: this is not past the end iterator.
   ChainBlock Pin();
 
   // Returns a pointer to the external object if this points to an external
-  // block holding an object of type T, otherwise returns nullptr.
+  // block holding an object of type `T`, otherwise returns `nullptr`.
   //
   // Precondition: this is not past the end iterator.
   template <typename T>
   const T* external_object() const;
 
-  // Appends **this to *dest.
+  // Appends `**this` to `*dest`.
   //
   // Precondition: this is not past the end iterator.
   void AppendTo(Chain* dest, size_t size_hint = 0) const;
 
-  // Appends substr to *dest. substr must be empty or contained in **this.
+  // Appends `substr` to `*dest`. `substr` must be empty or contained in
+  // `**this`.
   //
   // Precondition:
-  //   if substr is not empty then this is not past the end iterator.
+  //   if `substr` is not empty then this is not past the end iterator.
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       size_t size_hint = 0) const;
 
@@ -505,10 +512,10 @@ class Chain::BlockIterator {
   RawBlock* PinImpl();
 
   const Chain* chain_ = nullptr;
-  // If chain_ == nullptr, kBeginShortData.
-  // If *chain_ has no block pointers and no short data, kEndShortData.
-  // If *chain_ has short data, kBeginShortData or kEndShortData.
-  // If *chain_ has block pointers, a pointer to the block pointer array.
+  // If `chain_ == nullptr`, `kBeginShortData`.
+  // If `*chain_` has no block pointers and no short data, `kEndShortData`.
+  // If `*chain_` has short data, `kBeginShortData` or `kEndShortData`.
+  // If `*chain_` has block pointers, a pointer to the block pointer array.
   BlockPtrPtr ptr_ = kBeginShortData;
 };
 
@@ -555,26 +562,26 @@ class Chain::Blocks {
   const Chain* chain_ = nullptr;
 };
 
-// A simplified variant of Chain constrained to have at most one block.
+// A simplified variant of `Chain` constrained to have at most one block.
 //
-// ChainBlock uses the same block representation as Chain and thus can be
-// efficiently appended to a Chain.
+// `ChainBlock` uses the same block representation as `Chain` and thus can be
+// efficiently appended to a `Chain`.
 //
-// ChainBlock uses no short data optimization.
+// `ChainBlock` uses no short data optimization.
 class ChainBlock {
  public:
-  // Maximum size of a ChainBlock.
+  // Maximum size of a `ChainBlock`.
   static constexpr size_t kMaxSize =
       size_t{std::numeric_limits<ptrdiff_t>::max()};
 
-  // A sentinel value for the max_length parameter of
-  // AppendBuffer()/PrependBuffer().
+  // A sentinel value for the `max_length` parameter of
+  // `AppendBuffer()`/`PrependBuffer()`.
   static constexpr size_t kAnyLength = Chain::kAnyLength;
 
-  // Given an object which owns a byte array, converts it to a ChainBlock by
+  // Given an object which owns a byte array, converts it to a `ChainBlock` by
   // attaching the object, avoiding copying the bytes.
   //
-  // See Chain::FromExternal() for details.
+  // See `Chain::FromExternal()` for details.
   template <typename T>
   static ChainBlock FromExternal(T&& object);
   template <typename T>
@@ -590,9 +597,9 @@ class ChainBlock {
   ChainBlock(const ChainBlock& that) noexcept;
   ChainBlock& operator=(const ChainBlock& that) noexcept;
 
-  // The source ChainBlock is left cleared.
+  // The source `ChainBlock` is left cleared.
   //
-  // Moving a ChainBlock keeps its data pointers unchanged.
+  // Moving a `ChainBlock` keeps its data pointers unchanged.
   ChainBlock(ChainBlock&& that) noexcept;
   ChainBlock& operator=(ChainBlock&& that) noexcept;
 
@@ -606,18 +613,19 @@ class ChainBlock {
   bool empty() const;
 
   // Appends/prepends some uninitialized space. The buffer will have length at
-  // least min_length, preferably recommended_length, and at most max_length.
+  // least `min_length`, preferably `recommended_length`, and at most
+  // `max_length`.
   //
-  // If min_length == 0, returns whatever space was already allocated (possibly
-  // an empty buffer). without invalidating existing pointers. If the ChainBlock
-  // was empty then the empty contents can be moved.
+  // If `min_length == 0`, returns whatever space was already allocated
+  // (possibly an empty buffer). without invalidating existing pointers. If the
+  // `ChainBlock` was empty then the empty contents can be moved.
   //
-  // If recommended_length < min_length, recommended_length is assumed to be
-  // min_length.
+  // If `recommended_length < min_length`, `recommended_length` is assumed to be
+  // `min_length`.
   //
-  // If max_length == kAnyLength, there is no maximum.
+  // If `max_length == kAnyLength`, there is no maximum.
   //
-  // Precondition: min_length <= max_length
+  // Precondition: `min_length <= max_length`
   absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
                                 size_t max_length = kAnyLength,
@@ -627,25 +635,27 @@ class ChainBlock {
                                  size_t max_length = kAnyLength,
                                  size_t size_hint = 0);
 
-  // Equivalent to AppendBuffer/PrependBuffer with min_length == max_length.
+  // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
+  // `min_length == max_length`.
   absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
   absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
 
   void RemoveSuffix(size_t length, size_t size_hint = 0);
   void RemovePrefix(size_t length, size_t size_hint = 0);
 
-  // Appends *this to *dest.
+  // Appends `*this` to `*dest`.
   void AppendTo(Chain* dest, size_t size_hint = 0) const;
 
-  // Appends substr to *dest. substr must be empty or contained in *this.
+  // Appends `substr` to `*dest`. `substr` must be empty or contained in
+  // `*this`.
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       size_t size_hint = 0) const;
 
   // Releases the ownership of the block, which must be deleted using
-  // DeleteReleased() if not nullptr.
+  // `DeleteReleased()` if not `nullptr`.
   void* Release();
 
-  // Deletes the pointer obtained by Release().
+  // Deletes the pointer obtained by `Release()`.
   static void DeleteReleased(void* ptr);
 
  private:
@@ -667,7 +677,7 @@ class ChainBlock {
 
 // Implementation details follow.
 
-// Chain representation consists of blocks.
+// `Chain` representation consists of blocks.
 //
 // An internal block holds an allocated array which consists of free space
 // before data, data, and free space after data. Block size is the size of
@@ -678,10 +688,10 @@ class ChainBlock {
 //
 // Definitions:
 //  - empty block: a block with size == 0
-//  - tiny block: a block with size < kMinBufferSize
-//  - wasteful block: a block with free space > max(size, kMinBufferSize)
+//  - tiny block: a block with size < `kMinBufferSize`
+//  - wasteful block: a block with free space > max(size, `kMinBufferSize`)
 //
-// Invariants of a Chain:
+// Invariants of a `Chain`:
 //  - A block can be empty or wasteful only if it is the first or last block.
 //  - Tiny blocks must not be adjacent.
 class Chain::RawBlock {
@@ -696,18 +706,18 @@ class Chain::RawBlock {
   static RawBlock* NewInternal(size_t min_capacity);
 
   // Constructs an internal block. This constructor is public for
-  // SizeReturningNewAligned().
+  // `SizeReturningNewAligned()`.
   explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object constructed from
-  // args, and sets block data to string_view(object). This constructor is
-  // public for NewAligned().
+  // args, and sets block data to `string_view(object)`. This constructor is
+  // public for `NewAligned()`.
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
 
   // Constructs an external block containing an external object constructed from
   // args, and sets block data to the data parameter. This constructor is public
-  // for NewAligned().
+  // for `NewAligned()`.
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args,
                     absl::string_view data);
@@ -730,27 +740,27 @@ class Chain::RawBlock {
   const char* data_end() const { return data_begin() + size(); }
 
   // Returns a pointer to the external object, assuming that this is an external
-  // block holding an object of type T.
+  // block holding an object of type `T`.
   template <typename T>
   T* unchecked_external_object();
   template <typename T>
   const T* unchecked_external_object() const;
 
   // Returns a pointer to the external object if this is an external block
-  // holding an object of type T, otherwise returns nullptr.
+  // holding an object of type `T`, otherwise returns `nullptr`.
   template <typename T>
   const T* checked_external_object() const;
 
   // Returns a pointer to the external object if this is an external block
-  // holding an object of type T and the block has a unique owner, otherwise
-  // returns nullptr.
+  // holding an object of type `T` and the block has a unique owner, otherwise
+  // returns `nullptr`.
   template <typename T>
   T* checked_external_object_with_unique_owner();
 
   bool tiny(size_t extra_size = 0) const;
   bool wasteful(size_t extra_size = 0) const;
 
-  // Registers this RawBlock with MemoryEstimator.
+  // Registers this `RawBlock` with `MemoryEstimator`.
   void RegisterShared(MemoryEstimator* memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
@@ -762,11 +772,11 @@ class Chain::RawBlock {
   absl::Span<char> AppendBuffer(size_t max_length);
   absl::Span<char> PrependBuffer(size_t max_length);
   void Append(absl::string_view src);
-  // Reads size_to_copy from src.data() but accounts for src.size(). Faster
-  // than Append() if size_to_copy is a compile time constant, but requires
-  // size_to_copy bytes to be readable, possibly past the end of src.
+  // Reads `size_to_copy` from `src.data()` but accounts for `src.size()`.
+  // Faster than `Append()` if `size_to_copy` is a compile time constant, but
+  // requires `size_to_copy` bytes to be readable, possibly past the end of src.
   //
-  // Precondition: size_to_copy >= src.size().
+  // Precondition: `size_to_copy >= src.size()`
   void AppendWithExplicitSizeToCopy(absl::string_view src, size_t size_to_copy);
   void Prepend(absl::string_view src);
   bool TryRemoveSuffix(size_t length);
@@ -808,13 +818,13 @@ class Chain::RawBlock {
 
   std::atomic<size_t> ref_count_{1};
   absl::string_view data_;
-  // If is_internal(), end of allocated space. If is_external(), nullptr.
+  // If `is_internal()`, end of allocated space. If `is_external()`, `nullptr`.
   // This distinguishes internal from external blocks.
   char* allocated_end_ = nullptr;
   union {
-    // If is_internal(), beginning of data (actual allocated size is larger).
+    // If `is_internal()`, beginning of data (actual allocated size is larger).
     char allocated_begin_[1];
-    // If is_external(), the remaining fields.
+    // If `is_external()`, the remaining fields.
     External external_;
   };
 };
@@ -953,12 +963,12 @@ DumpStructure(T* object, absl::string_view data, std::ostream& out) {
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // args, and sets block data to string_view(object).
+  // `args`, and sets block data to `string_view(object)`.
   template <typename... Args>
   static RawBlock* NewBlock(std::tuple<Args...> args);
 
   // Creates an external block containing an external object constructed from
-  // args, and sets block data to the data parameter.
+  // `args`, and sets block data to the `data` parameter.
   template <typename... Args>
   static RawBlock* NewBlock(std::tuple<Args...> args, absl::string_view data);
 
@@ -1162,9 +1172,9 @@ inline Chain::RawBlock* const* Chain::BlockPtrPtr::as_ptr() const {
   return reinterpret_cast<RawBlock* const*>(repr);
 }
 
-// Code conditional on is_special() is written such that both branches typically
-// compile to the same code, allowing the compiler eliminate the is_special()
-// checks.
+// Code conditional on `is_special()` is written such that both branches
+// typically compile to the same code, allowing the compiler eliminate the
+// `is_special()` checks.
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
   if (is_special()) {
@@ -1189,7 +1199,7 @@ inline ptrdiff_t operator-(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
     // Pointer subtraction with the element size being a power of 2 typically
     // rounds in the same way as right shift (towards -inf), not as division
     // (towards zero), so the right shift allows the compiler to eliminate the
-    // is_special() check.
+    // `is_special()` check.
     switch (sizeof(Chain::RawBlock*)) {
       case 1 << 2:
         return byte_diff >> 2;
@@ -1556,11 +1566,11 @@ inline Chain::Chain(ChainBlock&& src) {
 
 inline Chain::Chain(Chain&& that) noexcept
     : size_(std::exchange(that.size_, 0)) {
-  // Use memcpy() instead of copy constructor to silence -Wmaybe-uninitialized
-  // in gcc.
+  // Use `memcpy()` instead of copy constructor to silence
+  // `-Wmaybe-uninitialized` in gcc.
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   if (that.has_here()) {
-    // that.has_here() implies that that.begin_ == that.block_ptrs_.here
+    // `that.has_here()` implies that `that.begin_ == that.block_ptrs_.here`
     // already.
     begin_ = block_ptrs_.here;
     end_ = block_ptrs_.here + (std::exchange(that.end_, that.block_ptrs_.here) -
@@ -1569,16 +1579,16 @@ inline Chain::Chain(Chain&& that) noexcept
     begin_ = std::exchange(that.begin_, that.block_ptrs_.here);
     end_ = std::exchange(that.end_, that.block_ptrs_.here);
   }
-  // It does not matter what is left in that.block_ptrs_ because that.begin_ and
-  // that.end_ point to the empty prefix of that.block_ptrs_.here[].
+  // It does not matter what is left in `that.block_ptrs_` because `that.begin_`
+  // and `that.end_` point to the empty prefix of `that.block_ptrs_.here[]`.
 }
 
 inline Chain& Chain::operator=(Chain&& that) noexcept {
-  // Exchange that.begin_ and that.end_ early to support self-assignment.
+  // Exchange `that.begin_` and `that.end_` early to support self-assignment.
   RawBlock** begin;
   RawBlock** end;
   if (that.has_here()) {
-    // that.has_here() implies that that.begin_ == that.block_ptrs_.here
+    // `that.has_here()` implies that `that.begin_ == that.block_ptrs_.here`
     // already.
     begin = block_ptrs_.here;
     end = block_ptrs_.here + (std::exchange(that.end_, that.block_ptrs_.here) -
@@ -1589,9 +1599,9 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
   }
   UnrefBlocks();
   DeleteBlockPtrs();
-  // It does not matter what is left in that.block_ptrs_ because that.begin_ and
-  // that.end_ point to the empty prefix of that.block_ptrs_.here[].
-  // Use memcpy() instead of assignment to silence -Wmaybe-uninitialized in gcc.
+  // It does not matter what is left in `that.block_ptrs_` because `that.begin_`
+  // and `that.end_` point to the empty prefix of `that.block_ptrs_.here[]`. Use
+  // `memcpy()` instead of assignment to silence `-Wmaybe-uninitialized` in gcc.
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   begin_ = begin;
   end_ = end;
@@ -1726,7 +1736,7 @@ inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
       << "length to remove greater than current size";
   size_ -= length;
   if (begin_ == end_) {
-    // Chain has short data which have suffix removed in place.
+    // `Chain` has short data which have suffix removed in place.
     return;
   }
   if (ABSL_PREDICT_TRUE(length <= back()->size() &&
@@ -1743,7 +1753,7 @@ inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
       << "length to remove greater than current size";
   size_ -= length;
   if (begin_ == end_) {
-    // Chain has short data which have prefix removed by shifting the rest.
+    // `Chain` has short data which have prefix removed by shifting the rest.
     std::memmove(block_ptrs_.short_data, block_ptrs_.short_data + length,
                  size_);
     return;
@@ -1853,7 +1863,7 @@ inline ChainBlock::ChainBlock(ChainBlock&& that) noexcept
     : block_(std::exchange(that.block_, nullptr)) {}
 
 inline ChainBlock& ChainBlock::operator=(ChainBlock&& that) noexcept {
-  // Exchange that.block_ early to support self-assignment.
+  // Exchange `that.block_` early to support self-assignment.
   RawBlock* const block = std::exchange(that.block_, nullptr);
   if (block_ != nullptr) block_->Unref();
   block_ = block;

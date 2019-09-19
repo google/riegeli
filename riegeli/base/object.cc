@@ -48,7 +48,7 @@ bool Object::Fail(Status status) {
   uintptr_t old_status = kHealthy;
   if (ABSL_PREDICT_FALSE(!status_ptr_.compare_exchange_strong(
           old_status, new_status_ptr, std::memory_order_release))) {
-    // status_ptr_ was already set, new_status_ptr loses.
+    // `status_ptr_` was already set, `new_status_ptr` loses.
     DeleteStatus(new_status_ptr);
   }
   return false;

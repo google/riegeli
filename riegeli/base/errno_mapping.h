@@ -20,7 +20,7 @@
 
 namespace riegeli {
 
-// Converts errno value to Status.
+// Converts `errno` value to `Status`.
 Status ErrnoToCanonicalStatus(int error_number, absl::string_view message);
 
 }  // namespace riegeli

@@ -26,30 +26,30 @@
 
 namespace riegeli {
 
-// Similar to Dependency<Ptr, Manager>, but ensures that Ptr stays unchanged
-// when StableDependency<Ptr, Manager> is moved. StableDependency can be used
-// instead of Dependency if Ptr stability is required, e.g. if background
-// threads access the Ptr.
+// Similar to `Dependency<Ptr, Manager>`, but ensures that `Ptr` stays unchanged
+// when `StableDependency<Ptr, Manager>` is moved. `StableDependency` can be
+// used instead of `Dependency` if `Ptr` stability is required, e.g. if
+// background threads access the `Ptr`.
 //
-// Exception: a dummy Manager created by a default constructed StableDependency
-// may change its address when the StableDependency is moved. The dummy Manager
-// should not be used by the host object, so making its address change is not a
-// problem. Since the Manager is exposed, making it unconditionally available
-// avoids a special case in the public interface where accessing the dependency
-// would be invalid. This exception avoids dynamic allocation in the default
-// constructor.
+// Exception: a dummy `Manager` created by a default constructed
+// `StableDependency` may change its address when the `StableDependency` is
+// moved. The dummy `Manager` should not be used by the host object, so making
+// its address change is not a problem. Since the `Manager` is exposed, making
+// it unconditionally available avoids a special case in the public interface
+// where accessing the dependency would be invalid. This exception avoids
+// dynamic allocation in the default constructor.
 template <typename Ptr, typename Manager, typename Enable = void>
 class StableDependency;
 
-// Specialization when Dependency<P*, M> is already stable.
+// Specialization when `Dependency<P*, M>` is already stable.
 template <typename P, typename M>
 class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable()>>
     : public Dependency<P*, M> {
   using Dependency<P*, M>::Dependency;
 };
 
-// Specialization when Dependency<P*, M> is not stable: allocates the dependency
-// dynamically.
+// Specialization when `Dependency<P*, M>` is not stable: allocates the
+// dependency dynamically.
 template <typename P, typename M>
 class StableDependency<P*, M,
                        std::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
@@ -156,8 +156,8 @@ class StableDependency<P*, M,
   };
 
   // Invariants:
-  //   if dep_ != nullptr then dummy_ is not constructed
-  //   if dep_ == nullptr then dummy_ is default constructed
+  //   if `dep_ != nullptr` then `dummy_` is not constructed
+  //   if `dep_ == nullptr` then `dummy_` is default constructed
 };
 
 }  // namespace riegeli

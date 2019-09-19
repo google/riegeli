@@ -87,7 +87,7 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
                                  std::integral_constant<Ownership, ownership>) {
   if (const BlockRef* const block_ref =
           block->checked_external_object<BlockRef>()) {
-    // block is already a BlockRef. Refer to its target instead.
+    // `block` is already a `BlockRef`. Refer to its target instead.
     RawBlock* const target = block_ref->block_;
     if (ownership == Ownership::kSteal) {
       target->Ref();
@@ -150,7 +150,7 @@ inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
 
 inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
     : data_(allocated_begin_, 0),
-      // Redundant cast is needed for -fsanitize=bounds.
+      // Redundant cast is needed for `-fsanitize=bounds`.
       allocated_end_(static_cast<char*>(allocated_begin_) +
                      (*raw_capacity - kInternalAllocatedOffset())) {
   RIEGELI_ASSERT(is_internal()) << "A RawBlock with allocated_end_ != nullptr "
@@ -431,9 +431,9 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
   }
 }
 
-// In converting constructors below, size_hint being src.size() optimizes for
-// the case when the resulting Chain will not be appended to further, reducing
-// the size of allocations.
+// In converting constructors below, `size_hint` being `src.size()` optimizes
+// for the case when the resulting `Chain` will not be appended to further,
+// reducing the size of allocations.
 
 Chain::Chain(const Chain& that) : size_(that.size_) {
   if (that.begin_ == that.end_) {
@@ -501,7 +501,7 @@ inline void Chain::DropStolenBlocks(
 }
 
 void Chain::CopyTo(char* dest) const {
-  if (empty()) return;  // memcpy(nullptr, _, 0) is undefined.
+  if (empty()) return;  // `memcpy(nullptr, _, 0)` is undefined.
   RawBlock* const* iter = begin_;
   if (iter == end_) {
     std::memcpy(dest, block_ptrs_.short_data, size_);
@@ -628,10 +628,10 @@ inline void Chain::PopFront() {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
-    // Shift the remaining 0 or 1 block pointers to the left by 1 because begin_
-    // must remain at block_ptrs_.here. Use memcpy() instead of assignment
-    // because the pointer being copied might be invalid if there are 0 block
-    // pointers; it is cheaper to copy unconditionally.
+    // Shift the remaining 0 or 1 block pointers to the left by 1 because
+    // `begin_` must remain at `block_ptrs_.here`. Use `memcpy()` instead of
+    // assignment because the pointer being copied might be invalid if there are
+    // 0 block pointers; it is cheaper to copy unconditionally.
     std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));
     --end_;
   } else {
@@ -743,8 +743,8 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     if (ABSL_PREDICT_TRUE(extra_capacity <=
                           PtrDistance(end_, block_ptrs_.here + 2))) {
       // There is space without reallocation. Shift 1 block pointer to the right
-      // by 1, or 0 block pointers by 1 or 2, because begin_ must remain at
-      // block_ptrs_.here. Use memcpy() instead of assignment because the
+      // by 1, or 0 block pointers by 1 or 2, because `begin_` must remain at
+      // `block_ptrs_.here`. Use `memcpy()` instead of assignment because the
       // pointer being copied might be invalid if there are 0 block pointers;
       // it is cheaper to copy unconditionally.
       std::memcpy(block_ptrs_.here + 1, block_ptrs_.here, sizeof(RawBlock*));
@@ -811,7 +811,7 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
       << "Chain block capacity overflow";
   size_t length = kMaxBufferSize;
   if (size_ < size_hint) {
-    // Avoid allocating more than needed for size_hint.
+    // Avoid allocating more than needed for `size_hint`.
     length = UnsignedMin(length, replaced_length + (size_hint - size_));
   } else {
     length = UnsignedMin(
@@ -834,8 +834,9 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    // Do not bother returning short data if recommended_length or size_hint is
-    // larger, because data will likely need to be copied later to a real block.
+    // Do not bother returning short data if `recommended_length` or `size_hint`
+    // is larger, because data will likely need to be copied later to a real
+    // block.
     if (min_length == 0 || (min_length <= kMaxShortDataSize - size_ &&
                             recommended_length <= kMaxShortDataSize - size_ &&
                             size_hint <= kMaxShortDataSize)) {
@@ -921,8 +922,9 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    // Do not bother returning short data if recommended_length or size_hint is
-    // larger, because data will likely need to be copied later to a real block.
+    // Do not bother returning short data if `recommended_length` or `size_hint`
+    // is larger, because data will likely need to be copied later to a real
+    // block.
     if (min_length == 0 || (min_length <= kMaxShortDataSize - size_ &&
                             recommended_length <= kMaxShortDataSize - size_ &&
                             size_hint <= kMaxShortDataSize)) {
@@ -1013,7 +1015,7 @@ void Chain::Append(std::string&& src, size_t size_hint) {
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopyToChain) {
-    // Not std::move(src): forward to Append(string_view).
+    // Not `std::move(src)`: forward to `Append(string_view)`.
     Append(src, size_hint);
     return;
   }
@@ -1040,15 +1042,15 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
     return;
   }
   RawBlock* const* src_iter = src.begin_;
-  // If the first block of src is handled specially,
-  // (*src_iter++)->Unref<ownership>() skips it so that
-  // AppendBlocks<ownership>() does not append it again.
+  // If the first block of `src` is handled specially,
+  // `(*src_iter++)->Unref<ownership>()` skips it so that
+  // `AppendBlocks<ownership>()` does not append it again.
   RawBlock* const src_first = src.front();
   if (begin_ == end_) {
     if (src_first->tiny() ||
         (src.end_ - src.begin_ > 1 && src_first->wasteful())) {
-      // The first block of src must be rewritten. Merge short data with it to a
-      // new block.
+      // The first block of `src` must be rewritten. Merge short data with it to
+      // a new block.
       if (!short_data().empty() || !src_first->empty()) {
         RIEGELI_ASSERT_LE(src_first->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
@@ -1131,14 +1133,14 @@ inline void Chain::AppendImpl(ChainRef&& src, size_t size_hint) {
       }
     } else if (src.end_ - src.begin_ > 1) {
       if (src_first->empty()) {
-        // The first block of src is empty and must be skipped.
+        // The first block of `src` is empty and must be skipped.
         (*src_iter++)->Unref<ownership>();
       } else if (src_first->wasteful()) {
-        // The first block of src must reduce waste.
+        // The first block of `src` must reduce waste.
         if (last->can_append(src_first->size()) &&
             !last->wasteful(src_first->size())) {
           // Appending in place is possible; this is always cheaper than
-          // rewriting the first block of src.
+          // rewriting the first block of `src`.
           last->Append(absl::string_view(*src_first));
         } else {
           // Appending in place is not possible.
@@ -1171,7 +1173,7 @@ void Chain::Prepend(std::string&& src, size_t size_hint) {
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopyToChain) {
-    // Not std::move(src): forward to Prepend(string_view).
+    // Not `std::move(src)`: forward to `Prepend(string_view)`.
     Prepend(src, size_hint);
     return;
   }
@@ -1199,14 +1201,14 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
   }
   RawBlock* const* src_iter = src.end_;
   // If the last block of src is handled specially,
-  // (*--src_iter)->Unref<ownership>() skips it so that
-  // PrependBlocks<ownership>() does not prepend it again.
+  // `(*--src_iter)->Unref<ownership>()` skips it so that
+  // `PrependBlocks<ownership>()` does not prepend it again.
   RawBlock* const src_last = src.back();
   if (begin_ == end_) {
     if (src_last->tiny() ||
         (src.end_ - src.begin_ > 1 && src_last->wasteful())) {
-      // The last block of src must be rewritten. Merge short data with it to a
-      // new block.
+      // The last block of `src` must be rewritten. Merge short data with it to
+      // a new block.
       if (!short_data().empty() || !src_last->empty()) {
         RIEGELI_ASSERT_LE(src_last->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
@@ -1286,14 +1288,14 @@ inline void Chain::PrependImpl(ChainRef&& src, size_t size_hint) {
       }
     } else if (src.end_ - src.begin_ > 1) {
       if (src_last->empty()) {
-        // The last block of src is empty and must be skipped.
+        // The last block of `src` is empty and must be skipped.
         (*--src_iter)->Unref<ownership>();
       } else if (src_last->wasteful()) {
-        // The last block of src must reduce waste.
+        // The last block of `src` must reduce waste.
         if (first->can_prepend(src_last->size()) &&
             !first->wasteful(src_last->size())) {
           // Prepending in place is possible; this is always cheaper than
-          // rewriting the last block of src.
+          // rewriting the last block of `src`.
           first->Prepend(absl::string_view(*src_last));
         } else {
           // Prepending in place is not possible.
@@ -1513,7 +1515,7 @@ void Chain::RemoveSuffixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = absl::string_view(*block);
   data.remove_suffix(length);
-  // Compensate for increasing size_ by Append().
+  // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopyToChain) {
     Append(data, size_hint);
@@ -1545,8 +1547,8 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
     } while (length > iter[0]->size());
     if (iter[0]->TryRemovePrefix(length)) {
       if (has_here()) {
-        // Shift 1 block pointer to the left by 1 because begin_ must remain at
-        // block_ptrs_.here.
+        // Shift 1 block pointer to the left by 1 because `begin_` must remain
+        // at `block_ptrs_.here`.
         block_ptrs_.here[0] = block_ptrs_.here[1];
         --end_;
       } else {
@@ -1558,9 +1560,9 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   RawBlock* const block = *iter++;
   if (has_here()) {
     // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
-    // because begin_ must remain at block_ptrs_.here. Use memcpy() instead of
-    // assignment because the pointer being copied might be invalid if there are
-    // 0 block pointers; it is cheaper to copy unconditionally.
+    // because `begin_` must remain at `block_ptrs_.here`. Use `memcpy()`
+    // instead of assignment because the pointer being copied might be invalid
+    // if there are 0 block pointers; it is cheaper to copy unconditionally.
     std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));
     end_ -= PtrDistance(block_ptrs_.here, iter);
   } else {
@@ -1572,7 +1574,7 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = absl::string_view(*block);
   data.remove_prefix(length);
-  // Compensate for increasing size_ by Prepend().
+  // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopyToChain) {
     Prepend(data, size_hint);
@@ -1702,7 +1704,7 @@ inline size_t ChainBlock::NewBlockCapacity(size_t min_length,
          "ChainBlock size overflow";
   size_t length;
   if (size() < size_hint) {
-    // Avoid allocating more than needed for size_hint.
+    // Avoid allocating more than needed for `size_hint`.
     length = size_hint;
   } else {
     length =

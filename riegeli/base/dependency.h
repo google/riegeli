@@ -27,26 +27,27 @@
 
 namespace riegeli {
 
-// A member of type Dependency<Ptr, Manager> specifies an optionally owned
+// A member of type `Dependency<Ptr, Manager>` specifies an optionally owned
 // dependent object needed by the host object.
 //
-// Ptr is a non-owning type which refers to the dependent object, usually a
-// pointer. Manager is a type which provides and possibly owns the dependent
+// `Ptr` is a non-owning type which refers to the dependent object, usually a
+// pointer. `Manager` is a type which provides and possibly owns the dependent
 // object.
 //
-// Typically the host class of Dependency<Ptr, Manager> is a class template
-// parametrized by Manager, with Ptr fixed. A user of the host class specifies
-// ownership of the dependent object, and sometimes narrows its type, by
-// choosing the Manager type.
+// Typically the host class of `Dependency<Ptr, Manager>` is a class template
+// parametrized by `Manager`, with `Ptr` fixed. A user of the host class
+// specifies ownership of the dependent object, and sometimes narrows its type,
+// by choosing the `Manager` type.
 //
-// Dependency<Ptr, Manager> uses Resetter<Manager>. An appropriate
-// specialization of Resetter can be defined if a Manager can be made equivalent
-// to a newly constructed Manager while avoiding constructing a temporary
-// Manager and moving from it.
+// `Dependency<Ptr, Manager>` uses `Resetter<Manager>`. An appropriate
+// specialization of `Resetter` can be defined if a `Manager` can be made
+// equivalent to a newly constructed `Manager` while avoiding constructing a
+// temporary `Manager` and moving from it.
 //
 // The following operations are typically provided by specializations of
-// Dependency<Ptr, Manager> (operations may differ depending on Ptr):
+// `Dependency<Ptr, Manager>` (operations may differ depending on `Ptr`):
 //
+// ```
 //   // Constructs a dummy Manager. This is used when the host object is closed
 //   // and does not need a dependent object.
 //   Dependency();
@@ -97,11 +98,12 @@ namespace riegeli {
 //
 //   // If true, get() stays unchanged when a Dependency is moved.
 //   static constexpr bool kIsStable();
+// ```
 template <typename Ptr, typename Manager, typename Enable = void>
 class Dependency;
 
-// IsValidDependency<Ptr, Manager>::value is true when Dependency<Ptr, Manager>
-// is defined.
+// `IsValidDependency<Ptr, Manager>::value` is `true` when
+// `Dependency<Ptr, Manager>` is defined.
 
 template <typename Ptr, typename Manager, typename Enable = void>
 struct IsValidDependency : public std::false_type {};
@@ -112,7 +114,7 @@ struct IsValidDependency<
     absl::void_t<decltype(std::declval<Dependency<Ptr, Manager>>().get())>>
     : public std::true_type {};
 
-// Implementation shared between most specializations of Dependency.
+// Implementation shared between most specializations of `Dependency`.
 template <typename Manager>
 class DependencyBase {
  public:
@@ -163,7 +165,7 @@ class DependencyBase {
   Manager manager_;
 };
 
-// Specialization of Dependency<P*, M*> when M* is convertible to P*.
+// Specialization of `Dependency<P*, M*>` when `M*` is convertible to `P*`.
 template <typename P, typename M>
 class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
@@ -178,7 +180,7 @@ class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   static constexpr bool kIsStable() { return true; }
 };
 
-// Specialization of Dependency<P*, M> when M* is convertible to P*.
+// Specialization of `Dependency<P*, M>` when `M*` is convertible to `P*`.
 template <typename P, typename M>
 class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M> {
@@ -196,7 +198,8 @@ class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   static constexpr bool kIsStable() { return false; }
 };
 
-// Specialization of Dependency<P*, unique_ptr<M>> when M* is convertible to P*.
+// Specialization of `Dependency<P*, unique_ptr<M>>` when `M*` is convertible to
+// `P*`.
 template <typename P, typename M, typename Deleter>
 class Dependency<P*, std::unique_ptr<M, Deleter>,
                  std::enable_if_t<std::is_convertible<M*, P*>::value>>

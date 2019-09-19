@@ -38,10 +38,10 @@ class ValueParser : public Object {
   // Parser of an option value.
   //
   // Return values:
-  //  * true  - success (FailIfSeen() nor FailIfAnySeen() must not have been
-  //            called)
-  //  * false - failure (InvalidValue(), FailIfSeen(), or FailIfAnySeen() may
-  //            have been called)
+  //  * `true`  - success (`FailIfSeen()` nor `FailIfAnySeen()` must not have
+  //              been called)
+  //  * `false` - failure (`InvalidValue()`, `FailIfSeen()`, or
+  //              `FailIfAnySeen()` may have been called)
   using Function = std::function<bool(ValueParser*)>;
 
   ValueParser(const ValueParser&) = delete;
@@ -59,21 +59,21 @@ class ValueParser : public Object {
   static Function Enum(T* out,
                        std::vector<std::pair<std::string, T>> possible_values);
 
-  // Value parser for integers min_value..max_value.
+  // Value parser for integers `min_value`..`max_value`.
   static Function Int(int* out, int min_value, int max_value);
 
   // Value parser for integers expressed as reals with optional suffix
-  // [BkKMGTPE], min_value..max_value.
+  // `[BkKMGTPE]`, `min_value`..`max_value`.
   static Function Bytes(uint64_t* out, uint64_t min_value, uint64_t max_value);
 
-  // Value parser for reals min_value..max_value.
+  // Value parser for reals `min_value`..`max_value`.
   static Function Real(double* out, double min_value, double max_value);
 
   // Value parser which tries multiple parsers and returns the result of the
   // first one which succeeds.
   //
-  // The parsers must not include FailIfSeen() nor FailIfAnySeen(). Conflicts
-  // with other options should be checked outside the Or().
+  // The parsers must not include `FailIfSeen()` nor `FailIfAnySeen()`.
+  // Conflicts with other options should be checked outside the `Or()`.
   static Function Or(Function function1, Function function2);
   template <typename... Functions>
   static Function Or(Function function1, Function function2,
@@ -88,14 +88,14 @@ class ValueParser : public Object {
 
   // Value parser which appends the option to a separate options string
   // (as comma-separated key:value pairs), to be parsed with a separate
-  // OptionsParser.
+  // `OptionsParser`.
   static Function CopyTo(std::string* text);
 
   // Value parser which reports a conflict if an option with any of the given
   // keys was seen before this option.
   //
   // Multiple occurrences of the same option are always invalid and do not have
-  // to be explicitly checked with FailIfSeen().
+  // to be explicitly checked with `FailIfSeen()`.
   static Function FailIfSeen(absl::string_view key);
   template <typename... Keys>
   static Function FailIfSeen(absl::string_view key, Keys&&... keys);
@@ -113,12 +113,12 @@ class ValueParser : public Object {
   // Reports that the value is invalid, given a human-readable description of
   // values which would have been valid.
   //
-  // Multiple descriptions from several InvalidValue() calls are joined with
-  // commas. This normally happens if all parsers from Or() fail.
+  // Multiple descriptions from several `InvalidValue()` calls are joined with
+  // commas. This normally happens if all parsers from `Or()` fail.
   //
-  // Precondition: !valid_values.empty()
+  // Precondition: `!valid_values.empty()`
   //
-  // Always returns false.
+  // Always returns `false`.
   bool InvalidValue(absl::string_view valid_values);
 
  private:
@@ -130,7 +130,7 @@ class ValueParser : public Object {
   OptionsParser* options_parser_;
   absl::string_view key_;
   absl::string_view value_;
-  // When InvalidValue() was called, a human-readable description of valid
+  // When `InvalidValue()` was called, a human-readable description of valid
   // values, otherwise empty.
   std::string valid_values_;
 };
@@ -146,23 +146,24 @@ class OptionsParser : public Object {
   // value parser.
   //
   // The value parser may be implemented explicitly (e.g. as a lambda)
-  // or returned by one of functions below (called on this OptionsParser).
+  // or returned by one of functions below (called on this `OptionsParser`).
   void AddOption(std::string key, ValueParser::Function function);
 
   // Parses options from text. Valid options must have been registered with
-  // AddOptions().
-  //
+  // `AddOptions()`.
+  // ```
   //   options ::= option? ("," option?)*
   //   option ::= key (":" value)?
   //   key ::= (char except ',' and ':')*
   //   value ::= (char except ',')*
+  // ```
   //
   // For each recognized option key, calls the corresponding value parser.
-  // If ":" with value is absent, string_view() is passed as the value.
+  // If ":" with value is absent, `string_view()` is passed as the value.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool FromString(absl::string_view text);
 
  private:

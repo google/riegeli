@@ -25,15 +25,15 @@
 
 namespace riegeli {
 
-// NoDestructor<T> constructs and stores an object of type T but does not call
-// its destructor.
+// `NoDestructor<T>` constructs and stores an object of type `T` but does not
+// call its destructor.
 //
 // It can be used as a static variable in a function to lazily initialize an
 // object.
 template <typename T>
 class NoDestructor {
  public:
-  // Forwards constructor arguments to T constructor.
+  // Forwards constructor arguments to `T` constructor.
   template <typename... Args>
   explicit NoDestructor(Args&&... args) {
     new (storage_) T(std::forward<Args>(args)...);
@@ -59,24 +59,24 @@ class NoDestructor {
 };
 
 // Returns the estimated size which will be allocated when requesting to
-// allocate requested_size.
+// allocate `requested_size`.
 inline size_t EstimatedAllocatedSize(size_t requested_size) {
   return RoundUp<sizeof(size_t) * 2>(requested_size);
 }
 
-// {New,Delete}Aligned() provide memory allocation with the specified alignment
-// known at compile time, with the size specified in bytes, and which allow
-// deallocation to be faster by knowing the size.
+// `{New,Delete}Aligned()` provide memory allocation with the specified
+// alignment known at compile time, with the size specified in bytes, and which
+// allow deallocation to be faster by knowing the size.
 //
-// The alignment and size passed to DeleteAligned() must be the same as in the
-// corresponding NewAligned(). Pointer types must be compatible as with new and
-// delete expressions.
+// The alignment and size passed to `DeleteAligned()` must be the same as in the
+// corresponding `NewAligned()`. Pointer types must be compatible as with new
+// and delete expressions.
 //
 // If the allocated size is given in terms of objects rather than bytes
 // and the type is not over-aligned (i.e. its alignment is not larger than
-// alignof(max_align_t)), it is simpler to use std::allocator<T>() instead.
-// If the type is over-aligned, std::allocator<T>() works correctly only when
-// operator new(size_t, align_val_t) from C++17 is available.
+// `alignof(max_align_t))`, it is simpler to use `std::allocator<T>()` instead.
+// If the type is over-aligned, `std::allocator<T>()` works correctly only when
+// `operator new(size_t, align_val_t)` from C++17 is available.
 
 // TODO: Test this with overaligned types.
 
@@ -152,14 +152,14 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
 #endif
 }
 
-// SizeReturningNewAligned() is like NewAligned(), but it returns the number of
-// bytes actually allocated, which can be greater than the requested number of
-// bytes.
+// `SizeReturningNewAligned()` is like `NewAligned()`, but it returns the number
+// of bytes actually allocated, which can be greater than the requested number
+// of bytes.
 //
-// The object can be freed with DeleteAligned(), passing either min_num_bytes
-// or *actual_num_bytes, or anything between.
+// The object can be freed with `DeleteAligned()`, passing either
+// `min_num_bytes` or `*actual_num_bytes`, or anything between.
 //
-// *actual_num_bytes is already set during the constructor call.
+// `*actual_num_bytes` is already set during the constructor call.
 template <typename T, size_t alignment = alignof(T), typename... Args>
 inline T* SizeReturningNewAligned(size_t min_num_bytes,
                                   size_t* actual_num_bytes, Args&&... args) {

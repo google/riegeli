@@ -35,6 +35,7 @@ namespace riegeli {
 // and meaning depending on whether the object is typically held by value or by
 // pointer, and whether object ownership can be shared:
 //
+// ```
 //   // Registers subobjects of this object with MemoryEstimator, but does not
 //   // include this object (sizeof(*this)).
 //   //
@@ -63,6 +64,7 @@ namespace riegeli {
 //       RegisterUnique(memory_estimator);
 //     }
 //   }
+// ```
 //
 // For objects which do not support these conventions, their owner estimates
 // their memory usage and possible sharing with whatever means have been found.

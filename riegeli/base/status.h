@@ -79,7 +79,7 @@ class Status final {
   // Returns the error code.
   StatusCode code() const;
 
-  // Returns the message. Note: prefer StatusToString() for debug logging.
+  // Returns the message. Note: prefer `StatusToString()` for debug logging.
   // This message rarely describes the error code. It is not unusual for the
   // message to be the empty string.
   absl::string_view message() const;
@@ -114,17 +114,17 @@ class Status final {
 
   std::string ToStringSlow() const;
 
-  // nullptr: status is OK. Otherwise a pointer to a representation.
+  // `nullptr`: status is OK. Otherwise a pointer to a representation.
   Rep* rep_ = nullptr;
 };
 
 // Returns an OK status, equivalent to a default constructed instance.
 Status OkStatus();
 
-// Returns a Status that is identical to `status` except that the message() has
-// been augmented by adding `message` to the end of the original message.
+// Returns a `Status` that is identical to `status` except that the `message()`
+// has been augmented by adding `message` to the end of the original message.
 //
-// Annotate() adds the appropriate separators, so callers should not include a
+// `Annotate()` adds the appropriate separators, so callers should not include a
 // separator in `message`. The exact formatting is subject to change, so you
 // should not depend on it in your tests.
 //

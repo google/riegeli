@@ -33,7 +33,7 @@ class Buffer {
   // Stores the minimal size to be allocated. Does not allocate the buffer yet.
   explicit Buffer(size_t size) noexcept : size_(size) {}
 
-  // The source Buffer is left deallocated but with size unchanged.
+  // The source `Buffer` is left deallocated but with size unchanged.
   Buffer(Buffer&& that) noexcept;
   Buffer& operator=(Buffer&& that) noexcept;
 
@@ -45,15 +45,15 @@ class Buffer {
   //
   // This method is not thread-safe.
   //
-  // Precondition: size() > 0
+  // Precondition: `size() > 0`
   char* GetData();
 
   // Returns the data size, or the planned size if not allocated yet. The size
-  // can increase when GetData() is called.
+  // can increase when `GetData()` is called.
   size_t size() const { return size_; }
 
-  // Returns true if the buffer is already allocated and GetData() is fast.
-  // Returns false if GetData() would allocate the buffer.
+  // Returns `true` if the buffer is already allocated and `GetData()` is fast.
+  // Returns `false` if `GetData()` would allocate the buffer.
   bool is_allocated() const { return data_ != nullptr; }
 
   // Ensure that the data size is at least the given value. Existing contents
@@ -61,10 +61,10 @@ class Buffer {
   void Resize(size_t size);
 
   // Releases the ownership of the data pointer, which must be deleted using
-  // DeleteReleased() if not nullptr.
+  // `DeleteReleased()` if not nullptr.
   char* Release();
 
-  // Deletes the pointer obtained by Release().
+  // Deletes the pointer obtained by `Release()`.
   static void DeleteReleased(char* ptr);
 
  private:
@@ -81,7 +81,7 @@ inline Buffer::Buffer(Buffer&& that) noexcept
     : data_(std::exchange(that.data_, nullptr)), size_(that.size_) {}
 
 inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
-  // Exchange that.data_ early to support self-assignment.
+  // Exchange `that.data_` early to support self-assignment.
   char* const data = std::exchange(that.data_, nullptr);
   DeleteBuffer();
   data_ = data;

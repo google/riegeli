@@ -31,18 +31,18 @@
 
 namespace riegeli {
 
-// RecyclingPool<T, Deleter, Key> keeps a pool of idle objects of type T, so
-// that instead of creating a new object of type T, an existing object can be
+// `RecyclingPool<T, Deleter, Key>` keeps a pool of idle objects of type `T`, so
+// that instead of creating a new object of type `T`, an existing object can be
 // recycled. This is helpful if constructing a new object is more expensive than
 // resetting an existing object to the desired state.
 //
 // Deleter specifies how an object should be eventually deleted, like in
-// unique_ptr<T, Deleter>.
+// `unique_ptr<T, Deleter>`.
 //
-// Specifying Key allows to find an object to reuse only among compatible
-// objects, which should be assigned the same key. The Key type must be equality
-// comparable, hashable (by absl::Hash), default constructible, and copyable.
-// If Key is void, all objects are considered compatible.
+// Specifying `Key` allows to find an object to reuse only among compatible
+// objects, which should be assigned the same key. The `Key` type must be
+// equality comparable, hashable (by `absl::Hash`), default constructible, and
+// copyable. If `Key` is `void`, all objects are considered compatible.
 template <typename T, typename Deleter = std::default_delete<T>,
           typename Key = void>
 class RecyclingPool {
@@ -65,17 +65,17 @@ class RecyclingPool {
 
     RecyclingPool* pool_ = nullptr;
     Key key_;
-    // TODO: Use [[no_unique_address]] when available instead of relying
-    // on empty base optimization.
+    // TODO: Use `[[no_unique_address]]` when available instead of
+    // relying on empty base optimization.
   };
 
-  // A unique_ptr which puts the object back into the pool instead of deleting
-  // it. If a particular object is not suitable for recycling, the Handle should
-  // have release() called and the object can be deleted using the original
-  // Deleter.
+  // A `unique_ptr` which puts the object back into the pool instead of deleting
+  // it. If a particular object is not suitable for recycling, the `Handle`
+  // should have `release()` called and the object can be deleted using the
+  // original `Deleter`.
   using Handle = std::unique_ptr<T, Recycler>;
 
-  // A refurbisher which does nothing; see Get().
+  // A refurbisher which does nothing; see `Get()`.
   struct DefaultRefurbisher {
     void operator()(T* ptr) const {}
   };
@@ -91,22 +91,22 @@ class RecyclingPool {
   RecyclingPool& operator=(const RecyclingPool&) = delete;
 
   // Returns a default global pool specific to template parameters of
-  // RecyclingPool.
+  // `RecyclingPool`.
   static RecyclingPool& global();
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
-  // factory takes no arguments and returns unique_ptr<T, Deleter>. It is called
-  // to create a new object.
+  // `factory` takes no arguments and returns `unique_ptr<T, Deleter>`. It is
+  // called to create a new object.
   //
-  // If refurbisher is specified, it takes a T* argument and its result is
+  // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.
   template <typename Factory, typename Refurbisher = DefaultRefurbisher>
   Handle Get(Key key, Factory factory,
              Refurbisher refurbisher = DefaultRefurbisher());
 
  private:
-  // Adding or removing elements in ByFreshness must not invalidate other
+  // Adding or removing elements in `ByFreshness` must not invalidate other
   // iterators.
   using ByFreshness = std::list<Key>;
 
@@ -119,7 +119,7 @@ class RecyclingPool {
     typename ByFreshness::iterator by_freshness_iter;
   };
 
-  // std::list has a smaller overhead than std::deque for short sequences.
+  // `std::list` has a smaller overhead than `std::deque` for short sequences.
   using Entries = std::list<Entry>;
 
   using ByKey = absl::flat_hash_map<Key, Entries>;
@@ -133,16 +133,16 @@ class RecyclingPool {
   ByFreshness by_freshness_ ABSL_GUARDED_BY(mutex_);
   // Objects grouped by their keys. Within each map value the list of objects is
   // non-empty and is ordered by their freshness (older to newer). Each object
-  // is associated with the matching by_freshness_ iterator.
+  // is associated with the matching `by_freshness_` iterator.
   ByKey by_key_ ABSL_GUARDED_BY(mutex_);
-  // Optimization for Get() followed by Put() with a matching key.
-  // If cache_ != by_key_.end(), then cache_->second.back().object is replaced
-  // with nullptr instead of erasing its entries.
+  // Optimization for `Get()` followed by `Put()` with a matching key.
+  // If `cache_ != by_key_.end()`, then `cache_->second.back().object` is
+  // replaced with `nullptr` instead of erasing its entries.
   typename ByKey::iterator cache_ ABSL_GUARDED_BY(mutex_);
 };
 
-// Specialization of RecyclingPool when Key is void. In this case Get() does not
-// take a key as a parameter.
+// Specialization of `RecyclingPool` when `Key` is `void`. In this case `Get()`
+// does not take a key as a parameter.
 template <typename T, typename Deleter>
 class RecyclingPool<T, Deleter, void> {
  public:
@@ -162,8 +162,8 @@ class RecyclingPool<T, Deleter, void> {
         : Deleter(std::move(deleter)), pool_(pool) {}
 
     RecyclingPool* pool_ = nullptr;
-    // TODO: Use [[no_unique_address]] when available instead of relying
-    // on empty base optimization.
+    // TODO: Use `[[no_unique_address]]` when available instead of
+    // relying on empty base optimization.
   };
 
   using Handle = std::unique_ptr<T, Recycler>;
@@ -264,7 +264,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
     RIEGELI_ASSERT(!entries.empty()) << "Failed invariant of RecyclingPool: "
                                         "empty by_key_ value";
     if (ABSL_PREDICT_TRUE(cache_->first == key)) {
-      // cache_ hit. Set the object pointer again.
+      // `cache_` hit. Set the object pointer again.
       RIEGELI_ASSERT(entries.back().object == nullptr)
           << "Failed invariant of RecyclingPool: "
              "non-nullptr object pointed to by cache_";
@@ -272,7 +272,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
       cache_ = by_key_.end();
       return;
     }
-    // cache_ miss. Finish erasing the cached entry.
+    // `cache_` miss. Finish erasing the cached entry.
     by_freshness_.erase(entries.back().by_freshness_iter);
     entries.pop_back();
     if (entries.empty()) by_key_.erase(cache_);
@@ -280,7 +280,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
   by_freshness_.push_back(key);
   typename ByFreshness::iterator by_freshness_iter = by_freshness_.end();
   --by_freshness_iter;
-  // This invalidates by_key_ iterators, including cache_.
+  // This invalidates `by_key_` iterators, including `cache_`.
   by_key_[key].emplace_back(std::move(object), by_freshness_iter);
   if (ABSL_PREDICT_FALSE(by_freshness_.size() > max_size_)) {
     // Evict the oldest entry.
@@ -301,7 +301,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
     by_freshness_.pop_front();
   }
   cache_ = by_key_.end();
-  // Destroy evicted after releasing mutex_.
+  // Destroy `evicted` after releasing `mutex_`.
 }
 
 template <typename T, typename Deleter>
@@ -350,7 +350,7 @@ void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
   // Evict the oldest entry.
   evicted = std::move(by_freshness_.front());
   by_freshness_.pop_front();
-  // Destroy evicted after releasing mutex_.
+  // Destroy `evicted` after releasing `mutex_`.
 }
 
 }  // namespace riegeli

@@ -41,7 +41,8 @@ Status UnavailableError(absl::string_view message);
 Status UnimplementedError(absl::string_view message);
 Status UnknownError(absl::string_view message);
 
-// Creates a canonical error with the CANCELLED error code and an empty message.
+// Creates a canonical error with the `kCancelled` error code and an empty
+// message.
 inline Status CancelledError() { return CancelledError(""); }
 
 // Each of the functions below returns true if the given status matches the
