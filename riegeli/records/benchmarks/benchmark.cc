@@ -91,6 +91,32 @@ ABSL_FLAG(int32_t, repetitions, 5, "Number of times to repeat each benchmark");
 
 namespace {
 
+class SizeLimiter {
+ public:
+  explicit SizeLimiter(size_t limit);
+
+  bool Accept(size_t size);
+
+ private:
+  size_t limit_;
+  size_t remaining_;
+};
+
+SizeLimiter::SizeLimiter(size_t limit) : limit_(limit), remaining_(limit) {}
+
+bool SizeLimiter::Accept(size_t size) {
+  if (ABSL_PREDICT_TRUE(size < remaining_)) {
+    remaining_ -= size;
+    return true;
+  }
+  if (remaining_ == limit_) {
+    // Return at least one item.
+    remaining_ = 0;
+    return true;
+  }
+  return false;
+}
+
 uint64_t FileSize(const std::string& filename) {
   struct stat stat_info;
   RIEGELI_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
@@ -134,7 +160,8 @@ double Stats::Median() {
 class Benchmarks {
  public:
   static bool ReadFile(const std::string& filename,
-                       std::vector<std::string>* records, size_t* max_size);
+                       std::vector<std::string>* records,
+                       SizeLimiter* size_limiter);
 
   explicit Benchmarks(std::vector<std::string> records, std::string output_dir,
                       int repetitions);
@@ -152,7 +179,7 @@ class Benchmarks {
   static bool ReadTFRecord(
       const std::string& filename,
       const tensorflow::io::RecordReaderOptions& record_reader_options,
-      std::vector<std::string>* records, size_t* max_size = nullptr);
+      std::vector<std::string>* records, SizeLimiter* size_limiter = nullptr);
 
   static void WriteRiegeli(
       const std::string& filename,
@@ -161,7 +188,7 @@ class Benchmarks {
   static bool ReadRiegeli(
       const std::string& filename,
       riegeli::RecordReaderBase::Options record_reader_options,
-      std::vector<std::string>* records, size_t* max_size = nullptr);
+      std::vector<std::string>* records, SizeLimiter* size_limiter = nullptr);
 
   void RunOne(
       const std::string& name,
@@ -183,7 +210,8 @@ class Benchmarks {
 };
 
 bool Benchmarks::ReadFile(const std::string& filename,
-                          std::vector<std::string>* records, size_t* max_size) {
+                          std::vector<std::string>* records,
+                          SizeLimiter* size_limiter) {
   riegeli::FdReader<> file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
     std::cerr << "Could not open file: " << file_reader.status() << std::endl;
@@ -197,7 +225,8 @@ bool Benchmarks::ReadFile(const std::string& filename,
           << tfrecord_recognizer.status();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
       std::cout << "Reading TFRecord: " << filename << std::endl;
-      return ReadTFRecord(filename, record_reader_options, records, max_size);
+      return ReadTFRecord(filename, record_reader_options, records,
+                          size_limiter);
     }
   }
   RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.status();
@@ -208,7 +237,7 @@ bool Benchmarks::ReadFile(const std::string& filename,
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
       std::cout << "Reading Riegeli/records: " << filename << std::endl;
       return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
-                         records, max_size);
+                         records, size_limiter);
     }
   }
   std::cerr << "Unknown file format: " << filename << std::endl;
@@ -239,9 +268,7 @@ void Benchmarks::WriteTFRecord(
 bool Benchmarks::ReadTFRecord(
     const std::string& filename,
     const tensorflow::io::RecordReaderOptions& record_reader_options,
-    std::vector<std::string>* records, size_t* max_size) {
-  size_t max_size_storage = std::numeric_limits<size_t>::max();
-  if (max_size == nullptr) max_size = &max_size_storage;
+    std::vector<std::string>* records, SizeLimiter* size_limiter) {
   tensorflow::Env* const env = tensorflow::Env::Default();
   std::unique_ptr<tensorflow::RandomAccessFile> file_reader;
   {
@@ -258,10 +285,11 @@ bool Benchmarks::ReadTFRecord(
       RIEGELI_CHECK(tensorflow::errors::IsOutOfRange(status)) << status;
       break;
     }
-    const size_t memory =
-        riegeli::LengthVarint64(record.size()) + record.size();
-    if (ABSL_PREDICT_FALSE(*max_size < memory)) return false;
-    *max_size -= memory;
+    if (size_limiter != nullptr &&
+        ABSL_PREDICT_FALSE(!size_limiter->Accept(
+            riegeli::LengthVarint64(record.size()) + record.size()))) {
+      return false;
+    }
     records->push_back(std::move(record));
   }
   return true;
@@ -283,18 +311,17 @@ void Benchmarks::WriteRiegeli(
 bool Benchmarks::ReadRiegeli(
     const std::string& filename,
     riegeli::RecordReaderBase::Options record_reader_options,
-    std::vector<std::string>* records, size_t* max_size) {
-  size_t max_size_storage = std::numeric_limits<size_t>::max();
-  if (max_size == nullptr) max_size = &max_size_storage;
+    std::vector<std::string>* records, SizeLimiter* size_limiter) {
   riegeli::RecordReader<riegeli::FdReader<>> record_reader(
       std::forward_as_tuple(filename, O_RDONLY),
       std::move(record_reader_options));
   std::string record;
   while (record_reader.ReadRecord(&record)) {
-    const size_t memory =
-        riegeli::LengthVarint64(record.size()) + record.size();
-    if (ABSL_PREDICT_FALSE(*max_size < memory)) return false;
-    *max_size -= memory;
+    if (size_limiter != nullptr &&
+        ABSL_PREDICT_FALSE(!size_limiter->Accept(
+            riegeli::LengthVarint64(record.size()) + record.size()))) {
+      return false;
+    }
     records->push_back(std::move(record));
   }
   RIEGELI_CHECK(record_reader.Close()) << record_reader.status();
@@ -490,9 +517,10 @@ int main(int argc, char** argv) {
     return 1;
   }
   std::cout << std::endl;
-  size_t max_size = riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size));
+  SizeLimiter size_limiter(
+      riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size)));
   for (size_t i = 1; i < args.size(); ++i) {
-    if (!Benchmarks::ReadFile(args[i], &records, &max_size)) break;
+    if (!Benchmarks::ReadFile(args[i], &records, &size_limiter)) break;
   }
   Benchmarks benchmarks(std::move(records), absl::GetFlag(FLAGS_output_dir),
                         absl::GetFlag(FLAGS_repetitions));
