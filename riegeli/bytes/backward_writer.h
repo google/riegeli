@@ -127,7 +127,7 @@ class BackwardWriter : public Object {
   // This may decrease when the BackwardWriter becomes unhealthy (due to
   // buffering, previously written but unflushed data may be lost).
   //
-  // pos() is unchanged by Close().
+  // pos() is unchanged by a successful Close().
   Position pos() const;
 
   // Returns true if this BackwardWriter supports Truncate().

@@ -136,7 +136,7 @@ class Writer : public Object {
   // This may decrease when the Writer becomes unhealthy (due to buffering,
   // previously written but unflushed data may be lost).
   //
-  // pos() is unchanged by Close().
+  // pos() is unchanged by a successful Close().
   Position pos() const;
 
   // Returns true if this Writer supports Seek(), Size(), and Truncate().
