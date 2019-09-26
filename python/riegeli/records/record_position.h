@@ -39,8 +39,8 @@ struct RecordPositionApi {
   bool (*RecordPositionFromPython)(PyObject* object, RecordPosition* value);
 };
 
-RIEGELI_INLINE_CONSTEXPR(const char*, kRecordPositionCapsuleName,
-                         "riegeli.records.record_position._CPPAPI");
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(const char*, kRecordPositionCapsuleName,
+                                  "riegeli.records.record_position._CPPAPI");
 
 }  // namespace python
 }  // namespace riegeli

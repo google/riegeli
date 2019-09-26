@@ -21,8 +21,8 @@
 
 namespace riegeli {
 
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthVarint32, 5);
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthVarint64, 10);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxLengthVarint32, 5);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxLengthVarint64, 10);
 
 }  // namespace riegeli
 

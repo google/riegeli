@@ -76,10 +76,10 @@ class BlockHeader {
   uint64_t words_[3];
 };
 
-RIEGELI_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
 
-RIEGELI_INLINE_CONSTEXPR(Position, kUsableBlockSize,
-                         kBlockSize - BlockHeader::size());
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(Position, kUsableBlockSize,
+                                  kBlockSize - BlockHeader::size());
 
 // Whether pos is a block boundary (immediately before a block header).
 inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize == 0; }

@@ -278,11 +278,13 @@ class FdReader : public FdReaderBase {
 
   // Will read from the fd provided by src.
   //
-  // type_identity_t<Src> disables template parameter deduction (C++17), letting
-  // FdReader(fd) mean FdReader<OwnedFd>(fd) rather than FdReader<int>(fd).
-  explicit FdReader(const type_identity_t<Src>& src,
+  // internal::type_identity_t<Src> disables template parameter deduction
+  // (C++17), letting FdReader(fd) mean FdReader<OwnedFd>(fd) rather than
+  // FdReader<int>(fd).
+  explicit FdReader(const internal::type_identity_t<Src>& src,
                     Options options = Options());
-  explicit FdReader(type_identity_t<Src>&& src, Options options = Options());
+  explicit FdReader(internal::type_identity_t<Src>&& src,
+                    Options options = Options());
 
   // Will read from the fd provided by a Src constructed from elements of
   // src_args. This avoids constructing a temporary Src and moving from it.
@@ -355,11 +357,13 @@ class FdStreamReader : public FdStreamReaderBase {
   //
   // Requires Options::set_assumed_pos(pos).
   //
-  // type_identity_t<Src> disables template parameter deduction (C++17),
-  // letting FdStreamReader(fd) mean FdStreamReader<OwnedFd>(fd) rather than
-  // FdStreamReader<int>(fd).
-  explicit FdStreamReader(const type_identity_t<Src>& src, Options options);
-  explicit FdStreamReader(type_identity_t<Src>&& src, Options options);
+  // internal::type_identity_t<Src> disables template parameter deduction
+  // (C++17), letting FdStreamReader(fd) mean FdStreamReader<OwnedFd>(fd) rather
+  // than FdStreamReader<int>(fd).
+  explicit FdStreamReader(const internal::type_identity_t<Src>& src,
+                          Options options);
+  explicit FdStreamReader(internal::type_identity_t<Src>&& src,
+                          Options options);
 
   // Will read from the fd provided by a Src constructed from elements of
   // src_args. This avoids constructing a temporary Src and moving from it.
@@ -431,12 +435,12 @@ class FdMMapReader : public FdMMapReaderBase {
 
   // Will read from the fd provided by src.
   //
-  // type_identity_t<Src> disables template parameter deduction (C++17),
-  // letting FdMMapReader(fd) mean FdMMapReader<OwnedFd>(fd) instead of
+  // internal::type_identity_t<Src> disables template parameter deduction
+  // (C++17), letting FdMMapReader(fd) mean FdMMapReader<OwnedFd>(fd) instead of
   // FdMMapReader<int>(fd).
-  explicit FdMMapReader(const type_identity_t<Src>& src,
+  explicit FdMMapReader(const internal::type_identity_t<Src>& src,
                         Options options = Options());
-  explicit FdMMapReader(type_identity_t<Src>&& src,
+  explicit FdMMapReader(internal::type_identity_t<Src>&& src,
                         Options options = Options());
 
   // Will read from the fd provided by a Src constructed from elements of
@@ -606,14 +610,16 @@ inline void FdMMapReaderBase::Initialize(int src,
 }
 
 template <typename Src>
-inline FdReader<Src>::FdReader(const type_identity_t<Src>& src, Options options)
+inline FdReader<Src>::FdReader(const internal::type_identity_t<Src>& src,
+                               Options options)
     : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
       src_(src) {
   Initialize(src_.get(), options.initial_pos_);
 }
 
 template <typename Src>
-inline FdReader<Src>::FdReader(type_identity_t<Src>&& src, Options options)
+inline FdReader<Src>::FdReader(internal::type_identity_t<Src>&& src,
+                               Options options)
     : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
       src_(std::move(src)) {
   Initialize(src_.get(), options.initial_pos_);
@@ -709,14 +715,14 @@ void FdReader<Src>::Done() {
 }
 
 template <typename Src>
-inline FdStreamReader<Src>::FdStreamReader(const type_identity_t<Src>& src,
-                                           Options options)
+inline FdStreamReader<Src>::FdStreamReader(
+    const internal::type_identity_t<Src>& src, Options options)
     : FdStreamReaderBase(options.buffer_size_), src_(src) {
   Initialize(src_.get(), options.assumed_pos_);
 }
 
 template <typename Src>
-inline FdStreamReader<Src>::FdStreamReader(type_identity_t<Src>&& src,
+inline FdStreamReader<Src>::FdStreamReader(internal::type_identity_t<Src>&& src,
                                            Options options)
     : FdStreamReaderBase(options.buffer_size_), src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos_);
@@ -813,14 +819,14 @@ void FdStreamReader<Src>::Done() {
 }
 
 template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(const type_identity_t<Src>& src,
-                                       Options options)
+inline FdMMapReader<Src>::FdMMapReader(
+    const internal::type_identity_t<Src>& src, Options options)
     : FdMMapReaderBase(!options.initial_pos_.has_value()), src_(src) {
   Initialize(src_.get(), options.initial_pos_);
 }
 
 template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(type_identity_t<Src>&& src,
+inline FdMMapReader<Src>::FdMMapReader(internal::type_identity_t<Src>&& src,
                                        Options options)
     : FdMMapReaderBase(!options.initial_pos_.has_value()),
       src_(std::move(src)) {

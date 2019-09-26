@@ -254,6 +254,8 @@ inline T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
+namespace internal {
+
 // `type_identity_t<T>` is `T`, but does not deduce the `T` in templates.
 
 template <typename T>
@@ -264,26 +266,29 @@ struct type_identity {
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
 
-// `RIEGELI_INLINE_CONSTEXPR(type, name, init)` emulates namespace-scope
-//   `inline constexpr type name = init;`
-// from C++17, but is available since C++11.
+}  // namespace internal
+
+// `RIEGELI_INTERNAL_INLINE_CONSTEXPR(type, name, init)` emulates
+// namespace-scope `inline constexpr type name = init;` from C++17,
+// but is available since C++11.
 
 #if __cpp_inline_variables
 
-#define RIEGELI_INLINE_CONSTEXPR(type, name, init) \
+#define RIEGELI_INTERNAL_INLINE_CONSTEXPR(type, name, init) \
   inline constexpr ::riegeli::type_identity_t<type> name = init
 
 #else
 
-#define RIEGELI_INLINE_CONSTEXPR(type, name, init)                            \
+#define RIEGELI_INTERNAL_INLINE_CONSTEXPR(type, name, init)                   \
   template <typename RiegeliInternalDummy>                                    \
   struct RiegeliInternalInlineConstexpr_##name {                              \
-    static constexpr ::riegeli::type_identity_t<type> kInstance = init;       \
+    static constexpr ::riegeli::internal::type_identity_t<type> kInstance =   \
+        init;                                                                 \
   };                                                                          \
   template <typename RiegeliInternalDummy>                                    \
-  constexpr ::riegeli::type_identity_t<type>                                  \
+  constexpr ::riegeli::internal::type_identity_t<type>                        \
       RiegeliInternalInlineConstexpr_##name<RiegeliInternalDummy>::kInstance; \
-  static constexpr const ::riegeli::type_identity_t<type>& name =             \
+  static constexpr const ::riegeli::internal::type_identity_t<type>& name =   \
       RiegeliInternalInlineConstexpr_##name<void>::kInstance;                 \
   static_assert(sizeof(name) != 0, "Silence unused variable warnings.")
 
@@ -525,11 +530,11 @@ enum class FlushType {
 
 // The default size of buffers used to amortize copying data to/from a more
 // expensive destination/source.
-RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);
 
 // Typical bounds of sizes of buffers holding pieces of data in objects.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMinBufferSize, 256);
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMinBufferSize, 256);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
 
 // When deciding whether to copy an array of bytes or share memory, prefer
 // copying up to this length.
@@ -537,7 +542,7 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
 // Copying can often be done in an inlined fast path. Sharing has more overhead,
 // especially in a virtual slow path, so copying sufficiently short lengths
 // performs better.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 
 // Heuristics for whether a partially filled buffer is wasteful.
 inline bool Wasteful(size_t total, size_t used) {

@@ -255,12 +255,13 @@ class FdWriter : public FdWriterBase {
 
   // Will write to the fd provided by dest.
   //
-  // type_identity_t<Dest> disables template parameter deduction (C++17),
-  // letting FdWriter(fd) mean FdWriter<OwnedFd>(fd) rather than
+  // internal::type_identity_t<Dest> disables template parameter deduction
+  // (C++17), letting FdWriter(fd) mean FdWriter<OwnedFd>(fd) rather than
   // FdWriter<int>(fd).
-  explicit FdWriter(const type_identity_t<Dest>& dest,
+  explicit FdWriter(const internal::type_identity_t<Dest>& dest,
                     Options options = Options());
-  explicit FdWriter(type_identity_t<Dest>&& dest, Options options = Options());
+  explicit FdWriter(internal::type_identity_t<Dest>&& dest,
+                    Options options = Options());
 
   // Will write to the fd provided by a Dest constructed from elements of
   // dest_args. This avoids constructing a temporary Dest and moving from it.
@@ -335,11 +336,13 @@ class FdStreamWriter : public FdStreamWriterBase {
   //
   // Requires Options::set_assumed_pos(pos).
   //
-  // type_identity_t<Dest> disables template parameter deduction (C++17),
-  // letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather than
-  // FdStreamWriter<int>(fd).
-  explicit FdStreamWriter(const type_identity_t<Dest>& dest, Options options);
-  explicit FdStreamWriter(type_identity_t<Dest>&& dest, Options options);
+  // internal::type_identity_t<Dest> disables template parameter deduction
+  // (C++17), letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather
+  // than FdStreamWriter<int>(fd).
+  explicit FdStreamWriter(const internal::type_identity_t<Dest>& dest,
+                          Options options);
+  explicit FdStreamWriter(internal::type_identity_t<Dest>&& dest,
+                          Options options);
 
   // Will write to the fd provided by a Dest constructed from elements of
   // dest_args. This avoids constructing a temporary Dest and moving from it.
@@ -471,7 +474,7 @@ inline void FdStreamWriterBase::Initialize(
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(const type_identity_t<Dest>& dest,
+inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
                                 Options options)
     : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
       dest_(dest) {
@@ -479,7 +482,8 @@ inline FdWriter<Dest>::FdWriter(const type_identity_t<Dest>& dest,
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(type_identity_t<Dest>&& dest, Options options)
+inline FdWriter<Dest>::FdWriter(internal::type_identity_t<Dest>&& dest,
+                                Options options)
     : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.initial_pos_);
@@ -577,15 +581,15 @@ void FdWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-inline FdStreamWriter<Dest>::FdStreamWriter(const type_identity_t<Dest>& dest,
-                                            Options options)
+inline FdStreamWriter<Dest>::FdStreamWriter(
+    const internal::type_identity_t<Dest>& dest, Options options)
     : FdStreamWriterBase(options.buffer_size_), dest_(dest) {
   Initialize(dest_.get(), options.assumed_pos_);
 }
 
 template <typename Dest>
-inline FdStreamWriter<Dest>::FdStreamWriter(type_identity_t<Dest>&& dest,
-                                            Options options)
+inline FdStreamWriter<Dest>::FdStreamWriter(
+    internal::type_identity_t<Dest>&& dest, Options options)
     : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos_);
 }
