@@ -239,7 +239,7 @@ class Reader : public Object {
   //
   // This can be called if limit_pos_ would overflow.
   //
-  // Precondition: healthy()
+  // Precondition: !closed()
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of the slow part of Pull().
