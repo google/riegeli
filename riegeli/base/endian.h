@@ -20,7 +20,7 @@
 namespace riegeli {
 
 // Converts a native 16-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 16-bit Little Endian
+// byte array using `std::memcpy()` writes the number in 16-bit Little Endian
 // encoding.
 inline uint16_t WriteLittleEndian16(uint16_t data) {
   uint16_t word;
@@ -31,7 +31,7 @@ inline uint16_t WriteLittleEndian16(uint16_t data) {
 }
 
 // Converts a native 32-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 32-bit Little Endian
+// byte array using `std::memcpy()` writes the number in 32-bit Little Endian
 // encoding.
 inline uint32_t WriteLittleEndian32(uint32_t data) {
   uint32_t word;
@@ -44,7 +44,7 @@ inline uint32_t WriteLittleEndian32(uint32_t data) {
 }
 
 // Converts a native 64-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 64-bit Little Endian
+// byte array using `std::memcpy()` writes the number in 64-bit Little Endian
 // encoding.
 inline uint64_t WriteLittleEndian64(uint64_t data) {
   uint64_t word;
@@ -61,7 +61,8 @@ inline uint64_t WriteLittleEndian64(uint64_t data) {
 }
 
 // Converts a native 16-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 16-bit Big Endian encoding.
+// byte array using `std::memcpy()` writes the number in 16-bit Big Endian
+// encoding.
 inline uint16_t WriteBigEndian16(uint16_t data) {
   uint16_t word;
   unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
@@ -71,7 +72,8 @@ inline uint16_t WriteBigEndian16(uint16_t data) {
 }
 
 // Converts a native 32-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 32-bit Big Endian encoding.
+// byte array using `std::memcpy()` writes the number in 32-bit Big Endian
+// encoding.
 inline uint32_t WriteBigEndian32(uint32_t data) {
   uint32_t word;
   unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
@@ -83,7 +85,8 @@ inline uint32_t WriteBigEndian32(uint32_t data) {
 }
 
 // Converts a native 64-bit number to a word such that writing the word to a
-// byte array using `memcpy()` writes the number in 64-bit Big Endian encoding.
+// byte array using `std::memcpy()` writes the number in 64-bit Big Endian
+// encoding.
 inline uint64_t WriteBigEndian64(uint64_t data) {
   uint64_t word;
   unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
@@ -99,7 +102,7 @@ inline uint64_t WriteBigEndian64(uint64_t data) {
 }
 
 // For a byte array containing a number in 16-bit Little Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 16-bit number.
 inline uint16_t ReadLittleEndian16(uint16_t word) {
   const unsigned char* const ptr =
@@ -108,7 +111,7 @@ inline uint16_t ReadLittleEndian16(uint16_t word) {
 }
 
 // For a byte array containing a number in 32-bit Little Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 32-bit number.
 inline uint32_t ReadLittleEndian32(uint32_t word) {
   const unsigned char* const ptr =
@@ -118,7 +121,7 @@ inline uint32_t ReadLittleEndian32(uint32_t word) {
 }
 
 // For a byte array containing a number in 64-bit Little Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 64-bit number.
 inline uint64_t ReadLittleEndian64(uint64_t word) {
   const unsigned char* const ptr =
@@ -130,7 +133,7 @@ inline uint64_t ReadLittleEndian64(uint64_t word) {
 }
 
 // For a byte array containing a number in 16-bit Big Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 16-bit number.
 inline uint16_t ReadBigEndian16(uint16_t word) {
   const unsigned char* const ptr =
@@ -139,7 +142,7 @@ inline uint16_t ReadBigEndian16(uint16_t word) {
 }
 
 // For a byte array containing a number in 32-bit Big Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 32-bit number.
 inline uint32_t ReadBigEndian32(uint32_t word) {
   const unsigned char* const ptr =
@@ -149,7 +152,7 @@ inline uint32_t ReadBigEndian32(uint32_t word) {
 }
 
 // For a byte array containing a number in 64-bit Big Endian encoding, and a
-// word read from the byte array using `memcpy()`, converts the word to the
+// word read from the byte array using `std::memcpy()`, converts the word to the
 // native 64-bit number.
 inline uint64_t ReadBigEndian64(uint64_t word) {
   const unsigned char* const ptr =

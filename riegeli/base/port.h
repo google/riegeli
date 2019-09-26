@@ -15,7 +15,7 @@
 #ifndef RIEGELI_BASE_PORT_H_
 #define RIEGELI_BASE_PORT_H_
 
-// Clang has __has_builtin(). Other compilers need other means to detect
+// Clang has `__has_builtin()`. Other compilers need other means to detect
 // availability of builtins.
 #ifdef __has_builtin
 #define RIEGELI_INTERNAL_HAS_BUILTIN(x) __has_builtin(x)

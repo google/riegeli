@@ -159,7 +159,7 @@ class OptionsParser : public Object {
   // ```
   //
   // For each recognized option key, calls the corresponding value parser.
-  // If ":" with value is absent, `string_view()` is passed as the value.
+  // If ":" with value is absent, `absl::string_view()` is passed as the value.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)

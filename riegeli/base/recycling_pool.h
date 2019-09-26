@@ -37,7 +37,7 @@ namespace riegeli {
 // resetting an existing object to the desired state.
 //
 // Deleter specifies how an object should be eventually deleted, like in
-// `unique_ptr<T, Deleter>`.
+// `std::unique_ptr<T, Deleter>`.
 //
 // Specifying `Key` allows to find an object to reuse only among compatible
 // objects, which should be assigned the same key. The `Key` type must be
@@ -69,10 +69,10 @@ class RecyclingPool {
     // relying on empty base optimization.
   };
 
-  // A `unique_ptr` which puts the object back into the pool instead of deleting
-  // it. If a particular object is not suitable for recycling, the `Handle`
-  // should have `release()` called and the object can be deleted using the
-  // original `Deleter`.
+  // An `std::unique_ptr` which puts the object back into the pool instead of
+  // deleting it. If a particular object is not suitable for recycling, the
+  // `Handle` should have `release()` called and the object can be deleted using
+  // the original `Deleter`.
   using Handle = std::unique_ptr<T, Recycler>;
 
   // A refurbisher which does nothing; see `Get()`.
@@ -96,8 +96,8 @@ class RecyclingPool {
 
   // Creates an object, or returns an existing object from the pool if possible.
   //
-  // `factory` takes no arguments and returns `unique_ptr<T, Deleter>`. It is
-  // called to create a new object.
+  // `factory` takes no arguments and returns `std::unique_ptr<T, Deleter>`.
+  // It is called to create a new object.
   //
   // If `refurbisher` is specified, it takes a `T*` argument and its result is
   // ignored. It is called before returning an existing object.

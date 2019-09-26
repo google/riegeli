@@ -64,7 +64,7 @@ class Chain {
   class BlockIterator;
 
   // A sentinel value for the `max_length` parameter of
-  // `AppendBuffer()/PrependBuffer()`.
+  // `AppendBuffer()`/`PrependBuffer()`.
   static constexpr size_t kAnyLength = std::numeric_limits<size_t>::max();
 
   // Given an object which owns a byte array, converts it to a `Chain` by
@@ -147,7 +147,7 @@ class Chain {
 
   void Clear();
 
-  // A container of `string_view` blocks comprising data of the `Chain`.
+  // A container of `absl::string_view` blocks comprising data of the `Chain`.
   Blocks blocks() const;
 
   size_t size() const { return size_; }
@@ -160,7 +160,7 @@ class Chain {
   explicit operator std::string() &&;
 
   // If the `Chain` contents are flat, returns them, otherwise returns
-  // `nullopt`.
+  // `absl::nullopt`.
   absl::optional<absl::string_view> TryFlat() const;
 
   // Estimates the amount of memory used by this `Chain`.
@@ -193,8 +193,8 @@ class Chain {
                                  size_t max_length = kAnyLength,
                                  size_t size_hint = 0);
 
-  // Equivalent to `AppendBuffer()`/`PrependBuffer()` with `min_length ==
-  // max_length`.
+  // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
+  // `min_length == max_length`.
   absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
   absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
 
@@ -475,8 +475,8 @@ class Chain::BlockIterator {
   //
   // Warning: the data pointer of the returned `ChainBlock` is not necessarily
   // the same as the data pointer of this `BlockIterator` (because of short
-  // `Chain` optimization). Convert the `ChainBlock` to `string_view` or use
-  // `ChainBlock::data()` for a data pointer valid for the pinned block.
+  // `Chain` optimization). Convert the `ChainBlock` to `absl::string_view` or
+  // use `ChainBlock::data()` for a data pointer valid for the pinned block.
   //
   // Precondition: this is not past the end iterator.
   ChainBlock Pin();
@@ -710,8 +710,8 @@ class Chain::RawBlock {
   explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object constructed from
-  // args, and sets block data to `string_view(object)`. This constructor is
-  // public for `NewAligned()`.
+  // args, and sets block data to `absl::string_view(object)`. This constructor
+  // is public for `NewAligned()`.
   template <typename T, typename... Args>
   explicit RawBlock(ExternalType<T>, std::tuple<Args...> args);
 
@@ -963,7 +963,7 @@ DumpStructure(T* object, absl::string_view data, std::ostream& out) {
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // `args`, and sets block data to `string_view(object)`.
+  // `args`, and sets block data to `absl::string_view(object)`.
   template <typename... Args>
   static RawBlock* NewBlock(std::tuple<Args...> args);
 
@@ -1566,7 +1566,7 @@ inline Chain::Chain(ChainBlock&& src) {
 
 inline Chain::Chain(Chain&& that) noexcept
     : size_(std::exchange(that.size_, 0)) {
-  // Use `memcpy()` instead of copy constructor to silence
+  // Use `std::memcpy()` instead of copy constructor to silence
   // `-Wmaybe-uninitialized` in gcc.
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   if (that.has_here()) {
@@ -1601,7 +1601,8 @@ inline Chain& Chain::operator=(Chain&& that) noexcept {
   DeleteBlockPtrs();
   // It does not matter what is left in `that.block_ptrs_` because `that.begin_`
   // and `that.end_` point to the empty prefix of `that.block_ptrs_.here[]`. Use
-  // `memcpy()` instead of assignment to silence `-Wmaybe-uninitialized` in gcc.
+  // `std::memcpy()` instead of assignment to silence `-Wmaybe-uninitialized` in
+  // gcc.
   std::memcpy(&block_ptrs_, &that.block_ptrs_, sizeof(BlockPtrs));
   begin_ = begin;
   end_ = end;

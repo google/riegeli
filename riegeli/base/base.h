@@ -254,8 +254,7 @@ inline T AssertNotNull(T&& value) {
 
 #endif  // !RIEGELI_DEBUG
 
-// `riegeli::type_identity_t<T>` is `T`, but does not deduce the `T` in
-// templates.
+// `type_identity_t<T>` is `T`, but does not deduce the `T` in templates.
 
 template <typename T>
 struct type_identity {
@@ -509,8 +508,8 @@ constexpr T RoundUp(T value) {
 
 // Position in a stream of bytes, used also for stream sizes.
 //
-// This is an unsigned integer type at least as wide as `size_t`, `streamoff`,
-// and `uint64_t`.
+// This is an unsigned integer type at least as wide as `size_t`,
+// `std::streamoff`, and `uint64_t`.
 using Position =
     std::common_type_t<size_t, std::make_unsigned_t<std::streamoff>, uint64_t>;
 

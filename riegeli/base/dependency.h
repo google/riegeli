@@ -198,8 +198,8 @@ class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   static constexpr bool kIsStable() { return false; }
 };
 
-// Specialization of `Dependency<P*, unique_ptr<M>>` when `M*` is convertible to
-// `P*`.
+// Specialization of `Dependency<P*, std::unique_ptr<M>>` when `M*` is
+// convertible to `P*`.
 template <typename P, typename M, typename Deleter>
 class Dependency<P*, std::unique_ptr<M, Deleter>,
                  std::enable_if_t<std::is_convertible<M*, P*>::value>>

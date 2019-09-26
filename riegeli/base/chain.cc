@@ -501,7 +501,7 @@ inline void Chain::DropStolenBlocks(
 }
 
 void Chain::CopyTo(char* dest) const {
-  if (empty()) return;  // `memcpy(nullptr, _, 0)` is undefined.
+  if (empty()) return;  // `std::memcpy(nullptr, _, 0)` is undefined.
   RawBlock* const* iter = begin_;
   if (iter == end_) {
     std::memcpy(dest, block_ptrs_.short_data, size_);
@@ -629,9 +629,9 @@ inline void Chain::PopFront() {
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
-    // `begin_` must remain at `block_ptrs_.here`. Use `memcpy()` instead of
-    // assignment because the pointer being copied might be invalid if there are
-    // 0 block pointers; it is cheaper to copy unconditionally.
+    // `begin_` must remain at `block_ptrs_.here`. Use `std::memcpy()` instead
+    // of assignment because the pointer being copied might be invalid if there
+    // are 0 block pointers; it is cheaper to copy unconditionally.
     std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));
     --end_;
   } else {
@@ -744,9 +744,9 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
                           PtrDistance(end_, block_ptrs_.here + 2))) {
       // There is space without reallocation. Shift 1 block pointer to the right
       // by 1, or 0 block pointers by 1 or 2, because `begin_` must remain at
-      // `block_ptrs_.here`. Use `memcpy()` instead of assignment because the
-      // pointer being copied might be invalid if there are 0 block pointers;
-      // it is cheaper to copy unconditionally.
+      // `block_ptrs_.here`. Use `std::memcpy()` instead of assignment because
+      // the pointer being copied might be invalid if there are 0 block
+      // pointers; it is cheaper to copy unconditionally.
       std::memcpy(block_ptrs_.here + 1, block_ptrs_.here, sizeof(RawBlock*));
       begin_ += extra_capacity;
       end_ += extra_capacity;
@@ -1015,7 +1015,7 @@ void Chain::Append(std::string&& src, size_t size_hint) {
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopyToChain) {
-    // Not `std::move(src)`: forward to `Append(string_view)`.
+    // Not `std::move(src)`: forward to `Append(absl::string_view)`.
     Append(src, size_hint);
     return;
   }
@@ -1173,7 +1173,7 @@ void Chain::Prepend(std::string&& src, size_t size_hint) {
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
   if (src.size() <= kMaxBytesToCopyToChain) {
-    // Not `std::move(src)`: forward to `Prepend(string_view)`.
+    // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
     Prepend(src, size_hint);
     return;
   }
@@ -1560,7 +1560,7 @@ void Chain::RemovePrefixSlow(size_t length, size_t size_hint) {
   RawBlock* const block = *iter++;
   if (has_here()) {
     // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
-    // because `begin_` must remain at `block_ptrs_.here`. Use `memcpy()`
+    // because `begin_` must remain at `block_ptrs_.here`. Use `std::memcpy()`
     // instead of assignment because the pointer being copied might be invalid
     // if there are 0 block pointers; it is cheaper to copy unconditionally.
     std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));

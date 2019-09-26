@@ -64,7 +64,7 @@ inline size_t EstimatedAllocatedSize(size_t requested_size) {
   return RoundUp<sizeof(size_t) * 2>(requested_size);
 }
 
-// `{New,Delete}Aligned()` provide memory allocation with the specified
+// `NewAligned()`/`DeleteAligned()` provide memory allocation with the specified
 // alignment known at compile time, with the size specified in bytes, and which
 // allow deallocation to be faster by knowing the size.
 //
@@ -76,7 +76,7 @@ inline size_t EstimatedAllocatedSize(size_t requested_size) {
 // and the type is not over-aligned (i.e. its alignment is not larger than
 // `alignof(max_align_t))`, it is simpler to use `std::allocator<T>()` instead.
 // If the type is over-aligned, `std::allocator<T>()` works correctly only when
-// `operator new(size_t, align_val_t)` from C++17 is available.
+// `operator new(size_t, std::align_val_t)` from C++17 is available.
 
 // TODO: Test this with overaligned types.
 
