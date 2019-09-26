@@ -35,7 +35,8 @@ namespace riegeli {
 // A BackwardWriter writes sequences of bytes to a destination, like Writer,
 // but back to front.
 //
-// Sequential writing is supported, random access is not.
+// Sequential writing is supported, random access is not supported, truncation
+// is optionally supported.
 class BackwardWriter : public Object {
  public:
   // Ensures that enough space is available for writing: pushes previously

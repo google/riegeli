@@ -43,8 +43,9 @@ namespace riegeli {
 //
 // All Writers support writing data sequentially and querying for the current
 // position. Some Writers also support random access: changing the position for
-// subsequent operations, querying for the total size of the destination, and
-// truncation.
+// subsequent operations and querying for the total size of the destination.
+// Some Writers also support truncation; this is implied by supporting random
+// access.
 //
 // A Writer must be explicitly closed, and Close() must succeed, in order for
 // its output to be available in the destination.
@@ -139,6 +140,8 @@ class Writer : public Object {
   Position pos() const;
 
   // Returns true if this Writer supports Seek(), Size(), and Truncate().
+  //
+  // Invariant: if SupportsRandomAccess() then SupportsTruncate()
   virtual bool SupportsRandomAccess() const { return false; }
 
   // Sets the current position for subsequent operations.
