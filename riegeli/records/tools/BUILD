@@ -3,8 +3,8 @@ package(default_visibility = ["//riegeli:__subpackages__"])
 licenses(["notice"])
 
 cc_binary(
-    name = "benchmark",
-    srcs = ["benchmark.cc"],
+    name = "records_benchmark",
+    srcs = ["records_benchmark.cc"],
     deps = [
         ":tfrecord_recognizer",
         "//riegeli/base",

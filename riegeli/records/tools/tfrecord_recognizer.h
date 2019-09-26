@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_RECORDS_BENCHMARKS_TFRECORD_DETECTOR_H_
-#define RIEGELI_RECORDS_BENCHMARKS_TFRECORD_DETECTOR_H_
+#ifndef RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
+#define RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
@@ -49,4 +49,4 @@ inline TFRecordRecognizer::TFRecordRecognizer(Reader* byte_reader)
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_RECORDS_BENCHMARKS_TFRECORD_DETECTOR_H_
+#endif  // RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_

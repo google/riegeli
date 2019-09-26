@@ -31,7 +31,6 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
-#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -52,10 +51,10 @@
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/writer_utils.h"
-#include "riegeli/records/benchmarks/tfrecord_recognizer.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
+#include "riegeli/records/tools/tfrecord_recognizer.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/io/compression.h"
@@ -495,7 +494,7 @@ void Benchmarks::RunOne(
 }
 
 const char kUsage[] =
-    "Usage: benchmark (OPTION|FILE)...\n"
+    "Usage: records_benchmark (OPTION|FILE)...\n"
     "\n"
     "FILEs may be TFRecord or Riegeli/records files.\n";
 

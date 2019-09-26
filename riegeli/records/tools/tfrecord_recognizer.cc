@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/records/benchmarks/tfrecord_recognizer.h"
+#include "riegeli/records/tools/tfrecord_recognizer.h"
 
 #include <stdint.h>
 
