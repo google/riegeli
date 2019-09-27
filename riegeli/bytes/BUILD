@@ -171,6 +171,32 @@ cc_library(
 )
 
 cc_library(
+    name = "null_writer",
+    srcs = ["null_writer.cc"],
+    hdrs = ["null_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
+    name = "null_backward_writer",
+    srcs = ["null_backward_writer.cc"],
+    hdrs = ["null_backward_writer.h"],
+    deps = [
+        ":backward_writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
     name = "array_writer",
     srcs = [
         "array_writer.cc",
