@@ -1,0 +1,57 @@
+syntax = "proto2";
+
+package riegeli.summary;
+
+import "riegeli/records/records_metadata.proto";
+
+// Summary of a Riegeli/records file contents.
+//
+// This is currently used merely to format the output of describe_riegeli_file
+// as structured data.
+
+enum ChunkType {
+  FILE_SIGNATURE = 0x73;
+  FILE_METADATA = 0x6d;
+  PADDING = 0x70;
+  SIMPLE = 0x72;
+  TRANSPOSED = 0x74;
+}
+
+enum CompressionType {
+  NONE = 0;
+  BROTLI = 0x62;
+  ZSTD = 0x7a;
+  SNAPPY = 0x73;
+}
+
+message SimpleChunk {
+  optional CompressionType compression_type = 1;
+  repeated uint64 record_sizes = 2 [packed = true];
+}
+
+message TransposedChunk {
+  optional CompressionType compression_type = 1;
+  repeated uint64 record_sizes = 2 [packed = true];
+}
+
+message Chunk {
+  optional uint64 chunk_begin = 1;
+  optional ChunkType chunk_type = 2;
+  optional uint64 data_size = 3;
+  optional uint64 num_records = 4;
+  optional uint64 decoded_data_size = 5;
+  oneof Data {
+    riegeli.RecordsMetadata file_metadata_chunk = 6;
+    SimpleChunk simple_chunk = 7;
+    TransposedChunk transposed_chunk = 8;
+  }
+}
+
+// This is not used because each chunk is printed on the fly, so that the output
+// appears incrementally.
+//
+// message File {
+//   optional string filename = 1;
+//   optional uint64 file_size = 2;
+//   repeated Chunk chunk = 3;
+// }
