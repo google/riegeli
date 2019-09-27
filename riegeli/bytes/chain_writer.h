@@ -103,7 +103,7 @@ class ChainWriterBase : public Writer {
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the Chain being written to. Dest must support
-// Dependency<Chain*, Src>, e.g. Chain* (not owned, default), Chain (owned).
+// Dependency<Chain*, Dest>, e.g. Chain* (not owned, default), Chain (owned).
 //
 // The Chain must not be accessed until the ChainWriter is closed or no longer
 // used, except that it is allowed to read the Chain immediately after Flush().

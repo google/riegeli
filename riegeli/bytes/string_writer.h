@@ -101,7 +101,7 @@ class StringWriterBase : public Writer {
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the string being written to. Dest must support
-// Dependency<string*, Src>, e.g. string* (not owned, default), string (owned).
+// Dependency<string*, Dest>, e.g. string* (not owned, default), string (owned).
 //
 // The string must not be accessed until the StringWriter is closed or no longer
 // used, except that it is allowed to read the string immediately after Flush().

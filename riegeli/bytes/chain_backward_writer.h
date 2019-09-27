@@ -102,7 +102,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the Chain being written to. Dest must support
-// Dependency<Chain*, Src>, e.g. Chain* (not owned, default), Chain (owned).
+// Dependency<Chain*, Dest>, e.g. Chain* (not owned, default), Chain (owned).
 //
 // The Chain must not be accessed until the ChainBackwardWriter is closed or no
 // longer used.

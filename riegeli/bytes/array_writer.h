@@ -71,7 +71,7 @@ class ArrayWriterBase : public Writer {
 //
 // The Dest template parameter specifies the type of the object providing and
 // possibly owning the array being written to. Dest must support
-// Dependency<Span<char>, Src>, e.g. Span<char> (not owned, default),
+// Dependency<Span<char>, Dest>, e.g. Span<char> (not owned, default),
 // string* (not owned), string (owned).
 //
 // The array must not be destroyed until the ArrayWriter is closed or no longer
