@@ -393,8 +393,8 @@ class FdStreamReader : public FdStreamReaderBase {
   void Reset(absl::string_view filename, int flags,
              Options options = Options());
 
-  // Returns the object providing and owning the fd being read from. Changed to
-  // -1 by Close().
+  // Returns the object providing and possibly owning the fd being read from. If
+  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   int src_fd() const override { return src_.get(); }

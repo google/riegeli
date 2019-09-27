@@ -163,6 +163,8 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
+    //
+    // Default: 0666
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
