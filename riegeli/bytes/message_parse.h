@@ -62,7 +62,7 @@ Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
 //
 // Returns status:
 //  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified, *error_message is set)
+//  * !status.ok() - failure (*dest is unspecified)
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src);
 Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src);
