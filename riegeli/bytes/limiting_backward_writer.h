@@ -104,7 +104,9 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 // unique_ptr<BackwardWriter> (owned), ChainBackwardWriter<> (owned).
 //
 // The original BackwardWriter must not be accessed until the
-// LimitingBackwardWriter is closed or no longer used.
+// LimitingBackwardWriter is closed or no longer used, except that it is allowed
+// to read the destination of the original BackwardWriter immediately after
+// Flush().
 template <typename Dest = BackwardWriter*>
 class LimitingBackwardWriter : public LimitingBackwardWriterBase {
  public:
@@ -140,8 +142,8 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   void Reset(std::tuple<DestArgs...> dest_args,
              Position size_limit = kNoSizeLimit);
 
-  // Returns the object providing and possibly owning the original Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the original
+  // BackwardWriter. Unchanged by Close().
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   BackwardWriter* dest_writer() override { return dest_.get(); }
@@ -153,7 +155,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
  private:
   void MoveDest(LimitingBackwardWriter&& that);
 
-  // The object providing and possibly owning the original Writer.
+  // The object providing and possibly owning the original BackwardWriter.
   Dependency<BackwardWriter*, Dest> dest_;
 };
 
