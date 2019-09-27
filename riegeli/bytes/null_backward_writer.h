@@ -42,7 +42,8 @@ class NullBackwardWriter : public BackwardWriter {
       : BackwardWriter(kInitiallyClosed) {}
 
   // Will discard all output.
-  explicit NullBackwardWriter(InitiallyOpen) : BackwardWriter(kInitiallyOpen) {}
+  explicit NullBackwardWriter(InitiallyOpen) noexcept
+      : BackwardWriter(kInitiallyOpen) {}
 
   NullBackwardWriter(NullBackwardWriter&& that) noexcept;
   NullBackwardWriter& operator=(NullBackwardWriter&& that) noexcept;

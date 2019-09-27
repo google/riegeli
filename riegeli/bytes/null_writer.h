@@ -41,7 +41,7 @@ class NullWriter : public Writer {
   explicit NullWriter(InitiallyClosed) noexcept : Writer(kInitiallyClosed) {}
 
   // Will discard all output.
-  explicit NullWriter(InitiallyOpen) : Writer(kInitiallyOpen) {}
+  explicit NullWriter(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
 
   NullWriter(NullWriter&& that) noexcept;
   NullWriter& operator=(NullWriter&& that) noexcept;
