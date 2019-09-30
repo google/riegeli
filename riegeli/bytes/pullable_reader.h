@@ -31,13 +31,13 @@
 
 namespace riegeli {
 
-// PullableReader helps to implement Reader::PullSlow() with min_length > 1
-// in terms of PullSlow() with min_length == 1.
+// `PullableReader` helps to implement `Reader::PullSlow()` with
+// `min_length > 1` in terms of `Reader::PullSlow()` with `min_length == 1`.
 //
-// PullableReader accumulates pulled data in a scratch buffer if needed.
+// `PullableReader` accumulates pulled data in a scratch buffer if needed.
 class PullableReader : public Reader {
  protected:
-  // Creates a PullableReader with the given initial state.
+  // Creates a `PullableReader` with the given initial state.
   explicit PullableReader(InitiallyClosed) noexcept
       : Reader(kInitiallyClosed) {}
   explicit PullableReader(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
@@ -45,69 +45,70 @@ class PullableReader : public Reader {
   PullableReader(PullableReader&& that) noexcept;
   PullableReader& operator=(PullableReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed PullableReader. This avoids
-  // constructing a temporary PullableReader and moving from it. Derived classes
-  // which override Reset() should include a call to PullableReader::Reset().
+  // Makes `*this` equivalent to a newly constructed `PullableReader`. This
+  // avoids constructing a temporary `PullableReader` and moving from it.
+  // Derived classes which override `Reset()` should include a call to
+  // `PullableReader::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Helps to implement PullSlow(min_length, recommended_length) if
-  // min_length > 1.
+  // Helps to implement `PullSlow(min_length, recommended_length)` if
+  // `min_length > 1`.
   //
   // Return values:
-  //  * true  - scratch is not used now, min_length == 1,
-  //            the caller should continue PullSlow(1, 0)
-  //  * false - PullSlow() is done,
-  //            the caller should return available() >= min_length
+  //  * `true`  - scratch is not used now, `min_length == 1`,
+  //              the caller should continue `PullSlow(1, 0)`
+  //  * `false` - `PullSlow()` is done,
+  //              the caller should return `available() >= min_length`
   //
   // Preconditions:
-  //   healthy()
-  //   min_length > available()
+  //   `healthy()`
+  //   `min_length > available()`
   bool PullUsingScratch(size_t min_length);
 
-  // Helps to implement {Read,CopyTo}Slow(dest, *length) if scratch is used.
+  // Helps to implement `{Read,CopyTo}Slow(dest, *length)` if scratch is used.
   //
   // Return values:
-  //  * true  - some data have been copied from scratch to *dest,
-  //            *length was appropriately reduced, scratch is not used now,
-  //            the caller should continue {Read,CopyTo}Slow(dest, *length)
-  //            no longer assuming that
-  //            *length > UnsignedMin(available(), kMaxBytesToCopy)
-  //  * false - {Read,CopyTo}Slow() is done,
-  //            the caller should return *length == 0 for ReadSlow(), or
-  //            *length == 0 && dest->healthy() for CopyToSlow()
+  //  * `true`  - some data have been copied from scratch to `*dest`,
+  //              `*length` was appropriately reduced, scratch is not used now,
+  //              the caller should continue `{Read,CopyTo}Slow(dest, *length)`
+  //              no longer assuming that
+  //              `*length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //  * `false` - `{Read,CopyTo}Slow()` is done,
+  //              the caller should return `*length == 0` for `ReadSlow()`, or
+  //              `*length == 0 && dest->healthy()` for `CopyToSlow()`
   //
-  // Preconditions for ReadScratch:
-  //   healthy()
-  //   *length > UnsignedMin(available(), kMaxBytesToCopy)
-  //   *length <= numeric_limits<size_t>::max() - dest->size()
+  // Preconditions for `ReadScratch()`:
+  //   `healthy()`
+  //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `*length <= std::numeric_limits<size_t>::max() - dest->size()`
   //
-  // Preconditions for CopyScratchTo:
-  //   healthy()
-  //   *length > UnsignedMin(available(), kMaxBytesToCopy)
+  // Preconditions for `CopyScratchTo()`:
+  //   `healthy()`
+  //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
   bool ReadScratch(Chain* dest, size_t* length);
   bool CopyScratchTo(Writer* dest, Position* length);
 
-  // Helps to implement SeekSlow() if scratch is used.
+  // Helps to implement `SeekSlow()` if scratch is used.
   //
-  // When SyncScratch() returns, scratch is not used but the current position
+  // When `SyncScratch()` returns, scratch is not used but the current position
   // might have been changed.
   void SyncScratch();
 
   // Helps to implement move constructor or move assignment if scratch is used.
   //
-  // Moving the source should be surrounded by SwapScratchBegin() and
-  // SwapScratchEnd().
+  // Moving the source should be surrounded by `SwapScratchBegin()` and
+  // `SwapScratchEnd()`.
   //
-  // When SwapScratchBegin() returns, scratch is not used but the current
+  // When `SwapScratchBegin()` returns, scratch is not used but the current
   // position might have been changed.
   void SwapScratchBegin();
   void SwapScratchEnd();
 
-  // Helps to implement Size() if scratch is used.
+  // Helps to implement `Size()` if scratch is used.
   //
-  // Returns what would be the value of start_pos() if scratch was not used,
-  // i.e. if SyncScratch() was called now.
+  // Returns what would be the value of `start_pos()` if scratch was not used,
+  // i.e. if `SyncScratch()` was called now.
   Position start_pos_after_scratch() const;
 
  private:
@@ -120,9 +121,9 @@ class PullableReader : public Reader {
 
   bool scratch_used() const;
 
-  // Stops using scratch and returns true if all remaining data in scratch come
-  // from a single fragment of the original source, and at least min_length
-  // bytes are available there.
+  // Stops using scratch and returns `true` if all remaining data in scratch
+  // come from a single fragment of the original source, and at least
+  // `min_length` bytes are available there.
   bool ScratchEnds(size_t min_length);
 
   void PullToScratchSlow(size_t min_length);
@@ -134,8 +135,7 @@ class PullableReader : public Reader {
 
   std::unique_ptr<Scratch> scratch_;
 
-  // Invariants if scratch_used():
-  //   start_ == scratch_->buffer.data()
+  // Invariant if `scratch_used()`: `start_ == scratch_->buffer.data()`
 };
 
 // Implementation details follow.

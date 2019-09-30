@@ -35,7 +35,7 @@ namespace riegeli {
 
 namespace {
 
-// WriterOutputStream adapts a Writer to a ZeroCopyOutputStream.
+// Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.
 class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
  public:
   explicit WriterOutputStream(Writer* dest)
@@ -50,8 +50,8 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 
   Writer* dest_;
   // Invariants:
-  //   dest_->pos() >= initial_pos_
-  //   dest_->pos() - initial_pos_ <= numeric_limits<int64_t>::max()
+  //   `dest_->pos() >= initial_pos_`
+  //   `dest_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
   Position initial_pos_;
 };
 

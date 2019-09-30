@@ -247,13 +247,13 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       }
 
       // Invariants:
-      //   current_file_index_ <= dataset()->filenames_.size()
-      //   if current_file_index_ == dataset()->filenames_.size() then
-      //       !reader_.has_value()
+      //   `current_file_index_ <= dataset()->filenames_.size()`
+      //   if `current_file_index_ == dataset()->filenames_.size()` then
+      //       `!reader_.has_value()`
 
       absl::Mutex mu_;
       size_t current_file_index_ ABSL_GUARDED_BY(mu_) = 0;
-      // nullopt means not open yet.
+      // `absl::nullopt` means not open yet.
       absl::optional<RecordReader<tensorflow::FileReader<>>> reader_
           ABSL_GUARDED_BY(mu_);
     };

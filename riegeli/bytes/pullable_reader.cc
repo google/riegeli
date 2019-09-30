@@ -68,7 +68,9 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
   do {
     const size_t length =
         UnsignedMin(available(), PtrDistance(dest, max_limit));
-    if (length > 0) {  // memcpy(_, nullptr, 0) is undefined.
+    if (
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        length > 0) {
       std::memcpy(dest, cursor_, length);
       cursor_ += length;
       dest += length;

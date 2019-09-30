@@ -120,8 +120,8 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
   compressor_->next_in =
       const_cast<z_const Bytef*>(reinterpret_cast<const Bytef*>(src.data()));
   for (;;) {
-    // If compressor_->avail_out == 0 then deflate() returns Z_BUF_ERROR,
-    // so dest->Push() first.
+    // If `compressor_->avail_out == 0` then `deflate()` returns `Z_BUF_ERROR`,
+    // so `dest->Push()` first.
     if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
     size_t avail_in =
         PtrDistance(reinterpret_cast<const char*>(compressor_->next_in),

@@ -32,10 +32,10 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ChainReader.
+// Template parameter invariant part of `ChainReader`.
 class ChainReaderBase : public PullableReader {
  public:
-  // Returns the Chain being read from. Unchanged by Close().
+  // Returns the `Chain` being read from. Unchanged by `Close()`.
   virtual const Chain* src_chain() const = 0;
 
   bool SupportsRandomAccess() const override { return true; }
@@ -65,52 +65,52 @@ class ChainReaderBase : public PullableReader {
 
   Chain::BlockIterator iter_;
 
-  // Invariants if healthy() and scratch is not used:
-  //   iter_.chain() == src_chain()
-  //   start_ ==
-  //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())
-  //   buffer_size() ==
-  //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())
-  //   start_pos() is the position of iter_ in *src_chain()
+  // Invariants if `healthy()` and scratch is not used:
+  //   `iter_.chain() == src_chain()`
+  //   `start_ ==
+  //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
+  //   `buffer_size() ==
+  //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())`
+  //   `start_pos()` is the position of `iter_` in `*src_chain()`
 };
 
-// A Reader which reads from a Chain. It supports random access.
+// A `Reader` which reads from a `Chain`. It supports random access.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the Chain being read from. Src must support
-// Dependency<const Chain*, Src>, e.g. const Chain* (not owned, default),
-// Chain (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the `Chain` being read from. `Src` must support
+// `Dependency<const Chain*, Src>`, e.g. `const Chain*` (not owned, default),
+// `Chain` (owned).
 //
-// The Chain must not be changed until the ChainReader is closed or no longer
-// used.
+// The `Chain` must not be changed until the `ChainReader` is closed or no
+// longer used.
 template <typename Src = const Chain*>
 class ChainReader : public ChainReaderBase {
  public:
-  // Creates a closed ChainReader.
+  // Creates a closed `ChainReader`.
   ChainReader() noexcept : ChainReaderBase(kInitiallyClosed) {}
 
-  // Will read from the Chain provided by src.
+  // Will read from the `Chain` provided by `src`.
   explicit ChainReader(const Src& src);
   explicit ChainReader(Src&& src);
 
-  // Will read from the Chain provided by a Src constructed from elements of
-  // src_args. This avoids constructing a temporary Src and moving from it.
+  // Will read from the `Chain` provided by a `Src` constructed from elements of
+  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
   template <typename... SrcArgs>
   explicit ChainReader(std::tuple<SrcArgs...> src_args);
 
   ChainReader(ChainReader&& that) noexcept;
   ChainReader& operator=(ChainReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ChainReader. This avoids
-  // constructing a temporary ChainReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ChainReader`. This avoids
+  // constructing a temporary `ChainReader` and moving from it.
   void Reset();
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args);
 
-  // Returns the object providing and possibly owning the Chain being read from.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the `Chain` being read
+  // from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   const Chain* src_chain() const override { return src_.get(); }
@@ -118,7 +118,7 @@ class ChainReader : public ChainReaderBase {
  private:
   void MoveSrc(ChainReader&& that);
 
-  // The object providing and possibly owning the Chain being read from.
+  // The object providing and possibly owning the `Chain` being read from.
   Dependency<const Chain*, Src> src_;
 };
 
@@ -142,7 +142,7 @@ inline void ChainReaderBase::Reset(InitiallyClosed) {
 
 inline void ChainReaderBase::Reset(InitiallyOpen) {
   Reader::Reset(kInitiallyOpen);
-  // iter_ will be set by Initialize().
+  // `iter_` will be set by `Initialize()`.
 }
 
 inline void ChainReaderBase::Initialize(const Chain* src) {

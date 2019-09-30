@@ -39,19 +39,19 @@ inline size_t BufferedWriter::BufferLength(size_t min_length) const {
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
-    // Two writes are needed because current contents of buffer_ must be pushed.
-    // Write directly if writing through buffer_ would need more than two
-    // writes, or if buffer would be full for the second write.
+    // Two writes are needed because current contents of `buffer_` must be
+    // pushed. Write directly if writing through `buffer_` would need more than
+    // two writes, or if `buffer_` would be full for the second write.
     if (limit_pos() < size_hint_) {
-      // Write directly also if size_hint_ is reached.
+      // Write directly also if `size_hint_` is reached.
       length = UnsignedMin(length, size_hint_ - limit_pos());
     }
     length = SaturatingAdd(available(), length);
   } else {
-    // Write directly if writing through buffer_ would need more than one write,
-    // or if buffer would be full.
+    // Write directly if writing through `buffer_` would need more than one
+    // write, or if `buffer_` would be full.
     if (start_pos_ < size_hint_) {
-      // Write directly also if size_hint_ is reached.
+      // Write directly also if `size_hint_` is reached.
       length = UnsignedMin(length, size_hint_ - start_pos_);
     }
   }

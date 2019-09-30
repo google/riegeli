@@ -54,7 +54,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
   }
   {
     // Maximum window size could also be found with
-    // ZSTD_dParam_getBounds(ZSTD_d_windowLogMax)
+    // `ZSTD_dParam_getBounds(ZSTD_d_windowLogMax)`.
     const size_t result =
         ZSTD_DCtx_setParameter(decompressor_.get(), ZSTD_d_windowLogMax,
                                sizeof(size_t) == 4 ? 30 : 31);
@@ -65,7 +65,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
       return;
     }
   }
-  src->Pull(18 /* ZSTD_FRAMEHEADERSIZE_MAX */);
+  src->Pull(18 /* `ZSTD_FRAMEHEADERSIZE_MAX` */);
   // Tune the buffer size if the uncompressed size is known.
   unsigned long long uncompressed_size =
       ZSTD_getFrameContentSize(src->cursor(), src->available());
@@ -87,7 +87,7 @@ bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
-  // After all data have been decompressed, skip BufferedReader::PullSlow()
+  // After all data have been decompressed, skip `BufferedReader::PullSlow()`
   // to avoid allocating the buffer in case it was not allocated yet.
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   return BufferedReader::PullSlow(min_length, recommended_length);

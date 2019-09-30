@@ -49,14 +49,14 @@ void FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
       return;
     }
   }
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 }
 
 std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
     ::tensorflow::Env* env, absl::string_view filename, bool append) {
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
@@ -108,13 +108,13 @@ inline size_t FileWriterBase::BufferLength(size_t min_length) const {
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
-    // Two writes are needed because current contents of buffer_ must be pushed.
-    // Write directly if writing through buffer_ would need more than two
-    // writes, or if buffer would be full for the second write.
+    // Two writes are needed because current contents of `buffer_` must be
+    // pushed. Write directly if writing through `buffer_` would need more than
+    // two writes, or if `buffer_` would be full for the second write.
     length = SaturatingAdd(available(), length);
   } else {
-    // Write directly if writing through buffer_ would need more than one write,
-    // or if buffer would be full.
+    // Write directly if writing through `buffer_` would need more than one
+    // write, or if `buffer_` would be full.
   }
   return length;
 }

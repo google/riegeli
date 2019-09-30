@@ -42,7 +42,7 @@ namespace riegeli {
 
 namespace tensorflow {
 
-// Template parameter invariant part of FileReader.
+// Template parameter invariant part of `FileReader`.
 class FileReaderBase : public Reader {
  public:
   class Options {
@@ -51,9 +51,9 @@ class FileReaderBase : public Reader {
 
     // Overrides the TensorFlow environment.
     //
-    // nullptr is interpreted as Env::Default().
+    // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
     //
-    // Default: nullptr.
+    // Default: `nullptr`.
     Options& set_env(::tensorflow::Env* env) & {
       env_ = env;
       return *this;
@@ -97,12 +97,13 @@ class FileReaderBase : public Reader {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Returns the RandomAccessFile being read from. If the RandomAccessFile is
-  // owned then changed to nullptr by Close(), otherwise unchanged.
+  // Returns the `::tensorflow::RandomAccessFile` being read from. If the
+  // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
+  // `Close()`, otherwise unchanged.
   virtual ::tensorflow::RandomAccessFile* src_file() const = 0;
 
-  // Returns the name of the RandomAccessFile being read from. Unchanged by
-  // Close().
+  // Returns the name of the `::tensorflow::RandomAccessFile` being read from.
+  // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() const override { return !filename_.empty(); }
@@ -141,28 +142,29 @@ class FileReaderBase : public Reader {
   // Preferred size of the buffer to use.
   size_t BufferLength(size_t min_length = 0) const;
 
-  // Minimum length for which it is better to append current contents of buffer_
-  // and read the remaining data directly than to read the data through buffer_.
+  // Minimum length for which it is better to append current contents of
+  // `buffer_` and read the remaining data directly than to read the data
+  // through `buffer_`.
   size_t LengthToReadDirectly() const;
 
-  // Clears buffer_. Reads length bytes from src, from the physical file
-  // position which is limit_pos_, to dest.
+  // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
+  // position which is `limit_pos_`, to `*dest`.
   //
-  // Sets *length_read to the length read.
+  // Sets `*length_read` to the length read.
   //
-  // Increments limit_pos_ by the length read.
+  // Increments `limit_pos_` by the length read.
   bool ReadToDest(char* dest, size_t length,
                   ::tensorflow::RandomAccessFile* src, size_t* length_read);
 
-  // Reads flat_buffer.size() bytes from src, from the physical file position
-  // which is limit_pos_, preferably to flat_buffer.data(). Newly read data are
-  // adjacent to previously available data, if any.
+  // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
+  // position which is `limit_pos_`, preferably to `flat_buffer.data()`. Newly
+  // read data are adjacent to previously available data, if any.
   //
-  // Increments limit_ and limit_pos_ by the length read.
+  // Increments `limit_` and `limit_pos_` by the length read.
   //
   // Preconditions:
-  //   start_ == buffer_.data()
-  //   limit_ == flat_buffer.data()
+  //   `start_ == buffer_.data()`
+  //   `limit_ == flat_buffer.data()`
   bool ReadToBuffer(absl::Span<char> flat_buffer,
                     ::tensorflow::RandomAccessFile* src);
 
@@ -170,57 +172,58 @@ class FileReaderBase : public Reader {
   void ClearBuffer();
 
   std::string filename_;
-  // Invariant: if healthy() && !filename_.empty() then file_system_ != nullptr
+  // Invariant:
+  //   if `healthy() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
-  // Invariant: if healthy() then buffer_size_ > 0
+  // Invariant: if `healthy()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
-  // If buffer_ is not empty, it contains buffered data, read directly before
-  // the physical source position which is limit_pos_. Otherwise buffered data
-  // are in memory managed by the RandomAccessFile. In any case start_ points to
-  // them.
+  // If `buffer_` is not empty, it contains buffered data, read directly before
+  // the physical source position which is `limit_pos_`. Otherwise buffered data
+  // are in memory managed by the `::tensorflow::RandomAccessFile`. In any case
+  // `start_` points to them.
   ChainBlock buffer_;
 
-  // Invariants if !buffer_.empty():
-  //   start_ == buffer_.data()
-  //   buffer_size() == buffer_.size()
+  // Invariants if `!buffer_.empty()`:
+  //   `start_ == buffer_.data()`
+  //   `buffer_size() == buffer_.size()`
 };
 
-// A Reader which reads from a RandomAccessFile. It supports random access
-// if RandomAccessFile::Name() is supported.
+// A `Reader` which reads from a `::tensorflow::RandomAccessFile`. It supports
+// random access if `::tensorflow::RandomAccessFile::Name()` is supported.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the RandomAccessFile being read from. Src must support
-// Dependency<RandomAccessFile*, Src>, e.g.
-// std::unique_ptr<RandomAccessFile> (owned, default),
-// RandomAccessFile* (not owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the `::tensorflow::RandomAccessFile` being read from. `Src`
+// must support `Dependency<::tensorflow::RandomAccessFile*, Src>`, e.g.
+// `std::unique_ptr<::tensorflow::RandomAccessFile>` (owned, default),
+// `::tensorflow::RandomAccessFile*` (not owned).
 //
-// The RandomAccessFile must not be closed until the FileReader is
-// closed or no longer used.
+// The `::tensorflow::RandomAccessFile` must not be closed until the
+// `FileReader` is closed or no longer used.
 template <typename Src = std::unique_ptr<::tensorflow::RandomAccessFile>>
 class FileReader : public FileReaderBase {
  public:
-  // Creates a closed FileReader.
+  // Creates a closed `FileReader`.
   FileReader() noexcept {}
 
-  // Will read from the RandomAccessFile provided by src.
+  // Will read from the `::tensorflow::RandomAccessFile` provided by `src`.
   explicit FileReader(const Src& src, Options options = Options());
   explicit FileReader(Src&& src, Options options = Options());
 
-  // Will read from the RandomAccessFile provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the `::tensorflow::RandomAccessFile` provided by a `Src`
+  // constructed from elements of `src_args`. This avoids constructing a
+  // temporary `Src` and moving from it.
   template <typename... SrcArgs>
   explicit FileReader(std::tuple<SrcArgs...> src_args,
                       Options options = Options());
 
-  // Opens a RandomAccessFile for reading.
+  // Opens a `::tensorflow::RandomAccessFile` for reading.
   explicit FileReader(absl::string_view filename, Options options = Options());
 
   FileReader(FileReader&& that) noexcept;
   FileReader& operator=(FileReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FileReader. This avoids
-  // constructing a temporary FileReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FileReader`. This avoids
+  // constructing a temporary `FileReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
@@ -228,9 +231,10 @@ class FileReader : public FileReaderBase {
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
 
-  // Returns the object providing and possibly owning the RandomAccessFile being
-  // read from. If the RandomAccessFile is owned then changed to nullptr by
-  // Close(), otherwise unchanged.
+  // Returns the object providing and possibly owning the
+  // `::tensorflow::RandomAccessFile` being read from. If the
+  // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
+  // `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   ::tensorflow::RandomAccessFile* src_file() const override {
@@ -245,8 +249,8 @@ class FileReader : public FileReaderBase {
   void Initialize(absl::string_view filename, ::tensorflow::Env* env,
                   Position initial_pos);
 
-  // The object providing and possibly owning the RandomAccessFile being read
-  // from.
+  // The object providing and possibly owning the
+  // `::tensorflow::RandomAccessFile` being read from.
   Dependency<::tensorflow::RandomAccessFile*, Src> src_;
 };
 
@@ -356,7 +360,7 @@ template <typename Src>
 inline void FileReader<Src>::Reset(absl::string_view filename,
                                    Options options) {
   FileReaderBase::Reset(options.buffer_size_);
-  src_.Reset();  // In case OpenFile() fails.
+  src_.Reset();  // In case `OpenFile()` fails.
   Initialize(filename, options.env_, options.initial_pos_);
 }
 
@@ -386,7 +390,7 @@ template <typename Src>
 void FileReader<Src>::Done() {
   FileReaderBase::Done();
   if (src_.is_owning()) {
-    // The only way to close a RandomAccessFile is to delete it.
+    // The only way to close a `::tensorflow::RandomAccessFile` is to delete it.
     src_.Reset();
   }
 }

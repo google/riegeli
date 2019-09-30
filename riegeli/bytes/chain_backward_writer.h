@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ChainBackwardWriter.
+// Template parameter invariant part of `ChainBackwardWriter`.
 class ChainBackwardWriterBase : public BackwardWriter {
  public:
   class Options {
@@ -56,7 +56,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     Position size_hint_ = 0;
   };
 
-  // Returns the Chain being written to.
+  // Returns the `Chain` being written to.
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
@@ -83,41 +83,43 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Discards uninitialized space from the beginning of *dest, so that it
+  // Discards uninitialized space from the beginning of `*dest`, so that it
   // contains only actual data written.
   void SyncBuffer(Chain* dest);
 
-  // Prepends uninitialized space to *dest.
+  // Prepends uninitialized space to `*dest`.
   void MakeBuffer(Chain* dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
   size_t size_hint_ = 0;
 
-  // Invariants if healthy():
-  //   limit_ == nullptr || limit_ == dest_chain()->blocks().front().data()
-  //   limit_pos() == dest_chain()->size()
+  // Invariants if `healthy()`:
+  //   `limit_ == nullptr || limit_ == dest_chain()->blocks().front().data()`
+  //   `limit_pos() == dest_chain()->size()`
 };
 
-// A BackwardWriter which prepends to a Chain.
+// A `BackwardWriter` which prepends to a `Chain`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the Chain being written to. Dest must support
-// Dependency<Chain*, Dest>, e.g. Chain* (not owned, default), Chain (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `Chain` being written to. `Dest` must support
+// `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
+// `Chain` (owned).
 //
-// The Chain must not be accessed until the ChainBackwardWriter is closed or no
-// longer used.
+// The `Chain` must not be accessed until the `ChainBackwardWriter` is closed or
+// no longer used.
 template <typename Dest = Chain*>
 class ChainBackwardWriter : public ChainBackwardWriterBase {
  public:
-  // Creates a closed ChainBackwardWriter.
+  // Creates a closed `ChainBackwardWriter`.
   ChainBackwardWriter() noexcept {}
 
-  // Will prepend to the Chain provided by dest.
+  // Will prepend to the `Chain` provided by `dest`.
   explicit ChainBackwardWriter(const Dest& dest, Options options = Options());
   explicit ChainBackwardWriter(Dest&& dest, Options options = Options());
 
-  // Will prepend to the Chain provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will prepend to the `Chain` provided by a `Dest` constructed from elements
+  // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
+  // it.
   template <typename... DestArgs>
   explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
                                Options options = Options());
@@ -125,15 +127,15 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   ChainBackwardWriter(ChainBackwardWriter&& that) noexcept;
   ChainBackwardWriter& operator=(ChainBackwardWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ChainBackwardWriter. This
-  // avoids constructing a temporary ChainBackwardWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
+  // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the Chain being written
+  // Returns the object providing and possibly owning the `Chain` being written
   // to.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
@@ -143,9 +145,9 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
  private:
   void MoveDest(ChainBackwardWriter&& that);
 
-  // The object providing and possibly owning the Chain being written to, with
-  // uninitialized space prepended (possibly empty); cursor_ points to the end
-  // of the uninitialized space, except that it can be nullptr if the
+  // The object providing and possibly owning the `Chain` being written to, with
+  // uninitialized space prepended (possibly empty); `cursor_` points to the end
+  // of the uninitialized space, except that it can be `nullptr` if the
   // uninitialized space is empty.
   Dependency<Chain*, Dest> dest_;
 };

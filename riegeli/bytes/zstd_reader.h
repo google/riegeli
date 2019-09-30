@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ZstdReader.
+// Template parameter invariant part of `ZstdReader`.
 class ZstdReaderBase : public BufferedReader {
  public:
   class Options {
@@ -52,7 +52,7 @@ class ZstdReaderBase : public BufferedReader {
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
-    // Default: ZSTD_DStreamOutSize()
+    // Default: `ZSTD_DStreamOutSize()`
     static size_t DefaultBufferSize() { return ZSTD_DStreamOutSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
@@ -74,7 +74,7 @@ class ZstdReaderBase : public BufferedReader {
     size_t buffer_size_ = DefaultBufferSize();
   };
 
-  // Returns the compressed Reader. Unchanged by Close().
+  // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -99,39 +99,39 @@ class ZstdReaderBase : public BufferedReader {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
 
-  // If true, the source is truncated (without a clean end of the compressed
-  // stream) at the current position. If the source does not grow, Close() will
-  // fail.
+  // If `true`, the source is truncated (without a clean end of the compressed
+  // stream) at the current position. If the source does not grow, `Close()`
+  // will fail.
   bool truncated_ = false;
-  // If healthy() but decompressor_ == nullptr then all data have been
-  // decompressed. In this case ZSTD_decompressStream() must not be called
+  // If `healthy()` but `decompressor_ == nullptr` then all data have been
+  // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
   RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
 };
 
-// A Reader which decompresses data with Zstd after getting it from another
-// Reader.
+// A `Reader` which decompresses data with Zstd after getting it from another
+// `Reader`.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the compressed Reader. Src must support
-// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
-// unique_ptr<Reader> (owned), ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The compressed Reader must not be accessed until the ZstdReader is closed or
-// no longer used.
+// The compressed `Reader` must not be accessed until the `ZstdReader` is closed
+// or no longer used.
 template <typename Src = Reader*>
 class ZstdReader : public ZstdReaderBase {
  public:
-  // Creates a closed ZstdReader.
+  // Creates a closed `ZstdReader`.
   ZstdReader() noexcept {}
 
-  // Will read from the compressed Reader provided by src.
+  // Will read from the compressed `Reader` provided by `src`.
   explicit ZstdReader(const Src& src, Options options = Options());
   explicit ZstdReader(Src&& src, Options options = Options());
 
-  // Will read from the compressed Reader provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the compressed `Reader` provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit ZstdReader(std::tuple<SrcArgs...> src_args,
                       Options options = Options());
@@ -139,16 +139,16 @@ class ZstdReader : public ZstdReaderBase {
   ZstdReader(ZstdReader&& that) noexcept;
   ZstdReader& operator=(ZstdReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ZstdReader. This avoids
-  // constructing a temporary ZstdReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ZstdReader`. This avoids
+  // constructing a temporary `ZstdReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Reader.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Reader`.
+  // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
@@ -159,7 +159,7 @@ class ZstdReader : public ZstdReaderBase {
   void VerifyEnd() override;
 
  private:
-  // The object providing and possibly owning the compressed Reader.
+  // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
 

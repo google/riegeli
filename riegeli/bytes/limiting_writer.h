@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of LimitingWriter.
+// Template parameter invariant part of `LimitingWriter`.
 class LimitingWriterBase : public Writer {
  public:
   // An infinite size limit.
@@ -40,13 +40,13 @@ class LimitingWriterBase : public Writer {
 
   // Changes the size limit.
   //
-  // Precondition: size_limit >= pos()
+  // Precondition: `size_limit >= pos()`
   void set_size_limit(Position size_limit);
 
   // Returns the current size limit.
   Position size_limit() const { return size_limit_; }
 
-  // Returns the original Writer. Unchanged by Close().
+  // Returns the original `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -76,11 +76,11 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool SeekSlow(Position new_pos) override;
 
-  // Sets cursor of dest to cursor of this.
+  // Sets cursor of `*dest` to cursor of `*this`.
   void SyncBuffer(Writer* dest);
 
-  // Sets buffer pointers of this to buffer pointers of dest, adjusting them for
-  // the size limit. Fails this if dest failed.
+  // Sets buffer pointers of `*this` to buffer pointers of `*dest`, adjusting
+  // them for the size limit. Fails `*this` if `*dest` failed.
   void MakeBuffer(Writer* dest);
 
   Position size_limit_ = kNoSizeLimit;
@@ -89,41 +89,41 @@ class LimitingWriterBase : public Writer {
   template <typename Src>
   bool WriteInternal(Src&& src);
 
-  // Invariants if healthy():
-  //   start_ == dest_writer()->start_
-  //   limit_ <= dest_writer()->limit_
-  //   start_pos_ == dest_writer()->start_pos_
-  //   limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())
+  // Invariants if `healthy()`:
+  //   `start_ == dest_writer()->start_`
+  //   `limit_ <= dest_writer()->limit_`
+  //   `start_pos_ == dest_writer()->start_pos_`
+  //   `limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())`
 };
 
-// A Writer which writes to another Writer up to the specified size limit.
+// A `Writer` which writes to another `Writer` up to the specified size limit.
 // An attempt to write more fails, leaving destination contents unspecified.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the original Writer. Dest must support
-// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
-// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the original `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The original Writer must not be accessed until the LimitingWriter is closed
-// or no longer used, except that it is allowed to read the destination of the
-// original Writer immediately after Flush().
+// The original `Writer` must not be accessed until the `LimitingWriter` is
+// closed or no longer used, except that it is allowed to read the destination
+// of the original `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
 class LimitingWriter : public LimitingWriterBase {
  public:
-  // Creates a closed LimitingWriter.
+  // Creates a closed `LimitingWriter`.
   LimitingWriter() noexcept {}
 
-  // Will write to the original Writer provided by dest.
+  // Will write to the original `Writer` provided by `dest`.
   //
-  // Precondition: size_limit >= dest->pos()
+  // Precondition: `size_limit >= dest->pos()`
   explicit LimitingWriter(const Dest& dest, Position size_limit = kNoSizeLimit);
   explicit LimitingWriter(Dest&& dest, Position size_limit = kNoSizeLimit);
 
-  // Will write to the original Writer provided by a Dest constructed from
-  // elements of dest_args. This avoids constructing a temporary Dest and moving
-  // from it.
+  // Will write to the original `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   //
-  // Precondition: size_limit >= dest->pos()
+  // Precondition: `size_limit >= dest->pos()`
   template <typename... DestArgs>
   explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
                           Position size_limit = kNoSizeLimit);
@@ -131,8 +131,8 @@ class LimitingWriter : public LimitingWriterBase {
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed LimitingWriter. This avoids
-  // constructing a temporary LimitingWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `LimitingWriter`. This
+  // avoids constructing a temporary `LimitingWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
   void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
@@ -140,8 +140,8 @@ class LimitingWriter : public LimitingWriterBase {
   void Reset(std::tuple<DestArgs...> dest_args,
              Position size_limit = kNoSizeLimit);
 
-  // Returns the object providing and possibly owning the original Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the original `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
@@ -153,7 +153,7 @@ class LimitingWriter : public LimitingWriterBase {
  private:
   void MoveDest(LimitingWriter&& that);
 
-  // The object providing and possibly owning the original Writer.
+  // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 
@@ -210,7 +210,7 @@ inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
   start_ = dest->start();
   cursor_ = dest->cursor();
   limit_ = dest->limit();
-  start_pos_ = dest->pos() - dest->written_to_buffer();  // dest->start_pos_
+  start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
   if (limit_pos() > size_limit_) {
     limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
   }

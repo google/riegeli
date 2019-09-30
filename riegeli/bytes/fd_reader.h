@@ -38,15 +38,15 @@ namespace riegeli {
 
 namespace internal {
 
-// Implementation shared between FdReader and FdStreamReader.
+// Implementation shared between `FdReader` and `FdStreamReader`.
 class FdReaderCommon : public BufferedReader {
  public:
   // Returns the fd being read from. If the fd is owned then changed to -1 by
-  // Close(), otherwise unchanged.
+  // `Close()`, otherwise unchanged.
   virtual int src_fd() const = 0;
 
-  // Returns the original name of the file being read from (or /dev/stdin or
-  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
+  // Returns the original name of the file being read from (or "/dev/stdin" or
+  // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
  protected:
@@ -68,21 +68,21 @@ class FdReaderCommon : public BufferedReader {
 
 }  // namespace internal
 
-// Template parameter invariant part of FdReader.
+// Template parameter invariant part of `FdReader`.
 class FdReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If nullopt, FdReader will initially get the current fd position, and will
-    // set the fd position on Close().
+    // If `absl::nullopt`, `FdReader` will initially get the current fd
+    // position, and will set the fd position on `Close()`.
     //
-    // If not nullopt, reading will start from this position. The current fd
-    // position will not be gotten or set. This is useful for multiple FdReaders
-    // concurrently reading from the same fd.
+    // If not `absl::nullopt`, reading will start from this position. The
+    // current fd position will not be gotten or set. This is useful for
+    // multiple `FdReader`s concurrently reading from the same fd.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_initial_pos(absl::optional<Position> initial_pos) & {
       initial_pos_ = initial_pos;
       return *this;
@@ -135,25 +135,25 @@ class FdReaderBase : public internal::FdReaderCommon {
 
   bool sync_pos_ = false;
 
-  // Invariant: limit_pos_ <= numeric_limits<off_t>::max()
+  // Invariant: `limit_pos_ <= std::numeric_limits<off_t>::max()`
 };
 
-// Template parameter invariant part of FdStreamReader.
+// Template parameter invariant part of `FdStreamReader`.
 class FdStreamReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If not nullopt, this position will be assumed initially, to be reported
-    // by pos(). This is required by the constructor from fd.
+    // If not `absl::nullopt`, this position will be assumed initially, to be
+    // reported by `pos()`. This is required by the constructor from fd.
     //
-    // If nullopt, which is allowed by the constructor from filename, the
-    // position will be assumed to be 0.
+    // If `absl::nullopt`, which is allowed by the constructor from filename,
+    // the position will be assumed to be 0.
     //
     // In any case reading will start from the current position.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
@@ -198,21 +198,21 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
 
-// Template parameter invariant part of FdMMapReader.
+// Template parameter invariant part of `FdMMapReader`.
 class FdMMapReaderBase : public ChainReader<Chain> {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If nullopt, FdMMapReader will initially get the current fd position, and
-    // will set the fd position on Close().
+    // If `absl::nullopt`, `FdMMapReader` will initially get the current fd
+    // position, and will set the fd position on `Close()`.
     //
-    // If not nullopt, reading will start from this position. The current fd
-    // position will not be gotten or set. This is useful for multiple
-    // FdMMapReaders concurrently reading from the same fd.
+    // If not `absl::nullopt`, reading will start from this position. The
+    // current fd position will not be gotten or set. This is useful for
+    // multiple `FdMMapReader`s concurrently reading from the same fd.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_initial_pos(absl::optional<Position> initial_pos) & {
       initial_pos_ = initial_pos;
       return *this;
@@ -229,11 +229,11 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   };
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
-  // Close(), otherwise unchanged.
+  // `Close()`, otherwise unchanged.
   virtual int src_fd() const = 0;
 
-  // Returns the original name of the file being read from (or /dev/stdin or
-  // /proc/self/fd/<fd> if fd was given). Unchanged by Close().
+  // Returns the original name of the file being read from (or "/dev/stdin" or
+  // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
  protected:
@@ -257,54 +257,54 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   bool sync_pos_ = false;
 };
 
-// A Reader which reads from a file descriptor. It supports random access.
+// A `Reader` which reads from a file descriptor. It supports random access.
 //
 // The fd should support:
-//  * close() - if the fd is owned
-//  * pread()
-//  * lseek() - unless Options::set_initial_pos(pos)
-//  * fstat() - for Seek() or Size()
+//  * `close()` - if the fd is owned
+//  * `pread()`
+//  * `lseek()` - unless `Options::set_initial_pos(pos)`
+//  * `fstat()` - for `Seek()` or `Size()`
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the fd being read from. Src must support
-// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the fd being read from. `Src` must support
+// `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
-// The fd must not be closed until the FdReader is closed or no longer used.
+// The fd must not be closed until the `FdReader` is closed or no longer used.
 template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
  public:
-  // Creates a closed FdReader.
+  // Creates a closed `FdReader`.
   FdReader() noexcept {}
 
-  // Will read from the fd provided by src.
+  // Will read from the fd provided by `src`.
   //
-  // internal::type_identity_t<Src> disables template parameter deduction
-  // (C++17), letting FdReader(fd) mean FdReader<OwnedFd>(fd) rather than
-  // FdReader<int>(fd).
+  // `internal::type_identity_t<Src>` disables template parameter deduction
+  // (C++17), letting `FdReader(fd)` mean `FdReader<OwnedFd>(fd)` rather than
+  // `FdReader<int>(fd)`.
   explicit FdReader(const internal::type_identity_t<Src>& src,
                     Options options = Options());
   explicit FdReader(internal::type_identity_t<Src>&& src,
                     Options options = Options());
 
-  // Will read from the fd provided by a Src constructed from elements of
-  // src_args. This avoids constructing a temporary Src and moving from it.
+  // Will read from the fd provided by a `Src` constructed from elements of
+  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
   template <typename... SrcArgs>
   explicit FdReader(std::tuple<SrcArgs...> src_args,
                     Options options = Options());
 
   // Opens a file for reading.
   //
-  // flags is the second argument of open, typically O_RDONLY.
+  // `flags` is the second argument of `open()`, typically `O_RDONLY`.
   //
-  // flags must include either O_RDONLY or O_RDWR.
+  // `flags` must include either `O_RDONLY` or `O_RDWR`.
   explicit FdReader(absl::string_view filename, int flags,
                     Options options = Options());
 
   FdReader(FdReader&& that) noexcept;
   FdReader& operator=(FdReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FdReader. This avoids
-  // constructing a temporary FdReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FdReader`. This avoids
+  // constructing a temporary `FdReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
@@ -314,7 +314,7 @@ class FdReader : public FdReaderBase {
              Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
-  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   int src_fd() const override { return src_.get(); }
@@ -331,60 +331,60 @@ class FdReader : public FdReaderBase {
   Dependency<int, Src> src_;
 };
 
-// A Reader which reads from a file descriptor which does not have to support
+// A `Reader` which reads from a file descriptor which does not have to support
 // random access.
 //
 // The fd should support:
-//  * close() - if the fd is owned
-//  * read()
+//  * `close()` - if the fd is owned
+//  * `read()`
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the fd being read from. Src must support
-// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the fd being read from. `Src` must support
+// `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
 // Warning: if the fd is not owned, it will have an unpredictable amount of
 // extra data consumed because of buffering.
 //
 // The fd must not be closed nor have its position changed until the
-// FdStreamReader is closed or no longer used.
+// `FdStreamReader` is closed or no longer used.
 template <typename Src = OwnedFd>
 class FdStreamReader : public FdStreamReaderBase {
  public:
-  // Creates a closed FdStreamReader.
+  // Creates a closed `FdStreamReader`.
   FdStreamReader() noexcept {}
 
-  // Will read from the fd provided by src.
+  // Will read from the fd provided by `src`.
   //
-  // Requires Options::set_assumed_pos(pos).
+  // Requires `Options::set_assumed_pos(pos)`.
   //
-  // internal::type_identity_t<Src> disables template parameter deduction
-  // (C++17), letting FdStreamReader(fd) mean FdStreamReader<OwnedFd>(fd) rather
-  // than FdStreamReader<int>(fd).
+  // `internal::type_identity_t<Src>` disables template parameter deduction
+  // (C++17), letting `FdStreamReader(fd)` mean `FdStreamReader<OwnedFd>(fd)`
+  // rather than `FdStreamReader<int>(fd)`.
   explicit FdStreamReader(const internal::type_identity_t<Src>& src,
                           Options options);
   explicit FdStreamReader(internal::type_identity_t<Src>&& src,
                           Options options);
 
-  // Will read from the fd provided by a Src constructed from elements of
-  // src_args. This avoids constructing a temporary Src and moving from it.
+  // Will read from the fd provided by a `Src` constructed from elements of
+  // `src_args`. This avoids constructing a temporary `Src `and moving from it.
   //
-  // Requires Options::set_assumed_pos(pos).
+  // Requires `Options::set_assumed_pos(pos)`.
   template <typename... SrcArgs>
   explicit FdStreamReader(std::tuple<SrcArgs...> src_args, Options options);
 
   // Opens a file for reading.
   //
-  // flags is the second argument of open, typically O_RDONLY.
+  // `flags` is the second argument of `open()`, typically `O_RDONLY`.
   //
-  // flags must include either O_RDONLY or O_RDWR.
+  // `flags` must include either `O_RDONLY` or `O_RDWR`.
   explicit FdStreamReader(absl::string_view filename, int flags,
                           Options options = Options());
 
   FdStreamReader(FdStreamReader&& that) noexcept;
   FdStreamReader& operator=(FdStreamReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FdStreamReader. This avoids
-  // constructing a temporary FdStreamReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FdStreamReader`. This
+  // avoids constructing a temporary `FdStreamReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options);
   void Reset(Src&& src, Options options);
@@ -394,7 +394,7 @@ class FdStreamReader : public FdStreamReaderBase {
              Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
-  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   int src_fd() const override { return src_.get(); }
@@ -411,57 +411,57 @@ class FdStreamReader : public FdStreamReaderBase {
   Dependency<int, Src> src_;
 };
 
-// A Reader which reads from a file descriptor by mapping the whole file to
+// A `Reader` which reads from a file descriptor by mapping the whole file to
 // memory. It supports random access.
 //
 // The fd should support:
-//  * close() - if the fd is owned
-//  * fstat()
-//  * mmap()
-//  * lseek() - unless Options::set_initial_pos(pos)
+//  * `close()` - if the fd is owned
+//  * `fstat()`
+//  * `mmap()`
+//  * `lseek()` - unless `Options::set_initial_pos(pos)`
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the fd being read from. Src must support
-// Dependency<int, Src>, e.g. OwnedFd (owned, default), int (not owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the fd being read from. `Src` must support
+// `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
-// The fd must not be closed until the FdMMapReader is closed or no longer used.
-// File contents must not be changed while data read from the file is accessed
-// without a memory copy.
+// The fd must not be closed until the `FdMMapReader` is closed or no longer
+// used. `File` contents must not be changed while data read from the file is
+// accessed without a memory copy.
 template <typename Src = OwnedFd>
 class FdMMapReader : public FdMMapReaderBase {
  public:
-  // Creates a closed FdMMapReader.
+  // Creates a closed `FdMMapReader`.
   FdMMapReader() noexcept {}
 
-  // Will read from the fd provided by src.
+  // Will read from the fd provided by `src`.
   //
-  // internal::type_identity_t<Src> disables template parameter deduction
-  // (C++17), letting FdMMapReader(fd) mean FdMMapReader<OwnedFd>(fd) instead of
-  // FdMMapReader<int>(fd).
+  // `internal::type_identity_t<Src>` disables template parameter deduction
+  // (C++17), letting `FdMMapReader(fd)` mean `FdMMapReader<OwnedFd>(fd)`
+  // instead of `FdMMapReader<int>(fd)`.
   explicit FdMMapReader(const internal::type_identity_t<Src>& src,
                         Options options = Options());
   explicit FdMMapReader(internal::type_identity_t<Src>&& src,
                         Options options = Options());
 
-  // Will read from the fd provided by a Src constructed from elements of
-  // src_args. This avoids constructing a temporary Src and moving from it.
+  // Will read from the fd provided by a `Src` constructed from elements of
+  // `src_args`. This avoids constructing a temporary `Src` and moving from it.
   template <typename... SrcArgs>
   explicit FdMMapReader(std::tuple<SrcArgs...> src_args,
                         Options options = Options());
 
   // Opens a file for reading.
   //
-  // flags is the second argument of open, typically O_RDONLY.
+  // `flags` is the second argument of `open()`, typically `O_RDONLY`.
   //
-  // flags must include either O_RDONLY or O_RDWR.
+  // `flags` must include either `O_RDONLY` or `O_RDWR`.
   explicit FdMMapReader(absl::string_view filename, int flags,
                         Options options = Options());
 
   FdMMapReader(FdMMapReader&& that) noexcept;
   FdMMapReader& operator=(FdMMapReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FdMMapReader. This avoids
-  // constructing a temporary FdMMapReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FdMMapReader`. This avoids
+  // constructing a temporary `FdMMapReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
@@ -471,7 +471,7 @@ class FdMMapReader : public FdMMapReaderBase {
              Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from. If
-  // the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  // the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   int src_fd() const override { return src_.get(); }
@@ -512,7 +512,7 @@ inline void FdReaderCommon::Reset() {
 
 inline void FdReaderCommon::Reset(size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
-  // filename_ will be set by Initialize().
+  // `filename_` will be set by `Initialize()`.
 }
 
 }  // namespace internal
@@ -570,8 +570,8 @@ inline void FdStreamReaderBase::Initialize(
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool sync_pos)
-    // Empty Chain as the ChainReader source is a placeholder, it will be set by
-    // Initialize().
+    // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
+    // set by `Initialize()`.
     : ChainReader(std::forward_as_tuple()), sync_pos_(sync_pos) {}
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
@@ -594,10 +594,10 @@ inline void FdMMapReaderBase::Reset() {
 }
 
 inline void FdMMapReaderBase::Reset(bool sync_pos) {
-  // Empty Chain as the ChainReader source is a placeholder, it will be set by
-  // Initialize().
+  // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
+  // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
-  // filename_ will be set by Initialize().
+  // `filename_` will be set by `Initialize()`.
   sync_pos_ = sync_pos;
 }
 
@@ -684,7 +684,7 @@ template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
-  src_.Reset();  // In case OpenFd() fails.
+  src_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.initial_pos_);
 }
 
@@ -788,7 +788,7 @@ template <typename Src>
 inline void FdStreamReader<Src>::Reset(absl::string_view filename, int flags,
                                        Options options) {
   FdStreamReaderBase::Reset(options.buffer_size_);
-  src_.Reset();  // In case OpenFd() fails.
+  src_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.assumed_pos_);
 }
 
@@ -894,7 +894,7 @@ template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
   FdMMapReaderBase::Reset(!options.initial_pos_.has_value());
-  src_.Reset();  // In case OpenFd() fails.
+  src_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.initial_pos_);
 }
 

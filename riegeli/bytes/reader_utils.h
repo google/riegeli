@@ -26,14 +26,14 @@ namespace riegeli {
 
 bool ReadByte(Reader* src, uint8_t* data);
 
-// {Read,Copy}Varint{32,64}() tolerate representations which are not the
-// shortest. They reject representations longer than kMaxLengthVarint{32,64}
+// `{Read,Copy}Varint{32,64}()` tolerate representations which are not the
+// shortest. They reject representations longer than `kMaxLengthVarint{32,64}`
 // bytes or with bits set outside the range of possible values.
 //
-// Warning: the proto library writes values of type int32 (not sint32) by
-// casting them to uint64, not uint32 (negative values take 10 bytes, not 5),
-// hence they must be read with ReadVarint64(), not ReadVarint32(), if negative
-// values are possible.
+// Warning: the proto library writes values of type `int32` (not `sint32`) by
+// casting them to `uint64`, not `uint32` (negative values take 10 bytes, not
+// 5), hence they must be read with `ReadVarint64()`, not `ReadVarint32()`, if
+// negative values are possible.
 
 bool ReadVarint32(Reader* src, uint32_t* data);
 bool ReadVarint64(Reader* src, uint64_t* data);
@@ -43,11 +43,11 @@ bool ReadVarint64(Reader* src, uint64_t* data);
 bool ReadCanonicalVarint32(Reader* src, uint32_t* data);
 bool ReadCanonicalVarint64(Reader* src, uint64_t* data);
 
-// Returns the updated dest after the copied value, or nullptr on failure.
-// At least kMaxLengthVarint32 bytes of space at dest[] must be available.
+// Returns the updated `dest` after the copied value, or `nullptr` on failure.
+// At least `kMaxLengthVarint32` bytes of space at `dest[]` must be available.
 char* CopyVarint32(Reader* src, char* dest);
-// Returns the updated dest after the copied value, or nullptr on failure.
-// At least kMaxLengthVarint64 bytes of space at dest[] must be available.
+// Returns the updated `dest` after the copied value, or `nullptr` on failure.
+// At least `kMaxLengthVarint64` bytes of space at `dest[]` must be available.
 char* CopyVarint64(Reader* src, char* dest);
 
 // Low level variants which read from an array.
@@ -154,8 +154,8 @@ inline bool ReadVarint32(const char** src, const char* limit, uint32_t* data) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
-        // The representation is longer than kMaxLengthVarint32
-        // or the represented value does not fit in uint32_t.
+        // The representation is longer than `kMaxLengthVarint32`
+        // or the represented value does not fit in `uint32_t`.
         *src = cursor;
         return false;
       }
@@ -184,8 +184,8 @@ inline bool ReadVarint64(const char** src, const char* limit, uint64_t* data) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
-        // The representation is longer than kMaxLengthVarint64
-        // or the represented value does not fit in uint64_t.
+        // The representation is longer than `kMaxLengthVarint64`
+        // or the represented value does not fit in `uint64_t`.
         *src = cursor;
         return false;
       }
@@ -213,8 +213,8 @@ inline char* CopyVarint32(const char** src, const char* limit, char* dest) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
-        // The representation is longer than kMaxLengthVarint32
-        // or the represented value does not fit in uint32_t.
+        // The representation is longer than `kMaxLengthVarint32`
+        // or the represented value does not fit in `uint32_t`.
         *src = cursor;
         return nullptr;
       }
@@ -240,8 +240,8 @@ inline char* CopyVarint64(const char** src, const char* limit, char* dest) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
-        // The representation is longer than kMaxLengthVarint64
-        // or the represented value does not fit in uint64_t.
+        // The representation is longer than `kMaxLengthVarint64`
+        // or the represented value does not fit in `uint64_t`.
         *src = cursor;
         return nullptr;
       }

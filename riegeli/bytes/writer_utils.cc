@@ -31,7 +31,9 @@ bool WriteZerosSlow(Writer* dest, Position length) {
          "length too small, use WriteZeros() instead";
   do {
     const size_t available_length = dest->available();
-    if (available_length > 0) {  // memset(nullptr, _, 0) is undefined.
+    if (
+        // `std::memset(nullptr, _, 0)` is undefined.
+        available_length > 0) {
       std::memset(dest->cursor(), 0, available_length);
       dest->set_cursor(dest->limit());
       length -= available_length;

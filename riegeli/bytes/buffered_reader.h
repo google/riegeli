@@ -28,18 +28,18 @@
 
 namespace riegeli {
 
-// BufferedReader helps to implement a Reader for an underlying source which
-// provides data by copying to external byte arrays, e.g. like in the read
+// `BufferedReader` helps to implement a `Reader` for an underlying source which
+// provides data by copying to external byte arrays, e.g. like in the `read()`
 // syscall.
 //
-// BufferedReader accumulates data which has been pulled in a flat buffer.
+// `BufferedReader` accumulates data which has been pulled in a flat buffer.
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
  protected:
-  // Creates a closed BufferedReader.
+  // Creates a closed `BufferedReader`.
   BufferedReader() noexcept : Reader(kInitiallyClosed) {}
 
-  // Creates a BufferedReader with the given buffer size and size hint.
+  // Creates a `BufferedReader` with the given buffer size and size hint.
   //
   // Size hint is the expected maximum position reached, or 0 if unknown.
   // This avoids allocating a larger buffer than necessary.
@@ -50,9 +50,10 @@ class BufferedReader : public Reader {
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed BufferedReader. This avoids
-  // constructing a temporary BufferedReader and moving from it. Derived classes
-  // which override Reset() should include a call to BufferedReader::Reset().
+  // Makes `*this` equivalent to a newly constructed `BufferedReader`. This
+  // avoids constructing a temporary `BufferedReader` and moving from it.
+  // Derived classes which override `Reset()` should include a call to
+  // `BufferedReader::Reset()`.
   void Reset();
   void Reset(size_t buffer_size, Position size_hint = 0);
 
@@ -66,16 +67,17 @@ class BufferedReader : public Reader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
 
   // Reads data from the source, from the physical source position which is
-  // limit_pos_.
+  // `limit_pos_`.
   //
-  // Tries to read at most max_length, but can return successfully after reading
-  // at least min_length if less data was available in the source at the moment.
+  // Tries to read at most `max_length`, but can return successfully after
+  // reading at least `min_length` if less data was available in the source at
+  // the moment.
   //
-  // Increments limit_pos_ by the length read.
+  // Increments `limit_pos_` by the length read.
   //
   // Preconditions:
-  //   0 < min_length <= max_length
-  //   healthy()
+  //   `0 < min_length <= max_length`
+  //   `healthy()`
   virtual bool ReadInternal(char* dest, size_t min_length,
                             size_t max_length) = 0;
 
@@ -89,20 +91,21 @@ class BufferedReader : public Reader {
   // Preferred size of the buffer to use.
   size_t BufferLength(size_t min_length = 0) const;
 
-  // Minimum length for which it is better to append current contents of buffer_
-  // and read the remaining data directly than to read the data through buffer_.
+  // Minimum length for which it is better to append current contents of
+  // `buffer_` and read the remaining data directly than to read the data
+  // through `buffer_`.
   size_t LengthToReadDirectly() const;
 
-  // Invariant: if healthy() then buffer_size_ > 0
+  // Invariant: if `healthy()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is
-  // limit_pos_.
+  // `limit_pos_`.
   ChainBlock buffer_;
 
   // Invariants:
-  //   if !buffer_.empty() then start_ == buffer_.data()
-  //   buffer_size() == buffer_.size()
+  //   if `!buffer_.empty()` then `start_ == buffer_.data()`
+  //   `buffer_size() == buffer_.size()`
 };
 
 // Implementation details follow.

@@ -30,10 +30,10 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of StringReader.
+// Template parameter invariant part of `StringReader`.
 class StringReaderBase : public Reader {
  public:
-  // Returns the string or array being read from. Unchanged by Close().
+  // Returns the `std::string` or array being read from. Unchanged by `Close()`.
   virtual absl::string_view src_string_view() const = 0;
 
   bool SupportsRandomAccess() const override { return true; }
@@ -53,48 +53,50 @@ class StringReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
 };
 
-// A Reader which reads from a string. It supports random access.
+// A `Reader` which reads from a `std::string` or array. It supports random
+// access.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the string or array being read from. Src must support
-// Dependency<string_view, Src>, e.g. string_view (not owned, default),
-// const string* (not owned), string (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the `std::string` or array being read from. `Src` must
+// support `Dependency<absl::string_view, Src>`, e.g.
+// `absl::string_view` (not owned, default), `const std::string*` (not owned),
+// `std::string` (owned).
 //
-// It might be better to use ChainReader<Chain> instead of StringReader<string>
-// to allow sharing the data (Chain blocks are reference counted, string data
-// have a single owner).
+// It might be better to use `ChainReader<Chain>` instead of
+// `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
+// reference counted, `std::string` data have a single owner).
 //
-// The string or array must not be changed until the StringReader is closed or
-// no longer used.
+// The `std::string` or array must not be changed until the `StringReader` is
+// closed or no longer used.
 template <typename Src = absl::string_view>
 class StringReader : public StringReaderBase {
  public:
-  // Creates a closed StringReader.
+  // Creates a closed `StringReader`.
   StringReader() noexcept : StringReaderBase(kInitiallyClosed) {}
 
-  // Will read from the string or array provided by src.
+  // Will read from the `std::string` or array provided by `src`.
   explicit StringReader(const Src& src);
   explicit StringReader(Src&& src);
 
-  // Will read from the string or array provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the `std::string` or array provided by a `Src` constructed
+  // from elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit StringReader(std::tuple<SrcArgs...> src_args);
 
   StringReader(StringReader&& that) noexcept;
   StringReader& operator=(StringReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed StringReader. This avoids
-  // constructing a temporary StringReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `StringReader`. This avoids
+  // constructing a temporary `StringReader` and moving from it.
   void Reset();
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args);
 
-  // Returns the object providing and possibly owning the string or array being
-  // read from. Unchanged by Close().
+  // Returns the object providing and possibly owning the `std::string` or array
+  // being read from. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   absl::string_view src_string_view() const override { return src_.get(); }
@@ -102,8 +104,8 @@ class StringReader : public StringReaderBase {
  private:
   void MoveSrc(StringReader&& that);
 
-  // The object providing and possibly owning the string or array being read
-  // from.
+  // The object providing and possibly owning the `std::string` or array being
+  // read from.
   Dependency<absl::string_view, Src> src_;
 };
 

@@ -28,12 +28,12 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of SnappyReader.
+// Template parameter invariant part of `SnappyReader`.
 class SnappyReaderBase : public ChainReader<Chain> {
  public:
   class Options {};
 
-  // Returns the compressed Reader. Unchanged by Close().
+  // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -50,37 +50,37 @@ class SnappyReaderBase : public ChainReader<Chain> {
   void Initialize(Reader* src);
 };
 
-// A Reader which decompresses data with Snappy after getting it from another
-// Reader.
+// A `Reader` which decompresses data with Snappy after getting it from another
+// `Reader`.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the compressed Reader. Src must support
-// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
-// unique_ptr<Reader> (owned), ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The compressed Reader must support random access.
+// The compressed `Reader` must support random access.
 //
-// The compressed Reader must not be accessed until the SnappyReader is closed
-// or no longer used.
+// The compressed `Reader` must not be accessed until the `SnappyReader` is
+// closed or no longer used.
 //
-// SnappyReader does not decompress incrementally but reads compressed data and
-// decompresses them all in the constructor.
+// `SnappyReader` does not decompress incrementally but reads compressed data
+// and decompresses them all in the constructor.
 //
-// SnappyReader does not support reading from a growing source. If source is
+// `SnappyReader` does not support reading from a growing source. If source is
 // truncated, decompression fails.
 template <typename Src = Reader*>
 class SnappyReader : public SnappyReaderBase {
  public:
-  // Creates a closed SnappyReader.
+  // Creates a closed `SnappyReader`.
   SnappyReader() noexcept : SnappyReaderBase(kInitiallyClosed) {}
 
-  // Will read from the compressed Reader provided by src.
+  // Will read from the compressed `Reader` provided by `src`.
   explicit SnappyReader(const Src& src, Options options = Options());
   explicit SnappyReader(Src&& src, Options options = Options());
 
-  // Will read from the compressed Reader provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the compressed `Reader` provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit SnappyReader(std::tuple<SrcArgs...> src_args,
                         Options options = Options());
@@ -88,16 +88,16 @@ class SnappyReader : public SnappyReaderBase {
   SnappyReader(SnappyReader&& that) noexcept;
   SnappyReader& operator=(SnappyReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed SnappyReader. This avoids
-  // constructing a temporary SnappyReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `SnappyReader`. This avoids
+  // constructing a temporary `SnappyReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Reader.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Reader`.
+  // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
@@ -108,15 +108,15 @@ class SnappyReader : public SnappyReaderBase {
   void VerifyEnd() override;
 
  private:
-  // The object providing and possibly owning the compressed Reader.
+  // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
 
 // Implementation details follow.
 
 inline SnappyReaderBase::SnappyReaderBase(InitiallyOpen)
-    // Empty Chain as the ChainReader source is a placeholder, it will be set by
-    // Initialize().
+    // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
+    // set by `Initialize()`.
     : ChainReader(std::forward_as_tuple()) {}
 
 inline SnappyReaderBase::SnappyReaderBase(SnappyReaderBase&& that) noexcept
@@ -131,8 +131,8 @@ inline SnappyReaderBase& SnappyReaderBase::operator=(
 inline void SnappyReaderBase::Reset(InitiallyClosed) { ChainReader::Reset(); }
 
 inline void SnappyReaderBase::Reset(InitiallyOpen) {
-  // Empty Chain as the ChainReader source is a placeholder, it will be set by
-  // Initialize().
+  // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
+  // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
 }
 

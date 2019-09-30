@@ -31,8 +31,8 @@ namespace riegeli {
 namespace internal {
 
 // Return value:
-//  * 0     - success
-//  * errno - failure (fd is closed anyway)
+//  * 0       - success
+//  * `errno` - failure (`fd` is closed anyway)
 int CloseFd(int fd);
 
 absl::string_view CloseFunctionName();
@@ -42,10 +42,10 @@ absl::string_view CloseFunctionName();
 // Owns a file descriptor (-1 means none).
 class OwnedFd {
  public:
-  // Creates an OwnedFd which does not own a fd.
+  // Creates an `OwnedFd` which does not own a fd.
   OwnedFd() noexcept {}
 
-  // Creates an OwnedFd which owns fd if fd >= 0.
+  // Creates an `OwnedFd` which owns `fd` if `fd >= 0`.
   /*implicit*/ OwnedFd(int fd) noexcept : fd_(fd) {}
 
   OwnedFd(OwnedFd&& that) noexcept;
@@ -63,7 +63,7 @@ class OwnedFd {
   int fd_ = -1;
 };
 
-// Specializations of Dependency<int, Manager>.
+// Specializations of `Dependency<int, Manager>`.
 
 template <>
 class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
@@ -80,7 +80,7 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
 template <>
 class Dependency<int, int> {
  public:
-  // DependencyBase is not used because the default value is -1, not int().
+  // `DependencyBase` is not used because the default value is -1, not `int()`.
 
   Dependency() noexcept {}
 
@@ -135,7 +135,7 @@ inline int CloseFd(int fd) {
   }
 #else
   if (ABSL_PREDICT_FALSE(close(fd) < 0)) {
-    // After EINTR it is unspecified whether fd has been closed or not.
+    // After `EINTR` it is unspecified whether `fd` has been closed or not.
     // Assume that it is closed, which is the case e.g. on Linux.
     if (errno == EINPROGRESS || errno == EINTR) return 0;
     return -1;
@@ -158,7 +158,7 @@ inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
     : fd_(std::exchange(that.fd_, -1)) {}
 
 inline OwnedFd& OwnedFd::operator=(OwnedFd&& that) noexcept {
-  // Exchange that.fd_ early to support self-assignment.
+  // Exchange `that.fd_` early to support self-assignment.
   const int fd = std::exchange(that.fd_, -1);
   if (fd_ >= 0) internal::CloseFd(fd_);
   fd_ = fd;

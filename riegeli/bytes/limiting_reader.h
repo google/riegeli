@@ -33,7 +33,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of LimitingReader.
+// Template parameter invariant part of `LimitingReader`.
 class LimitingReaderBase : public Reader {
  public:
   // An infinite size limit.
@@ -41,13 +41,13 @@ class LimitingReaderBase : public Reader {
 
   // Changes the size limit.
   //
-  // Precondition: size_limit >= pos()
+  // Precondition: `size_limit >= pos()`
   void set_size_limit(Position size_limit);
 
   // Returns the current size limit.
   Position size_limit() const { return size_limit_; }
 
-  // Returns the original Reader. Unchanged by Close().
+  // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -76,11 +76,11 @@ class LimitingReaderBase : public Reader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
-  // Sets cursor of src to cursor of this.
+  // Sets cursor of `*src` to cursor of `*this`.
   void SyncBuffer(Reader* src);
 
-  // Sets buffer pointers of this to buffer pointers of src, adjusting them for
-  // the size limit. Fails this if src failed.
+  // Sets buffer pointers of `*this` to buffer pointers of `*src`, adjusting
+  // them for the size limit. Fails `*this` if `*src` failed.
   void MakeBuffer(Reader* src);
 
   Position size_limit_ = kNoSizeLimit;
@@ -89,40 +89,40 @@ class LimitingReaderBase : public Reader {
   template <typename Dest>
   bool ReadInternal(Dest* dest, size_t length);
 
-  // Invariants if healthy():
-  //   start_ == src_reader()->start_
-  //   limit_ <= src_reader()->limit_
-  //   start_pos() == src_reader()->start_pos()
-  //   limit_pos_ <= UnsignedMin(src_reader()->limit_pos_, size_limit_)
+  // Invariants if `healthy()`:
+  //   `start_ == src_reader()->start_`
+  //   `limit_ <= src_reader()->limit_`
+  //   `start_pos() == src_reader()->start_pos()`
+  //   `limit_pos_ <= UnsignedMin(src_reader()->limit_pos_, size_limit_)`
 };
 
-// A Reader which reads from another Reader up to the specified size limit,
+// A `Reader` which reads from another `Reader` up to the specified size limit,
 // then pretends that the source ends.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the original Reader. Src must support
-// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
-// unique_ptr<Reader> (owned), ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the original `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The original Reader must not be accessed until the LimitingReader is closed
-// or no longer used.
+// The original `Reader` must not be accessed until the `LimitingReader` is
+// closed or no longer used.
 template <typename Src = Reader*>
 class LimitingReader : public LimitingReaderBase {
  public:
-  // Creates a closed LimitingReader.
+  // Creates a closed `LimitingReader`.
   LimitingReader() noexcept {}
 
-  // Will read from the original Reader provided by src.
+  // Will read from the original `Reader` provided by `src`.
   //
-  // Precondition: size_limit >= src->pos()
+  // Precondition: `size_limit >= src->pos()`
   explicit LimitingReader(const Src& src, Position size_limit = kNoSizeLimit);
   explicit LimitingReader(Src&& src, Position size_limit = kNoSizeLimit);
 
-  // Will read from the original Reader provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the original `Reader` provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   //
-  // Precondition: size_limit >= src->pos()
+  // Precondition: `size_limit >= src->pos()`
   template <typename... SrcArgs>
   explicit LimitingReader(std::tuple<SrcArgs...> src_args,
                           Position size_limit = kNoSizeLimit);
@@ -130,8 +130,8 @@ class LimitingReader : public LimitingReaderBase {
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed LimitingReader. This avoids
-  // constructing a temporary LimitingReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `LimitingReader`. This
+  // avoids constructing a temporary `LimitingReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Position size_limit = kNoSizeLimit);
   void Reset(Src&& src, Position size_limit = kNoSizeLimit);
@@ -139,8 +139,8 @@ class LimitingReader : public LimitingReaderBase {
   void Reset(std::tuple<SrcArgs...> src_args,
              Position size_limit = kNoSizeLimit);
 
-  // Returns the object providing and possibly owning the original Reader.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the original `Reader`.
+  // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
@@ -153,15 +153,15 @@ class LimitingReader : public LimitingReaderBase {
  private:
   void MoveSrc(LimitingReader&& that);
 
-  // The object providing and possibly owning the original Reader.
+  // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
 };
 
-// Sets the size limit of a LimitingReader in the constructor and restores it in
-// the destructor.
+// Sets the size limit of a `LimitingReader` in the constructor and restores it
+// in the destructor.
 //
 // Temporarily changing the size limit is more efficient than making a new
-// LimitingReader reading from a LimitingReader.
+// `LimitingReader` reading from a `LimitingReader`.
 class SizeLimitSetter {
  public:
   explicit SizeLimitSetter(LimitingReaderBase* limiting_reader,
@@ -235,7 +235,7 @@ inline void LimitingReaderBase::MakeBuffer(Reader* src) {
   start_ = src->start();
   cursor_ = src->cursor();
   limit_ = src->limit();
-  limit_pos_ = src->pos() + src->available();  // src->limit_pos_
+  limit_pos_ = src->pos() + src->available();  // `src->limit_pos_`
   if (limit_pos_ > size_limit_) {
     limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
     limit_pos_ = size_limit_;

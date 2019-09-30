@@ -30,15 +30,15 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ArrayWriter.
+// Template parameter invariant part of `ArrayWriter`.
 class ArrayWriterBase : public Writer {
  public:
-  // Returns the array being written to. Unchanged by Close().
+  // Returns the array being written to. Unchanged by `Close()`.
   virtual absl::Span<char> dest_span() = 0;
   virtual absl::Span<const char> dest_span() const = 0;
 
   // Returns written data in a prefix of the original array. Valid only after
-  // Close() or Flush().
+  // `Close()` or `Flush()`.
   absl::Span<char> written() { return written_; }
   absl::Span<const char> written() const { return written_; }
 
@@ -61,41 +61,43 @@ class ArrayWriterBase : public Writer {
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
-  // Written data. Valid only after Close() or Flush().
+  // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
-  // Invariant: if healthy() then start_pos_ == 0
+  // Invariant: if `healthy()` then `start_pos_ == 0`
 };
 
-// A Writer which writes to a preallocated array with a known size limit.
+// A `Writer` which writes to a preallocated array with a known size limit.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the array being written to. Dest must support
-// Dependency<Span<char>, Dest>, e.g. Span<char> (not owned, default),
-// string* (not owned), string (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the array being written to. `Dest` must support
+// `Dependency<absl::Span<char>, Dest>`, e.g.
+// `absl::Span<char>` (not owned, default), `std::string*` (not owned),
+// `std::string` (owned).
 //
-// The array must not be destroyed until the ArrayWriter is closed or no longer
-// used.
+// The array must not be destroyed until the `ArrayWriter` is closed or no
+// longer used.
 template <typename Dest = absl::Span<char>>
 class ArrayWriter : public ArrayWriterBase {
  public:
-  // Creates a closed ArrayWriter.
+  // Creates a closed `ArrayWriter`.
   ArrayWriter() noexcept : ArrayWriterBase(kInitiallyClosed) {}
 
-  // Will write to the array provided by dest.
+  // Will write to the array provided by `dest`.
   explicit ArrayWriter(const Dest& dest);
   explicit ArrayWriter(Dest&& dest);
 
-  // Will write to the array provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will write to the array provided by a `Dest` constructed from elements of
+  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
+  // it.
   template <typename... DestArgs>
   explicit ArrayWriter(std::tuple<DestArgs...> dest_args);
 
   ArrayWriter(ArrayWriter&& that) noexcept;
   ArrayWriter& operator=(ArrayWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ArrayWriter. This avoids
-  // constructing a temporary ArrayWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ArrayWriter`. This avoids
+  // constructing a temporary `ArrayWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest);
   void Reset(Dest&& dest);
@@ -103,7 +105,7 @@ class ArrayWriter : public ArrayWriterBase {
   void Reset(std::tuple<DestArgs...> dest_args);
 
   // Returns the object providing and possibly owning the array being written
-  // to. Unchanged by Close().
+  // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   absl::Span<char> dest_span() override { return dest_.get(); }

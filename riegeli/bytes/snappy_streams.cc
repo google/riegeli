@@ -34,11 +34,11 @@ void WriterSnappySink::Append(const char* src, size_t length) {
                  std::greater_equal<>()(src, dest_->limit()))
       << "Failed precondition of Sink::Append(): "
          "appending a pointer to the middle of GetAppendBuffer()";
-  // Check also dest_->available() because dest_->cursor() might point to the
-  // end of a memory block, and src to the beginning of an unrelated memory
-  // block.
+  // Check also `dest_->available()` because `dest_->cursor()` might point to
+  // the end of a memory block, and `src` to the beginning of an unrelated
+  // memory block.
   if (src == dest_->cursor() && ABSL_PREDICT_TRUE(dest_->available() > 0)) {
-    // Appending a prefix of the result of GetAppendBuffer().
+    // Appending a prefix of the result of `GetAppendBuffer()`.
     RIEGELI_ASSERT_LE(length, dest_->available())
         << "Failed precondition of Sink::Append(): "
            "appending the result of GetAppendBuffer() with length too large";

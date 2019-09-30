@@ -34,7 +34,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ZlibWriter.
+// Template parameter invariant part of `ZlibWriter`.
 class ZlibWriterBase : public BufferedWriter {
  public:
   enum class Header { kZlib = 0, kGzip = 16, kRaw = -1 };
@@ -46,8 +46,8 @@ class ZlibWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel (0) and
-    // kMaxCompressionLevel (9). Default: kDefaultCompressionLevel (6).
+    // `compression_level` must be between `kMinCompressionLevel` (0) and
+    // `kMaxCompressionLevel` (9). Default: `kDefaultCompressionLevel` (6).
     static constexpr int kMinCompressionLevel = Z_NO_COMPRESSION;
     static constexpr int kMaxCompressionLevel = Z_BEST_COMPRESSION;
     static constexpr int kDefaultCompressionLevel = 6;
@@ -71,8 +71,8 @@ class ZlibWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // window_log must be between kMinWindowLog (9) and kMaxWindowLog (15).
-    // Default: kDefaultWindowLog (15).
+    // `window_log` must be between `kMinWindowLog` (9) and
+    // `kMaxWindowLog` (15). Default: `kDefaultWindowLog` (15).
     static constexpr int kMinWindowLog = 9;
     static constexpr int kMaxWindowLog = MAX_WBITS;
     static constexpr int kDefaultWindowLog = MAX_WBITS;
@@ -94,11 +94,11 @@ class ZlibWriterBase : public BufferedWriter {
 
     // What format of header to write:
     //
-    //  * Header::kZlib - zlib header
-    //  * Header::kGzip - gzip header
-    //  * Header::kRaw  - no header (decompressor must expect no header too)
+    //  * `Header::kZlib` - zlib header
+    //  * `Header::kGzip` - gzip header
+    //  * `Header::kRaw`  - no header (decompressor must expect no header too)
     //
-    // Default: Header::kZlib.
+    // Default: `Header::kZlib`.
     static constexpr Header kDefaultHeader = Header::kZlib;
     Options& set_header(Header header) & {
       header_ = header;
@@ -147,7 +147,7 @@ class ZlibWriterBase : public BufferedWriter {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Returns the compressed Writer. Unchanged by Close().
+  // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -203,29 +203,30 @@ class ZlibWriterBase : public BufferedWriter {
   RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::Handle compressor_;
 };
 
-// A Writer which compresses data with Zlib before passing it to another Writer.
+// A `Writer` which compresses data with Zlib before passing it to another
+// `Writer`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the compressed Writer. Dest must support
-// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
-// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The compressed Writer must not be accessed until the ZlibWriter is closed or
-// no longer used, except that it is allowed to read the destination of the
-// compressed Writer immediately after Flush().
+// The compressed `Writer` must not be accessed until the `ZlibWriter` is closed
+// or no longer used, except that it is allowed to read the destination of the
+// compressed `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
 class ZlibWriter : public ZlibWriterBase {
  public:
-  // Creates a closed ZlibWriter.
+  // Creates a closed `ZlibWriter`.
   ZlibWriter() noexcept {}
 
-  // Will write to the compressed Writer provided by dest.
+  // Will write to the compressed `Writer` provided by `dest`.
   explicit ZlibWriter(const Dest& dest, Options options = Options());
   explicit ZlibWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the compressed Writer provided by a Dest constructed from
-  // elements of dest_args. This avoids constructing a temporary Dest and moving
-  // from it.
+  // Will write to the compressed `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit ZlibWriter(std::tuple<DestArgs...> dest_args,
                       Options options = Options());
@@ -233,16 +234,16 @@ class ZlibWriter : public ZlibWriterBase {
   ZlibWriter(ZlibWriter&& that) noexcept;
   ZlibWriter& operator=(ZlibWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ZlibWriter. This avoids
-  // constructing a temporary ZlibWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ZlibWriter`. This avoids
+  // constructing a temporary `ZlibWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
@@ -252,7 +253,7 @@ class ZlibWriter : public ZlibWriterBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the compressed Writer.
+  // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 

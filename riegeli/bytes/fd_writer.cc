@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make pwrite() and ftruncate() available.
+// Make `pwrite()` and `ftruncate()` available.
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
 #endif
 
-// Make off_t 64-bit even on 32-bit systems.
+// Make `off_t` 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
@@ -59,7 +59,7 @@ void FdWriterCommon::SetFilename(int dest) {
 
 int FdWriterCommon::OpenFd(absl::string_view filename, int flags,
                            mode_t permissions) {
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
@@ -87,7 +87,8 @@ void FdWriterBase::InitializePos(int dest,
                                  absl::optional<Position> initial_pos) {
   int flags = 0;
   if (!initial_pos.has_value()) {
-    // If initial_pos.has_value() then flags are not needed, so avoid fcntl().
+    // If `initial_pos.has_value()` then `flags` are not needed, so avoid
+    // `fcntl()`.
     flags = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(flags < 0)) {
       FailOperation("fcntl()");

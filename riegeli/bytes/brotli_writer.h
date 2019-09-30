@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of BrotliWriter.
+// Template parameter invariant part of `BrotliWriter`.
 class BrotliWriterBase : public BufferedWriter {
  public:
   class Options {
@@ -42,8 +42,8 @@ class BrotliWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel (0) and
-    // kMaxCompressionLevel (11). Default: kDefaultCompressionLevel (9).
+    // `compression_level` must be between `kMinCompressionLevel` (0) and
+    // `kMaxCompressionLevel` (11). Default: `kDefaultCompressionLevel` (9).
     static constexpr int kMinCompressionLevel = BROTLI_MIN_QUALITY;
     static constexpr int kMaxCompressionLevel = BROTLI_MAX_QUALITY;
     static constexpr int kDefaultCompressionLevel = 9;
@@ -67,8 +67,8 @@ class BrotliWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // window_log must be between kMinWindowLog (10) and kMaxWindowLog (30).
-    // Default: kDefaultWindowLog (22).
+    // `window_log` must be between `kMinWindowLog` (10) and `kMaxWindowLog`
+    // (30). Default: `kDefaultWindowLog` (22).
     static constexpr int kMinWindowLog = BROTLI_MIN_WINDOW_BITS;
     static constexpr int kMaxWindowLog = BROTLI_LARGE_MAX_WINDOW_BITS;
     static constexpr int kDefaultWindowLog = BROTLI_DEFAULT_WINDOW;
@@ -125,7 +125,7 @@ class BrotliWriterBase : public BufferedWriter {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Returns the compressed Writer. Unchanged by Close().
+  // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -160,30 +160,30 @@ class BrotliWriterBase : public BufferedWriter {
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
 
-// A Writer which compresses data with Brotli before passing it to another
-// Writer.
+// A `Writer` which compresses data with Brotli before passing it to another
+// `Writer`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the compressed Writer. Dest must support
-// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
-// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The compressed Writer must not be accessed until the BrotliWriter is closed
-// or no longer used, except that it is allowed to read the destination of the
-// compressed Writer immediately after Flush().
+// The compressed `Writer` must not be accessed until the `BrotliWriter` is
+// closed or no longer used, except that it is allowed to read the destination
+// of the compressed `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
 class BrotliWriter : public BrotliWriterBase {
  public:
-  // Creates a closed BrotliWriter.
+  // Creates a closed `BrotliWriter`.
   BrotliWriter() noexcept {}
 
-  // Will write to the compressed Writer provided by dest.
+  // Will write to the compressed `Writer` provided by `dest`.
   explicit BrotliWriter(const Dest& dest, Options options = Options());
   explicit BrotliWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the compressed Writer provided by a Dest constructed from
-  // elements of dest_args. This avoids constructing a temporary Dest and moving
-  // from it.
+  // Will write to the compressed `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit BrotliWriter(std::tuple<DestArgs...> dest_args,
                         Options options = Options());
@@ -191,16 +191,16 @@ class BrotliWriter : public BrotliWriterBase {
   BrotliWriter(BrotliWriter&& that) noexcept;
   BrotliWriter& operator=(BrotliWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed BrotliWriter. This avoids
-  // constructing a temporary BrotliWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `BrotliWriter`. This avoids
+  // constructing a temporary `BrotliWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
@@ -210,7 +210,7 @@ class BrotliWriter : public BrotliWriterBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the compressed Writer.
+  // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 

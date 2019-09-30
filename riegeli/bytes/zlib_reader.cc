@@ -88,7 +88,7 @@ bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
-  // After all data have been decompressed, skip BufferedReader::PullSlow()
+  // After all data have been decompressed, skip `BufferedReader::PullSlow()`
   // to avoid allocating the buffer in case it was not allocated yet.
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   return BufferedReader::PullSlow(min_length, recommended_length);

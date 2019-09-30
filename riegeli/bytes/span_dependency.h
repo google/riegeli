@@ -23,7 +23,7 @@
 
 namespace riegeli {
 
-// Specializations of Dependency<Span<char>, Manager>.
+// Specializations of `Dependency<absl::Span<char>, Manager>`.
 
 template <>
 class Dependency<absl::Span<char>, absl::Span<char>>

@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of LimitingBackwardWriter.
+// Template parameter invariant part of `LimitingBackwardWriter`.
 class LimitingBackwardWriterBase : public BackwardWriter {
  public:
   // An infinite size limit.
@@ -40,13 +40,13 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   // Changes the size limit.
   //
-  // Precondition: size_limit >= pos()
+  // Precondition: `size_limit >= pos()`
   void set_size_limit(Position size_limit);
 
   // Returns the current size limit.
   Position size_limit() const { return size_limit_; }
 
-  // Returns the original BackwardWriter. Unchanged by Close().
+  // Returns the original `BackwardWriter`. Unchanged by `Close()`.
   virtual BackwardWriter* dest_writer() = 0;
   virtual const BackwardWriter* dest_writer() const = 0;
 
@@ -74,11 +74,11 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
 
-  // Sets cursor of dest to cursor of this.
+  // Sets cursor of `*dest` to cursor of `*this`.
   void SyncBuffer(BackwardWriter* dest);
 
-  // Sets buffer pointers of this to buffer pointers of dest, adjusting them for
-  // the size limit. Fails this if dest failed.
+  // Sets buffer pointers of `*this` to buffer pointers of `*dest`, adjusting
+  // them for the size limit. Fails `*this` if `*dest` failed.
   void MakeBuffer(BackwardWriter* dest);
 
   Position size_limit_ = kNoSizeLimit;
@@ -87,45 +87,46 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   template <typename Src>
   bool WriteInternal(Src&& src);
 
-  // Invariants if healthy():
-  //   start_ == dest_writer()->start_
-  //   limit_ >= dest_writer()->limit_
-  //   start_pos_ == dest_writer()->start_pos_
-  //   limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())
+  // Invariants if `healthy()`:
+  //   `start_ == dest_writer()->start_`
+  //   `limit_ >= dest_writer()->limit_`
+  //   `start_pos_ == dest_writer()->start_pos_`
+  //   `limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())`
 };
 
-// A BackwardWriter which writes to another BackwardWriter up to the specified
-// size limit. An attempt to write more fails, leaving destination contents
-// unspecified.
+// A `BackwardWriter` which writes to another `BackwardWriter` up to the
+// specified size limit. An attempt to write more fails, leaving destination
+// contents unspecified.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the original BackwardWriter. Dest must support
-// Dependency<BackwardWriter*, Dest>, e.g. BackwardWriter* (not owned, default),
-// unique_ptr<BackwardWriter> (owned), ChainBackwardWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the original `BackwardWriter`. `Dest` must support
+// `Dependency<BackwardWriter*, Dest>`, e.g.
+// `BackwardWriter*` (not owned, default),
+// `std::unique_ptr<BackwardWriter>` (owned), `ChainBackwardWriter<>` (owned).
 //
-// The original BackwardWriter must not be accessed until the
-// LimitingBackwardWriter is closed or no longer used, except that it is allowed
-// to read the destination of the original BackwardWriter immediately after
-// Flush().
+// The original `BackwardWriter` must not be accessed until the
+// `LimitingBackwardWriter` is closed or no longer used, except that it is
+// allowed to read the destination of the original `BackwardWriter` immediately
+// after `Flush()`.
 template <typename Dest = BackwardWriter*>
 class LimitingBackwardWriter : public LimitingBackwardWriterBase {
  public:
-  // Creates a closed LimitingBackwardWriter.
+  // Creates a closed `LimitingBackwardWriter`.
   LimitingBackwardWriter() noexcept {}
 
-  // Will write to the original BackwardWriter provided by dest.
+  // Will write to the original `BackwardWriter` provided by `dest`.
   //
-  // Precondition: size_limit >= dest->pos()
+  // Precondition: `size_limit >= dest->pos()`
   explicit LimitingBackwardWriter(const Dest& dest,
                                   Position size_limit = kNoSizeLimit);
   explicit LimitingBackwardWriter(Dest&& dest,
                                   Position size_limit = kNoSizeLimit);
 
-  // Will write to the original BackwardWriter provided by a Dest constructed
-  // from elements of dest_args. This avoids constructing a temporary Dest and
-  // moving from it.
+  // Will write to the original `BackwardWriter` provided by a `Dest`
+  // constructed from elements of `dest_args`. This avoids constructing a
+  // temporary `Dest` and moving from it.
   //
-  // Precondition: size_limit >= dest->pos()
+  // Precondition: `size_limit >= dest->pos()`
   template <typename... DestArgs>
   explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
                                   Position size_limit = kNoSizeLimit);
@@ -133,8 +134,9 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed LimitingBackwardWriter. This
-  // avoids constructing a temporary LimitingBackwardWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `LimitingBackwardWriter`.
+  // This avoids constructing a temporary `LimitingBackwardWriter` and moving
+  // from it.
   void Reset();
   void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
   void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
@@ -143,7 +145,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
              Position size_limit = kNoSizeLimit);
 
   // Returns the object providing and possibly owning the original
-  // BackwardWriter. Unchanged by Close().
+  // `BackwardWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   BackwardWriter* dest_writer() override { return dest_.get(); }
@@ -155,7 +157,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
  private:
   void MoveDest(LimitingBackwardWriter&& that);
 
-  // The object providing and possibly owning the original BackwardWriter.
+  // The object providing and possibly owning the original `BackwardWriter`.
   Dependency<BackwardWriter*, Dest> dest_;
 };
 
@@ -214,7 +216,7 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
   start_ = dest->start();
   cursor_ = dest->cursor();
   limit_ = dest->limit();
-  start_pos_ = dest->pos() - dest->written_to_buffer();  // dest->start_pos_
+  start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
   if (limit_pos() > size_limit_) {
     limit_ += IntCast<size_t>(limit_pos() - size_limit_);
   }

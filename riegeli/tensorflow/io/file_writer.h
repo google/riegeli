@@ -40,7 +40,7 @@ namespace riegeli {
 
 namespace tensorflow {
 
-// Template parameter invariant part of FileWriter.
+// Template parameter invariant part of `FileWriter`.
 class FileWriterBase : public Writer {
  public:
   class Options {
@@ -49,9 +49,9 @@ class FileWriterBase : public Writer {
 
     // Overrides the TensorFlow environment.
     //
-    // nullptr is interpreted as Env::Default().
+    // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
     //
-    // Default: nullptr.
+    // Default: `nullptr`.
     Options& set_env(::tensorflow::Env* env) & {
       env_ = env;
       return *this;
@@ -60,14 +60,14 @@ class FileWriterBase : public Writer {
       return std::move(set_env(env));
     }
 
-    // If false, the file will be truncated to empty if it exists.
+    // If `false`, the file will be truncated to empty if it exists.
     //
-    // If true, the file will not be truncated if it exists, and writing will
+    // If `true`, the file will not be truncated if it exists, and writing will
     // continue at its end.
     //
-    // This is applicable if FileWriter opens the file.
+    // This is applicable if `FileWriter` opens the file.
     //
-    // Default: false.
+    // Default: `false`.
     Options& set_append(bool append) & {
       append_ = append;
       return *this;
@@ -100,11 +100,12 @@ class FileWriterBase : public Writer {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Returns the WritableFile being written to. Unchanged by Close().
+  // Returns the `::tensorflow::WritableFile` being written to. Unchanged by
+  // `Close()`.
   virtual ::tensorflow::WritableFile* dest_file() const = 0;
 
-  // Returns the name of the WritableFile being written to. Unchanged by
-  // Close().
+  // Returns the name of the `::tensorflow::WritableFile` being written to.
+  // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
   bool Flush(FlushType flush_type) override;
@@ -129,77 +130,75 @@ class FileWriterBase : public Writer {
 
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
-  // Writes buffered data to the destination, but unlike PushSlow(), does not
+  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
   // ensure that a buffer is allocated.
   bool PushInternal();
 
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
 
-  // Writes data to the destination.
+  // Writes `src` to the destination.
   //
-  // Increments start_pos_ by the length written.
+  // Increments `start_pos_` by the length written.
   //
   // Preconditions:
-  //   !src.empty()
-  //   healthy()
+  //   `!src.empty()`
+  //   `healthy()`
   bool WriteInternal(absl::string_view src);
 
  private:
   // Preferred size of the buffer to use.
   size_t BufferLength(size_t min_length) const;
 
-  // Minimum length for which it is better to push current contents of buffer_
-  // and write the data directly than to write the data through buffer_.
+  // Minimum length for which it is better to push current contents of `buffer_`
+  // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;
 
   std::string filename_;
-  // Invariant: if healthy() then buffer_size_ > 0
+  // Invariant: if `healthy()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // Buffered data to be written.
   Buffer buffer_;
 };
 
-// A Writer which writes to a WritableFile.
+// A `Writer` which writes to a `::tensorflow::WritableFile`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the File being written to. Dest must support
-// Dependency<File*, Dest>, e.g. OwnedFile (owned, default), File* (not owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `::tensorflow::WritableFile` being written to. `Dest`
+// must support `Dependency<::tensorflow::WritableFile*, Dest>`, e.g.
+// `std::unique_ptr<::tensorflow::WritableFile>` (owned, default),
+// `::tensorflow::WritableFile*` (not owned).
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the WritableFile being written to. Dest must support
-// Dependency<WritableFile*, Src>, e.g.
-// std::unique_ptr<WritableFile> (owned, default),
-// WritableFile* (not owned).
-//
-// The WritableFile must not be closed until the FileWriter is closed
-// or no longer used. Until then the WritableFile may be accessed, but not
-// concurrently, Flush() is needed before switching to another writer to the
-// same WritableFile, and pos() does not take other writers into account.
+// The `::tensorflow::WritableFile` must not be closed until the `FileWriter` is
+// closed or no longer used. Until then the `::tensorflow::WritableFile` may be
+// accessed, but not concurrently, `Flush()` is needed before switching to
+// another writer to the same `::tensorflow::WritableFile`, and `pos()` does not
+// take other writers into account.
 template <typename Dest = std::unique_ptr<::tensorflow::WritableFile>>
 class FileWriter : public FileWriterBase {
  public:
-  // Creates a closed FileWriter.
+  // Creates a closed `FileWriter`.
   FileWriter() noexcept {}
 
-  // Will write to the WritableFile provided by dest.
+  // Will write to the `::tensorflow::WritableFile` provided by `dest`.
   explicit FileWriter(const Dest& dest, Options options = Options());
   explicit FileWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the WritableFile provided by a Dest constructed from elements
-  // of dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will write to the `::tensorflow::WritableFile` provided by a `Dest`
+  // constructed from elements of `dest_args`. This avoids constructing a
+  // temporary `Dest` and moving from it.
   template <typename... DestArgs>
   explicit FileWriter(std::tuple<DestArgs...> dest_args,
                       Options options = Options());
 
-  // Opens a WritableFile for writing.
+  // Opens a `::tensorflow::WritableFile` for writing.
   explicit FileWriter(absl::string_view filename, Options options = Options());
 
   FileWriter(FileWriter&& that) noexcept;
   FileWriter& operator=(FileWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FileWriter. This avoids
-  // constructing a temporary FileWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FileWriter`. This avoids
+  // constructing a temporary `FileWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -207,8 +206,8 @@ class FileWriter : public FileWriterBase {
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
   void Reset(absl::string_view filename, Options options = Options());
 
-  // Returns the object providing and possibly owning the WritableFile being
-  // written to. Unchanged by Close().
+  // Returns the object providing and possibly owning the
+  // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
@@ -221,7 +220,8 @@ class FileWriter : public FileWriterBase {
   void Initialize(absl::string_view filename, ::tensorflow::Env* env,
                   bool append);
 
-  // The object providing and possibly owning the WritableFile being written to.
+  // The object providing and possibly owning the `::tensorflow::WritableFile`
+  // being written to.
   Dependency<::tensorflow::WritableFile*, Dest> dest_;
 };
 
@@ -337,7 +337,7 @@ template <typename Dest>
 inline void FileWriter<Dest>::Reset(absl::string_view filename,
                                     Options options) {
   FileWriterBase::Reset(options.buffer_size_);
-  dest_.Reset();  // In case OpenFile() fails.
+  dest_.Reset();  // In case `OpenFile()` fails.
   Initialize(filename, options.env_, options.append_);
 }
 

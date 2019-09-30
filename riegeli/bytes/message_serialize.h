@@ -28,21 +28,21 @@
 
 namespace riegeli {
 
-// Writes the message in binary format to the given Writer.
+// Writes the message in binary format to the given `Writer`.
 //
-// SerializePartialToWriter() allows missing required fields.
+// `SerializePartialToWriter()` allows missing required fields.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the Writer. Dest must support Dependency<Writer*, Dest>,
-// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
-// ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// With a dest_args parameter, writes to a Dest constructed from elements of
-// dest_args. This avoids constructing a temporary Dest and moving from it.
+// With a `dest_args` parameter, writes to a `Dest` constructed from elements of
+// `dest_args`. This avoids constructing a temporary `Dest` and moving from it.
 //
 // Returns status:
-//  * status.ok()  - success (dest is written to)
-//  * !status.ok() - failure (dest is unspecified)
+//  * `status.ok()`  - success (`dest` is written to)
+//  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Dest>
 Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest&& dest);
 template <typename Dest, typename... DestArgs>
@@ -55,13 +55,13 @@ template <typename Dest, typename... DestArgs>
 Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
                                 std::tuple<DestArgs...> dest_args);
 
-// Writes the message in binary format to the given Chain, clearing it first.
+// Writes the message in binary format to the given `Chain`, clearing it first.
 //
-// SerializePartialToChain() allows missing required fields.
+// `SerializePartialToChain()` allows missing required fields.
 //
 // Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified)
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest);
 Status SerializePartialToChain(const google::protobuf::MessageLite& src,
                                Chain* dest);

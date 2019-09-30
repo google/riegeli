@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of StringWriter.
+// Template parameter invariant part of `StringWriter`.
 class StringWriterBase : public Writer {
  public:
   class Options {
@@ -57,7 +57,7 @@ class StringWriterBase : public Writer {
     Position size_hint_ = 0;
   };
 
-  // Returns the string being written to. Unchanged by Close().
+  // Returns the `std::string` being written to. Unchanged by `Close()`.
   virtual std::string* dest_string() = 0;
   virtual const std::string* dest_string() const = 0;
 
@@ -83,40 +83,43 @@ class StringWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Discards uninitialized space from the end of *dest, so that it contains
+  // Discards uninitialized space from the end of `*dest`, so that it contains
   // only actual data written.
   void SyncBuffer(std::string* dest);
 
-  // Appends some uninitialized space to *dest if this can be done without
+  // Appends some uninitialized space to `*dest` if this can be done without
   // reallocation.
   void MakeBuffer(std::string* dest);
 
-  // Invariants if healthy():
-  //   start_ == &(*dest_string())[0]
-  //   buffer_size() == dest_string()->size()
-  //   start_pos_ == 0
+  // Invariants if `healthy()`:
+  //   `start_ == &(*dest_string())[0]`
+  //   `buffer_size() == dest_string()->size()`
+  //   `start_pos_ == 0`
 };
 
-// A Writer which appends to a string, resizing it as necessary.
+// A `Writer` which appends to a `std::string`, resizing it as necessary.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the string being written to. Dest must support
-// Dependency<string*, Dest>, e.g. string* (not owned, default), string (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `std::string` being written to. `Dest` must support
+// `Dependency<std::string*, Dest>`, e.g. `std::string`* (not owned, default),
+// `std::string` (owned).
 //
-// The string must not be accessed until the StringWriter is closed or no longer
-// used, except that it is allowed to read the string immediately after Flush().
+// The `std::string` must not be accessed until the `StringWriter` is closed or
+// no longer used, except that it is allowed to read the `std::string`
+// immediately after `Flush()`.
 template <typename Dest = std::string*>
 class StringWriter : public StringWriterBase {
  public:
-  // Creates a closed StringWriter.
+  // Creates a closed `StringWriter`.
   StringWriter() noexcept : StringWriterBase(kInitiallyClosed) {}
 
-  // Will append to the string provided by dest.
+  // Will append to the `std::string` provided by `dest`.
   explicit StringWriter(const Dest& dest, Options options = Options());
   explicit StringWriter(Dest&& dest, Options options = Options());
 
-  // Will append to the string provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will append to the `std::string` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit StringWriter(std::tuple<DestArgs...> dest_args,
                         Options options = Options());
@@ -124,16 +127,16 @@ class StringWriter : public StringWriterBase {
   StringWriter(StringWriter&& that) noexcept;
   StringWriter& operator=(StringWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed StringWriter. This avoids
-  // constructing a temporary StringWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
+  // constructing a temporary `StringWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the string being written
-  // to. Unchanged by Close().
+  // Returns the object providing and possibly owning the `std::string` being
+  // written to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   std::string* dest_string() override { return dest_.get(); }
@@ -142,9 +145,9 @@ class StringWriter : public StringWriterBase {
  private:
   void MoveDest(StringWriter&& that);
 
-  // The object providing and possibly owning the string being written to, with
-  // uninitialized space appended (possibly empty); cursor_ points to the
-  // uninitialized space.
+  // The object providing and possibly owning the `std::string` being written
+  // to, with uninitialized space appended (possibly empty); `cursor_` points to
+  // the uninitialized space.
   Dependency<std::string*, Dest> dest_;
 };
 

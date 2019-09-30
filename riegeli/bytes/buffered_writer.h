@@ -27,18 +27,18 @@
 
 namespace riegeli {
 
-// BufferedWriter helps to implement a Writer for an underlying destination
+// `BufferedWriter` helps to implement a `Writer` for an underlying destination
 // which accepts data by copying from external byte arrays, e.g. like in the
-// write syscall.
+// `write()` syscall.
 //
-// BufferedWriter accumulates data to be pushed in a flat buffer. Writing a
+// `BufferedWriter` accumulates data to be pushed in a flat buffer. Writing a
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
  protected:
-  // Creates a closed BufferedWriter.
+  // Creates a closed `BufferedWriter`.
   BufferedWriter() noexcept : Writer(kInitiallyClosed) {}
 
-  // Creates a BufferedWriter with the given buffer size and size hint.
+  // Creates a `BufferedWriter` with the given buffer size and size hint.
   //
   // Size hint is the expected maximum position reached, or 0 if unknown.
   // This avoids allocating a larger buffer than necessary.
@@ -49,9 +49,10 @@ class BufferedWriter : public Writer {
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed BufferedWriter. This avoids
-  // constructing a temporary BufferedWriter and moving from it. Derived classes
-  // which override Reset() should include a call to BufferedWriter::Reset().
+  // Makes `*this` equivalent to a newly constructed `BufferedWriter`. This
+  // avoids constructing a temporary `BufferedWriter` and moving from it.
+  // Derived classes which override `Reset()` should include a call to
+  // `BufferedWriter::Reset()`.
   void Reset();
   void Reset(size_t buffer_size, Position size_hint = 0);
 
@@ -59,36 +60,36 @@ class BufferedWriter : public Writer {
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
 
-  // Writes buffered data to the destination, but unlike PushSlow(), does not
+  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
   // ensure that a buffer is allocated.
   //
-  // Postcondition: written_to_buffer() == 0
+  // Postcondition: `written_to_buffer() == 0`
   bool PushInternal();
 
   // Writes data to the destination, to the physical destination position which
-  // is start_pos_.
+  // is `start_pos_`.
   //
-  // Increments start_pos_ by the length written.
+  // Increments `start_pos_` by the length written.
   //
   // Preconditions:
-  //   !src.empty()
-  //   healthy()
-  //   written_to_buffer() == 0
+  //   `!src.empty()`
+  //   `healthy()`
+  //   `written_to_buffer() == 0`
   virtual bool WriteInternal(absl::string_view src) = 0;
 
  private:
   // Preferred size of the buffer to use.
   size_t BufferLength(size_t min_length) const;
 
-  // Minimum length for which it is better to push current contents of buffer_
-  // and write the data directly than to write the data through buffer_.
+  // Minimum length for which it is better to push current contents of `buffer_`
+  // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;
 
-  // Invariant: if healthy() then buffer_size_ > 0
+  // Invariant: if `healthy()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, to be written directly after the physical destination
-  // position which is start_pos_.
+  // position which is `start_pos_`.
   Buffer buffer_;
 };
 

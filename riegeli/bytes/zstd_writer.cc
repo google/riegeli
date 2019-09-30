@@ -13,16 +13,16 @@
 // limitations under the License.
 
 // Enables the experimental zstd API:
-//  * ZSTD_CCtx_params
-//  * ZSTD_freeCCtxParams
-//  * ZSTD_createCCtxParams
-//  * ZSTD_CCtxParams_init_advanced
-//  * ZSTD_getParams
-//  * ZSTD_CCtx_setParametersUsingCCtxParams
+//  * `ZSTD_CCtx_params`
+//  * `ZSTD_freeCCtxParams()`
+//  * `ZSTD_createCCtxParams()`
+//  * `ZSTD_CCtxParams_init_advanced()`
+//  * `ZSTD_getParams()`
+//  * `ZSTD_CCtx_setParametersUsingCCtxParams()`
 //
-// Using the experimental zstd API is optional. If this gets removed, size_hint
-// is ignored by zstd if final_size is not set (size_hint remains used only for
-// BufferedWriter tuning).
+// Using the experimental zstd API is optional. If this gets removed,
+// `size_hint` is ignored by zstd if `final_size` is not set (`size_hint`
+// remains used only for `BufferedWriter` tuning).
 #define ZSTD_STATIC_LINKING_ONLY
 
 #include "riegeli/bytes/zstd_writer.h"
@@ -61,10 +61,10 @@ constexpr int ZstdWriterBase::Options::kDefaultWindowLog;
 namespace {
 
 // Reduces the size hint to a class index which actually determines internal
-// parameters of the zstd compressor. This avoids varying ZSTD_CCtxKey for
+// parameters of the zstd compressor. This avoids varying `ZSTD_CCtxKey` for
 // inconsequential variations of the size hint.
 //
-// This follows tableID computation in ZSTD_getCParams().
+// This follows `tableID` computation in `ZSTD_getCParams()`.
 int SizeHintClass(Position size_hint) {
   if (size_hint == 0) return 0;
   return (size_hint <= Position{256} << 10 ? 1 : 0) +
@@ -109,11 +109,11 @@ inline bool ZstdWriterBase::CreateCompressor() {
     return Fail(InternalError("ZSTD_createCCtx() failed"));
   }
 #ifdef ZSTD_STATIC_LINKING_ONLY
-  // size_hint is redundant if final_size is present.
+  // `size_hint` is redundant if `final_size` is present.
   //
   // TODO: When https://github.com/facebook/zstd/pull/1733 is available,
-  // use ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) instead, moving that to the
-  // else branch after if (compressor_options_.final_size.has_value()).
+  // use `ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint)` instead, moving that to
+  // the `else` branch after `if (compressor_options_.final_size.has_value())`.
   if (compressor_options_.size_hint > 0 &&
       !compressor_options_.final_size.has_value()) {
     const std::unique_ptr<ZSTD_CCtx_params, ZSTD_CCtxParamsDeleter> params(
@@ -221,10 +221,10 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (end_op == ZSTD_e_end) {
       // The input is flat and its size is known. This causes zstdlib to tune
       // compression parameters for that size, which should be reflected in
-      // ZSTD_CCtxKey::size_hint_class.
+      // `ZSTD_CCtxKey::size_hint_class`.
       //
       // TODO: When https://github.com/facebook/zstd/pull/1780 is
-      // available, there will be no ZSTD_CCtxKey so this will be unnecessary.
+      // available, there will be no `ZSTD_CCtxKey` so this will be unnecessary.
       compressor_options_.final_size = input.size;
       compressor_options_.size_hint = input.size;
     }

@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of SnappyWriter.
+// Template parameter invariant part of `SnappyWriter`.
 class SnappyWriterBase : public Writer {
  public:
   class Options {
@@ -57,7 +57,7 @@ class SnappyWriterBase : public Writer {
     Position size_hint_ = 0;
   };
 
-  // Returns the compressed Writer. Unchanged by Close().
+  // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -83,56 +83,57 @@ class SnappyWriterBase : public Writer {
  private:
   void MoveUncompressed(SnappyWriterBase&& that);
 
-  // Discards uninitialized space from the end of uncompressed_, so that it
+  // Discards uninitialized space from the end of `uncompressed_`, so that it
   // contains only actual data written.
   void SyncBuffer();
 
-  // Appends uninitialized space to uncompressed_.
+  // Appends uninitialized space to `uncompressed_`.
   void MakeBuffer(size_t min_length = 0);
 
   size_t size_hint_ = 0;
-  // Writer methods are similar to ChainWriter methods writing to uncompressed_.
+  // `Writer` methods are similar to `ChainWriter` methods writing to
+  // `uncompressed_`.
   //
-  // snappy::Compress() reads data in 64KB blocks, and copies a block to a
-  // scratch buffer if it is not contiguous. Hence Writer methods try to ensure
-  // that each 64KB block of uncompressed_ is contiguous (this can be violated
-  // by Push(min_length) with min_length > 1).
+  // `snappy::Compress()` reads data in 64KB blocks, and copies a block to a
+  // scratch buffer if it is not contiguous. Hence `Writer` methods try to
+  // ensure that each 64KB block of `uncompressed_` is contiguous (this can be
+  // violated by `Push(min_length)` with `min_length > 1`).
   Chain uncompressed_;
 };
 
-// A Writer which compresses data with Snappy before passing it to another
-// Writer.
+// A `Writer` which compresses data with Snappy before passing it to another
+// `Writer`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the compressed Writer. Dest must support
-// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
-// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The compressed Writer must not be accessed until the SnappyWriter is closed
-// or no longer used.
+// The compressed `Writer` must not be accessed until the `SnappyWriter` is
+// closed or no longer used.
 //
-// SnappyWriter does not compress incrementally but buffers uncompressed data
-// and compresses them all in Close().
+// `SnappyWriter` does not compress incrementally but buffers uncompressed data
+// and compresses them all in `Close()`.
 //
-// Flush() does nothing. It does not make data written so far visible.
+// `Flush()` does nothing. It does not make data written so far visible.
 //
 // For each 64KB block of uncompressed data except the last one, the compressed
-// Writer has Push(76490) called, then cursor() is moved by the compressed
-// length of the block. If data compress well, this can be inefficient,
-// depending on the Writer.
+// `Writer` has `Writer::Push(76490)` called, then `cursor()` is moved by the
+// compressed length of the block. If data compress well, this can be
+// inefficient, depending on the `Writer`.
 template <typename Dest = Writer*>
 class SnappyWriter : public SnappyWriterBase {
  public:
-  // Creates a closed SnappyWriter.
+  // Creates a closed `SnappyWriter`.
   SnappyWriter() noexcept {}
 
-  // Will write to the compressed Writer provided by dest.
+  // Will write to the compressed `Writer` provided by `dest`.
   explicit SnappyWriter(const Dest& dest, Options options = Options());
   explicit SnappyWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the compressed Writer provided by a Dest constructed from
-  // elements of dest_args. This avoids constructing a temporary Dest and moving
-  // from it.
+  // Will write to the compressed `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit SnappyWriter(std::tuple<DestArgs...> dest_args,
                         Options options = Options());
@@ -140,16 +141,16 @@ class SnappyWriter : public SnappyWriterBase {
   SnappyWriter(SnappyWriter&& that) noexcept;
   SnappyWriter& operator=(SnappyWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed SnappyWriter. This avoids
-  // constructing a temporary SnappyWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `SnappyWriter`. This avoids
+  // constructing a temporary `SnappyWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
@@ -159,7 +160,7 @@ class SnappyWriter : public SnappyWriterBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the compressed Writer.
+  // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 

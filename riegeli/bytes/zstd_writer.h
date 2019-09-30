@@ -33,7 +33,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ZstdWriter.
+// Template parameter invariant part of `ZstdWriter`.
 class ZstdWriterBase : public BufferedWriter {
  protected:
   class CompressorOptions;
@@ -46,11 +46,12 @@ class ZstdWriterBase : public BufferedWriter {
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinCompressionLevel (-131072) and
-    // kMaxCompressionLevel (22). Level 0 is currently equivalent to 3.
-    // Default: kDefaultCompressionLevel (9).
-    static constexpr int kMinCompressionLevel = -(1 << 17);  // ZSTD_minCLevel()
-    static constexpr int kMaxCompressionLevel = 22;          // ZSTD_maxCLevel()
+    // `compression_level` must be between `kMinCompressionLevel` (-131072) and
+    // `kMaxCompressionLevel` (22). Level 0 is currently equivalent to 3.
+    // Default: `kDefaultCompressionLevel` (9).
+    static constexpr int kMinCompressionLevel =
+        -(1 << 17);                                  // `ZSTD_minCLevel()`
+    static constexpr int kMaxCompressionLevel = 22;  // `ZSTD_maxCLevel()`
     static constexpr int kDefaultCompressionLevel = 9;
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
@@ -72,15 +73,15 @@ class ZstdWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value kDefaultWindowLog (-1) means to derive window_log from
-    // compression_level and size_hint.
+    // Special value `kDefaultWindowLog` (-1) means to derive `window_log` from
+    // `compression_level` and `size_hint`.
     //
-    // window_log must be kDefaultWindowLog (-1) or between kMinWindowLog (10)
-    // and kMaxWindowLog (30 in 32-bit build, 31 in 64-bit build).
-    // Default: kDefaultWindowLog (-1).
-    static constexpr int kMinWindowLog = 10;  // ZSTD_WINDOWLOG_MIN
+    // `window_log` must be `kDefaultWindowLog` (-1) or between
+    // `kMinWindowLog` (10) and `kMaxWindowLog` (30 in 32-bit build,
+    // 31 in 64-bit build). Default: `kDefaultWindowLog` (-1).
+    static constexpr int kMinWindowLog = 10;  // `ZSTD_WINDOWLOG_MIN`
     static constexpr int kMaxWindowLog =
-        sizeof(size_t) == 4 ? 30 : 31;  // ZSTD_WINDOWLOG_MAX
+        sizeof(size_t) == 4 ? 30 : 31;  // `ZSTD_WINDOWLOG_MAX`
     static constexpr int kDefaultWindowLog = -1;
     Options& set_window_log(int window_log) & {
       if (window_log != kDefaultWindowLog) {
@@ -118,7 +119,7 @@ class ZstdWriterBase : public BufferedWriter {
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // set_final_size() overrides set_size_hint().
+    // `set_final_size()` overrides `set_size_hint()`.
     Options& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -127,10 +128,10 @@ class ZstdWriterBase : public BufferedWriter {
       return std::move(set_size_hint(size_hint));
     }
 
-    // If true, computes checksum of uncompressed data and stores it in the
+    // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
     //
-    // Default: false
+    // Default: `false`
     Options& set_store_checksum(bool store_checksum) & {
       store_checksum_ = store_checksum;
       return *this;
@@ -141,7 +142,7 @@ class ZstdWriterBase : public BufferedWriter {
 
     // Tunes how much data is buffered before calling the compression engine.
     //
-    // Default: ZSTD_CStreamInSize()
+    // Default: `ZSTD_CStreamInSize()`
     static size_t DefaultBufferSize() { return ZSTD_CStreamInSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
@@ -168,7 +169,7 @@ class ZstdWriterBase : public BufferedWriter {
     size_t buffer_size_ = DefaultBufferSize();
   };
 
-  // Returns the compressed Writer. Unchanged by Close().
+  // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -237,38 +238,39 @@ class ZstdWriterBase : public BufferedWriter {
                      ZSTD_EndDirective end_op);
 
   CompressorOptions compressor_options_;
-  // If healthy but compressor_ == nullptr then the compressor was not created
-  // yet.
+  // If `healthy()` but `compressor_ == nullptr` then the compressor was not
+  // created yet.
   //
   // TODO: When https://github.com/facebook/zstd/pull/1780 is available,
-  // create the compressor in Initialize() and do not use ZSTD_CCtxKey. This
+  // create the compressor in `Initialize()` and do not use `ZSTD_CCtxKey`. This
   // will be efficient.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxKey>::Handle compressor_;
 };
 
-// A Writer which compresses data with Zstd before passing it to another Writer.
+// A `Writer` which compresses data with Zstd before passing it to another
+// `Writer`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the compressed Writer. Dest must support
-// Dependency<Writer*, Dest>, e.g. Writer* (not owned, default),
-// unique_ptr<Writer> (owned), ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The compressed Writer must not be accessed until the ZstdWriter is closed or
-// no longer used, except that it is allowed to read the destination of the
-// compressed Writer immediately after Flush().
+// The compressed `Writer` must not be accessed until the `ZstdWriter` is closed
+// or no longer used, except that it is allowed to read the destination of the
+// compressed `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
 class ZstdWriter : public ZstdWriterBase {
  public:
-  // Creates a closed ZstdWriter.
+  // Creates a closed `ZstdWriter`.
   ZstdWriter() noexcept {}
 
-  // Will write to the compressed Writer provided by dest.
+  // Will write to the compressed `Writer` provided by `dest`.
   explicit ZstdWriter(const Dest& dest, Options options = Options());
   explicit ZstdWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the compressed Writer provided by a Dest constructed from
-  // elements of dest_args. This avoids constructing a temporary Dest and moving
-  // from it.
+  // Will write to the compressed `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit ZstdWriter(std::tuple<DestArgs...> dest_args,
                       Options options = Options());
@@ -276,16 +278,16 @@ class ZstdWriter : public ZstdWriterBase {
   ZstdWriter(ZstdWriter&& that) noexcept;
   ZstdWriter& operator=(ZstdWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ZstdWriter. This avoids
-  // constructing a temporary ZstdWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ZstdWriter`. This avoids
+  // constructing a temporary `ZstdWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Writer.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
@@ -295,7 +297,7 @@ class ZstdWriter : public ZstdWriterBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the compressed Writer.
+  // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
 

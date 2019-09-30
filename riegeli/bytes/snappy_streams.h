@@ -25,6 +25,7 @@
 namespace riegeli {
 namespace internal {
 
+// Adapts a `Writer` to a `snappy::Sink`.
 class WriterSnappySink : public snappy::Sink {
  public:
   explicit WriterSnappySink(Writer* dest)
@@ -46,6 +47,7 @@ class WriterSnappySink : public snappy::Sink {
   Writer* dest_;
 };
 
+// Adapts a `Reader` to a `snappy::Source`.
 class ReaderSnappySource : public snappy::Source {
  public:
   explicit ReaderSnappySource(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {

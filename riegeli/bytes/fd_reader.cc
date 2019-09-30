@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Make pread() available.
+// Make `pread()` available.
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 500
 #undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
 #endif
 
-// Make off_t 64-bit even on 32-bit systems.
+// Make `off_t` 64-bit even on 32-bit systems.
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 
@@ -87,7 +87,7 @@ void FdReaderCommon::SetFilename(int src) {
 }
 
 int FdReaderCommon::OpenFd(absl::string_view filename, int flags) {
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
@@ -253,7 +253,7 @@ void FdMMapReaderBase::SetFilename(int src) {
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
 again:
@@ -295,9 +295,9 @@ void FdMMapReaderBase::InitializePos(int src,
     FailOperation("mmap()");
     return;
   }
-  // FdMMapReaderBase derives from ChainReader<Chain> but the Chain to read from
-  // was not known in FdMMapReaderBase constructor. This sets the Chain and
-  // updates the ChainReader to read from it.
+  // `FdMMapReaderBase` derives from `ChainReader<Chain>` but the `Chain` to
+  // read from was not known in `FdMMapReaderBase` constructor. This sets the
+  // `Chain` and updates the `ChainReader` to read from it.
   ChainReader::Reset(std::forward_as_tuple(ChainBlock::FromExternal<MMapRef>(
       std::forward_as_tuple(),
       absl::string_view(static_cast<const char*>(data),

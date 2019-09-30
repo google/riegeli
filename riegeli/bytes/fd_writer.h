@@ -37,15 +37,16 @@ namespace riegeli {
 
 namespace internal {
 
-// Implementation shared between FdWriter and FdStreamWriter.
+// Implementation shared between `FdWriter` and `FdStreamWriter`.
 class FdWriterCommon : public BufferedWriter {
  public:
   // Returns the fd being written to. If the fd is owned then changed to -1 by
-  // Close(), otherwise unchanged.
+  // `Close()`, otherwise unchanged.
   virtual int dest_fd() const = 0;
 
-  // Returns the original name of the file being written to (or /dev/stdout,
-  // /dev/stderr, or /proc/self/fd/<fd> if fd was given). Unchanged by Close().
+  // Returns the original name of the file being written to (or "/dev/stdout",
+  // "/dev/stderr", or "/proc/self/fd/<fd>" if fd was given). Unchanged by
+  // `Close()`.
   const std::string& filename() const { return filename_; }
 
  protected:
@@ -67,7 +68,7 @@ class FdWriterCommon : public BufferedWriter {
 
 }  // namespace internal
 
-// Template parameter invariant part of FdWriter.
+// Template parameter invariant part of `FdWriter`.
 class FdWriterBase : public internal::FdWriterCommon {
  public:
   class Options {
@@ -77,7 +78,7 @@ class FdWriterBase : public internal::FdWriterCommon {
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
     //
-    // Default: 0666
+    // Default: `0666`
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
@@ -86,14 +87,14 @@ class FdWriterBase : public internal::FdWriterCommon {
       return std::move(set_permissions(permissions));
     }
 
-    // If nullopt, FdWriter will initially get the current fd position, and will
-    // set the fd position on Close() and Flush().
+    // If `absl::nullopt`, `FdWriter` will initially get the current fd
+    // position, and will set the fd position on `Close()` and `Flush()`.
     //
-    // If not nullopt, writing will start from this position. The current fd
-    // position will not be gotten or set. This is useful for multiple FdWriters
-    // concurrently writing to the same fd.
+    // If not `absl::nullopt`, writing will start from this position. The
+    // current fd position will not be gotten or set. This is useful for
+    // multiple `FdWriter`s concurrently writing to the same fd.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_initial_pos(absl::optional<Position> initial_pos) & {
       initial_pos_ = initial_pos;
       return *this;
@@ -151,10 +152,10 @@ class FdWriterBase : public internal::FdWriterCommon {
 
   bool sync_pos_ = false;
 
-  // Invariant: start_pos_ <= numeric_limits<off_t>::max()
+  // Invariant: `start_pos_ <= std::numeric_limits<off_t>::max()`
 };
 
-// Template parameter invariant part of FdStreamWriter.
+// Template parameter invariant part of `FdStreamWriter`.
 class FdStreamWriterBase : public internal::FdWriterCommon {
  public:
   class Options {
@@ -164,7 +165,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
     //
-    // Default: 0666
+    // Default: `0666`
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
@@ -173,16 +174,16 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
       return std::move(set_permissions(permissions));
     }
 
-    // If not nullopt, this position will be assumed initially, to be reported
-    // by pos(). This is required by the constructor from fd.
+    // If not `absl::nullopt`, this position will be assumed initially, to be
+    // reported by `pos()`. This is required by the constructor from fd.
     //
-    // If nullopt, which is allowed by the constructor from filename, the
-    // position will be assumed to be 0 when not appending, or file size when
-    // appending.
+    // If `absl::nullopt`, which is allowed by the constructor from filename,
+    // the position will be assumed to be 0 when not appending, or file size
+    // when appending.
     //
     // In any case writing will start from the current position.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
@@ -232,60 +233,61 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   bool WriteInternal(absl::string_view src) override;
 };
 
-// A Writer which writes to a file descriptor. It supports random access.
+// A `Writer` which writes to a file descriptor. It supports random access.
 //
 // The fd should support:
-//  * fcntl()     - for the constructor from fd
-//                  unless Options::set_initial_pos(pos)
-//  * close()     - if the fd is owned
-//  * pwrite()
-//  * lseek()     - unless Options::set_initial_pos(pos)
-//  * fstat()     - for Seek(), Size(), or Truncate()
-//  * fsync()     - for Flush(FlushType::kFromMachine)
-//  * ftruncate() - for Truncate()
+//  * `fcntl()`     - for the constructor from fd
+//                    unless `Options::set_initial_pos(pos)`
+//  * `close()`     - if the fd is owned
+//  * `pwrite()`
+//  * `lseek()`     - unless `Options::set_initial_pos(pos)`
+//  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
+//  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
+//  * `ftruncate()` - for `Truncate()`
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the fd being written to. Dest must support
-// Dependency<int, Dest>, e.g. OwnedFd (owned, default), int (not owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the fd being written to. `Dest` must support
+// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
-// The fd must not be closed until the FdWriter is closed or no longer used.
+// The fd must not be closed until the `FdWriter` is closed or no longer used.
 template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
  public:
-  // Creates a closed FdWriter.
+  // Creates a closed `FdWriter`.
   FdWriter() noexcept {}
 
-  // Will write to the fd provided by dest.
+  // Will write to the fd provided by `dest`.
   //
-  // internal::type_identity_t<Dest> disables template parameter deduction
-  // (C++17), letting FdWriter(fd) mean FdWriter<OwnedFd>(fd) rather than
-  // FdWriter<int>(fd).
+  // `internal::type_identity_t<Dest>` disables template parameter deduction
+  // (C++17), letting `FdWriter(fd)` mean `FdWriter<OwnedFd>(fd)` rather than
+  // `FdWriter<int>(fd)`.
   explicit FdWriter(const internal::type_identity_t<Dest>& dest,
                     Options options = Options());
   explicit FdWriter(internal::type_identity_t<Dest>&& dest,
                     Options options = Options());
 
-  // Will write to the fd provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will write to the fd provided by a `Dest` constructed from elements of
+  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
+  // it.
   template <typename... DestArgs>
   explicit FdWriter(std::tuple<DestArgs...> dest_args,
                     Options options = Options());
 
   // Opens a file for writing.
   //
-  // flags is the second argument of open, typically one of:
-  //  * O_WRONLY | O_CREAT | O_TRUNC
-  //  * O_WRONLY | O_CREAT | O_APPEND
+  // `flags` is the second argument of `open()`, typically one of:
+  //  * `O_WRONLY | O_CREAT | O_TRUNC`
+  //  * `O_WRONLY | O_CREAT | O_APPEND`
   //
-  // flags must include either O_WRONLY or O_RDWR.
+  // `flags` must include either `O_WRONLY` or `O_RDWR`.
   explicit FdWriter(absl::string_view filename, int flags,
                     Options options = Options());
 
   FdWriter(FdWriter&& that) noexcept;
   FdWriter& operator=(FdWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FdWriter. This avoids
-  // constructing a temporary FdWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FdWriter`. This avoids
+  // constructing a temporary `FdWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
@@ -295,7 +297,7 @@ class FdWriter : public FdWriterBase {
              Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
-  // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   int dest_fd() const override { return dest_.get(); }
@@ -312,62 +314,64 @@ class FdWriter : public FdWriterBase {
   Dependency<int, Dest> dest_;
 };
 
-// A Writer which writes to a fd which does not have to support random access.
+// A `Writer` which writes to a fd which does not have to support random access.
 //
 // The fd should support:
-//  * close() - if the fd is owned
-//  * write()
-//  * fstat() - when opening for appending unless Options::set_assumed_pos(pos)
-//  * fsync() - for Flush(FlushType::kFromMachine)
+//  * `close()` - if the fd is owned
+//  * `write()`
+//  * `fstat()` - when opening for appending
+//                unless `Options::set_assumed_pos(pos)`
+//  * `fsync()` - for Flush(FlushType::kFromMachine)`
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the fd being written to. Dest must support
-// Dependency<int, Dest>, e.g. OwnedFd (owned, default), int (not owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the fd being written to. `Dest` must support
+// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
-// The fd must not be closed until the FdStreamWriter is closed or no longer
-// used. Until then the fd may be accessed, but not concurrently, Flush() is
-// needed before switching to another writer to the same fd, and pos() does not
-// take other writers into account.
+// The fd must not be closed until the `FdStreamWriter` is closed or no longer
+// used. Until then the fd may be accessed, but not concurrently, `Flush()` is
+// needed before switching to another writer to the same fd, and `pos()` does
+// not take other writers into account.
 template <typename Dest = OwnedFd>
 class FdStreamWriter : public FdStreamWriterBase {
  public:
-  // Creates a closed FdStreamWriter.
+  // Creates a closed `FdStreamWriter`.
   FdStreamWriter() noexcept {}
 
-  // Will write to the fd provided by dest.
+  // Will write to the fd provided by `dest`.
   //
-  // Requires Options::set_assumed_pos(pos).
+  // Requires `Options::set_assumed_pos(pos)`.
   //
-  // internal::type_identity_t<Dest> disables template parameter deduction
-  // (C++17), letting FdStreamWriter(fd) mean FdStreamWriter<OwnedFd>(fd) rather
-  // than FdStreamWriter<int>(fd).
+  // `internal::type_identity_t<Dest>` disables template parameter deduction
+  // (C++17), letting `FdStreamWriter(fd)` mean `FdStreamWriter<OwnedFd>(fd)`
+  // rather than `FdStreamWriter<int>(fd)`.
   explicit FdStreamWriter(const internal::type_identity_t<Dest>& dest,
                           Options options);
   explicit FdStreamWriter(internal::type_identity_t<Dest>&& dest,
                           Options options);
 
-  // Will write to the fd provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will write to the fd provided by a `Dest` constructed from elements of
+  // `dest_args`. This avoids constructing a temporary `Dest` and moving from
+  // it.
   //
-  // Requires Options::set_assumed_pos(pos).
+  // Requires `Options::set_assumed_pos(pos)`.
   template <typename... DestArgs>
   explicit FdStreamWriter(std::tuple<DestArgs...> dest_args, Options options);
 
   // Opens a file for writing.
   //
-  // flags is the second argument of open, typically one of:
-  //  * O_WRONLY | O_CREAT | O_TRUNC
-  //  * O_WRONLY | O_CREAT | O_APPEND
+  // `flags` is the second argument of `open()`, typically one of:
+  //  * `O_WRONLY | O_CREAT | O_TRUNC`
+  //  * `O_WRONLY | O_CREAT | O_APPEND`
   //
-  // flags must include either O_WRONLY or O_RDWR.
+  // `flags` must include either `O_WRONLY` or `O_RDWR`.
   explicit FdStreamWriter(absl::string_view filename, int flags,
                           Options options = Options());
 
   FdStreamWriter(FdStreamWriter&& that) noexcept;
   FdStreamWriter& operator=(FdStreamWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed FdStreamWriter. This avoids
-  // constructing a temporary FdStreamWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `FdStreamWriter`. This
+  // avoids constructing a temporary `FdStreamWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options);
   void Reset(Dest&& dest, Options options);
@@ -377,7 +381,7 @@ class FdStreamWriter : public FdStreamWriterBase {
              Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
-  // If the fd is owned then changed to -1 by Close(), otherwise unchanged.
+  // If the fd is owned then changed to -1 by `Close()`, otherwise unchanged.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   int dest_fd() const override { return dest_.get(); }
@@ -418,7 +422,7 @@ inline void FdWriterCommon::Reset() {
 
 inline void FdWriterCommon::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
-  // filename_ will be set by Initialize().
+  // `filename_` will be set by `Initialize()`.
 }
 
 }  // namespace internal
@@ -551,7 +555,7 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
-  dest_.Reset();  // In case OpenFd() fails.
+  dest_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.permissions_, options.initial_pos_);
 }
 
@@ -656,7 +660,7 @@ template <typename Dest>
 inline void FdStreamWriter<Dest>::Reset(absl::string_view filename, int flags,
                                         Options options) {
   FdStreamWriterBase::Reset(options.buffer_size_);
-  dest_.Reset();  // In case OpenFd() fails.
+  dest_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.permissions_, options.assumed_pos_);
 }
 

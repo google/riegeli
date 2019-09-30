@@ -30,12 +30,12 @@ namespace riegeli {
 
 bool WriteByte(Writer* dest, uint8_t data);
 
-size_t LengthVarint32(uint32_t data);  // At most kMaxLengthVarint32.
-size_t LengthVarint64(uint64_t data);  // At most kMaxLengthVarint64.
+size_t LengthVarint32(uint32_t data);  // At most `kMaxLengthVarint32`.
+size_t LengthVarint64(uint64_t data);  // At most `kMaxLengthVarint64`.
 
-// At least LengthVarint32(data) bytes of space at dest[] must be available.
+// At least `LengthVarint32(data)` bytes of space at `dest[]` must be available.
 char* WriteVarint32(char* dest, uint32_t data);
-// At least LengthVarint64(data) bytes of space at dest[] must be available.
+// At least `LengthVarint64(data)` bytes of space at `dest[]` must be available.
 char* WriteVarint64(char* dest, uint64_t data);
 
 bool WriteVarint32(Writer* dest, uint32_t data);
@@ -65,8 +65,8 @@ inline size_t LengthVarint32(uint32_t data) {
   const size_t floor_log2 = IntCast<size_t>(
       sizeof(unsigned) >= 4 ? __builtin_clz(data | 1) ^ __builtin_clz(1)
                             : __builtin_clzl(data | 1) ^ __builtin_clzl(1));
-  // This is the same as floor_log2 / 7 + 1 for floor_log2 in 0..31
-  // but divides by a power of 2.
+  // This is the same as `floor_log2 / 7 + 1` for `floor_log2` in 0..31
+  // but performs division by a power of 2.
   return (floor_log2 * 9 + 73) / 64;
 #else
   size_t length = 1;
@@ -83,8 +83,8 @@ inline size_t LengthVarint64(uint64_t data) {
     RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
   const size_t floor_log2 =
       IntCast<size_t>(__builtin_clzll(data | 1) ^ __builtin_clzll(1));
-  // This is the same as floor_log2 / 7 + 1 for floor_log2 in 0..63
-  // but divides by a power of 2.
+  // This is the same as `floor_log2 / 7 + 1` for `floor_log2` in 0..63
+  // but performs division by a power of 2.
   return (floor_log2 * 9 + 73) / 64;
 #else
   size_t length = 1;
@@ -132,7 +132,9 @@ inline bool WriteVarint64(Writer* dest, uint64_t data) {
 
 inline bool WriteZeros(Writer* dest, Position length) {
   if (ABSL_PREDICT_TRUE(length <= dest->available())) {
-    if (ABSL_PREDICT_TRUE(length > 0)) {  // memset(nullptr, _, 0) is undefined.
+    if (ABSL_PREDICT_TRUE(
+            // `std::memset(nullptr, _, 0)` is undefined.
+            length > 0)) {
       std::memset(dest->cursor(), 0, length);
       dest->set_cursor(dest->cursor() + length);
     }

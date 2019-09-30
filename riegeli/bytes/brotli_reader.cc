@@ -83,10 +83,10 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
                        BrotliDecoderErrorString(
                            BrotliDecoderGetErrorCode(decompressor_.get())))));
     }
-    // Take the output first even if BrotliDecoderDecompressStream() returned
-    // BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT, in order to be able to read data
-    // which have been written before a Flush() without waiting for data to be
-    // written after the Flush().
+    // Take the output first even if `BrotliDecoderDecompressStream()` returned
+    // `BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT`, in order to be able to read
+    // data which have been written before a `Flush()` without waiting for data
+    // to be written after the `Flush()`.
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(
         BrotliDecoderTakeOutput(decompressor_.get(), &length));

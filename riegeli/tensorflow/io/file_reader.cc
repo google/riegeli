@@ -58,7 +58,7 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
 
 bool FileReaderBase::InitializeFilename(absl::string_view filename,
                                         ::tensorflow::Env* env) {
-  // TODO: When absl::string_view becomes C++17 std::string_view:
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // filename_ = filename;
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
@@ -113,8 +113,8 @@ inline size_t FileReaderBase::BufferLength(size_t min_length) const {
 }
 
 inline size_t FileReaderBase::LengthToReadDirectly() const {
-  // Read directly if reading through buffer_ would need more than one read,
-  // or if buffer_ would be full.
+  // Read directly if reading through `buffer_` would need more than one read,
+  // or if `buffer_` would be full.
   return SaturatingAdd(available(), BufferLength());
 }
 
@@ -126,7 +126,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   ::tensorflow::RandomAccessFile* const src = src_file();
   const size_t buffer_length = BufferLength(min_length);
   if (available() > 0 && buffer_.empty()) {
-    // Copy available data to buffer_ so that newly read data will be adjacent
+    // Copy available data to `buffer_` so that newly read data will be adjacent
     // to available data.
     absl::Span<char> flat_buffer = buffer_.AppendFixedBuffer(
         available(), SaturatingAdd(available(), buffer_length));
@@ -146,12 +146,12 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     cursor_ = start_;
     limit_ = flat_buffer.data();
   } else if (flat_buffer.size() == buffer_.size()) {
-    // buffer_ was empty.
+    // `buffer_` was empty.
     start_ = buffer_.data();
     cursor_ = start_;
     limit_ = start_;
   }
-  // Read more data, preferably into buffer_.
+  // Read more data, preferably into `buffer_`.
   if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
     return available() >= min_length;
   }
@@ -166,7 +166,9 @@ bool FileReaderBase::ReadSlow(char* dest, size_t length) {
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     ::tensorflow::RandomAccessFile* const src = src_file();
     const size_t available_length = available();
-    if (available_length > 0) {  // memcpy(_, nullptr, 0) is undefined.
+    if (
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        available_length > 0) {
       std::memcpy(dest, cursor_, available_length);
       dest += available_length;
       length -= available_length;
@@ -200,12 +202,12 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
     }
     absl::Span<char> flat_buffer;
     if (available() == 0 || !buffer_.empty()) {
-      // Do not extend buffer_ if available data are outside of buffer_, because
-      // available data would be lost.
+      // Do not extend `buffer_` if available data are outside of `buffer_`,
+      // because available data would be lost.
       flat_buffer = buffer_.AppendBuffer(0);
     }
     if (flat_buffer.empty()) {
-      // Append available data to dest and make a new buffer.
+      // Append available data to `*dest` and make a new buffer.
       const size_t available_length = available();
       if (buffer_.empty()) {
         dest->Append(absl::string_view(cursor_, available_length));
@@ -220,12 +222,12 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
       cursor_ = start_;
       limit_ = start_;
     } else if (flat_buffer.size() == buffer_.size()) {
-      // buffer_ was empty.
+      // `buffer_` was empty.
       start_ = buffer_.data();
       cursor_ = start_;
       limit_ = start_;
     }
-    // Read more data, preferably into buffer_.
+    // Read more data, preferably into `buffer_`.
     if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
       if (length > available()) {
         length = available();
@@ -256,12 +258,12 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
   while (length > available()) {
     absl::Span<char> flat_buffer;
     if (available() == 0 || !buffer_.empty()) {
-      // Do not extend buffer_ if available data are outside of buffer_, because
-      // available data would be lost.
+      // Do not extend `buffer_` if available data are outside of `buffer_`,
+      // because available data would be lost.
       flat_buffer = buffer_.AppendBuffer(0);
     }
     if (flat_buffer.empty()) {
-      // Write available data to dest and make a new buffer.
+      // Write available data to `*dest` and make a new buffer.
       const size_t available_length = available();
       if (available_length > 0) {
         bool write_ok;
@@ -287,12 +289,12 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
       cursor_ = start_;
       limit_ = start_;
     } else if (flat_buffer.size() == buffer_.size()) {
-      // buffer_ was empty.
+      // `buffer_` was empty.
       start_ = buffer_.data();
       cursor_ = start_;
       limit_ = start_;
     }
-    // Read more data, preferably into buffer_.
+    // Read more data, preferably into `buffer_`.
     if (ABSL_PREDICT_FALSE(!ReadToBuffer(flat_buffer, src))) {
       if (length > available()) {
         length = available();
@@ -325,8 +327,8 @@ bool FileReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (length <= available() && buffer_.empty()) {
-    // Avoid writing a string_view if available data are in buffer_, because in
-    // this case it is better to write a Chain.
+    // Avoid writing an `absl::string_view` if available data are in `buffer_`,
+    // because in this case it is better to write a `Chain`.
     const absl::string_view data(cursor_, length);
     cursor_ += length;
     return dest->Write(data);
@@ -393,8 +395,8 @@ inline bool FileReaderBase::ReadToBuffer(absl::Span<char> flat_buffer,
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != flat_buffer.data()) {
     if (available() > 0) {
-      // Copy newly read data to buffer_ so that they are adjacent to previously
-      // available data.
+      // Copy newly read data to `buffer_` so that they are adjacent to
+      // previously available data.
       std::memcpy(flat_buffer.data(), result.data(), result.size());
     } else {
       buffer_.Clear();

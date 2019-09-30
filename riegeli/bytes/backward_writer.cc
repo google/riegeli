@@ -47,7 +47,9 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
          "length too small, use Write(string_view) instead";
   do {
     const size_t available_length = available();
-    if (available_length > 0) {  // memcpy(nullptr, _, 0) is undefined.
+    if (
+        // `std::memcpy(nullptr, _, 0)` is undefined.
+        available_length > 0) {
       cursor_ = limit_;
       std::memcpy(cursor_, src.data() + src.size() - available_length,
                   available_length);
@@ -75,7 +77,7 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
-  // Not std::move(src): forward to WriteSlow(const Chain&).
+  // Not `std::move(src)`: forward to `WriteSlow(const Chain&)`.
   return WriteSlow(src);
 }
 

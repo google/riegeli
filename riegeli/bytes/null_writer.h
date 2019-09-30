@@ -28,7 +28,7 @@
 
 namespace riegeli {
 
-// A Writer which discards all output.
+// A `Writer` which discards all output.
 class NullWriter : public Writer {
  public:
   // Tags for constructor parameters.
@@ -37,7 +37,7 @@ class NullWriter : public Writer {
   using Object::kInitiallyClosed;
   using Object::kInitiallyOpen;
 
-  // Creates a closed NullWriter.
+  // Creates a closed `NullWriter`.
   explicit NullWriter(InitiallyClosed) noexcept : Writer(kInitiallyClosed) {}
 
   // Will discard all output.

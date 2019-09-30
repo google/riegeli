@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ChainWriter.
+// Template parameter invariant part of `ChainWriter`.
 class ChainWriterBase : public Writer {
  public:
   class Options {
@@ -56,7 +56,7 @@ class ChainWriterBase : public Writer {
     Position size_hint_ = 0;
   };
 
-  // Returns the Chain being written to.
+  // Returns the `Chain` being written to.
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
@@ -83,42 +83,45 @@ class ChainWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
 
  private:
-  // Discards uninitialized space from the end of *dest, so that it contains
+  // Discards uninitialized space from the end of `*dest`, so that it contains
   // only actual data written.
   void SyncBuffer(Chain* dest);
 
-  // Appends uninitialized space to *dest.
+  // Appends uninitialized space to `*dest`.
   void MakeBuffer(Chain* dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
   size_t size_hint_ = 0;
 
-  // Invariants if healthy():
-  //   limit_ == nullptr || limit_ == dest_chain()->blocks().back().data() +
-  //                                  dest_chain()->blocks().back().size()
-  //   limit_pos() == dest_chain()->size()
+  // Invariants if `healthy()`:
+  //   `limit_ == nullptr || limit_ == dest_chain()->blocks().back().data() +
+  //                                   dest_chain()->blocks().back().size()`
+  //   `limit_pos() == dest_chain()->size()`
 };
 
-// A Writer which appends to a Chain.
+// A `Writer` which appends to a `Chain`.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the Chain being written to. Dest must support
-// Dependency<Chain*, Dest>, e.g. Chain* (not owned, default), Chain (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `Chain` being written to. `Dest` must support
+// `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
+// `Chain` (owned).
 //
-// The Chain must not be accessed until the ChainWriter is closed or no longer
-// used, except that it is allowed to read the Chain immediately after Flush().
+// The `Chain` must not be accessed until the `ChainWriter` is closed or no
+// longer used, except that it is allowed to read the `Chain` immediately after
+// `Flush()`.
 template <typename Dest = Chain*>
 class ChainWriter : public ChainWriterBase {
  public:
-  // Creates a closed ChainWriter.
+  // Creates a closed `ChainWriter`.
   ChainWriter() noexcept {}
 
-  // Will append to the Chain provided by dest.
+  // Will append to the `Chain` provided by `dest`.
   explicit ChainWriter(const Dest& dest, Options options = Options());
   explicit ChainWriter(Dest&& dest, Options options = Options());
 
-  // Will append to the Chain provided by a Dest constructed from elements of
-  // dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will append to the `Chain` provided by a `Dest` constructed from elements
+  // of `dest_args`. This avoids constructing a temporary `Dest` and moving from
+  // it.
   template <typename... DestArgs>
   explicit ChainWriter(std::tuple<DestArgs...> dest_args,
                        Options options = Options());
@@ -126,16 +129,16 @@ class ChainWriter : public ChainWriterBase {
   ChainWriter(ChainWriter&& that) noexcept;
   ChainWriter& operator=(ChainWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ChainWriter. This avoids
-  // constructing a temporary ChainWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
+  // constructing a temporary `ChainWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the Chain being written
-  // to. Unchanged by Close().
+  // Returns the object providing and possibly owning the `Chain` being written
+  // to. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Chain* dest_chain() override { return dest_.get(); }
@@ -144,9 +147,9 @@ class ChainWriter : public ChainWriterBase {
  private:
   void MoveDest(ChainWriter&& that);
 
-  // The object providing and possibly owning the Chain being written to, with
-  // uninitialized space appended (possibly empty); cursor_ points to the
-  // uninitialized space, except that it can be nullptr if the uninitialized
+  // The object providing and possibly owning the `Chain` being written to, with
+  // uninitialized space appended (possibly empty); `cursor_` points to the
+  // uninitialized space, except that it can be `nullptr` if the uninitialized
   // space is empty.
   Dependency<Chain*, Dest> dest_;
 };

@@ -35,7 +35,7 @@ namespace riegeli {
 
 namespace {
 
-// ReaderInputStream adapts a Reader to a ZeroCopyInputStream.
+// Adapts a `Reader` to a `google::protobuf::io::ZeroCopyInputStream`.
 class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
  public:
   explicit ReaderInputStream(Reader* src)
@@ -51,8 +51,8 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
 
   Reader* src_;
   // Invariants:
-  //   src_->pos() >= initial_pos_
-  //   src_->pos() - initial_pos_ <= numeric_limits<int64_t>::max()
+  //   `src_->pos() >= initial_pos_`
+  //   `src_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
   Position initial_pos_;
 };
 
@@ -137,8 +137,8 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
     if (src->pos() + src->available() == size &&
         ABSL_PREDICT_TRUE(src->available() <=
                           size_t{std::numeric_limits<int>::max()})) {
-      // The data are flat. ParsePartialFromArray() is faster than
-      // ParsePartialFromZeroCopyStream().
+      // The data are flat. `ParsePartialFromArray()` is faster than
+      // `ParsePartialFromZeroCopyStream()`.
       bool ok = dest->ParsePartialFromArray(src->cursor(),
                                             IntCast<int>(src->available()));
       src->set_cursor(src->cursor() + src->available());
@@ -203,8 +203,8 @@ Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src) {
   if (src.size() <= kMaxBytesToCopy) {
     if (absl::optional<absl::string_view> flat = src.TryFlat()) {
-      // The data are flat. ParsePartialFromArray() is faster than
-      // ParsePartialFromZeroCopyStream().
+      // The data are flat. `ParsePartialFromArray()` is faster than
+      // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
         return DataLossError(absl::StrCat("Failed to parse message of type ",
@@ -215,7 +215,7 @@ Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
   }
   ChainReader<> reader(&src);
   return internal::ParsePartialFromReaderImpl(dest, &reader);
-  // Do not bother closing the ChainReader<>, it can never fail.
+  // Do not bother closing the `ChainReader<>`, it can never fail.
 }
 
 }  // namespace riegeli

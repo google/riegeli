@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// A BackwardWriter writes sequences of bytes to a destination, like Writer,
+// A `BackwardWriter` writes sequences of bytes to a destination, like `Writer`,
 // but back to front.
 //
 // Sequential writing is supported, random access is not supported, truncation
@@ -40,111 +40,113 @@ namespace riegeli {
 class BackwardWriter : public Object {
  public:
   // Ensures that enough space is available for writing: pushes previously
-  // written data to the destination, and points cursor() and limit() to space
-  // with length at least min_length, preferably recommended_length. If enough
-  // space was already available, does nothing.
+  // written data to the destination, and points `cursor()` and `limit()` to
+  // space with length at least `min_length`, preferably `recommended_length`.
+  // If enough space was already available, does nothing.
   //
-  // If recommended_length < min_length, recommended_length is assumed to be
-  // min_length.
+  // If `recommended_length < min_length`, `recommended_length` is assumed to be
+  // `min_length`.
   //
   // Return values:
-  //  * true  - success (available() >= min_length)
-  //  * false - failure (available() < min_length, !healthy())
+  //  * `true`  - success (`available() >= min_length`)
+  //  * `false` - failure (`available() < min_length`, `!healthy()`)
   bool Push(size_t min_length = 1, size_t recommended_length = 0);
 
-  // Buffer pointers. Space between start() (exclusive upper bound) and limit()
-  // (inclusive lower bound) is available for writing data to it, with cursor()
-  // pointing to the current position going downwards (past the next byte to
-  // write).
+  // Buffer pointers. Space between `start()` (exclusive upper bound) and
+  // `limit()` (inclusive lower bound) is available for writing data to it, with
+  // `cursor()` pointing to the current position going downwards (past the next
+  // byte to write).
   //
   // Invariants:
-  //   start() >= cursor() >= limit() (possibly all nullptr)
-  //   if !healthy() then start() == cursor() == limit()
-  //   if closed() then start() == cursor() == limit() == nullptr
+  //   `start() >= cursor() >= limit()` (possibly all `nullptr`)
+  //   if `!healthy()` then `start() == cursor() == limit()`
+  //   if `closed()` then `start() == cursor() == limit() == nullptr`
   char* start() const { return start_; }
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
 
-  // Updates the value of cursor(). Call this during writing data under cursor()
-  // to indicate how much was written, or to seek within the buffer.
+  // Updates the value of `cursor()`. Call this during writing data under
+  // `cursor()` to indicate how much was written, or to seek within the buffer.
   //
-  // Precondition: start() >= cursor >= limit()
+  // Precondition: `start() >= cursor >= limit()`
   void set_cursor(char* cursor);
 
-  // Returns the amount of space available in the buffer, between cursor() and
-  // limit().
+  // Returns the amount of space available in the buffer, between `cursor()` and
+  // `limit()`.
   //
-  // Invariant: if !healthy() then available() == 0
+  // Invariant: if `!healthy()` then `available() == 0`
   size_t available() const { return PtrDistance(limit_, cursor_); }
 
-  // Returns the buffer size, between start() and limit().
+  // Returns the buffer size, between `start()` and `limit()`.
   //
-  // Invariant: if !healthy() then buffer_size() == 0
+  // Invariant: if `!healthy()` then `buffer_size() == 0`
   size_t buffer_size() const { return PtrDistance(limit_, start_); }
 
-  // Returns the amount of data written to the buffer, between start() and
-  // cursor().
+  // Returns the amount of data written to the buffer, between `start()` and
+  // `cursor()`.
   //
-  // Invariant: if !healthy() then written_to_buffer() == 0
+  // Invariant: if `!healthy()` then `written_to_buffer() == 0`
   size_t written_to_buffer() const { return PtrDistance(cursor_, start_); }
 
-  // Prepends a fixed number of bytes from src to the buffer, pushing data to
+  // Prepends a fixed number of bytes from `src` to the buffer, pushing data to
   // the destination as needed.
   //
   // Return values:
-  //  * true  - success (src.size() bytes written)
-  //  * false - failure (a suffix of less than src.size() bytes written,
-  //                    !healthy())
+  //  * `true`  - success (`src.size()` bytes written)
+  //  * `false` - failure (a suffix of less than `src.size()` bytes written,
+  //                       `!healthy()`)
   bool Write(absl::string_view src);
   bool Write(std::string&& src);
   bool Write(const char* src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
 
-  // Pushes data written between start() and cursor() to the destination.
+  // Pushes data written between `start()` and `cursor()` to the destination.
   //
-  // Additionally, attempts to ensure the following, depending on flush_type
+  // Additionally, attempts to ensure the following, depending on `flush_type`
   // (without a guarantee though):
-  //  * FlushType::kFromObject  - nothing
-  //  * FlushType::kFromProcess - data survives process crash
-  //  * FlushType::kFromMachine - data survives operating system crash
+  //  * `FlushType::kFromObject`  - nothing
+  //  * `FlushType::kFromProcess` - data survives process crash
+  //  * `FlushType::kFromMachine` - data survives operating system crash
   //
-  // The precise meaning of Flush() depends on the particular BackwardWriter.
-  // The intent is to make data written so far visible, but in contrast to
-  // Close(), keeping the possibility to write more data later.
+  // The precise meaning of `Flush()` depends on the particular
+  // `BackwardWriter`. The intent is to make data written so far visible, but in
+  // contrast to `Close()`, keeping the possibility to write more data later.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true ` - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool Flush(FlushType flush_type) = 0;
 
   // Returns the current position (increasing as data are prepended).
   //
-  // This is not necessarily 0 after creating the BackwardWriter if it prepends
-  // to a destination with existing contents, or if the BackwardWriter wraps
-  // another writer or output stream propagating its position.
+  // This is not necessarily 0 after creating the `BackwardWriter` if it
+  // prepends to a destination with existing contents, or if the
+  // `BackwardWriter` wraps another writer or output stream propagating its
+  // position.
   //
-  // This may decrease when the BackwardWriter becomes unhealthy (due to
+  // This may decrease when the `BackwardWriter` becomes unhealthy (due to
   // buffering, previously written but unflushed data may be lost).
   //
-  // pos() is unchanged by a successful Close().
+  // `pos()` is unchanged by a successful `Close()`.
   Position pos() const;
 
-  // Returns true if this BackwardWriter supports Truncate().
+  // Returns `true` if this `BackwardWriter` supports `Truncate()`.
   virtual bool SupportsTruncate() const { return false; }
 
   // Discards the part of the destination after the given position. Sets the
   // current position to the new end.
   //
   // Return values:
-  //  * true                    - success (destination truncated, healthy())
-  //  * false (when healthy())  - destination is smaller than new_size
-  //                              (position is set to end)
-  //  * false (when !healthy()) - failure
+  //  * `true`                      - success
+  //                                  (destination truncated, `healthy()`)
+  //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
+  //                                  (position is set to end)
+  //  * `false` (when `!healthy()`) - failure
   virtual bool Truncate(Position new_size);
 
  protected:
-  // Creates a BackwardWriter with the given initial state.
+  // Creates a `BackwardWriter` with the given initial state.
   explicit BackwardWriter(InitiallyClosed) noexcept
       : Object(kInitiallyClosed) {}
   explicit BackwardWriter(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
@@ -152,67 +154,69 @@ class BackwardWriter : public Object {
   // Moves the part of the object defined in this class.
   //
   // Buffer pointers do not need to satisfy their invariants during this part of
-  // the move, here they are merely exchanged with nullptr and copied.
+  // the move, here they are merely exchanged with `nullptr` and copied.
   BackwardWriter(BackwardWriter&& that) noexcept;
   BackwardWriter& operator=(BackwardWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed BackwardWriter. This avoids
-  // constructing a temporary BackwardWriter and moving from it. Derived classes
-  // which override Reset() should include a call to BackwardWriter::Reset().
+  // Makes `*this` equivalent to a newly constructed `BackwardWriter`. This
+  // avoids constructing a temporary `BackwardWriter` and moving from it.
+  // Derived classes which override `Reset()` should include a call to
+  // `BackwardWriter::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // BackwardWriter overrides Object::Done() to set buffer pointers to nullptr.
-  // Derived classes which override it further should include a call to
-  // BackwardWriter::Done().
+  // `BackwardWriter` overrides `Object::Done()` to set buffer pointers to
+  // `nullptr`. Derived classes which override it further should include a call
+  // to `BackwardWriter::Done()`.
   void Done() override;
 
-  // BackwardWriter overrides Object::Fail() to set buffer pointers to nullptr.
-  // Derived classes which override it further should include a call to
-  // BackwardWriter::Fail().
+  // `BackwardWriter` overrides `Object::Fail()` to set buffer pointers to
+  // `nullptr`. Derived classes which override it further should include a call
+  // to `BackwardWriter::Fail()`.
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
 
-  // Marks the BackwardWriter as failed with message "BackwardWriter position
-  // overflow". Always returns false.
+  // Marks the `BackwardWriter` as failed with message
+  // "BackwardWriter position overflow". Always returns `false`.
   //
   // This can be called if the destination would exceed its maximum possible
-  // size or if start_pos_ would overflow.
+  // size or if `start_pos_` would overflow.
   //
-  // Precondition: !closed()
+  // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
-  // Implementation of the slow part of Push().
+  // Implementation of the slow part of `Push()`.
   //
-  // Precondition: available() == 0
+  // Precondition: `available() == 0`
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
-  // Implementation of the slow part of Write().
+  // Implementation of the slow part of `Write()`.
   //
-  // By default WriteSlow(string_view) is implemented in terms of Push();
-  // WriteSlow(const Chain&) is implemented in terms of
-  // WriteSlow(string_view); and WriteSlow(Chain&&) is implemented in terms of
-  // WriteSlow(const Chain&).
+  // By default `WriteSlow(absl::string_view)` is implemented in terms of
+  // `Push()`; `WriteSlow(const Chain&)` is
+  // implemented in terms of `WriteSlow(absl::string_view)`; and
+  // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`.
   //
-  // Precondition for WriteSlow(string_view):
-  //   src.size() > available()
+  // Precondition for `WriteSlow(absl::string_view)`:
+  //   `src.size() > available()`
   //
-  // Precondition for WriteSlow(Chain&&):
-  //   src.size() > UnsignedMin(available(), kMaxBytesToCopy)
+  // Precondition for `WriteSlow(Chain&&)`:
+  //   `src.size() > UnsignedMin(available(), kMaxBytesToCopy)`
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
 
-  // Destination position corresponding to limit_.
+  // Destination position corresponding to `limit_`.
   Position limit_pos() const;
 
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
 
-  // Destination position corresponding to start_.
+  // Destination position corresponding to `start_`.
   //
-  // Invariant: start_pos_ <= numeric_limits<Position>::max() - buffer_size()
+  // Invariant:
+  //   `start_pos_ <= std::numeric_limits<Position>::max() - buffer_size()`
   Position start_pos_ = 0;
 };
 
@@ -281,9 +285,10 @@ inline void BackwardWriter::set_cursor(char* cursor) {
 
 inline bool BackwardWriter::Write(absl::string_view src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available())) {
-    if (ABSL_PREDICT_TRUE(!src.empty())) {  // memcpy(nullptr, _, 0) and
-                                            // memcpy(_, nullptr, 0)
-                                            // are undefined.
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
+            // are undefined.
+            !src.empty())) {
       cursor_ -= src.size();
       std::memcpy(cursor_, src.data(), src.size());
     }
@@ -295,8 +300,9 @@ inline bool BackwardWriter::Write(absl::string_view src) {
 inline bool BackwardWriter::Write(std::string&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
                         src.size() <= kMaxBytesToCopy)) {
-    if (ABSL_PREDICT_TRUE(!src.empty())) {  // memcpy(nullptr, _, 0)
-                                            // is undefined.
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` is undefined.
+            !src.empty())) {
       cursor_ -= src.size();
       std::memcpy(cursor_, src.data(), src.size());
     }

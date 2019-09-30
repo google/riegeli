@@ -53,7 +53,9 @@ bool Reader::ReadSlow(char* dest, size_t length) {
          "length too small, use Read(char*) instead";
   do {
     const size_t available_length = available();
-    if (available_length > 0) {  // memcpy(_, nullptr, 0) is undefined.
+    if (
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        available_length > 0) {
       std::memcpy(dest, cursor_, available_length);
       cursor_ = limit_;
       dest += available_length;

@@ -28,22 +28,22 @@
 
 namespace riegeli {
 
-// Reads a message in binary format from the given Reader. If successful, the
+// Reads a message in binary format from the given `Reader`. If successful, the
 // entire input will be consumed.
 //
-// ParsePartialFromReader() allows missing required fields.
+// `ParsePartialFromReader()` allows missing required fields.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the Reader. Src must support Dependency<Reader*, Src>,
-// e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
-// ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
+// e.g. `Reader*` (not owned, default), `std::unique_ptr<Reader>` (owned),
+// `ChainReader<>` (owned).
 //
-// With a src_args parameter, reads from a Src constructed from elements of
-// src_args. This avoids constructing a temporary Src and moving from it.
+// With a `src_args` parameter, reads from a `Src` constructed from elements of
+// `src_args`. This avoids constructing a temporary `Src` and moving from it.
 //
 // Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified)
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
 template <typename Src>
 Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src);
 template <typename Src, typename... SrcArgs>
@@ -55,14 +55,14 @@ template <typename Src, typename... SrcArgs>
 Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
                               std::tuple<SrcArgs...> src_args);
 
-// Reads a message in binary format from the given Chain. If successful, the
+// Reads a message in binary format from the given `Chain`. If successful, the
 // entire input will be consumed.
 //
-// ParsePartialFromChain() allows missing required fields.
+// `ParsePartialFromChain()` allows missing required fields.
 //
 // Returns status:
-//  * status.ok()  - success (*dest is filled)
-//  * !status.ok() - failure (*dest is unspecified)
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
 Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src);
 Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
                              const Chain& src);

@@ -23,7 +23,7 @@
 
 namespace riegeli {
 
-// Specializations of Dependency<string_view, Manager>.
+// Specializations of `Dependency<absl::string_view, Manager>`.
 
 template <>
 class Dependency<absl::string_view, absl::string_view>

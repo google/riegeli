@@ -63,9 +63,9 @@ void SnappyReaderBase::Initialize(Reader* src) {
     Fail(DataLossError("Invalid snappy-compressed stream"));
     return;
   }
-  // SnappyReaderBase derives from ChainReader<Chain> but the Chain to read from
-  // was not known in SnappyReaderBase constructor. This sets the Chain and
-  // updates the ChainReader to read from it.
+  // `SnappyReaderBase` derives from `ChainReader<Chain>` but the `Chain` to
+  // read from was not known in `SnappyReaderBase` constructor. This sets the
+  // `Chain` and updates the `ChainReader` to read from it.
   ChainReader::Reset(std::move(writer.dest()));
 }
 

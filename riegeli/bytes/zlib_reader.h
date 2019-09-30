@@ -35,7 +35,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of ZlibReader.
+// Template parameter invariant part of `ZlibReader`.
 class ZlibReaderBase : public BufferedReader {
  public:
   enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };
@@ -46,11 +46,12 @@ class ZlibReaderBase : public BufferedReader {
 
     // Maximum acceptable logarithm of the LZ77 sliding window size.
     //
-    // kDefaultWindowLog means any value is acceptable, otherwise this must
+    // `kDefaultWindowLog` means any value is acceptable, otherwise this must
     // not be lower than the corresponding setting of the compressor.
     //
-    // window_log must be kDefaultWindowLog (0) or between kMinWindowLog (9)
-    // and kMaxWindowLog (15). Default: kDefaultWindowLog (0).
+    // `window_log` must be `kDefaultWindowLog` (0) or between
+    // `kMinWindowLog` (9) and `kMaxWindowLog` (15).
+    // Default: `kDefaultWindowLog` (0).
     static constexpr int kMinWindowLog = 9;
     static constexpr int kMaxWindowLog = MAX_WBITS;
     static constexpr int kDefaultWindowLog = 0;
@@ -73,12 +74,13 @@ class ZlibReaderBase : public BufferedReader {
 
     // What format of header to expect:
     //
-    //  * Header::kZlib       - zlib header
-    //  * Header::kGzip       - gzip header
-    //  * Header::kZlibOrGzip - zlib or gzip header
-    //  * Header::kRaw        - no header (compressor must write no header too)
+    //  * `Header::kZlib`       - zlib header
+    //  * `Header::kGzip`       - gzip header
+    //  * `Header::kZlibOrGzip` - zlib or gzip header
+    //  * `Header::kRaw`        - no header
+    //                            (compressor must write no header too)
     //
-    // Default: Header::kZlibOrGzip.
+    // Default: `Header::kZlibOrGzip`.
     static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
     Options& set_header(Header header) & {
       header_ = header;
@@ -126,7 +128,7 @@ class ZlibReaderBase : public BufferedReader {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Returns the compressed Reader. Unchanged by Close().
+  // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -159,36 +161,36 @@ class ZlibReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(StatusCode code,
                                          absl::string_view operation);
 
-  // If true, the source is truncated (without a clean end of the compressed
-  // stream) at the current position. If the source does not grow, Close() will
-  // fail.
+  // If `true`, the source is truncated (without a clean end of the compressed
+  // stream) at the current position. If the source does not grow, `Close()`
+  // will fail.
   bool truncated_ = false;
   RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor_;
 };
 
-// A Reader which decompresses data with zlib after getting it from another
-// Reader.
+// A `Reader` which decompresses data with Zlib after getting it from another
+// `Reader`.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the compressed Reader. Src must support
-// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
-// unique_ptr<Reader> (owned), ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The compressed Reader must not be accessed until the ZlibReader is closed or
-// no longer used.
+// The compressed `Reader` must not be accessed until the `ZlibReader` is closed
+// or no longer used.
 template <typename Src = Reader*>
 class ZlibReader : public ZlibReaderBase {
  public:
-  // Creates a closed ZlibReader.
+  // Creates a closed `ZlibReader`.
   ZlibReader() noexcept {}
 
-  // Will read from the compressed Reader provided by src.
+  // Will read from the compressed `Reader` provided by `src`.
   explicit ZlibReader(const Src& src, Options options = Options());
   explicit ZlibReader(Src&& src, Options options = Options());
 
-  // Will read from the compressed Reader provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the compressed `Reader` provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit ZlibReader(std::tuple<SrcArgs...> src_args,
                       Options options = Options());
@@ -196,16 +198,16 @@ class ZlibReader : public ZlibReaderBase {
   ZlibReader(ZlibReader&&) noexcept;
   ZlibReader& operator=(ZlibReader&&) noexcept;
 
-  // Makes *this equivalent to a newly constructed ZlibReader. This avoids
-  // constructing a temporary ZlibReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ZlibReader`. This avoids
+  // constructing a temporary `ZlibReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Reader.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Reader`.
+  // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
@@ -216,7 +218,7 @@ class ZlibReader : public ZlibReaderBase {
   void VerifyEnd() override;
 
  private:
-  // The object providing and possibly owning the compressed Reader.
+  // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
 

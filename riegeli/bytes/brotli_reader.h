@@ -31,12 +31,12 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of BrotliReader.
+// Template parameter invariant part of `BrotliReader`.
 class BrotliReaderBase : public PullableReader {
  public:
   class Options {};
 
-  // Returns the compressed Reader. Unchanged by Close().
+  // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -63,42 +63,42 @@ class BrotliReaderBase : public PullableReader {
     }
   };
 
-  // If true, the source is truncated (without a clean end of the compressed
-  // stream) at the current position. If the source does not grow, Close() will
-  // fail.
+  // If `true`, the source is truncated (without a clean end of the compressed
+  // stream) at the current position. If the source does not grow, `Close()`
+  // will fail.
   bool truncated_ = false;
-  // If healthy() but decompressor_ == nullptr then all data have been
+  // If `healthy()` but `decompressor_ == nullptr` then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
 
-  // Invariant if healthy() and scratch is not used:
-  //   start_ and limit_ point to the buffer returned by
-  //   BrotliDecoderTakeOutput() or are both nullptr
+  // Invariant if `healthy()` and scratch is not used:
+  //   `start_` and `limit_` point to the buffer returned by
+  //   `BrotliDecoderTakeOutput()` or are both `nullptr`
 };
 
-// A Reader which decompresses data with Brotli after getting it from another
-// Reader.
+// A `Reader` which decompresses data with Brotli after getting it from another
+// `Reader`.
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the compressed Reader. Src must support
-// Dependency<Reader*, Src>, e.g. Reader* (not owned, default),
-// unique_ptr<Reader> (owned), ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the compressed `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The compressed Reader must not be accessed until the BrotliReader is closed
-// or no longer used.
+// The compressed `Reader` must not be accessed until the `BrotliReader` is
+// closed or no longer used.
 template <typename Src = Reader*>
 class BrotliReader : public BrotliReaderBase {
  public:
-  // Creates a closed BrotliReader.
+  // Creates a closed `BrotliReader`.
   BrotliReader() noexcept : BrotliReaderBase(kInitiallyClosed) {}
 
-  // Will read from the compressed Reader provided by src.
+  // Will read from the compressed `Reader` provided by `src`.
   explicit BrotliReader(const Src& src, Options options = Options());
   explicit BrotliReader(Src&& src, Options options = Options());
 
-  // Will read from the compressed Reader provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the compressed `Reader` provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit BrotliReader(std::tuple<SrcArgs...> src_args,
                         Options options = Options());
@@ -106,16 +106,16 @@ class BrotliReader : public BrotliReaderBase {
   BrotliReader(BrotliReader&& that) noexcept;
   BrotliReader& operator=(BrotliReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed BrotliReader. This avoids
-  // constructing a temporary BrotliReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `BrotliReader`. This avoids
+  // constructing a temporary `BrotliReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the compressed Reader.
-  // Unchanged by Close().
+  // Returns the object providing and possibly owning the compressed `Reader`.
+  // Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   Reader* src_reader() override { return src_.get(); }
@@ -126,7 +126,7 @@ class BrotliReader : public BrotliReaderBase {
   void VerifyEnd() override;
 
  private:
-  // The object providing and possibly owning the compressed Reader.
+  // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
 
