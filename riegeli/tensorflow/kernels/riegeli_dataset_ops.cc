@@ -45,6 +45,7 @@
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/types.h"
+#include "tensorflow/core/public/version.h"
 
 namespace riegeli {
 namespace tensorflow {
@@ -102,11 +103,10 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       return "RiegeliDatasetOp::Dataset";
     }
 
-// The `DatasetBase::CheckExternalState()` method was introduced on 8/7/2019. We
-// use the `TF_GRAPH_DEF_VERSION` value (which is updated daily) to determine if
-// we should add its override.
-#if TF_GRAPH_DEF_VERSION > 125
-    ::tensorflow::Status CheckExternalDataset() const override {
+    // `::tensorflow::data::DatasetBase::CheckExternalState()` was added on
+    // 2019-08-07 when `TF_GRAPH_DEF_VERSION` was defined to 120.
+#if TF_GRAPH_DEF_VERSION > 120
+    ::tensorflow::Status CheckExternalState() const override {
       return ::tensorflow::Status::OK();
     }
 #endif
