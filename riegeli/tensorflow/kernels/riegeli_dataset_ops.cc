@@ -40,12 +40,19 @@
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/graph/graph.h"
-#include "tensorflow/core/lib/core/error_codes.pb.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/public/version.h"
+
+// error_codes.proto.h was moved on 2019-09-18 when `TF_GRAPH_DEF_VERSION` was
+// defined to 162.
+#if TF_GRAPH_DEF_VERSION > 162
+#include "tensorflow/core/protobuf/error_codes.pb.h"
+#else
+#include "tensorflow/core/lib/core/error_codes.pb.h"
+#endif
 
 namespace riegeli {
 namespace tensorflow {
