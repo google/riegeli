@@ -250,7 +250,7 @@ bool TextOrBytes::FromPython(PyObject* object) {
     Py_ssize_t length;
     const char* data = PyUnicode_AsUTF8AndSize(object, &length);
     if (ABSL_PREDICT_FALSE(data == nullptr)) return false;
-    data_ = absl::string_view(data, length);
+    data_ = absl::string_view(data, IntCast<size_t>(length));
     return true;
 #else
     utf8_.reset(PyUnicode_AsUTF8String(object));
@@ -269,8 +269,8 @@ bool TextOrBytes::FromPython(PyObject* object) {
                  Py_TYPE(object)->tp_name);
     return false;
   }
-  data_ =
-      absl::string_view(PyBytes_AS_STRING(object), PyBytes_GET_SIZE(object));
+  data_ = absl::string_view(PyBytes_AS_STRING(object),
+                            IntCast<size_t>(PyBytes_GET_SIZE(object)));
   return true;
 }
 

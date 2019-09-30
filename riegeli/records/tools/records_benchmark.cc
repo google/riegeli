@@ -152,7 +152,9 @@ void Stats::Add(double value) { samples_.push_back(value); }
 double Stats::Median() {
   RIEGELI_CHECK(!samples_.empty()) << "No data";
   const size_t middle = samples_.size() / 2;
-  std::nth_element(samples_.begin(), samples_.begin() + middle, samples_.end());
+  std::nth_element(samples_.begin(),
+                   samples_.begin() + riegeli::IntCast<ptrdiff_t>(middle),
+                   samples_.end());
   return samples_[middle];
 }
 
@@ -388,7 +390,8 @@ void Benchmarks::RunAll() {
   absl::PrintF("%-*s  ratio    CPU Real   CPU Real\n", max_name_width_, "");
   absl::PrintF("%-*s    %%     MB/s MB/s  MB/s MB/s\n", max_name_width_,
                "Format");
-  absl::PrintF("%s\n", std::string(max_name_width_ + 30, '-'));
+  absl::PrintF(
+      "%s\n", std::string(riegeli::IntCast<size_t>(max_name_width_ + 30), '-'));
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {

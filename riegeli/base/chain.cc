@@ -57,7 +57,7 @@ void WritePadding(std::ostream& out, size_t pad) {
   std::memset(buf, out.fill(), sizeof(buf));
   while (pad > 0) {
     const size_t length = UnsignedMin(pad, sizeof(buf));
-    out.write(buf, length);
+    out.write(buf, IntCast<std::streamsize>(length));
     pad -= length;
   }
 }
@@ -110,7 +110,7 @@ inline void Chain::BlockRef::RegisterSubobjects(
 
 inline void Chain::BlockRef::DumpStructure(absl::string_view data,
                                            std::ostream& out) const {
-  out << "offset: " << (data.data() - block_->data_begin()) << "; ";
+  out << "offset: " << PtrDistance(block_->data_begin(), data.data()) << "; ";
   block_->DumpStructure(out);
 }
 
@@ -528,7 +528,7 @@ void Chain::AppendTo(std::string* dest) && {
   RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
       << "Failed precondition of Chain::AppendTo(string*): "
          "string size overflow";
-  if (dest->empty() && end_ - begin_ == 1) {
+  if (dest->empty() && PtrDistance(begin_, end_) == 1) {
     RawBlock* const block = front();
     if (StringRef* const string_ref =
             block->checked_external_object_with_unique_owner<StringRef>()) {
@@ -555,7 +555,7 @@ Chain::operator std::string() const& {
 }
 
 Chain::operator std::string() && {
-  if (end_ - begin_ == 1) {
+  if (PtrDistance(begin_, end_) == 1) {
     RawBlock* const block = front();
     if (StringRef* const string_ref =
             block->checked_external_object_with_unique_owner<StringRef>()) {
@@ -697,7 +697,8 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
                         PtrDistance(old_allocated_begin, end_))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
-  const size_t old_capacity = old_allocated_end - old_allocated_begin;
+  const size_t old_capacity =
+      PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t final_size = PtrDistance(begin_, end_) + extra_capacity;
   if (final_size * 2 <= old_capacity) {
     // Existing array has at least twice more space than necessary: move
@@ -705,8 +706,9 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
     // adding one element constant.
     RawBlock** const new_begin =
         old_allocated_begin + (old_capacity - final_size) / 2;
-    RawBlock** const new_end = new_begin + (end_ - begin_);
-    std::memmove(new_begin, begin_, (end_ - begin_) * sizeof(RawBlock*));
+    RawBlock** const new_end = new_begin + PtrDistance(begin_, end_);
+    std::memmove(new_begin, begin_,
+                 PtrDistance(begin_, end_) * sizeof(RawBlock*));
     begin_ = new_begin;
     end_ = new_end;
     return;
@@ -723,8 +725,8 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   RawBlock** const new_allocated_begin = NewBlockPtrs(new_capacity);
   RawBlock** const new_allocated_end = new_allocated_begin + new_capacity;
   RawBlock** const new_begin =
-      new_allocated_begin + (begin_ - old_allocated_begin);
-  RawBlock** const new_end = new_begin + (end_ - begin_);
+      new_allocated_begin + PtrDistance(old_allocated_begin, begin_);
+  RawBlock** const new_end = new_begin + PtrDistance(begin_, end_);
   std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(RawBlock*));
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;
@@ -766,7 +768,8 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
                         PtrDistance(begin_, old_allocated_end))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
-  const size_t old_capacity = old_allocated_end - old_allocated_begin;
+  const size_t old_capacity =
+      PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t final_size = PtrDistance(begin_, end_) + extra_capacity;
   if (final_size * 2 <= old_capacity) {
     // Existing array has at least twice more space than necessary: move
@@ -774,8 +777,9 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     // adding one element constant.
     RawBlock** const new_end =
         old_allocated_end - (old_capacity - final_size) / 2;
-    RawBlock** const new_begin = new_end - (end_ - begin_);
-    std::memmove(new_begin, begin_, (end_ - begin_) * sizeof(RawBlock*));
+    RawBlock** const new_begin = new_end - PtrDistance(begin_, end_);
+    std::memmove(new_begin, begin_,
+                 PtrDistance(begin_, end_) * sizeof(RawBlock*));
     begin_ = new_begin;
     end_ = new_end;
     return;
@@ -791,8 +795,9 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
                   old_capacity + old_capacity / 2, size_t{16});
   RawBlock** const new_allocated_begin = NewBlockPtrs(new_capacity);
   RawBlock** const new_allocated_end = new_allocated_begin + new_capacity;
-  RawBlock** const new_end = new_allocated_end - (old_allocated_end - end_);
-  RawBlock** const new_begin = new_end - (end_ - begin_);
+  RawBlock** const new_end =
+      new_allocated_end - PtrDistance(end_, old_allocated_end);
+  RawBlock** const new_begin = new_end - PtrDistance(begin_, end_);
   std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(RawBlock*));
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;

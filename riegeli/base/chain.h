@@ -1178,14 +1178,16 @@ inline Chain::RawBlock* const* Chain::BlockPtrPtr::as_ptr() const {
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator+(ptrdiff_t n) const {
   if (is_special()) {
-    return BlockPtrPtr{repr + n * ptrdiff_t{sizeof(RawBlock*)}};
+    return BlockPtrPtr{IntCast<uintptr_t>(IntCast<ptrdiff_t>(repr) +
+                                          n * ptrdiff_t{sizeof(RawBlock*)})};
   }
   return BlockPtrPtr::from_ptr(as_ptr() + n);
 }
 
 inline Chain::BlockPtrPtr Chain::BlockPtrPtr::operator-(ptrdiff_t n) const {
   if (is_special()) {
-    return BlockPtrPtr{repr - n * ptrdiff_t{sizeof(RawBlock*)}};
+    return BlockPtrPtr{IntCast<uintptr_t>(IntCast<ptrdiff_t>(repr) -
+                                          n * ptrdiff_t{sizeof(RawBlock*)})};
   }
   return BlockPtrPtr::from_ptr(as_ptr() - n);
 }
@@ -1654,7 +1656,7 @@ inline void Chain::DeleteBlockPtrs() {
   if (has_allocated()) {
     std::allocator<RawBlock*>().deallocate(
         block_ptrs_.allocated.begin,
-        block_ptrs_.allocated.end - block_ptrs_.allocated.begin);
+        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end));
   }
 }
 

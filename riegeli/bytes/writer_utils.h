@@ -62,9 +62,9 @@ inline bool WriteByte(Writer* dest, uint8_t data) {
 inline size_t LengthVarint32(uint32_t data) {
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clz) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 = sizeof(unsigned) >= 4
-                                ? __builtin_clz(data | 1) ^ __builtin_clz(1)
-                                : __builtin_clzl(data | 1) ^ __builtin_clzl(1);
+  const size_t floor_log2 = IntCast<size_t>(
+      sizeof(unsigned) >= 4 ? __builtin_clz(data | 1) ^ __builtin_clz(1)
+                            : __builtin_clzl(data | 1) ^ __builtin_clzl(1));
   // This is the same as floor_log2 / 7 + 1 for floor_log2 in 0..31
   // but divides by a power of 2.
   return (floor_log2 * 9 + 73) / 64;
@@ -81,7 +81,8 @@ inline size_t LengthVarint32(uint32_t data) {
 inline size_t LengthVarint64(uint64_t data) {
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 = __builtin_clzll(data | 1) ^ __builtin_clzll(1);
+  const size_t floor_log2 =
+      IntCast<size_t>(__builtin_clzll(data | 1) ^ __builtin_clzll(1));
   // This is the same as floor_log2 / 7 + 1 for floor_log2 in 0..63
   // but divides by a power of 2.
   return (floor_log2 * 9 + 73) / 64;
