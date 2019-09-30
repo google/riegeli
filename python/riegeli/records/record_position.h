@@ -30,9 +30,10 @@ namespace riegeli {
 namespace python {
 
 // Access the API thus:
-//
+// ```
 // static constexpr ImportedCapsule<RecordPositionApi> kRecordPositionApi(
 //    kRecordPositionCapsuleName);
+// ```
 
 struct RecordPositionApi {
   PythonPtr (*RecordPositionToPython)(FutureRecordPosition value);

@@ -45,7 +45,7 @@ using Py_hash_t = long;
 
 // Ensures that Python GIL is locked. Reentrant.
 //
-// Same as PyGILState_Ensure() / PyGILState_Release().
+// Same as `PyGILState_Ensure()` / `PyGILState_Release()`.
 class PythonLock {
  public:
   static void AssertHeld() {
@@ -73,7 +73,7 @@ class PythonLock {
 
 // Unlocks Python GIL, allowing non-Python threads to run.
 //
-// Same as Py_BEGIN_ALLOW_THREADS / Py_END_ALLOW_THREADS.
+// Same as `Py_BEGIN_ALLOW_THREADS` / `Py_END_ALLOW_THREADS`.
 class PythonUnlock {
  public:
   PythonUnlock() {
@@ -93,7 +93,7 @@ class PythonUnlock {
 // Apply a function with Python GIL unlocked, allowing non-Python threads to
 // run.
 //
-// Same as Py_BEGIN_ALLOW_THREADS / Py_END_ALLOW_THREADS.
+// Same as `Py_BEGIN_ALLOW_THREADS` / `Py_END_ALLOW_THREADS`.
 template <typename Function>
 #if __cpp_lib_is_invocable
 std::invoke_result_t<Function>
@@ -105,7 +105,7 @@ PythonUnlocked(Function&& f) {
   return std::forward<Function>(f)();
 }
 
-// Owned PyObject which assumes that Python GIL is held.
+// Owned `PyObject` which assumes that Python GIL is held.
 
 struct Deleter {
   template <typename T>
@@ -117,7 +117,7 @@ struct Deleter {
 
 using PythonPtr = std::unique_ptr<PyObject, Deleter>;
 
-// Owned PyObject which does not assume that Python GIL is held.
+// Owned `PyObject` which does not assume that Python GIL is held.
 
 struct LockingDeleter {
   template <typename T>
@@ -130,15 +130,15 @@ struct LockingDeleter {
 using PythonPtrLocking = std::unique_ptr<PyObject, LockingDeleter>;
 
 // Allows a C++ object to be safely embedded in a Python object allocated with
-// PyType_GenericAlloc().
+// `PyType_GenericAlloc()`.
 //
-// PythonWrapped<T> is similar to optional<T>, but:
-//  * PythonWrapped<T> is POD.
-//  * PythonWrapped<T> supports only a subset of optional<T> API.
-//  * PythonWrapped<T> filled with zero bytes is valid and absent
-//    (PyType_GenericAlloc() fills the Python object with zero bytes).
-//  * PythonWrapped<T> should be explicitly reset() in the implementation of
-//    tp_dealloc (there is no C++ destructor).
+// `PythonWrapped<T>` is similar to `absl::optional<T>`, but:
+//  * `PythonWrapped<T>` is POD.
+//  * `PythonWrapped<T>` supports only a subset of `absl::optional<T>` API.
+//  * `PythonWrapped<T>` filled with zero bytes is valid and absent
+//    (`PyType_GenericAlloc()` fills the Python object with zero bytes).
+//  * `PythonWrapped<T>` should be explicitly `reset()` in the implementation of
+//    `tp_dealloc` (there is no C++ destructor).
 template <typename T>
 class PythonWrapped {
  public:
@@ -214,7 +214,7 @@ class Exception {
 
   std::string message() const;
 
-  // For implementing tp_traverse of objects containing Exception.
+  // For implementing `tp_traverse` of objects containing `Exception`.
   int Traverse(visitproc visit, void* arg);
 
  private:
@@ -228,7 +228,7 @@ class Exception {
 };
 
 // Translate a failed status to the active Python exception, a class extending
-// RiegeliError.
+// `RiegeliError`.
 void SetRiegeliError(const Status& status);
 
 namespace internal {
@@ -241,20 +241,20 @@ class StaticObject {
   mutable const StaticObject* next_ = nullptr;
 
   // Register this object in a global list of static objects. This must be
-  // called when value_ is allocated.
+  // called when `value_` is allocated.
   void RegisterThis() const;
 
  private:
   friend void FreeStaticObjectsImpl();
 };
 
-// Template parameter invariant part of ImportedCapsule.
+// Template parameter invariant part of `ImportedCapsule`.
 class ImportedCapsuleBase {
  public:
-  // Forces importing the value, returning false on failures (with Python
+  // Forces importing the value, returning `false` on failures (with Python
   // exception set).
   //
-  // If Verify() returns true, get() does not die.
+  // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) return ImportValue();
@@ -275,23 +275,24 @@ class ImportedCapsuleBase {
 
 }  // namespace internal
 
-// Creates a Python string (type str) which persists until interpreter shutdown.
-// This is useful for attribute or method names in PyObject_GetAttr() or
-// PyObject_CallMethodObjArgs().
+// Creates a Python string (type `str`) which persists until interpreter
+// shutdown. This is useful for attribute or method names in
+// `PyObject_GetAttr()` or `PyObject_CallMethodObjArgs()`.
 //
-// An instance of Identifier should be allocated statically:
-//
+// An instance of `Identifier` should be allocated statically:
+// ```
 //   static constexpr Identifier id_write("write");
+// ```
 //
-// Then id_write.get() is a borrowed reference to the Python object.
+// Then `id_write.get()` is a borrowed reference to the Python object.
 class Identifier : public internal::StaticObject {
  public:
   explicit constexpr Identifier(absl::string_view name) : name_(name) {}
 
-  // Forces allocating the value, returning false on failures (with Python
+  // Forces allocating the value, returning `false` on failures (with Python
   // exception set).
   //
-  // If Verify() returns true, get() does not die.
+  // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) return AllocateValue();
@@ -299,7 +300,7 @@ class Identifier : public internal::StaticObject {
   }
 
   // Returns the value, allocating it on the first call. Dies on failure
-  // (use Verify() to prevent this).
+  // (use `Verify()` to prevent this).
   PyObject* get() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
@@ -317,22 +318,23 @@ class Identifier : public internal::StaticObject {
 // Imports a Python module and gets its attribute, which persists until
 // interpreter shutdown.
 //
-// An instance of ImportedConstant should be allocated statically:
-//
+// An instance of `ImportedConstant` should be allocated statically:
+// ```
 //   static constexpr ImportedConstant kRiegeliError(
-//       "riegeli.base.riegeli_error", "RiegeliError");
+//        "riegeli.base.riegeli_error", "RiegeliError");
+// ```
 //
-// Then kRiegeliError.get() is a borrowed reference to the Python object.
+// Then `kRiegeliError.get()` is a borrowed reference to the Python object.
 class ImportedConstant : public internal::StaticObject {
  public:
   explicit constexpr ImportedConstant(absl::string_view module_name,
                                       absl::string_view attr_name)
       : module_name_(module_name), attr_name_(attr_name) {}
 
-  // Forces importing the value, returning false on failures (with Python
+  // Forces importing the value, returning `false` on failures (with Python
   // exception set).
   //
-  // If Verify() returns true, get() does not die.
+  // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) return AllocateValue();
@@ -340,7 +342,7 @@ class ImportedConstant : public internal::StaticObject {
   }
 
   // Returns the value, importing it on the first call. Dies on failure
-  // (use Verify() to prevent this).
+  // (use `Verify()` to prevent this).
   PyObject* get() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
@@ -359,22 +361,23 @@ class ImportedConstant : public internal::StaticObject {
 // Exports a Python capsule containing a C++ pointer, which should be valid
 // forever, by adding it to the given module.
 //
-// capsule_name must be "module_name.attr_name" with module_name corresponding
-// to PyModule_GetName(module).
+// `capsule_name` must be "module_name.attr_name" with `module_name`
+// corresponding to `PyModule_GetName(module)`.
 //
-// Returns false on failure (with Python exception set).
+// Returns `false` on failure (with Python exception set).
 bool ExportCapsule(PyObject* module, const char* capsule_name, const void* ptr);
 
 // Imports a Python capsule and gets its stored pointer, which persists forever.
 //
-// capsule_name must be "module_name.attr_name".
+// `capsule_name must` be "module_name.attr_name".
 //
-// An instance of ImportedCapsule should be allocated statically:
-//
+// An instance of `ImportedCapsule` should be allocated statically:
+// ```
 //   static constexpr ImportedCapsule<RecordPositionApi> kRecordPositionApi(
 //       "riegeli.records.record_position._CPPAPI");
+// ```
 //
-// Then kRecordPositionApi.get() is a pointer stored in the capsule.
+// Then `kRecordPositionApi.get()` is a pointer stored in the capsule.
 template <typename T>
 class ImportedCapsule : public internal::ImportedCapsuleBase {
  public:
@@ -382,7 +385,7 @@ class ImportedCapsule : public internal::ImportedCapsuleBase {
       : ImportedCapsuleBase(capsule_name) {}
 
   // Returns the value, importing it on the first call. Dies on failure
-  // (use Verify() to prevent this).
+  // (use `Verify()` to prevent this).
   const T* get() const {
     PythonLock::AssertHeld();
     if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
@@ -395,9 +398,9 @@ class ImportedCapsule : public internal::ImportedCapsuleBase {
   const T* operator->() const { return get(); }
 };
 
-// Converts C++ long to a Python int object.
+// Converts C++ `long` to a Python `int` object.
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr IntToPython(long value) {
 #if PY_MAJOR_VERSION >= 3
   return PythonPtr(PyLong_FromLong(value));
@@ -406,7 +409,8 @@ inline PythonPtr IntToPython(long value) {
 #endif
 }
 
-// Converts C++ string_view to a Python bytes object (AKA str in Python2).
+// Converts C++ `absl::string_view` to a Python `bytes` object (AKA `str` in
+// Python2).
 //
 // Returns nullptr on failure (with Python exception set).
 inline PythonPtr BytesToPython(absl::string_view value) {
@@ -414,7 +418,8 @@ inline PythonPtr BytesToPython(absl::string_view value) {
       value.data(), IntCast<Py_ssize_t>(value.size())));
 }
 
-// Refers to internals of a Python bytes-like object, using the buffer protocol.
+// Refers to internals of a Python `bytes`-like object, using the buffer
+// protocol.
 class BytesLike {
  public:
   BytesLike() noexcept { buffer_.obj = nullptr; }
@@ -429,7 +434,7 @@ class BytesLike {
 
   // Converts from a Python object.
   //
-  // Returns false on failure (with Python exception set).
+  // Returns `false` on failure (with Python exception set).
   bool FromPython(PyObject* object) {
     return PyObject_GetBuffer(object, &buffer_, PyBUF_CONTIG_RO) == 0;
   }
@@ -444,10 +449,10 @@ class BytesLike {
   Py_buffer buffer_;
 };
 
-// Converts C++ string_view to a Python str object. In Python3 Unicode is
-// converted from UTF-8.
+// Converts C++ `absl::string_view` to a Python `str` object. In Python3 Unicode
+// is converted from UTF-8.
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr StringToPython(absl::string_view value) {
 #if PY_MAJOR_VERSION >= 3
   return PythonPtr(PyUnicode_FromStringAndSize(
@@ -459,8 +464,8 @@ inline PythonPtr StringToPython(absl::string_view value) {
 }
 
 // Refers to internals of a Python object representing text. Valid Python
-// objects are Text (i.e. str in Python3, unicode in Python2) or bytes
-// (AKA str in Python2). Unicode is converted to UTF-8.
+// objects are `Text` (i.e. `str` in Python3, `unicode` in Python2) or `bytes`
+// (AKA `str` in Python2). Unicode is converted to UTF-8.
 class TextOrBytes {
  public:
   TextOrBytes() noexcept {}
@@ -470,7 +475,7 @@ class TextOrBytes {
 
   // Converts from a Python object.
   //
-  // Returns false on failure (with Python exception set).
+  // Returns `false` on failure (with Python exception set).
   bool FromPython(PyObject* object);
 
   // Returns the text contents.
@@ -490,37 +495,41 @@ class TextOrBytes {
 #define RIEGELI_TEXT_OR_BYTES "Union[str, unicode]"
 #endif
 
-// Converts C++ Chain to a Python bytes object (AKA str in Python2).
+// Converts C++ `Chain` to a Python `bytes` object (AKA `str` in Python2).
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 PythonPtr ChainToPython(const Chain& value);
 
-// Converts C++ Chain from a Python bytes-like object, using the buffer
+// Converts a Python `bytes`-like object to C++ `Chain`, using the buffer
 // protocol.
 //
-// Returns false on failure (with Python exception set).
+// Returns `false` on failure (with Python exception set).
 bool ChainFromPython(PyObject* object, Chain* value);
 
-// Converts C++ size_t to a Python int object (or possibly long in Python2).
+// Converts C++ `size_t` to a Python `int` object (or possibly `long` in
+// Python2).
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 PythonPtr SizeToPython(size_t value);
 
-// Converts a Python object to C++ size_t. Valid Python objects are the same
-// as for slicing: int, long (in Python2), or objects supporting __index__().
+// Converts a Python object to C++ `size_t`. Valid Python objects are the same
+// as for slicing: `int`, `long` (in Python2), or objects supporting
+// `__index__()`.
 //
-// Returns false on failure (with Python exception set).
+// Returns `false` on failure (with Python exception set).
 bool SizeFromPython(PyObject* object, size_t* value);
 
-// Converts C++ Position to a Python int object (or possibly long in Python2).
+// Converts C++ `Position` to a Python `int` object (or possibly `long` in
+// Python2).
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 PythonPtr PositionToPython(Position value);
 
-// Converts a Python object to C++ Position. Valid Python objects are the same
-// as for slicing: int, long (in Python2), or objects supporting __index__().
+// Converts a Python object to C++ `Position`. Valid Python objects are the same
+// as for slicing: `int`, `long` (in Python2), or objects supporting
+// `__index__()`.
 //
-// Returns false on failure (with Python exception set).
+// Returns `false` on failure (with Python exception set).
 bool PositionFromPython(PyObject* object, Position* value);
 
 // Implementation details follow.

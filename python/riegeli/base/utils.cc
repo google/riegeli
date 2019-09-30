@@ -149,8 +149,8 @@ namespace internal {
 
 namespace {
 
-// A linked list of all objects of type StaticObject which have value_
-// allocated, chained by their next_ fields. This is used to free the objects
+// A linked list of all objects of type `StaticObject` which have `value_`
+// allocated, chained by their `next_` fields. This is used to free the objects
 // on Python interpreter shutdown.
 const StaticObject* all_static_objects = nullptr;
 
@@ -168,7 +168,7 @@ void FreeStaticObjectsImpl() {
 
 namespace {
 
-// extern "C" for a calling convention compatible with Py_AtExit().
+// `extern "C"` for a calling convention compatible with `Py_AtExit()`.
 extern "C" void FreeStaticObjects() { FreeStaticObjectsImpl(); }
 
 }  // namespace
@@ -176,15 +176,15 @@ extern "C" void FreeStaticObjects() { FreeStaticObjectsImpl(); }
 void StaticObject::RegisterThis() const {
   PythonLock::AssertHeld();
   if (all_static_objects == nullptr) {
-    // This is the first registered StaticObject since Py_Initialize().
+    // This is the first registered `StaticObject` since `Py_Initialize()`.
     Py_AtExit(FreeStaticObjects);
   }
   next_ = std::exchange(all_static_objects, this);
 }
 
 bool ImportedCapsuleBase::ImportValue() const {
-  // For some reason PyImport_ImportModule() is sometimes required before
-  // PyCapsule_Import() for a module with a nested name.
+  // For some reason `PyImport_ImportModule()` is sometimes required before
+  // `PyCapsule_Import()` for a module with a nested name.
   const size_t dot = absl::string_view(capsule_name_).rfind('.');
   RIEGELI_ASSERT_NE(dot, absl::string_view::npos)
       << "Capsule name does not contain a dot: " << capsule_name_;

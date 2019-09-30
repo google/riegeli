@@ -36,41 +36,43 @@
 namespace riegeli {
 namespace python {
 
-// A Reader which reads from a Python binary I/O stream. It supports random
-// access unless Options::set_assumed_pos(pos).
+// A `Reader` which reads from a Python binary I/O stream. It supports random
+// access unless `Options::set_assumed_pos(pos)`.
 //
 // The file should support:
-//  * close()          - for Close() unless Options::set_close(false)
-//  * readinto1(memoryview) or readinto(memoryview) or read1(int) or read(int)
-//  * seek(int[, int]) - unless Options::set_assumed_pos(pos),
-//                       or for Seek() or Size()
-//  * tell()           - unless Options::set_assumed_pos(pos),
-//                       or for Seek() or Size()
+//  * `close()`          - for `Close()` unless `Options::set_close(false)`
+//  * `readinto1(memoryview)` or `readinto(memoryview)` or `read1(int)` or
+//    `read(int)`
+//  * `seek(int[, int])` - unless `Options::set_assumed_pos(pos)`,
+//                         or for `Seek()` or `Size()`
+//  * `tell()`           - unless `Options::set_assumed_pos(pos)`,
+//                         or for `Seek()` or `Size()`
 class PythonReader : public BufferedReader {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If true, the file will be closed when the PythonReader is closed.
+    // If `true`, the file will be closed when the `PythonReader` is closed.
     //
-    // Default: true.
+    // Default: `true`.
     Options& set_close(bool close) & {
       close_ = close;
       return *this;
     }
     Options&& set_close(bool close) && { return std::move(set_close(close)); }
 
-    // If nullopt, PythonReader will initially get the current file position.
-    // The file must be seekable.
+    // If `absl::nullopt`, `PythonReader` will initially get the current file
+    // position. The file must be seekable.
     //
-    // If not nullopt, this file position will be assumed initially. The file
-    // does not have to be seekable.
+    // If not `absl::nullopt`, this file position will be assumed initially. The
+    // file does not have to be seekable.
     //
-    // Warning: with set_close(false) and set_assumed_pos(pos), the file will
-    // have an unpredictable amount of extra data consumed because of buffering.
+    // Warning: with `set_close(false)` and `set_assumed_pos(pos)`, the file
+    // will have an unpredictable amount of extra data consumed because of
+    // buffering.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
@@ -101,10 +103,10 @@ class PythonReader : public BufferedReader {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Creates a closed PythonReader.
+  // Creates a closed `PythonReader`.
   PythonReader() noexcept {}
 
-  // Will read from src.
+  // Will read from `src`.
   explicit PythonReader(PyObject* src, Options options = Options());
 
   PythonReader(PythonReader&& that) noexcept;
@@ -118,7 +120,7 @@ class PythonReader : public BufferedReader {
   bool SupportsRandomAccess() const override { return random_access_; }
   bool Size(Position* size) override;
 
-  // For implementing tp_traverse of objects containing PythonReader.
+  // For implementing `tp_traverse` of objects containing `PythonReader`.
   int Traverse(visitproc visit, void* arg);
 
  protected:

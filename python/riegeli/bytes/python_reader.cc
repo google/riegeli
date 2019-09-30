@@ -71,7 +71,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
 bool PythonReader::FailOperation(absl::string_view operation) {
   PythonLock::AssertHeld();
   if (ABSL_PREDICT_FALSE(!healthy())) {
-    // Ignore this error because PythonReader already failed.
+    // Ignore this error because `PythonReader` already failed.
     PyErr_Clear();
     return false;
   }
@@ -118,8 +118,8 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
     return FailOverflow();
   }
   PythonLock lock;
-  // Find a read function to use, preferring in order: readinto1(), readinto(),
-  // read1(), read().
+  // Find a read function to use, preferring in order: `readinto1()`,
+  // `readinto()`, `read1()`, `read()`.
   if (ABSL_PREDICT_FALSE(read_function_ == nullptr)) {
     static constexpr Identifier id_readinto1("readinto1");
     read_function_.reset(PyObject_GetAttr(src_.get(), id_readinto1.get()));
@@ -164,7 +164,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
     if (!use_bytes_) {
       PythonPtr read_result;
       {
-        // Prefer using readinto1() or readinto() to avoid copying memory.
+        // Prefer using `readinto1()` or `readinto()` to avoid copying memory.
 #if PY_MAJOR_VERSION >= 3
         const PythonPtr memoryview(PyMemoryView_FromMemory(
             dest, IntCast<Py_ssize_t>(length_to_read), PyBUF_WRITE));
@@ -175,9 +175,9 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
             read_function_.get(), memoryview.get(), nullptr));
         if (ABSL_PREDICT_FALSE(read_result == nullptr)) {
           if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-            // The read function has stored a reference to the memoryview, but
-            // the memoryview contains C++ pointers which are going to be
-            // invalid. Call memoryview.release() to mark the memoryview as
+            // The read function has stored a reference to the `memoryview`, but
+            // the `memoryview` contains C++ pointers which are going to be
+            // invalid. Call `memoryview.release()` to mark the `memoryview` as
             // invalid.
             PyObject* value;
             PyObject* type;
@@ -186,16 +186,17 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
             static constexpr Identifier id_release("release");
             const PythonPtr release_result(PyObject_CallMethodObjArgs(
                 memoryview.get(), id_release.get(), nullptr));
-            // Ignore errors from release() because the read function failed
+            // Ignore errors from `release()` because the read function failed
             // first.
             PyErr_Restore(value, type, traceback);
           }
           return FailOperation(read_function_name_);
         }
         if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-          // The read function has stored a reference to the memoryview, but the
-          // memoryview contains C++ pointers which are going to be invalid.
-          // Call memoryview.release() to mark the memoryview as invalid.
+          // The read function has stored a reference to the `memoryview`, but
+          // the `memoryview` contains C++ pointers which are going to be
+          // invalid. Call `memoryview.release()` to mark the `memoryview` as
+          // invalid.
           static constexpr Identifier id_release("release");
           const PythonPtr release_result(PyObject_CallMethodObjArgs(
               memoryview.get(), id_release.get(), nullptr));
@@ -329,7 +330,7 @@ inline bool PythonReader::SizeInternal(Position* size) {
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
-  const PythonPtr whence = IntToPython(2);  // io.SEEK_END
+  const PythonPtr whence = IntToPython(2);  // `io.SEEK_END`
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
     return FailOperation("IntToPython()");
   }
@@ -337,14 +338,14 @@ inline bool PythonReader::SizeInternal(Position* size) {
   PythonPtr result(PyObject_CallMethodObjArgs(
       src_.get(), id_seek.get(), file_pos.get(), whence.get(), nullptr));
   if (result.get() == Py_None) {
-    // Python2 file.seek() returns None, so tell() is needed to get the new
-    // position.
+    // Python2 `file.seek()` returns `None`, so `tell()` is needed to get the
+    // new position.
     static constexpr Identifier id_tell("tell");
     result.reset(
         PyObject_CallMethodObjArgs(src_.get(), id_tell.get(), nullptr));
     operation = "tell()";
   } else {
-    // io.IOBase.seek() returns the new position.
+    // `io.IOBase.seek()` returns the new position.
     operation = "seek()";
   }
   if (ABSL_PREDICT_FALSE(result == nullptr)) return FailOperation(operation);

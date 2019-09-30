@@ -70,7 +70,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
 bool PythonWriter::FailOperation(absl::string_view operation) {
   PythonLock::AssertHeld();
   if (ABSL_PREDICT_FALSE(!healthy())) {
-    // Ignore this error because PythonWriter already failed.
+    // Ignore this error because `PythonWriter` already failed.
     PyErr_Clear();
     return false;
   }
@@ -120,7 +120,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       PythonPtr write_result;
       if (!use_bytes_) {
 #if PY_MAJOR_VERSION >= 3
-        // Prefer passing memoryview to avoid copying memory.
+        // Prefer passing a `memoryview` to avoid copying memory.
         const PythonPtr memoryview(PyMemoryView_FromMemory(
             const_cast<char*>(src.data()), IntCast<Py_ssize_t>(length_to_write),
             PyBUF_READ));
@@ -132,9 +132,10 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
         if (ABSL_PREDICT_FALSE(write_result == nullptr)) {
           if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
             if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-              // write() has stored a reference to the memoryview, but the
-              // memoryview contains C++ pointers which are going to be invalid.
-              // Call memoryview.release() to mark the memoryview as invalid.
+              // `write()` has stored a reference to the `memoryview`, but the
+              // `memoryview` contains C++ pointers which are going to be
+              // invalid. Call `memoryview.release()` to mark the `memoryview`
+              // as invalid.
               PyObject* value;
               PyObject* type;
               PyObject* traceback;
@@ -142,7 +143,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
               static constexpr Identifier id_release("release");
               const PythonPtr release_result(PyObject_CallMethodObjArgs(
                   memoryview.get(), id_release.get(), nullptr));
-              // Ignore errors from release() because write() failed first.
+              // Ignore errors from `release()` because `write()` failed first.
               PyErr_Restore(value, type, traceback);
             }
             return FailOperation("write()");
@@ -151,9 +152,9 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
           use_bytes_ = true;
         }
         if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-          // write() has stored a reference to the memoryview, but the
-          // memoryview contains C++ pointers which are going to be invalid.
-          // Call memoryview.release() to mark the memoryview as invalid.
+          // `write()` has stored a reference to the `memoryview`, but the
+          // `memoryview` contains C++ pointers which are going to be invalid.
+          // Call `memoryview.release()` to mark the `memoryview` as invalid.
           static constexpr Identifier id_release("release");
           const PythonPtr release_result(PyObject_CallMethodObjArgs(
               memoryview.get(), id_release.get(), nullptr));
@@ -162,7 +163,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
           }
         }
 #else
-        // Prefer passing buffer to avoid copying memory.
+        // Prefer passing a `buffer` to avoid copying memory.
         const PythonPtr buffer(
             PyBuffer_FromMemory(const_cast<char*>(src.data()),
                                 IntCast<Py_ssize_t>(length_to_write)));
@@ -181,7 +182,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
 #endif
       }
       if (use_bytes_) {
-        // write() does not support memoryview / buffer. Use bytes.
+        // `write()` does not support `memoryview` / `buffer`. Use `bytes`.
         const PythonPtr bytes = BytesToPython(src.substr(0, length_to_write));
         if (ABSL_PREDICT_FALSE(bytes == nullptr)) {
           return FailOperation("BytesToPython()");
@@ -193,11 +194,11 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
         }
       }
       if (write_result.get() == Py_None) {
-        // Python2 file.write() returns None, and would raise an exception if
-        // less than the full length had been written.
+        // Python2 `file.write()` returns `None`, and would raise an exception
+        // if less than the full length had been written.
         length_written = length_to_write;
       } else {
-        // io.IOBase.write() returns the length written.
+        // `io.IOBase.write()` returns the length written.
         if (ABSL_PREDICT_FALSE(
                 !SizeFromPython(write_result.get(), &length_written))) {
           return FailOperation("SizeFromPython() after write()");
@@ -300,7 +301,7 @@ inline bool PythonWriter::SizeInternal(Position* size) {
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
-  const PythonPtr whence = IntToPython(2);  // io.SEEK_END
+  const PythonPtr whence = IntToPython(2);  // `io.SEEK_END`
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
     return FailOperation("IntToPython()");
   }
@@ -308,13 +309,13 @@ inline bool PythonWriter::SizeInternal(Position* size) {
   PythonPtr result(PyObject_CallMethodObjArgs(
       dest_.get(), id_seek.get(), file_pos.get(), whence.get(), nullptr));
   if (result.get() == Py_None) {
-    // Python2 file.seek() returns None.
+    // Python2 `file.seek()` returns `None`.
     static constexpr Identifier id_tell("tell");
     result.reset(
         PyObject_CallMethodObjArgs(dest_.get(), id_tell.get(), nullptr));
     operation = "tell()";
   } else {
-    // io.IOBase.seek() returns the new position.
+    // `io.IOBase.seek()` returns the new position.
     operation = "seek()";
   }
   if (ABSL_PREDICT_FALSE(result == nullptr)) return FailOperation(operation);

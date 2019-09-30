@@ -36,41 +36,41 @@
 namespace riegeli {
 namespace python {
 
-// A Writer which writes to a Python binary I/O stream. It supports random
-// access unless Options::set_assumed_pos(pos).
+// A `Writer` which writes to a Python binary I/O stream. It supports random
+// access unless `Options::set_assumed_pos(pos)`.
 //
 // The file should support:
-//  * close()          - for Close() unless Options::set_close(false)
-//  * write(bytes)
-//  * flush()          - for Flush(FlushType::kFrom{Process,Machine})
-//  * seek(int[, int]) - unless Options::set_assumed_pos(pos),
-//                       or for Seek(), Size(), or Truncate()
-//  * tell()           - unless Options::set_assumed_pos(pos),
-//                       or for Seek(), Size(), or Truncate()
-//  * truncate()       - for Truncate()
+//  * `close()`          - for `Close()` unless `Options::set_close(false)`
+//  * `write(bytes)`
+//  * `flush()`          - for `Flush(FlushType::kFrom{Process,Machine})`
+//  * `seek(int[, int])` - unless `Options::set_assumed_pos(pos)`,
+//                         or for `Seek()`, `Size()`, or `Truncate()`
+//  * `tell()`           - unless `Options::set_assumed_pos(pos)`,
+//                         or for `Seek()`, `Size()`, or `Truncate()`
+//  * `truncate()`       - for `Truncate()`
 class PythonWriter : public BufferedWriter {
  public:
   class Options {
    public:
     Options() noexcept {}
 
-    // If true, the file will be closed when the PythonWriter is closed.
+    // If `true`, the file will be closed when the `PythonWriter` is closed.
     //
-    // Default: true.
+    // Default: `true`.
     Options& set_close(bool close) & {
       close_ = close;
       return *this;
     }
     Options&& set_close(bool close) && { return std::move(set_close(close)); }
 
-    // If nullopt, PythonWriter will initially get the current file position,
-    // and will set the final file position on Close(). The file must be
-    // seekable.
+    // If `absl::nullopt`, `PythonWriter` will initially get the current file
+    // position, and will set the final file position on `Close()`. The file
+    // must be seekable.
     //
-    // If not nullopt, this file position will be assumed initially. The file
-    // does not have to be seekable.
+    // If not `absl::nullopt`, this file position will be assumed initially. The
+    // file does not have to be seekable.
     //
-    // Default: nullopt.
+    // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
@@ -101,10 +101,10 @@ class PythonWriter : public BufferedWriter {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  // Creates a closed PythonWriter.
+  // Creates a closed `PythonWriter`.
   PythonWriter() noexcept {}
 
-  // Will write to dest.
+  // Will write to `dest`.
   explicit PythonWriter(PyObject* dest, Options options = Options());
 
   PythonWriter(PythonWriter&& that) noexcept;
@@ -121,7 +121,7 @@ class PythonWriter : public BufferedWriter {
   bool SupportsTruncate() const override { return random_access_; }
   bool Truncate(Position new_size) override;
 
-  // For implementing tp_traverse of objects containing PythonWriter.
+  // For implementing `tp_traverse` of objects containing `PythonWriter`.
   int Traverse(visitproc visit, void* arg);
 
  protected:
