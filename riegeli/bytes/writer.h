@@ -223,9 +223,9 @@ class Writer : public Object {
   // Implementation of the slow part of `Write()`.
   //
   // By default `WriteSlow(absl::string_view)` is implemented in terms of
-  // `Push()`; `WriteSlow(const Chain&)` is
-  // implemented in terms of `WriteSlow(absl::string_view)`; and
-  // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`.
+  // `Push()`; `WriteSlow(const Chain&)` is implemented in terms of
+  // `WriteSlow(absl::string_view)`; and `WriteSlow(Chain&&)` is implemented in
+  // terms of `WriteSlow(const Chain&)`.
   //
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `src.size() > available()`

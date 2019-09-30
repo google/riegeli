@@ -108,8 +108,8 @@ class Reader : public Object {
   // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
   // the source as needed.
   //
-  // `Read(std::string*)` and `Read(Chain*)` append to any
-  // existing data in `*dest`.
+  // `Read(std::string*)` and `Read(Chain*)` append to any existing data in
+  // `*dest`.
   //
   // `Read(absl::string_view*)` points `*dest` to an array holding the data. The
   // array is valid until the next non-const operation on the `Reader`.
@@ -149,8 +149,8 @@ class Reader : public Object {
 
   // Reads all remaining bytes from the buffer and the source to `*dest`.
   //
-  // `ReadAll(std::string*)` and `ReadAll(Chain*)`
-  // append to any existing data in `*dest`.
+  // `ReadAll(std::string*)` and `ReadAll(Chain*)` append to any existing data
+  // in `*dest`.
   //
   // `CopyAllTo(Writer*)` writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
@@ -253,16 +253,14 @@ class Reader : public Object {
   // Implementations of the slow part of `Read()` and `CopyTo()`.
   //
   // By default `ReadSlow(char*)` and `CopyToSlow(Writer*)` are implemented in
-  // terms of `PullSlow()`; `ReadSlow(Chain*)` is
-  // implemented in terms of `ReadSlow(char*)`; and
-  // `CopyToSlow(BackwardWriter*)` is implemented in terms of `ReadSlow(char*)`
-  // and `ReadSlow(Chain*)`.
+  // terms of `PullSlow()`; `ReadSlow(Chain*)` is implemented in terms of
+  // `ReadSlow(char*)`; and `CopyToSlow(BackwardWriter*)` is implemented in
+  // terms of `ReadSlow(char*)` and `ReadSlow(Chain*)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string*)`:
   //   `length > available()`
   //
-  // Precondition for `ReadSlow(Chain*)` and
-  // `CopyToSlow()`:
+  // Precondition for `ReadSlow(Chain*)` and `CopyToSlow()`:
   //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
   //
   // Precondition for `ReadSlow(std::string*)`:
