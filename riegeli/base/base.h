@@ -76,7 +76,7 @@ class CheckFailed {
   ABSL_ATTRIBUTE_NORETURN ~CheckFailed();
 
  private:
-  std::stringstream stream_;
+  std::ostringstream stream_;
 };
 
 // Stores an optional pointer to a message of a check failure.
@@ -105,7 +105,7 @@ class CheckResult {
 template <typename A, typename B>
 ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
                                                      const A& a, const B& b) {
-  std::stringstream stream;
+  std::ostringstream stream;
   stream << message << " (" << a << " vs. " << b << ")";
   // Do not bother with freeing this string: the program will soon terminate.
   return (new std::string(stream.str()))->c_str();
