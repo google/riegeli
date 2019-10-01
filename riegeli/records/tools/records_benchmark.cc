@@ -32,7 +32,6 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -44,6 +43,8 @@
 #include "absl/flags/usage.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/options_parser.h"
@@ -167,8 +168,8 @@ class Benchmarks {
   explicit Benchmarks(std::vector<std::string> records, std::string output_dir,
                       int repetitions);
 
-  void RegisterTFRecord(std::string tfrecord_options);
-  void RegisterRiegeli(std::string riegeli_options);
+  void RegisterTFRecord(absl::string_view tfrecord_options);
+  void RegisterRiegeli(absl::string_view riegeli_options);
 
   void RunAll();
 
@@ -183,11 +184,11 @@ class Benchmarks {
       std::vector<std::string>* records, SizeLimiter* size_limiter = nullptr);
 
   static void WriteRiegeli(
-      const std::string& filename,
+      absl::string_view filename,
       riegeli::RecordWriterBase::Options record_writer_options,
       const std::vector<std::string>& records);
   static bool ReadRiegeli(
-      const std::string& filename,
+      absl::string_view filename,
       riegeli::RecordReaderBase::Options record_reader_options,
       std::vector<std::string>* records, SizeLimiter* size_limiter = nullptr);
 
@@ -297,7 +298,7 @@ bool Benchmarks::ReadTFRecord(
 }
 
 void Benchmarks::WriteRiegeli(
-    const std::string& filename,
+    absl::string_view filename,
     riegeli::RecordWriterBase::Options record_writer_options,
     const std::vector<std::string>& records) {
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
@@ -310,7 +311,7 @@ void Benchmarks::WriteRiegeli(
 }
 
 bool Benchmarks::ReadRiegeli(
-    const std::string& filename,
+    absl::string_view filename,
     riegeli::RecordReaderBase::Options record_reader_options,
     std::vector<std::string>* records, SizeLimiter* size_limiter) {
   riegeli::RecordReader<riegeli::FdReader<>> record_reader(
@@ -350,10 +351,11 @@ Benchmarks::Benchmarks(std::vector<std::string> records, std::string output_dir,
   }
 }
 
-void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
-  max_name_width_ = std::max(
-      max_name_width_, riegeli::IntCast<int>(
-                           absl::StrCat("tfrecord ", tfrecord_options).size()));
+void Benchmarks::RegisterTFRecord(absl::string_view tfrecord_options) {
+  max_name_width_ =
+      std::max(max_name_width_,
+               riegeli::IntCast<int>(absl::string_view("tfrecord ").size() +
+                                     tfrecord_options.size()));
   const char* compression = tensorflow::io::compression::kNone;
   riegeli::OptionsParser options_parser;
   options_parser.AddOption(
@@ -369,17 +371,17 @@ void Benchmarks::RegisterTFRecord(std::string tfrecord_options) {
                       &compression, tensorflow::io::compression::kGzip)));
   RIEGELI_CHECK(options_parser.FromString(tfrecord_options))
       << options_parser.status();
-  tfrecord_benchmarks_.emplace_back(std::move(tfrecord_options), compression);
+  tfrecord_benchmarks_.emplace_back(tfrecord_options, compression);
 }
 
-void Benchmarks::RegisterRiegeli(std::string riegeli_options) {
-  max_name_width_ = std::max(
-      max_name_width_,
-      riegeli::IntCast<int>(absl::StrCat("riegeli ", riegeli_options).size()));
+void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
+  max_name_width_ =
+      std::max(max_name_width_,
+               riegeli::IntCast<int>(absl::string_view("riegeli ").size() +
+                                     riegeli_options.size()));
   riegeli::RecordWriterBase::Options options;
   RIEGELI_CHECK_EQ(options.FromString(riegeli_options), riegeli::OkStatus());
-  riegeli_benchmarks_.emplace_back(std::move(riegeli_options),
-                                   std::move(options));
+  riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 
 void Benchmarks::RunAll() {
@@ -502,10 +504,11 @@ const char kUsage[] =
     "FILEs may be TFRecord or Riegeli/records files.\n";
 
 template <typename Function>
-void ForEachWord(const std::string& words, Function f) {
-  std::stringstream in(words);
-  std::string word;
-  while (in >> word) f(std::move(word));
+void ForEachWord(absl::string_view words, Function f) {
+  for (const absl::string_view word :
+       absl::StrSplit(words, absl::ByAnyChar("\t\n "), absl::SkipEmpty())) {
+    f(word);
+  }
 }
 
 }  // namespace
@@ -527,12 +530,12 @@ int main(int argc, char** argv) {
   Benchmarks benchmarks(std::move(records), absl::GetFlag(FLAGS_output_dir),
                         absl::GetFlag(FLAGS_repetitions));
   ForEachWord(absl::GetFlag(FLAGS_tfrecord_benchmarks),
-              [&](std::string tfrecord_options) {
-                benchmarks.RegisterTFRecord(std::move(tfrecord_options));
+              [&](absl::string_view tfrecord_options) {
+                benchmarks.RegisterTFRecord(tfrecord_options);
               });
   ForEachWord(absl::GetFlag(FLAGS_riegeli_benchmarks),
-              [&](std::string riegeli_options) {
-                benchmarks.RegisterRiegeli(std::move(riegeli_options));
+              [&](absl::string_view riegeli_options) {
+                benchmarks.RegisterRiegeli(riegeli_options);
               });
   benchmarks.RunAll();
 }
