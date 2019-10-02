@@ -34,8 +34,8 @@ bool TFRecordRecognizer::CheckFileFormat(
     if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
       return Fail(*byte_reader_);
     }
-    // Empty file: return false but leave healthy() as true. This mimics the
-    // behavior of reading functions at end of file.
+    // Empty file: return `false` but leave `healthy()` as `true`. This mimics
+    // the behavior of reading functions at end of file.
     return false;
   }
 

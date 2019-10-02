@@ -41,15 +41,15 @@
 
 namespace riegeli {
 
-// Sets record_type_name and file_descriptor in metadata, based on the message
-// descriptor of the type of records.
+// Sets `record_type_name` and `file_descriptor` in metadata, based on the
+// message descriptor of the type of records.
 //
 // TODO: This currently includes whole file descriptors. It would be
 // better to prune them to keep only what is needed for the message descriptor.
 void SetRecordType(RecordsMetadata* metadata,
                    const google::protobuf::Descriptor* descriptor);
 
-// Template parameter invariant part of RecordWriter.
+// Template parameter invariant part of `RecordWriter`.
 class RecordWriterBase : public Object {
  public:
   class Options {
@@ -57,7 +57,7 @@ class RecordWriterBase : public Object {
     Options() noexcept {}
 
     // Parses options from text:
-    //
+    // ```
     //   options ::= option? ("," option?)*
     //   option ::=
     //     "default" |
@@ -78,6 +78,7 @@ class RecordWriterBase : public Object {
     //     integer expressed as real with optional suffix [BkKMGTPE], 1..
     //   bucket_fraction ::= real 0..1
     //   parallelism ::= integer 0..
+    // ```
     //
     // An empty string is the same as "default".
     //
@@ -85,18 +86,18 @@ class RecordWriterBase : public Object {
     // https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
     //
     // Returns status:
-    //  * status.ok()  - success
-    //  * !status.ok() - failure
+    //  * `status.ok()`  - success
+    //  * `!status.ok()` - failure
     Status FromString(absl::string_view text);
 
-    // If true, records should be serialized proto messages (but nothing will
+    // If `true`, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way
     // which allows for better compression.
     //
-    // If false, a chunk of records will be stored in a simpler format, directly
-    // or with compression.
+    // If `false`, a chunk of records will be stored in a simpler format,
+    // directly or with compression.
     //
-    // Default: false.
+    // Default: `false`.
     Options& set_transpose(bool transpose) & {
       transpose_ = transpose;
       return *this;
@@ -116,8 +117,8 @@ class RecordWriterBase : public Object {
     // tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
-    // compression_level must be between kMinBrotli (0) and kMaxBrotli (11).
-    // Default: kDefaultBrotli (9).
+    // `compression_level` must be between `kMinBrotli` (0) and
+    // `kMaxBrotli` (11). Default: `kDefaultBrotli` (9).
     //
     // This is the default compression algorithm.
     static constexpr int kMinBrotli = CompressorOptions::kMinBrotli;
@@ -135,8 +136,9 @@ class RecordWriterBase : public Object {
     // the tradeoff between compression density and compression speed (higher =
     // better density but slower).
     //
-    // compression_level must be between kMinZstd (-131072) and kMaxZstd (22).
-    // Level 0 is currently equivalent to 3. Default: kDefaultZstd (9).
+    // `compression_level` must be between `kMinZstd` (-131072) and
+    // `kMaxZstd` (22). Level 0 is currently equivalent to 3.
+    // Default: `kDefaultZstd` (9).
     static constexpr int kMinZstd = CompressorOptions::kMinZstd;
     static constexpr int kMaxZstd = CompressorOptions::kMaxZstd;
     static constexpr int kDefaultZstd = CompressorOptions::kDefaultZstd;
@@ -161,21 +163,22 @@ class RecordWriterBase : public Object {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value kDefaultWindowLog (-1) means to keep the default
+    // Special value `kDefaultWindowLog` (-1) means to keep the default
     // (brotli: 22, zstd: derived from compression level and chunk size).
     //
-    // For uncompressed and snappy, window_log must be kDefaultWindowLog (-1).
+    // For `uncompressed` and `snappy`, `window_log` must be
+    // `kDefaultWindowLog` (-1).
     //
-    // For brotli, window_log must be kDefaultWindowLog (-1) or between
-    // BrotliWriterBase::Options::kMinWindowLog (10) and
-    // BrotliWriterBase::Options::kMaxWindowLog (30).
+    // For `brotli`, `window_log` must be `kDefaultWindowLog` (-1) or between
+    // `BrotliWriterBase::Options::kMinWindowLog` (10) and
+    // `BrotliWriterBase::Options::kMaxWindowLog` (30).
     //
-    // For zstd, window_log must be kDefaultWindowLog (-1) or between
-    // ZstdWriterBase::Options::kMinWindowLog (10) and
-    // ZstdWriterBase::Options::kMaxWindowLog (30 in 32-bit build, 31 in 64-bit
-    // build).
+    // For `zstd`, `window_log` must be `kDefaultWindowLog` (-1) or between
+    // `ZstdWriterBase::Options::kMinWindowLog` (10) and
+    // `ZstdWriterBase::Options::kMaxWindowLog` (30 in 32-bit build,
+    // 31 in 64-bit build).
     //
-    // Default: kDefaultWindowLog (-1).
+    // Default: `kDefaultWindowLog` (-1).
     static constexpr int kMinWindowLog = CompressorOptions::kMinWindowLog;
     static constexpr int kMaxWindowLog = CompressorOptions::kMaxWindowLog;
     static constexpr int kDefaultWindowLog =
@@ -195,7 +198,7 @@ class RecordWriterBase : public Object {
     // allows to read pieces of the file independently with finer granularity,
     // and reduces memory usage of both writer and reader.
     //
-    // Default: 1 << 20
+    // Default: `kDefaultChunkSize` (1M)
     static constexpr uint64_t kDefaultChunkSize = uint64_t{1} << 20;
     Options& set_chunk_size(uint64_t size) & {
       RIEGELI_ASSERT_GT(size, 0u)
@@ -243,7 +246,7 @@ class RecordWriterBase : public Object {
     // Metadata are written only when the file is written from the beginning,
     // not when it is appended to.
     //
-    // Record type in metadata can be conveniently set by SetRecordType().
+    // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
     // Default: no fields set
     Options& set_metadata(RecordsMetadata metadata) & {
@@ -255,7 +258,7 @@ class RecordWriterBase : public Object {
       return std::move(set_metadata(std::move(metadata)));
     }
 
-    // Like set_metadata(), but metadata are passed in the serialized form.
+    // Like `set_metadata()`, but metadata are passed in the serialized form.
     //
     // This is faster if the caller has metadata already serialized.
     Options& set_serialized_metadata(Chain metadata) & {
@@ -267,8 +270,8 @@ class RecordWriterBase : public Object {
       return std::move(set_serialized_metadata(std::move(metadata)));
     }
 
-    // If true, padding is written to reach a 64KB block boundary when the
-    // RecordWriter is created, before Close(), and before Flush().
+    // If `true`, padding is written to reach a 64KB block boundary when the
+    // `RecordWriter` is created, before `Close()`, and before `Flush()`.
     //
     // Consequences:
     //
@@ -280,7 +283,7 @@ class RecordWriterBase : public Object {
     //
     //  * Up to 64KB is wasted when padding is written.
     //
-    // Default: false
+    // Default: `false`
     Options& set_pad_to_block_boundary(bool pad_to_block_boundary) & {
       pad_to_block_boundary_ = pad_to_block_boundary;
       return *this;
@@ -293,8 +296,8 @@ class RecordWriterBase : public Object {
     // background. Larger parallelism can increase throughput, up to a point
     // where it no longer matters; smaller parallelism reduces memory usage.
     //
-    // If parallelism > 0, chunks are written to the byte Writer in background
-    // and reporting writing errors is delayed.
+    // If `parallelism > 0`, chunks are written to the byte `Writer` in
+    // background and reporting writing errors is delayed.
     //
     // Default: 0
     Options& set_parallelism(int parallelism) & {
@@ -324,20 +327,21 @@ class RecordWriterBase : public Object {
 
   ~RecordWriterBase();
 
-  // Returns the Riegeli/records file being written to. Unchanged by Close().
+  // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
   virtual ChunkWriter* dest_chunk_writer() = 0;
   virtual const ChunkWriter* dest_chunk_writer() const = 0;
 
   // Writes the next record.
   //
-  // WriteRecord(MessageLite) serializes a proto message to raw bytes
-  // beforehand. The remaining overloads accept raw bytes.
+  // `WriteRecord(google::protobuf::MessageLite)` serializes a proto message to
+  // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
-  // If key != nullptr, *key is set to the canonical record position on success.
+  // If `key != nullptr`, `*key` is set to the canonical record position on
+  // success.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool WriteRecord(const google::protobuf::MessageLite& record,
                    FutureRecordPosition* key = nullptr);
   bool WriteRecord(absl::string_view record,
@@ -347,33 +351,35 @@ class RecordWriterBase : public Object {
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
 
-  // Finalizes any open chunk and pushes buffered data to the Writer.
-  // If Options::set_parallelism() was used, waits for any background writing to
-  // complete.
+  // Finalizes any open chunk and pushes buffered data to the `Writer`.
+  // If `Options::set_parallelism()` was used, waits for any background writing
+  // to complete.
   //
   // This degrades compression density if used too often.
   //
-  // Additionally, attempts to ensure the following, depending on flush_type:
-  //  * FlushType::kFromObject  - data is written to the Writer's destination
-  //  * FlushType::kFromProcess - data survives process crash
-  //  * FlushType::kFromMachine - data survives operating system crash
+  // Additionally, attempts to ensure the following, depending on `flush_type`:
+  //  * `FlushType::kFromObject`  - data is written to the destination of the
+  //                                `Writer`
+  //  * `FlushType::kFromProcess` - data survives process crash
+  //  * `FlushType::kFromMachine` - data survives operating system crash
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool Flush(FlushType flush_type);
 
   // Returns the current position.
   //
-  // Pos().get().numeric() returns the position as an integer of type Position.
+  // `Pos().get().numeric()` returns the position as an integer of type
+  // `Position`.
   //
-  // A position returned by Pos() before writing a record is not greater than
-  // the canonical position returned by WriteRecord() in *key for that record,
-  // but seeking to either position will read the same record.
+  // A position returned by `Pos()` before writing a record is not greater than
+  // the canonical position returned by `WriteRecord()` in `*key` for that
+  // record, but seeking to either position will read the same record.
   //
-  // After Close() or Flush(), Pos() is equal to the canonical position returned
-  // by the following WriteRecord() in *key (after reopening the file for
-  // appending in the case of Close()).
+  // After `Close()` or `Flush()`, `Pos()` is equal to the canonical position
+  // returned by the following `WriteRecord()` in `*key` (after reopening the
+  // file for appending in the case of `Close()`).
   FutureRecordPosition Pos() const;
 
  protected:
@@ -401,15 +407,15 @@ class RecordWriterBase : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
-  // Invariant: if !closed() then worker_ != nullptr.
+  // Invariant: if `!closed()` then `worker_ != nullptr`.
   std::unique_ptr<Worker> worker_;
 };
 
-// RecordWriter writes records to a Riegeli/records file. A record is
+// `RecordWriter` writes records to a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
 //
 // For writing records, this kind of loop can be used:
-//
+// ```
 //   SomeProto record;
 //   while (more records to write) {
 //     ... Compute record.
@@ -421,32 +427,34 @@ class RecordWriterBase : public Object {
 //   if (!record_writer_.Close()) {
 //     ... Failed with reason: record_writer_.status()
 //   }
+// ```
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the byte Writer. Dest must support Dependency<Writer*, Dest>,
-// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
-// ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the byte `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// Dest can also specify a ChunkWriter instead of a byte Writer. In this case
-// Dest must support Dependency<ChunkWriter*, Dest>, e.g.
-// ChunkWriter* (not owned), unique_ptr<ChunkWriter> (owned),
-// DefaultChunkWriter<> (owned).
+// `Dest` can also specify a `ChunkWriter` instead of a byte `Writer`. In this
+// case `Dest` must support `Dependency<ChunkWriter*, Dest>`, e.g.
+// `ChunkWriter*` (not owned), `std::unique_ptr<ChunkWriter>` (owned),
+// `DefaultChunkWriter<>` (owned).
 //
-// The byte Writer or ChunkWriter must not be accessed until the RecordWriter is
-// closed or (when options.set_parallelism(true) is not used) no longer used.
+// The byte `Writer` or `ChunkWriter` must not be accessed until the
+// `RecordWriter` is closed or (when parallelism in options is 0) no longer
+// used.
 template <typename Dest = Writer*>
 class RecordWriter : public RecordWriterBase {
  public:
-  // Creates a closed RecordWriter.
+  // Creates a closed `RecordWriter`.
   RecordWriter() noexcept : RecordWriterBase(kInitiallyClosed) {}
 
-  // Will write to the byte Writer or ChunkWriter provided by dest.
+  // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
   explicit RecordWriter(const Dest& dest, Options options = Options());
   explicit RecordWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the byte Writer or ChunkWriter provided by a Dest constructed
-  // from elements of dest_args. This avoids constructing a temporary Dest and
-  // moving from it.
+  // Will write to the byte `Writer` or `ChunkWriter` provided by a `Dest`
+  // constructed from elements of `dest_args`. This avoids constructing a
+  // temporary `Dest` and moving from it.
   template <typename... DestArgs>
   explicit RecordWriter(std::tuple<DestArgs...> dest_args,
                         Options options = Options());
@@ -456,16 +464,16 @@ class RecordWriter : public RecordWriterBase {
 
   ~RecordWriter() { DoneBackground(); }
 
-  // Makes *this equivalent to a newly constructed RecordWriter. This avoids
-  // constructing a temporary RecordWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `RecordWriter`. This avoids
+  // constructing a temporary `RecordWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the byte Writer or
-  // ChunkWriter. Unchanged by Close().
+  // Returns the object providing and possibly owning the byte `Writer` or
+  // `ChunkWriter`. Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   ChunkWriter* dest_chunk_writer() override { return dest_.get(); }
@@ -475,7 +483,8 @@ class RecordWriter : public RecordWriterBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the byte Writer or ChunkWriter.
+  // The object providing and possibly owning the byte `Writer` or
+  // `ChunkWriter`.
   StableDependency<ChunkWriter*, Dest> dest_;
 };
 

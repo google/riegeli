@@ -33,25 +33,25 @@
 
 namespace riegeli {
 
-// RecordPosition represents the position of a record in a Riegeli/records file,
-// or a position between records.
+// `RecordPosition` represents the position of a record in a Riegeli/records
+// file, or a position between records.
 //
 // There are two ways of expressing positions, both strictly monotonic:
-//  * RecordPosition (a class) - Faster for seeking.
-//  * Position (an integer)    - Scaled between 0 and file size.
+//  * `RecordPosition` (a class) - Faster for seeking.
+//  * `Position` (an integer)    - Scaled between 0 and file size.
 //
-// RecordPosition can be converted to Position by numeric().
+// `RecordPosition` can be converted to `Position` by `numeric()`.
 //
-// Working with RecordPosition is recommended, unless it is needed to seek to an
-// approximate position interpolated along the file, e.g. for splitting the file
-// into shards, or unless the position must be expressed as an integer from the
-// range [0, file_size] in order to fit into a preexisting API.
+// Working with `RecordPosition` is recommended, unless it is needed to seek to
+// an approximate position interpolated along the file, e.g. for splitting the
+// file into shards, or unless the position must be expressed as an integer from
+// the range [0, `file_size`] in order to fit into a preexisting API.
 class RecordPosition {
  public:
-  // Creates a RecordPosition corresponding to the first record.
+  // Creates a `RecordPosition` corresponding to the first record.
   constexpr RecordPosition() noexcept {}
 
-  // Creates a RecordPosition corresponding to the given record of the chunk
+  // Creates a `RecordPosition` corresponding to the given record of the chunk
   // beginning at the given file position.
   explicit RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
@@ -63,15 +63,15 @@ class RecordPosition {
   // Index of the record within the chunk.
   uint64_t record_index() const { return record_index_; }
 
-  // Converts RecordPosition to an integer scaled between 0 and file size.
-  // Distinct RecordPositions of a valid file have distinct numeric values.
+  // Converts `RecordPosition` to an integer scaled between 0 and file size.
+  // Distinct `RecordPosition`s of a valid file have distinct numeric values.
   uint64_t numeric() const { return chunk_begin_ + record_index_; }
 
   // Text format: "<chunk_begin>/<record_index>".
   std::string ToString() const;
   bool FromString(absl::string_view serialized);
 
-  // Binary format: chunk_begin and record_index as BigEndian-encoded 8-byte
+  // Binary format: `chunk_begin` and `record_index` as BigEndian-encoded 8-byte
   // integers. Serialized strings have the same natural order as the
   // corresponding positions.
   std::string ToBytes() const;
@@ -87,20 +87,21 @@ class RecordPosition {
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state, RecordPosition self);
 
-  // Same as: out << pos.ToString()
+  // Same as: `out << pos.ToString()`
   friend std::ostream& operator<<(std::ostream& out, RecordPosition pos);
 
  private:
-  // Invariant: record_index_ <= numeric_limits<uint64_t>::max() - chunk_begin_
+  // Invariant:
+  //   `record_index_ <= std::numeric_limits<uint64_t>::max() - chunk_begin_`
   uint64_t chunk_begin_ = 0;
   uint64_t record_index_ = 0;
 };
 
-// FutureRecordPosition is similar to shared_future<RecordPosition>.
+// `FutureRecordPosition` is similar to `std::shared_future<RecordPosition>`.
 //
-// RecordWriter returns FutureRecordPosition instead of RecordPosition because
-// with parallelism > 0 the actual position is not known until pending chunks
-// finish encoding in background.
+// `RecordWriter` returns `FutureRecordPosition` instead of `RecordPosition`
+// because with `parallelism > 0` the actual position is not known until pending
+// chunks finish encoding in background.
 class FutureRecordPosition {
  public:
   struct PadToBlockBoundary {};
@@ -120,15 +121,15 @@ class FutureRecordPosition {
   FutureRecordPosition(FutureRecordPosition&& that) noexcept;
   FutureRecordPosition& operator=(FutureRecordPosition&& that) noexcept;
 
-  // May block if returned by RecordWriter with parallelism > 0.
+  // May block if returned by `RecordWriter` with `parallelism > 0`.
   RecordPosition get() const;
 
  private:
   class FutureChunkBegin;
 
   std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
-  // If future_chunk_begin_ == nullptr, chunk_begin_ is stored here, otherwise
-  // it is future_chunk_begin_->get().
+  // If `future_chunk_begin_ == nullptr`, `chunk_begin_` is stored here,
+  // otherwise it is `future_chunk_begin_->get()`.
   Position chunk_begin_ = 0;
   uint64_t record_index_ = 0;
 };
@@ -211,9 +212,9 @@ class FutureRecordPosition::FutureChunkBegin {
   void Resolve() const;
 
   mutable absl::once_flag flag_;
-  // Position before writing chunks according to actions_.
+  // Position before writing chunks according to `actions_`.
   mutable Position pos_before_chunks_ = 0;
-  // Headers of chunks to be written after pos_before_chunks_.
+  // Headers of chunks to be written after `pos_before_chunks_`.
   mutable std::vector<Action> actions_;
 };
 

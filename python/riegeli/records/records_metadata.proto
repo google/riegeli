@@ -13,13 +13,13 @@ message RecordsMetadata {
   // If records are proto messages of a fixed type, the full name of their type.
   optional string record_type_name = 2;
 
-  // If record_type_name is set, proto file descriptors which should contain the
-  // definition of that type and their dependencies (each file comes after all
-  // its dependencies).
+  // If `record_type_name` is set, proto file descriptors which should contain
+  // the definition of that type and their dependencies (each file comes after
+  // all its dependencies).
   //
-  // If file_descriptor is empty but record_type_name is set (not recommended),
-  // record_type_name can be interpreted in the context of an unspecified proto
-  // descriptor database.
+  // If `file_descriptor` is empty but `record_type_name` is set (not
+  // recommended), `record_type_name` can be interpreted in the context of an
+  // unspecified proto descriptor database.
   repeated google.protobuf.FileDescriptorProto file_descriptor = 3;
 
   // Options originally used to encode the file:

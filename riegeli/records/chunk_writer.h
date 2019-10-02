@@ -30,10 +30,10 @@
 
 namespace riegeli {
 
-// A ChunkWriter writes chunks of a Riegeli/records file (rather than individual
-// records, as RecordWriter does) to a destination.
+// A `ChunkWriter` writes chunks of a Riegeli/records file (rather than
+// individual records, as `RecordWriter` does) to a destination.
 //
-// A ChunkWriter object can manage a buffer of data to be pushed to the
+// A `ChunkWriter` object can manage a buffer of data to be pushed to the
 // destination, which amortizes the overhead of pushing data over multiple
 // writes.
 class ChunkWriter : public Object {
@@ -49,35 +49,35 @@ class ChunkWriter : public Object {
   // Writes a chunk, pushing data to the destination as needed.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool WriteChunk(const Chunk& chunk) = 0;
 
   // Writes padding to reach a 64KB block boundary.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool PadToBlockBoundary() = 0;
 
   // Pushes buffered data to the destination.
   //
-  // Additionally, attempts to ensure the following, depending on flush_type
+  // Additionally, attempts to ensure the following, depending on `flush_type`
   // (without a guarantee though):
-  //  * FlushType::kFromObject  - nothing
-  //  * FlushType::kFromProcess - data survives process crash
-  //  * FlushType::kFromMachine - data survives operating system crash
+  //  * `FlushType::kFromObject`  - nothing
+  //  * `FlushType::kFromProcess` - data survives process crash
+  //  * `FlushType::kFromMachine` - data survives operating system crash
   //
-  // The precise meaning of Flush() depends on the particular ChunkWriter. The
-  // intent is to make data written so far visible, but in contrast to Close(),
-  // keeping the possibility to write more data later.
+  // The precise meaning of `Flush()` depends on the particular `ChunkWriter`.
+  // The intent is to make data written so far visible, but in contrast to
+  // `Close()`, keeping the possibility to write more data later.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool Flush(FlushType flush_type) = 0;
 
-  // Returns the current byte position. Unchanged by Close().
+  // Returns the current byte position. Unchanged by `Close()`.
   Position pos() const { return pos_; }
 
  protected:
@@ -88,7 +88,7 @@ class ChunkWriter : public Object {
   Position pos_ = 0;
 };
 
-// Template parameter invariant part of DefaultChunkWriter.
+// Template parameter invariant part of `DefaultChunkWriter`.
 class DefaultChunkWriterBase : public ChunkWriter {
  public:
   class Options {
@@ -100,7 +100,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
     // This can be used to prepare a file fragment which can be appended to the
     // target file at the given position.
     //
-    // Default: byte_writer->pos()
+    // Default: `dest_writer()->pos()`
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;
@@ -116,7 +116,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
     absl::optional<Position> assumed_pos_;
   };
 
-  // Returns the Riegeli/records file being written to. Unchanged by Close().
+  // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -141,28 +141,30 @@ class DefaultChunkWriterBase : public ChunkWriter {
   bool WritePadding(Position chunk_begin, Position chunk_end, Writer* dest);
 };
 
-// The default ChunkWriter. Writes chunks to a byte Writer, interleaving them
-// with block headers at multiples of the Riegeli/records block size.
+// The default `ChunkWriter`. Writes chunks to a byte `Writer`, interleaving
+// them with block headers at multiples of the Riegeli/records block size.
 //
-// The Dest template parameter specifies the type of the object providing and
-// possibly owning the byte Writer. Dest must support Dependency<Writer*, Dest>,
-// e.g. Writer* (not owned, default), unique_ptr<Writer> (owned),
-// ChainWriter<> (owned).
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the byte `Writer`. `Dest` must support
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
-// The byte Writer must not be accessed until the DefaultChunkWriter is closed
-// or no longer used, except that it is allowed to read the destination of the
-// byte Writer immediately after Flush().
+// The byte `Writer` must not be accessed until the `DefaultChunkWriter` is
+// closed or no longer used, except that it is allowed to read the destination
+// of the byte `Writer` immediately after `Flush()`.
 template <typename Dest = Writer*>
 class DefaultChunkWriter : public DefaultChunkWriterBase {
  public:
+  // Creates a closed `DefaultChunkWriter`.
   DefaultChunkWriter() noexcept : DefaultChunkWriterBase(kInitiallyClosed) {}
 
-  // Will write to the byte Writer provided by dest.
+  // Will write to the byte `Writer` provided by `dest`.
   explicit DefaultChunkWriter(const Dest& dest, Options options = Options());
   explicit DefaultChunkWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the byte Writer provided by a Dest constructed from elements
-  // of dest_args. This avoids constructing a temporary Dest and moving from it.
+  // Will write to the byte `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit DefaultChunkWriter(std::tuple<DestArgs...> dest_args,
                               Options options = Options());
@@ -170,16 +172,16 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   DefaultChunkWriter(DefaultChunkWriter&& that) noexcept;
   DefaultChunkWriter& operator=(DefaultChunkWriter&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed DefaultChunkWriter. This
-  // avoids constructing a temporary DefaultChunkWriter and moving from it.
+  // Makes `*this` equivalent to a newly constructed `DefaultChunkWriter`. This
+  // avoids constructing a temporary `DefaultChunkWriter` and moving from it.
   void Reset();
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the byte Writer. Unchanged
-  // by Close().
+  // Returns the object providing and possibly owning the byte `Writer`.
+  // Unchanged by `Close()`.
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }

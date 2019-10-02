@@ -96,11 +96,11 @@ inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
 void FutureRecordPosition::FutureChunkBegin::Resolve() const {
   struct Visitor {
     void operator()(const std::shared_future<ChunkHeader>& chunk_header) {
-      // Matches DefaultChunkWriterBase::WriteChunk().
+      // Matches `DefaultChunkWriterBase::WriteChunk()`.
       pos = internal::ChunkEnd(chunk_header.get(), pos);
     }
     void operator()(const PadToBlockBoundary&) {
-      // Matches DefaultChunkWriterBase::PadToBlockBoundary().
+      // Matches `DefaultChunkWriterBase::PadToBlockBoundary()`.
       Position length = internal::RemainingInBlock(pos);
       if (length == 0) return;
       if (length < ChunkHeader::size()) length += internal::kBlockSize;

@@ -28,7 +28,7 @@ class SkippedRegion {
  public:
   SkippedRegion() noexcept {}
 
-  // Creates a SkippedRegion with the given region location and message
+  // Creates a `SkippedRegion` with the given region location and message
   // explaining why the region is invalid.
   explicit SkippedRegion(Position begin, Position end, std::string message);
 
@@ -49,10 +49,10 @@ class SkippedRegion {
   // Message explaining why the region is invalid.
   const std::string& message() const { return message_; }
 
-  // Formats SkippedRegion as string: "[<begin>, <end>): <message>".
+  // Formats `SkippedRegion` as string: "[<begin>, <end>): <message>".
   std::string ToString() const;
 
-  // Same as: out << skipped_region.ToString()
+  // Same as: `out << skipped_region.ToString()`
   friend std::ostream& operator<<(std::ostream& out,
                                   const SkippedRegion& skipped_region);
 

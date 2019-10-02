@@ -139,9 +139,9 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
 
   const uint64_t computed_data_hash = internal::Hash(chunk_.data);
   if (ABSL_PREDICT_FALSE(computed_data_hash != chunk_.header.data_hash())) {
-    // Recoverable::kHaveChunk, not Recoverable::kFindChunk, because while chunk
-    // data are invalid, chunk header has a correct hash, and thus the next
-    // chunk is believed to be present after this chunk.
+    // `Recoverable::kHaveChunk`, not `Recoverable::kFindChunk`, because while
+    // chunk data are invalid, chunk header has a correct hash, and thus the
+    // next chunk is believed to be present after this chunk.
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = chunk_end;
     return Fail(DataLossError(absl::StrCat(
@@ -436,9 +436,9 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   const Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   Position chunk_begin;
   if (pos_ <= new_pos) {
-    // The current chunk begins at or before new_pos. If it also ends at or
-    // after block_begin, it is better to start searching from the current
-    // position than to seek back to block_begin.
+    // The current chunk begins at or before `new_pos`. If it also ends at or
+    // after `block_begin`, it is better to start searching from the current
+    // position than to seek back to `block_begin`.
     if (pos_ == new_pos) return true;
     if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) {
       truncated_ = false;
@@ -451,7 +451,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     const Position chunk_end = internal::ChunkEnd(chunk_.header, pos_);
     if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     if (chunk_end < block_begin) {
-      // The current chunk ends too early. Skip to block_begin.
+      // The current chunk ends too early. Skip to `block_begin`.
       goto read_block_header;
     }
     chunk_begin = chunk_end;
@@ -473,7 +473,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     }
     chunk_begin = block_begin + block_header_.next_chunk();
     if (which_chunk != WhichChunk::kAfter && chunk_begin > new_pos) {
-      // new_pos is inside the chunk which contains this block boundary, so
+      // `new_pos` is inside the chunk which contains this block boundary, so
       // start the search from this chunk instead of the next chunk.
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() > block_begin)) {
         recoverable_ = Recoverable::kFindChunk;

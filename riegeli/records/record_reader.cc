@@ -216,7 +216,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
     return false;
   }
   if (chunk_header->chunk_type() != ChunkType::kFileMetadata) {
-    // Missing file metadata chunk, assume empty RecordMetadata.
+    // Missing file metadata chunk, assume empty `RecordsMetadata`.
     return true;
   }
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
@@ -289,8 +289,8 @@ bool RecordReaderBase::ReadRecordSlow(Record* record, RecordPosition* key) {
     if (ABSL_PREDICT_FALSE(!ReadChunk())) {
       if (!TryRecovery()) return false;
     }
-    // Retrying from here is equivalent to calling ReadRecord() again
-    // (not ReadRecordSlow()).
+    // Retrying from here is equivalent to calling `ReadRecord()` again
+    // (not `ReadRecordSlow()`).
   again:
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
       RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
@@ -368,7 +368,7 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
       //
-      // If src->pos() > chunk_begin_, the chunk is already read.
+      // If `src->pos() > chunk_begin_`, the chunk is already read.
       goto skip_reading_chunk;
     }
   } else {
@@ -412,9 +412,9 @@ bool RecordReaderBase::Seek(Position new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
       // which is important because it may be non-existent at end of file.
       //
-      // It is possible that the chunk position is greater than new_pos if
-      // new_pos falls after all records of the previous chunk. This also seeks
-      // to the beginning of the chunk.
+      // It is possible that the chunk position is greater than `new_pos` if
+      // `new_pos` falls after all records of the previous chunk. This also
+      // seeks to the beginning of the chunk.
       chunk_begin_ = src->pos();
       chunk_decoder_.Clear();
       return true;

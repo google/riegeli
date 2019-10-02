@@ -158,7 +158,7 @@ class RecordWriterBase::Worker : public Object {
 
   ~Worker();
 
-  // Precondition for Close(): chunk is not open.
+  // Precondition for `Close()`: chunk is not open.
 
   // Precondition: chunk is not open.
   virtual void OpenChunk() = 0;
@@ -169,7 +169,7 @@ class RecordWriterBase::Worker : public Object {
 
   // Precondition: chunk is open.
   //
-  // If the result is false then !healthy().
+  // If the result is `false` then `!healthy()`.
   virtual bool CloseChunk() = 0;
 
   bool MaybePadToBlockBoundary();
@@ -191,9 +191,9 @@ class RecordWriterBase::Worker : public Object {
   bool EncodeChunk(ChunkEncoder* chunk_encoder, Chunk* chunk);
 
   Options options_;
-  // Invariant: chunk_writer_ != nullptr
+  // Invariant: `chunk_writer_ != nullptr`
   ChunkWriter* chunk_writer_;
-  // Invariant: if chunk is open then chunk_encoder_ != nullptr
+  // Invariant: if chunk is open then `chunk_encoder_ != nullptr`
   std::unique_ptr<ChunkEncoder> chunk_encoder_;
 };
 
@@ -377,7 +377,7 @@ FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
       RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
 }
 
-// ParallelWorker uses parallelism internally, but the class is still only
+// `ParallelWorker` uses parallelism internally, but the class is still only
 // thread-compatible, not thread-safe.
 class RecordWriterBase::ParallelWorker : public Worker {
  public:
@@ -423,7 +423,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
-  // Position before handling chunk_writer_requests_.
+  // Position before handling `chunk_writer_requests_`.
   Position pos_before_chunks_ ABSL_GUARDED_BY(mutex_);
 };
 
@@ -439,9 +439,9 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       }
 
       bool operator()(WriteChunkRequest& request) const {
-        // If !healthy(), the chunk must still be waited for, to ensure that
+        // If `!healthy()`, the chunk must still be waited for, to ensure that
         // the chunk encoder thread exits before the chunk writer thread
-        // responds to DoneRequest.
+        // responds to `DoneRequest`.
         const Chunk chunk = request.chunk.get();
         if (ABSL_PREDICT_FALSE(!self->healthy())) return true;
         if (ABSL_PREDICT_FALSE(!self->chunk_writer_->WriteChunk(chunk))) {
@@ -617,8 +617,8 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     absl::visit(visitor, request);
   }
-  // chunk_encoder_ is nullptr when the current chunk is closed, e.g. when
-  // RecordWriter is closed or if RecordWriter::Flush() failed.
+  // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
+  // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
   return FutureRecordPosition(
       pos_before_chunks_, std::move(visitor.actions),
       chunk_encoder_ == nullptr ? uint64_t{0} : chunk_encoder_->num_records());
@@ -668,8 +668,8 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
     Fail(*dest);
     return;
   }
-  // Ensure that num_records does not overflow when WriteRecordImpl() keeps
-  // num_records * sizeof(uint64_t) under desired_chunk_size_.
+  // Ensure that `num_records` does not overflow when `WriteRecordImpl()` keeps
+  // `num_records * sizeof(uint64_t)` under `desired_chunk_size_`.
   desired_chunk_size_ =
       UnsignedMin(options.chunk_size_, kMaxNumRecords * sizeof(uint64_t));
   if (options.parallelism_ == 0) {

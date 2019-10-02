@@ -25,8 +25,8 @@
 
 namespace riegeli {
 
-// Specialization of Dependency<ChunkWriter*, M> adapted from
-// Dependency<Writer*, M> by wrapping M in DefaultChunkWriter<M>.
+// Specialization of `Dependency<ChunkWriter*, M>` adapted from
+// `Dependency<Writer*, M>` by wrapping `M` in `DefaultChunkWriter<M>`.
 template <typename M>
 class Dependency<ChunkWriter*, M,
                  std::enable_if_t<IsValidDependency<Writer*, M>::value>> {

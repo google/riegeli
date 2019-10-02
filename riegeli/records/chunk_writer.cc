@@ -56,7 +56,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
       << "Failed precondition of ChunkWriter::WriteChunk(): "
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  // Matches FutureRecordPosition::FutureChunkBegin::Resolve().
+  // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   Writer* const dest = dest_writer();
   StringReader<> header_reader(
       absl::string_view(chunk.header.bytes(), chunk.header.size()));
@@ -134,7 +134,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
 
 bool DefaultChunkWriterBase::PadToBlockBoundary() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  // Matches FutureRecordPosition::FutureChunkBegin::Resolve().
+  // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   size_t length = IntCast<size_t>(internal::RemainingInBlock(pos_));
   if (length == 0) return true;
   if (length < ChunkHeader::size()) {

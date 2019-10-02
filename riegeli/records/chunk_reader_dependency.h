@@ -25,8 +25,8 @@
 
 namespace riegeli {
 
-// Specialization of Dependency<ChunkReader*, M> adapted from
-// Dependency<Reader*, M> by wrapping M in DefaultChunkReader<M>.
+// Specialization of `Dependency<ChunkReader*, M>` adapted from
+// `Dependency<Reader*, M>` by wrapping `M` in `DefaultChunkReader<M>`.
 template <typename M>
 class Dependency<ChunkReader*, M,
                  std::enable_if_t<IsValidDependency<Reader*, M>::value>> {

@@ -42,7 +42,7 @@
 
 namespace riegeli {
 
-// Interprets record_type_name and file_descriptor from metadata.
+// Interprets `record_type_name` and `file_descriptor` from metadata.
 class RecordsMetadataDescriptors : public Object {
  public:
   explicit RecordsMetadataDescriptors(const RecordsMetadata& metadata);
@@ -50,9 +50,10 @@ class RecordsMetadataDescriptors : public Object {
   RecordsMetadataDescriptors(RecordsMetadataDescriptors&& that) noexcept;
   RecordsMetadataDescriptors& operator=(RecordsMetadataDescriptors&& that);
 
-  // Returns message descriptor of the record type, or nullptr if not available.
+  // Returns message descriptor of the record type, or `nullptr` if not
+  // available.
   //
-  // The message descriptor is valid as long as the RecordsMetadataDescriptors
+  // The message descriptor is valid as long as the `RecordsMetadataDescriptors`
   // object is valid.
   const google::protobuf::Descriptor* descriptor() const;
 
@@ -66,7 +67,7 @@ class RecordsMetadataDescriptors : public Object {
   std::unique_ptr<google::protobuf::DescriptorPool> pool_;
 };
 
-// Template parameter invariant part of RecordReader.
+// Template parameter invariant part of `RecordReader`.
 class RecordReaderBase : public Object {
  public:
   class Options {
@@ -78,10 +79,10 @@ class RecordReaderBase : public Object {
     // excluded). Excluding data makes reading faster.
     //
     // Projection is effective if the file has been written with
-    // set_transpose(true). Additionally, set_bucket_fraction() with a lower
+    // `set_transpose(true)`. Additionally, `set_bucket_fraction()` with a lower
     // value can make reading with projection faster.
     //
-    // Default: FieldProjection::All().
+    // Default: `FieldProjection::All()`.
     Options& set_field_projection(FieldProjection field_projection) & {
       field_projection_ = std::move(field_projection);
       return *this;
@@ -93,28 +94,32 @@ class RecordReaderBase : public Object {
     // Sets the recovery function to be called after skipping over invalid file
     // contents.
     //
-    // If the recovery function is set to nullptr, then invalid file contents
-    // cause RecordReader to fail. Recover() can be used to skip over the
+    // If the recovery function is set to `nullptr`, then invalid file contents
+    // cause `RecordReader` to fail. `Recover()` can be used to skip over the
     // invalid region.
     //
-    // If the recovery function is set to a value other than nullptr, then
-    // invalid file contents cause RecordReader to skip over the invalid region
-    // and call the recovery function. If the recovery function returns true,
-    // reading continues. If the recovery function returns false, reading ends.
+    // If the recovery function is set to a value other than `nullptr`, then
+    // invalid file contents cause `RecordReader` to skip over the invalid
+    // region and call the recovery function. If the recovery function returns
+    // `true`, reading continues. If the recovery function returns `false`,
+    // reading ends.
     //
-    // If Close() is called and file contents were truncated, the recovery
-    // function is called if set. The RecordReader remains closed.
+    // If `Close()` is called and file contents were truncated, the recovery
+    // function is called if set. The `RecordReader` remains closed.
     //
     // Calling the following functions may cause the recovery function to be
     // called (in the same thread):
-    //  * Close() - returns true, ignores the result of the recovery function
-    //  * ReadMetadata() - returns the result of the recovery function
-    //  * ReadSerializedMetadata() - returns the result of the recovery function
-    //  * ReadRecord() - retried if the recovery function returns true,
-    //                   returns false if the recovery function returns false
-    //  * Seek() - returns the result of the recovery function
+    //  * `Close()` - returns `true`, ignores the result of the recovery
+    //                function
+    //  * `ReadMetadata()` - returns the result of the recovery function
+    //  * `ReadSerializedMetadata()` - returns the result of the recovery
+    //                                 function
+    //  * `ReadRecord()` - retried if the recovery function returns `true`,
+    //                     returns `false` if the recovery function returns
+    //                     `false`
+    //  * `Seek()` - returns the result of the recovery function
     //
-    // Default: nullptr
+    // Default: `nullptr`
     Options& set_recovery(
         std::function<bool(const SkippedRegion&)> recovery) & {
       recovery_ = std::move(recovery);
@@ -132,115 +137,116 @@ class RecordReaderBase : public Object {
     std::function<bool(const SkippedRegion&)> recovery_;
   };
 
-  // Returns the Riegeli/records file being read from. Unchanged by Close().
+  // Returns the Riegeli/records file being read from. Unchanged by `Close()`.
   virtual ChunkReader* src_chunk_reader() = 0;
   virtual const ChunkReader* src_chunk_reader() const = 0;
 
   // Ensures that the file looks like a valid Riegeli/Records file.
   //
-  // Reading functions already check the file format. CheckFileFormat() can
+  // Reading functions already check the file format. `CheckFileFormat()` can
   // verify the file format before (or instead of) performing other operations.
   //
   // This ignores the recovery function. If invalid file contents are skipped,
   // then checking the file format is meaningless: any file can be read.
   //
   // Return values:
-  //  * true                    - success
-  //  * false (when healthy())  - source ends
-  //  * false (when !healthy()) - failure
+  //  * `true`                      - success
+  //  * `false` (when `healthy()`)  - source ends
+  //  * `false` (when `!healthy()`) - failure
   bool CheckFileFormat();
 
   // Returns file metadata.
   //
-  // ReadMetadata() must be called while the RecordReader is at the beginning of
-  // the file (calling CheckFileFormat() before is allowed).
+  // `ReadMetadata()` must be called while the `RecordReader` is at the
+  // beginning of the file (calling `CheckFileFormat()` before is allowed).
   //
   // Record type in metadata can be conveniently interpreted by
-  // RecordsMetadataDescriptors.
+  // `RecordsMetadataDescriptors`.
   //
   // Return values:
-  //  * true                    - success (*metadata is set)
-  //  * false (when healthy())  - source ends
-  //  * false (when !healthy()) - failure
+  //  * `true`                      - success (`*metadata` is set)
+  //  * `false` (when `healthy()`)  - source ends
+  //  * `false` (when `!healthy()`) - failure
   bool ReadMetadata(RecordsMetadata* metadata);
 
-  // Like ReadMetadata(), but metadata is returned in the serialized form.
+  // Like `ReadMetadata()`, but metadata is returned in the serialized form.
   //
   // This is faster if the caller needs metadata already serialized.
   bool ReadSerializedMetadata(Chain* metadata);
 
   // Reads the next record.
   //
-  // ReadRecord(MessageLite*) parses raw bytes to a proto message after reading.
-  // The remaining overloads read raw bytes. For ReadRecord(string_view*) the
-  // string_view is valid until the next non-const operation on this
-  // RecordReader.
+  // `ReadRecord(google::protobuf::MessageLite*)` parses raw bytes to a proto
+  // message after reading. The remaining overloads read raw bytes. For
+  // `ReadRecord(absl::string_view*)` the `absl::string_view` is valid until the
+  // next non-const operation on this `RecordReader`.
   //
-  // If key != nullptr, *key is set to the canonical record position on success.
+  // If `key != nullptr`, `*key` is set to the canonical record position on
+  // success.
   //
   // Return values:
-  //  * true                    - success (*record is set)
-  //  * false (when healthy())  - source ends
-  //  * false (when !healthy()) - failure
+  //  * `true`                      - success (`*record` is set)
+  //  * `false` (when `healthy()`)  - source ends
+  //  * `false` (when `!healthy()`) - failure
   bool ReadRecord(google::protobuf::MessageLite* record,
                   RecordPosition* key = nullptr);
   bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
 
-  // If !healthy() and the failure was caused by invalid file contents, then
-  // Recover() tries to recover from the failure and allow reading again by
+  // If `!healthy()` and the failure was caused by invalid file contents, then
+  // `Recover()` tries to recover from the failure and allow reading again by
   // skipping over the invalid region.
   //
-  // If Close() failed and the failure was caused by truncated file contents,
-  // then Recover() returns true. The RecordReader remains closed.
+  // If `Close()` failed and the failure was caused by truncated file contents,
+  // then `Recover()` returns `true`. The `RecordReader` remains closed.
   //
-  // If healthy(), or if !healthy() but the failure was not caused by invalid
-  // file contents, then Recover() returns false.
+  // If `healthy()`, or if `!healthy()` but the failure was not caused by
+  // invalid file contents, then `Recover()` returns `false`.
   //
-  // If skipped_region != nullptr, *skipped_region is set to the position of the
-  // skipped region on success.
+  // If `skipped_region != nullptr`, `*skipped_region` is set to the position of
+  // the skipped region on success.
   //
-  // If a recovery function is set, then Recover() is called automatically.
-  // Otherwise Recover() can be called after one of the following functions
-  // returned false, and the function can be assumed to have returned true
-  // if Recover() returns true:
-  //  * Close()
-  //  * ReadMetadata()
-  //  * ReadSerializedMetadata()
-  //  * ReadRecord() - should be retried if Recover() returns true
-  //  * Seek()
+  // If a recovery function is set, then `Recover()` is called automatically.
+  // Otherwise `Recover()` can be called after one of the following functions
+  // returned `false`, and the function can be assumed to have returned `true`
+  // if `Recover()` returns `true`:
+  //  * `Close()`
+  //  * `ReadMetadata()`
+  //  * `ReadSerializedMetadata()`
+  //  * `ReadRecord()` - should be retried if `Recover()` returns `true`
+  //  * `Seek()`
   //
   // Return values:
-  //  * true  - success
-  //  * false - failure not caused by invalid file contents
+  //  * `true`  - success
+  //  * `false` - failure not caused by invalid file contents
   bool Recover(SkippedRegion* skipped_region = nullptr);
 
   // Returns the current position.
   //
-  // pos().numeric() returns the position as an integer of type Position.
+  // `pos().numeric()` returns the position as an integer of type `Position`.
   //
-  // A position returned by pos() before reading a record is not greater than
-  // the canonical position returned by ReadRecord() in *key for that record,
-  // but seeking to either position will read the same record.
+  // A position returned by `pos()` before reading a record is not greater than
+  // the canonical position returned by `ReadRecord()` in `*key` for that
+  // record, but seeking to either position will read the same record.
   //
-  // pos() is unchanged by Close().
+  // `pos()` is unchanged by `Close()`.
   RecordPosition pos() const;
 
-  // Returns true if this RecordReader supports Seek() and Size().
+  // Returns `true` if this `RecordReader` supports `Seek()` and `Size()`.
   bool SupportsRandomAccess() const;
 
   // Seeks to a position.
   //
-  // In Seek(RecordPosition) the position should have been obtained by pos() for
-  // the same file.
+  // In `Seek(RecordPosition)` the position should have been obtained by `pos()`
+  // for the same file.
   //
-  // In Seek(Position) the position can be any integer between 0 and file size.
-  // If it points between records, it is interpreted as the next record.
+  // In `Seek(Position)` the position can be any integer between 0 and file
+  // size. If it points between records, it is interpreted as the next record.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
 
@@ -248,8 +254,8 @@ class RecordReaderBase : public Object {
   // its end.
   //
   // Return values:
-  //  * true  - success (*size is set, healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`*size` is set, `healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool Size(Position* size);
 
 #if 0
@@ -286,31 +292,32 @@ class RecordReaderBase : public Object {
   bool TryRecovery();
 
   // Position of the beginning of the current chunk or end of file, except when
-  // Seek(Position) failed to locate the chunk containing the position, in which
-  // case this is that position.
+  // `Seek(Position)` failed to locate the chunk containing the position, in
+  // which case this is that position.
   Position chunk_begin_ = 0;
 
   // Current chunk if a chunk has been read, empty otherwise.
   //
   // Invariants:
-  //   if healthy() then chunk_decoder_.healthy()
-  //   if !healthy() then !chunk_decoder_.healthy() ||
-  //                      chunk_decoder_.index() == chunk_decoder_.num_records()
+  //   if `healthy()` then `chunk_decoder_.healthy()`
+  //   if `!healthy()` then
+  //       `!chunk_decoder_.healthy() ||
+  //        chunk_decoder_.index() == chunk_decoder_.num_records()`
   ChunkDecoder chunk_decoder_;
 
-  // Whether Recover() is applicable, and if so, how it should be performed:
+  // Whether `Recover()` is applicable, and if so, how it should be performed:
   //
-  //  * Recoverable::kNo                  - Recover() is not applicable
-  //  * Recoverable::kRecoverChunkReader  - Recover() tries to recover
-  //                                        chunk_reader_
-  //  * Recoverable::kRecoverChunkDecoder - Recover() tries to recover
-  //                                        chunk_decoder_, skips the chunk if
-  //                                        that failed
+  //  * `Recoverable::kNo`                  - `Recover()` is not applicable
+  //  * `Recoverable::kRecoverChunkReader`  - `Recover()` tries to recover
+  //                                          `chunk_reader_`
+  //  * `Recoverable::kRecoverChunkDecoder` - `Recover()` tries to recover
+  //                                          `chunk_decoder_,` skips the chunk
+  //                                          if that failed
   //
   // Invariants:
-  //   if healthy() then recoverable_ == Recoverable::kNo
-  //   if closed() then recoverable_ == Recoverable::kNo ||
-  //                    recoverable_ == Recoverable::kRecoverChunkReader
+  //   if `healthy()` then `recoverable_ == Recoverable::kNo`
+  //   if `closed()` then `recoverable_ == Recoverable::kNo ||
+  //                       recoverable_ == Recoverable::kRecoverChunkReader`
   Recoverable recoverable_ = Recoverable::kNo;
 
   std::function<bool(const SkippedRegion&)> recovery_;
@@ -318,24 +325,24 @@ class RecordReaderBase : public Object {
  private:
   bool ParseMetadata(const Chunk& chunk, Chain* metadata);
 
-  // Precondition: !chunk_decoder_.healthy() ||
-  //               chunk_decoder_.index() == chunk_decoder_.num_records()
+  // Precondition: `!chunk_decoder_.healthy() ||
+  //                chunk_decoder_.index() == chunk_decoder_.num_records()`
   template <typename Record>
   bool ReadRecordSlow(Record* record, RecordPosition* key);
 
-  // Reads the next chunk from chunk_reader_ and decodes it into chunk_decoder_
-  // and chunk_begin_. On failure resets chunk_decoder_.
+  // Reads the next chunk from `chunk_reader_` and decodes it into
+  // `chunk_decoder_` and `chunk_begin_`. On failure resets `chunk_decoder_`.
   bool ReadChunk();
 };
 
-// RecordReader reads records of a Riegeli/records file. A record is
+// `RecordReader` reads records of a Riegeli/records file. A record is
 // conceptually a binary string; usually it is a serialized proto message.
 //
-// RecordReader supports reading records sequentially, querying for the current
-// position, and seeking to continue reading from another position.
+// `RecordReader` supports reading records sequentially, querying for the
+// current position, and seeking to continue reading from another position.
 //
 // For reading records sequentially, this kind of loop can be used:
-//
+// ```
 //   SomeProto record;
 //   while (record_reader_.ReadRecord(&record)) {
 //     ... Process record.
@@ -343,17 +350,19 @@ class RecordReaderBase : public Object {
 //   if (!record_reader_.Close()) {
 //     ... Failed with reason: record_reader_.status()
 //   }
+// ```
 //
 // For reading records while skipping errors, pass options like these:
-//
+// ```
 //       RecordReaderBase::Options().set_recovery(
 //           [&skipped_bytes](const SkippedRegion& skipped_region) {
 //             skipped_bytes += skipped_region.length();
 //             return true;
 //           })
+// ```
 //
 // An equivalent lower level implementation, without callbacks:
-//
+// ```
 //   Position skipped_bytes = 0;
 //   SomeProto record;
 //   for (;;) {
@@ -375,31 +384,33 @@ class RecordReaderBase : public Object {
 //       ... Failed with reason: record_reader_.status()
 //     }
 //   }
+// ```
 //
-// The Src template parameter specifies the type of the object providing and
-// possibly owning the byte Reader. Src must support Dependency<Reader*, Src>,
-// e.g. Reader* (not owned, default), unique_ptr<Reader> (owned),
-// ChainReader<> (owned).
+// The `Src` template parameter specifies the type of the object providing and
+// possibly owning the byte `Reader`. `Src` must support
+// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// Src may also specify a ChunkReader instead of a byte Reader. In this case Src
-// must support Dependency<ChunkReader*, Src>, e.g. ChunkReader* (not owned),
-// unique_ptr<ChunkReader> (owned), DefaultChunkReader<> (owned).
+// `Src` may also specify a `ChunkReader` instead of a byte `Reader`. In this
+// case `Src` must support `Dependency<ChunkReader*, Src>`, e.g.
+// `ChunkReader*` (not owned), `std::unique_ptr<ChunkReader>` (owned),
+// `DefaultChunkReader<>` (owned).
 //
-// The byte Reader or ChunkReader must not be accessed until the RecordReader is
-// closed or no longer used.
+// The byte `Reader` or `ChunkReader` must not be accessed until the
+// `RecordReader` is closed or no longer used.
 template <typename Src = Reader*>
 class RecordReader : public RecordReaderBase {
  public:
-  // Creates a closed RecordReader.
+  // Creates a closed `RecordReader`.
   RecordReader() noexcept : RecordReaderBase(kInitiallyClosed) {}
 
-  // Will read from the byte Reader or ChunkReader provided by src.
+  // Will read from the byte `Reader` or `ChunkReader` provided by `src`.
   explicit RecordReader(const Src& src, Options options = Options());
   explicit RecordReader(Src&& src, Options options = Options());
 
-  // Will read from the byte Reader or ChunkReader provided by a Src constructed
-  // from elements of src_args. This avoids constructing a temporary Src and
-  // moving from it.
+  // Will read from the byte `Reader` or `ChunkReader` provided by a `Src`
+  // constructed from elements of `src_args`. This avoids constructing a
+  // temporary `Src` and moving from it.
   template <typename... SrcArgs>
   explicit RecordReader(std::tuple<SrcArgs...> src_args,
                         Options options = Options());
@@ -407,16 +418,16 @@ class RecordReader : public RecordReaderBase {
   RecordReader(RecordReader&& that) noexcept;
   RecordReader& operator=(RecordReader&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed RecordReader. This avoids
-  // constructing a temporary RecordReader and moving from it.
+  // Makes `*this` equivalent to a newly constructed `RecordReader`. This avoids
+  // constructing a temporary `RecordReader` and moving from it.
   void Reset();
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
 
-  // Returns the object providing and possibly owning the byte Reader or
-  // ChunkReader. Unchanged by Close().
+  // Returns the object providing and possibly owning the byte `Reader` or
+  // `ChunkReader`. Unchanged by `Close()`.
   Src& src() { return src_.manager(); }
   const Src& src() const { return src_.manager(); }
   ChunkReader* src_chunk_reader() override { return src_.get(); }
@@ -429,7 +440,8 @@ class RecordReader : public RecordReaderBase {
   void Done() override;
 
  private:
-  // The object providing and possibly owning the byte Reader or ChunkReader.
+  // The object providing and possibly owning the byte `Reader` or
+  // `ChunkReader`.
   Dependency<ChunkReader*, Src> src_;
 };
 

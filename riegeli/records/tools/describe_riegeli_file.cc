@@ -65,7 +65,7 @@ namespace {
 
 Status DescribeFileMetadataChunk(const Chunk& chunk,
                                  RecordsMetadata* records_metadata) {
-  // Based on RecordReaderBase::ParseMetadata().
+  // Based on `RecordReaderBase::ParseMetadata()`.
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
     return DataLossError(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
@@ -97,7 +97,7 @@ Status DescribeFileMetadataChunk(const Chunk& chunk,
 
 Status DescribeSimpleChunk(const Chunk& chunk,
                            summary::SimpleChunk* simple_chunk) {
-  // Based on SimpleDecoder::Decode().
+  // Based on `SimpleDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
 
   uint8_t compression_type_byte;
@@ -147,7 +147,7 @@ Status DescribeTransposedChunk(const Chunk& chunk,
                                summary::TransposedChunk* transposed_chunk) {
   ChainReader<> chunk_reader(&chunk.data);
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
-    // Based on ChunkDecoder::Parse().
+    // Based on `ChunkDecoder::Parse()`.
     TransposeDecoder transpose_decoder;
     NullBackwardWriter dest_writer(NullBackwardWriter::kInitiallyOpen);
     std::vector<size_t> limits;
@@ -169,7 +169,7 @@ Status DescribeTransposedChunk(const Chunk& chunk,
       prev_limit = next_limit;
     }
   } else {
-    // Based on TransposeDecoder::Decode().
+    // Based on `TransposeDecoder::Decode()`.
     uint8_t compression_type_byte;
     if (ABSL_PREDICT_FALSE(!ReadByte(&chunk_reader, &compression_type_byte))) {
       return DataLossError("Reading compression type failed");
