@@ -100,7 +100,7 @@ class Chain {
   //
   //   // Shows internal structure in a human-readable way, for debugging.
   //   void DumpStructure(absl::string_view data, std::ostream& out) const {
-  //     out << "External";
+  //     out << "[external] { }";
   //   }
   // ```
   //
@@ -955,7 +955,7 @@ inline std::enable_if_t<!HasDumpStructureWithData<T>::value &&
                             !HasDumpStructureWithoutData<T>::value,
                         void>
 DumpStructure(T* object, absl::string_view data, std::ostream& out) {
-  out << "External";
+  out << "[external] { }";
 }
 
 }  // namespace internal

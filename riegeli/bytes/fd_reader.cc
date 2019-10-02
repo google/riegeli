@@ -72,7 +72,7 @@ void MMapRef::operator()(absl::string_view data) const {
 
 void MMapRef::RegisterSubobjects(MemoryEstimator* memory_estimator) const {}
 
-void MMapRef::DumpStructure(std::ostream& out) const { out << "mmap"; }
+void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 }  // namespace
 

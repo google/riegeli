@@ -110,8 +110,10 @@ inline void Chain::BlockRef::RegisterSubobjects(
 
 inline void Chain::BlockRef::DumpStructure(absl::string_view data,
                                            std::ostream& out) const {
-  out << "offset: " << PtrDistance(block_->data_begin(), data.data()) << "; ";
+  out << "[block] { offset: " << PtrDistance(block_->data_begin(), data.data())
+      << " ";
   block_->DumpStructure(out);
+  out << " }";
 }
 
 class Chain::StringRef {
@@ -137,7 +139,7 @@ inline void Chain::StringRef::RegisterSubobjects(
 }
 
 inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
-  out << "string";
+  out << "[string] { capacity: " << src_.capacity() << " }";
 }
 
 inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
@@ -242,16 +244,20 @@ inline void Chain::RawBlock::RegisterShared(
 }
 
 inline void Chain::RawBlock::DumpStructure(std::ostream& out) const {
-  out << "RawBlock {ref_count: " << ref_count_.load(std::memory_order_relaxed)
-      << "; size: " << size() << "; ";
+  out << "block {";
+  const size_t ref_count = ref_count_.load(std::memory_order_relaxed);
+  if (ref_count != 1) out << " ref_count: " << ref_count;
+  out << " size: " << size();
   if (is_internal()) {
-    out << "internal; space: " << raw_space_before() << " + "
-        << raw_space_after();
+    if (raw_space_before() > 0) {
+      out << " space_before: " << raw_space_before();
+    }
+    out << " space_after: " << raw_space_after();
   } else {
-    out << "external; ";
+    out << " ";
     external_.methods->dump_structure(this, out);
   }
-  out << "}";
+  out << " }";
 }
 
 inline bool Chain::RawBlock::can_append(size_t length) const {
@@ -593,19 +599,12 @@ void Chain::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
 }
 
 void Chain::DumpStructure(std::ostream& out) const {
-  out << "Chain {\n"
-         "  size: "
-      << size_ << "; memory: " << EstimateMemory()
-      << "; short_size: " << (begin_ == end_ ? size_ : size_t{0})
-      << "; blocks: " << PtrDistance(begin_, end_) << ";\n";
-  size_t pos = 0;
+  out << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
   for (RawBlock* const* iter = begin_; iter != end_; ++iter) {
-    out << "  pos: " << pos << "; ";
+    out << "\n  ";
     (*iter)->DumpStructure(out);
-    out << "\n";
-    pos += (*iter)->size();
   }
-  out << "}\n";
+  out << "\n}\n";
 }
 
 inline void Chain::PushBack(RawBlock* block) {
