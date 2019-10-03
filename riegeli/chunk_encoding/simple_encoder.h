@@ -36,7 +36,7 @@ namespace riegeli {
 //  - Compression type
 //  - Size of record sizes (compressed if applicable)
 //  - Record sizes (possibly compressed):
-//    - Array of "num_records" varints: sizes of records
+//    - Array of `num_records` varints: sizes of records
 //  - Record values (possibly compressed):
 //    - Concatenated record data (bytes)
 //
@@ -44,7 +44,7 @@ namespace riegeli {
 // uncompressed size.
 class SimpleEncoder : public ChunkEncoder {
  public:
-  // Creates an empty SimpleEncoder.
+  // Creates an empty `SimpleEncoder`.
   explicit SimpleEncoder(CompressorOptions options, uint64_t size_hint);
 
   void Clear() override;

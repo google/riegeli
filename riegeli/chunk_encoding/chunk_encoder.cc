@@ -42,7 +42,7 @@ bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
 }
 
 bool ChunkEncoder::AddRecord(Chain&& record) {
-  // Not std::move(record): forward to AddRecord(const Chain&).
+  // Not `std::move(record)`: forward to `AddRecord(const Chain&)`.
   return AddRecord(record);
 }
 

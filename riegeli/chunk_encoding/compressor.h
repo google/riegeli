@@ -57,7 +57,7 @@ class Compressor : public Object {
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // set_final_size() overrides set_size_hint().
+    // `set_final_size()` overrides `set_size_hint()`.
     TuningOptions& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -73,37 +73,37 @@ class Compressor : public Object {
     Position size_hint_ = 0;
   };
 
-  // Creates a closed Compressor.
+  // Creates a closed `Compressor`.
   Compressor() noexcept : Object(kInitiallyClosed) {}
 
-  // Creates an empty Compressor.
+  // Creates an empty `Compressor`.
   explicit Compressor(CompressorOptions compressor_options,
                       TuningOptions tuning_options = TuningOptions());
 
   Compressor(const Compressor&) = delete;
   Compressor& operator=(const Compressor&) = delete;
 
-  // Resets the Compressor back to empty. Keeps compressor options unchanged.
+  // Resets the `Compressor` back to empty. Keeps compressor options unchanged.
   // Changes tuning options.
   void Clear(TuningOptions tuning_options);
 
-  // Resets the Compressor back to empty. Keeps compressor options and tuning
+  // Resets the `Compressor` back to empty. Keeps compressor options and tuning
   // options unchanged.
   void Clear();
 
-  // Returns the Writer to which uncompressed data should be written.
+  // Returns the `Writer` to which uncompressed data should be written.
   //
-  // Precondition: healthy()
+  // Precondition: `healthy()`
   Writer* writer();
 
-  // Writes compressed data to *dest. Closes the Compressor.
+  // Writes compressed data to `*dest`. Closes the `Compressor`.
   //
-  // If options.compression_type() is not kNone, writes uncompressed size as a
-  // varint before the data.
+  // If `options.compression_type()` is not `kNone`, writes uncompressed size as
+  // a varint before the data.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool EncodeAndClose(Writer* dest);
 
  private:
@@ -113,8 +113,8 @@ class Compressor : public Object {
   TuningOptions tuning_options_;
   Chain compressed_;
   // Invariant:
-  //   options_.compression_type() is consistent with
-  //       the active member of writer_
+  //   `options_.compression_type()` is consistent with
+  //       the active member of `writer_`
   absl::variant<ChainWriter<>, BrotliWriter<ChainWriter<>>,
                 ZstdWriter<ChainWriter<>>, SnappyWriter<ChainWriter<>>>
       writer_;

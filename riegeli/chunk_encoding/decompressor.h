@@ -41,36 +41,36 @@ namespace riegeli {
 
 namespace internal {
 
-// Sets *uncompressed_size to uncompressed size of compressed_data.
+// Sets `*uncompressed_size` to uncompressed size of `compressed_data`.
 //
-// If compression_type is kNone, uncompressed size is the same as compressed
+// If `compression_type` is `kNone`, uncompressed size is the same as compressed
 // size, otherwise reads uncompressed size as a varint from the beginning of
 // compressed_data.
 //
 // Return values:
-//  * true  - success
-//  * false - failure
+//  * `true`  - success
+//  * `false` - failure
 bool UncompressedSize(const Chain& compressed_data,
                       CompressionType compression_type,
                       uint64_t* uncompressed_size);
 
 // Decompresses a compressed stream.
 //
-// If compression_type is not kNone, reads uncompressed size as a varint from
-// the beginning of compressed data.
+// If `compression_type` is not `kNone`, reads uncompressed size as a varint
+// from the beginning of compressed data.
 template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
-  // Creates a closed Decompressor.
+  // Creates a closed `Decompressor`.
   Decompressor() noexcept : Object(kInitiallyClosed) {}
 
-  // Will read from the compressed stream provided by src.
+  // Will read from the compressed stream provided by `src`.
   explicit Decompressor(const Src& src, CompressionType compression_type);
   explicit Decompressor(Src&& src, CompressionType compression_type);
 
-  // Will read from the compressed stream provided by a Src constructed from
-  // elements of src_args. This avoids constructing a temporary Src and moving
-  // from it.
+  // Will read from the compressed stream provided by a `Src` constructed from
+  // elements of `src_args`. This avoids constructing a temporary `Src` and
+  // moving from it.
   template <typename... SrcArgs>
   explicit Decompressor(std::tuple<SrcArgs...> src_args,
                         CompressionType compression_type);
@@ -78,32 +78,33 @@ class Decompressor : public Object {
   Decompressor(Decompressor&& that) noexcept;
   Decompressor& operator=(Decompressor&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed Decompressor. This avoids
-  // constructing a temporary Decompressor and moving from it.
+  // Makes `*this` equivalent to a newly constructed `Decompressor`. This avoids
+  // constructing a temporary `Decompressor` and moving from it.
   void Reset();
   void Reset(const Src& src, CompressionType compression_type);
   void Reset(Src&& src, CompressionType compression_type);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, CompressionType compression_type);
 
-  // Returns the Reader from which uncompressed data should be read.
+  // Returns the `Reader` from which uncompressed data should be read.
   //
-  // Precondition: healthy()
+  // Precondition: `healthy()`
   Reader* reader();
 
   // Verifies that the source ends at the current position (i.e. has no more
   // compressed data and has no data after the compressed stream), failing the
-  // Decompressor if not. Closes the Decompressor.
+  // `Decompressor` if not. Closes the `Decompressor`.
   //
   // Return values:
-  //  * true  - success (the source ends at the former current position)
-  //  * false - failure (the source does not end at the former current position
-  //                     or the Decompressor was not healthy before closing)
+  //  * `true`  - success (the source ends at the former current position)
+  //  * `false` - failure (the source does not end at the former current
+  //                       position or the `Decompressor` was not healthy before
+  //                       closing)
   bool VerifyEndAndClose();
 
   // Verifies that the source ends at the current position (i.e. has no more
   // compressed data and has no data after the compressed stream), failing the
-  // Decompressor if not.
+  // `Decompressor` if not.
   void VerifyEnd();
 
  protected:

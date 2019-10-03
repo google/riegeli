@@ -34,8 +34,8 @@
 
 namespace riegeli {
 
-// DeferredEncoder performs a minimal amount of the encoding work in
-// AddRecord(), deferring as much as possible to EncodeAndClose().
+// `DeferredEncoder` performs a minimal amount of the encoding work in
+// `AddRecord()`, deferring as much as possible to `EncodeAndClose()`.
 // It does more memory copying than the base encoder though.
 class DeferredEncoder : public ChunkEncoder {
  public:
@@ -61,14 +61,15 @@ class DeferredEncoder : public ChunkEncoder {
   bool AddRecordImpl(Record&& record);
 
   std::unique_ptr<ChunkEncoder> base_encoder_;
-  // Writer of concatenated record values.
+  // `Writer` of concatenated record values.
   ChainWriter<Chain> records_writer_;
   // Sorted record end positions.
   //
-  // Invariant: limits_.size() == num_records_
+  // Invariant: `limits_.size() == num_records_`
   std::vector<size_t> limits_;
 
-  // Invariant: records_writer_.pos() == (limits_.empty() ? 0 : limits_.back())
+  // Invariant:
+  //   `records_writer_.pos() == (limits_.empty() ? 0 : limits_.back())`
 };
 
 // Implementation details follow.

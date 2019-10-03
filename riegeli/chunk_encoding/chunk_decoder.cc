@@ -51,7 +51,7 @@ bool ChunkDecoder::Decode(const Chunk& chunk) {
   }
   Chain values;
   if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
-    limits_.clear();  // Ensure that index() == num_records().
+    limits_.clear();  // Ensure that `index() == num_records()`.
     return false;
   }
   RIEGELI_ASSERT_EQ(limits_.size(), chunk.header.num_records())

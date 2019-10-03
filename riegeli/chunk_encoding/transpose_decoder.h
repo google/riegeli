@@ -35,22 +35,23 @@ enum class CallbackType : uint8_t;
 
 class TransposeDecoder : public Object {
  public:
+  // Creates a closed `TransposeDecoder`.
   TransposeDecoder() noexcept : Object(kInitiallyClosed) {}
 
   TransposeDecoder(const TransposeDecoder&) = delete;
   TransposeDecoder& operator=(const TransposeDecoder&) = delete;
 
-  // Resets the TransposeDecoder and parses the chunk.
+  // Resets the `TransposeDecoder` and parses the chunk.
   //
-  // Writes concatenated record values to *dest. Sets *limits to sorted record
-  // end positions.
+  // Writes concatenated record values to `*dest`. Sets `*limits` to sorted
+  // record end positions.
   //
-  // Precondition: dest->pos() == 0
+  // Precondition: `dest->pos() == 0`
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy());
-  //            if !dest->healthy() then the problem was at dest
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`);
+  //              if `!dest->healthy()` then the problem was at `*dest`
   bool Decode(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
               const FieldProjection& field_projection, BackwardWriter* dest,
               std::vector<size_t>* limits);
@@ -58,14 +59,14 @@ class TransposeDecoder : public Object {
  private:
   // Information about one proto tag.
   struct TagData {
-    // "data" contains varint encoded tag (1 to 5 bytes) followed by inline
+    // `data` contains varint encoded tag (1 to 5 bytes) followed by inline
     // numeric (if any) or zero otherwise.
     char data[kMaxLengthVarint32 + 1];
     // Length of the varint encoded tag.
     uint8_t size;
   };
 
-  // SubmessageStackElement is used to keep information about started nested
+  // `SubmessageStackElement` is used to keep information about started nested
   // submessages. Decoding works in non-recursive loop and this class keeps the
   // information needed to finalize one submessage.
   struct SubmessageStackElement {
@@ -75,10 +76,10 @@ class TransposeDecoder : public Object {
     TagData tag_data;
   };
 
-  // Node template that can be used to resolve the CallbackType of the node in
+  // Node template that can be used to resolve the `CallbackType` of the node in
   // decoding phase.
   struct StateMachineNodeTemplate {
-    // "bucket_index" and "buffer_within_bucket_index" identify the decoder
+    // `bucket_index` and `buffer_within_bucket_index` identify the decoder
     // to read data from.
     uint32_t bucket_index;
     uint32_t buffer_within_bucket_index;
@@ -94,16 +95,16 @@ class TransposeDecoder : public Object {
   struct StateMachineNode {
     union {
       // Every state has callback assigned to it that performs the state action.
-      // This is an address of a label in DecodeToBuffer method which is filled
-      // when DecodeToBuffer is called.
+      // This is an address of a label in `TransposeDecoder::Decode()` method
+      // which is filled when that method is called.
       void* callback;
       // Used to verify there are no implicit loops in the state machine.
       size_t implicit_loop_id;
     };
     // Tag for the field decoded by this node.
     TagData tag_data;
-    // Note: callback_type is after tag_data which is 7 bytes and may benefit
-    // from being aligned.
+    // Note: `callback_type` is after `tag_data` which is 7 bytes and may
+    // benefit from being aligned.
     internal::CallbackType callback_type;
     union {
       // Buffer to read data from.
@@ -116,7 +117,7 @@ class TransposeDecoder : public Object {
     StateMachineNode* next_node;
   };
 
-  // Note: If more bytes is needed in StateMachineNode, callback_type can be
+  // Note: If more bytes is needed in `StateMachineNode`, `callback_type` can be
   // moved to a separate vector with some refactoring.
   static_assert(sizeof(StateMachineNode) == 3 * sizeof(void*) + 8,
                 "Unexpected padding in StateMachineNode.");
@@ -126,22 +127,21 @@ class TransposeDecoder : public Object {
   bool Parse(Context* context, Reader* src,
              const FieldProjection& field_projection);
 
-  // Parse data buffers in "header_reader" and "reader" into
-  // "context_->buffers". This method is used when projection is disabled and
-  // all buffers are initially decompressed.
+  // Parse data buffers in `header_reader` and `src` into `context->buffers`.
+  // This method is used when projection is disabled and all buffers are
+  // initially decompressed.
   bool ParseBuffers(Context* context, Reader* header_reader, Reader* src);
 
-  // Parse data buffers in "header_reader" and "reader" into
-  // "context_->data_buckets". When projection is enabled, buckets are
-  // decompressed on demand. "bucket_indices" contains bucket index for each
-  // buffer. "first_buffer_indices" contains the index of first buffer for each
-  // bucket.
+  // Parse data buffers in `header_reader` and `src` into `context->buckets`.
+  // When projection is enabled, buckets are decompressed on demand.
+  // `bucket_indices` contains bucket index for each buffer.
+  // `first_buffer_indices` contains the index of first buffer for each bucket.
   bool ParseBuffersForFitering(Context* context, Reader* header_reader,
                                Reader* src,
                                std::vector<uint32_t>* first_buffer_indices,
                                std::vector<uint32_t>* bucket_indices);
 
-  // Precondition: projection_enabled == true.
+  // Precondition: `projection_enabled`.
   Reader* GetBuffer(Context* context, uint32_t bucket_index,
                     uint32_t index_within_bucket);
 
@@ -151,8 +151,8 @@ class TransposeDecoder : public Object {
   bool Decode(Context* context, uint64_t num_records, BackwardWriter* dest,
               std::vector<size_t>* limits);
 
-  // Set callback_type in "node" based on "skipped_submessage_level",
-  // "submessage_stack" and "node->node_template".
+  // Set `callback_type` in `node` based on `skipped_submessage_level`,
+  // `submessage_stack`, and `node->node_template`.
   bool SetCallbackType(
       Context* context, int skipped_submessage_level,
       const std::vector<SubmessageStackElement>& submessage_stack,

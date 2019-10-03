@@ -61,66 +61,67 @@ class ChunkDecoder : public Object {
     FieldProjection field_projection_ = FieldProjection::All();
   };
 
-  // Creates an empty ChunkDecoder.
+  // Creates an empty `ChunkDecoder`.
   explicit ChunkDecoder(Options options = Options());
 
   ChunkDecoder(ChunkDecoder&& that) noexcept;
   ChunkDecoder& operator=(ChunkDecoder&& that) noexcept;
 
-  // Makes *this equivalent to a newly constructed ChunkDecoder. This avoids
-  // constructing a temporary ChunkDecoder and moving from it.
+  // Makes `*this` equivalent to a newly constructed `ChunkDecoder`. This avoids
+  // constructing a temporary `ChunkDecoder` and moving from it.
   void Reset(Options options = Options());
 
-  // Resets the ChunkDecoder to an empty chunk. Keeps options unchanged.
+  // Resets the `ChunkDecoder` to an empty chunk. Keeps options unchanged.
   void Clear();
 
-  // Resets the ChunkDecoder and parses the chunk. Keeps options unchanged.
+  // Resets the `ChunkDecoder` and parses the chunk. Keeps options unchanged.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   bool Decode(const Chunk& chunk);
 
   // Reads the next record.
   //
-  // ReadRecord(MessageLite*) parses raw bytes to a proto message after reading.
-  // The remaining overloads read raw bytes (they never generate a new failure).
-  // For ReadRecord(string_view*) the string_view is valid until the next
-  // non-const operation on this ChunkDecoder.
+  // `ReadRecord(google::protobuf::MessageLite*)` parses raw bytes to a proto
+  // message after reading. The remaining overloads read raw bytes (they never
+  // generate a new failure). For `ReadRecord(absl::string_view*)` the
+  // `absl::string_view` is valid until the next non-const operation on this
+  // `ChunkDecoder`.
   //
-  // If key != nullptr, *key is set to the record index on success.
+  // If `key != nullptr`, `*key` is set to the record index on success.
   //
   // Return values:
-  //  * true                    - success (*record is set, healthy())
-  //  * false (when healthy())  - chunk ends
-  //  * false (when !healthy()) - failure
+  //  * `true`                      - success (`*record` is set, `healthy()`)
+  //  * `false` (when `healthy()`)  - chunk ends
+  //  * `false` (when `!healthy()`) - failure
   bool ReadRecord(google::protobuf::MessageLite* record);
   bool ReadRecord(absl::string_view* record);
   bool ReadRecord(std::string* record);
   bool ReadRecord(Chain* record);
 
-  // If !healthy() and the failure was caused by an unparsable message, then
-  // Recover() allows reading again by skipping the unparsable message.
+  // If `!healthy()` and the failure was caused by an unparsable message, then
+  // `Recover()` allows reading again by skipping the unparsable message.
   //
-  // If healthy(), or if !healthy() but the failure was not caused by an
-  // unparsable message, then Recover() does nothing and returns false.
+  // If `healthy()`, or if `!healthy()` but the failure was not caused by an
+  // unparsable message, then `Recover()` does nothing and returns `false`.
   //
   // Return values:
-  //  * true  - success
-  //  * false - failure not caused by an unparsable message
+  //  * `true`  - success
+  //  * `false` - failure not caused by an unparsable message
   bool Recover();
 
-  // Returns the current record index. Unchanged by Close().
+  // Returns the current record index. Unchanged by `Close()`.
   uint64_t index() const { return index_; }
 
   // Sets the current record index.
   //
-  // If index > num_records(), the current index is set to num_records().
+  // If `index > num_records()`, the current index is set to `num_records()`.
   //
-  // Precondition: healthy()
+  // Precondition: `healthy()`
   void SetIndex(uint64_t index);
 
-  // Returns the number of records. Unchanged by Close().
+  // Returns the number of records. Unchanged by `Close()`.
   uint64_t num_records() const { return IntCast<uint64_t>(limits_.size()); }
 
  protected:
@@ -130,17 +131,17 @@ class ChunkDecoder : public Object {
   bool Parse(const ChunkHeader& header, Reader* src, Chain* dest);
 
   FieldProjection field_projection_;
-  // Invariants if healthy():
-  //   limits_ are sorted
-  //   (limits_.empty() ? 0 : limits_.back()) == size of values_reader_
-  //   (index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()
+  // Invariants if `healthy()`:
+  //   `limits_` are sorted
+  //   `(limits_.empty() ? 0 : limits_.back())` == size of `values_reader_`
+  //   `(index_ == 0 ? 0 : limits_[index_ - 1]) == values_reader_.pos()`
   std::vector<size_t> limits_;
   ChainReader<Chain> values_reader_;
-  // Invariant: if healthy() then index_ <= num_records()
+  // Invariant: if `healthy()` then `index_ <= num_records()`
   uint64_t index_ = 0;
-  // Whether Recover() is applicable.
+  // Whether `Recover()` is applicable.
   //
-  // Invariant: if recoverable_ then !healthy()
+  // Invariant: if `recoverable_` then `!healthy()`
   bool recoverable_ = false;
 };
 

@@ -44,8 +44,8 @@ constexpr int CompressorOptions::kDefaultWindowLog;
 #endif
 
 Status CompressorOptions::FromString(absl::string_view text) {
-  // Set just compression_type_ first because other parsers depend on
-  // compression_type_.
+  // Set just `compression_type_` first because other parsers depend on
+  // `compression_type_`.
   {
     OptionsParser options_parser;
     options_parser.AddOption(

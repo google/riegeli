@@ -69,15 +69,16 @@ static_assert(kMaxVarintInline < 0x80,
 // deeper nesting are encoded as strings.
 constexpr int kMaxRecursionDepth = 100;
 
-// Returns true if "record" is a valid protocol buffer message in the canonical
-// encoding. The purpose of this method is to distinguish string from a
-// submessage in the proto wire format and to perform validity checks that are
-// asserted later (such as that double proto field is followed by at least 8
-// bytes of data).
+// Returns `true` if `record` is a valid protocol buffer message in the
+// canonical encoding. The purpose of this method is to distinguish a string
+// from a submessage in the proto wire format and to perform validity checks
+// that are asserted later (such as that double proto field is followed by at
+// least 8 bytes of data).
+//
 // Note: Protocol buffer with suboptimal varint encoded tags and values (such as
-// 0x87,0x00 instead of 0x07) would parse successfully with the default proto
-// parser. This can happen for binary strings in proto. However, we need to
-// produce exactly the same bytes in the output so we reject message encoded
+// `0x87, 0x00` instead of `0x07`) would parse successfully with the default
+// proto parser. This can happen for binary strings in proto. However, we need
+// to produce exactly the same bytes in the output so we reject message encoded
 // in non-canonical way.
 bool IsProtoMessage(Reader* record) {
   // We validate that all started proto groups are closed with endgroup tag.
@@ -121,7 +122,7 @@ bool IsProtoMessage(Reader* record) {
   return started_groups.empty();
 }
 
-// PriorityQueueEntry is used in priority_queue to order destinations by the
+// `PriorityQueueEntry` is used in `tag_priority` to order destinations by the
 // number of transitions into them.
 struct PriorityQueueEntry {
   PriorityQueueEntry() {}
@@ -129,14 +130,14 @@ struct PriorityQueueEntry {
   explicit PriorityQueueEntry(uint32_t dest_index, size_t num_transitions)
       : dest_index(dest_index), num_transitions(num_transitions) {}
 
-  // Index of the destination in "tags_list_".
+  // Index of the destination in `tags_list_`.
   uint32_t dest_index = 0;
   // Number of transitions into destination.
   size_t num_transitions = 0;
 };
 
 bool operator<(PriorityQueueEntry a, PriorityQueueEntry b) {
-  // Sort by num_transitions. Largest first.
+  // Sort by `num_transitions`. Largest first.
   if (a.num_transitions != b.num_transitions) {
     return a.num_transitions > b.num_transitions;
   }
@@ -322,10 +323,9 @@ inline TransposeEncoder::Node* TransposeEncoder::GetNode(NodeId node_id) {
   return &*it;
 }
 
-// Precondition: IsProtoMessage returns true for this record.
-// Note: EncodedTags are appended into "encoded_tags_" but data is prepended
-// into respective buffers. "encoded_tags_" will be reversed later in
-// WriteToBuffer call.
+// Precondition: `IsProtoMessage` returns `true` for this record.
+// Note: Encoded tags are appended into `encoded_tags_` but data is prepended
+// into respective buffers. `encoded_tags_` will be later traversed backwards.
 inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
                                          internal::MessageId parent_message_id,
                                          int depth) {
@@ -337,8 +337,8 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
     Node* node = GetNode(NodeId(parent_message_id, tag));
     switch (static_cast<internal::WireType>(tag & 7)) {
       case internal::WireType::kVarint: {
-        // Storing value as uint64_t[2] instead of uint8_t[10] lets Clang and
-        // GCC generate better code for clearing high bit of each byte.
+        // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
+        // and GCC generate better code for clearing high bit of each byte.
         uint64_t value[2];
         static_assert(sizeof(value) >= kMaxLengthVarint64,
                       "value too small to hold a varint64");
@@ -409,7 +409,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
                   !AddMessage(record, node->second.message_id, depth + 1))) {
             return false;
           }
-          // Call to AddMessage invalidates "node"
+          // Call to `AddMessage()` invalidates `node`.
           node = nullptr;
           encoded_tags_.push_back(end_of_submessage_pos);
         } else {
@@ -437,9 +437,9 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         parent_message_id = group_stack_.back();
         group_stack_.pop_back();
         --depth;
-        // Note that "parent_message_id" was updated above so the "node" does
-        // not belong to "(parent_message_id, tag)" as in all the other cases.
-        // But we don't reload "node" because this still works. All we need is
+        // Note that `parent_message_id` was updated above so the `node` does
+        // not belong to `(parent_message_id, tag)` as in all the other cases.
+        // But we don't reload `node` because this still works. All we need is
         // some unique consistent node.
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
@@ -568,13 +568,13 @@ inline bool TransposeEncoder::WriteBuffers(
         << "Bucket sizes and buffer sizes do not match";
   }
   if (!nonproto_lengths.empty()) {
-    // nonproto_lengths is the last buffer if non-empty.
+    // `nonproto_lengths` is the last buffer if non-empty.
     if (ABSL_PREDICT_FALSE(!AddBuffer(
             nonproto_lengths.size(), nonproto_lengths, &bucket_compressor,
             data_writer, &compressed_bucket_sizes, &buffer_sizes))) {
       return false;
     }
-    // Note: nonproto_lengths needs no buffer_pos.
+    // Note: `nonproto_lengths` needs no `buffer_pos`.
   }
 
   if (bucket_compressor.writer()->pos() > 0) {
@@ -644,7 +644,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
   }
   for (const StateInfo state_info : state_machine) {
     if (state_info.etag_index == kInvalidPos) {
-      // NoOp state.
+      // `kNoOp` state.
       if (ABSL_PREDICT_FALSE(!WriteVarint32(
               header_writer,
               static_cast<uint32_t>(internal::MessageId::kNoOp)))) {
@@ -669,8 +669,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
       } else if (is_string &&
                  subtype ==
                      internal::Subtype::kLengthDelimitedEndOfSubmessage) {
-        // End of submessage is encoded as WireType::kSubmessage instead of
-        // WireType::kLengthDelimited.
+        // End of submessage is encoded as `WireType::kSubmessage` instead of
+        // `WireType::kLengthDelimited`.
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
                 header_writer,
                 node_id.tag + (internal::WireType::kSubmessage -
@@ -695,14 +695,14 @@ inline bool TransposeEncoder::WriteStatesAndData(
         }
       }
     } else {
-      // NonProto and StartOfMessage special IDs.
+      // `kNonProto` and `kStartOfMessage` special IDs.
       if (ABSL_PREDICT_FALSE(!WriteVarint32(
               header_writer,
               static_cast<uint32_t>(node_id.parent_message_id)))) {
         return Fail(*header_writer);
       }
       if (node_id.parent_message_id == internal::MessageId::kNonProto) {
-        // NonProto has data buffer.
+        // `kNonProto` has data buffer.
         const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
             buffer_pos.find(NodeId(internal::MessageId::kNonProto, 0));
         RIEGELI_ASSERT(iter != buffer_pos.end())
@@ -716,7 +716,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
       }
     }
     if (tags_list_[state_info.etag_index].base != kInvalidPos) {
-      // Signal implicit transition by adding "state_machine.size()".
+      // Signal implicit transition by adding `state_machine.size()`.
       base_to_write.push_back(
           tags_list_[state_info.etag_index].base +
           (tags_list_[state_info.etag_index].dest_info.size() == 1
@@ -742,8 +742,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
   }
 
   // Find the smallest index that has first tag.
-  // Note: encoded_tags_ is stored in reverse order so we look for the last
-  // element of encoded_tags_.
+  // Note: `encoded_tags_` is stored in reverse order so we look for the last
+  // element of `encoded_tags_`.
   uint32_t first_tag_pos = 0;
   if (!encoded_tags_.empty()) {
     while (state_machine[first_tag_pos].etag_index != encoded_tags_.back()) {
@@ -771,13 +771,13 @@ inline bool TransposeEncoder::WriteTransitions(
   if (encoded_tags_.empty()) return true;
   uint32_t prev_etag = encoded_tags_.back();
   uint32_t current_base = tags_list_[prev_etag].base;
-  // Assuming an approximately balanced tree of NoOp nodes covering transitions
-  // from the given node in the state machine, the maximal number of bytes
-  // needed to encode one transition should be the depth of the tree, i.e.
-  // O(log_max_transition(state_machine_size)). We allocate buffer of size
-  // kWriteBufSize to store the entire encoded transition.
-  // For experiments with low max_transition we use much larger buffer then
-  // needed for optimal max_transition == 63.
+  // Assuming an approximately balanced tree of `kNoOp` nodes covering
+  // transitions from the given node in the state machine, the maximal number of
+  // bytes needed to encode one transition should be the depth of the tree, i.e.
+  // `O(log_max_transition(state_machine_size))`. We allocate buffer of size
+  // `kWriteBufSize` to store the entire encoded transition.
+  // For experiments with low `max_transition` we use much larger buffer then
+  // needed for optimal `max_transition == 63`.
   constexpr size_t kWriteBufSize = 32;
   uint8_t write[kWriteBufSize];
   absl::optional<uint8_t> last_transition;
@@ -790,15 +790,15 @@ inline bool TransposeEncoder::WriteTransitions(
     //    forms:
     //      a) Previous node has no private list so we simply serve the
     //         transition using the public node list.
-    //      b) Node has private list so we first make a NoOp transition to the
-    //         public list and then continue as above.
+    //      b) Node has private list so we first make a `kNoOp` transition to
+    //         the public list and then continue as above.
     uint32_t tag = encoded_tags_[i - 1];
     // Check whether this is implicit transition.
     if (tags_list_[prev_etag].dest_info.size() != 1) {
       // Position in the private list.
       uint32_t pos = tags_list_[prev_etag].dest_info[tag].pos;
       if (pos == kInvalidPos) {
-        // "pos" is not in the private list, go to public_list_noop_pos if
+        // `pos` is not in the private list, go to `public_list_noop_pos` if
         // available.
         // Otherwise base is already in the public list (option 2a).
         pos = tags_list_[prev_etag].public_list_noop_pos;
@@ -806,11 +806,11 @@ inline bool TransposeEncoder::WriteTransitions(
           // Option 2b.
           const uint32_t orig_pos = pos;
           size_t write_start = kWriteBufSize;
-          // Encode transition from "current_base" to "public_list_noop_pos"
-          // which is a NoOp that would lead us to the public list.
+          // Encode transition from `current_base` to `public_list_noop_pos`
+          // which is a `kNoOp` that would lead us to the public list.
           while (current_base > pos || pos - current_base > max_transition) {
             // While desired pos is not reachable using one transition, move to
-            // "canonical_source".
+            // `canonical_source`.
             const uint32_t cs = state_machine[pos].canonical_source;
             RIEGELI_ASSERT_LT(cs, state_machine.size())
                 << "Canonical source out of range: " << pos;
@@ -840,21 +840,21 @@ inline bool TransposeEncoder::WriteTransitions(
               last_transition = IntCast<uint8_t>(write[j] << 2);
             }
           }
-          // "current_base" is the base of the NoOp that we reached using the
+          // `current_base` is the base of the `kNoOp` that we reached using the
           // transitions so far.
           current_base = state_machine[orig_pos].base;
         }
-        // "pos" becomes the position of the state in the public list.
+        // `pos` becomes the position of the state in the public list.
         pos = tags_list_[tag].state_machine_pos;
       }
       RIEGELI_ASSERT_NE(current_base, kInvalidPos)
           << "No outgoing transition from current base";
       RIEGELI_ASSERT_LT(pos, state_machine.size()) << "Position out of range";
       size_t write_start = kWriteBufSize;
-      // Encode transition from "current_base" to "pos".
+      // Encode transition from `current_base` to `pos`.
       while (current_base > pos || pos - current_base > max_transition) {
         // While desired pos is not reachable using one transition, move to
-        // "canonical_source".
+        // `canonical_source`.
         const uint32_t cs = state_machine[pos].canonical_source;
         RIEGELI_ASSERT_LT(cs, state_machine.size())
             << "Canonical source out of range: " << pos;
@@ -922,14 +922,14 @@ inline void TransposeEncoder::ComputeBaseIndices(
     std::vector<StateInfo>* state_machine_ptr) {
   std::vector<StateInfo>& state_machine = *state_machine_ptr;
   // The related transitions reach a state in the public list so the valid
-  // approach would be to simply set all of these to "public_list_base".
+  // approach would be to simply set all of these to `public_list_base`.
   // However, we observe that most of the tags only target few destinations so
   // we can do better if we find the base that is closer to reachable states.
   //
-  // We do this by computing "base" of the block that can reach all required
-  // destination and "min_pos" of the state that is used in any such transition.
+  // We do this by computing `base` of the block that can reach all required
+  // destination and `min_pos` of the state that is used in any such transition.
 
-  // Compute "base" indices for NoOp states.
+  // Compute `base` indices for `kNoOp` states.
   for (const std::pair<uint32_t, uint32_t> tag_index_and_state_index :
        public_list_noops) {
     // Start of block that can reach all required destinations.
@@ -946,54 +946,54 @@ inline void TransposeEncoder::ComputeBaseIndices(
       // Position of the state that we need to reach.
       pos = tags_list_[dest_info.first].state_machine_pos;
       RIEGELI_ASSERT_NE(pos, kInvalidPos) << "Invalid position";
-      // Assuming we processed some states already and "base" is already set to
-      // non-kInvalidPos we find the base of the block that is the common
-      // ancestor for both "pos" and current "base".
-      // If "base <= pos && pos - base <= max_transition" then "pos" can
-      // be encoded from "base" using one byte and "base" starts the block we
+      // Assuming we processed some states already and `base` is already set to
+      // non-`kInvalidPos` we find the base of the block that is the common
+      // ancestor for both `pos` and current `base`.
+      // If `base <= pos && pos - base <= max_transition` then `pos` can
+      // be encoded from `base` using one byte and `base` starts the block we
       // are looking for. If this is not the case then either:
-      //  - "base > pos" and "pos" is reachable from one of the common ancestor
-      //    blocks of "base" and "pos". In that case we move "base" to the
-      //    parent block of "base".
-      //  - "pos - base > max_transition" and to reach "pos" we need more than
-      //    one transition. In that case we ensure the reachability of "pos" by
-      //    ensuring reachability of its canonical_source which belongs to the
-      //    parent block of "pos".
+      //  - `base > pos` and `pos` is reachable from one of the common ancestor
+      //    blocks of `base` and `pos`. In that case we move `base` to the
+      //    parent block of `base`.
+      //  - `pos - base > max_transition` and to reach `pos` we need more than
+      //    one transition. In that case we ensure the reachability of `pos` by
+      //    ensuring reachability of its `canonical_source` which belongs to the
+      //    parent block of `pos`.
       // Note: We assume that transitions in the public list always go from
       // lower to higher indices. This is ensured by the public list generation
       // code.
-      // Note: If "base" is kInvalidPos, the condition "base > pos" is true and
-      // we handle the first state in there.
+      // Note: If `base` is `kInvalidPos`, the condition `base > pos` is true
+      // and we handle the first state in there.
       while (base > pos || pos - base > max_transition) {
         if (base > pos) {
-          // "cs" is the canonical_source that leads to the block we are looking
-          // for.
+          // `cs` is the `canonical_source` that leads to the block we are
+          // looking for.
           uint32_t cs;
           if (base == kInvalidPos) {
-            // "base" not initialized yet. We'll use canonical_source of "pos".
+            // `base` not initialized yet. We'll use canonical_source of `pos`.
             cs = state_machine[pos].canonical_source;
           } else {
-            // Set "cs" to the NoOp that leads to "base".
+            // Set `cs` to the `kNoOp` that leads to `base`.
             cs = state_machine[base].canonical_source;
-            // If "cs" is kInvalidPos then "base" was already in the first
-            // block. But then "base > pos" can't be true.
+            // If `cs` is `kInvalidPos` then `base` was already in the first
+            // block. But then `base > pos` can't be true.
             RIEGELI_ASSERT_NE(cs, kInvalidPos) << "Unreachable base: " << base;
-            // Transitions to previously added states will use "cs" so we update
-            // "min_pos".
+            // Transitions to previously added states will use `cs` so we update
+            // `min_pos`.
             min_pos = UnsignedMin(min_pos, cs);
-            // To find "base" the block that contains "cs" we move one level
+            // To find `base` the block that contains `cs` we move one level
             // above.
             cs = state_machine[cs].canonical_source;
           }
           if (cs == kInvalidPos) {
-            // No canonical_source means "base" is in the first block.
+            // No `canonical_source` means `base` is in the first block.
             base = public_list_base;
           } else {
-            // Otherwise it's the base of the current "cs".
+            // Otherwise it's the base of the current `cs`.
             base = state_machine[cs].base;
           }
         } else {
-          // Update "pos" to canonical_source of "pos".
+          // Update `pos` to `canonical_source` of `pos`.
           const uint32_t cs = state_machine[pos].canonical_source;
           RIEGELI_ASSERT_LT(cs, state_machine.size())
               << "Canonical source out of range: " << pos;
@@ -1090,32 +1090,32 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
 
   // Priority_queue to order nodes by transition count.
   std::priority_queue<PriorityQueueEntry> tag_priority;
-  // Pair of <tag_index, noop_position> where "noop_position" is the index of
-  // the NoOp state created for this tag that has base index in the public node
-  // list.
+  // Pair of `(tag_index, noop_position)` where `noop_position` is the index of
+  // the `kNoOp` state created for this tag that has base index in the public
+  // node list.
   std::vector<std::pair<uint32_t, uint32_t>> public_list_noops;
-  // Helper vector to track the base index for NoOp nodes added in the loop
+  // Helper vector to track the base index for `kNoOp` nodes added in the loop
   // below.
   std::vector<uint32_t> noop_base;
   // Create private lists of states for all nodes that have one.
   // After this loop:
-  //  - "state_machine" will contain states of created private lists.
-  //  - "base" in "tags_list_" will be set for tags with private list.
-  //  - "dest_info" in "tags_list_" will have pos != kInvalidPos for those nodes
-  //    that already have state.
-  //  - "public_list_noops" will have a record for all NoOp states reaching
+  //  - `state_machine` will contain states of created private lists.
+  //  - `base` in `tags_list_` will be set for tags with private list.
+  //  - `dest_info` in `tags_list_` will have `pos != kInvalidPos` for those
+  //    nodes that already have state.
+  //  - `public_list_noops` will have a record for all `kNoOp` states reaching
   //    public list.
   for (uint32_t tag_id = 0; tag_id < tags_list_.size(); ++tag_id) {
     EncodedTagInfo& tag_info = tags_list_[tag_id];
     const uint32_t sz = IntCast<uint32_t>(tag_info.dest_info.size());
-    // If we exclude just one state we add it instead of creating the NoOp
+    // If we exclude just one state we add it instead of creating the `kNoOp`
     // state.
     PriorityQueueEntry excluded_state;
     // Number of transitions into public list states.
     uint32_t num_excluded_transitions = 0;
     for (const std::pair<const uint32_t, DestInfo>& dest_info :
          tag_info.dest_info) {
-      // If destination was marked as "kInListPos" or all transitions into it go
+      // If destination was marked as `kInListPos` or all transitions into it go
       // from this node.
       if (dest_info.second.pos == kInListPos ||
           dest_info.second.num_transitions ==
@@ -1139,50 +1139,50 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
       continue;
     }
     if (num_states + 1 == sz) {
-      // If only one state would go to the public list: just add it.
+      // If only one state would go to the public list, just add it.
       ++num_states;
       tag_priority.push(excluded_state);
       tags_list_[excluded_state.dest_index].num_incoming_transitions -=
           excluded_state.num_transitions;
     }
     if (num_states != sz) {
-      // If not all nodes are in the private list, we'll need NoOp into the
+      // If not all nodes are in the private list, we'll need `kNoOp` into the
       // public list.
       tag_priority.emplace(kInvalidPos, num_excluded_transitions);
       ++num_states;
     }
-    // update "base" for this tag.
+    // Update `base` for this tag.
     tag_info.base = IntCast<uint32_t>(state_machine.size());
-    // Number of NoOp nodes for transitions that can't be encoded using one
+    // Number of `kNoOp` nodes for transitions that can't be encoded using one
     // byte.
     const uint32_t noop_nodes = num_states <= max_transition + 1
                                     ? uint32_t{0}
                                     : (num_states - 2) / max_transition;
     num_states += noop_nodes;
     // We create states back to front. After loop below there will be
-    // "state_machine.size() + num_states" states.
+    // `state_machine.size() + num_states` states.
     uint32_t prev_state = IntCast<uint32_t>(state_machine.size()) + num_states;
     state_machine.resize(prev_state);
     // States are created in blocks. All blocks except the last one have
-    // "max_transition + 1" states. "block_size" is initialized to the size of
+    // `max_transition + 1` states. `block_size` is initialized to the size of
     // the last block.
     uint32_t block_size = (num_states - 1) % (max_transition + 1) + 1;
     noop_base.clear();
     for (;;) {
-      // Sum of all num_transitions into this block. It will be used as the
-      // weight of the NoOp created for this block.
+      // Sum of all `num_transitions` into this block. It will be used as the
+      // weight of the `kNoOp` created for this block.
       uint32_t total_block_nodes_weight = 0;
       for (uint32_t i = 0; i < block_size; ++i) {
         RIEGELI_ASSERT(!tag_priority.empty()) << "No remaining nodes";
         total_block_nodes_weight += tag_priority.top().num_transitions;
         const uint32_t node_index = tag_priority.top().dest_index;
         if (node_index == kInvalidPos) {
-          // NoOp that goes to the public list.
+          // `kNoOp` that goes to the public list.
           state_machine[--prev_state] = StateInfo(kInvalidPos, kInvalidPos);
           tag_info.public_list_noop_pos = prev_state;
           public_list_noops.emplace_back(tag_id, prev_state);
         } else if (node_index >= tags_list_.size()) {
-          // NoOp that goes to private list.
+          // `kNoOp` that goes to private list.
           const uint32_t base = noop_base[node_index - tags_list_.size()];
           state_machine[--prev_state] = StateInfo(kInvalidPos, base);
           // Update canonical source for block that this node serves.
@@ -1198,14 +1198,14 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
         tag_priority.pop();
       }
       if (tag_priority.empty()) break;
-      // Add new NoOp node into "tag_priority" to serve the block that was just
-      // created. Use position greater than tags_list_.size() to distinguish it
-      // from both regular state and public_list_noop.
+      // Add new `kNoOp` node into `tag_priority` to serve the block that was
+      // just created. Use position greater than `tags_list_.size()` to
+      // distinguish it from both regular state and `public_list_noop`.
       tag_priority.emplace(tags_list_.size() + noop_base.size(),
                            total_block_nodes_weight);
       // Set the base to the start of the block.
       noop_base.push_back(prev_state);
-      // All remaining blocks are "max_transition + 1" states long.
+      // All remaining blocks are `max_transition + 1` states long.
       block_size = max_transition + 1;
     }
   }
@@ -1224,7 +1224,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
   // creation above.
   // After this loop:
   //  - All states in the state machine are created.
-  //  - All tags that have an state in the public list have "state_machine_pos"
+  //  - All tags that have an state in the public list have `state_machine_pos`
   //    set.
   uint32_t num_states = IntCast<uint32_t>(tag_priority.size());
   if (num_states > 0) {
@@ -1232,8 +1232,8 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
                                     ? uint32_t{0}
                                     : (num_states - 2) / max_transition;
     num_states += noop_nodes;
-    // Note: The code that assigns "base" indices to states assumes that all
-    // NoOp transitions to the child block increase the state index. This is
+    // Note: The code that assigns `base` indices to states assumes that all
+    // `kNoOp` transitions to the child block increase the state index. This is
     // ensured by creating the blocks in reverse order.
     uint32_t prev_node = IntCast<uint32_t>(state_machine.size()) + num_states;
     state_machine.resize(prev_node);
@@ -1246,7 +1246,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
         total_block_nodes_weight += tag_priority.top().num_transitions;
         const uint32_t node_index = tag_priority.top().dest_index;
         if (node_index >= tags_list_.size()) {
-          // NoOp state.
+          // `kNoOp` state.
           const uint32_t base = noop_base[node_index - tags_list_.size()];
           state_machine[--prev_node] = StateInfo(kInvalidPos, base);
           for (uint32_t j = 0; j <= max_transition; ++j) {
@@ -1268,8 +1268,8 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
     }
   }
 
-  // At this point, the only thing missing is the "base" index for tags
-  // without a private list and for NoOp nodes that go to public list.
+  // At this point, the only thing missing is the `base` index for tags without
+  // a private list and for `kNoOp` nodes that go to public list.
   ComputeBaseIndices(max_transition, public_list_base, public_list_noops,
                      &state_machine);
 
@@ -1277,7 +1277,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
 }
 
 // Maximum transition number. Transitions are encoded as values
-// [0..max_transition].
+// [0..`kMaxTransition`].
 constexpr uint32_t kMaxTransition = 63;
 // Minimum number of transitions between nodes A and B for state for node B to
 // appear in the private state list for node A.

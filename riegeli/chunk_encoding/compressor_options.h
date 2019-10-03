@@ -31,7 +31,7 @@ class CompressorOptions {
   CompressorOptions() noexcept {}
 
   // Parses options from text:
-  //
+  // ```
   //   options ::= option? ("," option?)*
   //   option ::=
   //     "uncompressed" |
@@ -42,10 +42,11 @@ class CompressorOptions {
   //   brotli_level ::= integer 0..11 (default 9)
   //   zstd_level ::= integer -131072..22 (default 9)
   //   window_log ::= "auto" or integer 10..31
+  // ```
   //
   // Returns status:
-  //  * status.ok()  - success
-  //  * !status.ok() - failure
+  //  * `status.ok()`  - success
+  //  * `!status.ok()` - failure
   Status FromString(absl::string_view text);
 
   // Changes compression algorithm to none.
@@ -62,8 +63,8 @@ class CompressorOptions {
   // tunes the tradeoff between compression density and compression speed
   // (higher = better density but slower).
   //
-  // compression_level must be between kMinBrotli (0) and kMaxBrotli (11).
-  // Default: kDefaultBrotli (9).
+  // `compression_level` must be between `kMinBrotli` (0) and `kMaxBrotli` (11).
+  // Default: `kDefaultBrotli` (9).
   //
   // This is the default compression algorithm.
   static constexpr int kMinBrotli =
@@ -91,8 +92,9 @@ class CompressorOptions {
   // the tradeoff between compression density and compression speed (higher =
   // better density but slower).
   //
-  // compression_level must be between kMinZstd (-131072) and kMaxZstd (22).
-  // Level 0 is currently equivalent to 3. Default: kDefaultZstd (9).
+  // `compression_level` must be between `kMinZstd` (-131072) and
+  // `kMaxZstd` (22). Level 0 is currently equivalent to 3.
+  // Default: `kDefaultZstd` (9).
   static constexpr int kMinZstd = ZstdWriterBase::Options::kMinCompressionLevel;
   static constexpr int kMaxZstd = ZstdWriterBase::Options::kMaxCompressionLevel;
   static constexpr int kDefaultZstd =
@@ -130,21 +132,21 @@ class CompressorOptions {
   // between compression density and memory usage (higher = better density but
   // more memory).
   //
-  // Special value kDefaultWindowLog (-1) means to keep the default
+  // Special value `kDefaultWindowLog` (-1) means to keep the default
   // (brotli: 22, zstd: derived from compression level and chunk size).
   //
-  // For uncompressed and snappy, window_log must be kDefaultWindowLog (-1).
+  // For uncompressed and snappy, `window_log` must be `kDefaultWindowLog` (-1).
   //
-  // For brotli, window_log must be kDefaultWindowLog (-1) or between
-  // BrotliWriterBase::Options::kMinWindowLog (10) and
-  // BrotliWriterBase::Options::kMaxWindowLog (30).
+  // For brotli, `window_log` must be `kDefaultWindowLog` (-1) or between
+  // `BrotliWriterBase::Options::kMinWindowLog` (10) and
+  // `BrotliWriterBase::Options::kMaxWindowLog` (30).
   //
-  // For zstd, window_log must be kDefaultWindowLog (-1) or between
-  // ZstdWriterBase::Options::kMinWindowLog (10) and
-  // ZstdWriterBase::Options::kMaxWindowLog (30 in 32-bit build, 31 in 64-bit
-  // build).
+  // For zstd, `window_log` must be `kDefaultWindowLog` (-1) or between
+  // `ZstdWriterBase::Options::kMinWindowLog` (10) and
+  // `ZstdWriterBase::Options::kMaxWindowLog` (30 in 32-bit build,
+  // 31 in 64-bit build).
   //
-  // Default: kDefaultWindowLog (-1).
+  // Default: `kDefaultWindowLog` (-1).
   static constexpr int kMinWindowLog =
       SignedMin(BrotliWriterBase::Options::kMinWindowLog,
                 ZstdWriterBase::Options::kMinWindowLog);
@@ -168,9 +170,9 @@ class CompressorOptions {
     return std::move(set_window_log(window_log));
   }
 
-  // Returns window_log translated for BrotliWriter or ZstdWriter.
+  // Returns `window_log` translated for `BrotliWriter` or `ZstdWriter`.
   //
-  // Precondition: compression_type_ != CompressionType::kNone
+  // Precondition: `compression_type_ != CompressionType::kNone`
   int window_log() const;
 
  private:

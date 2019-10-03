@@ -46,11 +46,11 @@ class Field {
   // Specifies the path using a sequence of proto field tags descending from the
   // root message.
   //
-  // Tags can be obtained from Type::k*FieldNumber constants exported by
-  // compiled proto messages, or from FieldDescriptor::number().
+  // Tags can be obtained from `Type::k*FieldNumber` constants exported by
+  // compiled proto messages, or from `FieldDescriptor::number()`.
   /*implicit*/ Field(std::initializer_list<uint32_t> path);
 
-  // Starts with the root message. Field tags can be added by AddTag().
+  // Starts with the root message. Field tags can be added by `AddTag()`.
   Field() noexcept {}
 
   Field(const Field& that);
@@ -83,7 +83,7 @@ class FieldProjection {
   // Includes only the specified fields.
   /*implicit*/ FieldProjection(std::initializer_list<Field> fields);
 
-  // Starts with an empty set to include. Fields can be added by AddField().
+  // Starts with an empty set to include. Fields can be added by `AddField()`.
   FieldProjection() noexcept {}
 
   FieldProjection(const FieldProjection&);

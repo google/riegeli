@@ -83,7 +83,7 @@ enum class FieldIncluded {
   kExistenceOnly,
 };
 
-// Return true if "tag" is a valid protocol buffer tag.
+// Returns `true` if `tag` is a valid protocol buffer tag.
 bool ValidTag(uint32_t tag) {
   switch (static_cast<internal::WireType>(tag & 7)) {
     case internal::WireType::kVarint:
@@ -103,9 +103,9 @@ bool ValidTag(uint32_t tag) {
 namespace internal {
 
 // The types of callbacks in state machine states.
-// NOTE: CallbackType is used to index labels array in DecodeToBuffer method so
-// the ordering of CallbackType must not change without a corresponding change
-// in DecodeToBuffer.
+// Note: `CallbackType` is used to index labels array in
+// `TransposeDecoder::Decode()` method so the ordering of `CallbackType` must
+// not change without a corresponding change in `TransposeDecoder::Decode()`.
 enum class CallbackType : uint8_t {
   kNoOp,
   kMessageStart,
@@ -117,8 +117,8 @@ enum class CallbackType : uint8_t {
   kNonProto,
   kFailure,
 
-// CopyTag_ has to be the first CallbackType in TYPES_FOR_TAG_LEN for
-// GetCopyTagCallbackType() to work.
+// `kCopyTag_*` has to be the first `CallbackType` in `TYPES_FOR_TAG_LEN` for
+// `GetCopyTagCallbackType()` to work.
 #define TYPES_FOR_TAG_LEN(tag_length)                                         \
   kCopyTag_##tag_length, kVarint_1_##tag_length, kVarint_2_##tag_length,      \
       kVarint_3_##tag_length, kVarint_4_##tag_length, kVarint_5_##tag_length, \
@@ -135,13 +135,13 @@ enum class CallbackType : uint8_t {
   TYPES_FOR_TAG_LEN(5),
 #undef TYPES_FOR_TAG_LEN
 
-  // We need kCopyTag callback for length 6 as well because of inline numerics.
-  // kCopyTag_6 has to be the first CallbackType after TYPES_FOR_TAG_LEN for
-  // GetCopyTagCallbackType() to work.
+  // We need `kCopyTag_*` callback for length 6 as well because of inline
+  // numerics. `kCopyTag_6` has to be the first `CallbackType` after
+  // `TYPES_FOR_TAG_LEN` for `GetCopyTagCallbackType()` to work.
   kCopyTag_6,
   kUnknown,
   // Implicit callback type is added to any of the above types if the transition
-  // from the node should go to "node->next_node" without reading the transition
+  // from the node should go to `node->next_node` without reading the transition
   // byte.
   kImplicit = 0x80,
 };
@@ -168,7 +168,7 @@ inline CallbackType& operator|=(CallbackType& a, CallbackType b) {
   return a = a | b;
 }
 
-// Returns copy_tag callback type for "tag_length".
+// Returns copy tag callback type for `tag_length`.
 inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32 + 1)
@@ -178,7 +178,7 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
              (CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1);
 }
 
-// Returns varint callback type for "subtype" and "tag_length".
+// Returns varint callback type for `subtype` and `tag_length`.
 inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -193,7 +193,7 @@ inline CallbackType GetVarintCallbackType(Subtype subtype, size_t tag_length) {
              (CallbackType::kVarint_1_2 - CallbackType::kVarint_1_1);
 }
 
-// Returns fixed32 callback type for "tag_length".
+// Returns fixed32 callback type for `tag_length`.
 inline CallbackType GetFixed32CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -202,7 +202,7 @@ inline CallbackType GetFixed32CallbackType(size_t tag_length) {
              (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
 }
 
-// Returns fixed64 callback type for "tag_length".
+// Returns fixed64 callback type for `tag_length`.
 inline CallbackType GetFixed64CallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -211,7 +211,7 @@ inline CallbackType GetFixed64CallbackType(size_t tag_length) {
              (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
 }
 
-// Returns fixed32 existence callback type for "tag_length".
+// Returns fixed32 existence callback type for `tag_length`.
 inline CallbackType GetFixed32ExistenceCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -220,7 +220,7 @@ inline CallbackType GetFixed32ExistenceCallbackType(size_t tag_length) {
                              CallbackType::kFixed32Existence_1);
 }
 
-// Returns fixed64 existence callback type for "tag_length".
+// Returns fixed64 existence callback type for `tag_length`.
 inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -229,7 +229,7 @@ inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
                              CallbackType::kFixed64Existence_1);
 }
 
-// Returns string callback type for "subtype" and "tag_length".
+// Returns string callback type for `subtype` and `tag_length`.
 inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
@@ -241,14 +241,14 @@ inline CallbackType GetStringCallbackType(Subtype subtype, size_t tag_length) {
     case Subtype::kLengthDelimitedEndOfSubmessage:
       return CallbackType::kSubmessageEnd;
     default:
-      // Note: Nodes with kLengthDelimitedStartOfSubmessage are not created.
-      // Start of submessage is indicated with ReservedId
-      // "kReservedIdStartOfSubmessage" and uses CallbackType::kSubmessageStart.
+      // Note: Nodes with `kLengthDelimitedStartOfSubmessage` are not created.
+      // Start of submessage is indicated with `MessageId::kStartOfSubmessage`
+      // and uses `CallbackType::kSubmessageStart`.
       return CallbackType::kUnknown;
   }
 }
 
-// Returns string callback type for "subtype" and "tag_length" to exclude field.
+// Returns string callback type for `subtype` and `tag_length` to exclude field.
 inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
                                                  size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
@@ -263,8 +263,7 @@ inline CallbackType GetStringExcludeCallbackType(Subtype subtype,
   }
 }
 
-// Returns string callback type for "subtype" and "tag_length" for existence
-// only.
+// Returns string existence callback type for `subtype` and `tag_length`.
 inline CallbackType GetStringExistenceCallbackType(Subtype subtype,
                                                    size_t tag_length) {
   RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
@@ -399,15 +398,16 @@ struct TransposeDecoder::Context {
     uint32_t field_id;
     IncludeType include_type;
   };
-  // Fields form a tree structure stored in "include_fields" map. If "p" is
-  // the ID of parent submessage then "include_fields[<p,f>]" holds the include
-  // information of the child with field number "f". The root ID is assumed to
-  // be "kInvalidPos" and the root IncludeType is assumed to be kIncludeChild.
+  // Fields form a tree structure stored in `include_fields` map. If `p` is
+  // the ID of parent submessage then `include_fields[std::make_pair(p, f)]`
+  // holds the include information of the child with field number `f`. The root
+  // ID is assumed to be `kInvalidPos` and the root `IncludeType` is assumed to
+  // be `kIncludeChild`.
   absl::flat_hash_map<std::pair<uint32_t, uint32_t>, IncludedField>
       include_fields;
   // Data buckets.
   std::vector<DataBucket> buckets;
-  // Template that can later be used later to finalize StateMachineNode.
+  // Template that can later be used later to finalize `StateMachineNode`.
   std::vector<StateMachineNodeTemplate> node_templates;
 };
 
@@ -533,7 +533,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     return Fail(*header_decompressor.reader(),
                 DataLossError("Reading state machine size failed"));
   }
-  // Additional 0xff nodes to correctly handle invalid/malicious inputs.
+  // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
   // TODO: Handle overflow.
   context->state_machine_nodes.resize(state_machine_size + 0xff);
   if (projection_enabled) context->node_templates.resize(state_machine_size);
@@ -623,7 +623,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
             internal::Subtype::kLengthDelimitedString ==
                 internal::Subtype::kTrivial,
             "Subtypes kLengthDelimitedString and kTrivial must be equal");
-        // End of submessage is encoded as WireType::kSubmessage.
+        // End of submessage is encoded as `WireType::kSubmessage`.
         if (static_cast<internal::WireType>(tag & 7) ==
             internal::WireType::kSubmessage) {
           tag -= internal::WireType::kSubmessage -
@@ -713,7 +713,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
 
   if (has_nonproto_op) {
     // If non-proto state exists then the last buffer is the
-    // nonproto_lengths buffer.
+    // `nonproto_lengths` buffer.
     if (ABSL_PREDICT_FALSE(num_buffers == 0)) {
       return Fail(DataLossError("Missing buffer for non-proto records"));
     }
@@ -738,7 +738,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     return Fail(DataLossError("First node index too large"));
   }
 
-  // Add 0xff failure nodes so we never overflow this array.
+  // Add `0xff` failure nodes so we never overflow this array.
   for (uint64_t i = state_machine_size; i < state_machine_size + 0xff; ++i) {
     state_machine_nodes[i].callback_type = internal::CallbackType::kFailure;
   }
@@ -952,7 +952,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
         Fail(bucket.decompressor);
         return nullptr;
       }
-      // Important to prevent invalidating pointers by emplace_back().
+      // Important to prevent invalidating pointers by `emplace_back()`.
       bucket.buffers.reserve(bucket.buffer_sizes.size());
     }
     Chain buffer;
@@ -996,7 +996,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   return false;
 }
 
-// Copy tag from *node to *dest.
+// Copy tag from `*node` to `*dest`.
 #define COPY_TAG_CALLBACK(tag_length)                               \
   do {                                                              \
     if (ABSL_PREDICT_FALSE(!dest->Write(                            \
@@ -1005,7 +1005,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     }                                                               \
   } while (false)
 
-// Decode varint value from *node to *dest.
+// Decode varint value from `*node` to `*dest`.
 #define VARINT_CALLBACK(tag_length, data_length)                      \
   do {                                                                \
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {  \
@@ -1024,7 +1024,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     std::memcpy(buffer, node->tag_data.data, tag_length);             \
   } while (false)
 
-// Decode fixed32 or fixed64 value from *node to *dest.
+// Decode fixed32 or fixed64 value from `*node` to `*dest`.
 #define FIXED_CALLBACK(tag_length, data_length)                                \
   do {                                                                         \
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {           \
@@ -1039,7 +1039,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     std::memcpy(buffer, node->tag_data.data, tag_length);                      \
   } while (false)
 
-// Create zero fixed32 or fixed64 value in *dest.
+// Create zero fixed32 or fixed64 value in `*dest`.
 #define FIXED_EXISTENCE_CALLBACK(tag_length, data_length)            \
   do {                                                               \
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) { \
@@ -1051,7 +1051,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     std::memcpy(buffer, node->tag_data.data, tag_length);            \
   } while (false)
 
-// Decode string value from *node to *dest.
+// Decode string value from `*node` to `*dest`.
 #define STRING_CALLBACK(tag_length)                                           \
   do {                                                                        \
     node->buffer->Pull(kMaxLengthVarint32);                                   \
@@ -1082,8 +1082,8 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
                                      BackwardWriter* dest,
                                      std::vector<size_t>* limits) {
-  // For now positions reported by *dest are pushed to limits directly.
-  // Later limits will be reversed and complemented.
+  // For now positions reported by `*dest` are pushed to `*limits` directly.
+  // Later `*limits` will be reversed and complemented.
   limits->clear();
   limits->reserve(num_records);
 
@@ -1097,14 +1097,14 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
   // Stack of all open sub-messages.
   std::vector<SubmessageStackElement> submessage_stack;
   submessage_stack.reserve(16);
-  // Number of following iteration that go directly to node->next_node
+  // Number of following iteration that go directly to `node->next_node`
   // without reading transition byte.
   int num_iters = 0;
 
-  // NOTE: CallbackType is used to index labels so the ordering of labels
-  // must not change without a corresponding change in CallbackType enum.
+  // Note: `CallbackType` is used to index labels so the ordering of labels
+  // must not change without a corresponding change in `CallbackType` enum.
   static constexpr void* labels[] = {
-      &&do_transition,  // NoOp
+      &&do_transition,  // `CallbackType::kNoOp`
       &&message_start,
       &&submessage_start,
       &&submessage_end,
@@ -1133,7 +1133,7 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
 #undef LABELS_FOR_TAG_LEN
 
       &&copy_tag_6,
-      &&failure,  // Unknown
+      &&failure,  // `CallbackType::kUnknown`
   };
 
   for (StateMachineNode& state : context->state_machine_nodes) {
@@ -1264,7 +1264,7 @@ non_proto : {
                 DataLossError("Reading non-proto record failed"));
   }
 }
-  // Fall through to message_start.
+  // Fall through to `message_start`.
 
 message_start:
   if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
@@ -1274,7 +1274,7 @@ message_start:
     return Fail(DataLossError("Too many records"));
   }
   limits->push_back(IntCast<size_t>(dest->pos()));
-  // Fall through to do_transition.
+  // Fall through to `do_transition`.
 
 do_transition:
   node = node->next_node;
@@ -1330,7 +1330,7 @@ done:
 }
 
 // Do not inline this function. This helps Clang to generate better code for
-// the main loop in Decode().
+// the main loop in `Decode()`.
 ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     Context* context, int skipped_submessage_level,
     const std::vector<SubmessageStackElement>& submessage_stack,
@@ -1370,13 +1370,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         field_id = iter->second.field_id;
       }
     }
-    // If tag is a STARTGROUP, there are two options:
-    // 1. Either related ENDGROUP was skipped and
-    //    "skipped_submessage_level > 0".
-    //    In this case field_included is already set to kNo.
-    // 2. If ENDGROUP was not skipped, then its tag is on the top of the
-    //    "submessage_stack" and in that case we already checked its tag in
-    //    "include_fields" in the loop above.
+    // If tag is a `kStartGroup`, there are two options:
+    // 1. Either related `kEndGroup` was skipped and
+    //    `skipped_submessage_level > 0`.
+    //    In this case `field_included` is already set to `kNo`.
+    // 2. If `kEndGroup` was not skipped, then its tag is on the top of the
+    //    `submessage_stack` and in that case we already checked its tag in
+    //    `include_fields` in the loop above.
     const bool start_group_tag =
         static_cast<internal::WireType>(node_template->tag & 7) ==
         internal::WireType::kStartGroup;
@@ -1422,7 +1422,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     if (field_included == FieldIncluded::kExistenceOnly &&
         static_cast<internal::WireType>(node_template->tag & 7) ==
             internal::WireType::kVarint) {
-      // The tag in TagData was followed by a subtype but must be followed by
+      // The tag in `TagData` was followed by a subtype but must be followed by
       // zero now.
       node->tag_data.data[node_template->tag_length] = 0;
     }

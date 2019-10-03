@@ -32,23 +32,23 @@ namespace riegeli {
 
 class ChunkEncoder : public Object {
  public:
-  // Creates an empty ChunkEncoder.
+  // Creates an empty `ChunkEncoder`.
   ChunkEncoder() noexcept : Object(kInitiallyOpen) {}
 
   ChunkEncoder(const ChunkEncoder&) = delete;
   ChunkEncoder& operator=(const ChunkEncoder&) = delete;
 
-  // Resets the ChunkEncoder back to empty.
+  // Resets the `ChunkEncoder` back to empty.
   virtual void Clear();
 
   // Adds the next record.
   //
-  // AddRecord(MessageLite) serializes a proto message to raw bytes beforehand.
-  // The remaining overloads accept raw bytes.
+  // `AddRecord(google::protobuf::MessageLite)` serializes a proto message to
+  // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(absl::string_view record) = 0;
   virtual bool AddRecord(std::string&& record) = 0;
@@ -60,12 +60,12 @@ class ChunkEncoder : public Object {
   // record end positions.
   //
   // Preconditions:
-  //   limits are sorted
-  //   (limits.empty() ? 0 : limits.back()) == records.size()
+  //   `limits` are sorted
+  //   `(limits.empty() ? 0 : limits.back()) == records.size()`
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy())
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
   virtual bool AddRecords(Chain records, std::vector<size_t> limits) = 0;
 
   // Returns the number of records added so far.
@@ -74,13 +74,13 @@ class ChunkEncoder : public Object {
   // Returns the sum of record sizes added so far.
   uint64_t decoded_data_size() const { return decoded_data_size_; }
 
-  // Encodes the chunk to *dest, setting *chunk_type, *num_records, and
-  // *decoded_data_size. Closes the ChunkEncoder.
+  // Encodes the chunk to `*dest`, setting `*chunk_type`, `*num_records`, and
+  // `*decoded_data_size`. Closes the `ChunkEncoder`.
   //
   // Return values:
-  //  * true  - success (healthy())
-  //  * false - failure (!healthy());
-  //            if !dest->healthy() then the problem was at dest
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`);
+  //              if `!dest->healthy()` then the problem was at `*dest`
   virtual bool EncodeAndClose(Writer* dest, ChunkType* chunk_type,
                               uint64_t* num_records,
                               uint64_t* decoded_data_size) = 0;

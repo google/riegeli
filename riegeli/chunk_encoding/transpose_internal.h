@@ -28,9 +28,9 @@ enum class MessageId : uint32_t {
   kNonProto,
   kStartOfSubmessage,
   kStartOfMessage,
-  // kRoot marks the root node in memory. It is never encoded.
+  // `kRoot` marks the root node in memory. It is never encoded.
   kRoot,
-  // Remaining message ids are assigned sequentially one per NodeId.
+  // Remaining message ids are assigned sequentially one per `NodeId`.
 };
 
 inline MessageId operator+(MessageId a, uint32_t b) {
@@ -42,8 +42,8 @@ inline MessageId& operator++(MessageId& a) { return a = a + 1; }
 static_assert(static_cast<uint32_t>(MessageId::kRoot) <= 8,
               "Reserved ids must not overlap valid proto tags");
 
-// This matches google::protobuf::internal::WireFormatLite::WireType, except for
-// an addition of kSubmessage.
+// This matches `google::protobuf::internal::WireFormatLite::WireType`, except
+// for an addition of `kSubmessage`.
 enum class WireType : uint32_t {
   kVarint = 0,
   kFixed64 = 1,
@@ -51,8 +51,9 @@ enum class WireType : uint32_t {
   kStartGroup = 3,
   kEndGroup = 4,
   kFixed32 = 5,
-  // kSubmessage does marks the end of a submessage, distinguishing it from the
-  // end of a string or bytes field, which is encoded using kLengthDelimited.
+  // `kSubmessage` does marks the end of a submessage, distinguishing it from
+  // the end of a string or bytes field, which is encoded using
+  // `kLengthDelimited`.
   kSubmessage = 6,
 };
 
@@ -67,7 +68,7 @@ inline uint32_t operator|(uint32_t a, WireType b) {
 enum class Subtype : uint8_t {
   kTrivial = 0,
 
-  // Subtypes of kVarint:
+  // Subtypes of `kVarint`:
   // Varint of the given length, in the buffer.
   kVarint1 = 0,
   kVarintMax = static_cast<uint8_t>(kVarint1) + kMaxLengthVarint64 - 1,
@@ -75,7 +76,7 @@ enum class Subtype : uint8_t {
   kVarintInline0 = static_cast<uint8_t>(kVarintMax) + 1,
   kVarintInlineMax = static_cast<uint8_t>(kVarintInline0) + 0x7f,
 
-  // Subtypes of kLengthDelimited:
+  // Subtypes of `kLengthDelimited`:
   kLengthDelimitedString = 0,
   kLengthDelimitedStartOfSubmessage = 1,
   kLengthDelimitedEndOfSubmessage = 2,
@@ -89,8 +90,8 @@ inline uint8_t operator-(Subtype a, Subtype b) {
   return static_cast<uint8_t>(a) - static_cast<uint8_t>(b);
 }
 
-// Returns whether "tag"/"subtype" pair has a data buffer.
-// Precondition: "tag" is a valid proto tag.
+// Returns whether `tag`/`subtype` pair has a data buffer.
+// Precondition: `tag` is a valid proto tag.
 inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
   switch (static_cast<WireType>(tag & 7)) {
     case WireType::kVarint:
@@ -100,8 +101,8 @@ inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
     case WireType::kFixed64:
       return true;
     case WireType::kLengthDelimited:
-      // If subtype is kLengthDelimitedStartOfSubmessage or
-      // kLengthDelimitedEndOfSubmessage we have no buffer.
+      // If subtype is `kLengthDelimitedStartOfSubmessage` or
+      // `kLengthDelimitedEndOfSubmessage`, we have no buffer.
       return subtype == Subtype::kLengthDelimitedString;
     case WireType::kStartGroup:
     case WireType::kEndGroup:
@@ -111,17 +112,17 @@ inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
   }
 }
 
-// Returns true if this tag is followed by subtype.
-// Precondition: "tag" is a valid proto tag.
+// Returns `true` if this tag is followed by subtype.
+// Precondition: `tag` is a valid proto tag.
 inline bool HasSubtype(uint32_t tag) {
   switch (static_cast<WireType>(tag & 7)) {
     case WireType::kVarint:
       return true;
-      // A kLengthDelimited tag is not followed by subtype, even though
-      // kLengthDelimited nodes have subtypes, because submessage start is
-      // encoded as kReservedIdStartOfSubmessage, and submessage end is encoded
-      // with WireType::kSubmessage that is taken into account before calling
-      // this method.
+      // A `kLengthDelimited` tag is not followed by subtype, even though
+      // `kLengthDelimited` nodes have subtypes, because submessage start is
+      // encoded as `MessageId::kStartOfSubmessage`, and submessage end is
+      // encoded with `WireType::kSubmessage` that is taken into account before
+      // calling this method.
     case WireType::kFixed32:
     case WireType::kFixed64:
     case WireType::kLengthDelimited:

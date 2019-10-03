@@ -47,34 +47,34 @@ class Reader;
 //  - Header length (compressed length if applicable)
 //  - Header (possibly compressed):
 //    - Number of separately compressed buckets that data buffers are split into
-//      [num_buckets]
-//    - Number of data buffers [num_buffers]
-//    - Array of "num_buckets" varints: sizes of buckets (compressed size
+//      [`num_buckets`]
+//    - Number of data buffers [`num_buffers`]
+//    - Array of `num_buckets` varints: sizes of buckets (compressed size
 //      if applicable)
-//    - Array of "num_buffers" varints: lengths of buffers (uncompressed)
-//    - Number of state machine states [num_state]
+//    - Array of `num_buffers` varints: lengths of buffers (uncompressed)
+//    - Number of state machine states [`num_state`]
 //    - States encoded in 4 blocks:
-//      - Array of "num_state" Tags/ReservedIDs
-//      - Array of "num_state" next node indices
+//      - Array of `num_state` Tags/ReservedIDs
+//      - Array of `num_state` next node indices
 //      - Array of subtypes (for all tags where applicable)
 //      - Array of data buffer indices (for all tags/subtypes where applicable)
 //    - Initial state index
-//  - "num_buckets" buckets:
+//  - `num_buckets` buckets:
 //    - Bucket data (possibly compressed):
 //      - Concatenated data buffers in this bucket (bytes)
 //  - Transitions (possibly compressed):
 //    - State machine transitions (bytes)
 class TransposeEncoder : public ChunkEncoder {
  public:
-  // Creates an empty TransposeEncoder.
+  // Creates an empty `TransposeEncoder`.
   explicit TransposeEncoder(CompressorOptions options, uint64_t bucket_size);
 
   ~TransposeEncoder();
 
   void Clear() override;
 
-  // "record" should be a protocol message in binary format. Transpose works
-  // just fine even if "record" is a corrupted protocol message or an arbitrary
+  // `record` should be a protocol message in binary format. Transpose works
+  // just fine even if `record` is a corrupted protocol message or an arbitrary
   // string. Such records are internally stored separately -- these are not
   // broken down into columns.
   using ChunkEncoder::AddRecord;
@@ -91,7 +91,8 @@ class TransposeEncoder : public ChunkEncoder {
  private:
   bool AddRecordInternal(Reader* record);
 
-  // Encode messages added with AddRecord() calls and write the result to *dest.
+  // Encode messages added with `AddRecord()` calls and write the result to
+  // `*dest`.
   bool EncodeAndCloseInternal(uint32_t max_transition,
                               uint32_t min_count_for_state, Writer* dest,
                               uint64_t* num_records,
@@ -118,20 +119,20 @@ class TransposeEncoder : public ChunkEncoder {
   static constexpr size_t kNumBufferTypes =
       static_cast<size_t>(BufferType::kNumBufferTypes);
 
-  // Struct that contains information about a field with unique proto path.
+  // Information about a field with unique proto path.
   struct MessageNode {
     explicit MessageNode(internal::MessageId message_id);
-    // Some nodes (such as STARTGROUP) contain no data. Buffer is assigned in
-    // the first GetBuffer call when we have data to write.
+    // Some nodes (such as `kStartGroup`) contain no data. Buffer is assigned in
+    // the first `GetBuffer()` call when we have data to write.
     std::unique_ptr<BackwardWriter> writer;
-    // Unique ID for every instance of this class within Encoder.
+    // Unique ID for every instance of this class within `TransposeEncoder`.
     internal::MessageId message_id;
-    // Position of encoded tag in "tags_list_" per subtype.
-    // Size 14 works well with kMaxVarintInline == 3.
+    // Position of encoded tag in `tags_list_` per subtype.
+    // Size 14 works well with `kMaxVarintInline == 3`.
     absl::InlinedVector<uint32_t, 14> encoded_tag_pos;
   };
 
-  // We build a tree structure of protocol buffer tags. NodeId uniquely
+  // We build a tree structure of protocol buffer tags. `NodeId` uniquely
   // identifies a node in this tree.
   struct NodeId {
     explicit NodeId(internal::MessageId parent_message_id, uint32_t tag);
@@ -150,15 +151,15 @@ class TransposeEncoder : public ChunkEncoder {
   };
 
   // Add message recursively to the internal data structures.
-  // Precondition: "message" is a valid proto message, i.e. IsProtoMessage on
-  // this message returns true.
-  // "depth" is the recursion depth.
+  // Precondition: `message` is a valid proto message, i.e. `IsProtoMessage()`
+  // on this message returns `true`.
+  // `depth` is the recursion depth.
   bool AddMessage(LimitingReaderBase* record,
                   internal::MessageId parent_message_id, int depth);
 
-  // Write all buffer lengths to "header_writer" and data buffers in "data_" to
-  // "data_writer" (compressed using compressor_). Fill map with the sequential
-  // position of each buffer written.
+  // Write all buffer lengths to `header_writer` and data buffers in `data_` to
+  // `data_writer` (compressed using `compressor_`). Fill map with the
+  // sequential position of each buffer written.
   bool WriteBuffers(Writer* header_writer, Writer* data_writer,
                     absl::flat_hash_map<NodeId, uint32_t>* buffer_pos);
 
@@ -166,16 +167,16 @@ class TransposeEncoder : public ChunkEncoder {
   struct StateInfo {
     StateInfo();
     explicit StateInfo(uint32_t etag_index, uint32_t base);
-    // Index of the encoded_tag in "tags_list_" represented by this state.
-    // kInvalidPos for NoOp states.
+    // Index of the `encoded_tag` in `tags_list_` represented by this state.
+    // `kInvalidPos` for `kNoOp` states.
     uint32_t etag_index;
     // Base index of this state. Transitions from this state can target only
-    // states [base, base + kMaxTransition].
-    // kInvalidPos if no outgoing transition.
+    // states [`base`, `base + kMaxTransition`].
+    // `kInvalidPos` if no outgoing transition.
     uint32_t base;
-    // Usual source of transition into this state. Set if there is NoOp
+    // Usual source of transition into this state. Set if there is `kNoOp`
     // generated to reach a group of states including this one.
-    // kInvalidPos if no such state.
+    // `kInvalidPos` if no such state.
     uint32_t canonical_source;
   };
 
@@ -188,31 +189,31 @@ class TransposeEncoder : public ChunkEncoder {
                  std::vector<size_t>* compressed_bucket_sizes,
                  std::vector<size_t>* buffer_sizes);
 
-  // Compute base indices for states in "state_machine" that don't have one yet.
-  // "public_list_base" is the index of the start of the public list.
-  // "public_list_noops" is the list of NoOp states that don't have a base set
-  // yet. It contains pairs of (tag_index, state_index).
+  // Compute base indices for states in `state_machine` that don't have one yet.
+  // `public_list_base` is the index of the start of the public list.
+  // `public_list_noops` is the list of `kNoOp` states that don't have a base
+  // set yet. It contains pairs of (`tag_index`, `state_index`).
   void ComputeBaseIndices(
       uint32_t max_transition, uint32_t public_list_base,
       const std::vector<std::pair<uint32_t, uint32_t>>& public_list_noops,
       std::vector<StateInfo>* state_machine);
 
-  // Traverse "encoded_tags_" and populate "num_incoming_transitions" and
-  // "dest_info" in "tags_list_" based on transition distribution.
+  // Traverse `encoded_tags_` and populate `num_incoming_transitions` and
+  // `dest_info` in `tags_list_` based on transition distribution.
   void CollectTransitionStatistics();
 
-  // Create a state machine for "encoded_tags_".
+  // Create a state machine for `encoded_tags_`.
   std::vector<StateInfo> CreateStateMachine(uint32_t max_transition,
                                             uint32_t min_count_for_state);
 
-  // Write state machine states into "header_writer" and all data buffers and
-  // transitions into "data_writer" (compressed using compressor_).
+  // Write state machine states into `header_writer` and all data buffers and
+  // transitions into `data_writer` (compressed using `compressor_`).
   bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
                           Writer* header_writer, Writer* data_writer);
 
-  // Write all state machine transitions from "encoded_tags_" into
-  // compressor_.writer().
+  // Write all state machine transitions from `encoded_tags_` into
+  // `compressor_.writer()`.
   bool WriteTransitions(uint32_t max_transition,
                         const std::vector<StateInfo>& state_machine,
                         Writer* transitions_writer);
@@ -220,14 +221,14 @@ class TransposeEncoder : public ChunkEncoder {
   // Value type of node in Nodes map.
   using Node = absl::flat_hash_map<NodeId, MessageNode>::value_type;
 
-  // Returns node pointer from "node_id".
+  // Returns node pointer from `node_id`.
   Node* GetNode(NodeId node_id);
 
-  // Get possition of the (node, subtype) pair in "tags_list_" adding it if not
-  // in the list yet.
+  // Get possition of the (`node`, `subtype`) pair in `tags_list_`, adding it
+  // if not in the list yet.
   uint32_t GetPosInTagsList(Node* node, internal::Subtype subtype);
 
-  // Get BackwardWriter for node. "type" is used to select the right category
+  // Get `BackwardWriter` for node. `type` is used to select the right category
   // for the buffer if not created yet.
   BackwardWriter* GetBuffer(Node* node, BufferType type);
 
@@ -235,7 +236,7 @@ class TransposeEncoder : public ChunkEncoder {
   struct DestInfo {
     DestInfo();
     // Position of the destination in destination list created for this state.
-    // kInvalidPos if transition destination is not in the list. In that case
+    // `kInvalidPos` if transition destination is not in the list. In that case
     // transition is encoded using the public list of states.
     uint32_t pos;
     // Number of transition to this destination.
@@ -247,30 +248,30 @@ class TransposeEncoder : public ChunkEncoder {
     explicit EncodedTagInfo(NodeId node_id, internal::Subtype subtype);
     NodeId node_id;
     internal::Subtype subtype;
-    // Maps all destinations reachable from this encoded tag to DestInfo.
+    // Maps all destinations reachable from this encoded tag to `DestInfo`.
     absl::flat_hash_map<uint32_t, DestInfo> dest_info;
     // Number of incoming tranitions into this state.
     size_t num_incoming_transitions = 0;
     // Index of this state in the state machine.
     uint32_t state_machine_pos;
-    // Position of NoOp node in the private list that has base in public list.
-    // If outgoing transitions are split into frequent and infrequent a list of
-    // frequent destinations is created and NoOp node is added that serves
-    // infrequent transitions.
+    // Position of `kNoOp` node in the private list that has base in public
+    // list. If outgoing transitions are split into frequent and infrequent, a
+    // list of frequent destinations is created and `kNoOp` node is added that
+    // serves infrequent transitions.
     uint32_t public_list_noop_pos;
     // Base index of this encoded tag. Transitions from this tag can target only
-    // states [base, base + kMaxTransition].
-    // kInvalidPos if no outgoing transition.
+    // states [`base`, `base + kMaxTransition`].
+    // `kInvalidPos` if no outgoing transition.
     uint32_t base;
   };
 
   // Information about the data buffer.
   struct BufferWithMetadata {
     explicit BufferWithMetadata(NodeId node_id);
-    // Buffer itself, wrapped in unique_ptr so that its address remains constant
-    // when additional buffers are added.
+    // Buffer itself, wrapped in `std::unique_ptr` so that its address remains
+    // constant when additional buffers are added.
     std::unique_ptr<Chain> buffer;
-    // NodeId this buffer belongs to.
+    // `NodeId` this buffer belongs to.
     NodeId node_id;
   };
 
@@ -282,7 +283,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   // List of all distinct Encoded tags.
   std::vector<EncodedTagInfo> tags_list_;
-  // Sequence of tags on input as indices into "tags_list_".
+  // Sequence of tags on input as indices into `tags_list_`.
   std::vector<uint32_t> encoded_tags_;
   // Data buffers in separate vectors per buffer type.
   std::vector<BufferWithMetadata> data_[kNumBufferTypes];
