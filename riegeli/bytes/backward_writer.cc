@@ -50,7 +50,7 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
     if (
         // `std::memcpy(nullptr, _, 0)` is undefined.
         available_length > 0) {
-      cursor_ = limit_;
+      cursor_ -= available_length;
       std::memcpy(cursor_, src.data() + src.size() - available_length,
                   available_length);
       src.remove_suffix(available_length);

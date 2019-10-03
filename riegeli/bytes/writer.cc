@@ -50,7 +50,7 @@ bool Writer::WriteSlow(absl::string_view src) {
         // `std::memcpy(nullptr, _, 0)` is undefined.
         available_length > 0) {
       std::memcpy(cursor_, src.data(), available_length);
-      cursor_ = limit_;
+      cursor_ += available_length;
       src.remove_prefix(available_length);
     }
     if (ABSL_PREDICT_FALSE(!PushSlow(1, src.size()))) return false;

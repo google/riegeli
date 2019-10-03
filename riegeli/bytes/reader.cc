@@ -57,7 +57,7 @@ bool Reader::ReadSlow(char* dest, size_t length) {
         // `std::memcpy(_, nullptr, 0)` is undefined.
         available_length > 0) {
       std::memcpy(dest, cursor_, available_length);
-      cursor_ = limit_;
+      cursor_ += available_length;
       dest += available_length;
       length -= available_length;
     }
@@ -120,7 +120,7 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
          "length too small, use CopyTo(Writer*) instead";
   while (length > available()) {
     const absl::string_view data(cursor_, available());
-    cursor_ = limit_;
+    cursor_ += data.size();
     if (ABSL_PREDICT_FALSE(!dest->Write(data))) return false;
     length -= data.size();
     if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
@@ -167,11 +167,13 @@ bool Reader::ReadAll(std::string* dest) {
     return true;
   } else {
     do {
-      if (ABSL_PREDICT_FALSE(available() > dest->max_size() - dest->size())) {
+      const size_t available_length = available();
+      if (ABSL_PREDICT_FALSE(available_length >
+                             dest->max_size() - dest->size())) {
         return Fail(ResourceExhaustedError("Destination size overflow"));
       }
-      dest->append(cursor_, available());
-      cursor_ = limit_;
+      dest->append(cursor_, available_length);
+      cursor_ += available_length;
     } while (PullSlow(1, 0));
     return healthy();
   }

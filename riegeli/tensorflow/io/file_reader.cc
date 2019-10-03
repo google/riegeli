@@ -278,7 +278,7 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
           write_ok = dest->Write(std::move(data));
         }
         if (ABSL_PREDICT_FALSE(!write_ok)) {
-          cursor_ = limit_;
+          cursor_ += available_length;
           return false;
         }
         length -= available_length;
