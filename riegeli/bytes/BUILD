@@ -86,6 +86,21 @@ cc_library(
 )
 
 cc_library(
+    name = "pushable_writer",
+    srcs = ["pushable_writer.cc"],
+    hdrs = ["pushable_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "pullable_reader",
     srcs = ["pullable_reader.cc"],
     hdrs = ["pullable_reader.h"],
