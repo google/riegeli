@@ -311,7 +311,7 @@ inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
-    SyncBuffer(src_.get());
+    that.SyncBuffer(that.src_.get());
     src_ = std::move(that.src_);
     MakeBuffer(src_.get());
   }
