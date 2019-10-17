@@ -31,8 +31,8 @@
 
 namespace riegeli {
 
-// `PullableReader` helps to implement `Reader::PullSlow()` with
-// `min_length > 1` in terms of `Reader::PullSlow()` with `min_length == 1`.
+// Abstract class `PullableReader` helps to implement
+// `Reader::PullSlow(min_length, recommended_length)` with `min_length > 1`.
 //
 // `PullableReader` accumulates pulled data in a scratch buffer if needed.
 class PullableReader : public Reader {

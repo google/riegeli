@@ -27,9 +27,9 @@
 
 namespace riegeli {
 
-// `BufferedWriter` helps to implement a `Writer` for an underlying destination
-// which accepts data by copying from external byte arrays, e.g. like in the
-// `write()` syscall.
+// Abstract class `BufferedWriter` helps to implement a `Writer` for an
+// underlying destination which accepts data by copying from external byte
+// arrays, e.g. like in the `write()` syscall.
 //
 // `BufferedWriter` accumulates data to be pushed in a flat buffer. Writing a
 // large enough array bypasses the buffer.

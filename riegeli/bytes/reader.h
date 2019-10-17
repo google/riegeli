@@ -33,8 +33,8 @@
 
 namespace riegeli {
 
-// A `Reader` reads sequences of bytes from a source. The nature of the source
-// depends on the particular class derived from `Reader`.
+// Abstract class `Reader` reads sequences of bytes from a source. The nature of
+// the source depends on the particular class derived from `Reader`.
 //
 // A `Reader` object manages a buffer of data pulled from the source, which
 // amortizes the overhead of pulling data over multiple reads. Data can be read

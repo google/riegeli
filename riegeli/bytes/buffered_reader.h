@@ -28,9 +28,9 @@
 
 namespace riegeli {
 
-// `BufferedReader` helps to implement a `Reader` for an underlying source which
-// provides data by copying to external byte arrays, e.g. like in the `read()`
-// syscall.
+// Abstract class `BufferedReader` helps to implement a `Reader` for an
+// underlying source which provides data by copying to external byte arrays,
+// e.g. like in the `read()` syscall.
 //
 // `BufferedReader` accumulates data which has been pulled in a flat buffer.
 // Reading a large enough array bypasses the buffer.

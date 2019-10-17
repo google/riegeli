@@ -29,6 +29,10 @@
 
 namespace riegeli {
 
+// Abstract class `PushableWriter` helps to implement
+// `Writer::PushSlow(min_length, recommended_length)` with `min_length > 1`.
+//
+// `PushableWriter` accumulates data to be pushed in a scratch buffer if needed.
 class PushableWriter : public Writer {
  protected:
   // Creates a `PushableWriter` with the given initial state.

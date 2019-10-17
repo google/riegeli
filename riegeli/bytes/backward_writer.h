@@ -32,8 +32,8 @@
 
 namespace riegeli {
 
-// A `BackwardWriter` writes sequences of bytes to a destination, like `Writer`,
-// but back to front.
+// Abstract class `BackwardWriter` writes sequences of bytes to a destination,
+// like `Writer`, but back to front.
 //
 // Sequential writing is supported, random access is not supported, truncation
 // is optionally supported.

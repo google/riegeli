@@ -32,8 +32,9 @@
 
 namespace riegeli {
 
-// A `Writer` writes sequences of bytes to a destination. The nature of the
-// destination depends on the particular class derived from `Writer`.
+// Abstract class `Writer` writes sequences of bytes to a destination. The
+// nature of the destination depends on the particular class derived from
+// `Writer`.
 //
 // A `Writer` object manages a buffer of data to be pushed to the destination,
 // which amortizes the overhead of pushing data over multiple writes. Data can
