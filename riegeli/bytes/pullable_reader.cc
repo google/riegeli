@@ -16,11 +16,11 @@
 
 #include <stddef.h>
 
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -60,23 +60,18 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
     // will be copied to the new scratch, so it must be preserved.
     new_scratch = absl::make_unique<Scratch>();
   }
-  const absl::Span<char> flat_buffer =
-      new_scratch->buffer.AppendBuffer(min_length);
-  char* dest = flat_buffer.data();
-  char* const min_limit = flat_buffer.data() + min_length;
-  char* const max_limit = flat_buffer.data() + flat_buffer.size();
-  do {
-    const size_t length =
-        UnsignedMin(available(), PtrDistance(dest, max_limit));
-    if (
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        length > 0) {
-      std::memcpy(dest, cursor_, length);
-      cursor_ += length;
-      dest += length;
-      if (dest >= min_limit) break;
-    }
-  } while (PullSlow(1, 0));
+  absl::Span<char> flat_buffer =
+      new_scratch->buffer.AppendFixedBuffer(min_length);
+  const Position pos_before = pos();
+  if (ABSL_PREDICT_FALSE(!ReadSlow(flat_buffer.data(), flat_buffer.size()))) {
+    RIEGELI_ASSERT_GE(pos(), pos_before)
+        << "Reader::ReadSlow(char*) decreased pos()";
+    const Position length_read = pos() - pos_before;
+    RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
+        << "Reader::ReadSlow(char*) read more than requested";
+    flat_buffer.remove_suffix(flat_buffer.size() -
+                              IntCast<size_t>(length_read));
+  }
   limit_pos_ -= available();
   new_scratch->original_start = start_;
   new_scratch->original_cursor = cursor_;
@@ -84,7 +79,7 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
   scratch_ = std::move(new_scratch);
   start_ = flat_buffer.data();
   cursor_ = start_;
-  limit_ = dest;
+  limit_ = start_ + flat_buffer.size();
 }
 
 bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
