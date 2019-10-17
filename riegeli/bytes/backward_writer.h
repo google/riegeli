@@ -187,7 +187,7 @@ class BackwardWriter : public Object {
 
   // Implementation of the slow part of `Push()`.
   //
-  // Precondition: `available() == 0`
+  // Precondition: `min_length > available()`
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Implementation of the slow part of `Write()`.
