@@ -311,7 +311,9 @@ inline void LimitingReader<Src>::MoveSrc(LimitingReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
-    that.SyncBuffer(that.src_.get());
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
+    // `src_` is not moved yet so `src_` is taken from `that`.
+    SyncBuffer(that.src_.get());
     src_ = std::move(that.src_);
     MakeBuffer(src_.get());
   }

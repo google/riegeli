@@ -286,7 +286,9 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    that.SyncBuffer(that.dest_.get());
+    // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
+    // `dest_` is not moved yet so `dest_` is taken from `that`.
+    SyncBuffer(that.dest_.get());
     dest_ = std::move(that.dest_);
     MakeBuffer(dest_.get());
   }
