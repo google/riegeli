@@ -57,7 +57,6 @@ class NullWriter : public Writer {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;
-  bool WriteSlow(Chain&& src) override;
 
  private:
   // Resets buffer pointers to the beginning of the buffer.

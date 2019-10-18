@@ -48,16 +48,6 @@ bool NullWriter::WriteSlow(const Chain& src) {
   return MakeBuffer();
 }
 
-bool NullWriter::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Writer::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncBuffer();
-  start_pos_ += src.size();
-  return MakeBuffer();
-}
-
 bool NullWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return true;
@@ -85,7 +75,7 @@ inline bool NullWriter::MakeBuffer(size_t min_length) {
                          std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(UnsignedMax(kMaxBufferSize, min_length));
+  buffer_.Resize(UnsignedMax(kDefaultBufferSize, min_length));
   start_ = buffer_.GetData();
   cursor_ = start_;
   limit_ =
