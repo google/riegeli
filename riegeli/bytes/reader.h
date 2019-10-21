@@ -377,10 +377,11 @@ inline bool Reader::Read(std::string* dest, size_t length) {
 }
 
 inline bool Reader::Read(absl::string_view* dest, size_t length) {
-  if (ABSL_PREDICT_FALSE(!Pull(length))) return false;
+  const bool ok = Pull(length);
+  if (ABSL_PREDICT_FALSE(!ok)) length = available();
   *dest = absl::string_view(cursor_, length);
   cursor_ += length;
-  return true;
+  return ok;
 }
 
 inline bool Reader::Read(Chain* dest, size_t length) {
