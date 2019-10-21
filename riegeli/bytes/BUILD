@@ -212,6 +212,33 @@ cc_library(
 )
 
 cc_library(
+    name = "tee_writer",
+    srcs = ["tee_writer.cc"],
+    hdrs = ["tee_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "tee_reader",
+    srcs = ["tee_reader.cc"],
+    hdrs = ["tee_reader.h"],
+    deps = [
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "array_writer",
     srcs = [
         "array_writer.cc",
