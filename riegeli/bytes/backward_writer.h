@@ -59,8 +59,7 @@ class BackwardWriter : public Object {
   //
   // Invariants:
   //   `start() >= cursor() >= limit()` (possibly all `nullptr`)
-  //   if `!healthy()` then `start() == cursor() == limit()`
-  //   if `closed()` then `start() == cursor() == limit() == nullptr`
+  //   if `!healthy()` then `start() == cursor() == limit() == nullptr`
   char* start() const { return start_; }
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
