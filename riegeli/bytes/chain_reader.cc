@@ -178,7 +178,7 @@ bool ChainReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  SyncScratch();
+  if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";

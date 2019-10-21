@@ -91,9 +91,11 @@ class PullableReader : public Reader {
 
   // Helps to implement `SeekSlow()` if scratch is used.
   //
-  // When `SyncScratch()` returns, scratch is not used but the current position
-  // might have been changed.
-  void SyncScratch();
+  // Return values:
+  //  * `true`  - scratch is not used now, the caller should continue
+  //              `SeekSlow(new_pos)`
+  //  * `false` - `SeekSlow()` is done, the caller should return `true`
+  bool SeekUsingScratch(Position new_pos);
 
   // Helps to implement move constructor or move assignment if scratch is used.
   //
@@ -129,6 +131,7 @@ class PullableReader : public Reader {
   void PullToScratchSlow(size_t min_length);
   bool ReadScratchSlow(Chain* dest, size_t* length);
   bool CopyScratchToSlow(Writer* dest, Position* length);
+  bool SeekUsingScratchSlow(Position new_pos);
   void SyncScratchSlow();
   void SwapScratchBeginSlow();
   void SwapScratchEndSlow();
@@ -210,8 +213,9 @@ inline bool PullableReader::CopyScratchTo(Writer* dest, Position* length) {
   return true;
 }
 
-inline void PullableReader::SyncScratch() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SyncScratchSlow();
+inline bool PullableReader::SeekUsingScratch(Position new_pos) {
+  if (ABSL_PREDICT_FALSE(scratch_used())) return SeekUsingScratchSlow(new_pos);
+  return true;
 }
 
 inline void PullableReader::SwapScratchBegin() {

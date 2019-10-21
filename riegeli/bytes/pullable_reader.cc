@@ -53,7 +53,7 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
   std::unique_ptr<Scratch> new_scratch;
   if (scratch_ != nullptr && (scratch_->buffer.empty() || available() == 0)) {
     // Scratch is allocated but not used or no longer needed. Reuse it.
-    SyncScratch();
+    if (scratch_used()) SyncScratchSlow();
     new_scratch = std::move(scratch_);
   } else {
     // Allocate a new scratch. If scratch is currently used, some data from it
@@ -126,6 +126,15 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
     return ok;
   }
   return false;
+}
+
+bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
+  SyncScratchSlow();
+  if (new_pos >= start_pos() && new_pos <= limit_pos_) {
+    cursor_ = limit_ - (limit_pos_ - new_pos);
+    return false;
+  }
+  return true;
 }
 
 void PullableReader::SyncScratchSlow() {
