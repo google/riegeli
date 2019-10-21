@@ -67,9 +67,6 @@ class PushableWriter : public Writer {
   // Helps to implement `Done()`, `WriteSlow()`, `Flush`, or `SeekSlow()` if
   // scratch is used, in terms of `Write(absl::string_view)` and `Write(Chain)`.
   //
-  // When `SyncScratch()` returns, scratch is not used but the current position
-  // might have been changed.
-  //
   // Return values:
   //  * `true`  - scratch is not used now, the caller should continue
   //  * `false` - failure (`!healthy()`), the caller should return `false`
