@@ -31,6 +31,7 @@ def py_extension(
         data = data,
         visibility = visibility,
         deps = deps,
+        alwayslink = True,
     )
 
     native.cc_binary(
