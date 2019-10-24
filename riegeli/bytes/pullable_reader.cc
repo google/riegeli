@@ -50,6 +50,10 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
          "trivial min_length";
   if (scratch_used() && ScratchEnds(min_length)) return;
+  if (available() == 0 && ABSL_PREDICT_TRUE(PullSlow(1, 0)) &&
+      available() >= min_length) {
+    return;
+  }
   std::unique_ptr<Scratch> new_scratch;
   if (scratch_ != nullptr && (scratch_->buffer.empty() || available() == 0)) {
     // Scratch is allocated but not used or no longer needed. Reuse it.

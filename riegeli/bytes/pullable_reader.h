@@ -53,7 +53,7 @@ class PullableReader : public Reader {
   void Reset(InitiallyOpen);
 
   // Helps to implement `PullSlow(min_length, recommended_length)` if
-  // `min_length > 1` in terms of `ReadSlow(char*)`.
+  // `min_length > 1` in terms of `PullSlow(1, 0)` and `ReadSlow(char*)`.
   //
   // Return values:
   //  * `true`  - scratch is not used now, `min_length == 1`,
