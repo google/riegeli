@@ -73,7 +73,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     std::vector<std::string> filenames;
     filenames.reserve(IntCast<size_t>(filenames_tensor->NumElements()));
     for (int i = 0; i < filenames_tensor->NumElements(); ++i) {
-      filenames.push_back(filenames_tensor->flat<std::string>()(i));
+      filenames.push_back(filenames_tensor->flat<::tensorflow::tstring>()(i));
     }
 
     *output = new Dataset(ctx, std::move(filenames));
@@ -145,8 +145,10 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
             // record.
             ::tensorflow::Tensor result_tensor(::tensorflow::cpu_allocator(),
                                                ::tensorflow::DT_STRING, {});
-            std::string* const value = &result_tensor.scalar<std::string>()();
-            if (TF_PREDICT_TRUE(reader_->ReadRecord(value))) {
+            absl::string_view value;
+            if (TF_PREDICT_TRUE(reader_->ReadRecord(&value))) {
+              result_tensor.scalar<::tensorflow::tstring>()().assign(
+                  value.data(), value.size());
               out_tensors->push_back(std::move(result_tensor));
               *end_of_sequence = false;
               return ::tensorflow::Status::OK();
@@ -230,7 +232,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
             return ::tensorflow::errors::Internal(
                 "current_file_index out of range");
           }
-          std::string current_pos;
+          ::tensorflow::tstring current_pos;
           TF_RETURN_IF_ERROR(
               reader->ReadScalar(full_name("current_pos"), &current_pos));
           RecordPosition pos;

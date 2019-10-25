@@ -280,7 +280,7 @@ bool Benchmarks::ReadTFRecord(
   }
   tensorflow::io::SequentialRecordReader record_reader(file_reader.get(),
                                                        record_reader_options);
-  std::string record;
+  tensorflow::tstring record;
   for (;;) {
     const tensorflow::Status status = record_reader.ReadRecord(&record);
     if (!status.ok()) {
