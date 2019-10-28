@@ -64,7 +64,7 @@ class PushableWriter : public Writer {
   //   `min_length > available()`
   bool PushUsingScratch(size_t min_length);
 
-  // Helps to implement `Done()`, `WriteSlow()`, `Flush`, or `SeekSlow()` if
+  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, or `SeekSlow()` if
   // scratch is used, in terms of `Write(absl::string_view)` and `Write(Chain)`.
   //
   // Return values:
