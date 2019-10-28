@@ -283,7 +283,7 @@ inline void TeeReader<Src, SideDest>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src, typename SideDest>
 inline void TeeReader<Src, SideDest>::MoveSrc(TeeReader&& that,
                                               Writer* side_dest) {
-  if (src_.kIsStable() && ABSL_PREDICT_FALSE(closed())) {
+  if (src_.kIsStable() || ABSL_PREDICT_FALSE(closed())) {
     src_ = std::move(that.src_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

@@ -284,7 +284,7 @@ inline void TeeWriter<Dest, SideDest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest, typename SideDest>
 inline void TeeWriter<Dest, SideDest>::MoveDest(TeeWriter&& that,
                                                 Writer* side_dest) {
-  if (dest_.kIsStable() && ABSL_PREDICT_FALSE(!healthy())) {
+  if (dest_.kIsStable() || ABSL_PREDICT_FALSE(!healthy())) {
     dest_ = std::move(that.dest_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
