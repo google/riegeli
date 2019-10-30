@@ -522,6 +522,41 @@ cc_library(
 )
 
 cc_library(
+    name = "framed_snappy_writer",
+    srcs = ["framed_snappy_writer.cc"],
+    hdrs = ["framed_snappy_writer.h"],
+    deps = [
+        ":pushable_writer",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:endian",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@crc32c",
+        "@snappy",
+    ],
+)
+
+cc_library(
+    name = "framed_snappy_reader",
+    srcs = ["framed_snappy_reader.cc"],
+    hdrs = ["framed_snappy_reader.h"],
+    deps = [
+        ":pullable_reader",
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:endian",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@crc32c",
+        "@snappy",
+    ],
+)
+
+cc_library(
     name = "message_serialize",
     srcs = ["message_serialize.cc"],
     hdrs = ["message_serialize.h"],
