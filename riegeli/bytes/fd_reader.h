@@ -523,6 +523,12 @@ inline FdReaderBase::FdReaderBase(size_t buffer_size, bool sync_pos)
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : FdReaderCommon(std::move(that)), sync_pos_(that.sync_pos_) {}
 
+inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
+  FdReaderCommon::operator=(std::move(that));
+  sync_pos_ = that.sync_pos_;
+  return *this;
+}
+
 inline void FdReaderBase::Reset() {
   FdReaderCommon::Reset();
   sync_pos_ = false;
@@ -539,12 +545,6 @@ inline void FdReaderBase::Initialize(int src,
       << "Failed precondition of FdReader: negative file descriptor";
   SetFilename(src);
   InitializePos(src, initial_pos);
-}
-
-inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
-  FdReaderCommon::operator=(std::move(that));
-  sync_pos_ = that.sync_pos_;
-  return *this;
 }
 
 inline FdStreamReaderBase::FdStreamReaderBase(
