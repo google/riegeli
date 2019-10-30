@@ -68,7 +68,7 @@ class FdReaderCommon : public BufferedReader {
 
 }  // namespace internal
 
-// Template parameter invariant part of `FdReader`.
+// Template parameter independent part of `FdReader`.
 class FdReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
@@ -138,7 +138,7 @@ class FdReaderBase : public internal::FdReaderCommon {
   // Invariant: `limit_pos_ <= std::numeric_limits<off_t>::max()`
 };
 
-// Template parameter invariant part of `FdStreamReader`.
+// Template parameter independent part of `FdStreamReader`.
 class FdStreamReaderBase : public internal::FdReaderCommon {
  public:
   class Options {
@@ -198,7 +198,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
 };
 
-// Template parameter invariant part of `FdMMapReader`.
+// Template parameter independent part of `FdMMapReader`.
 class FdMMapReaderBase : public ChainReader<Chain> {
  public:
   class Options {

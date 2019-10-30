@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `DefaultChunkReader`.
+// Template parameter independent part of `DefaultChunkReader`.
 class DefaultChunkReaderBase : public Object {
  public:
   // Returns the Riegeli/records file being read from. Unchanged by `Close()`.

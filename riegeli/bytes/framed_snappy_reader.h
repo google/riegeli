@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `FramedSnappyReader`.
+// Template parameter independent part of `FramedSnappyReader`.
 class FramedSnappyReaderBase : public PullableReader {
  public:
   class Options {};

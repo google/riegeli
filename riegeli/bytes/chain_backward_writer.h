@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ChainBackwardWriter`.
+// Template parameter independent part of `ChainBackwardWriter`.
 class ChainBackwardWriterBase : public BackwardWriter {
  public:
   class Options {

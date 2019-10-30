@@ -33,7 +33,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `LimitingReader`.
+// Template parameter independent part of `LimitingReader`.
 class LimitingReaderBase : public Reader {
  public:
   // An infinite size limit.

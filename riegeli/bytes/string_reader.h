@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `StringReader`.
+// Template parameter independent part of `StringReader`.
 class StringReaderBase : public Reader {
  public:
   // Returns the `std::string` or array being read from. Unchanged by `Close()`.

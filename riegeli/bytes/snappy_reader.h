@@ -28,7 +28,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `SnappyReader`.
+// Template parameter independent part of `SnappyReader`.
 class SnappyReaderBase : public ChainReader<Chain> {
  public:
   class Options {};

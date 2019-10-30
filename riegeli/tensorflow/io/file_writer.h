@@ -40,7 +40,7 @@ namespace riegeli {
 
 namespace tensorflow {
 
-// Template parameter invariant part of `FileWriter`.
+// Template parameter independent part of `FileWriter`.
 class FileWriterBase : public Writer {
  public:
   class Options {

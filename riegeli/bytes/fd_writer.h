@@ -68,7 +68,7 @@ class FdWriterCommon : public BufferedWriter {
 
 }  // namespace internal
 
-// Template parameter invariant part of `FdWriter`.
+// Template parameter independent part of `FdWriter`.
 class FdWriterBase : public internal::FdWriterCommon {
  public:
   class Options {
@@ -155,7 +155,7 @@ class FdWriterBase : public internal::FdWriterCommon {
   // Invariant: `start_pos_ <= std::numeric_limits<off_t>::max()`
 };
 
-// Template parameter invariant part of `FdStreamWriter`.
+// Template parameter independent part of `FdStreamWriter`.
 class FdStreamWriterBase : public internal::FdWriterCommon {
  public:
   class Options {

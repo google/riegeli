@@ -35,7 +35,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ZlibReader`.
+// Template parameter independent part of `ZlibReader`.
 class ZlibReaderBase : public BufferedReader {
  public:
   enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };

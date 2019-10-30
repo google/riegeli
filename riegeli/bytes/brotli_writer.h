@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `BrotliWriter`.
+// Template parameter independent part of `BrotliWriter`.
 class BrotliWriterBase : public BufferedWriter {
  public:
   class Options {

@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ZstdReader`.
+// Template parameter independent part of `ZstdReader`.
 class ZstdReaderBase : public BufferedReader {
  public:
   class Options {

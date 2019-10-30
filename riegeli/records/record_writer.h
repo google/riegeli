@@ -49,7 +49,7 @@ namespace riegeli {
 void SetRecordType(RecordsMetadata* metadata,
                    const google::protobuf::Descriptor* descriptor);
 
-// Template parameter invariant part of `RecordWriter`.
+// Template parameter independent part of `RecordWriter`.
 class RecordWriterBase : public Object {
  public:
   class Options {

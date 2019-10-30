@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `FramedSnappyWriter`.
+// Template parameter independent part of `FramedSnappyWriter`.
 class FramedSnappyWriterBase : public PushableWriter {
  public:
   class Options {

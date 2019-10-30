@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `LimitingWriter`.
+// Template parameter independent part of `LimitingWriter`.
 class LimitingWriterBase : public Writer {
  public:
   // An infinite size limit.

@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `LimitingBackwardWriter`.
+// Template parameter independent part of `LimitingBackwardWriter`.
 class LimitingBackwardWriterBase : public BackwardWriter {
  public:
   // An infinite size limit.

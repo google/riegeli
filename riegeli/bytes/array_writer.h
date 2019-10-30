@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ArrayWriter`.
+// Template parameter independent part of `ArrayWriter`.
 class ArrayWriterBase : public Writer {
  public:
   // Returns the array being written to. Unchanged by `Close()`.

@@ -30,7 +30,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ArrayBackwardWriter`.
+// Template parameter independent part of `ArrayBackwardWriter`.
 class ArrayBackwardWriterBase : public BackwardWriter {
  public:
   // Returns the array being written to. Unchanged by `Close()`.

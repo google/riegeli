@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `BrotliReader`.
+// Template parameter independent part of `BrotliReader`.
 class BrotliReaderBase : public PullableReader {
  public:
   class Options {};

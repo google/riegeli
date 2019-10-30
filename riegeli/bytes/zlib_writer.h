@@ -34,7 +34,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ZlibWriter`.
+// Template parameter independent part of `ZlibWriter`.
 class ZlibWriterBase : public BufferedWriter {
  public:
   enum class Header { kZlib = 0, kGzip = 16, kRaw = -1 };

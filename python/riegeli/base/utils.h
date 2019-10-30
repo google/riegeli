@@ -248,7 +248,7 @@ class StaticObject {
   friend void FreeStaticObjectsImpl();
 };
 
-// Template parameter invariant part of `ImportedCapsule`.
+// Template parameter independent part of `ImportedCapsule`.
 class ImportedCapsuleBase {
  public:
   // Forces importing the value, returning `false` on failures (with Python

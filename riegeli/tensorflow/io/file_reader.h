@@ -42,7 +42,7 @@ namespace riegeli {
 
 namespace tensorflow {
 
-// Template parameter invariant part of `FileReader`.
+// Template parameter independent part of `FileReader`.
 class FileReaderBase : public Reader {
  public:
   class Options {

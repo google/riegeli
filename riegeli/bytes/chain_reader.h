@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ChainReader`.
+// Template parameter independent part of `ChainReader`.
 class ChainReaderBase : public PullableReader {
  public:
   // Returns the `Chain` being read from. Unchanged by `Close()`.

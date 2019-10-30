@@ -33,7 +33,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `ZstdWriter`.
+// Template parameter independent part of `ZstdWriter`.
 class ZstdWriterBase : public BufferedWriter {
  protected:
   class CompressorOptions;

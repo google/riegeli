@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `TeeWriter`.
+// Template parameter independent part of `TeeWriter`.
 class TeeWriterBase : public Writer {
  public:
   // Returns the main `Writer`. Unchanged by `Close()`.

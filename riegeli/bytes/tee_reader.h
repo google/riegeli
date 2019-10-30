@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `TeeReader`.
+// Template parameter independent part of `TeeReader`.
 class TeeReaderBase : public Reader {
  public:
   // Returns the original `Reader`. Unchanged by `Close()`.

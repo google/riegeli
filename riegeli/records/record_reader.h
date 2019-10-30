@@ -67,7 +67,7 @@ class RecordsMetadataDescriptors : public Object {
   std::unique_ptr<google::protobuf::DescriptorPool> pool_;
 };
 
-// Template parameter invariant part of `RecordReader`.
+// Template parameter independent part of `RecordReader`.
 class RecordReaderBase : public Object {
  public:
   class Options {

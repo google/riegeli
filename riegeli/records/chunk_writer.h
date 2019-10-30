@@ -88,7 +88,7 @@ class ChunkWriter : public Object {
   Position pos_ = 0;
 };
 
-// Template parameter invariant part of `DefaultChunkWriter`.
+// Template parameter independent part of `DefaultChunkWriter`.
 class DefaultChunkWriterBase : public ChunkWriter {
  public:
   class Options {

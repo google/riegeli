@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `StringWriter`.
+// Template parameter independent part of `StringWriter`.
 class StringWriterBase : public Writer {
  public:
   class Options {

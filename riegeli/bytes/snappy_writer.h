@@ -31,7 +31,7 @@
 
 namespace riegeli {
 
-// Template parameter invariant part of `SnappyWriter`.
+// Template parameter independent part of `SnappyWriter`.
 class SnappyWriterBase : public Writer {
  public:
   class Options {
