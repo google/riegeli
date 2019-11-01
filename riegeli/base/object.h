@@ -99,8 +99,9 @@ class Object {
   // Returns true if the `Object` is closed.
   bool closed() const;
 
-  // Returns a `Status` describing the failure if the `Object` is failed,
-  // or `OkStatus()` otherwise.
+  // Returns a `Status` describing the failure if the `Object` is failed, or a
+  // `FailedPreconditionError()` if the `Object` is closed, or `OkStatus()` if
+  // the `Object` is healthy.
   Status status() const;
 
   // Returns a token which allows to detect the class of the `Object` at
