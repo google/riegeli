@@ -103,9 +103,10 @@ class SnappyReader : public SnappyReaderBase {
   Reader* src_reader() override { return src_.get(); }
   const Reader* src_reader() const override { return src_.get(); }
 
+  void VerifyEnd() override;
+
  protected:
   void Done() override;
-  void VerifyEnd() override;
 
  private:
   // The object providing and possibly owning the compressed `Reader`.

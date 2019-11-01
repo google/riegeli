@@ -35,6 +35,9 @@ namespace riegeli {
 // `BufferedReader` accumulates data which has been pulled in a flat buffer.
 // Reading a large enough array bypasses the buffer.
 class BufferedReader : public Reader {
+ public:
+  void VerifyEnd() override;
+
  protected:
   // Creates a closed `BufferedReader`.
   BufferedReader() noexcept : Reader(kInitiallyClosed) {}
@@ -57,7 +60,6 @@ class BufferedReader : public Reader {
   void Reset();
   void Reset(size_t buffer_size, Position size_hint = 0);
 
-  void VerifyEnd() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;

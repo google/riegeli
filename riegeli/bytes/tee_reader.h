@@ -149,9 +149,10 @@ class TeeReader : public TeeReaderBase {
   Writer* side_dest_writer() override { return side_dest_.get(); }
   const Writer* side_dest_writer() const override { return side_dest_.get(); }
 
+  void VerifyEnd() override;
+
  protected:
   void Done() override;
-  void VerifyEnd() override;
 
  private:
   void MoveSrc(TeeReader&& that, Writer* side_dest);
