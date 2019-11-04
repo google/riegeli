@@ -53,6 +53,10 @@ class StableDependency<P*, M, std::enable_if_t<Dependency<P*, M>::kIsStable()>>
 template <typename P, typename M>
 class StableDependency<P*, M,
                        std::enable_if_t<!Dependency<P*, M>::kIsStable()>> {
+ private:
+  using DerivedP =
+      std::remove_pointer_t<decltype(std::declval<Dependency<P*, M>>().get())>;
+
  public:
   StableDependency() noexcept : dummy_() {}
 
@@ -134,18 +138,18 @@ class StableDependency<P*, M,
     return dep_->manager();
   }
 
-  P* get() {
+  DerivedP* get() {
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.get();
     return dep_->get();
   }
-  const P* get() const {
+  const DerivedP* get() const {
     if (ABSL_PREDICT_FALSE(dep_ == nullptr)) return dummy_.get();
     return dep_->get();
   }
-  P& operator*() { return *get(); }
-  const P& operator*() const { return *get(); }
-  P* operator->() { return get(); }
-  const P* operator->() const { return get(); }
+  DerivedP& operator*() { return *get(); }
+  const DerivedP& operator*() const { return *get(); }
+  DerivedP* operator->() { return get(); }
+  const DerivedP* operator->() const { return get(); }
 
   bool is_owning() const { return dep_->is_owning(); }
 

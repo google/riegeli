@@ -45,7 +45,8 @@ namespace riegeli {
 // temporary `Manager` and moving from it.
 //
 // The following operations are typically provided by specializations of
-// `Dependency<Ptr, Manager>` (operations may differ depending on `Ptr`):
+// `Dependency<Ptr, Manager>` (operations may differ depending on `Ptr`;
+// whenever `Ptr` is returned, a pointer to a derived class may be returned):
 //
 // ```
 //   // Constructs a dummy Manager. This is used when the host object is closed
@@ -172,9 +173,9 @@ class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
  public:
   using DependencyBase<M*>::DependencyBase;
 
-  P* get() const { return this->manager(); }
-  P& operator*() const { return *get(); }
-  P* operator->() const { return get(); }
+  M* get() const { return this->manager(); }
+  M& operator*() const { return *get(); }
+  M* operator->() const { return get(); }
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
@@ -187,12 +188,12 @@ class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
  public:
   using DependencyBase<M>::DependencyBase;
 
-  P* get() { return &this->manager(); }
-  const P* get() const { return &this->manager(); }
-  P& operator*() { return *get(); }
-  const P& operator*() const { return *get(); }
-  P* operator->() { return get(); }
-  const P* operator->() const { return get(); }
+  M* get() { return &this->manager(); }
+  const M* get() const { return &this->manager(); }
+  M& operator*() { return *get(); }
+  const M& operator*() const { return *get(); }
+  M* operator->() { return get(); }
+  const M* operator->() const { return get(); }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
@@ -207,9 +208,9 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
  public:
   using DependencyBase<std::unique_ptr<M, Deleter>>::DependencyBase;
 
-  P* get() const { return this->manager().get(); }
-  P& operator*() const { return *get(); }
-  P* operator->() const { return get(); }
+  M* get() const { return this->manager().get(); }
+  M& operator*() const { return *get(); }
+  M* operator->() const { return get(); }
 
   bool is_owning() const { return this->manager() != nullptr; }
   static constexpr bool kIsStable() { return true; }

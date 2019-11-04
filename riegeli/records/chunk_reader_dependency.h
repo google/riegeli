@@ -60,12 +60,12 @@ class Dependency<ChunkReader*, M,
   M& manager() { return chunk_reader_.src(); }
   const M& manager() const { return chunk_reader_.src(); }
 
-  ChunkReader* get() { return &chunk_reader_; }
-  const ChunkReader* get() const { return &chunk_reader_; }
-  ChunkReader& operator*() { return *get(); }
-  const ChunkReader& operator*() const { return *get(); }
-  ChunkReader* operator->() { return get(); }
-  const ChunkReader* operator->() const { return get(); }
+  DefaultChunkReader<M>* get() { return &chunk_reader_; }
+  const DefaultChunkReader<M>* get() const { return &chunk_reader_; }
+  DefaultChunkReader<M>& operator*() { return *get(); }
+  const DefaultChunkReader<M>& operator*() const { return *get(); }
+  DefaultChunkReader<M>* operator->() { return get(); }
+  const DefaultChunkReader<M>* operator->() const { return get(); }
 
   bool is_owning() const { return true; }
   static constexpr bool kIsStable() { return false; }
