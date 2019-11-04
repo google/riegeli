@@ -62,7 +62,7 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
   } else {
     // Allocate a new scratch. If scratch is currently used, some data from it
     // will be copied to the new scratch, so it must be preserved.
-    new_scratch = absl::make_unique<Scratch>();
+    new_scratch = std::make_unique<Scratch>();
   }
   absl::Span<char> flat_buffer =
       new_scratch->buffer.AppendFixedBuffer(min_length);
