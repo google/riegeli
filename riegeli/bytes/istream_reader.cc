@@ -57,6 +57,9 @@ void IstreamReaderBase::Initialize(std::istream* src,
     FailOperation("istream::istream()");
     return;
   }
+  // A sticky `std::ios_base::eofbit` breaks future operations like
+  // `std::istream::peek()` and `std::istream::tellg()`.
+  src->clear(src->rdstate() & ~std::ios_base::eofbit);
   if (assumed_pos.has_value()) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
@@ -123,6 +126,10 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
       if (ABSL_PREDICT_FALSE(src->peek() == std::char_traits<char>::eof())) {
         if (ABSL_PREDICT_FALSE(src->fail())) {
           FailOperation("istream::peek()");
+        } else {
+          // A sticky `std::ios_base::eofbit` breaks future operations like
+          // `std::istream::peek()` and `std::istream::tellg()`.
+          src->clear(src->rdstate() & ~std::ios_base::eofbit);
         }
         return false;
       }
@@ -141,8 +148,12 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
       if (ABSL_PREDICT_FALSE(src->bad())) {
         FailOperation("istream::read()");
       } else {
-        // End of stream should not cause a sticky failure.
-        src->clear(src->rdstate() & ~std::ios_base::failbit);
+        // End of stream is not a failure.
+        //
+        // A sticky `std::ios_base::eofbit` breaks future operations like
+        // `std::istream::peek()` and `std::istream::tellg()`.
+        src->clear(src->rdstate() &
+                   ~(std::ios_base::eofbit | std::ios_base::failbit));
       }
       return IntCast<size_t>(length_read) >= min_length;
     }
@@ -172,7 +183,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
     }
     const std::streamoff stream_size = src->tellg();
     if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-      return FailOperation("ostream::tellg()");
+      return FailOperation("istream::tellg()");
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stream_size))) {
       // Stream ends.
@@ -182,7 +193,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
   }
   src->seekg(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(src->fail())) {
-    return FailOperation("ostream::seekg()");
+    return FailOperation("istream::seekg()");
   }
   limit_pos_ = new_pos;
   return true;
