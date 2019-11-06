@@ -412,6 +412,31 @@ cc_library(
 )
 
 cc_library(
+    name = "writer_ostream",
+    srcs = ["writer_ostream.cc"],
+    hdrs = ["writer_ostream.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "reader_istream",
+    srcs = ["reader_istream.cc"],
+    hdrs = ["reader_istream.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
     name = "brotli_writer",
     srcs = ["brotli_writer.cc"],
     hdrs = ["brotli_writer.h"],
