@@ -61,9 +61,7 @@ class PullableReader : public Reader {
   //  * `false` - `PullSlow()` is done,
   //              the caller should return `available() >= min_length`
   //
-  // Preconditions:
-  //   `healthy()`
-  //   `min_length > available()`
+  // Precondition: `min_length > available()`
   bool PullUsingScratch(size_t min_length);
 
   // Helps to implement `{Read,CopyTo}Slow(dest, *length)` if scratch is used.
@@ -79,12 +77,10 @@ class PullableReader : public Reader {
   //              `*length == 0 && dest->healthy()` for `CopyToSlow()`
   //
   // Preconditions for `ReadScratch()`:
-  //   `healthy()`
   //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
   //   `*length <= std::numeric_limits<size_t>::max() - dest->size()`
   //
-  // Preconditions for `CopyScratchTo()`:
-  //   `healthy()`
+  // Precondition for `CopyScratchTo()`:
   //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
   bool ReadScratch(Chain* dest, size_t* length);
   bool CopyScratchTo(Writer* dest, Position* length);
@@ -168,9 +164,6 @@ inline bool PullableReader::scratch_used() const {
 }
 
 inline bool PullableReader::PullUsingScratch(size_t min_length) {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of PullableReader::PullUsingScratch(): "
-      << status();
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of PullableReader::PullUsingScratch(): "
          "length too small, use Pull() instead";
@@ -186,9 +179,6 @@ inline bool PullableReader::PullUsingScratch(size_t min_length) {
 }
 
 inline bool PullableReader::ReadScratch(Chain* dest, size_t* length) {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of PullableReader::ReadScratch(Chain*): "
-      << status();
   RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of PullableReader::ReadScratch(Chain*): "
          "length too small, use Read(Chain*) instead";
@@ -202,8 +192,6 @@ inline bool PullableReader::ReadScratch(Chain* dest, size_t* length) {
 }
 
 inline bool PullableReader::CopyScratchTo(Writer* dest, Position* length) {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of PullableReader::CopyScratchTo(): " << status();
   RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of PullableReader::CopyToInScratchSlow(): "
          "length too small, use CopyTo(Writer*) instead";

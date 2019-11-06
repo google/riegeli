@@ -71,10 +71,10 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
          "length too small, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length))) {
     return available() >= min_length;
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
   if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
@@ -129,8 +129,8 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
 }
 
 bool FramedSnappyWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);

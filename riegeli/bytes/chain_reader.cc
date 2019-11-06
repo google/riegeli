@@ -38,10 +38,10 @@ bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length))) {
     return available() >= min_length;
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
@@ -70,8 +70,8 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";
@@ -177,8 +177,8 @@ bool ChainReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos_, src->size())
       << "ChainReader source changed unexpectedly";

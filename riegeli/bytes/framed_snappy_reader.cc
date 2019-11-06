@@ -63,10 +63,10 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length))) {
     return available() >= min_length;
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   truncated_ = false;
   uint32_t chunk_header;

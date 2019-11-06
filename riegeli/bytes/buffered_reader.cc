@@ -102,7 +102,6 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
   if (length >= LengthToReadDirectly()) {
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
     const size_t available_length = available();
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
@@ -112,6 +111,7 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
       length -= available_length;
     }
     ClearBuffer();
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
     return ReadInternal(dest, length, length);
   }
   return Reader::ReadSlow(dest, length);
@@ -124,9 +124,15 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  bool ok = true;
+  bool enough_read = true;
+  bool ok = healthy();
   while (length > available()) {
+    if (ABSL_PREDICT_FALSE(!ok)) {
+      // Read as much as is available.
+      length = available();
+      enough_read = false;
+      break;
+    }
     if (available() == 0 && length >= LengthToReadDirectly()) {
       ClearBuffer();
       const absl::Span<char> flat_buffer = dest->AppendFixedBuffer(length);
@@ -177,30 +183,25 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
-    if (ABSL_PREDICT_FALSE(!ok)) {
-      if (length > available()) {
-        length = available();
-      } else {
-        ok = true;
-      }
-      break;
-    }
   }
-  RIEGELI_ASSERT_LE(length, available())
-      << "Bug in BufferedReader::ReadSlow(Chain*): "
-         "remaining length larger than available data";
   buffer_.AppendSubstrTo(absl::string_view(cursor_, length), dest);
   cursor_ += length;
-  return ok;
+  return enough_read;
 }
 
 bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  bool read_ok = true;
+  bool enough_read = true;
+  bool read_ok = healthy();
   while (length > available()) {
+    if (ABSL_PREDICT_FALSE(!read_ok)) {
+      // Copy as much as is available.
+      length = available();
+      enough_read = false;
+      break;
+    }
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
     if (flat_buffer.empty()) {
       // Write a part of `buffer_` to `*dest` and make a new buffer.
@@ -248,18 +249,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
     limit_ += length_read;
-    if (ABSL_PREDICT_FALSE(!read_ok)) {
-      if (length > available()) {
-        length = available();
-      } else {
-        read_ok = true;
-      }
-      break;
-    }
   }
-  RIEGELI_ASSERT_LE(length, available())
-      << "Bug in BufferedReader::CopyToSlow(Writer*): "
-         "remaining length larger than available data";
   bool write_ok = true;
   if (length > 0) {
     if (length == buffer_.size()) {
@@ -271,7 +261,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     }
     cursor_ += length;
   }
-  return write_ok && read_ok;
+  return write_ok && enough_read;
 }
 
 bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
