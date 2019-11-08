@@ -77,50 +77,47 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
         decompressor_.get(), &available_in, &next_in, &available_out, nullptr,
         nullptr);
     src->set_cursor(reinterpret_cast<const char*>(next_in));
-    if (ABSL_PREDICT_FALSE(result == BROTLI_DECODER_RESULT_ERROR)) {
-      Fail(DataLossError(
-          absl::StrCat("BrotliDecoderDecompressStream() failed: ",
-                       BrotliDecoderErrorString(
-                           BrotliDecoderGetErrorCode(decompressor_.get())))));
-    }
-    // Take the output first even if `BrotliDecoderDecompressStream()` returned
-    // `BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT`, in order to be able to read
-    // data which have been written before a `Flush()` without waiting for data
-    // to be written after the `Flush()`.
-    size_t length = 0;
-    const char* const data = reinterpret_cast<const char*>(
-        BrotliDecoderTakeOutput(decompressor_.get(), &length));
-    if (length > 0) {
-      start_ = data;
-      cursor_ = data;
-      if (ABSL_PREDICT_FALSE(length > std::numeric_limits<Position>::max() -
-                                          limit_pos_)) {
-        limit_ = data;
-        return FailOverflow();
-      }
-      limit_ = data + length;
-      limit_pos_ += length;
-    }
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
-        return length > 0;
+        return Fail(DataLossError(
+            absl::StrCat("BrotliDecoderDecompressStream() failed: ",
+                         BrotliDecoderErrorString(
+                             BrotliDecoderGetErrorCode(decompressor_.get())))));
       case BROTLI_DECODER_RESULT_SUCCESS:
         decompressor_.reset();
-        return length > 0;
+        return false;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
-        if (length > 0) return true;
+      case BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT: {
+        // Take the output first even if `BrotliDecoderDecompressStream()`
+        // returned `BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT`, in order to be
+        // able to read data which have been written before a `Flush()` without
+        // waiting for data to be written after the `Flush()`.
+        size_t length = 0;
+        const char* const data = reinterpret_cast<const char*>(
+            BrotliDecoderTakeOutput(decompressor_.get(), &length));
+        if (length > 0) {
+          start_ = data;
+          cursor_ = data;
+          if (ABSL_PREDICT_FALSE(length > std::numeric_limits<Position>::max() -
+                                              limit_pos_)) {
+            limit_ = data;
+            return FailOverflow();
+          }
+          limit_ = data + length;
+          limit_pos_ += length;
+          return true;
+        }
+        RIEGELI_ASSERT_EQ(result, BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT)
+            << "BrotliDecoderDecompressStream() returned "
+               "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
+               "BrotliDecoderTakeOutput() returned no data";
         if (ABSL_PREDICT_FALSE(!src->Pull())) {
           if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
           truncated_ = true;
           return false;
         }
         continue;
-      case BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
-        RIEGELI_ASSERT_GT(length, 0u)
-            << "BrotliDecoderDecompressStream() returned "
-               "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
-               "BrotliDecoderTakeOutput() returned no data";
-        return true;
+      }
     }
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
