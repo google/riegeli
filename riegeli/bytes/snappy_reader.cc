@@ -34,7 +34,7 @@ namespace riegeli {
 void SnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of SnappyReader: null Reader pointer";
-  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
     Fail(*src);
     return;
   }

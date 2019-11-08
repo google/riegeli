@@ -95,6 +95,10 @@ class Reader : public Object {
   // Returns the amount of data available in the buffer, between `cursor()` and
   // `limit()`.
   //
+  // It is possible that a `Reader` has a looming failure:
+  // `!healthy() && available() > 0`. This means that the source failed but some
+  // data are already buffered and can be read before experiencing the failure.
+  //
   // Invariant: if `closed()` then `available() == 0`
   size_t available() const { return PtrDistance(cursor_, limit_); }
 

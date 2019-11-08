@@ -222,7 +222,7 @@ inline ReaderIstreamBase& ReaderIstreamBase::operator=(
 
 inline void ReaderIstreamBase::Initialize(Reader* src) {
   streambuf_.Initialize(src);
-  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
     setstate(std::ios_base::badbit);
   }
 }

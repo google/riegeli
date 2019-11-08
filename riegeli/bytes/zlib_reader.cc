@@ -48,7 +48,7 @@ constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";
-  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
     Fail(*src);
     return;
   }

@@ -40,7 +40,7 @@ void DefaultChunkReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of DefaultChunkReader: null Reader pointer";
   pos_ = src->pos();
-  if (src->available() == 0 && ABSL_PREDICT_FALSE(!src->healthy())) {
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
     Fail(*src);
     return;
   }
