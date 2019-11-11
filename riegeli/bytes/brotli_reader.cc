@@ -79,11 +79,17 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     src->set_cursor(reinterpret_cast<const char*>(next_in));
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
+        start_ = nullptr;
+        cursor_ = nullptr;
+        limit_ = nullptr;
         return Fail(DataLossError(
             absl::StrCat("BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
                              BrotliDecoderGetErrorCode(decompressor_.get())))));
       case BROTLI_DECODER_RESULT_SUCCESS:
+        start_ = nullptr;
+        cursor_ = nullptr;
+        limit_ = nullptr;
         decompressor_.reset();
         return false;
       case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
@@ -112,6 +118,9 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
                "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
                "BrotliDecoderTakeOutput() returned no data";
         if (ABSL_PREDICT_FALSE(!src->Pull())) {
+          start_ = nullptr;
+          cursor_ = nullptr;
+          limit_ = nullptr;
           if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
           truncated_ = true;
           return false;

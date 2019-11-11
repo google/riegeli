@@ -68,6 +68,9 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
+  start_ = nullptr;
+  cursor_ = nullptr;
+  limit_ = nullptr;
   truncated_ = false;
   uint32_t chunk_header;
   for (;;) {
