@@ -122,9 +122,8 @@ class PullableReader : public Reader {
   bool scratch_used() const;
 
   // Stops using scratch and returns `true` if all remaining data in scratch
-  // come from a single fragment of the original source, and at least
-  // `min_length` bytes are available there.
-  bool ScratchEnds(size_t min_length);
+  // come from a single fragment of the original source.
+  bool ScratchEnds();
 
   void PullToScratchSlow(size_t min_length);
   bool ReadScratchSlow(Chain* dest, size_t* length);
@@ -136,7 +135,9 @@ class PullableReader : public Reader {
 
   std::unique_ptr<Scratch> scratch_;
 
-  // Invariant if `scratch_used()`: `start_ == scratch_->buffer.data()`
+  // Invariants if `scratch_used()`:
+  //   `start_ == scratch_->buffer.data()`
+  //   `limit_ == scratch_->buffer.data() + scratch_->buffer.size()`
 };
 
 // Implementation details follow.

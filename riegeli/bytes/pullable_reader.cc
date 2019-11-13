@@ -29,15 +29,13 @@
 
 namespace riegeli {
 
-inline bool PullableReader::ScratchEnds(size_t min_length) {
+inline bool PullableReader::ScratchEnds() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::ScratchEnds(): "
          "scratch not used";
   const size_t available_length = available();
   if (PtrDistance(scratch_->original_start, scratch_->original_cursor) >=
-          available_length &&
-      PtrDistance(scratch_->original_cursor - available_length,
-                  scratch_->original_limit) >= min_length) {
+      available_length) {
     SyncScratchSlow();
     cursor_ -= available_length;
     return true;
@@ -49,48 +47,53 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
          "trivial min_length";
-  if (scratch_used() && ScratchEnds(min_length)) return;
+  if (scratch_used() && ScratchEnds() && available() >= min_length) return;
   if (available() == 0 && ABSL_PREDICT_TRUE(PullSlow(1, 0)) &&
       available() >= min_length) {
     return;
   }
   std::unique_ptr<Scratch> new_scratch;
-  if (scratch_ != nullptr && (scratch_->buffer.empty() || available() == 0)) {
-    // Scratch is allocated but not used or no longer needed. Reuse it.
-    if (scratch_used()) SyncScratchSlow();
-    new_scratch = std::move(scratch_);
-  } else {
-    // Allocate a new scratch. If scratch is currently used, some data from it
-    // will be copied to the new scratch, so it must be preserved.
+  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
     new_scratch = std::make_unique<Scratch>();
+  } else {
+    new_scratch = std::move(scratch_);
+    if (!new_scratch->buffer.empty()) {
+      // Scratch is used but it does have enough data after the cursor.
+      new_scratch->buffer.RemovePrefix(read_from_buffer(), min_length);
+      min_length -= new_scratch->buffer.size();
+      start_ = new_scratch->original_start;
+      cursor_ = new_scratch->original_cursor;
+      limit_ = new_scratch->original_limit;
+      limit_pos_ += available();
+    }
   }
-  absl::Span<char> flat_buffer =
+  const absl::Span<char> flat_buffer =
       new_scratch->buffer.AppendFixedBuffer(min_length);
   const Position pos_before = pos();
-  if (ABSL_PREDICT_FALSE(!ReadSlow(flat_buffer.data(), flat_buffer.size()))) {
+  if (ABSL_PREDICT_FALSE(!Read(flat_buffer.data(), flat_buffer.size()))) {
     RIEGELI_ASSERT_GE(pos(), pos_before)
         << "Reader::ReadSlow(char*) decreased pos()";
     const Position length_read = pos() - pos_before;
     RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
         << "Reader::ReadSlow(char*) read more than requested";
-    flat_buffer.remove_suffix(flat_buffer.size() -
-                              IntCast<size_t>(length_read));
+    new_scratch->buffer.RemoveSuffix(flat_buffer.size() -
+                                     IntCast<size_t>(length_read));
   }
   limit_pos_ -= available();
   new_scratch->original_start = start_;
   new_scratch->original_cursor = cursor_;
   new_scratch->original_limit = limit_;
   scratch_ = std::move(new_scratch);
-  start_ = flat_buffer.data();
+  start_ = scratch_->buffer.data();
   cursor_ = start_;
-  limit_ = start_ + flat_buffer.size();
+  limit_ = start_ + scratch_->buffer.size();
 }
 
 bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::ReadScratchSlow(Chain*): "
          "scratch not used";
-  if (ScratchEnds(*length)) return true;
+  if (ScratchEnds()) return true;
   const size_t length_to_read = UnsignedMin(*length, available());
   scratch_->buffer.AppendSubstrTo(absl::string_view(cursor_, length_to_read),
                                   dest);
@@ -107,10 +110,7 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::CopyToInScratchSlow(): "
          "scratch not used";
-  if (*length <= std::numeric_limits<size_t>::max() &&
-      ScratchEnds(IntCast<size_t>(*length))) {
-    return true;
-  }
+  if (ScratchEnds()) return true;
   const size_t length_to_copy = UnsignedMin(*length, available());
   bool ok;
   if (length_to_copy == scratch_->buffer.size()) {
