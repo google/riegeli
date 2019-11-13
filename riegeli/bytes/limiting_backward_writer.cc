@@ -48,13 +48,7 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingBackwardWriterBase: "
-         "position exceeds size limit";
-  if (ABSL_PREDICT_FALSE(min_length > size_limit_ - pos())) {
-    return FailOverflow();
-  }
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const bool ok = dest->Push(min_length, recommended_length);
   MakeBuffer(dest);
   return ok;
@@ -88,10 +82,10 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     return FailOverflow();
   }
-  SyncBuffer(dest);
   const bool ok = dest->Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return ok;
@@ -100,7 +94,7 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
 bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const bool ok = dest->Flush(flush_type);
   MakeBuffer(dest);
   return ok;
@@ -114,7 +108,7 @@ bool LimitingBackwardWriterBase::SupportsTruncate() const {
 bool LimitingBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();
-  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   const bool ok = dest->Truncate(new_size);
   MakeBuffer(dest);
   return ok;

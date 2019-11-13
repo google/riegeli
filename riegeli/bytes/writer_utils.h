@@ -115,17 +115,13 @@ inline char* WriteVarint64(char* dest, uint64_t data) {
 }
 
 inline bool WriteVarint32(Writer* dest, uint32_t data) {
-  if (ABSL_PREDICT_FALSE(dest->available() < kMaxLengthVarint32)) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(LengthVarint32(data)))) return false;
-  }
+  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint32))) return false;
   dest->set_cursor(WriteVarint32(dest->cursor(), data));
   return true;
 }
 
 inline bool WriteVarint64(Writer* dest, uint64_t data) {
-  if (ABSL_PREDICT_FALSE(dest->available() < kMaxLengthVarint64)) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(LengthVarint64(data)))) return false;
-  }
+  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint64))) return false;
   dest->set_cursor(WriteVarint64(dest->cursor(), data));
   return true;
 }

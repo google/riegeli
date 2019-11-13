@@ -25,13 +25,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/pushable_backward_writer.h"
 #include "riegeli/bytes/span_dependency.h"
 
 namespace riegeli {
 
 // Template parameter independent part of `ArrayBackwardWriter`.
-class ArrayBackwardWriterBase : public BackwardWriter {
+class ArrayBackwardWriterBase : public PushableBackwardWriter {
  public:
   // Returns the array being written to. Unchanged by `Close()`.
   virtual absl::Span<char> dest_span() = 0;
@@ -48,9 +48,9 @@ class ArrayBackwardWriterBase : public BackwardWriter {
 
  protected:
   explicit ArrayBackwardWriterBase(InitiallyClosed) noexcept
-      : BackwardWriter(kInitiallyClosed) {}
+      : PushableBackwardWriter(kInitiallyClosed) {}
   explicit ArrayBackwardWriterBase(InitiallyOpen) noexcept
-      : BackwardWriter(kInitiallyOpen) {}
+      : PushableBackwardWriter(kInitiallyOpen) {}
 
   ArrayBackwardWriterBase(ArrayBackwardWriterBase&& that) noexcept;
   ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& that) noexcept;
@@ -124,22 +124,22 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
     ArrayBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)), written_(that.written_) {}
+    : PushableBackwardWriter(std::move(that)), written_(that.written_) {}
 
 inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
     ArrayBackwardWriterBase&& that) noexcept {
-  BackwardWriter::operator=(std::move(that));
+  PushableBackwardWriter::operator=(std::move(that));
   written_ = that.written_;
   return *this;
 }
 
 inline void ArrayBackwardWriterBase::Reset(InitiallyClosed) {
-  BackwardWriter::Reset(kInitiallyClosed);
+  PushableBackwardWriter::Reset(kInitiallyClosed);
   written_ = absl::Span<char>();
 }
 
 inline void ArrayBackwardWriterBase::Reset(InitiallyOpen) {
-  BackwardWriter::Reset(kInitiallyOpen);
+  PushableBackwardWriter::Reset(kInitiallyOpen);
   written_ = absl::Span<char>();
 }
 
@@ -218,6 +218,7 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
+    SwapScratchBegin();
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
@@ -230,6 +231,7 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
       written_ = absl::Span<char>(
           dest_.get().data() + dest_.get().size() - written_size, written_size);
     }
+    SwapScratchEnd();
   }
 }
 

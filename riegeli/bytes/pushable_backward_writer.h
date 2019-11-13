@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_PUSHABLE_WRITER_H_
-#define RIEGELI_BYTES_PUSHABLE_WRITER_H_
+#ifndef RIEGELI_BYTES_PUSHABLE_BACKWARD_WRITER_H_
+#define RIEGELI_BYTES_PUSHABLE_BACKWARD_WRITER_H_
 
 #include <stddef.h>
 
@@ -24,28 +24,30 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/writer.h"
+#include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
 
-// Abstract class `PushableWriter` helps to implement
+// Abstract class `PushableBackwardWriter` helps to implement
 // `Writer::PushSlow(min_length, recommended_length)` with `min_length > 1`.
 //
-// `PushableWriter` accumulates data to be pushed in a scratch buffer if needed.
-class PushableWriter : public Writer {
+// `PushableBackwardWriter` accumulates data to be pushed in a scratch buffer if
+// needed.
+class PushableBackwardWriter : public BackwardWriter {
  protected:
-  // Creates a `PushableWriter` with the given initial state.
-  explicit PushableWriter(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit PushableWriter(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+  // Creates a `PushableBackwardWriter` with the given initial state.
+  explicit PushableBackwardWriter(InitiallyClosed) noexcept
+      : BackwardWriter(kInitiallyClosed) {}
+  explicit PushableBackwardWriter(InitiallyOpen) noexcept
+      : BackwardWriter(kInitiallyOpen) {}
 
-  PushableWriter(PushableWriter&& that) noexcept;
-  PushableWriter& operator=(PushableWriter&& that) noexcept;
+  PushableBackwardWriter(PushableBackwardWriter&& that) noexcept;
+  PushableBackwardWriter& operator=(PushableBackwardWriter&& that) noexcept;
 
-  // Makes `*this` equivalent to a newly constructed `PushableWriter`. This
-  // avoids constructing a temporary `PushableWriter` and moving from it.
-  // Derived classes which override `Reset()` should include a call to
-  // `PushableWriter::Reset()`.
+  // Makes `*this` equivalent to a newly constructed `PushableBackwardWriter`.
+  // This avoids constructing a temporary `PushableBackwardWriter` and moving
+  // from it. Derived classes which override `Reset()` should include a call to
+  // `PushableBackwardWriter::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
@@ -61,9 +63,8 @@ class PushableWriter : public Writer {
   // Precondition: `min_length > available()`
   bool PushUsingScratch(size_t min_length);
 
-  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
-  // `Truncate()` if scratch is used, in terms of `Write(absl::string_view)` and
-  // `Write(Chain)`.
+  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, or `Truncate()` if
+  // scratch is used, in terms of `Write(absl::string_view)` and `Write(Chain)`.
   //
   // Return values:
   //  * `true`  - scratch is not used now, the caller should continue
@@ -104,39 +105,40 @@ class PushableWriter : public Writer {
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
-  //   `start_ == scratch_->buffer.data()`
-  //   `limit_ == scratch_->buffer.data() + scratch_->buffer.size()`
+  //   `start_ == scratch_->buffer.data() + scratch_->buffer.size()`
+  //   `limit_ == scratch_->buffer.data()`
 };
 
 // Implementation details follow.
 
-inline PushableWriter::PushableWriter(PushableWriter&& that) noexcept
-    : Writer(std::move(that)), scratch_(std::move(that.scratch_)) {}
+inline PushableBackwardWriter::PushableBackwardWriter(
+    PushableBackwardWriter&& that) noexcept
+    : BackwardWriter(std::move(that)), scratch_(std::move(that.scratch_)) {}
 
-inline PushableWriter& PushableWriter::operator=(
-    PushableWriter&& that) noexcept {
-  Writer::operator=(std::move(that));
+inline PushableBackwardWriter& PushableBackwardWriter::operator=(
+    PushableBackwardWriter&& that) noexcept {
+  BackwardWriter::operator=(std::move(that));
   scratch_ = std::move(that.scratch_);
   return *this;
 }
 
-inline void PushableWriter::Reset(InitiallyClosed) {
-  Writer::Reset(kInitiallyClosed);
+inline void PushableBackwardWriter::Reset(InitiallyClosed) {
+  BackwardWriter::Reset(kInitiallyClosed);
   if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 
-inline void PushableWriter::Reset(InitiallyOpen) {
-  Writer::Reset(kInitiallyOpen);
+inline void PushableBackwardWriter::Reset(InitiallyOpen) {
+  BackwardWriter::Reset(kInitiallyOpen);
   if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 
-inline bool PushableWriter::scratch_used() const {
+inline bool PushableBackwardWriter::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline bool PushableWriter::PushUsingScratch(size_t min_length) {
+inline bool PushableBackwardWriter::PushUsingScratch(size_t min_length) {
   RIEGELI_ASSERT_GT(min_length, available())
-      << "Failed precondition of PushableWriter::PushUsingScratch(): "
+      << "Failed precondition of PushableBackwardWriter::PushUsingScratch(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(min_length > 1)) {
     PushFromScratchSlow(min_length);
@@ -149,19 +151,19 @@ inline bool PushableWriter::PushUsingScratch(size_t min_length) {
   return true;
 }
 
-inline bool PushableWriter::SyncScratch() {
+inline bool PushableBackwardWriter::SyncScratch() {
   if (ABSL_PREDICT_FALSE(scratch_used())) return SyncScratchSlow();
   return true;
 }
 
-inline void PushableWriter::SwapScratchBegin() {
+inline void PushableBackwardWriter::SwapScratchBegin() {
   if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchBeginSlow();
 }
 
-inline void PushableWriter::SwapScratchEnd() {
+inline void PushableBackwardWriter::SwapScratchEnd() {
   if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchEndSlow();
 }
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_PUSHABLE_WRITER_H_
+#endif  // RIEGELI_BYTES_PUSHABLE_BACKWARD_WRITER_H_

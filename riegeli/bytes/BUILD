@@ -101,6 +101,21 @@ cc_library(
 )
 
 cc_library(
+    name = "pushable_backward_writer",
+    srcs = ["pushable_backward_writer.cc"],
+    hdrs = ["pushable_backward_writer.h"],
+    deps = [
+        ":backward_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "pullable_reader",
     srcs = ["pullable_reader.cc"],
     hdrs = ["pullable_reader.h"],
@@ -246,6 +261,7 @@ cc_library(
     ],
     hdrs = ["array_writer.h"],
     deps = [
+        ":pushable_writer",
         ":writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
@@ -262,6 +278,7 @@ cc_library(
     hdrs = ["array_backward_writer.h"],
     deps = [
         ":backward_writer",
+        ":pushable_backward_writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:span",

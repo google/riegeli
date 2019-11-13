@@ -74,11 +74,12 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
 
-  // Sets cursor of `*dest` to cursor of `*this`.
-  void SyncBuffer(BackwardWriter* dest);
+  // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is
+  // exceeded.
+  bool SyncBuffer(BackwardWriter* dest);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `*dest`, adjusting
-  // them for the size limit. Fails `*this` if `*dest` failed.
+  // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
+  // `*this` if `*dest` failed.
   void MakeBuffer(BackwardWriter* dest);
 
   Position size_limit_ = kNoSizeLimit;
@@ -89,9 +90,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   // Invariants if `healthy()`:
   //   `start_ == dest_writer()->start_`
-  //   `limit_ >= dest_writer()->limit_`
+  //   `limit_ == dest_writer()->limit_`
   //   `start_pos_ == dest_writer()->start_pos_`
-  //   `limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())`
 };
 
 // A `BackwardWriter` which writes to another `BackwardWriter` up to the
@@ -203,13 +203,12 @@ inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
       << "Failed precondition of LimitingBackwardWriterBase::set_size_limit(): "
          "size limit smaller than current position";
   size_limit_ = size_limit;
-  if (limit_pos() > size_limit_) {
-    limit_ += IntCast<size_t>(limit_pos() - size_limit_);
-  }
 }
 
-inline void LimitingBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
+inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
   dest->set_cursor(cursor_);
+  return true;
 }
 
 inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
@@ -217,9 +216,6 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
   cursor_ = dest->cursor();
   limit_ = dest->limit();
   start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
-  if (limit_pos() > size_limit_) {
-    limit_ += IntCast<size_t>(limit_pos() - size_limit_);
-  }
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 
@@ -299,9 +295,9 @@ inline void LimitingBackwardWriter<Dest>::MoveDest(
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(that.dest_.get());
+    const bool ok = SyncBuffer(that.dest_.get());
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.get());
+    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(dest_.get());
   }
 }
 

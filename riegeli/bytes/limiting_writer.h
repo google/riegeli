@@ -76,11 +76,12 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool SeekSlow(Position new_pos) override;
 
-  // Sets cursor of `*dest` to cursor of `*this`.
-  void SyncBuffer(Writer* dest);
+  // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is
+  // exceeded.
+  bool SyncBuffer(Writer* dest);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `*dest`, adjusting
-  // them for the size limit. Fails `*this` if `*dest` failed.
+  // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
+  // `*this` if `*dest` failed.
   void MakeBuffer(Writer* dest);
 
   Position size_limit_ = kNoSizeLimit;
@@ -91,9 +92,8 @@ class LimitingWriterBase : public Writer {
 
   // Invariants if `healthy()`:
   //   `start_ == dest_writer()->start_`
-  //   `limit_ <= dest_writer()->limit_`
+  //   `limit_ == dest_writer()->limit_`
   //   `start_pos_ == dest_writer()->start_pos_`
-  //   `limit_pos() <= UnsignedMin(size_limit_, dest_writer()->limit_pos())`
 };
 
 // A `Writer` which writes to another `Writer` up to the specified size limit.
@@ -197,13 +197,12 @@ inline void LimitingWriterBase::set_size_limit(Position size_limit) {
       << "Failed precondition of LimitingWriterBase::set_size_limit(): "
          "size limit smaller than current position";
   size_limit_ = size_limit;
-  if (limit_pos() > size_limit_) {
-    limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
-  }
 }
 
-inline void LimitingWriterBase::SyncBuffer(Writer* dest) {
+inline bool LimitingWriterBase::SyncBuffer(Writer* dest) {
+  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
   dest->set_cursor(cursor_);
+  return true;
 }
 
 inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
@@ -211,9 +210,6 @@ inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
   cursor_ = dest->cursor();
   limit_ = dest->limit();
   start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
-  if (limit_pos() > size_limit_) {
-    limit_ -= IntCast<size_t>(limit_pos() - size_limit_);
-  }
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 
@@ -288,9 +284,9 @@ inline void LimitingWriter<Dest>::MoveDest(LimitingWriter&& that) {
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(that.dest_.get());
+    const bool ok = SyncBuffer(that.dest_.get());
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.get());
+    if (ABSL_PREDICT_TRUE(ok)) MakeBuffer(dest_.get());
   }
 }
 

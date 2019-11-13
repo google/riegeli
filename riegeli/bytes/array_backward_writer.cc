@@ -19,15 +19,17 @@
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/pushable_backward_writer.h"
 
 namespace riegeli {
 
 void ArrayBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    written_ = absl::Span<char>(cursor_, written_to_buffer());
+    if (ABSL_PREDICT_TRUE(SyncScratch())) {
+      written_ = absl::Span<char>(cursor_, written_to_buffer());
+    }
   }
-  BackwardWriter::Done();
+  PushableBackwardWriter::Done();
 }
 
 bool ArrayBackwardWriterBase::PushSlow(size_t min_length,
@@ -35,16 +37,21 @@ bool ArrayBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "length too small, use Push() instead";
+  if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length))) {
+    return available() >= min_length;
+  }
   return FailOverflow();
 }
 
 bool ArrayBackwardWriterBase::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   written_ = absl::Span<char>(cursor_, written_to_buffer());
   return true;
 }
 
 bool ArrayBackwardWriterBase::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   cursor_ = start_ - new_size;

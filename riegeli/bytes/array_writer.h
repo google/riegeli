@@ -25,13 +25,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
+#include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/span_dependency.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 // Template parameter independent part of `ArrayWriter`.
-class ArrayWriterBase : public Writer {
+class ArrayWriterBase : public PushableWriter {
  public:
   // Returns the array being written to. Unchanged by `Close()`.
   virtual absl::Span<char> dest_span() = 0;
@@ -48,8 +48,9 @@ class ArrayWriterBase : public Writer {
 
  protected:
   explicit ArrayWriterBase(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit ArrayWriterBase(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+      : PushableWriter(kInitiallyClosed) {}
+  explicit ArrayWriterBase(InitiallyOpen) noexcept
+      : PushableWriter(kInitiallyOpen) {}
 
   ArrayWriterBase(ArrayWriterBase&& that) noexcept;
   ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
@@ -121,22 +122,22 @@ class ArrayWriter : public ArrayWriterBase {
 // Implementation details follow.
 
 inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
-    : Writer(std::move(that)), written_(that.written_) {}
+    : PushableWriter(std::move(that)), written_(that.written_) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
     ArrayWriterBase&& that) noexcept {
-  Writer::operator=(std::move(that));
+  PushableWriter::operator=(std::move(that));
   written_ = that.written_;
   return *this;
 }
 
 inline void ArrayWriterBase::Reset(InitiallyClosed) {
-  Writer::Reset(kInitiallyClosed);
+  PushableWriter::Reset(kInitiallyClosed);
   written_ = absl::Span<char>();
 }
 
 inline void ArrayWriterBase::Reset(InitiallyOpen) {
-  Writer::Reset(kInitiallyOpen);
+  PushableWriter::Reset(kInitiallyOpen);
   written_ = absl::Span<char>();
 }
 
@@ -212,6 +213,7 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
+    SwapScratchBegin();
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
@@ -223,6 +225,7 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     if (written_.data() != nullptr) {
       written_ = absl::Span<char>(dest_.get().data(), written_size);
     }
+    SwapScratchEnd();
   }
 }
 
