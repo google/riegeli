@@ -1700,6 +1700,26 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
   return out;
 }
 
+size_t ChainBlock::EstimateMemory() const {
+  MemoryEstimator memory_estimator;
+  memory_estimator.RegisterMemory(sizeof(ChainBlock));
+  RegisterSubobjects(&memory_estimator);
+  return memory_estimator.TotalMemory();
+}
+
+void ChainBlock::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
+  if (block_ != nullptr) block_->RegisterShared(memory_estimator);
+}
+
+void ChainBlock::DumpStructure(std::ostream& out) const {
+  out << "chain_block {\n  size: " << size() << " memory: " << EstimateMemory();
+  if (block_ != nullptr) {
+    out << "\n  ";
+    block_->DumpStructure(out);
+  }
+  out << "\n}\n";
+}
+
 inline size_t ChainBlock::NewBlockCapacity(size_t min_length,
                                            size_t recommended_length,
                                            size_t size_hint) const {

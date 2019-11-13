@@ -612,6 +612,13 @@ class ChainBlock {
   size_t size() const;
   bool empty() const;
 
+  // Estimates the amount of memory used by this `ChainBlock`.
+  size_t EstimateMemory() const;
+  // Registers this `ChainBlock` with `MemoryEstimator`.
+  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  // Shows internal structure in a human-readable way, for debugging.
+  void DumpStructure(std::ostream& out) const;
+
   // Appends/prepends some uninitialized space. The buffer will have length at
   // least `min_length`, preferably `recommended_length`, and at most
   // `max_length`.
