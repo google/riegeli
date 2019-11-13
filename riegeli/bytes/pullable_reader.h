@@ -96,7 +96,9 @@ class PullableReader : public Reader {
   // Helps to implement move constructor or move assignment if scratch is used.
   //
   // Moving the source should be surrounded by `SwapScratchBegin()` and
-  // `SwapScratchEnd()`.
+  // `SwapScratchEnd()`, unless source buffer pointers are known to remain
+  // unchanged during a move or their change does not need to be reflected
+  // elsewhere.
   //
   // When `SwapScratchBegin()` returns, scratch is not used but the current
   // position might have been changed.

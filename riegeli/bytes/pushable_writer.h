@@ -62,8 +62,9 @@ class PushableWriter : public Writer {
   // Precondition: `min_length > available()`
   bool PushUsingScratch(size_t min_length);
 
-  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, or `SeekSlow()` if
-  // scratch is used, in terms of `Write(absl::string_view)` and `Write(Chain)`.
+  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
+  // `Truncate()` if scratch is used, in terms of `Write(absl::string_view)` and
+  // `Write(Chain)`.
   //
   // Return values:
   //  * `true`  - scratch is not used now, the caller should continue
@@ -73,8 +74,10 @@ class PushableWriter : public Writer {
 
   // Helps to implement move constructor or move assignment if scratch is used.
   //
-  // Moving the source should be surrounded by `SwapScratchBegin()` and
-  // `SwapScratchEnd()`.
+  // Moving the destination should be surrounded by `SwapScratchBegin()` and
+  // `SwapScratchEnd()`, unless destination buffer pointers are known to remain
+  // unchanged during a move or their change does not need to be reflected
+  // elsewhere.
   //
   // When `SwapScratchBegin()` returns, scratch is not used but the current
   // position might have been changed.
@@ -101,7 +104,9 @@ class PushableWriter : public Writer {
 
   std::unique_ptr<Scratch> scratch_;
 
-  // Invariant if `scratch_used()`: `start_ == scratch_->buffer.data()`
+  // Invariants if `scratch_used()`:
+  //   `start_ == scratch_->buffer.data()`
+  //   `limit_ == scratch_->buffer.data() + scratch_->buffer.size()`
 };
 
 // Implementation details follow.
