@@ -673,8 +673,8 @@ class ChainBlock {
   explicit ChainBlock(RawBlock* block) : block_(block) {}
 
   // Decides about the capacity of a new block to be appended/prepended.
-  size_t NewBlockCapacity(size_t min_length, size_t recommended_length,
-                          size_t size_hint) const;
+  size_t NewBlockCapacity(size_t old_size, size_t min_length,
+                          size_t recommended_length, size_t size_hint) const;
 
   void RemoveSuffixSlow(size_t length, size_t size_hint);
   void RemovePrefixSlow(size_t length, size_t size_hint);
@@ -774,18 +774,18 @@ class Chain::RawBlock {
 
   bool can_append(size_t length) const;
   bool can_prepend(size_t length) const;
-  bool CanAppendMovingData(size_t length);
-  bool CanPrependMovingData(size_t length);
+  bool CanAppendMovingData(size_t length, size_t* space_before_if_not);
+  bool CanPrependMovingData(size_t length, size_t* space_after_if_not);
   absl::Span<char> AppendBuffer(size_t max_length);
   absl::Span<char> PrependBuffer(size_t max_length);
-  void Append(absl::string_view src);
+  void Append(absl::string_view src, size_t space_before = 0);
   // Reads `size_to_copy` from `src.data()` but accounts for `src.size()`.
   // Faster than `Append()` if `size_to_copy` is a compile time constant, but
   // requires `size_to_copy` bytes to be readable, possibly past the end of src.
   //
   // Precondition: `size_to_copy >= src.size()`
   void AppendWithExplicitSizeToCopy(absl::string_view src, size_t size_to_copy);
-  void Prepend(absl::string_view src);
+  void Prepend(absl::string_view src, size_t space_after = 0);
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
 

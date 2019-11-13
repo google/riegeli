@@ -268,26 +268,45 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
   return is_internal() && has_unique_owner() && space_before() >= length;
 }
 
-inline bool Chain::RawBlock::CanAppendMovingData(size_t length) {
+inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
+                                                 size_t* space_before_if_not) {
   if (is_internal() && has_unique_owner()) {
     if (space_after() >= length) return true;
-    if (capacity() - size() >= length) {
-      std::memmove(allocated_begin_, data_.data(), data_.size());
-      data_ = absl::string_view(allocated_begin_, data_.size());
+    const size_t final_size = size() + length;
+    if (final_size * 2 <= capacity()) {
+      // Existing array has at least twice more space than necessary: move
+      // contents to the middle of the array, which keeps the amortized cost of
+      // adding one element constant.
+      char* const new_begin = allocated_begin_ + (capacity() - final_size) / 2;
+      std::memmove(new_begin, data_.data(), data_.size());
+      data_ = absl::string_view(new_begin, data_.size());
       return true;
     }
+    *space_before_if_not = space_before();
+  } else {
+    *space_before_if_not = 0;
   }
   return false;
 }
 
-inline bool Chain::RawBlock::CanPrependMovingData(size_t length) {
+inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
+                                                  size_t* space_after_if_not) {
   if (is_internal() && has_unique_owner()) {
     if (space_before() >= length) return true;
-    if (capacity() - size() >= length) {
-      std::memmove(allocated_end_ - data_.size(), data_.data(), data_.size());
-      data_ = absl::string_view(allocated_end_ - data_.size(), data_.size());
+    const size_t final_size = size() + length;
+    if (final_size * 2 <= capacity()) {
+      // Existing array has at least twice more space than necessary: move
+      // contents to the middle of the array, which keeps the amortized cost of
+      // adding one element constant.
+      char* const new_begin =
+          allocated_end_ - (capacity() - final_size) / 2 - data_.size();
+      std::memmove(new_begin, data_.data(), data_.size());
+      data_ = absl::string_view(new_begin, data_.size());
       return true;
     }
+    *space_after_if_not = space_after();
+  } else {
+    *space_after_if_not = 0;
   }
   return false;
 }
@@ -317,8 +336,9 @@ inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length) {
   return buffer;
 }
 
-inline void Chain::RawBlock::Append(absl::string_view src) {
-  if (empty()) data_ = absl::string_view(allocated_begin_, 0);
+inline void Chain::RawBlock::Append(absl::string_view src,
+                                    size_t space_before) {
+  if (empty()) data_ = absl::string_view(allocated_begin_ + space_before, 0);
   return AppendWithExplicitSizeToCopy(src, src.size());
 }
 
@@ -336,11 +356,12 @@ inline void Chain::RawBlock::AppendWithExplicitSizeToCopy(absl::string_view src,
   data_ = absl::string_view(data_begin(), size() + src.size());
 }
 
-inline void Chain::RawBlock::Prepend(absl::string_view src) {
+inline void Chain::RawBlock::Prepend(absl::string_view src,
+                                     size_t space_after) {
   RIEGELI_ASSERT(can_prepend(src.size()))
       << "Failed precondition of Chain::RawBlock::Prepend(): "
          "not enough space";
-  if (empty()) data_ = absl::string_view(allocated_end_, 0);
+  if (empty()) data_ = absl::string_view(allocated_end_ - space_after, 0);
   std::memcpy(const_cast<char*>(data_begin() - src.size()), src.data(),
               src.size());
   data_ = absl::string_view(data_begin() - src.size(), size() + src.size());
@@ -1720,21 +1741,22 @@ void ChainBlock::DumpStructure(std::ostream& out) const {
   out << "\n}\n";
 }
 
-inline size_t ChainBlock::NewBlockCapacity(size_t min_length,
+inline size_t ChainBlock::NewBlockCapacity(size_t old_size, size_t min_length,
                                            size_t recommended_length,
                                            size_t size_hint) const {
-  RIEGELI_ASSERT_LE(min_length, kMaxSize - size())
+  RIEGELI_ASSERT_LE(min_length, kMaxSize - old_size)
       << "Failed precondition of ChainBlock::NewBlockCapacity(): "
          "ChainBlock size overflow";
   size_t length;
-  if (size() < size_hint) {
+  if (old_size < size_hint) {
     // Avoid allocating more than needed for `size_hint`.
     length = size_hint;
   } else {
-    length =
-        UnsignedMax(SaturatingAdd(size(), recommended_length), kMinBufferSize);
+    length = UnsignedMax(
+        SaturatingAdd(old_size, UnsignedMax(recommended_length, old_size)),
+        kMinBufferSize);
   }
-  return UnsignedMax(length, size() + min_length);
+  return UnsignedMax(length, old_size + min_length);
 }
 
 absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
@@ -1749,14 +1771,18 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
   if (block_ == nullptr) {
     if (min_length == 0) return absl::Span<char>();
     block_ = RawBlock::NewInternal(
-        NewBlockCapacity(min_length, recommended_length, size_hint));
-  } else if (!block_->CanAppendMovingData(min_length)) {
-    if (min_length == 0) return absl::Span<char>();
-    RawBlock* const block = RawBlock::NewInternal(
-        NewBlockCapacity(min_length, recommended_length, size_hint));
-    block->Append(absl::string_view(*block_));
-    block_->Unref();
-    block_ = block;
+        NewBlockCapacity(size(), min_length, recommended_length, size_hint));
+  } else {
+    size_t space_before;
+    if (!block_->CanAppendMovingData(min_length, &space_before)) {
+      if (min_length == 0) return absl::Span<char>();
+      // Reallocate the array, keeping space before the contents unchanged.
+      RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
+          space_before + size(), min_length, recommended_length, size_hint));
+      block->Append(absl::string_view(*block_), space_before);
+      block_->Unref();
+      block_ = block;
+    }
   }
   const absl::Span<char> buffer = block_->AppendBuffer(max_length);
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
@@ -1777,14 +1803,18 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
   if (block_ == nullptr) {
     if (min_length == 0) return absl::Span<char>();
     block_ = RawBlock::NewInternal(
-        NewBlockCapacity(min_length, recommended_length, size_hint));
-  } else if (!block_->CanPrependMovingData(min_length)) {
-    if (min_length == 0) return absl::Span<char>();
-    RawBlock* const block = RawBlock::NewInternal(
-        NewBlockCapacity(min_length, recommended_length, size_hint));
-    block->Prepend(absl::string_view(*block_));
-    block_->Unref();
-    block_ = block;
+        NewBlockCapacity(size(), min_length, recommended_length, size_hint));
+  } else {
+    size_t space_after;
+    if (!block_->CanPrependMovingData(min_length, &space_after)) {
+      if (min_length == 0) return absl::Span<char>();
+      // Reallocate the array, keeping space after the contents unchanged.
+      RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
+          space_after + size(), min_length, recommended_length, size_hint));
+      block->Prepend(absl::string_view(*block_), space_after);
+      block_->Unref();
+      block_ = block;
+    }
   }
   const absl::Span<char> buffer = block_->PrependBuffer(max_length);
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
@@ -1803,8 +1833,8 @@ void ChainBlock::RemoveSuffixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = absl::string_view(*block_);
   data.remove_suffix(length);
-  RawBlock* const block = RawBlock::NewInternal(
-      NewBlockCapacity(data.size(), data.size(), size_hint));
+  RawBlock* const block = RawBlock::NewInternal(UnsignedMax(
+      data.size(), data.size() < size_hint ? size_hint : kMinBufferSize));
   block->Append(data);
   block_->Unref();
   block_ = block;
@@ -1821,8 +1851,8 @@ void ChainBlock::RemovePrefixSlow(size_t length, size_t size_hint) {
   }
   absl::string_view data = absl::string_view(*block_);
   data.remove_prefix(length);
-  RawBlock* const block = RawBlock::NewInternal(
-      NewBlockCapacity(data.size(), data.size(), size_hint));
+  RawBlock* const block = RawBlock::NewInternal(UnsignedMax(
+      data.size(), data.size() < size_hint ? size_hint : kMinBufferSize));
   block->Prepend(data);
   block_->Unref();
   block_ = block;
