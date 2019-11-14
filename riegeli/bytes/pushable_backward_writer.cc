@@ -71,11 +71,14 @@ bool PushableBackwardWriter::SyncScratchSlow() {
   if (length_to_write == buffer.size()) {
     ok = Write(Chain(std::move(buffer)));
   } else if (length_to_write <= kMaxBytesToCopy) {
-    ok = Write(absl::string_view(buffer.data(), length_to_write));
+    ok = Write(absl::string_view(
+        buffer.data() + buffer.size() - length_to_write, length_to_write));
   } else {
     Chain data;
-    buffer.AppendSubstrTo(absl::string_view(buffer.data(), length_to_write),
-                          &data);
+    buffer.AppendSubstrTo(
+        absl::string_view(buffer.data() + buffer.size() - length_to_write,
+                          length_to_write),
+        &data);
     ok = Write(std::move(data));
   }
   return ok;
