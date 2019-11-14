@@ -63,8 +63,9 @@ bool PushableWriter::SyncScratchSlow() {
   cursor_ = scratch_->original_cursor;
   limit_ = scratch_->original_limit;
   start_pos_ -= written_to_buffer();
-  ChainBlock buffer =
-      std::move(scratch_->buffer);  // Clears `scratch_->buffer`.
+  ChainBlock buffer = std::move(scratch_->buffer);
+  RIEGELI_ASSERT(scratch_->buffer.empty())
+      << "Moving should have left the source ChainBlock cleared";
   bool ok;
   if (length_to_write == buffer.size()) {
     ok = Write(Chain(std::move(buffer)));
