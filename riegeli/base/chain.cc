@@ -277,7 +277,10 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
       // Existing array has at least twice more space than necessary: move
       // contents to the middle of the array, which keeps the amortized cost of
       // adding one element constant.
-      char* const new_begin = allocated_begin_ + (capacity() - final_size) / 2;
+      //
+      // Redundant cast is needed for `-fsanitize=bounds`.
+      char* const new_begin =
+          static_cast<char*>(allocated_begin_) + (capacity() - final_size) / 2;
       std::memmove(new_begin, data_.data(), data_.size());
       data_ = absl::string_view(new_begin, data_.size());
       return true;
@@ -338,7 +341,11 @@ inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length) {
 
 inline void Chain::RawBlock::Append(absl::string_view src,
                                     size_t space_before) {
-  if (empty()) data_ = absl::string_view(allocated_begin_ + space_before, 0);
+  if (empty()) {
+    // Redundant cast is needed for `-fsanitize=bounds`.
+    data_ = absl::string_view(
+        static_cast<char*>(allocated_begin_) + space_before, 0);
+  }
   return AppendWithExplicitSizeToCopy(src, src.size());
 }
 
