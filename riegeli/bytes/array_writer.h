@@ -213,7 +213,7 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    SwapScratchBegin();
+    BehindScratch behind_scratch(this);
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
@@ -225,7 +225,6 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     if (written_.data() != nullptr) {
       written_ = absl::Span<char>(dest_.get().data(), written_size);
     }
-    SwapScratchEnd();
   }
 }
 

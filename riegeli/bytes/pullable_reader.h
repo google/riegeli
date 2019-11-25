@@ -37,6 +37,33 @@ namespace riegeli {
 // `PullableReader` accumulates pulled data in a scratch buffer if needed.
 class PullableReader : public Reader {
  protected:
+  // Helps to implement move constructor or move assignment if scratch is used.
+  //
+  // Moving the source should be in scope of a `BehindScratch` local variable,
+  // unless source buffer pointers are known to remain unchanged during a move
+  // or their change does not need to be reflected elsewhere.
+  //
+  // This temporarily reveals the relationship between the source and the buffer
+  // pointers, in case it was hidden behind scratch usage. In a `BehindScratch`
+  // scope, buffer pointers are set up as if scratch was not used, and the
+  // current position might have been temporarily changed.
+  class BehindScratch {
+   public:
+    explicit BehindScratch(PullableReader* context);
+
+    BehindScratch(const BehindScratch&) = delete;
+    BehindScratch& operator=(const BehindScratch&) = delete;
+
+    ~BehindScratch();
+
+   private:
+    void Enter();
+    void Leave();
+
+    PullableReader* context_;
+    size_t read_from_scratch_;
+  };
+
   // Creates a `PullableReader` with the given initial state.
   explicit PullableReader(InitiallyClosed) noexcept
       : Reader(kInitiallyClosed) {}
@@ -93,18 +120,6 @@ class PullableReader : public Reader {
   //  * `false` - `SeekSlow()` is done, the caller should return `true`
   bool SeekUsingScratch(Position new_pos);
 
-  // Helps to implement move constructor or move assignment if scratch is used.
-  //
-  // Moving the source should be surrounded by `SwapScratchBegin()` and
-  // `SwapScratchEnd()`, unless source buffer pointers are known to remain
-  // unchanged during a move or their change does not need to be reflected
-  // elsewhere.
-  //
-  // When `SwapScratchBegin()` returns, scratch is not used but the current
-  // position might have been changed.
-  void SwapScratchBegin();
-  void SwapScratchEnd();
-
   // Helps to implement `Size()` if scratch is used.
   //
   // Returns what would be the value of `start_pos()` if scratch was not used,
@@ -130,14 +145,12 @@ class PullableReader : public Reader {
   bool CopyScratchToSlow(Writer* dest, Position* length);
   bool SeekUsingScratchSlow(Position new_pos);
   void SyncScratchSlow();
-  void SwapScratchBeginSlow();
-  void SwapScratchEndSlow();
 
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
   //   `start_ == scratch_->buffer.data()`
-  //   `limit_ == scratch_->buffer.data() + scratch_->buffer.size()`
+  //   `buffer_size() == scratch_->buffer.size()`
 };
 
 // Implementation details follow.
@@ -209,14 +222,6 @@ inline bool PullableReader::SeekUsingScratch(Position new_pos) {
   return true;
 }
 
-inline void PullableReader::SwapScratchBegin() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchBeginSlow();
-}
-
-inline void PullableReader::SwapScratchEnd() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchEndSlow();
-}
-
 inline Position PullableReader::start_pos_after_scratch() const {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     const size_t last_scratch_fragment =
@@ -226,6 +231,15 @@ inline Position PullableReader::start_pos_after_scratch() const {
     return limit_pos_ - last_scratch_fragment;
   }
   return start_pos();
+}
+
+inline PullableReader::BehindScratch::BehindScratch(PullableReader* context)
+    : context_(context) {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
+}
+
+inline PullableReader::BehindScratch::~BehindScratch() {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Leave();
 }
 
 }  // namespace riegeli

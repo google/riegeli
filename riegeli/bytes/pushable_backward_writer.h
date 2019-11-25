@@ -35,6 +35,33 @@ namespace riegeli {
 // needed.
 class PushableBackwardWriter : public BackwardWriter {
  protected:
+  // Helps to implement move constructor or move assignment if scratch is used.
+  //
+  // Moving the destination should be in scope of a `BehindScratch` local
+  // variable, unless destination buffer pointers are known to remain unchanged
+  // during a move or their change does not need to be reflected elsewhere.
+  //
+  // This temporarily reveals the relationship between the destination and the
+  // buffer pointers, in case it was hidden behind scratch usage. In a
+  // `BehindScratch` scope, buffer pointers are set up as if scratch was not
+  // used, and the current position might have been temporarily changed.
+  class BehindScratch {
+   public:
+    explicit BehindScratch(PushableBackwardWriter* context);
+
+    BehindScratch(const BehindScratch&) = delete;
+    BehindScratch& operator=(const BehindScratch&) = delete;
+
+    ~BehindScratch();
+
+   private:
+    void Enter();
+    void Leave();
+
+    PushableBackwardWriter* context_;
+    size_t written_to_scratch_;
+  };
+
   // Creates a `PushableBackwardWriter` with the given initial state.
   explicit PushableBackwardWriter(InitiallyClosed) noexcept
       : BackwardWriter(kInitiallyClosed) {}
@@ -72,18 +99,6 @@ class PushableBackwardWriter : public BackwardWriter {
   //              (or skip the rest of flushing in `Done()`)
   bool SyncScratch();
 
-  // Helps to implement move constructor or move assignment if scratch is used.
-  //
-  // Moving the destination should be surrounded by `SwapScratchBegin()` and
-  // `SwapScratchEnd()`, unless destination buffer pointers are known to remain
-  // unchanged during a move or their change does not need to be reflected
-  // elsewhere.
-  //
-  // When `SwapScratchBegin()` returns, scratch is not used but the current
-  // position might have been changed.
-  void SwapScratchBegin();
-  void SwapScratchEnd();
-
  protected:
   void Done() override;
 
@@ -99,14 +114,12 @@ class PushableBackwardWriter : public BackwardWriter {
 
   void PushFromScratchSlow(size_t min_length);
   bool SyncScratchSlow();
-  void SwapScratchBeginSlow();
-  void SwapScratchEndSlow();
 
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
-  //   `start_ == scratch_->buffer.data() + scratch_->buffer.size()`
   //   `limit_ == scratch_->buffer.data()`
+  //   `buffer_size() == scratch_->buffer.data()`
 };
 
 // Implementation details follow.
@@ -156,12 +169,14 @@ inline bool PushableBackwardWriter::SyncScratch() {
   return true;
 }
 
-inline void PushableBackwardWriter::SwapScratchBegin() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchBeginSlow();
+inline PushableBackwardWriter::BehindScratch::BehindScratch(
+    PushableBackwardWriter* context)
+    : context_(context) {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
 }
 
-inline void PushableBackwardWriter::SwapScratchEnd() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchEndSlow();
+inline PushableBackwardWriter::BehindScratch::~BehindScratch() {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Leave();
 }
 
 }  // namespace riegeli

@@ -218,7 +218,7 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    SwapScratchBegin();
+    BehindScratch behind_scratch(this);
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
@@ -231,7 +231,6 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
       written_ = absl::Span<char>(
           dest_.get().data() + dest_.get().size() - written_size, written_size);
     }
-    SwapScratchEnd();
   }
 }
 

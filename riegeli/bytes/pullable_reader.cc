@@ -142,6 +142,12 @@ bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
 }
 
 void PullableReader::SyncScratchSlow() {
+  RIEGELI_ASSERT(start_ == scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
   scratch_->buffer.Clear();
   start_ = scratch_->original_start;
   cursor_ = scratch_->original_cursor;
@@ -149,20 +155,28 @@ void PullableReader::SyncScratchSlow() {
   limit_pos_ += available();
 }
 
-void PullableReader::SwapScratchBeginSlow() {
-  using std::swap;
-  swap(start_, scratch_->original_start);
-  swap(cursor_, scratch_->original_cursor);
-  swap(limit_, scratch_->original_limit);
-  limit_pos_ += available();
+void PullableReader::BehindScratch::Enter() {
+  RIEGELI_ASSERT(context_->start_ == context_->scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  read_from_scratch_ = context_->read_from_buffer();
+  context_->start_ = context_->scratch_->original_start;
+  context_->cursor_ = context_->scratch_->original_cursor;
+  context_->limit_ = context_->scratch_->original_limit;
+  context_->limit_pos_ += context_->available();
 }
 
-void PullableReader::SwapScratchEndSlow() {
-  limit_pos_ -= available();
-  using std::swap;
-  swap(start_, scratch_->original_start);
-  swap(cursor_, scratch_->original_cursor);
-  swap(limit_, scratch_->original_limit);
+void PullableReader::BehindScratch::Leave() {
+  context_->limit_pos_ -= context_->available();
+  context_->scratch_->original_start = context_->start_;
+  context_->scratch_->original_cursor = context_->cursor_;
+  context_->scratch_->original_limit = context_->limit_;
+  context_->start_ = context_->scratch_->buffer.data();
+  context_->cursor_ = context_->start_ + read_from_scratch_;
+  context_->limit_ = context_->start_ + context_->scratch_->buffer.size();
 }
 
 }  // namespace riegeli

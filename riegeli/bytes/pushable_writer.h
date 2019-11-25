@@ -34,6 +34,33 @@ namespace riegeli {
 // `PushableWriter` accumulates data to be pushed in a scratch buffer if needed.
 class PushableWriter : public Writer {
  protected:
+  // Helps to implement move constructor or move assignment if scratch is used.
+  //
+  // Moving the destination should be in scope of a `BehindScratch` local
+  // variable, unless destination buffer pointers are known to remain unchanged
+  // during a move or their change does not need to be reflected elsewhere.
+  //
+  // This temporarily reveals the relationship between the destination and the
+  // buffer pointers, in case it was hidden behind scratch usage. In a
+  // `BehindScratch` scope, buffer pointers are set up as if scratch was not
+  // used, and the current position might have been temporarily changed.
+  class BehindScratch {
+   public:
+    explicit BehindScratch(PushableWriter* context);
+
+    BehindScratch(const BehindScratch&) = delete;
+    BehindScratch& operator=(const BehindScratch&) = delete;
+
+    ~BehindScratch();
+
+   private:
+    void Enter();
+    void Leave();
+
+    PushableWriter* context_;
+    size_t written_to_scratch_;
+  };
+
   // Creates a `PushableWriter` with the given initial state.
   explicit PushableWriter(InitiallyClosed) noexcept
       : Writer(kInitiallyClosed) {}
@@ -71,18 +98,6 @@ class PushableWriter : public Writer {
   //              (or skip the rest of flushing in `Done()`)
   bool SyncScratch();
 
-  // Helps to implement move constructor or move assignment if scratch is used.
-  //
-  // Moving the destination should be surrounded by `SwapScratchBegin()` and
-  // `SwapScratchEnd()`, unless destination buffer pointers are known to remain
-  // unchanged during a move or their change does not need to be reflected
-  // elsewhere.
-  //
-  // When `SwapScratchBegin()` returns, scratch is not used but the current
-  // position might have been changed.
-  void SwapScratchBegin();
-  void SwapScratchEnd();
-
  protected:
   void Done() override;
 
@@ -98,14 +113,12 @@ class PushableWriter : public Writer {
 
   void PushFromScratchSlow(size_t min_length);
   bool SyncScratchSlow();
-  void SwapScratchBeginSlow();
-  void SwapScratchEndSlow();
 
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
   //   `start_ == scratch_->buffer.data()`
-  //   `limit_ == scratch_->buffer.data() + scratch_->buffer.size()`
+  //   `buffer_size() == scratch_->buffer.size()`
 };
 
 // Implementation details follow.
@@ -154,12 +167,13 @@ inline bool PushableWriter::SyncScratch() {
   return true;
 }
 
-inline void PushableWriter::SwapScratchBegin() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchBeginSlow();
+inline PushableWriter::BehindScratch::BehindScratch(PushableWriter* context)
+    : context_(context) {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
 }
 
-inline void PushableWriter::SwapScratchEnd() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) SwapScratchEndSlow();
+inline PushableWriter::BehindScratch::~BehindScratch() {
+  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Leave();
 }
 
 }  // namespace riegeli

@@ -59,6 +59,9 @@ bool PushableBackwardWriter::SyncScratchSlow() {
   RIEGELI_ASSERT(limit_ == scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PushableBackwardWriter: "
+         "scratch used but buffer pointers do not point to scratch";
   const size_t length_to_write = written_to_buffer();
   start_ = scratch_->original_start;
   cursor_ = scratch_->original_cursor;
@@ -84,20 +87,28 @@ bool PushableBackwardWriter::SyncScratchSlow() {
   return ok;
 }
 
-void PushableBackwardWriter::SwapScratchBeginSlow() {
-  using std::swap;
-  swap(start_, scratch_->original_start);
-  swap(cursor_, scratch_->original_cursor);
-  swap(limit_, scratch_->original_limit);
-  start_pos_ -= written_to_buffer();
+void PushableBackwardWriter::BehindScratch::Enter() {
+  RIEGELI_ASSERT(context_->limit_ == context_->scratch_->buffer.data())
+      << "Failed invariant of PushableBackwardWriter: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
+      << "Failed invariant of PushableBackwardWriter: "
+         "scratch used but buffer pointers do not point to scratch";
+  written_to_scratch_ = context_->written_to_buffer();
+  context_->start_ = context_->scratch_->original_start;
+  context_->cursor_ = context_->scratch_->original_cursor;
+  context_->limit_ = context_->scratch_->original_limit;
+  context_->start_pos_ -= context_->written_to_buffer();
 }
 
-void PushableBackwardWriter::SwapScratchEndSlow() {
-  start_pos_ += written_to_buffer();
-  using std::swap;
-  swap(start_, scratch_->original_start);
-  swap(cursor_, scratch_->original_cursor);
-  swap(limit_, scratch_->original_limit);
+void PushableBackwardWriter::BehindScratch::Leave() {
+  context_->start_pos_ += context_->written_to_buffer();
+  context_->scratch_->original_start = context_->start_;
+  context_->scratch_->original_cursor = context_->cursor_;
+  context_->scratch_->original_limit = context_->limit_;
+  context_->limit_ = const_cast<char*>(context_->scratch_->buffer.data());
+  context_->start_ = context_->limit_ + context_->scratch_->buffer.size();
+  context_->cursor_ = context_->start_ - written_to_scratch_;
 }
 
 }  // namespace riegeli

@@ -223,7 +223,7 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
   } else {
-    SwapScratchBegin();
+    BehindScratch behind_scratch(this);
     const size_t block_index = iter_.block_index();
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
@@ -235,7 +235,6 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
         limit_ = start_ + iter_->size();
       }
     }
-    SwapScratchEnd();
   }
 }
 
