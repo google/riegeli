@@ -121,10 +121,8 @@ inline StringReaderBase& StringReaderBase::operator=(
 }
 
 inline void StringReaderBase::Initialize(absl::string_view src) {
-  start_ = src.data();
-  cursor_ = start_;
-  limit_ = start_ + src.size();
-  limit_pos_ = src.size();
+  set_buffer(src.data(), src.size());
+  move_limit_pos(available());
 }
 
 template <typename Src>
@@ -195,10 +193,8 @@ inline void StringReader<Src>::MoveSrc(StringReader&& that) {
   } else {
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
-    if (start_ != nullptr) {
-      start_ = src_.get().data();
-      cursor_ = start_ + cursor_index;
-      limit_ = start_ + src_.get().size();
+    if (start() != nullptr) {
+      set_buffer(src_.get().data(), src_.get().size(), cursor_index);
     }
   }
 }

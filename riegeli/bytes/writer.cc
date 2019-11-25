@@ -30,9 +30,7 @@
 namespace riegeli {
 
 bool Writer::Fail(Status status) {
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
   return Object::Fail(std::move(status));
 }
 
@@ -49,14 +47,14 @@ bool Writer::WriteSlow(absl::string_view src) {
     if (
         // `std::memcpy(nullptr, _, 0)` is undefined.
         available_length > 0) {
-      std::memcpy(cursor_, src.data(), available_length);
-      cursor_ += available_length;
+      std::memcpy(cursor(), src.data(), available_length);
+      move_cursor(available_length);
       src.remove_prefix(available_length);
     }
     if (ABSL_PREDICT_FALSE(!PushSlow(1, src.size()))) return false;
   } while (src.size() > available());
-  std::memcpy(cursor_, src.data(), src.size());
-  cursor_ += src.size();
+  std::memcpy(cursor(), src.data(), src.size());
+  move_cursor(src.size());
   return true;
 }
 

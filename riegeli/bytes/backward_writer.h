@@ -64,6 +64,12 @@ class BackwardWriter : public Object {
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
 
+  // Decrements the value of `cursor()`. Call this during writing data under
+  // `cursor()` to indicate how much was written.
+  //
+  // Precondition: `length <= available()`
+  void move_cursor(size_t length);
+
   // Updates the value of `cursor()`. Call this during writing data under
   // `cursor()` to indicate how much was written, or to seek within the buffer.
   //
@@ -179,7 +185,7 @@ class BackwardWriter : public Object {
   // "BackwardWriter position overflow". Always returns `false`.
   //
   // This can be called if the destination would exceed its maximum possible
-  // size or if `start_pos_` would overflow.
+  // size or if `start_pos()` would overflow.
   //
   // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
@@ -188,6 +194,29 @@ class BackwardWriter : public Object {
   //
   // Precondition: `min_length > available()`
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
+
+  // Sets the values of:
+  //  * `start()` - to `limit + buffer_size`
+  //  * `cursor()` - to `start() - written_to_buffer`
+  //  * `limit()` - to `limit`
+  //
+  // Preconditions:
+  //   [`limit`, `limit + buffer_size`) is a valid byte range
+  //   `written_to_buffer <= buffer_size`
+  void set_buffer(char* limit = nullptr, size_t buffer_size = 0,
+                  size_t written_to_buffer = 0);
+
+  // Destination position corresponding to `start()`.
+  Position start_pos() const { return start_pos_; }
+
+  // Destination position corresponding to `limit()`.
+  Position limit_pos() const;
+
+  // Increments the value of `start_pos()`.
+  void move_start_pos(Position length);
+
+  // Sets the value of `start_pos()`.
+  void set_start_pos(Position start_pos);
 
   // Implementation of the slow part of `Write()`.
   //
@@ -205,9 +234,7 @@ class BackwardWriter : public Object {
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
 
-  // Destination position corresponding to `limit_`.
-  Position limit_pos() const;
-
+  // TODO: private:
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
@@ -272,6 +299,13 @@ inline bool BackwardWriter::Push(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+inline void BackwardWriter::move_cursor(size_t length) {
+  RIEGELI_ASSERT_LE(length, available())
+      << "Failed precondition of BackwardWriter::move_cursor(): "
+         "length out of range";
+  cursor_ -= length;
+}
+
 inline void BackwardWriter::set_cursor(char* cursor) {
   RIEGELI_ASSERT(cursor <= start())
       << "Failed precondition of BackwardWriter::set_cursor(): "
@@ -282,14 +316,24 @@ inline void BackwardWriter::set_cursor(char* cursor) {
   cursor_ = cursor;
 }
 
+inline void BackwardWriter::set_buffer(char* limit, size_t buffer_size,
+                                       size_t written_to_buffer) {
+  RIEGELI_ASSERT_LE(written_to_buffer, buffer_size)
+      << "Failed precondition of BackwardWriter::set_buffer(): "
+         "length out of range";
+  start_ = limit + buffer_size;
+  cursor_ = start_ - written_to_buffer;
+  limit_ = limit;
+}
+
 inline bool BackwardWriter::Write(absl::string_view src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
             // are undefined.
             !src.empty())) {
-      cursor_ -= src.size();
-      std::memcpy(cursor_, src.data(), src.size());
+      move_cursor(src.size());
+      std::memcpy(cursor(), src.data(), src.size());
     }
     return true;
   }
@@ -302,8 +346,8 @@ inline bool BackwardWriter::Write(std::string&& src) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` is undefined.
             !src.empty())) {
-      cursor_ -= src.size();
-      std::memcpy(cursor_, src.data(), src.size());
+      move_cursor(src.size());
+      std::memcpy(cursor(), src.data(), src.size());
     }
     return true;
   }
@@ -317,8 +361,8 @@ inline bool BackwardWriter::Write(const char* src) {
 inline bool BackwardWriter::Write(const Chain& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
                         src.size() <= kMaxBytesToCopy)) {
-    cursor_ -= src.size();
-    src.CopyTo(cursor_);
+    move_cursor(src.size());
+    src.CopyTo(cursor());
     return true;
   }
   return WriteSlow(src);
@@ -327,8 +371,8 @@ inline bool BackwardWriter::Write(const Chain& src) {
 inline bool BackwardWriter::Write(Chain&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
                         src.size() <= kMaxBytesToCopy)) {
-    cursor_ -= src.size();
-    src.CopyTo(cursor_);
+    move_cursor(src.size());
+    src.CopyTo(cursor());
     return true;
   }
   return WriteSlow(std::move(src));
@@ -348,6 +392,17 @@ inline Position BackwardWriter::limit_pos() const {
       << "Failed invariant of BackwardWriter: "
          "position of buffer limit overflow";
   return start_pos_ + buffer_size();
+}
+
+inline void BackwardWriter::move_start_pos(Position length) {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - start_pos_)
+      << "Failed precondition of BackwardWriter::move_start_pos(): "
+         "position out of range";
+  start_pos_ += length;
+}
+
+inline void BackwardWriter::set_start_pos(Position start_pos) {
+  start_pos_ = start_pos;
 }
 
 }  // namespace riegeli

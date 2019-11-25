@@ -94,8 +94,8 @@ class ChainWriterBase : public Writer {
   size_t size_hint_ = 0;
 
   // Invariants if `healthy()`:
-  //   `limit_ == nullptr || limit_ == dest_chain()->blocks().back().data() +
-  //                                   dest_chain()->blocks().back().size()`
+  //   `limit() == nullptr || limit() == dest_chain()->blocks().back().data() +
+  //                                     dest_chain()->blocks().back().size()`
   //   `limit_pos() == dest_chain()->size()`
 };
 
@@ -148,7 +148,7 @@ class ChainWriter : public ChainWriterBase {
   void MoveDest(ChainWriter&& that);
 
   // The object providing and possibly owning the `Chain` being written to, with
-  // uninitialized space appended (possibly empty); `cursor_` points to the
+  // uninitialized space appended (possibly empty); `cursor()` points to the
   // uninitialized space, except that it can be `nullptr` if the uninitialized
   // space is empty.
   Dependency<Chain*, Dest> dest_;
@@ -183,7 +183,7 @@ inline void ChainWriterBase::Reset(Position size_hint) {
 inline void ChainWriterBase::Initialize(Chain* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ChainWriter: null Chain pointer";
-  start_pos_ = dest->size();
+  set_start_pos(dest->size());
 }
 
 template <typename Dest>
@@ -256,11 +256,12 @@ inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
   } else {
     const size_t cursor_index = written_to_buffer();
     dest_ = std::move(that.dest_);
-    if (start_ != nullptr) {
-      limit_ = const_cast<char*>(dest_->blocks().back().data() +
-                                 dest_->blocks().back().size());
-      start_ = limit_ - (dest_->size() - IntCast<size_t>(start_pos_));
-      cursor_ = start_ + cursor_index;
+    if (start() != nullptr) {
+      const size_t buffer_size = dest_->size() - IntCast<size_t>(start_pos());
+      set_buffer(const_cast<char*>(dest_->blocks().back().data() +
+                                   dest_->blocks().back().size()) -
+                     buffer_size,
+                 buffer_size, cursor_index);
     }
   }
 }

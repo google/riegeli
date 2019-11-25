@@ -46,27 +46,24 @@ void PushableBackwardWriter::PushFromScratchSlow(size_t min_length) {
   }
   const absl::Span<char> flat_buffer =
       scratch_->buffer.PrependFixedBuffer(min_length);
-  start_pos_ += written_to_buffer();
-  scratch_->original_start = start_;
-  scratch_->original_cursor = cursor_;
-  scratch_->original_limit = limit_;
-  start_ = flat_buffer.data() + flat_buffer.size();
-  cursor_ = start_;
-  limit_ = flat_buffer.data();
+  set_start_pos(pos());
+  scratch_->original_limit = limit();
+  scratch_->original_buffer_size = buffer_size();
+  scratch_->original_written_to_buffer = written_to_buffer();
+  set_buffer(flat_buffer.data(), flat_buffer.size());
 }
 
 bool PushableBackwardWriter::SyncScratchSlow() {
-  RIEGELI_ASSERT(limit_ == scratch_->buffer.data())
+  RIEGELI_ASSERT(limit() == scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   const size_t length_to_write = written_to_buffer();
-  start_ = scratch_->original_start;
-  cursor_ = scratch_->original_cursor;
-  limit_ = scratch_->original_limit;
-  start_pos_ -= written_to_buffer();
+  set_buffer(scratch_->original_limit, scratch_->original_buffer_size,
+             scratch_->original_written_to_buffer);
+  set_start_pos(start_pos() - written_to_buffer());
   ChainBlock buffer = std::move(scratch_->buffer);
   RIEGELI_ASSERT(scratch_->buffer.empty())
       << "Moving should have left the source ChainBlock cleared";
@@ -88,27 +85,27 @@ bool PushableBackwardWriter::SyncScratchSlow() {
 }
 
 void PushableBackwardWriter::BehindScratch::Enter() {
-  RIEGELI_ASSERT(context_->limit_ == context_->scratch_->buffer.data())
+  RIEGELI_ASSERT(context_->limit() == context_->scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   written_to_scratch_ = context_->written_to_buffer();
-  context_->start_ = context_->scratch_->original_start;
-  context_->cursor_ = context_->scratch_->original_cursor;
-  context_->limit_ = context_->scratch_->original_limit;
-  context_->start_pos_ -= context_->written_to_buffer();
+  context_->set_buffer(context_->scratch_->original_limit,
+                       context_->scratch_->original_buffer_size,
+                       context_->scratch_->original_written_to_buffer);
+  context_->set_start_pos(context_->start_pos() -
+                          context_->written_to_buffer());
 }
 
 void PushableBackwardWriter::BehindScratch::Leave() {
-  context_->start_pos_ += context_->written_to_buffer();
-  context_->scratch_->original_start = context_->start_;
-  context_->scratch_->original_cursor = context_->cursor_;
-  context_->scratch_->original_limit = context_->limit_;
-  context_->limit_ = const_cast<char*>(context_->scratch_->buffer.data());
-  context_->start_ = context_->limit_ + context_->scratch_->buffer.size();
-  context_->cursor_ = context_->start_ - written_to_scratch_;
+  context_->set_start_pos(context_->pos());
+  context_->scratch_->original_limit = context_->limit();
+  context_->scratch_->original_buffer_size = context_->buffer_size();
+  context_->scratch_->original_limit = context_->limit();
+  context_->set_buffer(const_cast<char*>(context_->scratch_->buffer.data()),
+                       context_->scratch_->buffer.size(), written_to_scratch_);
 }
 
 }  // namespace riegeli

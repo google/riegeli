@@ -61,12 +61,12 @@ class TeeWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
 
   // Sets cursor of `*dest` to cursor of `*this`, writing what has been written
-  // to the buffer (until `cursor_`) to `*side_dest`. Fails `*this` and returns
+  // to the buffer (until `cursor()`) to `*side_dest`. Fails `*this` and returns
   // `false` if `*side_dest` failed.
   bool SyncBuffer(Writer* dest, Writer* side_dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `*dest`, adjusting
-  // `start_` to hide data already written to `*side_dest`. Fails `*this` if
+  // `start()` to hide data already written to `*side_dest`. Fails `*this` if
   // `*dest` failed.
   void MakeBuffer(Writer* dest);
 
@@ -75,9 +75,9 @@ class TeeWriterBase : public Writer {
   bool WriteInternal(Src&& src);
 
   // Invariants if `healthy()`:
-  //   `start_ == dest_writer()->cursor()`
-  //   `limit_ == dest_writer()->limit()`
-  //   `start_pos_ == dest_writer()->pos()`
+  //   `start() == dest_writer()->cursor()`
+  //   `limit() == dest_writer()->limit()`
+  //   `start_pos() == dest_writer()->pos()`
 };
 
 // A `Writer` which writes the same data to a main `Writer` and a side
@@ -180,22 +180,20 @@ inline void TeeWriterBase::Initialize(Writer* dest, Writer* side_dest) {
 }
 
 inline bool TeeWriterBase::SyncBuffer(Writer* dest, Writer* side_dest) {
-  RIEGELI_ASSERT(start_ == dest->cursor())
+  RIEGELI_ASSERT(start() == dest->cursor())
       << "Failed invariant of TeeWriterBase: "
          "cursor of the original Writer changed unexpectedly";
   if (ABSL_PREDICT_FALSE(
-          !side_dest->Write(absl::string_view(start_, written_to_buffer())))) {
+          !side_dest->Write(absl::string_view(start(), written_to_buffer())))) {
     return Fail(*side_dest);
   }
-  dest->set_cursor(cursor_);
+  dest->set_cursor(cursor());
   return true;
 }
 
 inline void TeeWriterBase::MakeBuffer(Writer* dest) {
-  start_ = dest->cursor();
-  cursor_ = start_;
-  limit_ = dest->limit();
-  start_pos_ = dest->pos();
+  set_buffer(dest->cursor(), dest->available());
+  set_start_pos(dest->pos());
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 

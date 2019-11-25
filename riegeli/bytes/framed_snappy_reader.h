@@ -64,8 +64,8 @@ class FramedSnappyReaderBase : public PullableReader {
   Buffer uncompressed_;
 
   // Invariant if scratch is not used:
-  //   `start_ == nullptr` or `start_ == uncompressed_.GetData()` or
-  //   `limit_ == src_reader()->cursor()`
+  //   `start() == nullptr` or `start() == uncompressed_.GetData()` or
+  //   `limit() == src_reader()->cursor()`
 };
 
 // A `Reader` which decompresses data with framed Snappy format after getting
@@ -215,10 +215,10 @@ inline void FramedSnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
-  // Buffer pointers are already moved so `limit_` is taken from `*this`,
+  // Buffer pointers are already moved so `limit()` is taken from `*this`,
   // `src_` is not moved yet so `src_` is taken from `that`.
   if (src_.kIsStable() || ABSL_PREDICT_FALSE(closed()) ||
-      limit_ != that.src_->cursor()) {
+      limit() != that.src_->cursor()) {
     src_ = std::move(that.src_);
   } else {
     // Buffer pointers read uncompressed data from `that.src_`.
@@ -229,10 +229,8 @@ inline void FramedSnappyReader<Src>::MoveSrc(FramedSnappyReader&& that) {
       Fail(*src_);
       return;
     }
-    start_ = src_->cursor();
-    cursor_ = start_;
-    limit_ = start_ + available_length;
-    src_->set_cursor(src_->cursor() + available_length);
+    set_buffer(src_->cursor(), available_length);
+    src_->move_cursor(available_length);
   }
 }
 

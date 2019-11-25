@@ -152,7 +152,7 @@ class FdWriterBase : public internal::FdWriterCommon {
 
   bool sync_pos_ = false;
 
-  // Invariant: `start_pos_ <= std::numeric_limits<off_t>::max()`
+  // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
 };
 
 // Template parameter independent part of `FdStreamWriter`.
@@ -476,7 +476,7 @@ inline void FdStreamWriterBase::Initialize(
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
   SetFilename(dest);
-  start_pos_ = *assumed_pos;
+  set_start_pos(*assumed_pos);
 }
 
 template <typename Dest>

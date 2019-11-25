@@ -50,7 +50,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
   Py_INCREF(src);
   src_.reset(src);
   if (!random_access_) {
-    limit_pos_ = *options.assumed_pos_;
+    set_limit_pos(*options.assumed_pos_);
   } else {
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(
@@ -64,7 +64,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
       FailOperation("PositionFromPython() after tell()");
       return;
     }
-    limit_pos_ = file_pos;
+    set_limit_pos(file_pos);
   }
 }
 
@@ -114,7 +114,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos_)) {
+                         std::numeric_limits<Position>::max() - limit_pos())) {
     return FailOverflow();
   }
   PythonLock lock;
@@ -256,7 +256,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       length_read = IntCast<size_t>(buffer.len);
       PyBuffer_Release(&buffer);
     }
-    limit_pos_ += length_read;
+    move_limit_pos(length_read);
     if (length_read >= min_length) return true;
     dest += length_read;
     min_length -= length_read;
@@ -265,7 +265,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
 }
 
 bool PythonReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -274,18 +274,18 @@ bool PythonReader::SeekSlow(Position new_pos) {
   }
   ClearBuffer();
   PythonLock lock;
-  if (new_pos > limit_pos_) {
+  if (new_pos > limit_pos()) {
     // Seeking forwards.
     Position size;
     if (ABSL_PREDICT_FALSE(!SizeInternal(&size))) return false;
     if (ABSL_PREDICT_FALSE(new_pos > size)) {
       // File ends.
-      limit_pos_ = size;
+      set_limit_pos(size);
       return false;
     }
   }
-  limit_pos_ = new_pos;
-  const PythonPtr file_pos = PositionToPython(limit_pos_);
+  set_limit_pos(new_pos);
+  const PythonPtr file_pos = PositionToPython(limit_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
@@ -305,7 +305,7 @@ bool PythonReader::Size(Position* size) {
   }
   PythonLock lock;
   if (ABSL_PREDICT_FALSE(!SizeInternal(size))) return false;
-  const PythonPtr file_pos = PositionToPython(limit_pos_);
+  const PythonPtr file_pos = PositionToPython(limit_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }

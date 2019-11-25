@@ -92,9 +92,9 @@ class StringWriterBase : public Writer {
   void MakeBuffer(std::string* dest);
 
   // Invariants if `healthy()`:
-  //   `start_ == &(*dest_string())[0]`
+  //   `start() == &(*dest_string())[0]`
   //   `buffer_size() == dest_string()->size()`
-  //   `start_pos_ == 0`
+  //   `start_pos() == 0`
 };
 
 // A `Writer` which appends to a `std::string`, resizing it as necessary.
@@ -146,8 +146,8 @@ class StringWriter : public StringWriterBase {
   void MoveDest(StringWriter&& that);
 
   // The object providing and possibly owning the `std::string` being written
-  // to, with uninitialized space appended (possibly empty); `cursor_` points to
-  // the uninitialized space.
+  // to, with uninitialized space appended (possibly empty); `cursor()` points
+  // to the uninitialized space.
   Dependency<std::string*, Dest> dest_;
 };
 
@@ -168,9 +168,7 @@ inline void StringWriterBase::Initialize(std::string* dest,
       << "Failed precondition of StringWriter: null string pointer";
   const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
   if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
-  start_ = &(*dest)[0];
-  cursor_ = start_ + dest->size();
-  limit_ = cursor_;
+  set_buffer(&(*dest)[0], dest->size(), dest->size());
 }
 
 template <typename Dest>
@@ -243,10 +241,8 @@ inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   } else {
     const size_t cursor_index = written_to_buffer();
     dest_ = std::move(that.dest_);
-    if (start_ != nullptr) {
-      start_ = &(*dest_)[0];
-      cursor_ = start_ + cursor_index;
-      limit_ = start_ + dest_->size();
+    if (start() != nullptr) {
+      set_buffer(&(*dest_)[0], dest_->size(), cursor_index);
     }
   }
 }

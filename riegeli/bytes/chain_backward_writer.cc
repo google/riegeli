@@ -68,7 +68,7 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
     return FailOverflow();
   }
   SyncBuffer(dest);
-  start_pos_ += src.size();
+  move_start_pos(src.size());
   dest->Prepend(src, size_hint_);
   MakeBuffer(dest);
   return true;
@@ -81,7 +81,7 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain* const dest = dest_chain();
   SyncBuffer(dest);
-  start_pos_ += src.size();
+  move_start_pos(src.size());
   dest->Prepend(std::move(src), size_hint_);
   MakeBuffer(dest);
   return true;
@@ -101,34 +101,28 @@ bool ChainBackwardWriterBase::Truncate(Position new_size) {
   Chain* const dest = dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
       << "ChainBackwardWriter destination changed unexpectedly";
-  if (new_size >= start_pos_) {
+  if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-    cursor_ = start_ - (new_size - start_pos_);
+    set_cursor(start() - (new_size - start_pos()));
     return true;
   }
-  start_pos_ = new_size;
+  set_start_pos(new_size);
   dest->RemovePrefix(dest->size() - IntCast<size_t>(new_size));
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
   return true;
 }
 
 inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
-  start_pos_ = pos();
+  set_start_pos(pos());
   dest->RemovePrefix(available());
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
 }
 
 inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
                                                 size_t recommended_length) {
   const absl::Span<char> buffer = dest->PrependBuffer(
       min_length, recommended_length, Chain::kAnyLength, size_hint_);
-  limit_ = buffer.data();
-  start_ = limit_ + buffer.size();
-  cursor_ = start_;
+  set_buffer(buffer.data(), buffer.size());
 }
 
 }  // namespace riegeli

@@ -129,7 +129,7 @@ bool LimitingReaderBase::SupportsRandomAccess() const {
 }
 
 bool LimitingReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

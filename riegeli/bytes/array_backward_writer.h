@@ -65,7 +65,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
-  // Invariant: if `healthy()` then `start_pos_ == 0`
+  // Invariant: if `healthy()` then `start_pos() == 0`
 };
 
 // A `BackwardWriter` which writes to a preallocated array with a known size
@@ -144,9 +144,7 @@ inline void ArrayBackwardWriterBase::Reset(InitiallyOpen) {
 }
 
 inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
-  limit_ = dest.data();
-  start_ = limit_ + dest.size();
-  cursor_ = start_;
+  set_buffer(dest.data(), dest.size());
 }
 
 template <typename Dest>
@@ -222,10 +220,8 @@ inline void ArrayBackwardWriter<Dest>::MoveDest(ArrayBackwardWriter&& that) {
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
-    if (start_ != nullptr) {
-      limit_ = dest_.get().data();
-      start_ = limit_ + dest_.get().size();
-      cursor_ = start_ - cursor_index;
+    if (start() != nullptr) {
+      set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
     }
     if (written_.data() != nullptr) {
       written_ = absl::Span<char>(

@@ -108,7 +108,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool random_access_ = false;
 
-  // Invariant: `start_pos_ <= std::numeric_limits<std::streamoff>::max()`
+  // Invariant: `start_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
 
 // A `Writer` which writes to a `std::ostream`. It supports random access and

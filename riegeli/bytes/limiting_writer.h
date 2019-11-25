@@ -91,9 +91,9 @@ class LimitingWriterBase : public Writer {
   bool WriteInternal(Src&& src);
 
   // Invariants if `healthy()`:
-  //   `start_ == dest_writer()->start_`
-  //   `limit_ == dest_writer()->limit_`
-  //   `start_pos_ == dest_writer()->start_pos_`
+  //   `start() == dest_writer()->start()`
+  //   `limit() == dest_writer()->limit()`
+  //   `start_pos() == dest_writer()->start_pos()`
 };
 
 // A `Writer` which writes to another `Writer` up to the specified size limit.
@@ -201,15 +201,13 @@ inline void LimitingWriterBase::set_size_limit(Position size_limit) {
 
 inline bool LimitingWriterBase::SyncBuffer(Writer* dest) {
   if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
-  dest->set_cursor(cursor_);
+  dest->set_cursor(cursor());
   return true;
 }
 
 inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
-  start_ = dest->start();
-  cursor_ = dest->cursor();
-  limit_ = dest->limit();
-  start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
+  set_buffer(dest->start(), dest->buffer_size(), dest->written_to_buffer());
+  set_start_pos(dest->pos() - written_to_buffer());
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 

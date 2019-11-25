@@ -84,7 +84,7 @@ void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
       return;
     }
   }
-  start_pos_ = IntCast<Position>(file_pos);
+  set_start_pos(IntCast<Position>(file_pos));
 }
 
 bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
@@ -125,15 +125,14 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   buffer_.Resize(BufferLength(min_length));
-  start_ = buffer_.GetData();
-  cursor_ = start_;
-  limit_ =
-      start_ + UnsignedMin(buffer_.size(),
-                           std::numeric_limits<Position>::max() - start_pos_);
+  char* const buffer = buffer_.GetData();
+  set_buffer(buffer,
+             UnsignedMin(buffer_.size(),
+                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 
@@ -141,8 +140,8 @@ bool FileWriterBase::PushInternal() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return true;
-  cursor_ = start_;
-  return WriteInternal(absl::string_view(start_, buffered_length));
+  set_cursor(start());
+  return WriteInternal(absl::string_view(start(), buffered_length));
 }
 
 bool FileWriterBase::WriteSlow(absl::string_view src) {
@@ -167,7 +166,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
          "buffer not empty";
   ::tensorflow::WritableFile* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   {
@@ -176,7 +175,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
       return FailOperation(status, "WritableFile::Append(string_view)");
     }
   }
-  start_pos_ += src.size();
+  move_start_pos(src.size());
   return true;
 }
 

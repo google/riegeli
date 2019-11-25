@@ -78,7 +78,7 @@ bool ReaderInputStream::Next(const void** data, int* size) {
   *size = IntCast<int>(
       UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
                   Position{std::numeric_limits<int64_t>::max()} - pos));
-  src_->set_cursor(src_->cursor() + *size);
+  src_->move_cursor(IntCast<size_t>(*size));
   return true;
 }
 
@@ -141,7 +141,7 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
       // `ParsePartialFromZeroCopyStream()`.
       bool ok = dest->ParsePartialFromArray(src->cursor(),
                                             IntCast<int>(src->available()));
-      src->set_cursor(src->cursor() + src->available());
+      src->move_cursor(src->available());
       if (ABSL_PREDICT_FALSE(!ok)) {
         return DataLossError(absl::StrCat("Failed to parse message of type ",
                                           dest->GetTypeName()));

@@ -119,14 +119,14 @@ void FdReaderBase::InitializePos(int src,
       FailOverflow();
       return;
     }
-    limit_pos_ = *initial_pos;
+    set_limit_pos(*initial_pos);
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
       FailOperation("lseek()");
       return;
     }
-    limit_pos_ = IntCast<Position>(file_pos);
+    set_limit_pos(IntCast<Position>(file_pos));
   }
 }
 
@@ -151,7 +151,7 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<off_t>::max()} -
-                             limit_pos_)) {
+                             limit_pos())) {
     return FailOverflow();
   }
   for (;;) {
@@ -159,7 +159,7 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
     const ssize_t length_read = pread(
         src, dest,
         UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
-        IntCast<off_t>(limit_pos_));
+        IntCast<off_t>(limit_pos()));
     if (ABSL_PREDICT_FALSE(length_read < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation("pread()");
@@ -167,7 +167,7 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
     if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
         << "pread() read more than requested";
-    limit_pos_ += IntCast<size_t>(length_read);
+    move_limit_pos(IntCast<size_t>(length_read));
     if (IntCast<size_t>(length_read) >= min_length) return true;
     dest += length_read;
     min_length -= IntCast<size_t>(length_read);
@@ -176,12 +176,12 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
 }
 
 bool FdReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ClearBuffer();
-  if (new_pos > limit_pos_) {
+  if (new_pos > limit_pos()) {
     // Seeking forwards.
     const int src = src_fd();
     struct stat stat_info;
@@ -190,11 +190,11 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      limit_pos_ = IntCast<Position>(stat_info.st_size);
+      set_limit_pos(IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
-  limit_pos_ = new_pos;
+  set_limit_pos(new_pos);
   return true;
 }
 
@@ -221,7 +221,7 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   const int src = src_fd();
   if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos_)) {
+                         std::numeric_limits<Position>::max() - limit_pos())) {
     return FailOverflow();
   }
   for (;;) {
@@ -236,7 +236,7 @@ bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
     if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
         << "read() read more than requested";
-    limit_pos_ += IntCast<size_t>(length_read);
+    move_limit_pos(IntCast<size_t>(length_read));
     if (IntCast<size_t>(length_read) >= min_length) return true;
     dest += length_read;
     min_length -= IntCast<size_t>(length_read);
@@ -303,14 +303,14 @@ void FdMMapReaderBase::InitializePos(int src,
       absl::string_view(static_cast<const char*>(data),
                         IntCast<size_t>(stat_info.st_size)))));
   if (initial_pos.has_value()) {
-    cursor_ += UnsignedMin(*initial_pos, available());
+    move_cursor(UnsignedMin(*initial_pos, available()));
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
       FailOperation("lseek()");
       return;
     }
-    cursor_ += UnsignedMin(IntCast<Position>(file_pos), available());
+    move_cursor(UnsignedMin(IntCast<Position>(file_pos), available()));
   }
 }
 

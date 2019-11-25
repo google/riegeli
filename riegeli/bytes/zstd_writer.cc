@@ -146,8 +146,9 @@ void ZstdWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
     const size_t buffered_length = written_to_buffer();
-    cursor_ = start_;
-    WriteInternal(absl::string_view(start_, buffered_length), dest, ZSTD_e_end);
+    set_cursor(start());
+    WriteInternal(absl::string_view(start(), buffered_length), dest,
+                  ZSTD_e_end);
   }
   compressor_.reset();
   BufferedWriter::Done();
@@ -181,7 +182,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (result == 0) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned 0 but there are still input data";
-      start_pos_ += input.pos;
+      move_start_pos(input.pos);
       return true;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
@@ -192,7 +193,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       RIEGELI_ASSERT_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned but there are still input data "
              "and output space";
-      start_pos_ += input.pos;
+      move_start_pos(input.pos);
       return true;
     }
     if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
@@ -203,9 +204,9 @@ bool ZstdWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   const size_t buffered_length = written_to_buffer();
-  cursor_ = start_;
+  set_cursor(start());
   if (ABSL_PREDICT_FALSE(!WriteInternal(
-          absl::string_view(start_, buffered_length), dest, ZSTD_e_flush))) {
+          absl::string_view(start(), buffered_length), dest, ZSTD_e_flush))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);

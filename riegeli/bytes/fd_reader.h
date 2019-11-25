@@ -135,7 +135,7 @@ class FdReaderBase : public internal::FdReaderCommon {
 
   bool sync_pos_ = false;
 
-  // Invariant: `limit_pos_ <= std::numeric_limits<off_t>::max()`
+  // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
 
 // Template parameter independent part of `FdStreamReader`.
@@ -566,7 +566,7 @@ inline void FdStreamReaderBase::Initialize(
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
   SetFilename(src);
-  limit_pos_ = *assumed_pos;
+  set_limit_pos(*assumed_pos);
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool sync_pos)
@@ -803,7 +803,7 @@ inline void FdStreamReader<Src>::Initialize(
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  if (assumed_pos.has_value()) limit_pos_ = *assumed_pos;
+  if (assumed_pos.has_value()) set_limit_pos(*assumed_pos);
 }
 
 template <typename Src>

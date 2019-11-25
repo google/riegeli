@@ -76,7 +76,7 @@ bool WriterOutputStream::Next(void** data, int* size) {
   *size = IntCast<int>(
       UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
                   Position{std::numeric_limits<int64_t>::max()} - pos));
-  dest_->set_cursor(dest_->cursor() + *size);
+  dest_->move_cursor(IntCast<size_t>(*size));
   return true;
 }
 

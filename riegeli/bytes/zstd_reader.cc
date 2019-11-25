@@ -107,7 +107,7 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
   Reader* const src = src_reader();
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos_)) {
+                         std::numeric_limits<Position>::max() - limit_pos())) {
     return FailOverflow();
   }
   ZSTD_outBuffer output = {dest, max_length, 0};
@@ -118,24 +118,24 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
     src->set_cursor(static_cast<const char*>(input.src) + input.pos);
     if (ABSL_PREDICT_FALSE(result == 0)) {
       decompressor_.reset();
-      limit_pos_ += output.pos;
+      move_limit_pos(output.pos);
       return output.pos >= min_length;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
                                       ZSTD_getErrorName(result))));
-      limit_pos_ += output.pos;
+      move_limit_pos(output.pos);
       return output.pos >= min_length;
     }
     if (output.pos >= min_length) {
-      limit_pos_ += output.pos;
+      move_limit_pos(output.pos);
       return true;
     }
     RIEGELI_ASSERT_EQ(input.pos, input.size)
         << "ZSTD_decompressStream() returned but there are still input data "
            "and output space";
     if (ABSL_PREDICT_FALSE(!src->Pull())) {
-      limit_pos_ += output.pos;
+      move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       truncated_ = true;
       return false;

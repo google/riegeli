@@ -78,8 +78,8 @@ void ZlibWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
     const size_t buffered_length = written_to_buffer();
-    cursor_ = start_;
-    WriteInternal(absl::string_view(start_, buffered_length), dest, Z_FINISH);
+    set_cursor(start());
+    WriteInternal(absl::string_view(start(), buffered_length), dest, Z_FINISH);
   }
   compressor_.reset();
   BufferedWriter::Done();
@@ -157,7 +157,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     }
     RIEGELI_ASSERT_EQ(length_written, src.size())
         << "deflate() returned but there are still input data";
-    start_pos_ += length_written;
+    move_start_pos(length_written);
     return true;
   }
 }
@@ -166,9 +166,10 @@ bool ZlibWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   const size_t buffered_length = written_to_buffer();
-  cursor_ = start_;
-  if (ABSL_PREDICT_FALSE(!WriteInternal(
-          absl::string_view(start_, buffered_length), dest, Z_PARTIAL_FLUSH))) {
+  set_cursor(start());
+  if (ABSL_PREDICT_FALSE(
+          !WriteInternal(absl::string_view(start(), buffered_length), dest,
+                         Z_PARTIAL_FLUSH))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);

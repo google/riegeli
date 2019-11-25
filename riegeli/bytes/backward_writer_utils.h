@@ -33,18 +33,16 @@ bool WriteVarint64(BackwardWriter* dest, uint64_t data);
 inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
   const size_t length = LengthVarint32(data);
   if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-  char* start = dest->cursor() - length;
-  dest->set_cursor(start);
-  WriteVarint32(start, data);
+  dest->move_cursor(length);
+  WriteVarint32(dest->cursor(), data);
   return true;
 }
 
 inline bool WriteVarint64(BackwardWriter* dest, uint64_t data) {
   const size_t length = LengthVarint64(data);
   if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-  char* start = dest->cursor() - length;
-  dest->set_cursor(start);
-  WriteVarint64(start, data);
+  dest->move_cursor(length);
+  WriteVarint64(dest->cursor(), data);
   return true;
 }
 

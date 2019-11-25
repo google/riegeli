@@ -105,8 +105,8 @@ class PushableWriter : public Writer {
   struct Scratch {
     ChainBlock buffer;
     char* original_start = nullptr;
-    char* original_cursor = nullptr;
-    char* original_limit = nullptr;
+    size_t original_buffer_size = 0;
+    size_t original_written_to_buffer = 0;
   };
 
   bool scratch_used() const;
@@ -117,7 +117,7 @@ class PushableWriter : public Writer {
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
-  //   `start_ == scratch_->buffer.data()`
+  //   `start() == scratch_->buffer.data()`
   //   `buffer_size() == scratch_->buffer.size()`
 };
 

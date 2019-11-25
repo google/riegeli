@@ -94,7 +94,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   size_t size_hint_ = 0;
 
   // Invariants if `healthy()`:
-  //   `limit_ == nullptr || limit_ == dest_chain()->blocks().front().data()`
+  //   `limit() == nullptr || limit() == dest_chain()->blocks().front().data()`
   //   `limit_pos() == dest_chain()->size()`
 };
 
@@ -146,8 +146,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   void MoveDest(ChainBackwardWriter&& that);
 
   // The object providing and possibly owning the `Chain` being written to, with
-  // uninitialized space prepended (possibly empty); `cursor_` points to the end
-  // of the uninitialized space, except that it can be `nullptr` if the
+  // uninitialized space prepended (possibly empty); `cursor()` points to the
+  // end of the uninitialized space, except that it can be `nullptr` if the
   // uninitialized space is empty.
   Dependency<Chain*, Dest> dest_;
 };
@@ -182,7 +182,7 @@ inline void ChainBackwardWriterBase::Reset(Position size_hint) {
 inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ChainBackwardWriter: null Chain pointer";
-  start_pos_ = dest->size();
+  set_start_pos(dest->size());
 }
 
 template <typename Dest>
@@ -259,10 +259,9 @@ inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   } else {
     const size_t cursor_index = written_to_buffer();
     dest_ = std::move(that.dest_);
-    if (start_ != nullptr) {
-      limit_ = const_cast<char*>(dest_->blocks().front().data());
-      start_ = limit_ + (dest_->size() - IntCast<size_t>(start_pos_));
-      cursor_ = start_ - cursor_index;
+    if (start() != nullptr) {
+      set_buffer(const_cast<char*>(dest_->blocks().front().data()),
+                 dest_->size() - IntCast<size_t>(start_pos()), cursor_index);
     }
   }
 }

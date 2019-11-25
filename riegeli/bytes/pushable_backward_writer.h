@@ -105,9 +105,9 @@ class PushableBackwardWriter : public BackwardWriter {
  private:
   struct Scratch {
     ChainBlock buffer;
-    char* original_start = nullptr;
-    char* original_cursor = nullptr;
     char* original_limit = nullptr;
+    size_t original_buffer_size = 0;
+    size_t original_written_to_buffer = 0;
   };
 
   bool scratch_used() const;
@@ -118,7 +118,7 @@ class PushableBackwardWriter : public BackwardWriter {
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
-  //   `limit_ == scratch_->buffer.data()`
+  //   `limit() == scratch_->buffer.data()`
   //   `buffer_size() == scratch_->buffer.data()`
 };
 

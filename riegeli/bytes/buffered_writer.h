@@ -67,9 +67,9 @@ class BufferedWriter : public Writer {
   bool PushInternal();
 
   // Writes data to the destination, to the physical destination position which
-  // is `start_pos_`.
+  // is `start_pos()`.
   //
-  // Increments `start_pos_` by the length written.
+  // Increments `start_pos()` by the length written.
   //
   // Preconditions:
   //   `!src.empty()`
@@ -89,7 +89,7 @@ class BufferedWriter : public Writer {
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, to be written directly after the physical destination
-  // position which is `start_pos_`.
+  // position which is `start_pos()`.
   Buffer buffer_;
 };
 

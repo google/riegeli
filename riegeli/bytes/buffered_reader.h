@@ -69,13 +69,13 @@ class BufferedReader : public Reader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
 
   // Reads data from the source, from the physical source position which is
-  // `limit_pos_`.
+  // `limit_pos()`.
   //
   // Tries to read at most `max_length`, but can return successfully after
   // reading at least `min_length` if less data was available in the source at
   // the moment.
   //
-  // Increments `limit_pos_` by the length read.
+  // Increments `limit_pos()` by the length read.
   //
   // Preconditions:
   //   `0 < min_length <= max_length`
@@ -102,11 +102,11 @@ class BufferedReader : public Reader {
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is
-  // `limit_pos_`.
+  // `limit_pos()`.
   ChainBlock buffer_;
 
   // Invariants:
-  //   if `!buffer_.empty()` then `start_ == buffer_.data()`
+  //   if `!buffer_.empty()` then `start() == buffer_.data()`
   //   `buffer_size() == buffer_.size()`
 };
 

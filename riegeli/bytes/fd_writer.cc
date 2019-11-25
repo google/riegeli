@@ -106,7 +106,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
       FailOverflow();
       return;
     }
-    start_pos_ = *initial_pos;
+    set_start_pos(*initial_pos);
   } else {
     const off_t file_pos =
         lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
@@ -114,7 +114,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
       FailOperation("lseek()");
       return;
     }
-    start_pos_ = IntCast<Position>(file_pos);
+    set_start_pos(IntCast<Position>(file_pos));
   }
 }
 
@@ -122,7 +122,7 @@ bool FdWriterBase::SyncPos(int dest) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
   if (sync_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos_), SEEK_SET) <
+    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
                            0)) {
       return FailOperation("lseek()");
     }
@@ -142,7 +142,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
-                             start_pos_)) {
+                             start_pos())) {
     return FailOverflow();
   }
   do {
@@ -150,7 +150,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
     const ssize_t length_written = pwrite(
         dest, src.data(),
         UnsignedMin(src.size(), size_t{std::numeric_limits<ssize_t>::max()}),
-        IntCast<off_t>(start_pos_));
+        IntCast<off_t>(start_pos()));
     if (ABSL_PREDICT_FALSE(length_written < 0)) {
       if (errno == EINTR) goto again;
       return FailOperation("pwrite()");
@@ -158,7 +158,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
     RIEGELI_ASSERT_GT(length_written, 0) << "pwrite() returned 0";
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
         << "pwrite() wrote more than requested";
-    start_pos_ += IntCast<size_t>(length_written);
+    move_start_pos(IntCast<size_t>(length_written));
     src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
   return true;
@@ -183,13 +183,13 @@ bool FdWriterBase::Flush(FlushType flush_type) {
 }
 
 bool FdWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
-  if (new_pos >= start_pos_) {
+  if (new_pos >= start_pos()) {
     // Seeking forwards.
     const int dest = dest_fd();
     struct stat stat_info;
@@ -198,11 +198,11 @@ bool FdWriterBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      start_pos_ = IntCast<Position>(stat_info.st_size);
+      set_start_pos(IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
-  start_pos_ = new_pos;
+  set_start_pos(new_pos);
   return true;
 }
 
@@ -222,7 +222,7 @@ bool FdWriterBase::Truncate(Position new_size) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
   const int dest = dest_fd();
-  if (new_size >= start_pos_) {
+  if (new_size >= start_pos()) {
     // Seeking forwards.
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
@@ -230,7 +230,7 @@ bool FdWriterBase::Truncate(Position new_size) {
     }
     if (ABSL_PREDICT_FALSE(new_size > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      start_pos_ = IntCast<Position>(stat_info.st_size);
+      set_start_pos(IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
@@ -239,21 +239,21 @@ again:
     if (errno == EINTR) goto again;
     return FailOperation("ftruncate()");
   }
-  start_pos_ = new_size;
+  set_start_pos(new_size);
   return true;
 }
 
 void FdStreamWriterBase::InitializePos(int dest, int flags,
                                        absl::optional<Position> assumed_pos) {
   if (assumed_pos.has_value()) {
-    start_pos_ = *assumed_pos;
+    set_start_pos(*assumed_pos);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
       FailOperation("fstat()");
       return;
     }
-    start_pos_ = IntCast<Position>(stat_info.st_size);
+    set_start_pos(IntCast<Position>(stat_info.st_size));
   }
 }
 
@@ -268,7 +268,7 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
          "buffer not empty";
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   do {
@@ -283,7 +283,7 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
     RIEGELI_ASSERT_GT(length_written, 0) << "write() returned 0";
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
         << "write() wrote more than requested";
-    start_pos_ += IntCast<size_t>(length_written);
+    move_start_pos(IntCast<size_t>(length_written));
     src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
   return true;

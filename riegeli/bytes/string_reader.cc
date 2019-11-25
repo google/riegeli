@@ -29,20 +29,20 @@ bool StringReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool StringReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_EQ(start_pos(), 0u)
       << "Failed invariant of StringReader: non-zero position of buffer start";
   // Seeking forwards. Source ends.
-  cursor_ = limit_;
+  set_cursor(limit());
   return false;
 }
 
 bool StringReaderBase::Size(Position* size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *size = limit_pos_;
+  *size = limit_pos();
   return true;
 }
 

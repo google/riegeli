@@ -90,10 +90,10 @@ class LimitingReaderBase : public Reader {
   bool ReadInternal(Dest* dest, size_t length);
 
   // Invariants if `healthy()`:
-  //   `start_ == src_reader()->start_`
-  //   `limit_ <= src_reader()->limit_`
+  //   `start() == src_reader()->start()`
+  //   `limit() <= src_reader()->limit()`
   //   `start_pos() == src_reader()->start_pos()`
-  //   `limit_pos_ <= UnsignedMin(src_reader()->limit_pos_, size_limit_)`
+  //   `limit_pos() == UnsignedMin(src_reader()->limit_pos(), size_limit_)`
 };
 
 // A `Reader` which reads from another `Reader` up to the specified size limit,
@@ -222,25 +222,24 @@ inline void LimitingReaderBase::set_size_limit(Position size_limit) {
       << "Failed precondition of LimitingReaderBase::set_size_limit(): "
          "size limit smaller than current position";
   size_limit_ = size_limit;
-  if (limit_pos_ > size_limit_) {
-    limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
-    limit_pos_ = size_limit_;
+  if (limit_pos() > size_limit_) {
+    set_buffer(start(),
+               buffer_size() - IntCast<size_t>(limit_pos() - size_limit_),
+               read_from_buffer());
+    set_limit_pos(size_limit_);
   }
 }
 
 inline void LimitingReaderBase::SyncBuffer(Reader* src) {
-  src->set_cursor(cursor_);
+  src->set_cursor(cursor());
 }
 
 inline void LimitingReaderBase::MakeBuffer(Reader* src) {
-  start_ = src->start();
-  cursor_ = src->cursor();
-  limit_ = src->limit();
-  limit_pos_ = src->pos() + src->available();  // `src->limit_pos_`
-  if (limit_pos_ > size_limit_) {
-    limit_ -= IntCast<size_t>(limit_pos_ - size_limit_);
-    limit_pos_ = size_limit_;
-  }
+  set_buffer(src->start(),
+             UnsignedMin(src->buffer_size(),
+                         size_limit_ - (src->pos() - src->read_from_buffer())),
+             src->read_from_buffer());
+  set_limit_pos(src->pos() + available());
   if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
 }
 

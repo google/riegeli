@@ -148,23 +148,23 @@ class FileReaderBase : public Reader {
   size_t LengthToReadDirectly() const;
 
   // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
-  // position which is `limit_pos_`, to `*dest`.
+  // position which is `limit_pos()`, to `*dest`.
   //
   // Sets `*length_read` to the length read.
   //
-  // Increments `limit_pos_` by the length read.
+  // Increments `limit_pos()` by the length read.
   bool ReadToDest(char* dest, size_t length,
                   ::tensorflow::RandomAccessFile* src, size_t* length_read);
 
   // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
-  // position which is `limit_pos_`, preferably to `flat_buffer.data()`. Newly
+  // position which is `limit_pos()`, preferably to `flat_buffer.data()`. Newly
   // read data are adjacent to previously available data, if any.
   //
-  // Increments `limit_` and `limit_pos_` by the length read.
+  // Increments `limit()` and `limit_pos()` by the length read.
   //
   // Preconditions:
-  //   `start_ == buffer_.data()`
-  //   `limit_ == flat_buffer.data()`
+  //   `start() == buffer_.data()`
+  //   `limit() == flat_buffer.data()`
   bool ReadToBuffer(absl::Span<char> flat_buffer,
                     ::tensorflow::RandomAccessFile* src);
 
@@ -178,13 +178,13 @@ class FileReaderBase : public Reader {
   // Invariant: if `healthy()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // If `buffer_` is not empty, it contains buffered data, read directly before
-  // the physical source position which is `limit_pos_`. Otherwise buffered data
-  // are in memory managed by the `::tensorflow::RandomAccessFile`. In any case
-  // `start_` points to them.
+  // the physical source position which is `limit_pos()`. Otherwise buffered
+  // data are in memory managed by the `::tensorflow::RandomAccessFile`. In any
+  // case `start()` points to them.
   ChainBlock buffer_;
 
   // Invariants if `!buffer_.empty()`:
-  //   `start_ == buffer_.data()`
+  //   `start() == buffer_.data()`
   //   `buffer_size() == buffer_.size()`
 };
 

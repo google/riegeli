@@ -129,7 +129,7 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
         RIEGELI_ASSERT_EQ(decompressor_->avail_in, 0u)
             << "inflate() returned but there are still input data";
         if (ABSL_PREDICT_FALSE(!src->Pull())) {
-          limit_pos_ += length_read;
+          move_limit_pos(length_read);
           if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
           truncated_ = true;
           return false;
@@ -142,7 +142,7 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
         FailOperation(StatusCode::kDataLoss, "inflate()");
         break;
     }
-    limit_pos_ += length_read;
+    move_limit_pos(length_read);
     return length_read >= min_length;
   }
 }

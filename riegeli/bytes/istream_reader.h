@@ -108,7 +108,7 @@ class IstreamReaderBase : public BufferedReader {
 
   bool random_access_ = false;
 
-  // Invariant: `limit_pos_ <= std::numeric_limits<std::streamoff>::max()`
+  // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
 
 // A `Reader` which reads from a `std::istream`. It supports random access

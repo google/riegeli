@@ -89,9 +89,9 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteInternal(Src&& src);
 
   // Invariants if `healthy()`:
-  //   `start_ == dest_writer()->start_`
-  //   `limit_ == dest_writer()->limit_`
-  //   `start_pos_ == dest_writer()->start_pos_`
+  //   `start() == dest_writer()->start()`
+  //   `limit() == dest_writer()->limit()`
+  //   `start_pos() == dest_writer()->start_pos()`
 };
 
 // A `BackwardWriter` which writes to another `BackwardWriter` up to the
@@ -207,15 +207,13 @@ inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
 
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
   if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
-  dest->set_cursor(cursor_);
+  dest->set_cursor(cursor());
   return true;
 }
 
 inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
-  start_ = dest->start();
-  cursor_ = dest->cursor();
-  limit_ = dest->limit();
-  start_pos_ = dest->pos() - dest->written_to_buffer();  // `dest->start_pos_`
+  set_buffer(dest->limit(), dest->buffer_size(), dest->written_to_buffer());
+  set_start_pos(dest->pos() - written_to_buffer());
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 

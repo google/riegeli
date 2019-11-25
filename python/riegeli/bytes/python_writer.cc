@@ -49,7 +49,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
   Py_INCREF(dest);
   dest_.reset(dest);
   if (!random_access_) {
-    start_pos_ = *options.assumed_pos_;
+    set_start_pos(*options.assumed_pos_);
   } else {
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(
@@ -63,7 +63,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
       FailOperation("PositionFromPython() after tell()");
       return;
     }
-    start_pos_ = file_pos;
+    set_start_pos(file_pos);
   }
 }
 
@@ -101,7 +101,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   PythonLock lock;
@@ -208,7 +208,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
     if (ABSL_PREDICT_FALSE(length_written > src.size())) {
       return Fail(InternalError("write() wrote more than requested"));
     }
-    start_pos_ += length_written;
+    move_start_pos(length_written);
     src.remove_prefix(length_written);
   } while (!src.empty());
   return true;
@@ -235,7 +235,7 @@ bool PythonWriter::Flush(FlushType flush_type) {
 }
 
 bool PythonWriter::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!random_access_)) {
@@ -245,18 +245,18 @@ bool PythonWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
   PythonLock lock;
-  if (new_pos >= start_pos_) {
+  if (new_pos >= start_pos()) {
     // Seeking forwards.
     Position size;
     if (ABSL_PREDICT_FALSE(!SizeInternal(&size))) return false;
     if (ABSL_PREDICT_FALSE(new_pos > size)) {
       // File ends.
-      start_pos_ = size;
+      set_start_pos(size);
       return false;
     }
   }
-  start_pos_ = new_pos;
-  const PythonPtr file_pos = PositionToPython(start_pos_);
+  set_start_pos(new_pos);
+  const PythonPtr file_pos = PositionToPython(start_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
@@ -276,7 +276,7 @@ bool PythonWriter::Size(Position* size) {
   }
   PythonLock lock;
   if (ABSL_PREDICT_FALSE(!SizeInternal(size))) return false;
-  const PythonPtr file_pos = PositionToPython(start_pos_);
+  const PythonPtr file_pos = PositionToPython(start_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     return FailOperation("PositionToPython()");
   }
@@ -339,7 +339,7 @@ bool PythonWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!SizeInternal(&size))) return false;
   if (ABSL_PREDICT_FALSE(new_size > size)) {
     // File ends.
-    start_pos_ = size;
+    set_start_pos(size);
     return false;
   }
   {
@@ -354,7 +354,7 @@ bool PythonWriter::Truncate(Position new_size) {
       return FailOperation("seek()");
     }
   }
-  start_pos_ = IntCast<Position>(new_size);
+  set_start_pos(IntCast<Position>(new_size));
   static constexpr Identifier id_truncate("truncate");
   const PythonPtr truncate_result(
       PyObject_CallMethodObjArgs(dest_.get(), id_truncate.get(), nullptr));

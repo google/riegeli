@@ -67,7 +67,7 @@ class ChainReaderBase : public PullableReader {
 
   // Invariants if `healthy()` and scratch is not used:
   //   `iter_.chain() == src_chain()`
-  //   `start_ ==
+  //   `start() ==
   //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
   //   `buffer_size() ==
   //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())`
@@ -150,10 +150,8 @@ inline void ChainReaderBase::Initialize(const Chain* src) {
       << "Failed precondition of ChainReader: null Chain pointer";
   iter_ = src->blocks().cbegin();
   if (iter_ != src->blocks().cend()) {
-    start_ = iter_->data();
-    cursor_ = start_;
-    limit_ = start_ + iter_->size();
-    limit_pos_ += available();
+    set_buffer(iter_->data(), iter_->size());
+    move_limit_pos(available());
   }
 }
 
@@ -229,10 +227,8 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
     src_ = std::move(that.src_);
     if (iter_.chain() != nullptr) {
       iter_ = Chain::BlockIterator(src_.get(), block_index);
-      if (start_ != nullptr) {
-        start_ = iter_->data();
-        cursor_ = start_ + cursor_index;
-        limit_ = start_ + iter_->size();
+      if (start() != nullptr) {
+        set_buffer(iter_->data(), iter_->size(), cursor_index);
       }
     }
   }

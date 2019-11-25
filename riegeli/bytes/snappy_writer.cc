@@ -85,7 +85,7 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
           fragment.size() - fragment.size() % snappy::kBlockSize;
       if (in_whole_blocks > 0) {
         SyncBuffer();
-        start_pos_ += in_whole_blocks;
+        move_start_pos(in_whole_blocks);
         iter.AppendSubstrTo(fragment.substr(0, in_whole_blocks), &uncompressed_,
                             size_hint_);
         MakeBuffer();
@@ -103,11 +103,9 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
 bool SnappyWriterBase::Flush(FlushType flush_type) { return healthy(); }
 
 inline void SnappyWriterBase::SyncBuffer() {
-  start_pos_ = pos();
+  set_start_pos(pos());
   uncompressed_.RemoveSuffix(available());
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
 }
 
 inline void SnappyWriterBase::MakeBuffer(size_t min_length) {
@@ -119,9 +117,7 @@ inline void SnappyWriterBase::MakeBuffer(size_t min_length) {
   }
   const absl::Span<char> buffer =
       uncompressed_.AppendFixedBuffer(length, size_hint_);
-  start_ = buffer.data();
-  cursor_ = start_;
-  limit_ = start_ + buffer.size();
+  set_buffer(buffer.data(), buffer.size());
 }
 
 }  // namespace riegeli

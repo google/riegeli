@@ -65,7 +65,7 @@ class ArrayWriterBase : public PushableWriter {
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
-  // Invariant: if `healthy()` then `start_pos_ == 0`
+  // Invariant: if `healthy()` then `start_pos() == 0`
 };
 
 // A `Writer` which writes to a preallocated array with a known size limit.
@@ -142,9 +142,7 @@ inline void ArrayWriterBase::Reset(InitiallyOpen) {
 }
 
 inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
-  start_ = dest.data();
-  cursor_ = start_;
-  limit_ = start_ + dest.size();
+  set_buffer(dest.data(), dest.size());
 }
 
 template <typename Dest>
@@ -217,10 +215,8 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     const size_t cursor_index = written_to_buffer();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
-    if (start_ != nullptr) {
-      start_ = dest_.get().data();
-      cursor_ = start_ + cursor_index;
-      limit_ = start_ + dest_.get().size();
+    if (start() != nullptr) {
+      set_buffer(dest_.get().data(), dest_.get().size(), cursor_index);
     }
     if (written_.data() != nullptr) {
       written_ = absl::Span<char>(dest_.get().data(), written_size);

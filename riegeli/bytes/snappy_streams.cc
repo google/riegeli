@@ -42,7 +42,7 @@ void WriterSnappySink::Append(const char* src, size_t length) {
     RIEGELI_ASSERT_LE(length, dest_->available())
         << "Failed precondition of Sink::Append(): "
            "appending the result of GetAppendBuffer() with length too large";
-    dest_->set_cursor(dest_->cursor() + length);
+    dest_->move_cursor(length);
   } else {
     dest_->Write(absl::string_view(src, length));
   }

@@ -139,7 +139,7 @@ class FileWriterBase : public Writer {
 
   // Writes `src` to the destination.
   //
-  // Increments `start_pos_` by the length written.
+  // Increments `start_pos()` by the length written.
   //
   // Preconditions:
   //   `!src.empty()`

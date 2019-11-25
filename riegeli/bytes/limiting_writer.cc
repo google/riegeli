@@ -96,7 +96,7 @@ bool LimitingWriterBase::SupportsRandomAccess() const {
 }
 
 bool LimitingWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

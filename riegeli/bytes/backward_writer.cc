@@ -31,9 +31,7 @@
 namespace riegeli {
 
 bool BackwardWriter::Fail(Status status) {
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
   return Object::Fail(std::move(status));
 }
 
@@ -50,15 +48,15 @@ bool BackwardWriter::WriteSlow(absl::string_view src) {
     if (
         // `std::memcpy(nullptr, _, 0)` is undefined.
         available_length > 0) {
-      cursor_ -= available_length;
-      std::memcpy(cursor_, src.data() + src.size() - available_length,
+      move_cursor(available_length);
+      std::memcpy(cursor(), src.data() + src.size() - available_length,
                   available_length);
       src.remove_suffix(available_length);
     }
     if (ABSL_PREDICT_FALSE(!PushSlow(1, src.size()))) return false;
   } while (src.size() > available());
-  cursor_ -= src.size();
-  std::memcpy(cursor_, src.data(), src.size());
+  move_cursor(src.size());
+  std::memcpy(cursor(), src.data(), src.size());
   return true;
 }
 

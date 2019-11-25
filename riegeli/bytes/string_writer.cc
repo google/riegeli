@@ -131,23 +131,19 @@ bool StringWriterBase::Truncate(Position new_size) {
   RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
       << "StringWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
-  cursor_ = start_ + new_size;
+  set_cursor(start() + new_size);
   return true;
 }
 
 inline void StringWriterBase::SyncBuffer(std::string* dest) {
   dest->erase(written_to_buffer());
-  start_ = &(*dest)[0];
-  cursor_ = start_ + dest->size();
-  limit_ = cursor_;
+  set_buffer(&(*dest)[0], dest->size(), dest->size());
 }
 
 inline void StringWriterBase::MakeBuffer(std::string* dest) {
-  const size_t cursor_pos = dest->size();
+  const size_t cursor_index = dest->size();
   dest->resize(dest->capacity());
-  start_ = &(*dest)[0];
-  cursor_ = start_ + cursor_pos;
-  limit_ = start_ + dest->size();
+  set_buffer(&(*dest)[0], dest->size(), cursor_index);
 }
 
 }  // namespace riegeli

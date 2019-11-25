@@ -52,12 +52,10 @@ int WriterStreambuf::sync() {
 int WriterStreambuf::overflow(int ch) {
   if (ABSL_PREDICT_FALSE(!is_open())) return traits_type::eof();
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Push())) {
-    return traits_type::eof();
-  }
+  if (ABSL_PREDICT_FALSE(!dest_->Push())) return traits_type::eof();
   if (ch != traits_type::eof()) {
     *dest_->cursor() = traits_type::to_char_type(ch);
-    dest_->set_cursor(dest_->cursor() + 1);
+    dest_->move_cursor(1);
   }
   return traits_type::not_eof(ch);
 }

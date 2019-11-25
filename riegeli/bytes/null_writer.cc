@@ -44,7 +44,7 @@ bool NullWriter::WriteSlow(const Chain& src) {
     return FailOverflow();
   }
   SyncBuffer();
-  start_pos_ += src.size();
+  move_start_pos(src.size());
   return MakeBuffer();
 }
 
@@ -55,19 +55,19 @@ bool NullWriter::Flush(FlushType flush_type) {
 
 bool NullWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (new_size >= start_pos_) {
+  if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
-    cursor_ = start_ + (new_size - start_pos_);
+    set_cursor(start() + (new_size - start_pos()));
     return true;
   }
-  start_pos_ = new_size;
-  cursor_ = start_;
+  set_start_pos(new_size);
+  set_cursor(start());
   return true;
 }
 
 inline void NullWriter::SyncBuffer() {
-  start_pos_ = pos();
-  cursor_ = start_;
+  set_start_pos(pos());
+  set_cursor(start());
 }
 
 inline bool NullWriter::MakeBuffer(size_t min_length) {
@@ -76,11 +76,10 @@ inline bool NullWriter::MakeBuffer(size_t min_length) {
     return FailOverflow();
   }
   buffer_.Resize(UnsignedMax(kDefaultBufferSize, min_length));
-  start_ = buffer_.GetData();
-  cursor_ = start_;
-  limit_ =
-      start_ + UnsignedMin(buffer_.size(),
-                           std::numeric_limits<Position>::max() - start_pos_);
+  char* const buffer = buffer_.GetData();
+  set_buffer(buffer,
+             UnsignedMin(buffer_.size(),
+                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 

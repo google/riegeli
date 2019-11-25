@@ -66,19 +66,19 @@ class TeeReaderBase : public Reader {
   bool ReadSlow(Chain* dest, size_t length) override;
 
   // Sets cursor of `*src` to cursor of `*this`, writing what has been read from
-  // the buffer (until `cursor_`) to `*side_dest`. Fails `*this` and returns
+  // the buffer (until `cursor()`) to `*side_dest`. Fails `*this` and returns
   // `false` if `*side_dest` failed.
   bool SyncBuffer(Reader* src, Writer* side_dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `*src`, adjusting
-  // `start_` to hide data already written to `*side_dest`. Fails `*this` if
+  // `start()` to hide data already written to `*side_dest`. Fails `*this` if
   // `*src` failed.
   void MakeBuffer(Reader* src);
 
   // Invariants if `healthy()`:
-  //   `start_ == src_reader()->cursor()`
-  //   `limit_ == src_reader()->limit()`
-  //   `limit_pos_ == src_reader()->limit_pos_`
+  //   `start() == src_reader()->cursor()`
+  //   `limit() == src_reader()->limit()`
+  //   `limit_pos() == src_reader()->limit_pos()`
 };
 
 // A `Reader` which reads from another `Reader` and writes the same data to a
@@ -181,22 +181,20 @@ inline void TeeReaderBase::Initialize(Reader* src) {
 }
 
 inline bool TeeReaderBase::SyncBuffer(Reader* src, Writer* side_dest) {
-  RIEGELI_ASSERT(start_ == src->cursor())
+  RIEGELI_ASSERT(start() == src->cursor())
       << "Failed invariant of TeeReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (ABSL_PREDICT_FALSE(
-          !side_dest->Write(absl::string_view(start_, read_from_buffer())))) {
+          !side_dest->Write(absl::string_view(start(), read_from_buffer())))) {
     return Fail(*side_dest);
   }
-  src->set_cursor(cursor_);
+  src->set_cursor(cursor());
   return true;
 }
 
 inline void TeeReaderBase::MakeBuffer(Reader* src) {
-  start_ = src->cursor();
-  cursor_ = start_;
-  limit_ = src->limit();
-  limit_pos_ = src->pos() + src->available();  // `src->limit_pos_`
+  set_buffer(src->cursor(), src->available());
+  set_limit_pos(src->pos() + available());
   if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
 }
 

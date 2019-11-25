@@ -63,14 +63,14 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
       FailOverflow();
       return;
     }
-    start_pos_ = *assumed_pos;
+    set_start_pos(*assumed_pos);
   } else {
     const std::streamoff stream_pos = dest->tellp();
     if (ABSL_PREDICT_FALSE(stream_pos < 0)) {
       FailOperation("ostream::tellp()");
       return;
     }
-    start_pos_ = IntCast<Position>(stream_pos);
+    set_start_pos(IntCast<Position>(stream_pos));
   }
 }
 
@@ -86,7 +86,7 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   std::ostream* const dest = dest_stream();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<std::streamoff>::max()} -
-                             start_pos_)) {
+                             start_pos())) {
     return FailOverflow();
   }
   errno = 0;
@@ -97,7 +97,7 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
     if (ABSL_PREDICT_FALSE(dest->fail())) {
       return FailOperation("ostream::write()");
     }
-    start_pos_ += length_to_write;
+    move_start_pos(length_to_write);
     src.remove_prefix(length_to_write);
   } while (!src.empty());
   return true;
@@ -124,7 +124,7 @@ bool OstreamWriterBase::Flush(FlushType flush_type) {
 }
 
 bool OstreamWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos_ || new_pos > pos())
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!random_access_)) {
@@ -135,7 +135,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
       << "BufferedWriter::PushInternal() did not empty the buffer";
   std::ostream* const dest = dest_stream();
   errno = 0;
-  if (new_pos >= start_pos_) {
+  if (new_pos >= start_pos()) {
     // Seeking forwards.
     dest->seekp(0, std::ios_base::end);
     if (ABSL_PREDICT_FALSE(dest->fail())) {
@@ -147,7 +147,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stream_size))) {
       // Stream ends.
-      start_pos_ = IntCast<Position>(stream_size);
+      set_start_pos(IntCast<Position>(stream_size));
       return false;
     }
   }
@@ -155,7 +155,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     return FailOperation("ostream::seekp()");
   }
-  start_pos_ = new_pos;
+  set_start_pos(new_pos);
   return true;
 }
 
@@ -175,7 +175,7 @@ bool OstreamWriterBase::Size(Position* size) {
     return FailOperation("ostream::tellp()");
   }
   *size = UnsignedMax(IntCast<Position>(stream_size), pos());
-  dest->seekp(IntCast<std::streamoff>(start_pos_), std::ios_base::beg);
+  dest->seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     return FailOperation("ostream::seekp()");
   }

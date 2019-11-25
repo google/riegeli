@@ -30,8 +30,8 @@ inline size_t BufferedWriter::BufferLength(size_t min_length) const {
   RIEGELI_ASSERT_GT(buffer_size_, 0u)
       << "Failed invariant of BufferedWriter: no buffer size specified";
   size_t length = buffer_size_;
-  if (start_pos_ < size_hint_) {
-    length = UnsignedMin(length, size_hint_ - start_pos_);
+  if (start_pos() < size_hint_) {
+    length = UnsignedMin(length, size_hint_ - start_pos());
   }
   return UnsignedMax(length, min_length);
 }
@@ -50,9 +50,9 @@ inline size_t BufferedWriter::LengthToWriteDirectly() const {
   } else {
     // Write directly if writing through `buffer_` would need more than one
     // write, or if `buffer_` would be full.
-    if (start_pos_ < size_hint_) {
+    if (start_pos() < size_hint_) {
       // Write directly also if `size_hint_` is reached.
-      length = UnsignedMin(length, size_hint_ - start_pos_);
+      length = UnsignedMin(length, size_hint_ - start_pos());
     }
   }
   return length;
@@ -64,15 +64,14 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - start_pos_)) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   buffer_.Resize(BufferLength(min_length));
-  start_ = buffer_.GetData();
-  cursor_ = start_;
-  limit_ =
-      start_ + UnsignedMin(buffer_.size(),
-                           std::numeric_limits<Position>::max() - start_pos_);
+  char* const buffer = buffer_.GetData();
+  set_buffer(buffer,
+             UnsignedMin(buffer_.size(),
+                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 
@@ -80,8 +79,8 @@ bool BufferedWriter::PushInternal() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return true;
-  cursor_ = start_;
-  return WriteInternal(absl::string_view(start_, buffered_length));
+  set_cursor(start());
+  return WriteInternal(absl::string_view(start(), buffered_length));
 }
 
 bool BufferedWriter::WriteSlow(absl::string_view src) {

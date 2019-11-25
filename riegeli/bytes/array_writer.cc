@@ -26,7 +26,7 @@ namespace riegeli {
 void ArrayWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     if (ABSL_PREDICT_TRUE(SyncScratch())) {
-      written_ = absl::Span<char>(start_, written_to_buffer());
+      written_ = absl::Span<char>(start(), written_to_buffer());
     }
   }
   PushableWriter::Done();
@@ -45,7 +45,7 @@ bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 bool ArrayWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  written_ = absl::Span<char>(start_, written_to_buffer());
+  written_ = absl::Span<char>(start(), written_to_buffer());
   return true;
 }
 
@@ -53,7 +53,7 @@ bool ArrayWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
-  cursor_ = start_ + new_size;
+  set_cursor(start() + new_size);
   return true;
 }
 

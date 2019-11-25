@@ -130,8 +130,8 @@ class PullableReader : public Reader {
   struct Scratch {
     ChainBlock buffer;
     const char* original_start = nullptr;
-    const char* original_cursor = nullptr;
-    const char* original_limit = nullptr;
+    size_t original_buffer_size = 0;
+    size_t original_read_from_buffer = 0;
   };
 
   bool scratch_used() const;
@@ -149,7 +149,7 @@ class PullableReader : public Reader {
   std::unique_ptr<Scratch> scratch_;
 
   // Invariants if `scratch_used()`:
-  //   `start_ == scratch_->buffer.data()`
+  //   `start() == scratch_->buffer.data()`
   //   `buffer_size() == scratch_->buffer.size()`
 };
 
@@ -224,11 +224,9 @@ inline bool PullableReader::SeekUsingScratch(Position new_pos) {
 
 inline Position PullableReader::start_pos_after_scratch() const {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    const size_t last_scratch_fragment =
-        PtrDistance(scratch_->original_start, scratch_->original_cursor);
-    RIEGELI_ASSERT_GE(limit_pos_, last_scratch_fragment)
+    RIEGELI_ASSERT_GE(limit_pos(), scratch_->original_read_from_buffer)
         << "Failed invariant of Reader: negative position of buffer start";
-    return limit_pos_ - last_scratch_fragment;
+    return limit_pos() - scratch_->original_read_from_buffer;
   }
   return start_pos();
 }

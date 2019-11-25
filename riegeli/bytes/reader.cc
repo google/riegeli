@@ -56,15 +56,15 @@ bool Reader::ReadSlow(char* dest, size_t length) {
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
         available_length > 0) {
-      std::memcpy(dest, cursor_, available_length);
-      cursor_ += available_length;
+      std::memcpy(dest, cursor(), available_length);
+      move_cursor(available_length);
       dest += available_length;
       length -= available_length;
     }
     if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
   } while (length > available());
-  std::memcpy(dest, cursor_, length);
-  cursor_ += length;
+  std::memcpy(dest, cursor(), length);
+  move_cursor(length);
   return true;
 }
 
@@ -119,14 +119,14 @@ bool Reader::CopyToSlow(Writer* dest, Position length) {
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
   while (length > available()) {
-    const absl::string_view data(cursor_, available());
-    cursor_ += data.size();
+    const absl::string_view data(cursor(), available());
+    move_cursor(data.size());
     if (ABSL_PREDICT_FALSE(!dest->Write(data))) return false;
     length -= data.size();
     if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
   }
-  const absl::string_view data(cursor_, length);
-  cursor_ += length;
+  const absl::string_view data(cursor(), IntCast<size_t>(length));
+  move_cursor(IntCast<size_t>(length));
   return dest->Write(data);
 }
 
@@ -135,8 +135,8 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
   if (length <= available()) {
-    const absl::string_view data(cursor_, length);
-    cursor_ += length;
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
     return dest->Write(data);
   }
   if (length <= kMaxBytesToCopy) {
@@ -172,8 +172,8 @@ bool Reader::ReadAll(std::string* dest) {
                              dest->max_size() - dest->size())) {
         return Fail(ResourceExhaustedError("Destination size overflow"));
       }
-      dest->append(cursor_, available_length);
-      cursor_ += available_length;
+      dest->append(cursor(), available_length);
+      move_cursor(available_length);
     } while (PullSlow(1, 0));
     return healthy();
   }
@@ -241,21 +241,21 @@ bool Reader::CopyAllTo(BackwardWriter* dest) {
 }
 
 bool Reader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos_)) {
+  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
     return Fail(UnimplementedError("Reader::Seek() backwards not supported"));
   }
   // Seeking forwards.
   do {
-    cursor_ = limit_;
+    move_cursor(available());
     if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
-  } while (new_pos > limit_pos_);
-  const Position available_length = limit_pos_ - new_pos;
+  } while (new_pos > limit_pos());
+  const Position available_length = limit_pos() - new_pos;
   RIEGELI_ASSERT_LE(available_length, buffer_size())
       << "Reader::PullSlow() skipped some data";
-  cursor_ = limit_ - available_length;
+  set_cursor(limit() - available_length);
   return true;
 }
 

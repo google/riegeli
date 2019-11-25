@@ -88,8 +88,8 @@ void BrotliWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
     const size_t buffered_length = written_to_buffer();
-    cursor_ = start_;
-    WriteInternal(absl::string_view(start_, buffered_length), dest,
+    set_cursor(start());
+    WriteInternal(absl::string_view(start(), buffered_length), dest,
                   BROTLI_OPERATION_FINISH);
   }
   compressor_.reset();
@@ -138,7 +138,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
         return Fail(*dest);
       }
     } else if (available_in == 0) {
-      start_pos_ += src.size();
+      move_start_pos(src.size());
       return true;
     }
   }
@@ -148,9 +148,9 @@ bool BrotliWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   const size_t buffered_length = written_to_buffer();
-  cursor_ = start_;
+  set_cursor(start());
   if (ABSL_PREDICT_FALSE(
-          !WriteInternal(absl::string_view(start_, buffered_length), dest,
+          !WriteInternal(absl::string_view(start(), buffered_length), dest,
                          BROTLI_OPERATION_FLUSH))) {
     return false;
   }

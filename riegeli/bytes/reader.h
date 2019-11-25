@@ -86,7 +86,13 @@ class Reader : public Object {
   const char* cursor() const { return cursor_; }
   const char* limit() const { return limit_; }
 
-  // Updates the value of `cursor()`. Call this during reading data under
+  // Increments the value of `cursor()`. Call this during reading data under
+  // `cursor()` to indicate how much was read.
+  //
+  // Precondition: `length <= available()`
+  void move_cursor(size_t length);
+
+  // Sets the value of `cursor()`. Call this during reading data under
   // `cursor()` to indicate how much was read, or to seek within the buffer.
   //
   // Precondition: `start() <= cursor <= limit()`
@@ -244,7 +250,7 @@ class Reader : public Object {
   // Marks the `Reader` as failed with message "Reader position overflow".
   // Always returns `false`.
   //
-  // This can be called if `limit_pos_` would overflow.
+  // This can be called if `limit_pos()` would overflow.
   //
   // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
@@ -253,6 +259,17 @@ class Reader : public Object {
   //
   // Precondition: `min_length > available()`
   virtual bool PullSlow(size_t min_length, size_t recommended_length) = 0;
+
+  // Sets the values of:
+  //  * `start()` - to `start`
+  //  * `cursor()` - to `start + read_from_buffer`
+  //  * `limit()` - to `start + buffer_size`
+  //
+  // Preconditions:
+  //   [`start`, `start + buffer_size`) is a valid byte range
+  //   `read_from_buffer <= buffer_size`
+  void set_buffer(const char* start = nullptr, size_t buffer_size = 0,
+                  size_t read_from_buffer = 0);
 
   // Implementations of the slow part of `Read()` and `CopyTo()`.
   //
@@ -278,14 +295,24 @@ class Reader : public Object {
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
 
-  // Implementation of the slow part of `Seek()` and `Skip()`.
-  //
-  // Precondition: `new_pos < start_pos() || new_pos > limit_pos_`
-  virtual bool SeekSlow(Position new_pos);
-
-  // Source position corresponding to `start_`.
+  // Source position corresponding to `start()`.
   Position start_pos() const;
 
+  // Source position corresponding to `limit()`.
+  Position limit_pos() const { return limit_pos_; }
+
+  // Increments the value of `limit_pos()`.
+  void move_limit_pos(Position length);
+
+  // Sets the value of `limit_pos()`.
+  void set_limit_pos(Position limit_pos);
+
+  // Implementation of the slow part of `Seek()` and `Skip()`.
+  //
+  // Precondition: `new_pos < start_pos() || new_pos > limit_pos()`
+  virtual bool SeekSlow(Position new_pos);
+
+  // TODO: private:
   const char* start_ = nullptr;
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
@@ -348,6 +375,12 @@ inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+inline void Reader::move_cursor(size_t length) {
+  RIEGELI_ASSERT_LE(length, available())
+      << "Failed precondition of Reader::move_cursor(): length out of range";
+  cursor_ += length;
+}
+
 inline void Reader::set_cursor(const char* cursor) {
   RIEGELI_ASSERT(cursor >= start())
       << "Failed precondition of Reader::set_cursor(): pointer out of range";
@@ -356,13 +389,22 @@ inline void Reader::set_cursor(const char* cursor) {
   cursor_ = cursor;
 }
 
+inline void Reader::set_buffer(const char* start, size_t buffer_size,
+                               size_t read_from_buffer) {
+  RIEGELI_ASSERT_LE(read_from_buffer, buffer_size)
+      << "Failed precondition of Reader::set_buffer(): length out of range";
+  start_ = start;
+  cursor_ = start + read_from_buffer;
+  limit_ = start + buffer_size;
+}
+
 inline bool Reader::Read(char* dest, size_t length) {
   if (ABSL_PREDICT_TRUE(length <= available())) {
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
     // undefined.
     if (ABSL_PREDICT_TRUE(length > 0)) {
-      std::memcpy(dest, cursor_, length);
-      cursor_ += length;
+      std::memcpy(dest, cursor(), length);
+      move_cursor(length);
     }
     return true;
   }
@@ -373,8 +415,8 @@ inline bool Reader::Read(std::string* dest, size_t length) {
   RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
       << "Failed precondition of Reader::Read(string*): string size overflow";
   if (ABSL_PREDICT_TRUE(length <= available())) {
-    dest->append(cursor_, length);
-    cursor_ += length;
+    dest->append(cursor(), length);
+    move_cursor(length);
     return true;
   }
   return ReadSlow(dest, length);
@@ -383,8 +425,8 @@ inline bool Reader::Read(std::string* dest, size_t length) {
 inline bool Reader::Read(absl::string_view* dest, size_t length) {
   const bool ok = Pull(length);
   if (ABSL_PREDICT_FALSE(!ok)) length = available();
-  *dest = absl::string_view(cursor_, length);
-  cursor_ += length;
+  *dest = absl::string_view(cursor(), length);
+  move_cursor(length);
   return ok;
 }
 
@@ -392,8 +434,8 @@ inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
-    dest->Append(absl::string_view(cursor_, length));
-    cursor_ += length;
+    dest->Append(absl::string_view(cursor(), length));
+    move_cursor(length);
     return true;
   }
   return ReadSlow(dest, length);
@@ -401,8 +443,8 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 
 inline bool Reader::CopyTo(Writer* dest, Position length) {
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
-    const absl::string_view data(cursor_, IntCast<size_t>(length));
-    cursor_ += length;
+    const absl::string_view data(cursor(), IntCast<size_t>(length));
+    move_cursor(IntCast<size_t>(length));
     return dest->Write(data);
   }
   return CopyToSlow(dest, length);
@@ -410,8 +452,8 @@ inline bool Reader::CopyTo(Writer* dest, Position length) {
 
 inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
-    const absl::string_view data(cursor_, length);
-    cursor_ += length;
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
     return dest->Write(data);
   }
   return CopyToSlow(dest, length);
@@ -429,9 +471,20 @@ inline Position Reader::start_pos() const {
   return limit_pos_ - buffer_size();
 }
 
+inline void Reader::move_limit_pos(Position length) {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - limit_pos_)
+      << "Failed precondition of Reader::move_limit_pos(): "
+         "position out of range";
+  limit_pos_ += length;
+}
+
+inline void Reader::set_limit_pos(Position limit_pos) {
+  limit_pos_ = limit_pos;
+}
+
 inline bool Reader::Seek(Position new_pos) {
-  if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= limit_pos_)) {
-    cursor_ = limit_ - (limit_pos_ - new_pos);
+  if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= limit_pos())) {
+    set_cursor(limit() - (limit_pos() - new_pos));
     return true;
   }
   return SeekSlow(new_pos);
@@ -439,7 +492,7 @@ inline bool Reader::Seek(Position new_pos) {
 
 inline bool Reader::Skip(Position length) {
   if (ABSL_PREDICT_TRUE(length <= available())) {
-    cursor_ += length;
+    move_cursor(IntCast<size_t>(length));
     return true;
   }
   if (ABSL_PREDICT_FALSE(length >

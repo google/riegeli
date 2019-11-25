@@ -1011,7 +1011,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {  \
       return Fail(*dest);                                             \
     }                                                                 \
-    dest->set_cursor(dest->cursor() - (tag_length + data_length));    \
+    dest->move_cursor(tag_length + data_length);                      \
     char* const buffer = dest->cursor();                              \
     if (ABSL_PREDICT_FALSE(                                           \
             !node->buffer->Read(buffer + tag_length, data_length))) { \
@@ -1030,7 +1030,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {           \
       return Fail(*dest);                                                      \
     }                                                                          \
-    dest->set_cursor(dest->cursor() - (tag_length + data_length));             \
+    dest->move_cursor(tag_length + data_length);                               \
     char* const buffer = dest->cursor();                                       \
     if (ABSL_PREDICT_FALSE(                                                    \
             !node->buffer->Read(buffer + tag_length, data_length))) {          \
@@ -1045,7 +1045,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) { \
       return Fail(*dest);                                            \
     }                                                                \
-    dest->set_cursor(dest->cursor() - (tag_length + data_length));   \
+    dest->move_cursor(tag_length + data_length);                     \
     char* const buffer = dest->cursor();                             \
     std::memset(buffer + tag_length, '\0', data_length);             \
     std::memcpy(buffer, node->tag_data.data, tag_length);            \
@@ -1059,7 +1059,6 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     const char* cursor = node->buffer->cursor();                              \
     if (ABSL_PREDICT_FALSE(                                                   \
             !ReadVarint32(&cursor, node->buffer->limit(), &length))) {        \
-      node->buffer->set_cursor(cursor);                                       \
       return Fail(DataLossError("Reading string length failed"));             \
     }                                                                         \
     const size_t length_length = PtrDistance(node->buffer->cursor(), cursor); \

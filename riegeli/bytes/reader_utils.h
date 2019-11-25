@@ -62,9 +62,8 @@ char* CopyVarint64(const char** src, const char* limit, char* dest);
 
 inline bool ReadByte(Reader* src, uint8_t* data) {
   if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-  const char* cursor = src->cursor();
-  *data = static_cast<uint8_t>(*cursor++);
-  src->set_cursor(cursor);
+  *data = static_cast<uint8_t>(*src->cursor());
+  src->move_cursor(1);
   return true;
 }
 
@@ -97,7 +96,7 @@ inline bool ReadCanonicalVarint32(Reader* src, uint32_t* data) {
     // Any byte with the highest bit clear is accepted as the only byte,
     // including 0 itself.
     *data = first_byte;
-    src->set_cursor(++cursor);
+    src->move_cursor(size_t{1});
     return true;
   }
   if (ABSL_PREDICT_FALSE(!ReadVarint32(&cursor, src->limit(), data))) {
@@ -117,7 +116,7 @@ inline bool ReadCanonicalVarint64(Reader* src, uint64_t* data) {
     // Any byte with the highest bit clear is accepted as the only byte,
     // including 0 itself.
     *data = first_byte;
-    src->set_cursor(++cursor);
+    src->move_cursor(size_t{1});
     return true;
   }
   if (ABSL_PREDICT_FALSE(!ReadVarint64(&cursor, src->limit(), data))) {

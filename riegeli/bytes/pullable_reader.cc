@@ -34,10 +34,9 @@ inline bool PullableReader::ScratchEnds() {
       << "Failed precondition of PullableReader::ScratchEnds(): "
          "scratch not used";
   const size_t available_length = available();
-  if (PtrDistance(scratch_->original_start, scratch_->original_cursor) >=
-      available_length) {
+  if (scratch_->original_read_from_buffer >= available_length) {
     SyncScratchSlow();
-    cursor_ -= available_length;
+    set_cursor(cursor() - available_length);
     return true;
   }
   return false;
@@ -61,10 +60,9 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
       // Scratch is used but it does have enough data after the cursor.
       new_scratch->buffer.RemovePrefix(read_from_buffer(), min_length);
       min_length -= new_scratch->buffer.size();
-      start_ = new_scratch->original_start;
-      cursor_ = new_scratch->original_cursor;
-      limit_ = new_scratch->original_limit;
-      limit_pos_ += available();
+      set_buffer(new_scratch->original_start, new_scratch->original_buffer_size,
+                 new_scratch->original_read_from_buffer);
+      move_limit_pos(available());
     }
   }
   const absl::Span<char> flat_buffer =
@@ -79,14 +77,12 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
     new_scratch->buffer.RemoveSuffix(flat_buffer.size() -
                                      IntCast<size_t>(length_read));
   }
-  limit_pos_ -= available();
-  new_scratch->original_start = start_;
-  new_scratch->original_cursor = cursor_;
-  new_scratch->original_limit = limit_;
+  set_limit_pos(pos());
+  new_scratch->original_start = start();
+  new_scratch->original_buffer_size = buffer_size();
+  new_scratch->original_read_from_buffer = read_from_buffer();
   scratch_ = std::move(new_scratch);
-  start_ = scratch_->buffer.data();
-  cursor_ = start_;
-  limit_ = start_ + scratch_->buffer.size();
+  set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
 }
 
 bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
@@ -95,10 +91,10 @@ bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
          "scratch not used";
   if (ScratchEnds()) return true;
   const size_t length_to_read = UnsignedMin(*length, available());
-  scratch_->buffer.AppendSubstrTo(absl::string_view(cursor_, length_to_read),
+  scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
                                   dest);
   *length -= length_to_read;
-  cursor_ += length_to_read;
+  move_cursor(length_to_read);
   if (available() == 0) {
     SyncScratchSlow();
     return true;
@@ -116,15 +112,15 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
   if (length_to_copy == scratch_->buffer.size()) {
     ok = dest->Write(Chain(scratch_->buffer));
   } else if (length_to_copy <= kMaxBytesToCopy) {
-    ok = dest->Write(absl::string_view(cursor_, length_to_copy));
+    ok = dest->Write(absl::string_view(cursor(), length_to_copy));
   } else {
     Chain data;
-    scratch_->buffer.AppendSubstrTo(absl::string_view(cursor_, length_to_copy),
+    scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_copy),
                                     &data);
     ok = dest->Write(std::move(data));
   }
   *length -= length_to_copy;
-  cursor_ += length_to_copy;
+  move_cursor(length_to_copy);
   if (available() == 0) {
     SyncScratchSlow();
     return ok;
@@ -134,49 +130,47 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
 
 bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
   SyncScratchSlow();
-  if (new_pos >= start_pos() && new_pos <= limit_pos_) {
-    cursor_ = limit_ - (limit_pos_ - new_pos);
+  if (new_pos >= start_pos() && new_pos <= limit_pos()) {
+    set_cursor(limit() - (limit_pos() - new_pos));
     return false;
   }
   return true;
 }
 
 void PullableReader::SyncScratchSlow() {
-  RIEGELI_ASSERT(start_ == scratch_->buffer.data())
+  RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   scratch_->buffer.Clear();
-  start_ = scratch_->original_start;
-  cursor_ = scratch_->original_cursor;
-  limit_ = scratch_->original_limit;
-  limit_pos_ += available();
+  set_buffer(scratch_->original_start, scratch_->original_buffer_size,
+             scratch_->original_read_from_buffer);
+  move_limit_pos(available());
 }
 
 void PullableReader::BehindScratch::Enter() {
-  RIEGELI_ASSERT(context_->start_ == context_->scratch_->buffer.data())
+  RIEGELI_ASSERT(context_->start() == context_->scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   read_from_scratch_ = context_->read_from_buffer();
-  context_->start_ = context_->scratch_->original_start;
-  context_->cursor_ = context_->scratch_->original_cursor;
-  context_->limit_ = context_->scratch_->original_limit;
-  context_->limit_pos_ += context_->available();
+  context_->set_buffer(context_->scratch_->original_start,
+                       context_->scratch_->original_buffer_size,
+                       context_->scratch_->original_read_from_buffer);
+  context_->move_limit_pos(context_->available());
 }
 
 void PullableReader::BehindScratch::Leave() {
-  context_->limit_pos_ -= context_->available();
-  context_->scratch_->original_start = context_->start_;
-  context_->scratch_->original_cursor = context_->cursor_;
-  context_->scratch_->original_limit = context_->limit_;
-  context_->start_ = context_->scratch_->buffer.data();
-  context_->cursor_ = context_->start_ + read_from_scratch_;
-  context_->limit_ = context_->start_ + context_->scratch_->buffer.size();
+  context_->set_limit_pos(context_->pos());
+  context_->scratch_->original_start = context_->start();
+  context_->scratch_->original_buffer_size = context_->buffer_size();
+  context_->scratch_->original_read_from_buffer = context_->read_from_buffer();
+  context_->set_buffer(context_->scratch_->buffer.data(),
+                       context_->scratch_->buffer.size(), read_from_scratch_);
 }
 
 }  // namespace riegeli

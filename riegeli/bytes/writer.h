@@ -75,7 +75,13 @@ class Writer : public Object {
   char* cursor() const { return cursor_; }
   char* limit() const { return limit_; }
 
-  // Updates the value of `cursor()`. Call this during writing data under
+  // Increments the value of `cursor()`. Call this during writing data under
+  // `cursor()` to indicate how much was written.
+  //
+  // Precondition: `length <= available()`
+  void move_cursor(size_t length);
+
+  // Sets the value of `cursor()`. Call this during writing data under
   // `cursor()` to indicate how much was written, or to seek within the buffer.
   //
   // Preconditions: `start() <= cursor <= limit()`
@@ -210,7 +216,7 @@ class Writer : public Object {
   // Always returns `false`.
   //
   // This can be called if the destination would exceed its maximum possible
-  // size or if `start_pos_` would overflow.
+  // size or if `start_pos()` would overflow.
   //
   // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
@@ -219,6 +225,17 @@ class Writer : public Object {
   //
   // Precondition: `min_length > available()`
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
+
+  // Sets the values of:
+  //  * `start()` - to `start`
+  //  * `cursor()` - to `start + written_to_buffer`
+  //  * `limit()` - to `start + buffer_size`
+  //
+  // Preconditions:
+  //   [`start`, `start + buffer_size`) is a valid byte range
+  //   `written_to_buffer <= buffer_size`
+  void set_buffer(char* start = nullptr, size_t buffer_size = 0,
+                  size_t written_to_buffer = 0);
 
   // Implementation of the slow part of `Write()`.
   //
@@ -236,14 +253,24 @@ class Writer : public Object {
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
 
-  // Implementation of the slow part of `Seek()`.
-  //
-  // Precondition: `new_pos < start_pos_ || new_pos > pos()`
-  virtual bool SeekSlow(Position new_pos);
+  // Destination position corresponding to `start()`.
+  Position start_pos() const { return start_pos_; }
 
-  // Destination position corresponding to `limit_`.
+  // Destination position corresponding to `limit()`.
   Position limit_pos() const;
 
+  // Increments the value of `start_pos()`.
+  void move_start_pos(Position length);
+
+  // Sets the value of `start_pos()`.
+  void set_start_pos(Position start_pos);
+
+  // Implementation of the slow part of `Seek()`.
+  //
+  // Precondition: `new_pos < start_pos() || new_pos > pos()`
+  virtual bool SeekSlow(Position new_pos);
+
+  // TODO: private:
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
@@ -307,6 +334,12 @@ inline bool Writer::Push(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+inline void Writer::move_cursor(size_t length) {
+  RIEGELI_ASSERT_LE(length, available())
+      << "Failed precondition of Writer::move_cursor(): length out of range";
+  cursor_ += length;
+}
+
 inline void Writer::set_cursor(char* cursor) {
   RIEGELI_ASSERT(cursor >= start())
       << "Failed precondition of Writer::set_cursor(): pointer out of range";
@@ -315,14 +348,23 @@ inline void Writer::set_cursor(char* cursor) {
   cursor_ = cursor;
 }
 
+inline void Writer::set_buffer(char* start, size_t buffer_size,
+                               size_t written_to_buffer) {
+  RIEGELI_ASSERT_LE(written_to_buffer, buffer_size)
+      << "Failed precondition of Writer::set_buffer(): length out of range";
+  start_ = start;
+  cursor_ = start + written_to_buffer;
+  limit_ = start + buffer_size;
+}
+
 inline bool Writer::Write(absl::string_view src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
             // are undefined.
             !src.empty())) {
-      std::memcpy(cursor_, src.data(), src.size());
-      cursor_ += src.size();
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
     }
     return true;
   }
@@ -335,8 +377,8 @@ inline bool Writer::Write(std::string&& src) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` is undefined.
             !src.empty())) {
-      std::memcpy(cursor_, src.data(), src.size());
-      cursor_ += src.size();
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
     }
     return true;
   }
@@ -350,8 +392,8 @@ inline bool Writer::Write(const char* src) {
 inline bool Writer::Write(const Chain& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
                         src.size() <= kMaxBytesToCopy)) {
-    src.CopyTo(cursor_);
-    cursor_ += src.size();
+    src.CopyTo(cursor());
+    move_cursor(src.size());
     return true;
   }
   return WriteSlow(src);
@@ -360,8 +402,8 @@ inline bool Writer::Write(const Chain& src) {
 inline bool Writer::Write(Chain&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= available() &&
                         src.size() <= kMaxBytesToCopy)) {
-    src.CopyTo(cursor_);
-    cursor_ += src.size();
+    src.CopyTo(cursor());
+    move_cursor(src.size());
     return true;
   }
   return WriteSlow(std::move(src));
@@ -381,9 +423,20 @@ inline Position Writer::limit_pos() const {
   return start_pos_ + buffer_size();
 }
 
+inline void Writer::move_start_pos(Position length) {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - start_pos_)
+      << "Failed precondition of Writer::move_start_pos(): "
+         "position out of range";
+  start_pos_ += length;
+}
+
+inline void Writer::set_start_pos(Position start_pos) {
+  start_pos_ = start_pos;
+}
+
 inline bool Writer::Seek(Position new_pos) {
-  if (ABSL_PREDICT_TRUE(new_pos >= start_pos_ && new_pos <= pos())) {
-    cursor_ = start_ + (new_pos - start_pos_);
+  if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= pos())) {
+    set_cursor(start() + (new_pos - start_pos()));
     return true;
   }
   return SeekSlow(new_pos);

@@ -53,9 +53,8 @@ bool WriteZerosSlow(Writer* dest, Position length);
 
 inline bool WriteByte(Writer* dest, uint8_t data) {
   if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
-  char* cursor = dest->cursor();
-  *cursor++ = static_cast<char>(data);
-  dest->set_cursor(cursor);
+  *dest->cursor() = static_cast<char>(data);
+  dest->move_cursor(1);
   return true;
 }
 
@@ -131,8 +130,8 @@ inline bool WriteZeros(Writer* dest, Position length) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
             length > 0)) {
-      std::memset(dest->cursor(), 0, length);
-      dest->set_cursor(dest->cursor() + length);
+      std::memset(dest->cursor(), 0, IntCast<size_t>(length));
+      dest->move_cursor(IntCast<size_t>(length));
     }
     return true;
   }

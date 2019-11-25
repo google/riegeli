@@ -77,26 +77,25 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
-  if (ABSL_PREDICT_FALSE(start_pos_ == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
   size_t length = snappy::kBlockSize;
-  if (start_pos_ < size_hint_) {
-    length = UnsignedMin(length, size_hint_ - start_pos_);
+  if (start_pos() < size_hint_) {
+    length = UnsignedMin(length, size_hint_ - start_pos());
   }
   uncompressed_.Resize(length);
-  start_ = uncompressed_.GetData();
-  cursor_ = start_;
-  limit_ = start_ + UnsignedMin(length, std::numeric_limits<Position>::max() -
-                                            start_pos_);
+  set_buffer(
+      uncompressed_.GetData(),
+      UnsignedMin(length, std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 
 inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
   const size_t uncompressed_length = written_to_buffer();
   if (uncompressed_length == 0) return true;
-  cursor_ = start_;
-  const char* const uncompressed_data = cursor_;
+  set_cursor(start());
+  const char* const uncompressed_data = cursor();
   struct {
     uint32_t chunk_header, checksum;
   } header;
@@ -123,8 +122,8 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
   header.checksum = WriteLittleEndian32(
       MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)));
   std::memcpy(compressed_chunk, &header, sizeof(header));
-  dest->set_cursor(compressed_chunk + sizeof(header) + compressed_length);
-  start_pos_ += uncompressed_length;
+  dest->move_cursor(sizeof(header) + compressed_length);
+  move_start_pos(uncompressed_length);
   return true;
 }
 

@@ -35,13 +35,13 @@ bool WriteZerosSlow(Writer* dest, Position length) {
         // `std::memset(nullptr, _, 0)` is undefined.
         available_length > 0) {
       std::memset(dest->cursor(), 0, available_length);
-      dest->set_cursor(dest->limit());
+      dest->move_cursor(available_length);
       length -= available_length;
     }
     if (ABSL_PREDICT_FALSE(!dest->Push(1, length))) return false;
   } while (length > dest->available());
-  std::memset(dest->cursor(), 0, length);
-  dest->set_cursor(dest->cursor() + length);
+  std::memset(dest->cursor(), 0, IntCast<size_t>(length));
+  dest->move_cursor(IntCast<size_t>(length));
   return true;
 }
 

@@ -67,14 +67,14 @@ void IstreamReaderBase::Initialize(std::istream* src,
       FailOverflow();
       return;
     }
-    limit_pos_ = *assumed_pos;
+    set_limit_pos(*assumed_pos);
   } else {
     const std::streamoff stream_pos = src->tellg();
     if (ABSL_PREDICT_FALSE(stream_pos < 0)) {
       FailOperation("istream::tellg()");
       return;
     }
-    limit_pos_ = IntCast<Position>(stream_pos);
+    set_limit_pos(IntCast<Position>(stream_pos));
   }
 }
 
@@ -101,7 +101,7 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
   std::istream* const src = src_stream();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<std::streamoff>::max()} -
-                             limit_pos_)) {
+                             limit_pos())) {
     return FailOverflow();
   }
   errno = 0;
@@ -143,7 +143,7 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
       RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
           << "istream::readsome() read more than requested";
     }
-    limit_pos_ += IntCast<size_t>(length_read);
+    move_limit_pos(IntCast<size_t>(length_read));
     if (ABSL_PREDICT_FALSE(src->fail())) {
       if (ABSL_PREDICT_FALSE(src->bad())) {
         FailOperation("istream::read()");
@@ -165,7 +165,7 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
 }
 
 bool IstreamReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos_)
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -175,7 +175,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
   ClearBuffer();
   std::istream* const src = src_stream();
   errno = 0;
-  if (new_pos >= limit_pos_) {
+  if (new_pos >= limit_pos()) {
     // Seeking forwards.
     src->seekg(0, std::ios_base::end);
     if (ABSL_PREDICT_FALSE(src->fail())) {
@@ -187,7 +187,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stream_size))) {
       // Stream ends.
-      limit_pos_ = IntCast<Position>(stream_size);
+      set_limit_pos(IntCast<Position>(stream_size));
       return false;
     }
   }
@@ -195,7 +195,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
   if (ABSL_PREDICT_FALSE(src->fail())) {
     return FailOperation("istream::seekg()");
   }
-  limit_pos_ = new_pos;
+  set_limit_pos(new_pos);
   return true;
 }
 
@@ -215,7 +215,7 @@ bool IstreamReaderBase::Size(Position* size) {
     return FailOperation("istream::tellg()");
   }
   *size = IntCast<Position>(stream_size);
-  src->seekg(IntCast<std::streamoff>(limit_pos_), std::ios_base::beg);
+  src->seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(src->fail())) {
     return FailOperation("istream::seekg()");
   }
