@@ -150,9 +150,9 @@ class Reader : public Object {
   //                                                      `length` bytes copied)
   //  * `false` (when `!dest->healthy() || !healthy()`) - failure (less than
   //                                                      `length` bytes copied)
+  bool Read(absl::string_view* dest, size_t length);
   bool Read(char* dest, size_t length);
   bool Read(std::string* dest, size_t length);
-  bool Read(absl::string_view* dest, size_t length);
   bool Read(Chain* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
@@ -398,6 +398,14 @@ inline void Reader::set_buffer(const char* start, size_t buffer_size,
   limit_ = start + buffer_size;
 }
 
+inline bool Reader::Read(absl::string_view* dest, size_t length) {
+  const bool ok = Pull(length);
+  if (ABSL_PREDICT_FALSE(!ok)) length = available();
+  *dest = absl::string_view(cursor(), length);
+  move_cursor(length);
+  return ok;
+}
+
 inline bool Reader::Read(char* dest, size_t length) {
   if (ABSL_PREDICT_TRUE(length <= available())) {
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
@@ -420,14 +428,6 @@ inline bool Reader::Read(std::string* dest, size_t length) {
     return true;
   }
   return ReadSlow(dest, length);
-}
-
-inline bool Reader::Read(absl::string_view* dest, size_t length) {
-  const bool ok = Pull(length);
-  if (ABSL_PREDICT_FALSE(!ok)) length = available();
-  *dest = absl::string_view(cursor(), length);
-  move_cursor(length);
-  return ok;
 }
 
 inline bool Reader::Read(Chain* dest, size_t length) {
