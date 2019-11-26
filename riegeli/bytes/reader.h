@@ -312,7 +312,7 @@ class Reader : public Object {
   // Precondition: `new_pos < start_pos() || new_pos > limit_pos()`
   virtual bool SeekSlow(Position new_pos);
 
-  // TODO: private:
+ private:
   const char* start_ = nullptr;
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;

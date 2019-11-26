@@ -270,7 +270,7 @@ class Writer : public Object {
   // Precondition: `new_pos < start_pos() || new_pos > pos()`
   virtual bool SeekSlow(Position new_pos);
 
-  // TODO: private:
+ private:
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;

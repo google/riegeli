@@ -89,10 +89,7 @@ class PullableReader : public Reader {
   //              the caller should return `available() >= min_length`
   //
   // Precondition: `min_length > available()`
-  //
-  // TODO: Remove the default value of `recommended_length` after
-  // callers are updated.
-  bool PullUsingScratch(size_t min_length, size_t recommended_length = 0);
+  bool PullUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `{Read,CopyTo}Slow(dest, *length)` if scratch is used.
   //

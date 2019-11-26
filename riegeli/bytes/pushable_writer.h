@@ -86,10 +86,7 @@ class PushableWriter : public Writer {
   //              the caller should return `available() >= min_length`
   //
   // Precondition: `min_length > available()`
-  //
-  // TODO: Remove the default value of `recommended_length` after
-  // callers are updated.
-  bool PushUsingScratch(size_t min_length, size_t recommended_length = 0);
+  bool PushUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
   // `Truncate()` if scratch is used, in terms of `Write(absl::string_view)` and

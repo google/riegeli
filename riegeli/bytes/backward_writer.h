@@ -234,7 +234,7 @@ class BackwardWriter : public Object {
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
 
-  // TODO: private:
+ private:
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
