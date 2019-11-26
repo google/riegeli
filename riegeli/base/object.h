@@ -89,14 +89,14 @@ class Object {
   //
   // Closes owned dependencies.
   //
-  // Returns true if the `Object` did not fail, i.e. if it was healthy just
+  // Returns `true` if the `Object` did not fail, i.e. if it was healthy just
   // before becoming closed.
   bool Close();
 
-  // Returns true if the `Object` is healthy, i.e. not closed nor failed.
+  // Returns `true` if the `Object` is healthy, i.e. not closed nor failed.
   bool healthy() const;
 
-  // Returns true if the `Object` is closed.
+  // Returns `true` if the `Object` is closed.
   bool closed() const;
 
   // Returns a `Status` describing the failure if the `Object` is failed, or a

@@ -388,7 +388,7 @@ bool PositionFromPython(PyObject* object, Position* value) {
   RIEGELI_ASSERT(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
-  unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
+  const unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
   if (ABSL_PREDICT_FALSE(index_value == static_cast<unsigned long long>(-1)) &&
       PyErr_Occurred()) {
     return false;

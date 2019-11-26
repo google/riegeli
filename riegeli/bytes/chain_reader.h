@@ -189,20 +189,20 @@ inline ChainReader<Src>& ChainReader<Src>::operator=(
 }
 
 template <typename Src>
-void ChainReader<Src>::Reset() {
+inline void ChainReader<Src>::Reset() {
   ChainReaderBase::Reset(kInitiallyClosed);
   src_.Reset();
 }
 
 template <typename Src>
-void ChainReader<Src>::Reset(const Src& src) {
+inline void ChainReader<Src>::Reset(const Src& src) {
   ChainReaderBase::Reset(kInitiallyOpen);
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
-void ChainReader<Src>::Reset(Src&& src) {
+inline void ChainReader<Src>::Reset(Src&& src) {
   ChainReaderBase::Reset(kInitiallyOpen);
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -210,7 +210,7 @@ void ChainReader<Src>::Reset(Src&& src) {
 
 template <typename Src>
 template <typename... SrcArgs>
-void ChainReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
+inline void ChainReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
   ChainReaderBase::Reset(kInitiallyOpen);
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

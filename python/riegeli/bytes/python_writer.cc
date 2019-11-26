@@ -354,7 +354,7 @@ bool PythonWriter::Truncate(Position new_size) {
       return FailOperation("seek()");
     }
   }
-  set_start_pos(IntCast<Position>(new_size));
+  set_start_pos(new_size);
   static constexpr Identifier id_truncate("truncate");
   const PythonPtr truncate_result(
       PyObject_CallMethodObjArgs(dest_.get(), id_truncate.get(), nullptr));
