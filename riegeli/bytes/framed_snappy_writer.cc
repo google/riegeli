@@ -71,7 +71,7 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
          "length too small, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length))) {
+  if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length, recommended_length))) {
     return available() >= min_length;
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

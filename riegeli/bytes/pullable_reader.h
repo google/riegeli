@@ -80,7 +80,7 @@ class PullableReader : public Reader {
   void Reset(InitiallyOpen);
 
   // Helps to implement `PullSlow(min_length, recommended_length)` if
-  // `min_length > 1` in terms of `PullSlow(1, 0)` and `ReadSlow(char*)`.
+  // `min_length > 1` in terms of `PullSlow(1, 0)`.
   //
   // Return values:
   //  * `true`  - scratch is not used now, `min_length == 1`,
@@ -89,7 +89,10 @@ class PullableReader : public Reader {
   //              the caller should return `available() >= min_length`
   //
   // Precondition: `min_length > available()`
-  bool PullUsingScratch(size_t min_length);
+  //
+  // TODO: Remove the default value of `recommended_length` after
+  // callers are updated.
+  bool PullUsingScratch(size_t min_length, size_t recommended_length = 0);
 
   // Helps to implement `{Read,CopyTo}Slow(dest, *length)` if scratch is used.
   //
@@ -140,7 +143,7 @@ class PullableReader : public Reader {
   // come from a single fragment of the original source.
   bool ScratchEnds();
 
-  void PullToScratchSlow(size_t min_length);
+  void PullToScratchSlow(size_t min_length, size_t recommended_length);
   bool ReadScratchSlow(Chain* dest, size_t* length);
   bool CopyScratchToSlow(Writer* dest, Position* length);
   bool SeekUsingScratchSlow(Position new_pos);
@@ -179,12 +182,13 @@ inline bool PullableReader::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline bool PullableReader::PullUsingScratch(size_t min_length) {
+inline bool PullableReader::PullUsingScratch(size_t min_length,
+                                             size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of PullableReader::PullUsingScratch(): "
          "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    PullToScratchSlow(min_length);
+    PullToScratchSlow(min_length, recommended_length);
     return false;
   }
   if (ABSL_PREDICT_FALSE(scratch_used())) {

@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -42,7 +43,8 @@ inline bool PullableReader::ScratchEnds() {
   return false;
 }
 
-void PullableReader::PullToScratchSlow(size_t min_length) {
+void PullableReader::PullToScratchSlow(size_t min_length,
+                                       size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
          "trivial min_length";
@@ -51,6 +53,7 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
       available() >= min_length) {
     return;
   }
+  recommended_length = UnsignedMax(min_length, recommended_length);
   std::unique_ptr<Scratch> new_scratch;
   if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
     new_scratch = std::make_unique<Scratch>();
@@ -58,25 +61,32 @@ void PullableReader::PullToScratchSlow(size_t min_length) {
     new_scratch = std::move(scratch_);
     if (!new_scratch->buffer.empty()) {
       // Scratch is used but it does have enough data after the cursor.
-      new_scratch->buffer.RemovePrefix(read_from_buffer(), min_length);
+      new_scratch->buffer.RemovePrefix(read_from_buffer(), recommended_length);
       min_length -= new_scratch->buffer.size();
+      recommended_length -= new_scratch->buffer.size();
       set_buffer(new_scratch->original_start, new_scratch->original_buffer_size,
                  new_scratch->original_read_from_buffer);
       move_limit_pos(available());
     }
   }
   const absl::Span<char> flat_buffer =
-      new_scratch->buffer.AppendFixedBuffer(min_length);
-  const Position pos_before = pos();
-  if (ABSL_PREDICT_FALSE(!Read(flat_buffer.data(), flat_buffer.size()))) {
-    RIEGELI_ASSERT_GE(pos(), pos_before)
-        << "Reader::ReadSlow(char*) decreased pos()";
-    const Position length_read = pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
-        << "Reader::ReadSlow(char*) read more than requested";
-    new_scratch->buffer.RemoveSuffix(flat_buffer.size() -
-                                     IntCast<size_t>(length_read));
-  }
+      new_scratch->buffer.AppendFixedBuffer(recommended_length);
+  char* dest = flat_buffer.data();
+  char* const min_limit = flat_buffer.data() + min_length;
+  char* const max_limit = flat_buffer.data() + recommended_length;
+  do {
+    const size_t length =
+        UnsignedMin(available(), PtrDistance(dest, max_limit));
+    if (
+        // `std::memcpy(_, nullptr, 0)` is undefined.
+        length > 0) {
+      std::memcpy(dest, cursor(), length);
+      move_cursor(length);
+      dest += length;
+      if (dest >= min_limit) break;
+    }
+  } while (PullSlow(1, 0));
+  new_scratch->buffer.RemoveSuffix(PtrDistance(dest, max_limit));
   set_limit_pos(pos());
   new_scratch->original_start = start();
   new_scratch->original_buffer_size = buffer_size();

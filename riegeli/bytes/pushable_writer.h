@@ -86,7 +86,10 @@ class PushableWriter : public Writer {
   //              the caller should return `available() >= min_length`
   //
   // Precondition: `min_length > available()`
-  bool PushUsingScratch(size_t min_length);
+  //
+  // TODO: Remove the default value of `recommended_length` after
+  // callers are updated.
+  bool PushUsingScratch(size_t min_length, size_t recommended_length = 0);
 
   // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
   // `Truncate()` if scratch is used, in terms of `Write(absl::string_view)` and
@@ -111,7 +114,7 @@ class PushableWriter : public Writer {
 
   bool scratch_used() const;
 
-  void PushFromScratchSlow(size_t min_length);
+  void PushFromScratchSlow(size_t min_length, size_t recommended_length);
   bool SyncScratchSlow();
 
   std::unique_ptr<Scratch> scratch_;
@@ -147,12 +150,13 @@ inline bool PushableWriter::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline bool PushableWriter::PushUsingScratch(size_t min_length) {
+inline bool PushableWriter::PushUsingScratch(size_t min_length,
+                                             size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of PushableWriter::PushUsingScratch(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    PushFromScratchSlow(min_length);
+    PushFromScratchSlow(min_length, recommended_length);
     return false;
   }
   if (ABSL_PREDICT_FALSE(scratch_used())) {

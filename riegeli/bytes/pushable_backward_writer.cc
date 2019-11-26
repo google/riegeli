@@ -33,7 +33,8 @@ void PushableBackwardWriter::Done() {
   BackwardWriter::Done();
 }
 
-void PushableBackwardWriter::PushFromScratchSlow(size_t min_length) {
+void PushableBackwardWriter::PushFromScratchSlow(size_t min_length,
+                                                 size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of "
          "PushableBackwardWriter::PushFromScratchSlow(): "
@@ -44,8 +45,8 @@ void PushableBackwardWriter::PushFromScratchSlow(size_t min_length) {
   } else {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
   }
-  const absl::Span<char> flat_buffer =
-      scratch_->buffer.PrependFixedBuffer(min_length);
+  const absl::Span<char> flat_buffer = scratch_->buffer.PrependFixedBuffer(
+      UnsignedMax(min_length, recommended_length));
   set_start_pos(pos());
   scratch_->original_limit = limit();
   scratch_->original_buffer_size = buffer_size();
@@ -65,14 +66,17 @@ bool PushableBackwardWriter::SyncScratchSlow() {
              scratch_->original_written_to_buffer);
   set_start_pos(start_pos() - written_to_buffer());
   ChainBlock buffer = std::move(scratch_->buffer);
-  RIEGELI_ASSERT(scratch_->buffer.empty())
+  RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source ChainBlock cleared";
   bool ok;
-  if (length_to_write == buffer.size()) {
-    ok = Write(Chain(std::move(buffer)));
-  } else if (length_to_write <= kMaxBytesToCopy) {
+  if (length_to_write <= kMaxBytesToCopy) {
     ok = Write(absl::string_view(
         buffer.data() + buffer.size() - length_to_write, length_to_write));
+    // Restore buffer allocation.
+    buffer.Clear();
+    scratch_->buffer = std::move(buffer);
+  } else if (length_to_write == buffer.size()) {
+    ok = Write(Chain(std::move(buffer)));
   } else {
     Chain data;
     buffer.AppendSubstrTo(

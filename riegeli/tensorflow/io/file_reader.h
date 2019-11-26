@@ -158,13 +158,11 @@ class FileReaderBase : public Reader {
 
   // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, preferably to `flat_buffer.data()`. Newly
-  // read data are adjacent to previously available data, if any.
+  // read data are adjacent to previously available data in `buffer_`, if any.
   //
-  // Increments `limit()` and `limit_pos()` by the length read.
+  // Increments `limit_pos()` by the length read. Sets buffer pointers.
   //
-  // Preconditions:
-  //   `start() == buffer_.data()`
-  //   `limit() == flat_buffer.data()`
+  // Precondition: `flat_buffer` is a suffix of `buffer_`
   bool ReadToBuffer(absl::Span<char> flat_buffer,
                     ::tensorflow::RandomAccessFile* src);
 

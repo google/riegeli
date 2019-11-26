@@ -61,37 +61,22 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
-  if (flat_buffer.size() < min_length - available()) {
-    // Make a new buffer, preserving available data.
-    const size_t available_length = available();
-    buffer_.RemoveSuffix(flat_buffer.size());
-    buffer_.RemovePrefix(buffer_.size() - available_length);
-    flat_buffer = buffer_.AppendBuffer(BufferLength(min_length));
-    set_buffer(buffer_.data(), PtrDistance(buffer_.data(), flat_buffer.data()));
-  } else if (flat_buffer.size() == buffer_.size()) {
-    // `buffer_` was empty.
-    set_buffer(buffer_.data());
-  }
-  RIEGELI_ASSERT(start() == buffer_.data())
-      << "Bug in BufferedReader::PullSlow(): "
-         "start() does not point to buffer_";
-  RIEGELI_ASSERT(limit() == flat_buffer.data())
-      << "Bug in BufferedReader::PullSlow(): "
-         "limit() does not point to flat_buffer";
+  const size_t available_length = available();
+  buffer_.RemovePrefix(read_from_buffer());
+  const absl::Span<char> flat_buffer = buffer_.AppendFixedBuffer(
+      BufferLength(UnsignedMax(min_length, recommended_length)) -
+      available_length);
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
-  const bool ok = ReadInternal(flat_buffer.data(), min_length - available(),
-                               flat_buffer.size());
+  const bool ok = ReadInternal(
+      flat_buffer.data(), min_length - available_length, flat_buffer.size());
   RIEGELI_ASSERT_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;
   RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
       << "BufferedReader::ReadInternal() read more than requested";
   buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-  // Increment `limit()` by `length_read`.
-  set_buffer(start(), buffer_size() + IntCast<size_t>(length_read),
-             read_from_buffer());
+  set_buffer(buffer_.data(), buffer_.size());
   return ok;
 }
 
@@ -147,26 +132,19 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       }
       return true;
     }
-    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
-    if (flat_buffer.empty()) {
+    size_t buffer_length = BufferLength();
+    if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
       // Append a part of `buffer_` to `*dest` and make a new buffer.
-      const size_t available_length = available();
-      buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
-                             dest);
-      length -= available_length;
+      length -= available();
+      buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
-      flat_buffer = buffer_.AppendBuffer(BufferLength());
-      set_buffer(flat_buffer.data());
-    } else if (flat_buffer.size() == buffer_.size()) {
-      // `buffer_` was empty.
-      set_buffer(buffer_.data());
+    } else {
+      // Extend `buffer_` with new data.
+      buffer_length -= available();
+      buffer_.RemovePrefix(read_from_buffer());
     }
-    RIEGELI_ASSERT(start() == buffer_.data())
-        << "Bug in BufferedReader::ReadSlow(Chain*): "
-           "start() does not point to buffer_";
-    RIEGELI_ASSERT(limit() == flat_buffer.data())
-        << "Bug in BufferedReader::ReadSlow(Chain*): "
-           "limit() does not point to flat_buffer";
+    const absl::Span<char> flat_buffer =
+        buffer_.AppendFixedBuffer(buffer_length);
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
     ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -176,9 +154,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-    // Increment `limit()` by `length_read`.
-    set_buffer(start(), buffer_size() + IntCast<size_t>(length_read),
-               read_from_buffer());
+    set_buffer(buffer_.data(), buffer_.size());
   }
   buffer_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
   move_cursor(length);
@@ -198,39 +174,27 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       enough_read = false;
       break;
     }
-    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0);
-    if (flat_buffer.empty()) {
+    size_t buffer_length = BufferLength();
+    if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
       // Write a part of `buffer_` to `*dest` and make a new buffer.
-      const size_t available_length = available();
-      if (available_length > 0) {
-        bool write_ok;
-        if (available_length == buffer_.size()) {
-          write_ok = dest->Write(Chain(buffer_));
-        } else {
-          Chain data;
-          buffer_.AppendSubstrTo(absl::string_view(cursor(), available_length),
-                                 &data, available_length);
-          write_ok = dest->Write(std::move(data));
-        }
-        if (ABSL_PREDICT_FALSE(!write_ok)) {
-          move_cursor(available_length);
+      if (available() > 0) {
+        length -= available();
+        Chain data;
+        buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), &data,
+                               available());
+        if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) {
+          move_cursor(available());
           return false;
         }
-        length -= available_length;
       }
       buffer_.Clear();
-      flat_buffer = buffer_.AppendBuffer(BufferLength());
-      set_buffer(flat_buffer.data());
-    } else if (flat_buffer.size() == buffer_.size()) {
-      // `buffer_` was empty.
-      set_buffer(buffer_.data());
+    } else {
+      // Extend `buffer_` with new data.
+      buffer_length -= available();
+      buffer_.RemovePrefix(read_from_buffer());
     }
-    RIEGELI_ASSERT(start() == buffer_.data())
-        << "Bug in BufferedReader::CopyToSlow(Writer*): "
-           "start() does not point to buffer_";
-    RIEGELI_ASSERT(limit() == flat_buffer.data())
-        << "Bug in BufferedReader::CopyToSlow(Writer*): "
-           "limit() does not point to flat_buffer";
+    const absl::Span<char> flat_buffer =
+        buffer_.AppendFixedBuffer(buffer_length);
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
     read_ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -240,21 +204,14 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-    // Increment `limit()` by `length_read`.
-    set_buffer(start(), buffer_size() + IntCast<size_t>(length_read),
-               read_from_buffer());
+    set_buffer(buffer_.data(), buffer_.size());
   }
   bool write_ok = true;
   if (length > 0) {
-    if (length == buffer_.size()) {
-      write_ok = dest->Write(Chain(buffer_));
-    } else {
-      Chain data;
-      buffer_.AppendSubstrTo(
-          absl::string_view(cursor(), IntCast<size_t>(length)), &data,
-          IntCast<size_t>(length));
-      write_ok = dest->Write(std::move(data));
-    }
+    Chain data;
+    buffer_.AppendSubstrTo(absl::string_view(cursor(), IntCast<size_t>(length)),
+                           &data, IntCast<size_t>(length));
+    write_ok = dest->Write(std::move(data));
     move_cursor(IntCast<size_t>(length));
   }
   return write_ok && enough_read;
