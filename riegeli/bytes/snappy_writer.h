@@ -115,11 +115,6 @@ class SnappyWriterBase : public Writer {
 // and compresses them all in `Close()`.
 //
 // `Flush()` does nothing. It does not make data written so far visible.
-//
-// For each 64KB block of uncompressed data except the last one, the compressed
-// `Writer` has `Writer::Push(76490)` called, then `cursor()` is moved by the
-// compressed length of the block. If data compress well, this can be
-// inefficient, depending on the `Writer`.
 template <typename Dest = Writer*>
 class SnappyWriter : public SnappyWriterBase {
  public:
