@@ -73,9 +73,8 @@ bool WriterOutputStream::Next(void** data, int* size) {
   }
   if (ABSL_PREDICT_FALSE(!dest_->Push())) return false;
   *data = dest_->cursor();
-  *size = IntCast<int>(
-      UnsignedMin(dest_->available(), size_t{std::numeric_limits<int>::max()},
-                  Position{std::numeric_limits<int64_t>::max()} - pos));
+  *size = SaturatingIntCast<int>(UnsignedMin(
+      dest_->available(), Position{std::numeric_limits<int64_t>::max()} - pos));
   dest_->move_cursor(IntCast<size_t>(*size));
   return true;
 }

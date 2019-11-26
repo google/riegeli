@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -173,7 +172,7 @@ inline void FramedSnappyWriterBase::Reset() {
 
 inline void FramedSnappyWriterBase::Reset(Position size_hint) {
   PushableWriter::Reset(kInitiallyOpen);
-  size_hint_ = UnsignedMin(size_hint, std::numeric_limits<size_t>::max());
+  size_hint_ = SaturatingIntCast<size_t>(size_hint);
 }
 
 template <typename Dest>

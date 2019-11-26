@@ -350,6 +350,67 @@ inline A IntCast(B value) {
   return internal::IntCastImpl<A>(value);
 }
 
+// `SaturatingIntCast()` converts an integer value to another integer type, or
+// returns the appropriate bound of the type if conversion would overflow.
+
+namespace internal {
+
+template <typename A, typename B>
+inline std::enable_if_t<
+    std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
+SaturatingIntCastImpl(B value) {
+  if (ABSL_PREDICT_FALSE(value > std::numeric_limits<A>::max())) {
+    return std::numeric_limits<A>::max();
+  }
+  return static_cast<A>(value);
+}
+
+template <typename A, typename B>
+inline std::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
+                        A>
+SaturatingIntCastImpl(B value) {
+  if (ABSL_PREDICT_FALSE(value < 0)) return 0;
+  if (ABSL_PREDICT_FALSE(static_cast<std::make_unsigned_t<B>>(value) >
+                         std::numeric_limits<A>::max())) {
+    return std::numeric_limits<A>::max();
+  }
+  return static_cast<A>(value);
+}
+
+template <typename A, typename B>
+inline std::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
+                        A>
+SaturatingIntCastImpl(B value) {
+  if (ABSL_PREDICT_FALSE(
+          value > std::make_unsigned_t<A>{std::numeric_limits<A>::max()})) {
+    return std::numeric_limits<A>::max();
+  }
+  return static_cast<A>(value);
+}
+
+template <typename A, typename B>
+inline std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value, A>
+SaturatingIntCastImpl(B value) {
+  if (ABSL_PREDICT_FALSE(value < std::numeric_limits<A>::min())) {
+    return std::numeric_limits<A>::min();
+  }
+  if (ABSL_PREDICT_FALSE(value > std::numeric_limits<A>::max())) {
+    return std::numeric_limits<A>::max();
+  }
+  return static_cast<A>(value);
+}
+
+}  // namespace internal
+
+template <typename A, typename B>
+inline A SaturatingIntCast(B value) {
+  static_assert(std::is_integral<A>::value,
+                "SaturatingIntCast() requires integral types");
+  static_assert(std::is_integral<B>::value,
+                "SaturatingIntCast() requires integral types");
+  return internal::SaturatingIntCastImpl<A>(value);
+}
+
 // `PtrDistance(first, last)` returns `last - first` as `size_t`, asserting that
 // `first <= last`.
 template <typename A>

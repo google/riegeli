@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -156,7 +155,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(Position size_hint)
     : BackwardWriter(kInitiallyOpen),
-      size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {}
+      size_hint_(SaturatingIntCast<size_t>(size_hint)) {}
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
@@ -176,7 +175,7 @@ inline void ChainBackwardWriterBase::Reset() {
 
 inline void ChainBackwardWriterBase::Reset(Position size_hint) {
   BackwardWriter::Reset(kInitiallyOpen);
-  size_hint_ = UnsignedMin(size_hint, std::numeric_limits<size_t>::max());
+  size_hint_ = SaturatingIntCast<size_t>(size_hint);
 }
 
 inline void ChainBackwardWriterBase::Initialize(Chain* dest) {

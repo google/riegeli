@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -158,7 +157,7 @@ class ChainWriter : public ChainWriterBase {
 
 inline ChainWriterBase::ChainWriterBase(Position size_hint)
     : Writer(kInitiallyOpen),
-      size_hint_(UnsignedMin(size_hint, std::numeric_limits<size_t>::max())) {}
+      size_hint_(SaturatingIntCast<size_t>(size_hint)) {}
 
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
     : Writer(std::move(that)), size_hint_(that.size_hint_) {}
@@ -177,7 +176,7 @@ inline void ChainWriterBase::Reset() {
 
 inline void ChainWriterBase::Reset(Position size_hint) {
   Writer::Reset(kInitiallyOpen);
-  size_hint_ = UnsignedMin(size_hint, std::numeric_limits<size_t>::max());
+  size_hint_ = SaturatingIntCast<size_t>(size_hint);
 }
 
 inline void ChainWriterBase::Initialize(Chain* dest) {

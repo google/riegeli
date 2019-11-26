@@ -75,9 +75,8 @@ bool ReaderInputStream::Next(const void** data, int* size) {
   }
   if (ABSL_PREDICT_FALSE(!src_->Pull())) return false;
   *data = src_->cursor();
-  *size = IntCast<int>(
-      UnsignedMin(src_->available(), size_t{std::numeric_limits<int>::max()},
-                  Position{std::numeric_limits<int64_t>::max()} - pos));
+  *size = SaturatingIntCast<int>(UnsignedMin(
+      src_->available(), Position{std::numeric_limits<int64_t>::max()} - pos));
   src_->move_cursor(IntCast<size_t>(*size));
   return true;
 }

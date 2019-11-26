@@ -133,8 +133,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     }
     compressor_->avail_in = IntCast<uInt>(avail_in);
     compressor_->next_out = reinterpret_cast<Bytef*>(dest->cursor());
-    compressor_->avail_out =
-        UnsignedMin(dest->available(), std::numeric_limits<uInt>::max());
+    compressor_->avail_out = SaturatingIntCast<uInt>(dest->available());
     const int result = deflate(compressor_.get(), op);
     dest->set_cursor(reinterpret_cast<char*>(compressor_->next_out));
     const size_t length_written = PtrDistance(

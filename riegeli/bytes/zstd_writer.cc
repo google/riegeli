@@ -128,10 +128,9 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
   }
 #ifdef ZSTD_STATIC_LINKING_ONLY
   else if (size_hint > 0) {
-    const size_t result = ZSTD_CCtx_setParameter(
-        compressor_.get(), ZSTD_c_srcSizeHint,
-        IntCast<int>(
-            UnsignedMin(size_hint, Position{std::numeric_limits<int>::max()})));
+    const size_t result =
+        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_srcSizeHint,
+                               SaturatingIntCast<int>(size_hint));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) failed: ",

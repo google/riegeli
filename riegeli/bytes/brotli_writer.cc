@@ -78,9 +78,8 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   if (size_hint > 0) {
     // Ignore errors from tuning.
-    BrotliEncoderSetParameter(
-        compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-        UnsignedMin(size_hint, std::numeric_limits<uint32_t>::max()));
+    BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
+                              SaturatingIntCast<uint32_t>(size_hint));
   }
 }
 

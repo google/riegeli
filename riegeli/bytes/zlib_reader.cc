@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <memory>
 #include <string>
 
@@ -109,14 +108,11 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
   truncated_ = false;
   decompressor_->next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
-    decompressor_->avail_out = UnsignedMin(
-        PtrDistance(reinterpret_cast<char*>(decompressor_->next_out),
-                    dest + max_length),
-        std::numeric_limits<uInt>::max());
+    decompressor_->avail_out = SaturatingIntCast<uInt>(PtrDistance(
+        reinterpret_cast<char*>(decompressor_->next_out), dest + max_length));
     decompressor_->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src->cursor()));
-    decompressor_->avail_in =
-        UnsignedMin(src->available(), std::numeric_limits<uInt>::max());
+    decompressor_->avail_in = SaturatingIntCast<uInt>(src->available());
     const int result = inflate(decompressor_.get(), Z_NO_FLUSH);
     src->set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
     const size_t length_read =
