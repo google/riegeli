@@ -123,6 +123,15 @@ bool LimitingReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   return ok;
 }
 
+bool LimitingReaderBase::Sync() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Reader* const src = src_reader();
+  SyncBuffer(src);
+  const bool ok = src->Sync();
+  MakeBuffer(src);
+  return ok;
+}
+
 bool LimitingReaderBase::SupportsRandomAccess() const {
   const Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();

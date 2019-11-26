@@ -130,12 +130,13 @@ void FdReaderBase::InitializePos(int src,
   }
 }
 
-void FdReaderBase::SyncPos(int src) {
+bool FdReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()");
+      return FailOperation("lseek()");
     }
   }
+  return true;
 }
 
 bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
@@ -173,6 +174,12 @@ bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
     min_length -= IntCast<size_t>(length_read);
     max_length -= IntCast<size_t>(length_read);
   }
+}
+
+bool FdReaderBase::Sync() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int src = src_fd();
+  return SyncPos(src);
 }
 
 bool FdReaderBase::SeekSlow(Position new_pos) {
@@ -314,12 +321,19 @@ void FdMMapReaderBase::InitializePos(int src,
   }
 }
 
-void FdMMapReaderBase::SyncPos(int src) {
+bool FdMMapReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      FailOperation("lseek()");
+      return FailOperation("lseek()");
     }
   }
+  return true;
+}
+
+bool FdMMapReaderBase::Sync() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int src = src_fd();
+  return SyncPos(src);
 }
 
 }  // namespace riegeli

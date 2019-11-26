@@ -43,7 +43,7 @@ class WriterStreambuf::BufferSync {
 };
 
 int WriterStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return 0;
+  if (ABSL_PREDICT_FALSE(!is_open())) return -1;
   BufferSync buffer_sync(this);
   if (ABSL_PREDICT_FALSE(!dest_->Flush(FlushType::kFromObject))) return -1;
   return 0;

@@ -80,19 +80,23 @@ bool PythonReader::FailOperation(absl::string_view operation) {
       UnknownError(absl::StrCat(operation, " failed: ", exception_.message())));
 }
 
-void PythonReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) {
-    PythonLock lock;
-    const PythonPtr file_pos = PositionToPython(pos());
-    if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-      FailOperation("PositionToPython()");
-    } else {
-      static constexpr Identifier id_seek("seek");
-      const PythonPtr seek_result(PyObject_CallMethodObjArgs(
-          src_.get(), id_seek.get(), file_pos.get(), nullptr));
-      if (ABSL_PREDICT_FALSE(seek_result == nullptr)) FailOperation("seek()");
-    }
+bool PythonReader::SyncPos() {
+  PythonLock lock;
+  const PythonPtr file_pos = PositionToPython(pos());
+  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
+    return FailOperation("PositionToPython()");
   }
+  static constexpr Identifier id_seek("seek");
+  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
+      src_.get(), id_seek.get(), file_pos.get(), nullptr));
+  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
+    return FailOperation("seek()");
+  }
+  return true;
+}
+
+void PythonReader::Done() {
+  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) SyncPos();
   BufferedReader::Done();
   if (close_ && src_ != nullptr) {
     PythonLock lock;
@@ -262,6 +266,15 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
     min_length -= length_read;
     max_length -= length_read;
   }
+}
+
+bool PythonReader::Sync() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (!random_access_) return true;
+  const bool ok = SyncPos();
+  set_limit_pos(pos());
+  ClearBuffer();
+  return ok;
 }
 
 bool PythonReader::SeekSlow(Position new_pos) {

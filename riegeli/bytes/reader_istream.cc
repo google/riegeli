@@ -44,8 +44,9 @@ class ReaderStreambuf::BufferSync {
 };
 
 int ReaderStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return 0;
-  src_->set_cursor(gptr());
+  if (ABSL_PREDICT_FALSE(!is_open())) return -1;
+  BufferSync buffer_sync(this);
+  if (ABSL_PREDICT_FALSE(!src_->Sync())) return -1;
   return 0;
 }
 

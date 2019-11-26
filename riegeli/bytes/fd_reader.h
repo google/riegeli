@@ -113,6 +113,7 @@ class FdReaderBase : public internal::FdReaderCommon {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
+  bool Sync() override;
   bool SupportsRandomAccess() const override { return true; }
   bool Size(Position* size) override;
 
@@ -128,7 +129,7 @@ class FdReaderBase : public internal::FdReaderCommon {
   void Reset(size_t buffer_size, bool sync_pos);
   void Initialize(int src, absl::optional<Position> initial_pos);
   void InitializePos(int src, absl::optional<Position> initial_pos);
-  void SyncPos(int src);
+  bool SyncPos(int src);
 
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
   bool SeekSlow(Position new_pos) override;
@@ -236,6 +237,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  bool Sync() override;
+
  protected:
   FdMMapReaderBase() noexcept {}
 
@@ -251,7 +254,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   int OpenFd(absl::string_view filename, int flags);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void InitializePos(int src, absl::optional<Position> initial_pos);
-  void SyncPos(int src);
+  bool SyncPos(int src);
 
   std::string filename_;
   bool sync_pos_ = false;

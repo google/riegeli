@@ -117,6 +117,7 @@ class PythonReader : public BufferedReader {
 
   const Exception& exception() const { return exception_; }
 
+  bool Sync() override;
   bool SupportsRandomAccess() const override { return random_access_; }
   bool Size(Position* size) override;
 
@@ -130,6 +131,7 @@ class PythonReader : public BufferedReader {
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  bool SyncPos();
   bool SizeInternal(Position* size);
 
   PythonPtrLocking src_;

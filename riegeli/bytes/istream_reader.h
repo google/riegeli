@@ -86,6 +86,7 @@ class IstreamReaderBase : public BufferedReader {
   virtual std::istream* src_stream() = 0;
   virtual const std::istream* src_stream() const = 0;
 
+  bool Sync() override;
   bool SupportsRandomAccess() const override { return random_access_; }
   bool Size(Position* size) override;
 
@@ -101,7 +102,7 @@ class IstreamReaderBase : public BufferedReader {
   void Reset(size_t buffer_size, bool random_access);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
-  void SyncPos(std::istream* src);
+  bool SyncPos(std::istream* src);
 
   bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
   bool SeekSlow(Position new_pos) override;
@@ -272,7 +273,7 @@ inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 void IstreamReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
+  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) SyncPos(src_.get());
   IstreamReaderBase::Done();
   if (src_.is_owning()) {
     errno = 0;

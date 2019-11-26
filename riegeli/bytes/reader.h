@@ -181,6 +181,19 @@ class Reader : public Object {
   bool CopyAllTo(Writer* dest);
   bool CopyAllTo(BackwardWriter* dest);
 
+  // Informs the source that data between `start()` and `cursor()` have been
+  // read.
+  //
+  // The precise meaning of `Sync()` depends on the particular `Reader`. The
+  // intent is to propagate the current position to the source if the source
+  // tracks the current position, but in contrast to `Close()`, keeping the
+  // possibility to read more data later.
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  virtual bool Sync() { return healthy(); }
+
   // Returns the current position.
   //
   // This is often 0 after creating the `Reader`, but not necessarily if the

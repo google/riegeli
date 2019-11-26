@@ -43,12 +43,7 @@ class TeeReaderBase : public Reader {
   virtual Writer* side_dest_writer() = 0;
   virtual const Writer* side_dest_writer() const = 0;
 
-  // Writes data read between `start()` and `cursor()` to the side `Writer`.
-  //
-  // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  bool Sync();
+  bool Sync() override;
 
  protected:
   explicit TeeReaderBase(InitiallyClosed) noexcept : Reader(kInitiallyClosed) {}

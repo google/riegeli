@@ -78,14 +78,15 @@ void IstreamReaderBase::Initialize(std::istream* src,
   }
 }
 
-void IstreamReaderBase::SyncPos(std::istream* src) {
-  if (random_access_ && available() > 0) {
+bool IstreamReaderBase::SyncPos(std::istream* src) {
+  if (available() > 0) {
     errno = 0;
     src->seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
     if (ABSL_PREDICT_FALSE(src->fail())) {
-      FailOperation("istream::seekg()");
+      return FailOperation("istream::seekg()");
     }
   }
+  return true;
 }
 
 bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
@@ -162,6 +163,20 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
     min_length -= IntCast<size_t>(length_read);
     max_length -= IntCast<size_t>(length_read);
   }
+}
+
+bool IstreamReaderBase::Sync() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (!random_access_) return true;
+  std::istream* const src = src_stream();
+  const bool ok = SyncPos(src);
+  set_limit_pos(pos());
+  ClearBuffer();
+  if (ABSL_PREDICT_FALSE(!ok)) return false;
+  if (ABSL_PREDICT_FALSE(src->sync() != 0)) {
+    return FailOperation("istream::sync()");
+  }
+  return true;
 }
 
 bool IstreamReaderBase::SeekSlow(Position new_pos) {
