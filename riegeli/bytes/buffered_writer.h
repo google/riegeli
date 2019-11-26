@@ -85,7 +85,7 @@ class BufferedWriter : public Writer {
   // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;
 
-  // Invariant: if `healthy()` then `buffer_size_ > 0`
+  // Invariant: if `!closed()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, to be written directly after the physical destination

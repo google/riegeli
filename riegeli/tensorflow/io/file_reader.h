@@ -173,7 +173,7 @@ class FileReaderBase : public Reader {
   // Invariant:
   //   if `healthy() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
-  // Invariant: if `healthy()` then `buffer_size_ > 0`
+  // Invariant: if `!closed()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // If `buffer_` is not empty, it contains buffered data, read directly before
   // the physical source position which is `limit_pos()`. Otherwise buffered

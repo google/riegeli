@@ -63,10 +63,10 @@ class ChainReaderBase : public PullableReader {
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
+  // Invariant: `iter_.chain() == (closed() ? nullptr : src_chain())`
   Chain::BlockIterator iter_;
 
-  // Invariants if `healthy()` and scratch is not used:
-  //   `iter_.chain() == src_chain()`
+  // Invariants if `!closed()` and scratch is not used:
   //   `start() ==
   //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
   //   `buffer_size() ==

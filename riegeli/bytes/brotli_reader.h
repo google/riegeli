@@ -71,7 +71,7 @@ class BrotliReaderBase : public PullableReader {
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
 
-  // Invariant if `healthy()` and scratch is not used:
+  // Invariant if scratch is not used:
   //   `start()` and `limit()` point to the buffer returned by
   //   `BrotliDecoderTakeOutput()` or are both `nullptr`
 };

@@ -155,7 +155,7 @@ class FileWriterBase : public Writer {
   size_t LengthToWriteDirectly() const;
 
   std::string filename_;
-  // Invariant: if `healthy()` then `buffer_size_ > 0`
+  // Invariant: if `!closed()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // Buffered data to be written.
   Buffer buffer_;

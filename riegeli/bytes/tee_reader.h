@@ -75,7 +75,7 @@ class TeeReaderBase : public Reader {
   // `*src` failed.
   void MakeBuffer(Reader* src);
 
-  // Invariants if `healthy()`:
+  // Invariants if `!closed()`:
   //   `start() == src_reader()->cursor()`
   //   `limit() == src_reader()->limit()`
   //   `limit_pos() == src_reader()->limit_pos()`
@@ -282,7 +282,7 @@ inline void TeeReader<Src, SideDest>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src, typename SideDest>
 inline void TeeReader<Src, SideDest>::MoveSrc(TeeReader&& that,
                                               Writer* side_dest) {
-  if (src_.kIsStable() || ABSL_PREDICT_FALSE(closed())) {
+  if (src_.kIsStable() || ABSL_PREDICT_FALSE(start() == nullptr)) {
     src_ = std::move(that.src_);
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,

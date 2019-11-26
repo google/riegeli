@@ -65,7 +65,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
 
-  // Invariant: if `healthy()` then `start_pos() == 0`
+  // Invariant: `start_pos() == 0`
 };
 
 // A `BackwardWriter` which writes to a preallocated array with a known size
