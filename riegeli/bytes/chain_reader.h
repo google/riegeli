@@ -136,12 +136,12 @@ inline ChainReaderBase& ChainReaderBase::operator=(
 }
 
 inline void ChainReaderBase::Reset(InitiallyClosed) {
-  Reader::Reset(kInitiallyClosed);
+  PullableReader::Reset(kInitiallyClosed);
   iter_ = Chain::BlockIterator();
 }
 
 inline void ChainReaderBase::Reset(InitiallyOpen) {
-  Reader::Reset(kInitiallyOpen);
+  PullableReader::Reset(kInitiallyOpen);
   // `iter_` will be set by `Initialize()`.
 }
 
