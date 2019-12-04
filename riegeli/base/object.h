@@ -104,6 +104,46 @@ class Object {
   // the `Object` is healthy.
   Status status() const;
 
+  // Marks the `Object` as failed with the specified `Status`.
+  //
+  // `Fail()` always returns `false`, for convenience of reporting the failure
+  // as a `false` result of a failing function.
+  //
+  // Even though `Fail()` is not const, it may be called concurrently with
+  // public member functions, with const member functions, and with other
+  // `Fail()` calls. If `Fail()` is called multiple times, the first `Status`
+  // wins.
+  //
+  // `Fail()` is normally called by other methods of the same `Object`, but it
+  // is public to allow injecting a failure related to the `Object` (such as
+  // unexpected data returned by it) if that failure does not have to be
+  // distinguished from failures of the `Object` itself.
+  //
+  // Preconditions:
+  //   `!status.ok()`
+  //   `!closed()`
+  ABSL_ATTRIBUTE_COLD virtual bool Fail(Status status);
+
+  // Propagates failure from another `Object`.
+  //
+  // Equivalent to `Fail(dependency.status())`.
+  //
+  // Preconditions:
+  //   `!dependency.healthy()`
+  //   `!closed()`
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
+
+  // Propagates failure from another `Object`, with a fallback status to use if
+  // the other `Object` is healthy.
+  //
+  // Equivalent to
+  // `Fail(!dependency.healthy() ? dependency.status() : fallback)`.
+  //
+  // Preconditions:
+  //   `!fallback.ok()`
+  //   `!closed()`
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency, Status fallback);
+
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
   //
@@ -183,41 +223,6 @@ class Object {
   //
   // Precondition: `!closed()`
   virtual void Done() {}
-
-  // Marks the `Object` as failed with the specified `Status`.
-  //
-  // `Fail()` always returns `false`, for convenience of reporting the failure
-  // as a `false` result of a failing function.
-  //
-  // Even though `Fail()` is not const, it may be called concurrently with
-  // public member functions, with const member functions, and with other
-  // `Fail()` calls. If `Fail()` is called multiple times, the first `Status`
-  // wins.
-  //
-  // Preconditions:
-  //   `!status.ok()`
-  //   `!closed()`
-  ABSL_ATTRIBUTE_COLD virtual bool Fail(Status status);
-
-  // Propagates failure from another `Object`.
-  //
-  // Equivalent to `Fail(dependency.status())`.
-  //
-  // Preconditions:
-  //   `!dependency.healthy()`
-  //   `!closed()`
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
-
-  // Propagates failure from another `Object`, with a fallback status to use if
-  // the other `Object` is healthy.
-  //
-  // Equivalent to
-  // `Fail(!dependency.healthy() ? dependency.status() : fallback)`.
-  //
-  // Preconditions:
-  //   `!fallback.ok()`
-  //   `!closed()`
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency, Status fallback);
 
  private:
   struct FailedStatus {
