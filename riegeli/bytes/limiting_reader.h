@@ -87,6 +87,7 @@ class LimitingReaderBase : public Reader {
   Position size_limit_ = kNoSizeLimit;
 
  private:
+  // This template is defined and used only in limiting_reader.cc.
   template <typename Dest>
   bool ReadInternal(Dest* dest, size_t length);
 

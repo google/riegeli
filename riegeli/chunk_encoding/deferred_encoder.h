@@ -55,6 +55,7 @@ class DeferredEncoder : public ChunkEncoder {
                       uint64_t* decoded_data_size) override;
 
  private:
+  // This template is defined and used only in deferred_encoder.cc.
   template <typename Record>
   bool AddRecordImpl(Record&& record);
 

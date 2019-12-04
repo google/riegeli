@@ -71,6 +71,7 @@ class TeeWriterBase : public Writer {
   void MakeBuffer(Writer* dest);
 
  private:
+  // This template is defined and used only in tee_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
 

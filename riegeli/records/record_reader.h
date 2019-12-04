@@ -327,6 +327,8 @@ class RecordReaderBase : public Object {
 
   // Precondition: `!chunk_decoder_.healthy() ||
   //                chunk_decoder_.index() == chunk_decoder_.num_records()`
+  //
+  // This template is explicitly instantiated.
   template <typename Record>
   bool ReadRecordSlow(Record* record, RecordPosition* key);
 

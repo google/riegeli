@@ -38,6 +38,8 @@ namespace riegeli {
 // it unconditionally available avoids a special case in the public interface
 // where accessing the dependency would be invalid. This exception avoids
 // dynamic allocation in the default constructor.
+//
+// This template is specialized but does not have a primary definition.
 template <typename Ptr, typename Manager, typename Enable = void>
 class StableDependency;
 

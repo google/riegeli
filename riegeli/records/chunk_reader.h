@@ -180,6 +180,8 @@ class DefaultChunkReaderBase : public Object {
 
   // Shared implementation of `SeekToChunkContaining()`, `SeekToChunkBefore()`,
   // and `SeekToChunkAfter()`.
+  //
+  // This template is defined and used only in chunk_reader.cc.
   template <WhichChunk which_chunk>
   bool SeekToChunk(Position new_pos);
 

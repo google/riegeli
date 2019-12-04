@@ -358,8 +358,10 @@ class Chain {
   void PushFront(RawBlock* block);
   void PopBack();
   void PopFront();
+  // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void AppendBlocks(RawBlock* const* begin, RawBlock* const* end);
+  // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   void PrependBlocks(RawBlock* const* begin, RawBlock* const* end);
   void ReserveBack(size_t extra_capacity);
@@ -378,13 +380,17 @@ class Chain {
   void AppendString(std::string&& src, size_t size_hint);
   void PrependString(std::string&& src, size_t size_hint);
 
+  // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
   void AppendImpl(ChainRef&& src, size_t size_hint);
+  // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
   void PrependImpl(ChainRef&& src, size_t size_hint);
 
+  // This template is explicitly instantiated.
   template <Ownership ownership>
   void AppendBlock(RawBlock* block, size_t size_hint);
+  // This template is explicitly instantiated.
   template <Ownership ownership>
   void PrependBlock(RawBlock* block, size_t size_hint);
 
@@ -752,6 +758,7 @@ class Chain::RawBlock {
   template <Ownership ownership = Ownership::kSteal>
   void Unref();
 
+  // This template is defined and used only in chain.cc.
   template <Ownership ownership>
   RawBlock* Copy();
 

@@ -85,6 +85,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   Position size_limit_ = kNoSizeLimit;
 
  private:
+  // This template is defined and used only in limiting_backward_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
 

@@ -408,6 +408,7 @@ class RecordWriterBase : public Object {
   class SerialWorker;
   class ParallelWorker;
 
+  // This template is explicitly instantiated.
   template <typename Record>
   bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);
 

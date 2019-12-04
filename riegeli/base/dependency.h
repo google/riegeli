@@ -100,6 +100,8 @@ namespace riegeli {
 //   // If true, get() stays unchanged when a Dependency is moved.
 //   static constexpr bool kIsStable();
 // ```
+//
+// This template is specialized but does not have a primary definition.
 template <typename Ptr, typename Manager, typename Enable = void>
 class Dependency;
 
