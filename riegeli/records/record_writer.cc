@@ -725,8 +725,6 @@ template bool RecordWriterBase::WriteRecordImpl(
     const google::protobuf::MessageLite& record, FutureRecordPosition* key);
 template bool RecordWriterBase::WriteRecordImpl(const absl::string_view& record,
                                                 FutureRecordPosition* key);
-template bool RecordWriterBase::WriteRecordImpl(std::string&& record,
-                                                FutureRecordPosition* key);
 template bool RecordWriterBase::WriteRecordImpl(const Chain& record,
                                                 FutureRecordPosition* key);
 template bool RecordWriterBase::WriteRecordImpl(Chain&& record,

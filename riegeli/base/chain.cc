@@ -1042,7 +1042,7 @@ void Chain::Append(absl::string_view src, size_t size_hint) {
   }
 }
 
-void Chain::Append(std::string&& src, size_t size_hint) {
+void Chain::AppendString(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
@@ -1200,7 +1200,7 @@ void Chain::Prepend(absl::string_view src, size_t size_hint) {
   }
 }
 
-void Chain::Prepend(std::string&& src, size_t size_hint) {
+void Chain::PrependString(std::string&& src, size_t size_hint) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";

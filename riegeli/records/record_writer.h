@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -336,6 +337,10 @@ class RecordWriterBase : public Object {
   // `WriteRecord(google::protobuf::MessageLite)` serializes a proto message to
   // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `std::string_view`
+  // (e.g. `const char *`).
+  //
   // If `key != nullptr`, `*key` is set to the canonical record position on
   // success.
   //
@@ -346,8 +351,9 @@ class RecordWriterBase : public Object {
                    FutureRecordPosition* key = nullptr);
   bool WriteRecord(absl::string_view record,
                    FutureRecordPosition* key = nullptr);
-  bool WriteRecord(std::string&& record, FutureRecordPosition* key = nullptr);
-  bool WriteRecord(const char* record, FutureRecordPosition* key = nullptr);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  bool WriteRecord(Src&& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
 
@@ -495,8 +501,6 @@ extern template bool RecordWriterBase::WriteRecordImpl(
 extern template bool RecordWriterBase::WriteRecordImpl(
     const absl::string_view& record, FutureRecordPosition* key);
 extern template bool RecordWriterBase::WriteRecordImpl(
-    std::string&& record, FutureRecordPosition* key);
-extern template bool RecordWriterBase::WriteRecordImpl(
     const Chain& record, FutureRecordPosition* key);
 extern template bool RecordWriterBase::WriteRecordImpl(
     Chain&& record, FutureRecordPosition* key);
@@ -511,14 +515,15 @@ inline bool RecordWriterBase::WriteRecord(absl::string_view record,
   return WriteRecordImpl<const absl::string_view&>(record, key);
 }
 
-inline bool RecordWriterBase::WriteRecord(std::string&& record,
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline bool RecordWriterBase::WriteRecord(Src&& record,
                                           FutureRecordPosition* key) {
-  return WriteRecordImpl(std::move(record), key);
-}
-
-inline bool RecordWriterBase::WriteRecord(const char* record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl<const absl::string_view&>(record, key);
+  if (ABSL_PREDICT_TRUE(record.size() <= kMaxBytesToCopy)) {
+    return WriteRecordImpl<const absl::string_view&>(record, key);
+  } else {
+    return WriteRecordImpl(Chain(std::move(record)), key);
+  }
 }
 
 inline bool RecordWriterBase::WriteRecord(const Chain& record,

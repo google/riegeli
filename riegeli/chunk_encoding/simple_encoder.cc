@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include <limits>
-#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -81,10 +80,6 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
 
 bool SimpleEncoder::AddRecord(absl::string_view record) {
   return AddRecordImpl(record);
-}
-
-bool SimpleEncoder::AddRecord(std::string&& record) {
-  return AddRecordImpl(std::move(record));
 }
 
 bool SimpleEncoder::AddRecord(const Chain& record) {

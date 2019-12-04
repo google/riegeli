@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -52,7 +51,6 @@ class SimpleEncoder : public ChunkEncoder {
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record) override;
   bool AddRecord(absl::string_view record) override;
-  bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
 

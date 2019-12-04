@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -79,7 +78,6 @@ class TransposeEncoder : public ChunkEncoder {
   // broken down into columns.
   using ChunkEncoder::AddRecord;
   bool AddRecord(absl::string_view record) override;
-  bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;

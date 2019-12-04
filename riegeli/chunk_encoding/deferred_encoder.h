@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -46,7 +45,6 @@ class DeferredEncoder : public ChunkEncoder {
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record) override;
   bool AddRecord(absl::string_view record) override;
-  bool AddRecord(std::string&& record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
 

@@ -203,14 +203,6 @@ bool TransposeEncoder::AddRecord(absl::string_view record) {
   return AddRecordInternal(&reader);
 }
 
-bool TransposeEncoder::AddRecord(std::string&& record) {
-  if (record.size() <= kMaxBytesToCopy) {
-    return AddRecord(absl::string_view(record));
-  } else {
-    return AddRecord(Chain(std::move(record)));
-  }
-}
-
 bool TransposeEncoder::AddRecord(const Chain& record) {
   ChainReader<> reader(&record);
   return AddRecordInternal(&reader);

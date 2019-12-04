@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -46,13 +47,18 @@ class ChunkEncoder : public Object {
   // `AddRecord(google::protobuf::MessageLite)` serializes a proto message to
   // raw bytes beforehand. The remaining overloads accept raw bytes.
   //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `std::string_view`
+  // (e.g. `const char *`).
+  //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
   virtual bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(absl::string_view record) = 0;
-  virtual bool AddRecord(std::string&& record) = 0;
-  bool AddRecord(const char* record);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  bool AddRecord(Src&& record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
 
@@ -100,8 +106,14 @@ inline void ChunkEncoder::Clear() {
   decoded_data_size_ = 0;
 }
 
-inline bool ChunkEncoder::AddRecord(const char* record) {
-  return AddRecord(absl::string_view(record));
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline bool ChunkEncoder::AddRecord(Src&& record) {
+  if (ABSL_PREDICT_TRUE(record.size() <= kMaxBytesToCopy)) {
+    return AddRecord(absl::string_view(record));
+  } else {
+    return AddRecord(Chain(std::move(record)));
+  }
 }
 
 }  // namespace riegeli

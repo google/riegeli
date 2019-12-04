@@ -118,9 +118,15 @@ class Chain {
 
   constexpr Chain() noexcept {}
 
+  // Converts from a string-like type.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `std::string_view`
+  // (e.g. `const char *`).
   explicit Chain(absl::string_view src);
-  explicit Chain(std::string&& src);
-  explicit Chain(const char* src);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  explicit Chain(Src&& src);
   explicit Chain(const ChainBlock& src);
   explicit Chain(ChainBlock&& src);
 
@@ -140,8 +146,9 @@ class Chain {
   // constructing a temporary `Chain` and moving from it.
   void Reset();
   void Reset(absl::string_view src);
-  void Reset(std::string&& src);
-  void Reset(const char* src);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void Reset(Src&& src);
   void Reset(const ChainBlock& src);
   void Reset(ChainBlock&& src);
 
@@ -198,16 +205,23 @@ class Chain {
   absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
   absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
 
+  // Appends/prepends a string-like type.
+  //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `std::string_view`
+  // (e.g. `const char *`).
   void Append(absl::string_view src, size_t size_hint = 0);
-  void Append(std::string&& src, size_t size_hint = 0);
-  void Append(const char* src, size_t size_hint = 0);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void Append(Src&& src, size_t size_hint = 0);
   void Append(const ChainBlock& src, size_t size_hint = 0);
   void Append(ChainBlock&& src, size_t size_hint = 0);
   void Append(const Chain& src, size_t size_hint = 0);
   void Append(Chain&& src, size_t size_hint = 0);
   void Prepend(absl::string_view src, size_t size_hint = 0);
-  void Prepend(std::string&& src, size_t size_hint = 0);
-  void Prepend(const char* src, size_t size_hint = 0);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  void Prepend(Src&& src, size_t size_hint = 0);
   void Prepend(const ChainBlock& src, size_t size_hint = 0);
   void Prepend(ChainBlock&& src, size_t size_hint = 0);
   void Prepend(const Chain& src, size_t size_hint = 0);
@@ -360,6 +374,9 @@ class Chain {
   // least `min_length`, preferably `recommended_length`.
   size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
                           size_t recommended_length, size_t size_hint) const;
+
+  void AppendString(std::string&& src, size_t size_hint);
+  void PrependString(std::string&& src, size_t size_hint);
 
   template <Ownership ownership, typename ChainRef>
   void AppendImpl(ChainRef&& src, size_t size_hint);
@@ -1556,9 +1573,11 @@ inline Chain Chain::FromExternal(std::tuple<Args...> args,
 
 inline Chain::Chain(absl::string_view src) { Append(src, src.size()); }
 
-inline Chain::Chain(std::string&& src) { Append(std::move(src), src.size()); }
-
-inline Chain::Chain(const char* src) : Chain(absl::string_view(src)) {}
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline Chain::Chain(Src&& src) {
+  Append(std::move(src), src.size());
+}
 
 inline Chain::Chain(const ChainBlock& src) {
   if (src.block_ != nullptr) {
@@ -1634,12 +1653,12 @@ inline void Chain::Reset(absl::string_view src) {
   Append(src, src.size());
 }
 
-inline void Chain::Reset(std::string&& src) {
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline void Chain::Reset(Src&& src) {
   Clear();
   Append(std::move(src), src.size());
 }
-
-inline void Chain::Reset(const char* src) { Reset(absl::string_view(src)); }
 
 inline void Chain::Reset(const ChainBlock& src) {
   Clear();
@@ -1699,12 +1718,16 @@ inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
   return PrependBuffer(length, length, length, size_hint);
 }
 
-inline void Chain::Append(const char* src, size_t size_hint) {
-  Append(absl::string_view(src), size_hint);
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline void Chain::Append(Src&& src, size_t size_hint) {
+  AppendString(std::move(src), size_hint);
 }
 
-inline void Chain::Prepend(const char* src, size_t size_hint) {
-  Prepend(absl::string_view(src), size_hint);
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline void Chain::Prepend(Src&& src, size_t size_hint) {
+  PrependString(std::move(src), size_hint);
 }
 
 inline void Chain::Append(const ChainBlock& src, size_t size_hint) {

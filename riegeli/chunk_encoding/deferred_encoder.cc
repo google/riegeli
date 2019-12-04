@@ -19,7 +19,6 @@
 
 #include <limits>
 #include <memory>
-#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -71,10 +70,6 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
 
 bool DeferredEncoder::AddRecord(absl::string_view record) {
   return AddRecordImpl(record);
-}
-
-bool DeferredEncoder::AddRecord(std::string&& record) {
-  return AddRecordImpl(std::move(record));
 }
 
 bool DeferredEncoder::AddRecord(const Chain& record) {

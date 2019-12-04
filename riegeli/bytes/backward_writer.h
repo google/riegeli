@@ -20,6 +20,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -96,13 +97,18 @@ class BackwardWriter : public Object {
   // Prepends a fixed number of bytes from `src` to the buffer, pushing data to
   // the destination as needed.
   //
+  // `std::string&&` is accepted with a template to avoid implicit conversions
+  // to `std::string` which can be ambiguous against `std::string_view`
+  // (e.g. `const char *`).
+  //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
   //  * `false` - failure (a suffix of less than `src.size()` bytes written,
   //                       `!healthy()`)
   bool Write(absl::string_view src);
-  bool Write(std::string&& src);
-  bool Write(const char* src);
+  template <typename Src,
+            std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+  bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
 
@@ -340,22 +346,14 @@ inline bool BackwardWriter::Write(absl::string_view src) {
   return WriteSlow(src);
 }
 
-inline bool BackwardWriter::Write(std::string&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    if (ABSL_PREDICT_TRUE(
-            // `std::memcpy(nullptr, _, 0)` is undefined.
-            !src.empty())) {
-      move_cursor(src.size());
-      std::memcpy(cursor(), src.data(), src.size());
-    }
-    return true;
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline bool BackwardWriter::Write(Src&& src) {
+  if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
+    return Write(absl::string_view(src));
+  } else {
+    return WriteSlow(Chain(std::move(src)));
   }
-  return WriteSlow(Chain(std::move(src)));
-}
-
-inline bool BackwardWriter::Write(const char* src) {
-  return Write(absl::string_view(src));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
