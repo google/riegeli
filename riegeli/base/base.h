@@ -299,19 +299,20 @@ using type_identity_t = typename type_identity<T>::type;
 
 namespace internal {
 
-template <typename A, typename B>
-inline std::enable_if_t<
-    std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
-IntCastImpl(B value) {
+template <
+    typename A, typename B,
+    std::enable_if_t<std::is_unsigned<A>::value && std::is_unsigned<B>::value,
+                     int> = 0>
+inline A IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Value out of range";
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
-                        A>
-IntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<
+              std::is_unsigned<A>::value && std::is_signed<B>::value, int> = 0>
+inline A IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, 0) << "Value out of range";
   RIEGELI_ASSERT_LE(static_cast<std::make_unsigned_t<B>>(value),
                     std::numeric_limits<A>::max())
@@ -319,19 +320,20 @@ IntCastImpl(B value) {
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
-                        A>
-IntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<
+              std::is_signed<A>::value && std::is_unsigned<B>::value, int> = 0>
+inline A IntCastImpl(B value) {
   RIEGELI_ASSERT_LE(value,
                     std::make_unsigned_t<A>{std::numeric_limits<A>::max()})
       << "Value out of range";
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value, A>
-IntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
+                           int> = 0>
+inline A IntCastImpl(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Value out of range";
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
@@ -355,20 +357,21 @@ inline A IntCast(B value) {
 
 namespace internal {
 
-template <typename A, typename B>
-inline std::enable_if_t<
-    std::is_unsigned<A>::value && std::is_unsigned<B>::value, A>
-SaturatingIntCastImpl(B value) {
+template <
+    typename A, typename B,
+    std::enable_if_t<std::is_unsigned<A>::value && std::is_unsigned<B>::value,
+                     int> = 0>
+inline A SaturatingIntCastImpl(B value) {
   if (ABSL_PREDICT_FALSE(value > std::numeric_limits<A>::max())) {
     return std::numeric_limits<A>::max();
   }
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_unsigned<A>::value && std::is_signed<B>::value,
-                        A>
-SaturatingIntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<
+              std::is_unsigned<A>::value && std::is_signed<B>::value, int> = 0>
+inline A SaturatingIntCastImpl(B value) {
   if (ABSL_PREDICT_FALSE(value < 0)) return 0;
   if (ABSL_PREDICT_FALSE(static_cast<std::make_unsigned_t<B>>(value) >
                          std::numeric_limits<A>::max())) {
@@ -377,10 +380,10 @@ SaturatingIntCastImpl(B value) {
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_signed<A>::value && std::is_unsigned<B>::value,
-                        A>
-SaturatingIntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<
+              std::is_signed<A>::value && std::is_unsigned<B>::value, int> = 0>
+inline A SaturatingIntCastImpl(B value) {
   if (ABSL_PREDICT_FALSE(
           value > std::make_unsigned_t<A>{std::numeric_limits<A>::max()})) {
     return std::numeric_limits<A>::max();
@@ -388,9 +391,10 @@ SaturatingIntCastImpl(B value) {
   return static_cast<A>(value);
 }
 
-template <typename A, typename B>
-inline std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value, A>
-SaturatingIntCastImpl(B value) {
+template <typename A, typename B,
+          std::enable_if_t<std::is_signed<A>::value && std::is_signed<B>::value,
+                           int> = 0>
+inline A SaturatingIntCastImpl(B value) {
   if (ABSL_PREDICT_FALSE(value < std::numeric_limits<A>::min())) {
     return std::numeric_limits<A>::min();
   }

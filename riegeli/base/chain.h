@@ -861,25 +861,25 @@ struct HasCallOperatorWithoutData<T,
                                   absl::void_t<decltype(std::declval<T>()())>>
     : public std::true_type {};
 
-template <typename T>
-inline absl::enable_if_t<HasCallOperatorWithData<T>::value, void> CallOperator(
-    T* object, absl::string_view data) {
+template <typename T,
+          absl::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
+inline void CallOperator(T* object, absl::string_view data) {
   (*object)(data);
 }
 
-template <typename T>
-inline absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                             HasCallOperatorWithoutData<T>::value,
-                         void>
-CallOperator(T* object, absl::string_view data) {
+template <typename T,
+          absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                                HasCallOperatorWithoutData<T>::value,
+                            int> = 0>
+inline void CallOperator(T* object, absl::string_view data) {
   (*object)();
 }
 
-template <typename T>
-inline absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
-                             !HasCallOperatorWithoutData<T>::value,
-                         void>
-CallOperator(T* object, absl::string_view data) {}
+template <typename T,
+          absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
+                                !HasCallOperatorWithoutData<T>::value,
+                            int> = 0>
+inline void CallOperator(T* object, absl::string_view data) {}
 
 template <typename T, typename Enable = void>
 struct HasRegisterSubobjectsWithData : public std::false_type {};
@@ -899,28 +899,28 @@ struct HasRegisterSubobjectsWithoutData<
     T, absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
            std::declval<MemoryEstimator*>()))>> : public std::true_type {};
 
-template <typename T>
-inline absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, void>
-RegisterSubobjects(T* object, absl::string_view data,
-                   MemoryEstimator* memory_estimator) {
+template <typename T,
+          absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
+inline void RegisterSubobjects(T* object, absl::string_view data,
+                               MemoryEstimator* memory_estimator) {
   object->RegisterSubobjects(data, memory_estimator);
 }
 
-template <typename T>
-inline absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                             HasRegisterSubobjectsWithoutData<T>::value,
-                         void>
-RegisterSubobjects(T* object, absl::string_view data,
-                   MemoryEstimator* memory_estimator) {
+template <typename T,
+          absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                                HasRegisterSubobjectsWithoutData<T>::value,
+                            int> = 0>
+inline void RegisterSubobjects(T* object, absl::string_view data,
+                               MemoryEstimator* memory_estimator) {
   object->RegisterSubobjects(memory_estimator);
 }
 
-template <typename T>
-inline absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
-                             !HasRegisterSubobjectsWithoutData<T>::value,
-                         void>
-RegisterSubobjects(T* object, absl::string_view data,
-                   MemoryEstimator* memory_estimator) {
+template <typename T,
+          absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
+                                !HasRegisterSubobjectsWithoutData<T>::value,
+                            int> = 0>
+inline void RegisterSubobjects(T* object, absl::string_view data,
+                               MemoryEstimator* memory_estimator) {
   if (memory_estimator->RegisterNode(data.data())) {
     memory_estimator->RegisterDynamicMemory(data.size());
   }
@@ -943,25 +943,28 @@ struct HasDumpStructureWithoutData<
     T, absl::void_t<decltype(std::declval<T>().DumpStructure(
            std::declval<std::ostream&>()))>> : public std::true_type {};
 
-template <typename T>
-inline std::enable_if_t<HasDumpStructureWithData<T>::value, void> DumpStructure(
-    T* object, absl::string_view data, std::ostream& out) {
+template <typename T,
+          std::enable_if_t<HasDumpStructureWithData<T>::value, int> = 0>
+inline void DumpStructure(T* object, absl::string_view data,
+                          std::ostream& out) {
   object->DumpStructure(data, out);
 }
 
-template <typename T>
-inline std::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                            HasDumpStructureWithoutData<T>::value,
-                        void>
-DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+template <typename T,
+          std::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                               HasDumpStructureWithoutData<T>::value,
+                           int> = 0>
+inline void DumpStructure(T* object, absl::string_view data,
+                          std::ostream& out) {
   object->DumpStructure(out);
 }
 
-template <typename T>
-inline std::enable_if_t<!HasDumpStructureWithData<T>::value &&
-                            !HasDumpStructureWithoutData<T>::value,
-                        void>
-DumpStructure(T* object, absl::string_view data, std::ostream& out) {
+template <typename T,
+          std::enable_if_t<!HasDumpStructureWithData<T>::value &&
+                               !HasDumpStructureWithoutData<T>::value,
+                           int> = 0>
+inline void DumpStructure(T* object, absl::string_view data,
+                          std::ostream& out) {
   out << "[external] { }";
 }
 
