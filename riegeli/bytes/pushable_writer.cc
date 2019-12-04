@@ -35,6 +35,14 @@ void PushableWriter::Done() {
 
 void PushableWriter::PushFromScratchSlow(size_t min_length,
                                          size_t recommended_length) {
+  if (scratch_used()) {
+    RIEGELI_ASSERT(start() == scratch_->buffer.data())
+        << "Failed invariant of PushableWriter: "
+           "scratch used but buffer pointers do not point to scratch";
+    RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+        << "Failed invariant of PushableWriter: "
+           "scratch used but buffer pointers do not point to scratch";
+  }
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of PushableWriter::PushFromScratchSlow(): "
          "trivial min_length";
@@ -54,6 +62,9 @@ void PushableWriter::PushFromScratchSlow(size_t min_length,
 }
 
 bool PushableWriter::SyncScratchSlow() {
+  RIEGELI_ASSERT(scratch_used())
+      << "Failed precondition of PushableWriter::SyncScratchSlow(): "
+         "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PushableWriter: "
          "scratch used but buffer pointers do not point to scratch";
@@ -85,6 +96,9 @@ bool PushableWriter::SyncScratchSlow() {
 }
 
 void PushableWriter::BehindScratch::Enter() {
+  RIEGELI_ASSERT(context_->scratch_used())
+      << "Failed precondition of PushableWriter::BehindScratch::Enter(): "
+         "scratch not used";
   RIEGELI_ASSERT(context_->start() == context_->scratch_->buffer.data())
       << "Failed invariant of PushableWriter: "
          "scratch used but buffer pointers do not point to scratch";
@@ -100,6 +114,9 @@ void PushableWriter::BehindScratch::Enter() {
 }
 
 void PushableWriter::BehindScratch::Leave() {
+  RIEGELI_ASSERT(context_->scratch_used())
+      << "Failed precondition of PushableWriter::BehindScratch::Leave(): "
+         "scratch not used";
   context_->set_start_pos(context_->pos());
   context_->scratch_->original_start = context_->start();
   context_->scratch_->original_buffer_size = context_->buffer_size();

@@ -45,6 +45,14 @@ inline bool PullableReader::ScratchEnds() {
 
 void PullableReader::PullToScratchSlow(size_t min_length,
                                        size_t recommended_length) {
+  if (scratch_used()) {
+    RIEGELI_ASSERT(start() == scratch_->buffer.data())
+        << "Failed invariant of PullableReader: "
+           "scratch used but buffer pointers do not point to scratch";
+    RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+        << "Failed invariant of PullableReader: "
+           "scratch used but buffer pointers do not point to scratch";
+  }
   RIEGELI_ASSERT_GT(min_length, 1u)
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
          "trivial min_length";
@@ -99,6 +107,12 @@ bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::ReadScratchSlow(Chain*): "
          "scratch not used";
+  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
   if (ScratchEnds()) return true;
   const size_t length_to_read = UnsignedMin(*length, available());
   scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
@@ -116,6 +130,12 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::CopyToInScratchSlow(): "
          "scratch not used";
+  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
   if (ScratchEnds()) return true;
   const size_t length_to_copy = UnsignedMin(*length, available());
   bool ok;
@@ -148,6 +168,9 @@ bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
 }
 
 void PullableReader::SyncScratchSlow() {
+  RIEGELI_ASSERT(scratch_used())
+      << "Failed precondition of PullableReader::SyncScratchSlow(): "
+         "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
@@ -161,6 +184,9 @@ void PullableReader::SyncScratchSlow() {
 }
 
 void PullableReader::BehindScratch::Enter() {
+  RIEGELI_ASSERT(context_->scratch_used())
+      << "Failed precondition of PullableReader::BehindScratch::Enter(): "
+         "scratch not used";
   RIEGELI_ASSERT(context_->start() == context_->scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
@@ -175,6 +201,9 @@ void PullableReader::BehindScratch::Enter() {
 }
 
 void PullableReader::BehindScratch::Leave() {
+  RIEGELI_ASSERT(context_->scratch_used())
+      << "Failed precondition of PullableReader::BehindScratch::Leave(): "
+         "scratch not used";
   context_->set_limit_pos(context_->pos());
   context_->scratch_->original_start = context_->start();
   context_->scratch_->original_buffer_size = context_->buffer_size();
