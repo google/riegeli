@@ -161,9 +161,7 @@ class Writer : public Object {
   // Return values:
   //  * `true`                      - success (position is set to `new_pos`)
   //  * `false` (when `healthy()`)  - destination ends before `new_pos`
-  //                                  (position is set to end), or
-  //                                  seeking backwards is not supported
-  //                                  (position is unchanged)
+  //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
   bool Seek(Position new_pos);
 
