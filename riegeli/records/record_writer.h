@@ -278,12 +278,20 @@ class RecordWriterBase : public Object {
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
     // Default: no fields set
-    Options& set_metadata(RecordsMetadata metadata) & {
+    Options& set_metadata(const RecordsMetadata& metadata) & {
+      metadata_ = metadata;
+      serialized_metadata_.Clear();
+      return *this;
+    }
+    Options& set_metadata(RecordsMetadata&& metadata) & {
       metadata_ = std::move(metadata);
       serialized_metadata_.Clear();
       return *this;
     }
-    Options&& set_metadata(RecordsMetadata metadata) && {
+    Options&& set_metadata(const RecordsMetadata& metadata) && {
+      return std::move(set_metadata(metadata));
+    }
+    Options&& set_metadata(RecordsMetadata&& metadata) && {
       return std::move(set_metadata(std::move(metadata)));
     }
     RecordsMetadata& metadata() & { return metadata_; }
@@ -294,12 +302,20 @@ class RecordWriterBase : public Object {
     // Like `set_metadata()`, but metadata are passed in the serialized form.
     //
     // This is faster if the caller has metadata already serialized.
-    Options& set_serialized_metadata(Chain serialized_metadata) & {
+    Options& set_serialized_metadata(const Chain& serialized_metadata) & {
+      metadata_.Clear();
+      serialized_metadata_ = serialized_metadata;
+      return *this;
+    }
+    Options& set_serialized_metadata(Chain&& serialized_metadata) & {
       metadata_.Clear();
       serialized_metadata_ = std::move(serialized_metadata);
       return *this;
     }
-    Options&& set_serialized_metadata(Chain serialized_metadata) && {
+    Options&& set_serialized_metadata(const Chain& serialized_metadata) && {
+      return std::move(set_serialized_metadata(serialized_metadata));
+    }
+    Options&& set_serialized_metadata(Chain&& serialized_metadata) && {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
     Chain& serialized_metadata() & { return serialized_metadata_; }
