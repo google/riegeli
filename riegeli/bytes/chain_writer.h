@@ -47,11 +47,9 @@ class ChainWriterBase : public Writer {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    template <typename Dest>
-    friend class ChainWriter;
-
     Position size_hint_ = 0;
   };
 
@@ -187,13 +185,13 @@ inline void ChainWriterBase::Initialize(Chain* dest) {
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
-    : ChainWriterBase(options.size_hint_), dest_(dest) {
+    : ChainWriterBase(options.size_hint()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(Dest&& dest, Options options)
-    : ChainWriterBase(options.size_hint_), dest_(std::move(dest)) {
+    : ChainWriterBase(options.size_hint()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -201,7 +199,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
-    : ChainWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+    : ChainWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -227,14 +225,14 @@ inline void ChainWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ChainWriterBase::Reset(options.size_hint_);
+  ChainWriterBase::Reset(options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainWriterBase::Reset(options.size_hint_);
+  ChainWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -243,7 +241,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
-  ChainWriterBase::Reset(options.size_hint_);
+  ChainWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

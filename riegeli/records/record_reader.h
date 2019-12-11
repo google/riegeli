@@ -90,6 +90,16 @@ class RecordReaderBase : public Object {
     Options&& set_field_projection(FieldProjection field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
     }
+    FieldProjection& field_projection() & { return field_projection_; }
+    const FieldProjection& field_projection() const& {
+      return field_projection_;
+    }
+    FieldProjection&& field_projection() && {
+      return std::move(field_projection_);
+    }
+    const FieldProjection&& field_projection() const&& {
+      return std::move(field_projection_);
+    }
 
     // Sets the recovery function to be called after skipping over invalid file
     // contents.
@@ -129,10 +139,20 @@ class RecordReaderBase : public Object {
         std::function<bool(const SkippedRegion&)> recovery) && {
       return std::move(set_recovery(std::move(recovery)));
     }
+    std::function<bool(const SkippedRegion&)>& recovery() & {
+      return recovery_;
+    }
+    const std::function<bool(const SkippedRegion&)>& recovery() const& {
+      return recovery_;
+    }
+    std::function<bool(const SkippedRegion&)>&& recovery() && {
+      return std::move(recovery_);
+    }
+    const std::function<bool(const SkippedRegion&)>&& recovery() const&& {
+      return std::move(recovery_);
+    }
 
    private:
-    friend class RecordReaderBase;
-
     FieldProjection field_projection_ = FieldProjection::All();
     std::function<bool(const SkippedRegion&)> recovery_;
   };

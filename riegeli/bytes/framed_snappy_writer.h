@@ -49,11 +49,9 @@ class FramedSnappyWriterBase : public PushableWriter {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    template <typename Dest>
-    friend class FramedSnappyWriter;
-
     Position size_hint_ = 0;
   };
 
@@ -178,14 +176,14 @@ inline void FramedSnappyWriterBase::Reset(Position size_hint) {
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(const Dest& dest,
                                                     Options options)
-    : FramedSnappyWriterBase(options.size_hint_), dest_(dest) {
+    : FramedSnappyWriterBase(options.size_hint()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(Dest&& dest,
                                                     Options options)
-    : FramedSnappyWriterBase(options.size_hint_), dest_(std::move(dest)) {
+    : FramedSnappyWriterBase(options.size_hint()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -193,7 +191,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : FramedSnappyWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+    : FramedSnappyWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -218,14 +216,14 @@ inline void FramedSnappyWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FramedSnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint_);
+  FramedSnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void FramedSnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint_);
+  FramedSnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -234,7 +232,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void FramedSnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
-  FramedSnappyWriterBase::Reset(options.size_hint_);
+  FramedSnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

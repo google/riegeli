@@ -47,11 +47,9 @@ class ChainBackwardWriterBase : public BackwardWriter {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    template <typename Dest>
-    friend class ChainBackwardWriter;
-
     Position size_hint_ = 0;
   };
 
@@ -187,14 +185,14 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(options.size_hint_), dest_(dest) {
+    : ChainBackwardWriterBase(options.size_hint()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest&& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest)) {
+    : ChainBackwardWriterBase(options.size_hint()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -202,7 +200,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : ChainBackwardWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+    : ChainBackwardWriterBase(options.size_hint()),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -230,14 +229,14 @@ inline void ChainBackwardWriter<Dest>::Reset() {
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(const Dest& dest,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint_);
+  ChainBackwardWriterBase::Reset(options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint_);
+  ChainBackwardWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -246,7 +245,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint_);
+  ChainBackwardWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

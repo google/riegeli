@@ -43,14 +43,14 @@ namespace riegeli {
 namespace python {
 
 PythonReader::PythonReader(PyObject* src, Options options)
-    : BufferedReader(options.buffer_size_),
-      close_(options.close_),
-      random_access_(!options.assumed_pos_.has_value()) {
+    : BufferedReader(options.buffer_size()),
+      close_(options.close()),
+      random_access_(!options.assumed_pos().has_value()) {
   PythonLock::AssertHeld();
   Py_INCREF(src);
   src_.reset(src);
   if (!random_access_) {
-    set_limit_pos(*options.assumed_pos_);
+    set_limit_pos(*options.assumed_pos());
   } else {
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(

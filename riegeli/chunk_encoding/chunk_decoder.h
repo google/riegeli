@@ -54,10 +54,18 @@ class ChunkDecoder : public Object {
     Options&& set_field_projection(FieldProjection field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
     }
+    FieldProjection& field_projection() & { return field_projection_; }
+    const FieldProjection& field_projection() const& {
+      return field_projection_;
+    }
+    FieldProjection&& field_projection() && {
+      return std::move(field_projection_);
+    }
+    const FieldProjection&& field_projection() const&& {
+      return std::move(field_projection_);
+    }
 
    private:
-    friend class ChunkDecoder;
-
     FieldProjection field_projection_ = FieldProjection::All();
   };
 
@@ -149,7 +157,7 @@ class ChunkDecoder : public Object {
 
 inline ChunkDecoder::ChunkDecoder(Options options)
     : Object(kInitiallyOpen),
-      field_projection_(std::move(options.field_projection_)),
+      field_projection_(std::move(options.field_projection())),
       values_reader_(std::forward_as_tuple()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
@@ -171,7 +179,7 @@ inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
 }
 
 inline void ChunkDecoder::Reset(Options options) {
-  field_projection_ = std::move(options.field_projection_);
+  field_projection_ = std::move(options.field_projection());
   Clear();
 }
 

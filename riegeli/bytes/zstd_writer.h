@@ -62,9 +62,10 @@ class ZstdWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int level) && {
-      return std::move(set_compression_level(level));
+    Options&& set_compression_level(int compression_level) && {
+      return std::move(set_compression_level(compression_level));
     }
+    int compression_level() const { return compression_level_; }
 
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
     // between compression density and memory usage (higher = better density but
@@ -97,6 +98,7 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_window_log(int window_log) && {
       return std::move(set_window_log(window_log));
     }
+    int window_log() const { return window_log_; }
 
     // Exact uncompressed size. This may improve compression density and
     // performance, and causes the size to be stored in the compressed stream
@@ -110,6 +112,7 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_final_size(absl::optional<Position> final_size) && {
       return std::move(set_final_size(final_size));
     }
+    absl::optional<Position> final_size() const { return final_size_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve compression
     // density and performance.
@@ -124,6 +127,7 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
@@ -136,6 +140,7 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_store_checksum(bool store_checksum) && {
       return std::move(set_store_checksum(store_checksum));
     }
+    bool store_checksum() const { return store_checksum_; }
 
     // Tunes how much data is buffered before calling the compression engine.
     //
@@ -152,11 +157,9 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class ZstdWriter;
-
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     absl::optional<Position> final_size_;
@@ -281,37 +284,37 @@ inline void ZstdWriterBase::Reset(size_t buffer_size, Position size_hint) {
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
-    : ZstdWriterBase(options.buffer_size_,
-                     options.final_size_.value_or(options.size_hint_)),
+    : ZstdWriterBase(options.buffer_size(),
+                     options.final_size().value_or(options.size_hint())),
       dest_(dest) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(Dest&& dest, Options options)
-    : ZstdWriterBase(options.buffer_size_,
-                     options.final_size_.value_or(options.size_hint_)),
+    : ZstdWriterBase(options.buffer_size(),
+                     options.final_size().value_or(options.size_hint())),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : ZstdWriterBase(options.buffer_size_,
-                     options.final_size_.value_or(options.size_hint_)),
+    : ZstdWriterBase(options.buffer_size(),
+                     options.final_size().value_or(options.size_hint())),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>
@@ -334,37 +337,37 @@ inline void ZstdWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ZstdWriterBase::Reset(options.buffer_size_,
-                        options.final_size_.value_or(options.size_hint_));
+  ZstdWriterBase::Reset(options.buffer_size(),
+                        options.final_size().value_or(options.size_hint()));
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ZstdWriterBase::Reset(options.buffer_size_,
-                        options.final_size_.value_or(options.size_hint_));
+  ZstdWriterBase::Reset(options.buffer_size(),
+                        options.final_size().value_or(options.size_hint()));
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void ZstdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  ZstdWriterBase::Reset(options.buffer_size_,
-                        options.final_size_.value_or(options.size_hint_));
+  ZstdWriterBase::Reset(options.buffer_size(),
+                        options.final_size().value_or(options.size_hint()));
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.final_size_,
-             options.final_size_.value_or(options.size_hint_),
-             options.store_checksum_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.final_size(),
+             options.final_size().value_or(options.size_hint()),
+             options.store_checksum());
 }
 
 template <typename Dest>

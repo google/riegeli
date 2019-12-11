@@ -86,6 +86,7 @@ class FdWriterBase : public internal::FdWriterCommon {
     Options&& set_permissions(mode_t permissions) && {
       return std::move(set_permissions(permissions));
     }
+    mode_t permissions() const { return permissions_; }
 
     // If `absl::nullopt`, `FdWriter` will initially get the current fd
     // position, and will set the fd position on `Close()` and `Flush()`.
@@ -102,6 +103,7 @@ class FdWriterBase : public internal::FdWriterCommon {
     Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
       return std::move(set_initial_pos(initial_pos));
     }
+    absl::optional<Position> initial_pos() const { return initial_pos_; }
 
     // Tunes how much data is buffered before writing to the file.
     //
@@ -116,11 +118,9 @@ class FdWriterBase : public internal::FdWriterCommon {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class FdWriter;
-
     mode_t permissions_ = 0666;
     absl::optional<Position> initial_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -173,6 +173,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     Options&& set_permissions(mode_t permissions) && {
       return std::move(set_permissions(permissions));
     }
+    mode_t permissions() const { return permissions_; }
 
     // If not `absl::nullopt`, this position will be assumed initially, to be
     // reported by `pos()`. This is required by the constructor from fd.
@@ -191,6 +192,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // Tunes how much data is buffered before writing to the file.
     //
@@ -206,11 +208,9 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class FdStreamWriter;
-
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -482,33 +482,33 @@ inline void FdStreamWriterBase::Initialize(
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
                                 Options options)
-    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
       dest_(dest) {
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(internal::type_identity_t<Dest>&& dest,
                                 Options options)
-    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
-    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
                                 Options options)
-    : FdWriterBase(options.buffer_size_, !options.initial_pos_.has_value()) {
-  Initialize(filename, flags, options.permissions_, options.initial_pos_);
+    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()) {
+  Initialize(filename, flags, options.permissions(), options.initial_pos());
 }
 
 template <typename Dest>
@@ -530,33 +530,37 @@ inline void FdWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdWriterBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdWriterBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdWriterBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.initial_pos_);
+  Initialize(dest_.get(), options.initial_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdWriterBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   dest_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.permissions_, options.initial_pos_);
+  Initialize(filename, flags, options.permissions(), options.initial_pos());
 }
 
 template <typename Dest>
@@ -589,30 +593,30 @@ void FdWriter<Dest>::Done() {
 template <typename Dest>
 inline FdStreamWriter<Dest>::FdStreamWriter(
     const internal::type_identity_t<Dest>& dest, Options options)
-    : FdStreamWriterBase(options.buffer_size_), dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos_);
+    : FdStreamWriterBase(options.buffer_size()), dest_(dest) {
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline FdStreamWriter<Dest>::FdStreamWriter(
     internal::type_identity_t<Dest>&& dest, Options options)
-    : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos_);
+    : FdStreamWriterBase(options.buffer_size()), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline FdStreamWriter<Dest>::FdStreamWriter(std::tuple<DestArgs...> dest_args,
                                             Options options)
-    : FdStreamWriterBase(options.buffer_size_), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos_);
+    : FdStreamWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename,
                                             int flags, Options options)
-    : FdStreamWriterBase(options.buffer_size_) {
-  Initialize(filename, flags, options.permissions_, options.assumed_pos_);
+    : FdStreamWriterBase(options.buffer_size()) {
+  Initialize(filename, flags, options.permissions(), options.assumed_pos());
 }
 
 template <typename Dest>
@@ -635,33 +639,33 @@ inline void FdStreamWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FdStreamWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FdStreamWriterBase::Reset(options.buffer_size_);
+  FdStreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline void FdStreamWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FdStreamWriterBase::Reset(options.buffer_size_);
+  FdStreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void FdStreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                         Options options) {
-  FdStreamWriterBase::Reset(options.buffer_size_);
+  FdStreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline void FdStreamWriter<Dest>::Reset(absl::string_view filename, int flags,
                                         Options options) {
-  FdStreamWriterBase::Reset(options.buffer_size_);
+  FdStreamWriterBase::Reset(options.buffer_size());
   dest_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.permissions_, options.assumed_pos_);
+  Initialize(filename, flags, options.permissions(), options.assumed_pos());
 }
 
 template <typename Dest>

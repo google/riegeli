@@ -61,8 +61,8 @@ void Compressor::Initialize() {
     case CompressionType::kNone:
       writer_.emplace<ChainWriter<>>(&compressed_,
                                      ChainWriterBase::Options().set_size_hint(
-                                         tuning_options_.final_size_.value_or(
-                                             tuning_options_.size_hint_)));
+                                         tuning_options_.final_size().value_or(
+                                             tuning_options_.size_hint())));
       return;
     case CompressionType::kBrotli:
       writer_.emplace<BrotliWriter<ChainWriter<>>>(
@@ -70,8 +70,8 @@ void Compressor::Initialize() {
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.window_log())
-              .set_size_hint(tuning_options_.final_size_.value_or(
-                  tuning_options_.size_hint_)));
+              .set_size_hint(tuning_options_.final_size().value_or(
+                  tuning_options_.size_hint())));
       return;
     case CompressionType::kZstd:
       writer_.emplace<ZstdWriter<ChainWriter<>>>(
@@ -79,14 +79,14 @@ void Compressor::Initialize() {
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.window_log())
-              .set_final_size(tuning_options_.final_size_)
-              .set_size_hint(tuning_options_.size_hint_));
+              .set_final_size(tuning_options_.final_size())
+              .set_size_hint(tuning_options_.size_hint()));
       return;
     case CompressionType::kSnappy:
       writer_.emplace<SnappyWriter<ChainWriter<>>>(
           std::forward_as_tuple(&compressed_),
           SnappyWriterBase::Options().set_size_hint(
-              tuning_options_.size_hint_));
+              tuning_options_.size_hint()));
       return;
   }
   RIEGELI_ASSERT_UNREACHABLE()

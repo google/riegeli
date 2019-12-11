@@ -49,6 +49,7 @@ class ZstdReaderBase : public BufferedReader {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
@@ -65,11 +66,9 @@ class ZstdReaderBase : public BufferedReader {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Src>
-    friend class ZstdReader;
-
     Position size_hint_ = 0;
     size_t buffer_size_ = DefaultBufferSize();
   };
@@ -196,13 +195,13 @@ inline void ZstdReaderBase::Reset(size_t buffer_size, Position size_hint) {
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
-    : ZstdReaderBase(options.buffer_size_, options.size_hint_), src_(src) {
+    : ZstdReaderBase(options.buffer_size(), options.size_hint()), src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
-    : ZstdReaderBase(options.buffer_size_, options.size_hint_),
+    : ZstdReaderBase(options.buffer_size(), options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -211,7 +210,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZstdReaderBase(options.buffer_size_, options.size_hint_),
+    : ZstdReaderBase(options.buffer_size(), options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -235,14 +234,14 @@ inline void ZstdReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
-  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
-  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -251,7 +250,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZstdReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

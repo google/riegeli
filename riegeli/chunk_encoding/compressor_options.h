@@ -172,7 +172,7 @@ class CompressorOptions {
 
   // Returns `window_log` translated for `BrotliWriter` or `ZstdWriter`.
   //
-  // Precondition: `compression_type_ != CompressionType::kNone`
+  // Precondition: `compression_type() != CompressionType::kNone`
   int window_log() const;
 
  private:

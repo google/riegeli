@@ -61,6 +61,7 @@ class FileReaderBase : public Reader {
     Options&& set_env(::tensorflow::Env* env) && {
       return std::move(set_env(env));
     }
+    ::tensorflow::Env* env() const { return env_; }
 
     // Reading will start from this position.
     //
@@ -72,6 +73,7 @@ class FileReaderBase : public Reader {
     Options&& set_initial_pos(Position initial_pos) && {
       return std::move(set_initial_pos(initial_pos));
     }
+    Position initial_pos() const { return initial_pos_; }
 
     // Tunes how much data is buffered after reading from the file.
     //
@@ -87,11 +89,9 @@ class FileReaderBase : public Reader {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Src>
-    friend class FileReader;
-
     ::tensorflow::Env* env_ = nullptr;
     Position initial_pos_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -301,28 +301,28 @@ inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(const Src& src, Options options)
-    : FileReaderBase(options.buffer_size_), src_(src) {
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+    : FileReaderBase(options.buffer_size()), src_(src) {
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 inline FileReader<Src>::FileReader(Src&& src, Options options)
-    : FileReaderBase(options.buffer_size_), src_(std::move(src)) {
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+    : FileReaderBase(options.buffer_size()), src_(std::move(src)) {
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : FileReaderBase(options.buffer_size_), src_(std::move(src_args)) {
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+    : FileReaderBase(options.buffer_size()), src_(std::move(src_args)) {
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
-    : FileReaderBase(options.buffer_size_) {
-  Initialize(filename, options.env_, options.initial_pos_);
+    : FileReaderBase(options.buffer_size()) {
+  Initialize(filename, options.env(), options.initial_pos());
 }
 
 template <typename Src>
@@ -333,33 +333,33 @@ inline void FileReader<Src>::Reset() {
 
 template <typename Src>
 inline void FileReader<Src>::Reset(const Src& src, Options options) {
-  FileReaderBase::Reset(options.buffer_size_);
+  FileReaderBase::Reset(options.buffer_size());
   src_.Reset(src);
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FileReader<Src>::Reset(Src&& src, Options options) {
-  FileReaderBase::Reset(options.buffer_size_);
+  FileReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  FileReaderBase::Reset(options.buffer_size_);
+  FileReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.env_, options.initial_pos_);
+  Initialize(src_.get(), options.env(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FileReader<Src>::Reset(absl::string_view filename,
                                    Options options) {
-  FileReaderBase::Reset(options.buffer_size_);
+  FileReaderBase::Reset(options.buffer_size());
   src_.Reset();  // In case `OpenFile()` fails.
-  Initialize(filename, options.env_, options.initial_pos_);
+  Initialize(filename, options.env(), options.initial_pos());
 }
 
 template <typename Src>

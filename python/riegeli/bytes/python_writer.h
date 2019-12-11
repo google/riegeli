@@ -62,6 +62,7 @@ class PythonWriter : public BufferedWriter {
       return *this;
     }
     Options&& set_close(bool close) && { return std::move(set_close(close)); }
+    bool close() const { return close_; }
 
     // If `absl::nullopt`, `PythonWriter` will initially get the current file
     // position, and will set the final file position on `Close()`. The file
@@ -78,6 +79,7 @@ class PythonWriter : public BufferedWriter {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // Tunes how much data is buffered before writing to the file.
     //
@@ -92,10 +94,9 @@ class PythonWriter : public BufferedWriter {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    friend class PythonWriter;
-
     bool close_ = true;
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;

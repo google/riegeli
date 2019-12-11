@@ -63,9 +63,10 @@ class ZlibWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int level) && {
-      return std::move(set_compression_level(level));
+    Options&& set_compression_level(int compression_level) && {
+      return std::move(set_compression_level(compression_level));
     }
+    int compression_level() const { return compression_level_; }
 
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
     // between compression density and memory usage (higher = better density but
@@ -91,6 +92,7 @@ class ZlibWriterBase : public BufferedWriter {
     Options&& set_window_log(int window_log) && {
       return std::move(set_window_log(window_log));
     }
+    int window_log() const { return window_log_; }
 
     // What format of header to write:
     //
@@ -107,6 +109,7 @@ class ZlibWriterBase : public BufferedWriter {
     Options&& set_header(Header header) && {
       return std::move(set_header(header));
     }
+    Header header() const { return header_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
@@ -119,6 +122,7 @@ class ZlibWriterBase : public BufferedWriter {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered before calling the compression engine.
     //
@@ -134,12 +138,9 @@ class ZlibWriterBase : public BufferedWriter {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() { return buffer_size_; }
 
    private:
-    friend class ZlibWriterBase;
-    template <typename Dest>
-    friend class ZlibWriter;
-
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
@@ -284,31 +285,31 @@ inline void ZlibWriterBase::Reset(size_t buffer_size, Position size_hint) {
 }
 
 inline int ZlibWriterBase::GetWindowBits(const Options& options) {
-  return options.header_ == Header::kRaw
-             ? -options.window_log_
-             : options.window_log_ + static_cast<int>(options.header_);
+  return options.header() == Header::kRaw
+             ? -options.window_log()
+             : options.window_log() + static_cast<int>(options.header());
 }
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(const Dest& dest, Options options)
-    : ZlibWriterBase(options.buffer_size_, options.size_hint_), dest_(dest) {
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+    : ZlibWriterBase(options.buffer_size(), options.size_hint()), dest_(dest) {
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest&& dest, Options options)
-    : ZlibWriterBase(options.buffer_size_, options.size_hint_),
+    : ZlibWriterBase(options.buffer_size(), options.size_hint()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : ZlibWriterBase(options.buffer_size_, options.size_hint_),
+    : ZlibWriterBase(options.buffer_size(), options.size_hint()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
@@ -331,25 +332,25 @@ inline void ZlibWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void ZlibWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  ZlibWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.compression_level_, GetWindowBits(options));
+  Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>

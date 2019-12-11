@@ -48,11 +48,9 @@ class SnappyWriterBase : public Writer {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    template <typename Dest>
-    friend class SnappyWriter;
-
     Position size_hint_ = 0;
   };
 
@@ -210,13 +208,13 @@ inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
 
 template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(const Dest& dest, Options options)
-    : SnappyWriterBase(options.size_hint_), dest_(dest) {
+    : SnappyWriterBase(options.size_hint()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(Dest&& dest, Options options)
-    : SnappyWriterBase(options.size_hint_), dest_(std::move(dest)) {
+    : SnappyWriterBase(options.size_hint()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -224,7 +222,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline SnappyWriter<Dest>::SnappyWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : SnappyWriterBase(options.size_hint_), dest_(std::move(dest_args)) {
+    : SnappyWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -248,14 +246,14 @@ inline void SnappyWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void SnappyWriter<Dest>::Reset(const Dest& dest, Options options) {
-  SnappyWriterBase::Reset(options.size_hint_);
+  SnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void SnappyWriter<Dest>::Reset(Dest&& dest, Options options) {
-  SnappyWriterBase::Reset(options.size_hint_);
+  SnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -264,7 +262,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void SnappyWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  SnappyWriterBase::Reset(options.size_hint_);
+  SnappyWriterBase::Reset(options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

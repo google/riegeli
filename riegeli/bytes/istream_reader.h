@@ -58,6 +58,7 @@ class IstreamReaderBase : public BufferedReader {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // Tunes how much data is buffered after reading from the file.
     //
@@ -73,11 +74,9 @@ class IstreamReaderBase : public BufferedReader {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Src>
-    friend class IstreamReader;
-
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -203,28 +202,28 @@ inline void IstreamReaderBase::Reset(size_t buffer_size, bool random_access) {
 
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(const Src& src, Options options)
-    : IstreamReaderBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : IstreamReaderBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       src_(src) {
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(Src&& src, Options options)
-    : IstreamReaderBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : IstreamReaderBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline IstreamReader<Src>::IstreamReader(std::tuple<SrcArgs...> src_args,
                                          Options options)
-    : IstreamReaderBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : IstreamReaderBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
@@ -247,28 +246,28 @@ inline void IstreamReader<Src>::Reset() {
 
 template <typename Src>
 inline void IstreamReader<Src>::Reset(const Src& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  IstreamReaderBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   src_.Reset(src);
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline void IstreamReader<Src>::Reset(Src&& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  IstreamReaderBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
-  IstreamReaderBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  IstreamReaderBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>

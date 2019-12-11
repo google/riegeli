@@ -108,11 +108,9 @@ class DefaultChunkWriterBase : public ChunkWriter {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    template <typename Dest>
-    friend class DefaultChunkWriter;
-
     absl::optional<Position> assumed_pos_;
   };
 
@@ -231,14 +229,14 @@ template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(const Dest& dest,
                                                     Options options)
     : DefaultChunkWriterBase(kInitiallyOpen), dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest&& dest,
                                                     Options options)
     : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
@@ -246,7 +244,7 @@ template <typename... DestArgs>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
     std::tuple<DestArgs...> dest_args, Options options)
     : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
@@ -272,14 +270,14 @@ template <typename Dest>
 inline void DefaultChunkWriter<Dest>::Reset(const Dest& dest, Options options) {
   DefaultChunkWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
 inline void DefaultChunkWriter<Dest>::Reset(Dest&& dest, Options options) {
   DefaultChunkWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
@@ -288,7 +286,7 @@ inline void DefaultChunkWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
   DefaultChunkWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos_.value_or(dest_->pos()));
+  Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>

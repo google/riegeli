@@ -143,8 +143,8 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
   }
   chunk_begin_ = src->pos();
   chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
-      std::move(options.field_projection_)));
-  recovery_ = std::move(options.recovery_);
+      std::move(options.field_projection())));
+  recovery_ = std::move(options.recovery());
 }
 
 void RecordReaderBase::Done() {

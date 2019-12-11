@@ -59,9 +59,10 @@ class BrotliWriterBase : public BufferedWriter {
       compression_level_ = compression_level;
       return *this;
     }
-    Options&& set_compression_level(int level) && {
-      return std::move(set_compression_level(level));
+    Options&& set_compression_level(int compression_level) && {
+      return std::move(set_compression_level(compression_level));
     }
+    int compression_level() const { return compression_level_; }
 
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
     // between compression density and memory usage (higher = better density but
@@ -87,6 +88,7 @@ class BrotliWriterBase : public BufferedWriter {
     Options&& set_window_log(int window_log) && {
       return std::move(set_window_log(window_log));
     }
+    int window_log() const { return window_log_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve compression
     // density and performance.
@@ -99,6 +101,7 @@ class BrotliWriterBase : public BufferedWriter {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered before calling the compression engine.
     //
@@ -114,11 +117,9 @@ class BrotliWriterBase : public BufferedWriter {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class BrotliWriter;
-
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     Position size_hint_ = 0;
@@ -243,27 +244,28 @@ inline void BrotliWriterBase::Reset(size_t buffer_size, Position size_hint) {
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
-    : BrotliWriterBase(options.buffer_size_, options.size_hint_), dest_(dest) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
+      dest_(dest) {
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(Dest&& dest, Options options)
-    : BrotliWriterBase(options.buffer_size_, options.size_hint_),
+    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : BrotliWriterBase(options.buffer_size_, options.size_hint_),
+    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>
@@ -280,28 +282,28 @@ inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
-  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(Dest&& dest, Options options) {
-  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void BrotliWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  BrotliWriterBase::Reset(options.buffer_size_, options.size_hint_);
+  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.compression_level_, options.window_log_,
-             options.size_hint_);
+  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+             options.size_hint());
 }
 
 template <typename Dest>

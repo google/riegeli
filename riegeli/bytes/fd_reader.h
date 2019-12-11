@@ -90,6 +90,7 @@ class FdReaderBase : public internal::FdReaderCommon {
     Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
       return std::move(set_initial_pos(initial_pos));
     }
+    absl::optional<Position> initial_pos() const { return initial_pos_; }
 
     // Tunes how much data is buffered after reading from the file.
     //
@@ -104,11 +105,9 @@ class FdReaderBase : public internal::FdReaderCommon {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Src>
-    friend class FdReader;
-
     absl::optional<Position> initial_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -162,6 +161,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // Tunes how much data is buffered after reading from the file.
     //
@@ -176,11 +176,9 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Src>
-    friend class FdStreamReader;
-
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -221,11 +219,9 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
       return std::move(set_initial_pos(initial_pos));
     }
+    absl::optional<Position> initial_pos() const { return initial_pos_; }
 
    private:
-    template <typename Src>
-    friend class FdMMapReader;
-
     absl::optional<Position> initial_pos_;
   };
 
@@ -615,32 +611,32 @@ inline void FdMMapReaderBase::Initialize(int src,
 template <typename Src>
 inline FdReader<Src>::FdReader(const internal::type_identity_t<Src>& src,
                                Options options)
-    : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
       src_(src) {
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(internal::type_identity_t<Src>&& src,
                                Options options)
-    : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
-    : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()),
+    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
                                Options options)
-    : FdReaderBase(options.buffer_size_, !options.initial_pos_.has_value()) {
-  Initialize(filename, flags, options.initial_pos_);
+    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()) {
+  Initialize(filename, flags, options.initial_pos());
 }
 
 template <typename Src>
@@ -662,33 +658,37 @@ inline void FdReader<Src>::Reset() {
 
 template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
-  FdReaderBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdReaderBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   src_.Reset(src);
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
-  FdReaderBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdReaderBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
-  FdReaderBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdReaderBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
-  FdReaderBase::Reset(options.buffer_size_, !options.initial_pos_.has_value());
+  FdReaderBase::Reset(options.buffer_size(),
+                      !options.initial_pos().has_value());
   src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.initial_pos_);
+  Initialize(filename, flags, options.initial_pos());
 }
 
 template <typename Src>
@@ -720,30 +720,30 @@ void FdReader<Src>::Done() {
 template <typename Src>
 inline FdStreamReader<Src>::FdStreamReader(
     const internal::type_identity_t<Src>& src, Options options)
-    : FdStreamReaderBase(options.buffer_size_), src_(src) {
-  Initialize(src_.get(), options.assumed_pos_);
+    : FdStreamReaderBase(options.buffer_size()), src_(src) {
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline FdStreamReader<Src>::FdStreamReader(internal::type_identity_t<Src>&& src,
                                            Options options)
-    : FdStreamReaderBase(options.buffer_size_), src_(std::move(src)) {
-  Initialize(src_.get(), options.assumed_pos_);
+    : FdStreamReaderBase(options.buffer_size()), src_(std::move(src)) {
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FdStreamReader<Src>::FdStreamReader(std::tuple<SrcArgs...> src_args,
                                            Options options)
-    : FdStreamReaderBase(options.buffer_size_), src_(std::move(src_args)) {
-  Initialize(src_.get(), options.assumed_pos_);
+    : FdStreamReaderBase(options.buffer_size()), src_(std::move(src_args)) {
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline FdStreamReader<Src>::FdStreamReader(absl::string_view filename,
                                            int flags, Options options)
-    : FdStreamReaderBase(options.buffer_size_) {
-  Initialize(filename, flags, options.assumed_pos_);
+    : FdStreamReaderBase(options.buffer_size()) {
+  Initialize(filename, flags, options.assumed_pos());
 }
 
 template <typename Src>
@@ -766,33 +766,33 @@ inline void FdStreamReader<Src>::Reset() {
 
 template <typename Src>
 inline void FdStreamReader<Src>::Reset(const Src& src, Options options) {
-  FdStreamReaderBase::Reset(options.buffer_size_);
+  FdStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(src);
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline void FdStreamReader<Src>::Reset(Src&& src, Options options) {
-  FdStreamReaderBase::Reset(options.buffer_size_);
+  FdStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void FdStreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                        Options options) {
-  FdStreamReaderBase::Reset(options.buffer_size_);
+  FdStreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.assumed_pos_);
+  Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline void FdStreamReader<Src>::Reset(absl::string_view filename, int flags,
                                        Options options) {
-  FdStreamReaderBase::Reset(options.buffer_size_);
+  FdStreamReaderBase::Reset(options.buffer_size());
   src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.assumed_pos_);
+  Initialize(filename, flags, options.assumed_pos());
 }
 
 template <typename Src>
@@ -824,32 +824,32 @@ void FdStreamReader<Src>::Done() {
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(
     const internal::type_identity_t<Src>& src, Options options)
-    : FdMMapReaderBase(!options.initial_pos_.has_value()), src_(src) {
-  Initialize(src_.get(), options.initial_pos_);
+    : FdMMapReaderBase(!options.initial_pos().has_value()), src_(src) {
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(internal::type_identity_t<Src>&& src,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos_.has_value()),
+    : FdMMapReaderBase(!options.initial_pos().has_value()),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos_.has_value()),
+    : FdMMapReaderBase(!options.initial_pos().has_value()),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos_.has_value()) {
-  Initialize(filename, flags, options.initial_pos_);
+    : FdMMapReaderBase(!options.initial_pos().has_value()) {
+  Initialize(filename, flags, options.initial_pos());
 }
 
 template <typename Src>
@@ -872,33 +872,33 @@ inline void FdMMapReader<Src>::Reset() {
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(const Src& src, Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos_.has_value());
+  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
   src_.Reset(src);
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos_.has_value());
+  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos_.has_value());
+  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.initial_pos_);
+  Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos_.has_value());
+  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
   src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.initial_pos_);
+  Initialize(filename, flags, options.initial_pos());
 }
 
 template <typename Src>

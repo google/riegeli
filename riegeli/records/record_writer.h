@@ -106,6 +106,7 @@ class RecordWriterBase : public Object {
     Options&& set_transpose(bool transpose) && {
       return std::move(set_transpose(transpose));
     }
+    bool transpose() const { return transpose_; }
 
     // Changes compression algorithm to none.
     Options& set_uncompressed() & {
@@ -160,6 +161,14 @@ class RecordWriterBase : public Object {
     }
     Options&& set_snappy() && { return std::move(set_snappy()); }
 
+    CompressionType compression_type() const {
+      return compressor_options_.compression_type();
+    }
+
+    int compression_level() const {
+      return compressor_options_.compression_level();
+    }
+
     // Logarithm of the LZ77 sliding window size. This tunes the tradeoff
     // between compression density and memory usage (higher = better density but
     // more memory).
@@ -192,6 +201,23 @@ class RecordWriterBase : public Object {
       return std::move(set_window_log(window_log));
     }
 
+    // Returns `window_log` translated for `BrotliWriter` or `ZstdWriter`.
+    //
+    // Precondition: `compression_type() != CompressionType::kNone`
+    int window_log() const { return compressor_options_.window_log(); }
+
+    // Returns grouped compression options.
+    CompressorOptions& compressor_options() & { return compressor_options_; }
+    const CompressorOptions& compressor_options() const& {
+      return compressor_options_;
+    }
+    CompressorOptions&& compressor_options() && {
+      return std::move(compressor_options_);
+    }
+    const CompressorOptions&& compressor_options() const&& {
+      return std::move(compressor_options_);
+    }
+
     // Sets the desired uncompressed size of a chunk which groups messages to be
     // transposed, compressed, and written together.
     //
@@ -201,17 +227,18 @@ class RecordWriterBase : public Object {
     //
     // Default: `kDefaultChunkSize` (1M)
     static constexpr uint64_t kDefaultChunkSize = uint64_t{1} << 20;
-    Options& set_chunk_size(uint64_t size) & {
-      RIEGELI_ASSERT_GT(size, 0u)
+    Options& set_chunk_size(uint64_t chunk_size) & {
+      RIEGELI_ASSERT_GT(chunk_size, 0u)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_chunk_size(): "
              "zero chunk size";
-      chunk_size_ = size;
+      chunk_size_ = chunk_size;
       return *this;
     }
-    Options&& set_chunk_size(uint64_t size) && {
-      return std::move(set_chunk_size(size));
+    Options&& set_chunk_size(uint64_t chunk_size) && {
+      return std::move(set_chunk_size(chunk_size));
     }
+    uint64_t chunk_size() const { return chunk_size_; }
 
     // Sets the desired uncompressed size of a bucket which groups values of
     // several fields of the given wire type to be compressed together,
@@ -225,21 +252,22 @@ class RecordWriterBase : public Object {
     // of fields which are not included.
     //
     // Default: 1.0
-    Options& set_bucket_fraction(double fraction) & {
-      RIEGELI_ASSERT_GE(fraction, 0.0)
+    Options& set_bucket_fraction(double bucket_fraction) & {
+      RIEGELI_ASSERT_GE(bucket_fraction, 0.0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_bucket_fraction(): "
              "negative bucket fraction";
-      RIEGELI_ASSERT_LE(fraction, 1.0)
+      RIEGELI_ASSERT_LE(bucket_fraction, 1.0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_bucket_fraction(): "
              "fraction larger than 1";
-      bucket_fraction_ = fraction;
+      bucket_fraction_ = bucket_fraction;
       return *this;
     }
-    Options&& set_bucket_fraction(double fraction) && {
-      return std::move(set_bucket_fraction(fraction));
+    Options&& set_bucket_fraction(double bucket_fraction) && {
+      return std::move(set_bucket_fraction(bucket_fraction));
     }
+    double bucket_fraction() const { return bucket_fraction_; }
 
     // Sets file metadata to be written at the beginning (if metadata has any
     // fields set).
@@ -258,17 +286,27 @@ class RecordWriterBase : public Object {
     Options&& set_metadata(RecordsMetadata metadata) && {
       return std::move(set_metadata(std::move(metadata)));
     }
+    RecordsMetadata& metadata() & { return metadata_; }
+    const RecordsMetadata& metadata() const& { return metadata_; }
+    RecordsMetadata&& metadata() && { return std::move(metadata_); }
+    const RecordsMetadata&& metadata() const&& { return std::move(metadata_); }
 
     // Like `set_metadata()`, but metadata are passed in the serialized form.
     //
     // This is faster if the caller has metadata already serialized.
-    Options& set_serialized_metadata(Chain metadata) & {
+    Options& set_serialized_metadata(Chain serialized_metadata) & {
       metadata_.Clear();
-      serialized_metadata_ = std::move(metadata);
+      serialized_metadata_ = std::move(serialized_metadata);
       return *this;
     }
-    Options&& set_serialized_metadata(Chain metadata) && {
-      return std::move(set_serialized_metadata(std::move(metadata)));
+    Options&& set_serialized_metadata(Chain serialized_metadata) && {
+      return std::move(set_serialized_metadata(std::move(serialized_metadata)));
+    }
+    Chain& serialized_metadata() & { return serialized_metadata_; }
+    const Chain& serialized_metadata() const& { return serialized_metadata_; }
+    Chain&& serialized_metadata() && { return std::move(serialized_metadata_); }
+    const Chain&& serialized_metadata() const&& {
+      return std::move(serialized_metadata_);
     }
 
     // If `true`, padding is written to reach a 64KB block boundary when the
@@ -292,6 +330,7 @@ class RecordWriterBase : public Object {
     Options&& set_pad_to_block_boundary(bool pad_to_block_boundary) && {
       return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
     }
+    bool pad_to_block_boundary() const { return pad_to_block_boundary_; }
 
     // Sets the maximum number of chunks being encoded in parallel in
     // background. Larger parallelism can increase throughput, up to a point
@@ -312,10 +351,9 @@ class RecordWriterBase : public Object {
     Options&& set_parallelism(int parallelism) && {
       return std::move(set_parallelism(parallelism));
     }
+    int parallelism() const { return parallelism_; }
 
    private:
-    friend class RecordWriterBase;
-
     bool transpose_ = false;
     CompressorOptions compressor_options_;
     uint64_t chunk_size_ = kDefaultChunkSize;

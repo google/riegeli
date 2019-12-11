@@ -209,7 +209,7 @@ inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
 }
 
 inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
-  if (options_.pad_to_block_boundary_) {
+  if (options_.pad_to_block_boundary()) {
     return PadToBlockBoundary();
   } else {
     return true;
@@ -219,10 +219,10 @@ inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
 inline std::unique_ptr<ChunkEncoder>
 RecordWriterBase::Worker::MakeChunkEncoder() {
   std::unique_ptr<ChunkEncoder> chunk_encoder;
-  if (options_.transpose_) {
+  if (options_.transpose()) {
     const long double long_double_bucket_size =
-        std::round(static_cast<long double>(options_.chunk_size_) *
-                   static_cast<long double>(options_.bucket_fraction_));
+        std::round(static_cast<long double>(options_.chunk_size()) *
+                   static_cast<long double>(options_.bucket_fraction()));
     const uint64_t bucket_size =
         ABSL_PREDICT_FALSE(
             long_double_bucket_size >=
@@ -232,12 +232,12 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
                   ? static_cast<uint64_t>(long_double_bucket_size)
                   : uint64_t{1};
     chunk_encoder = std::make_unique<TransposeEncoder>(
-        options_.compressor_options_, bucket_size);
+        options_.compressor_options(), bucket_size);
   } else {
     chunk_encoder = std::make_unique<SimpleEncoder>(
-        options_.compressor_options_, options_.chunk_size_);
+        options_.compressor_options(), options_.chunk_size());
   }
-  if (options_.parallelism_ == 0) {
+  if (options_.parallelism() == 0) {
     return chunk_encoder;
   } else {
     return std::make_unique<DeferredEncoder>(std::move(chunk_encoder));
@@ -249,12 +249,12 @@ inline void RecordWriterBase::Worker::EncodeSignature(Chunk* chunk) {
 }
 
 inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk* chunk) {
-  TransposeEncoder transpose_encoder(options_.compressor_options_,
+  TransposeEncoder transpose_encoder(options_.compressor_options(),
                                      std::numeric_limits<uint64_t>::max());
   if (ABSL_PREDICT_FALSE(
-          options_.serialized_metadata_.empty()
-              ? !transpose_encoder.AddRecord(options_.metadata_)
-              : !transpose_encoder.AddRecord(options_.serialized_metadata_))) {
+          options_.serialized_metadata().empty()
+              ? !transpose_encoder.AddRecord(options_.metadata())
+              : !transpose_encoder.AddRecord(options_.serialized_metadata()))) {
     return Fail(transpose_encoder);
   }
   ChainWriter<> data_writer(&chunk->data);
@@ -332,8 +332,8 @@ bool RecordWriterBase::SerialWorker::WriteSignature() {
 
 bool RecordWriterBase::SerialWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata_.ByteSizeLong() == 0 &&
-      options_.serialized_metadata_.empty()) {
+  if (options_.metadata().ByteSizeLong() == 0 &&
+      options_.serialized_metadata().empty()) {
     return true;
   }
   Chunk chunk;
@@ -514,7 +514,8 @@ void RecordWriterBase::ParallelWorker::Done() {
 
 bool RecordWriterBase::ParallelWorker::HasCapacityForRequest() const
     ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-  return chunk_writer_requests_.size() < IntCast<size_t>(options_.parallelism_);
+  return chunk_writer_requests_.size() <
+         IntCast<size_t>(options_.parallelism());
 }
 
 bool RecordWriterBase::ParallelWorker::WriteSignature() {
@@ -535,8 +536,8 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
 
 bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata_.ByteSizeLong() == 0 &&
-      options_.serialized_metadata_.empty()) {
+  if (options_.metadata().ByteSizeLong() == 0 &&
+      options_.serialized_metadata().empty()) {
     return true;
   }
   ChunkPromises* const chunk_promises = new ChunkPromises();
@@ -671,8 +672,8 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   // Ensure that `num_records` does not overflow when `WriteRecordImpl()` keeps
   // `num_records * sizeof(uint64_t)` under `desired_chunk_size_`.
   desired_chunk_size_ =
-      UnsignedMin(options.chunk_size_, kMaxNumRecords * sizeof(uint64_t));
-  if (options.parallelism_ == 0) {
+      UnsignedMin(options.chunk_size(), kMaxNumRecords * sizeof(uint64_t));
+  if (options.parallelism() == 0) {
     worker_ = std::make_unique<SerialWorker>(dest, std::move(options));
   } else {
     worker_ = std::make_unique<ParallelWorker>(dest, std::move(options));

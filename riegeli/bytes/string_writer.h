@@ -49,11 +49,9 @@ class StringWriterBase : public Writer {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    template <typename Dest>
-    friend class StringWriter;
-
     Position size_hint_ = 0;
   };
 
@@ -174,13 +172,13 @@ inline void StringWriterBase::Initialize(std::string* dest,
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
     : StringWriterBase(kInitiallyOpen), dest_(dest) {
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
     : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>
@@ -188,7 +186,7 @@ template <typename... DestArgs>
 inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
     : StringWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>
@@ -215,14 +213,14 @@ template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>
@@ -231,7 +229,7 @@ inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.size_hint_);
+  Initialize(dest_.get(), options.size_hint());
 }
 
 template <typename Dest>

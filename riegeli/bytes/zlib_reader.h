@@ -71,6 +71,7 @@ class ZlibReaderBase : public BufferedReader {
     Options&& set_window_log(int window_log) && {
       return std::move(set_window_log(window_log));
     }
+    int window_log() const { return window_log_; }
 
     // What format of header to expect:
     //
@@ -89,6 +90,7 @@ class ZlibReaderBase : public BufferedReader {
     Options&& set_header(Header header) && {
       return std::move(set_header(header));
     }
+    Header header() const { return header_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
@@ -101,6 +103,7 @@ class ZlibReaderBase : public BufferedReader {
     Options&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() { return size_hint_; }
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
@@ -116,12 +119,9 @@ class ZlibReaderBase : public BufferedReader {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    friend class ZlibReaderBase;
-    template <typename Src>
-    friend class ZlibReader;
-
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
     Position size_hint_ = 0;
@@ -254,20 +254,20 @@ inline void ZlibReaderBase::Reset(size_t buffer_size, Position size_hint) {
 }
 
 inline int ZlibReaderBase::GetWindowBits(const Options& options) {
-  return options.header_ == Header::kRaw
-             ? -options.window_log_
-             : options.window_log_ + static_cast<int>(options.header_);
+  return options.header() == Header::kRaw
+             ? -options.window_log()
+             : options.window_log() + static_cast<int>(options.header());
 }
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
-    : ZlibReaderBase(options.buffer_size_, options.size_hint_), src_(src) {
+    : ZlibReaderBase(options.buffer_size(), options.size_hint()), src_(src) {
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
-    : ZlibReaderBase(options.buffer_size_, options.size_hint_),
+    : ZlibReaderBase(options.buffer_size(), options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -276,7 +276,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZlibReaderBase(options.buffer_size_, options.size_hint_),
+    : ZlibReaderBase(options.buffer_size(), options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -300,14 +300,14 @@ inline void ZlibReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
-  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(src);
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
-  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -316,7 +316,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZlibReaderBase::Reset(options.buffer_size_, options.size_hint_);
+  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), GetWindowBits(options));
 }

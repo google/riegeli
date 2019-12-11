@@ -59,6 +59,7 @@ class FileWriterBase : public Writer {
     Options&& set_env(::tensorflow::Env* env) && {
       return std::move(set_env(env));
     }
+    ::tensorflow::Env* env() const { return env_; }
 
     // If `false`, the file will be truncated to empty if it exists.
     //
@@ -75,6 +76,7 @@ class FileWriterBase : public Writer {
     Options&& set_append(bool append) && {
       return std::move(set_append(append));
     }
+    bool append() const { return append_; }
 
     // Tunes how much data is buffered before writing to the file.
     //
@@ -90,11 +92,9 @@ class FileWriterBase : public Writer {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class FileWriter;
-
     ::tensorflow::Env* env_ = nullptr;
     bool append_ = false;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -267,13 +267,13 @@ inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(const Dest& dest, Options options)
-    : FileWriterBase(options.buffer_size_), dest_(dest) {
+    : FileWriterBase(options.buffer_size()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(Dest&& dest, Options options)
-    : FileWriterBase(options.buffer_size_), dest_(std::move(dest)) {
+    : FileWriterBase(options.buffer_size()), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -281,14 +281,14 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : FileWriterBase(options.buffer_size_), dest_(std::move(dest_args)) {
+    : FileWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
-    : FileWriterBase(options.buffer_size_) {
-  Initialize(filename, options.env_, options.append_);
+    : FileWriterBase(options.buffer_size()) {
+  Initialize(filename, options.env(), options.append());
 }
 
 template <typename Dest>
@@ -312,14 +312,14 @@ inline void FileWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FileWriterBase::Reset(options.buffer_size_);
+  FileWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FileWriterBase::Reset(options.buffer_size_);
+  FileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -328,7 +328,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  FileWriterBase::Reset(options.buffer_size_);
+  FileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
@@ -336,9 +336,9 @@ inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(absl::string_view filename,
                                     Options options) {
-  FileWriterBase::Reset(options.buffer_size_);
+  FileWriterBase::Reset(options.buffer_size());
   dest_.Reset();  // In case `OpenFile()` fails.
-  Initialize(filename, options.env_, options.append_);
+  Initialize(filename, options.env(), options.append());
 }
 
 template <typename Dest>

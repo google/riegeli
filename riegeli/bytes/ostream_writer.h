@@ -58,6 +58,7 @@ class OstreamWriterBase : public BufferedWriter {
     Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
       return std::move(set_assumed_pos(assumed_pos));
     }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // Tunes how much data is buffered before writing to the file.
     //
@@ -73,11 +74,9 @@ class OstreamWriterBase : public BufferedWriter {
     Options&& set_buffer_size(size_t buffer_size) && {
       return std::move(set_buffer_size(buffer_size));
     }
+    size_t buffer_size() const { return buffer_size_; }
 
    private:
-    template <typename Dest>
-    friend class OstreamWriter;
-
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -201,28 +200,28 @@ inline void OstreamWriterBase::Reset(size_t buffer_size, bool random_access) {
 
 template <typename Dest>
 inline OstreamWriter<Dest>::OstreamWriter(const Dest& dest, Options options)
-    : OstreamWriterBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : OstreamWriterBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline OstreamWriter<Dest>::OstreamWriter(Dest&& dest, Options options)
-    : OstreamWriterBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : OstreamWriterBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline OstreamWriter<Dest>::OstreamWriter(std::tuple<DestArgs...> dest_args,
                                           Options options)
-    : OstreamWriterBase(options.buffer_size_,
-                        !options.assumed_pos_.has_value()),
+    : OstreamWriterBase(options.buffer_size(),
+                        !options.assumed_pos().has_value()),
       dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
@@ -245,28 +244,28 @@ inline void OstreamWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void OstreamWriter<Dest>::Reset(const Dest& dest, Options options) {
-  OstreamWriterBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  OstreamWriterBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline void OstreamWriter<Dest>::Reset(Dest&& dest, Options options) {
-  OstreamWriterBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  OstreamWriterBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void OstreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                        Options options) {
-  OstreamWriterBase::Reset(options.buffer_size_,
-                           !options.assumed_pos_.has_value());
+  OstreamWriterBase::Reset(options.buffer_size(),
+                           !options.assumed_pos().has_value());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos_);
+  Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>

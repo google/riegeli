@@ -51,6 +51,7 @@ class Compressor : public Object {
     TuningOptions&& set_final_size(absl::optional<Position> final_size) && {
       return std::move(set_final_size(final_size));
     }
+    absl::optional<Position> final_size() const { return final_size_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve compression
     // density and performance.
@@ -65,10 +66,9 @@ class Compressor : public Object {
     TuningOptions&& set_size_hint(Position size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
+    Position size_hint() const { return size_hint_; }
 
    private:
-    friend class Compressor;
-
     absl::optional<Position> final_size_;
     Position size_hint_ = 0;
   };
@@ -98,8 +98,8 @@ class Compressor : public Object {
 
   // Writes compressed data to `*dest`. Closes the `Compressor`.
   //
-  // If `options.compression_type()` is not `kNone`, writes uncompressed size as
-  // a varint before the data.
+  // If `compressor_options.compression_type()` is not `kNone`, writes
+  // uncompressed size as a varint before the data.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)

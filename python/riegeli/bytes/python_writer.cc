@@ -42,14 +42,14 @@ namespace riegeli {
 namespace python {
 
 PythonWriter::PythonWriter(PyObject* dest, Options options)
-    : BufferedWriter(options.buffer_size_),
-      close_(options.close_),
-      random_access_(!options.assumed_pos_.has_value()) {
+    : BufferedWriter(options.buffer_size()),
+      close_(options.close()),
+      random_access_(!options.assumed_pos().has_value()) {
   PythonLock::AssertHeld();
   Py_INCREF(dest);
   dest_.reset(dest);
   if (!random_access_) {
-    set_start_pos(*options.assumed_pos_);
+    set_start_pos(*options.assumed_pos());
   } else {
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(
