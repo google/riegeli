@@ -88,7 +88,7 @@ class Dependency<int, int> {
 
   template <typename FdArg>
   explicit Dependency(std::tuple<FdArg> fd_args)
-      : fd_(std::get<0>(std::move(fd_args))) {}
+      : fd_(std::forward<FdArg>(std::get<0>(fd_args))) {}
 
   Dependency(Dependency&& that) noexcept : fd_(that.fd_) {}
   Dependency& operator=(Dependency&& that) noexcept {
@@ -102,7 +102,7 @@ class Dependency<int, int> {
 
   template <typename FdArg>
   void Reset(std::tuple<FdArg> fd_args) {
-    fd_ = std::get<0>(std::move(fd_args));
+    fd_ = std::forward<FdArg>(std::get<0>(fd_args));
   }
 
   int& manager() { return fd_; }

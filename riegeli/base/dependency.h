@@ -156,13 +156,15 @@ class DependencyBase {
   template <typename... ManagerArgs, size_t... Indices>
   explicit DependencyBase(std::tuple<ManagerArgs...>&& manager_args,
                           std::index_sequence<Indices...>)
-      : manager_(std::move(std::get<Indices>(manager_args))...) {}
+      : manager_(
+            std::forward<ManagerArgs>(std::get<Indices>(manager_args))...) {}
 
   template <typename... ManagerArgs, size_t... Indices>
   void Reset(std::tuple<ManagerArgs...>&& manager_args,
              std::index_sequence<Indices...>) {
-    Resetter<Manager>::Reset(&manager_,
-                             std::move(std::get<Indices>(manager_args))...);
+    Resetter<Manager>::Reset(
+        &manager_,
+        std::forward<ManagerArgs>(std::get<Indices>(manager_args))...);
   }
 
   Manager manager_;
