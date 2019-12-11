@@ -15,17 +15,62 @@
 #ifndef RIEGELI_BYTES_READER_UTILS_H_
 #define RIEGELI_BYTES_READER_UTILS_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
+#include <string>
+
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/varint.h"
+#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
+// Reads all remaining bytes from `*src` to `*dest`.
+//
+// `ReadAll(std::string*)` and `ReadAll(Chain*)` append to any existing data
+// in `*dest`.
+//
+// `CopyAll(Writer*)` writes as much as could be read if reading failed, and
+// reads an unspecified length (between what could be written and the
+// requested length) if writing failed.
+//
+// `CopyAll(BackwardWriter*)` writes nothing if reading failed, and reads
+// the full requested length even if writing failed.
+//
+// Fails `*src` with `ResourceExhaustedError(_)` if `max_size` would be
+// exceeded.
+//
+// Return values for `ReadAll()`:
+//  * `true` (`src->healthy()`)   - success
+//  * `false` (`!src->healthy()`) - failure
+//
+// Return values for `CopyAllTo()`:
+//  * `true` (`dest->healthy() && src->healthy()`)    - success
+//  * `false` (`!dest->healthy() || !src->healthy()`) - failure
+bool ReadAll(Reader* src, absl::string_view* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, std::string* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, Chain* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool CopyAll(Reader* src, Writer* dest,
+             Position max_size = std::numeric_limits<Position>::max());
+bool CopyAll(Reader* src, BackwardWriter* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+
+// Reads a single byte.
 bool ReadByte(Reader* src, uint8_t* data);
 
+// Reads a varint.
+//
 // `{Read,Copy}Varint{32,64}()` tolerate representations which are not the
 // shortest. They reject representations longer than `kMaxLengthVarint{32,64}`
 // bytes or with bits set outside the range of possible values.
@@ -38,23 +83,26 @@ bool ReadByte(Reader* src, uint8_t* data);
 bool ReadVarint32(Reader* src, uint32_t* data);
 bool ReadVarint64(Reader* src, uint64_t* data);
 
-// Variants which accept only the canonical representation, i.e. the shortest:
-// rejecting a trailing zero byte, except for 0 itself.
+// Reads a varint.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
 bool ReadCanonicalVarint32(Reader* src, uint32_t* data);
 bool ReadCanonicalVarint64(Reader* src, uint64_t* data);
 
+// Copies a varint.
+//
 // Returns the updated `dest` after the copied value, or `nullptr` on failure.
-// At least `kMaxLengthVarint32` bytes of space at `dest[]` must be available.
+// At least `kMaxLengthVarint{32,64}` bytes of space at `dest[]` must be
+// available.
 char* CopyVarint32(Reader* src, char* dest);
-// Returns the updated `dest` after the copied value, or `nullptr` on failure.
-// At least `kMaxLengthVarint64` bytes of space at `dest[]` must be available.
 char* CopyVarint64(Reader* src, char* dest);
 
-// Low level variants which read from an array.
-
+// Reads a varint from an array.
 bool ReadVarint32(const char** src, const char* limit, uint32_t* data);
 bool ReadVarint64(const char** src, const char* limit, uint64_t* data);
 
+// Copies a varint from an array to an array.
 char* CopyVarint32(const char** src, const char* limit, char* dest);
 char* CopyVarint64(const char** src, const char* limit, char* dest);
 

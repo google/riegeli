@@ -157,30 +157,6 @@ class Reader : public Object {
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
 
-  // Reads all remaining bytes from the buffer and the source to `*dest`.
-  //
-  // `ReadAll(std::string*)` and `ReadAll(Chain*)` append to any existing data
-  // in `*dest`.
-  //
-  // `CopyAllTo(Writer*)` writes as much as could be read if reading failed, and
-  // reads an unspecified length (between what could be written and the
-  // requested length) if writing failed.
-  //
-  // `CopyAllTo(BackwardWriter*)` writes nothing if reading failed, and reads
-  // the full requested length even if writing failed.
-  //
-  // Return values for `ReadAll()`:
-  //  * `true` (`healthy()`)   - success
-  //  * `false` (`!healthy()`) - failure
-  //
-  // Return values for `CopyAllTo()`:
-  //  * `true` (`dest->healthy() && healthy()`)    - success
-  //  * `false` (`!dest->healthy() || !healthy()`) - failure
-  bool ReadAll(std::string* dest);
-  bool ReadAll(Chain* dest);
-  bool CopyAllTo(Writer* dest);
-  bool CopyAllTo(BackwardWriter* dest);
-
   // Informs the source that data between `start()` and `cursor()` have been
   // read.
   //

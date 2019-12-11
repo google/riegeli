@@ -74,14 +74,20 @@ cc_library(
 
 cc_library(
     name = "reader_utils",
+    srcs = ["reader_utils.cc"],
     hdrs = [
         "reader_utils.h",
         "varint.h",
     ],
     deps = [
+        ":backward_writer",
         ":reader",
+        ":writer",
         "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
     ],
 )
 
