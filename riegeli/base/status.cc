@@ -95,7 +95,7 @@ Status Annotate(const Status& status, absl::string_view message) {
 }
 
 std::ostream& operator<<(std::ostream& out, const Status& status) {
-  return out << StatusToString(status);
+  return out << status.ToString();
 }
 
 }  // namespace riegeli

@@ -79,10 +79,13 @@ class Status final {
   // Returns the error code.
   StatusCode code() const;
 
-  // Returns the message. Note: prefer `StatusToString()` for debug logging.
-  // This message rarely describes the error code. It is not unusual for the
-  // message to be the empty string.
+  // Returns the message. Note: prefer `ToString()` for debug logging. This
+  // message rarely describes the error code. It is not unusual for the message
+  // to be the empty string.
   absl::string_view message() const;
+
+  // Returns a human-readable representation of `status`.
+  std::string ToString() const;
 
   // Ignores any errors. This method does nothing except potentially suppress
   // complaints from any tools that are checking that errors are not dropped on
@@ -96,8 +99,6 @@ class Status final {
   friend void swap(Status& a, Status& b);
 
  private:
-  friend std::string StatusToString(const Status& status);
-
   // Reference-counted representation.
   struct Rep {
     Rep(StatusCode code, absl::string_view message);
@@ -131,9 +132,6 @@ Status OkStatus();
 // OK status values have no message and therefore if `status` is OK, the result
 // is unchanged.
 Status Annotate(const Status& status, absl::string_view message);
-
-// Returns a human-readable representation of `status`.
-std::string StatusToString(const Status& status);
 
 // Prints a human-readable representation of `status` to `out`.
 std::ostream& operator<<(std::ostream& out, const Status& status);
@@ -183,6 +181,11 @@ inline absl::string_view Status::message() const {
   return rep_->message;
 }
 
+inline std::string Status::ToString() const {
+  if (ok()) return "OK";
+  return ToStringSlow();
+}
+
 inline void Status::IgnoreError() const {}
 
 inline bool operator==(const Status& a, const Status& b) {
@@ -199,11 +202,6 @@ inline void swap(Status& a, Status& b) {
 }
 
 inline Status OkStatus() { return Status(); }
-
-inline std::string StatusToString(const Status& status) {
-  if (status.ok()) return "OK";
-  return status.ToStringSlow();
-}
 
 }  // namespace riegeli
 
