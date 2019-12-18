@@ -122,7 +122,7 @@ FutureRecordPosition::FutureRecordPosition(Position pos_before_chunks,
                                            uint64_t record_index)
     : future_chunk_begin_(actions.empty()
                               ? nullptr
-                              : std::make_unique<FutureChunkBegin>(
+                              : std::make_shared<FutureChunkBegin>(
                                     pos_before_chunks, std::move(actions))),
       chunk_begin_(pos_before_chunks),
       record_index_(record_index) {}

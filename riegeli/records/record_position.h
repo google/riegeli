@@ -127,6 +127,12 @@ class FutureRecordPosition {
  private:
   class FutureChunkBegin;
 
+  // `future_chunk_begin_` is a pointer to save memory in the common case when
+  // it is absent.
+  //
+  // The pointer uses shared ownership because `FutureChunkBegin` is not
+  // copyable, which is because its contents are resolved lazily in a const
+  // method, so a copy constructor would need to block.
   std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
   // If `future_chunk_begin_ == nullptr`, `chunk_begin_` is stored here,
   // otherwise it is `future_chunk_begin_->get()`.
