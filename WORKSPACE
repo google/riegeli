@@ -49,6 +49,7 @@ http_archive(
 http_archive(
     name = "crc32c",
     build_file = "//third_party:crc32.BUILD",
+    sha256 = "338f1d9d95753dc3cdd882dfb6e176bbb4b18353c29c411ebcb7b890f361722e",
     strip_prefix = "crc32c-1.1.0",
     urls = [
         "https://mirror.bazel.build/github.com/google/crc32c/archive/1.1.0.zip",
