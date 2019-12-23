@@ -106,16 +106,10 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
-inline size_t FileReaderBase::BufferLength(size_t min_length) const {
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of FileReaderBase: no buffer size specified";
-  return UnsignedMax(min_length, buffer_size_);
-}
-
 inline size_t FileReaderBase::LengthToReadDirectly() const {
   // Read directly if reading through `buffer_` would need more than one read,
   // or if `buffer_` would be full.
-  return SaturatingAdd(available(), BufferLength());
+  return SaturatingAdd(available(), buffer_size_);
 }
 
 bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
@@ -125,7 +119,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
   size_t buffer_length =
-      BufferLength(UnsignedMax(min_length, recommended_length));
+      UnsignedMax(buffer_size_, min_length, recommended_length);
   absl::Span<char> flat_buffer;
   if (buffer_.empty()) {
     // Copy available data to `buffer_` so that newly read data will be adjacent
@@ -201,7 +195,7 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
       }
       return true;
     }
-    size_t buffer_length = BufferLength();
+    size_t buffer_length = buffer_size_;
     if (buffer_.empty()) {
       // Do not extend `buffer_` if available data are outside of `buffer_`,
       // because available data would be lost.
@@ -246,7 +240,7 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
       enough_read = false;
       break;
     }
-    size_t buffer_length = BufferLength();
+    size_t buffer_length = buffer_size_;
     if (buffer_.empty()) {
       // Do not extend `buffer_` if available data are outside of `buffer_`,
       // because available data would be lost.
@@ -263,7 +257,7 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
         length -= available();
         Chain data;
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), &data,
-                               available());
+                               Chain::Options().set_size_hint(available()));
         if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) {
           move_cursor(available());
           return false;
@@ -289,7 +283,7 @@ bool FileReaderBase::CopyToSlow(Writer* dest, Position length) {
       Chain data;
       buffer_.AppendSubstrTo(
           absl::string_view(cursor(), IntCast<size_t>(length)), &data,
-          IntCast<size_t>(length));
+          Chain::Options().set_size_hint(IntCast<size_t>(length)));
       write_ok = dest->Write(std::move(data));
     }
     move_cursor(IntCast<size_t>(length));

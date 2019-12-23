@@ -147,9 +147,6 @@ class FileWriterBase : public Writer {
   bool WriteInternal(absl::string_view src);
 
  private:
-  // Preferred size of the buffer to use.
-  size_t BufferLength(size_t min_length) const;
-
   // Minimum length for which it is better to push current contents of `buffer_`
   // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;

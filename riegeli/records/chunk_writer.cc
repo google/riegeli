@@ -143,7 +143,8 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
   }
   length -= ChunkHeader::size();
   Chunk chunk;
-  const absl::Span<char> buffer = chunk.data.AppendFixedBuffer(length, length);
+  const absl::Span<char> buffer = chunk.data.AppendFixedBuffer(
+      length, Chain::Options().set_size_hint(length));
   std::memset(buffer.data(), '\0', buffer.size());
   chunk.header = ChunkHeader(chunk.data, ChunkType::kPadding, 0, 0);
   return WriteChunk(chunk);

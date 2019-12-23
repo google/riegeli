@@ -42,6 +42,105 @@
 
 namespace riegeli {
 
+namespace internal {
+
+// `Chain::Options` is defined at the namespace scope because clang has problems
+// with using nested classes in `constexpr` context.
+class ChainOptions {
+ public:
+  constexpr ChainOptions() noexcept {}
+
+  // Expected final size, or 0 if unknown. This may improve performance and
+  // memory usage.
+  //
+  // If the size hint turns out to not match reality, nothing breaks.
+  ChainOptions& set_size_hint(size_t size_hint) & {
+    size_hint_ = size_hint;
+    return *this;
+  }
+  ChainOptions&& set_size_hint(size_t size_hint) && {
+    return std::move(set_size_hint(size_hint));
+  }
+  size_t size_hint() const { return size_hint_; }
+
+  // Minimal size of a block of allocated data.
+  //
+  // This is used initially, while the destination is small.
+  //
+  // Default: `kMinBufferSize` (256)
+  ChainOptions& set_min_block_size(size_t min_block_size) & {
+    min_block_size_ = min_block_size;
+    return *this;
+  }
+  ChainOptions&& set_min_block_size(size_t min_block_size) && {
+    return std::move(set_min_block_size(min_block_size));
+  }
+  size_t min_block_size() const { return min_block_size_; }
+
+  // Maximal size of a block of allocated data.
+  //
+  // This does not apply to attached external objects which can be arbitrarily
+  // long.
+  //
+  // Default: `kMaxBufferSize` (64K)
+  ChainOptions& set_max_block_size(size_t max_block_size) & {
+    RIEGELI_ASSERT_GT(max_block_size, 0u)
+        << "Failed precondition of Chain::Options::set_max_block_size(): "
+           "zero block size";
+    max_block_size_ = max_block_size;
+    return *this;
+  }
+  ChainOptions&& set_max_block_size(size_t max_block_size) && {
+    return std::move(set_max_block_size(max_block_size));
+  }
+  size_t max_block_size() const { return max_block_size_; }
+
+ private:
+  size_t size_hint_ = 0;
+  size_t min_block_size_ = kMinBufferSize;
+  size_t max_block_size_ = kMaxBufferSize;
+};
+
+// `ChainBlock::Options` is defined at the namespace scope because clang has
+// problems with using nested classes in `constexpr` context.
+class ChainBlockOptions {
+ public:
+  constexpr ChainBlockOptions() noexcept {}
+
+  // Expected final size, or 0 if unknown. This may improve performance and
+  // memory usage.
+  //
+  // If the size hint turns out to not match reality, nothing breaks.
+  ChainBlockOptions& set_size_hint(size_t size_hint) & {
+    size_hint_ = size_hint;
+    return *this;
+  }
+  ChainBlockOptions&& set_size_hint(size_t size_hint) && {
+    return std::move(set_size_hint(size_hint));
+  }
+  size_t size_hint() const { return size_hint_; }
+
+  // Minimal size of a block of allocated data.
+  //
+  // This is used initially, while the destination is small.
+  //
+  // Default: `kMinBufferSize` (256)
+  ChainBlockOptions& set_min_block_size(size_t min_block_size) & {
+    min_block_size_ = min_block_size;
+    return *this;
+  }
+  ChainBlockOptions&& set_min_block_size(size_t min_block_size) && {
+    return std::move(set_min_block_size(min_block_size));
+  }
+  size_t min_block_size() const { return min_block_size_; }
+
+ private:
+  size_t size_hint_ = 0;
+  size_t min_block_size_ = kMinBufferSize;
+};
+
+}  // namespace internal
+
 class ChainBlock;
 
 // A `Chain` represents a sequence of bytes. It supports efficient appending and
@@ -52,14 +151,14 @@ class ChainBlock;
 // and can be read using `ChainReader`. `Chain` itself exposes lower level
 // appending/prepending and iteration functions.
 //
-// Any parameter named `size_hint` announces the expected final size, or 0 if
-// unknown. Providing it may improve performance and memory usage. If the size
-// hint turns out to not match reality, nothing breaks.
-//
 // A `Chain` is implemented with a sequence of blocks holding flat data
 // fragments.
 class Chain {
  public:
+  using Options = internal::ChainOptions;
+
+  static constexpr Options kDefaultOptions = Options();
+
   class Blocks;
   class BlockIterator;
 
@@ -194,41 +293,43 @@ class Chain {
   absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
                                 size_t max_length = kAnyLength,
-                                size_t size_hint = 0);
+                                const Options& options = kDefaultOptions);
   absl::Span<char> PrependBuffer(size_t min_length,
                                  size_t recommended_length = 0,
                                  size_t max_length = kAnyLength,
-                                 size_t size_hint = 0);
+                                 const Options& options = kDefaultOptions);
 
   // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
   // `min_length == max_length`.
-  absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
-  absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
+  absl::Span<char> AppendFixedBuffer(size_t length,
+                                     const Options& options = kDefaultOptions);
+  absl::Span<char> PrependFixedBuffer(size_t length,
+                                      const Options& options = kDefaultOptions);
 
   // Appends/prepends a string-like type.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `std::string_view`
   // (e.g. `const char *`).
-  void Append(absl::string_view src, size_t size_hint = 0);
+  void Append(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Append(Src&& src, size_t size_hint = 0);
-  void Append(const ChainBlock& src, size_t size_hint = 0);
-  void Append(ChainBlock&& src, size_t size_hint = 0);
-  void Append(const Chain& src, size_t size_hint = 0);
-  void Append(Chain&& src, size_t size_hint = 0);
-  void Prepend(absl::string_view src, size_t size_hint = 0);
+  void Append(Src&& src, const Options& options = kDefaultOptions);
+  void Append(const ChainBlock& src, const Options& options = kDefaultOptions);
+  void Append(ChainBlock&& src, const Options& options = kDefaultOptions);
+  void Append(const Chain& src, const Options& options = kDefaultOptions);
+  void Append(Chain&& src, const Options& options = kDefaultOptions);
+  void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  void Prepend(Src&& src, size_t size_hint = 0);
-  void Prepend(const ChainBlock& src, size_t size_hint = 0);
-  void Prepend(ChainBlock&& src, size_t size_hint = 0);
-  void Prepend(const Chain& src, size_t size_hint = 0);
-  void Prepend(Chain&& src, size_t size_hint = 0);
+  void Prepend(Src&& src, const Options& options = kDefaultOptions);
+  void Prepend(const ChainBlock& src, const Options& options = kDefaultOptions);
+  void Prepend(ChainBlock&& src, const Options& options = kDefaultOptions);
+  void Prepend(const Chain& src, const Options& options = kDefaultOptions);
+  void Prepend(Chain&& src, const Options& options = kDefaultOptions);
 
-  void RemoveSuffix(size_t length, size_t size_hint = 0);
-  void RemovePrefix(size_t length, size_t size_hint = 0);
+  void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
+  void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
 
   friend void swap(Chain& a, Chain& b) noexcept;
 
@@ -375,27 +476,28 @@ class Chain {
   // size. In addition to `replaced_length`, it requires the capacity of at
   // least `min_length`, preferably `recommended_length`.
   size_t NewBlockCapacity(size_t replaced_length, size_t min_length,
-                          size_t recommended_length, size_t size_hint) const;
+                          size_t recommended_length,
+                          const Options& options) const;
 
-  void AppendString(std::string&& src, size_t size_hint);
-  void PrependString(std::string&& src, size_t size_hint);
+  void AppendString(std::string&& src, const Options& options);
+  void PrependString(std::string&& src, const Options& options);
 
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void AppendImpl(ChainRef&& src, size_t size_hint);
+  void AppendImpl(ChainRef&& src, const Options& options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void PrependImpl(ChainRef&& src, size_t size_hint);
+  void PrependImpl(ChainRef&& src, const Options& options);
 
   // This template is explicitly instantiated.
   template <Ownership ownership>
-  void AppendBlock(RawBlock* block, size_t size_hint);
+  void AppendBlock(RawBlock* block, const Options& options);
   // This template is explicitly instantiated.
   template <Ownership ownership>
-  void PrependBlock(RawBlock* block, size_t size_hint);
+  void PrependBlock(RawBlock* block, const Options& options);
 
-  void RemoveSuffixSlow(size_t length, size_t size_hint);
-  void RemovePrefixSlow(size_t length, size_t size_hint);
+  void RemoveSuffixSlow(size_t length, const Options& options);
+  void RemovePrefixSlow(size_t length, const Options& options);
 
   BlockPtrs block_ptrs_;
 
@@ -514,7 +616,7 @@ class Chain::BlockIterator {
   // Appends `**this` to `*dest`.
   //
   // Precondition: this is not past the end iterator.
-  void AppendTo(Chain* dest, size_t size_hint = 0) const;
+  void AppendTo(Chain* dest, const Options& options = kDefaultOptions) const;
 
   // Appends `substr` to `*dest`. `substr` must be empty or contained in
   // `**this`.
@@ -522,7 +624,7 @@ class Chain::BlockIterator {
   // Precondition:
   //   if `substr` is not empty then this is not past the end iterator.
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
-                      size_t size_hint = 0) const;
+                      const Options& options = kDefaultOptions) const;
 
  private:
   friend class Chain;
@@ -593,6 +695,10 @@ class Chain::Blocks {
 // `ChainBlock` uses no short data optimization.
 class ChainBlock {
  public:
+  using Options = internal::ChainBlockOptions;
+
+  static constexpr Options kDefaultOptions = Options();
+
   // Maximum size of a `ChainBlock`.
   static constexpr size_t kMaxSize =
       size_t{std::numeric_limits<ptrdiff_t>::max()};
@@ -659,27 +765,31 @@ class ChainBlock {
   absl::Span<char> AppendBuffer(size_t min_length,
                                 size_t recommended_length = 0,
                                 size_t max_length = kAnyLength,
-                                size_t size_hint = 0);
+                                const Options& options = kDefaultOptions);
   absl::Span<char> PrependBuffer(size_t min_length,
                                  size_t recommended_length = 0,
                                  size_t max_length = kAnyLength,
-                                 size_t size_hint = 0);
+                                 const Options& options = kDefaultOptions);
 
   // Equivalent to `AppendBuffer()`/`PrependBuffer()` with
   // `min_length == max_length`.
-  absl::Span<char> AppendFixedBuffer(size_t length, size_t size_hint = 0);
-  absl::Span<char> PrependFixedBuffer(size_t length, size_t size_hint = 0);
+  absl::Span<char> AppendFixedBuffer(size_t length,
+                                     const Options& options = kDefaultOptions);
+  absl::Span<char> PrependFixedBuffer(size_t length,
+                                      const Options& options = kDefaultOptions);
 
-  void RemoveSuffix(size_t length, size_t size_hint = 0);
-  void RemovePrefix(size_t length, size_t size_hint = 0);
+  void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
+  void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
 
   // Appends `*this` to `*dest`.
-  void AppendTo(Chain* dest, size_t size_hint = 0) const;
+  void AppendTo(Chain* dest,
+                const Chain::Options& options = Chain::kDefaultOptions) const;
 
   // Appends `substr` to `*dest`. `substr` must be empty or contained in
   // `*this`.
-  void AppendSubstrTo(absl::string_view substr, Chain* dest,
-                      size_t size_hint = 0) const;
+  void AppendSubstrTo(
+      absl::string_view substr, Chain* dest,
+      const Chain::Options& options = Chain::kDefaultOptions) const;
 
   // Releases the ownership of the block, which must be deleted using
   // `DeleteReleased()` if not `nullptr`.
@@ -697,10 +807,11 @@ class ChainBlock {
 
   // Decides about the capacity of a new block to be appended/prepended.
   size_t NewBlockCapacity(size_t old_size, size_t min_length,
-                          size_t recommended_length, size_t size_hint) const;
+                          size_t recommended_length,
+                          const Options& options) const;
 
-  void RemoveSuffixSlow(size_t length, size_t size_hint);
-  void RemovePrefixSlow(size_t length, size_t size_hint);
+  void RemoveSuffixSlow(size_t length, const Options& options);
+  void RemovePrefixSlow(size_t length, const Options& options);
 
   RawBlock* block_ = nullptr;
 };
@@ -813,9 +924,10 @@ class Chain::RawBlock {
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
 
-  void AppendTo(Chain* dest, size_t size_hint);
+  void AppendTo(Chain* dest, const Options& options);
 
-  void AppendSubstrTo(absl::string_view substr, Chain* dest, size_t size_hint);
+  void AppendSubstrTo(absl::string_view substr, Chain* dest,
+                      const Options& options);
 
  private:
   template <typename T>
@@ -1579,12 +1691,18 @@ inline Chain Chain::FromExternal(std::tuple<Args...> args,
   return Chain(ChainBlock::FromExternal(std::move(args), data));
 }
 
-inline Chain::Chain(absl::string_view src) { Append(src, src.size()); }
+// In converting constructors below, `set_size_hint(src.size())` optimizes
+// for the case when the resulting `Chain` will not be appended to further,
+// reducing the size of allocations.
+
+inline Chain::Chain(absl::string_view src) {
+  Append(src, Options().set_size_hint(src.size()));
+}
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline Chain::Chain(Src&& src) {
-  Append(std::move(src), src.size());
+  Append(std::move(src), Options().set_size_hint(src.size()));
 }
 
 inline Chain::Chain(const ChainBlock& src) {
@@ -1658,24 +1776,24 @@ inline void Chain::Reset() { Clear(); }
 
 inline void Chain::Reset(absl::string_view src) {
   Clear();
-  Append(src, src.size());
+  Append(src, Options().set_size_hint(src.size()));
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline void Chain::Reset(Src&& src) {
   Clear();
-  Append(std::move(src), src.size());
+  Append(std::move(src), Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Reset(const ChainBlock& src) {
   Clear();
-  Append(src, src.size());
+  Append(src, Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Reset(ChainBlock&& src) {
   Clear();
-  Append(std::move(src), src.size());
+  Append(std::move(src), Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Clear() {
@@ -1717,63 +1835,62 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
 }
 
 inline absl::Span<char> Chain::AppendFixedBuffer(size_t length,
-                                                 size_t size_hint) {
-  return AppendBuffer(length, length, length, size_hint);
+                                                 const Options& options) {
+  return AppendBuffer(length, length, length, options);
 }
 
 inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
-                                                  size_t size_hint) {
-  return PrependBuffer(length, length, length, size_hint);
+                                                  const Options& options) {
+  return PrependBuffer(length, length, length, options);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Append(Src&& src, size_t size_hint) {
-  AppendString(std::move(src), size_hint);
+inline void Chain::Append(Src&& src, const Options& options) {
+  AppendString(std::move(src), options);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Prepend(Src&& src, size_t size_hint) {
-  PrependString(std::move(src), size_hint);
+inline void Chain::Prepend(Src&& src, const Options& options) {
+  PrependString(std::move(src), options);
 }
 
-inline void Chain::Append(const ChainBlock& src, size_t size_hint) {
+inline void Chain::Append(const ChainBlock& src, const Options& options) {
   if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kShare>(src.block_, size_hint);
+    AppendBlock<Ownership::kShare>(src.block_, options);
   }
 }
 
-inline void Chain::Prepend(const ChainBlock& src, size_t size_hint) {
+inline void Chain::Prepend(const ChainBlock& src, const Options& options) {
   if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kShare>(src.block_, size_hint);
+    PrependBlock<Ownership::kShare>(src.block_, options);
   }
 }
 
-inline void Chain::Append(ChainBlock&& src, size_t size_hint) {
+inline void Chain::Append(ChainBlock&& src, const Options& options) {
   if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr),
-                                   size_hint);
+    AppendBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr), options);
   }
 }
 
-inline void Chain::Prepend(ChainBlock&& src, size_t size_hint) {
+inline void Chain::Prepend(ChainBlock&& src, const Options& options) {
   if (src.block_ != nullptr) {
     PrependBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr),
-                                    size_hint);
+                                    options);
   }
 }
 
 extern template void Chain::AppendBlock<Chain::Ownership::kShare>(
-    RawBlock* block, size_t size_hint);
+    RawBlock* block, const Options& options);
 extern template void Chain::AppendBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, size_t size_hint);
+    RawBlock* block, const Options& options);
 extern template void Chain::PrependBlock<Chain::Ownership::kShare>(
-    RawBlock* block, size_t size_hint);
+    RawBlock* block, const Options& options);
 extern template void Chain::PrependBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, size_t size_hint);
+    RawBlock* block, const Options& options);
 
-inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
+inline void Chain::RemoveSuffix(size_t length, const Options& options) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemoveSuffix(): "
@@ -1787,10 +1904,10 @@ inline void Chain::RemoveSuffix(size_t length, size_t size_hint) {
                         back()->TryRemoveSuffix(length))) {
     return;
   }
-  RemoveSuffixSlow(length, size_hint);
+  RemoveSuffixSlow(length, options);
 }
 
-inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
+inline void Chain::RemovePrefix(size_t length, const Options& options) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemovePrefix(): "
@@ -1806,7 +1923,7 @@ inline void Chain::RemovePrefix(size_t length, size_t size_hint) {
                         front()->TryRemovePrefix(length))) {
     return;
   }
-  RemovePrefixSlow(length, size_hint);
+  RemovePrefixSlow(length, options);
 }
 
 inline bool operator==(const Chain& a, const Chain& b) {
@@ -1955,16 +2072,16 @@ inline bool ChainBlock::empty() const {
 }
 
 inline absl::Span<char> ChainBlock::AppendFixedBuffer(size_t length,
-                                                      size_t size_hint) {
-  return AppendBuffer(length, length, length, size_hint);
+                                                      const Options& options) {
+  return AppendBuffer(length, length, length, options);
 }
 
 inline absl::Span<char> ChainBlock::PrependFixedBuffer(size_t length,
-                                                       size_t size_hint) {
-  return PrependBuffer(length, length, length, size_hint);
+                                                       const Options& options) {
+  return PrependBuffer(length, length, length, options);
 }
 
-inline void ChainBlock::RemoveSuffix(size_t length, size_t size_hint) {
+inline void ChainBlock::RemoveSuffix(size_t length, const Options& options) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of ChainBlock::RemoveSuffix(): "
@@ -1972,10 +2089,10 @@ inline void ChainBlock::RemoveSuffix(size_t length, size_t size_hint) {
   if (ABSL_PREDICT_TRUE(block_->TryRemoveSuffix(length))) {
     return;
   }
-  RemoveSuffixSlow(length, size_hint);
+  RemoveSuffixSlow(length, options);
 }
 
-inline void ChainBlock::RemovePrefix(size_t length, size_t size_hint) {
+inline void ChainBlock::RemovePrefix(size_t length, const Options& options) {
   if (length == 0) return;
   RIEGELI_CHECK_LE(length, size())
       << "Failed precondition of ChainBlock::RemovePrefix(): "
@@ -1983,7 +2100,7 @@ inline void ChainBlock::RemovePrefix(size_t length, size_t size_hint) {
   if (ABSL_PREDICT_TRUE(block_->TryRemovePrefix(length))) {
     return;
   }
-  RemovePrefixSlow(length, size_hint);
+  RemovePrefixSlow(length, options);
 }
 
 inline void* ChainBlock::Release() { return std::exchange(block_, nullptr); }

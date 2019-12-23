@@ -80,10 +80,8 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
-  size_t length = snappy::kBlockSize;
-  if (start_pos() < size_hint_) {
-    length = UnsignedMin(length, size_hint_ - start_pos());
-  }
+  const size_t length =
+      BufferLength(0, snappy::kBlockSize, size_hint_, start_pos());
   uncompressed_.Resize(length);
   set_buffer(
       uncompressed_.GetData(),

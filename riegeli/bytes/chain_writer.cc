@@ -68,7 +68,7 @@ bool ChainWriterBase::WriteSlow(const Chain& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(src, size_hint_);
+  dest->Append(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -81,7 +81,7 @@ bool ChainWriterBase::WriteSlow(Chain&& src) {
   Chain* const dest = dest_chain();
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(std::move(src), size_hint_);
+  dest->Append(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
@@ -120,7 +120,7 @@ inline void ChainWriterBase::SyncBuffer(Chain* dest) {
 inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_length,
                                         size_t recommended_length) {
   const absl::Span<char> buffer = dest->AppendBuffer(
-      min_length, recommended_length, Chain::kAnyLength, size_hint_);
+      min_length, recommended_length, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
 }
 

@@ -78,9 +78,6 @@ class BufferedWriter : public Writer {
   virtual bool WriteInternal(absl::string_view src) = 0;
 
  private:
-  // Preferred size of the buffer to use.
-  size_t BufferLength(size_t min_length) const;
-
   // Minimum length for which it is better to push current contents of `buffer_`
   // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;

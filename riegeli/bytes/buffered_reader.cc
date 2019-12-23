@@ -31,22 +31,12 @@
 
 namespace riegeli {
 
-inline size_t BufferedReader::BufferLength(size_t min_length) const {
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of BufferedReader: no buffer size specified";
-  size_t length = buffer_size_;
-  if (limit_pos() < size_hint_) {
-    // Avoid allocating more than needed for `size_hint_`.
-    length = UnsignedMin(length, size_hint_ - limit_pos());
-  }
-  return UnsignedMax(length, min_length);
-}
-
 inline size_t BufferedReader::LengthToReadDirectly() const {
   // Read directly if reading through `buffer_` would need more than one read,
   // or if `buffer_` would be full. Read directly also if `size_hint_` is
   // reached.
-  return SaturatingAdd(available(), BufferLength());
+  return SaturatingAdd(available(),
+                       BufferLength(0, buffer_size_, size_hint_, limit_pos()));
 }
 
 void BufferedReader::VerifyEnd() {
@@ -64,7 +54,8 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const size_t available_length = available();
   buffer_.RemovePrefix(read_from_buffer());
   const absl::Span<char> flat_buffer = buffer_.AppendFixedBuffer(
-      BufferLength(UnsignedMax(min_length, recommended_length)) -
+      BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
+                   size_hint_, limit_pos()) -
       available_length);
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
@@ -132,7 +123,8 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       }
       return true;
     }
-    size_t buffer_length = BufferLength();
+    size_t buffer_length =
+        BufferLength(0, buffer_size_, size_hint_, limit_pos());
     if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
       // Append a part of `buffer_` to `*dest` and make a new buffer.
       length -= available();
@@ -174,14 +166,15 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       enough_read = false;
       break;
     }
-    size_t buffer_length = BufferLength();
+    size_t buffer_length =
+        BufferLength(0, buffer_size_, size_hint_, limit_pos());
     if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
       // Write a part of `buffer_` to `*dest` and make a new buffer.
       if (available() > 0) {
         length -= available();
         Chain data;
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), &data,
-                               available());
+                               Chain::Options().set_size_hint(available()));
         if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) {
           move_cursor(available());
           return false;
@@ -209,8 +202,9 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   bool write_ok = true;
   if (length > 0) {
     Chain data;
-    buffer_.AppendSubstrTo(absl::string_view(cursor(), IntCast<size_t>(length)),
-                           &data, IntCast<size_t>(length));
+    buffer_.AppendSubstrTo(
+        absl::string_view(cursor(), IntCast<size_t>(length)), &data,
+        Chain::Options().set_size_hint(IntCast<size_t>(length)));
     write_ok = dest->Write(std::move(data));
     move_cursor(IntCast<size_t>(length));
   }

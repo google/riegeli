@@ -69,7 +69,9 @@ void PullableReader::PullToScratchSlow(size_t min_length,
     new_scratch = std::move(scratch_);
     if (!new_scratch->buffer.empty()) {
       // Scratch is used but it does have enough data after the cursor.
-      new_scratch->buffer.RemovePrefix(read_from_buffer(), recommended_length);
+      new_scratch->buffer.RemovePrefix(
+          read_from_buffer(),
+          ChainBlock::Options().set_size_hint(recommended_length));
       min_length -= new_scratch->buffer.size();
       recommended_length -= new_scratch->buffer.size();
       set_buffer(new_scratch->original_start, new_scratch->original_buffer_size,

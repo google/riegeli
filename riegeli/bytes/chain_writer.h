@@ -49,8 +49,43 @@ class ChainWriterBase : public Writer {
     }
     Position size_hint() const { return size_hint_; }
 
+    // Minimal size of a block of allocated data.
+    //
+    // This is used initially, while the destination is small.
+    //
+    // Default: `kMinBufferSize` (256)
+    Options& set_min_block_size(size_t min_block_size) & {
+      min_block_size_ = min_block_size;
+      return *this;
+    }
+    Options&& set_min_block_size(size_t min_block_size) && {
+      return std::move(set_min_block_size(min_block_size));
+    }
+    size_t min_block_size() const { return min_block_size_; }
+
+    // Maximal size of a block of allocated data.
+    //
+    // This does not apply to attached external objects which can be arbitrarily
+    // long.
+    //
+    // Default: `kMaxBufferSize` (64K)
+    Options& set_max_block_size(size_t max_block_size) & {
+      RIEGELI_ASSERT_GT(max_block_size, 0u)
+          << "Failed precondition of "
+             "ChainWriterBase::Options::set_max_block_size(): "
+             "zero block size";
+      max_block_size_ = max_block_size;
+      return *this;
+    }
+    Options&& set_max_block_size(size_t max_block_size) && {
+      return std::move(set_max_block_size(max_block_size));
+    }
+    size_t max_block_size() const { return max_block_size_; }
+
    private:
     Position size_hint_ = 0;
+    size_t min_block_size_ = kMinBufferSize;
+    size_t max_block_size_ = kMaxBufferSize;
   };
 
   // Returns the `Chain` being written to.
@@ -64,13 +99,13 @@ class ChainWriterBase : public Writer {
  protected:
   ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit ChainWriterBase(Position size_hint);
+  explicit ChainWriterBase(Options&& options);
 
   ChainWriterBase(ChainWriterBase&& that) noexcept;
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_hint);
+  void Reset(Options&& options);
   void Initialize(Chain* dest);
 
   void Done() override;
@@ -88,7 +123,7 @@ class ChainWriterBase : public Writer {
   void MakeBuffer(Chain* dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
-  size_t size_hint_ = 0;
+  Chain::Options options_;
 
   // Invariants if `healthy()`:
   //   `limit() == nullptr || limit() == dest_chain()->blocks().back().data() +
@@ -153,28 +188,35 @@ class ChainWriter : public ChainWriterBase {
 
 // Implementation details follow.
 
-inline ChainWriterBase::ChainWriterBase(Position size_hint)
+inline ChainWriterBase::ChainWriterBase(Options&& options)
     : Writer(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(size_hint)) {}
+      options_(
+          Chain::Options()
+              .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
+              .set_min_block_size(options.min_block_size())
+              .set_max_block_size(options.max_block_size())) {}
 
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
-    : Writer(std::move(that)), size_hint_(that.size_hint_) {}
+    : Writer(std::move(that)), options_(that.options_) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
     ChainWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  size_hint_ = that.size_hint_;
+  options_ = that.options_;
   return *this;
 }
 
 inline void ChainWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
-  size_hint_ = 0;
+  options_ = Chain::Options();
 }
 
-inline void ChainWriterBase::Reset(Position size_hint) {
+inline void ChainWriterBase::Reset(Options&& options) {
   Writer::Reset(kInitiallyOpen);
-  size_hint_ = SaturatingIntCast<size_t>(size_hint);
+  options_ = Chain::Options()
+                 .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
+                 .set_min_block_size(options.min_block_size())
+                 .set_max_block_size(options.max_block_size());
 }
 
 inline void ChainWriterBase::Initialize(Chain* dest) {
@@ -185,13 +227,13 @@ inline void ChainWriterBase::Initialize(Chain* dest) {
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
-    : ChainWriterBase(options.size_hint()), dest_(dest) {
+    : ChainWriterBase(std::move(options)), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(Dest&& dest, Options options)
-    : ChainWriterBase(options.size_hint()), dest_(std::move(dest)) {
+    : ChainWriterBase(std::move(options)), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -199,7 +241,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
-    : ChainWriterBase(options.size_hint()), dest_(std::move(dest_args)) {
+    : ChainWriterBase(std::move(options)), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -225,14 +267,14 @@ inline void ChainWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ChainWriterBase::Reset(options.size_hint());
+  ChainWriterBase::Reset(std::move(options));
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainWriterBase::Reset(options.size_hint());
+  ChainWriterBase::Reset(std::move(options));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -241,7 +283,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
-  ChainWriterBase::Reset(options.size_hint());
+  ChainWriterBase::Reset(std::move(options));
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

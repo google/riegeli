@@ -99,12 +99,6 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
       context));
 }
 
-inline size_t FileWriterBase::BufferLength(size_t min_length) const {
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of FileWriterBase: no buffer size specified";
-  return UnsignedMax(buffer_size_, min_length);
-}
-
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
@@ -128,7 +122,7 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(BufferLength(min_length));
+  buffer_.Resize(UnsignedMax(buffer_size_, min_length));
   char* const buffer = buffer_.GetData();
   set_buffer(buffer,
              UnsignedMin(buffer_.size(),

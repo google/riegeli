@@ -87,7 +87,7 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
         SyncBuffer();
         move_start_pos(in_whole_blocks);
         iter.AppendSubstrTo(fragment.substr(0, in_whole_blocks), &uncompressed_,
-                            size_hint_);
+                            Chain::Options().set_size_hint(size_hint_));
         MakeBuffer();
         fragment.remove_prefix(in_whole_blocks);
       }
@@ -109,14 +109,12 @@ inline void SnappyWriterBase::SyncBuffer() {
 }
 
 inline void SnappyWriterBase::MakeBuffer(size_t min_length) {
-  size_t length =
-      min_length + -(uncompressed_.size() + min_length) % snappy::kBlockSize;
-  if (uncompressed_.size() < size_hint_) {
-    length = UnsignedMax(UnsignedMin(length, size_hint_ - uncompressed_.size()),
-                         min_length);
-  }
-  const absl::Span<char> buffer =
-      uncompressed_.AppendFixedBuffer(length, size_hint_);
+  const absl::Span<char> buffer = uncompressed_.AppendFixedBuffer(
+      BufferLength(min_length,
+                   min_length + -(uncompressed_.size() + min_length) %
+                                    snappy::kBlockSize,
+                   size_hint_, uncompressed_.size()),
+      Chain::Options().set_size_hint(size_hint_));
   set_buffer(buffer.data(), buffer.size());
 }
 

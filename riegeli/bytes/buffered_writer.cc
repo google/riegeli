@@ -26,16 +26,6 @@
 
 namespace riegeli {
 
-inline size_t BufferedWriter::BufferLength(size_t min_length) const {
-  RIEGELI_ASSERT_GT(buffer_size_, 0u)
-      << "Failed invariant of BufferedWriter: no buffer size specified";
-  size_t length = buffer_size_;
-  if (start_pos() < size_hint_) {
-    length = UnsignedMin(length, size_hint_ - start_pos());
-  }
-  return UnsignedMax(length, min_length);
-}
-
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
   size_t length = buffer_.size();
   if (written_to_buffer() > 0) {
@@ -67,7 +57,8 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(BufferLength(min_length));
+  buffer_.Resize(
+      BufferLength(min_length, buffer_size_, size_hint_, start_pos()));
   char* const buffer = buffer_.GetData();
   set_buffer(buffer,
              UnsignedMin(buffer_.size(),

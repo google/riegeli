@@ -609,6 +609,28 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
 // performs better.
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 
+// Proposes a buffer length with constraints:
+//
+//  * At least `min_length`.
+//  * At most `max_length`.
+//  * If `current_size < size_hint`, prefer `size_hint - current_size`.
+//  * If `current_size >= size_hint`, prefer `recommended_length`.
+inline size_t BufferLength(size_t min_length, size_t max_length,
+                           Position size_hint, Position current_size,
+                           Position recommended_length) {
+  if (current_size < size_hint) recommended_length = size_hint - current_size;
+  return UnsignedMax(UnsignedMin(recommended_length, max_length), min_length);
+}
+
+// A variant of `BufferLength()` where `recommended_length` is `max_length`.
+inline size_t BufferLength(size_t min_length, size_t max_length,
+                           Position size_hint, Position current_size) {
+  if (current_size < size_hint) {
+    max_length = UnsignedMin(size_hint - current_size, max_length);
+  }
+  return UnsignedMax(max_length, min_length);
+}
+
 // Heuristics for whether a partially filled buffer is wasteful.
 inline bool Wasteful(size_t total, size_t used) {
   return total - used > UnsignedMax(used, kMinBufferSize);

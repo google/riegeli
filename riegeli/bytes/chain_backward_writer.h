@@ -49,8 +49,43 @@ class ChainBackwardWriterBase : public BackwardWriter {
     }
     Position size_hint() const { return size_hint_; }
 
+    // Minimal size of a block of allocated data.
+    //
+    // This is used initially, while the destination is small.
+    //
+    // Default: `kMinBufferSize` (256)
+    Options& set_min_block_size(size_t min_block_size) & {
+      min_block_size_ = min_block_size;
+      return *this;
+    }
+    Options&& set_min_block_size(size_t min_block_size) && {
+      return std::move(set_min_block_size(min_block_size));
+    }
+    size_t min_block_size() const { return min_block_size_; }
+
+    // Maximal size of a block of allocated data.
+    //
+    // This does not apply to attached external objects which can be arbitrarily
+    // long.
+    //
+    // Default: `kMaxBufferSize` (64K)
+    Options& set_max_block_size(size_t max_block_size) & {
+      RIEGELI_ASSERT_GT(max_block_size, 0u)
+          << "Failed precondition of "
+             "ChainBackwardWriterBase::Options::set_max_block_size(): "
+             "zero block size";
+      max_block_size_ = max_block_size;
+      return *this;
+    }
+    Options&& set_max_block_size(size_t max_block_size) && {
+      return std::move(set_max_block_size(max_block_size));
+    }
+    size_t max_block_size() const { return max_block_size_; }
+
    private:
     Position size_hint_ = 0;
+    size_t min_block_size_ = kMinBufferSize;
+    size_t max_block_size_ = kMaxBufferSize;
   };
 
   // Returns the `Chain` being written to.
@@ -64,13 +99,13 @@ class ChainBackwardWriterBase : public BackwardWriter {
  protected:
   ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit ChainBackwardWriterBase(Position size_hint);
+  explicit ChainBackwardWriterBase(Options&& options);
 
   ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
   ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_hint);
+  void Reset(Options&& options);
   void Initialize(Chain* dest);
 
   void Done() override;
@@ -88,7 +123,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   void MakeBuffer(Chain* dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
-  size_t size_hint_ = 0;
+  Chain::Options options_;
 
   // Invariants if `healthy()`:
   //   `limit() == nullptr || limit() == dest_chain()->blocks().front().data()`
@@ -151,29 +186,36 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 // Implementation details follow.
 
-inline ChainBackwardWriterBase::ChainBackwardWriterBase(Position size_hint)
+inline ChainBackwardWriterBase::ChainBackwardWriterBase(Options&& options)
     : BackwardWriter(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(size_hint)) {}
+      options_(
+          Chain::Options()
+              .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
+              .set_min_block_size(options.min_block_size())
+              .set_max_block_size(options.max_block_size())) {}
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)), size_hint_(that.size_hint_) {}
+    : BackwardWriter(std::move(that)), options_(that.options_) {}
 
 inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
     ChainBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
-  size_hint_ = that.size_hint_;
+  options_ = that.options_;
   return *this;
 }
 
 inline void ChainBackwardWriterBase::Reset() {
   BackwardWriter::Reset(kInitiallyClosed);
-  size_hint_ = 0;
+  options_ = Chain::Options();
 }
 
-inline void ChainBackwardWriterBase::Reset(Position size_hint) {
+inline void ChainBackwardWriterBase::Reset(Options&& options) {
   BackwardWriter::Reset(kInitiallyOpen);
-  size_hint_ = SaturatingIntCast<size_t>(size_hint);
+  options_ = Chain::Options()
+                 .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
+                 .set_min_block_size(options.min_block_size())
+                 .set_max_block_size(options.max_block_size());
 }
 
 inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
@@ -185,14 +227,14 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(options.size_hint()), dest_(dest) {
+    : ChainBackwardWriterBase(std::move(options)), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest&& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(options.size_hint()), dest_(std::move(dest)) {
+    : ChainBackwardWriterBase(std::move(options)), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -200,8 +242,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : ChainBackwardWriterBase(options.size_hint()),
-      dest_(std::move(dest_args)) {
+    : ChainBackwardWriterBase(std::move(options)), dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -229,14 +270,14 @@ inline void ChainBackwardWriter<Dest>::Reset() {
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(const Dest& dest,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint());
+  ChainBackwardWriterBase::Reset(std::move(options));
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint());
+  ChainBackwardWriterBase::Reset(std::move(options));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -245,7 +286,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(options.size_hint());
+  ChainBackwardWriterBase::Reset(std::move(options));
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

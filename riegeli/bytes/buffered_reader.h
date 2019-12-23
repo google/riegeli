@@ -90,9 +90,6 @@ class BufferedReader : public Reader {
   void set_size_hint(Position size_hint) { size_hint_ = size_hint; }
 
  private:
-  // Preferred size of the buffer to use.
-  size_t BufferLength(size_t min_length = 0) const;
-
   // Minimum length for which it is better to append current contents of
   // `buffer_` and read the remaining data directly than to read the data
   // through `buffer_`.

@@ -69,7 +69,7 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(src, size_hint_);
+  dest->Prepend(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -82,7 +82,7 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   Chain* const dest = dest_chain();
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(std::move(src), size_hint_);
+  dest->Prepend(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
@@ -121,7 +121,7 @@ inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
 inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
                                                 size_t recommended_length) {
   const absl::Span<char> buffer = dest->PrependBuffer(
-      min_length, recommended_length, Chain::kAnyLength, size_hint_);
+      min_length, recommended_length, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
 }
 

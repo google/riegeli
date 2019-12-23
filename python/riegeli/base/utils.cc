@@ -291,7 +291,7 @@ bool ChainFromPython(PyObject* object, Chain* value) {
   value->Clear();
   value->Append(absl::string_view(static_cast<const char*>(buffer.buf),
                                   IntCast<size_t>(buffer.len)),
-                IntCast<size_t>(buffer.len));
+                Chain::Options().set_size_hint(IntCast<size_t>(buffer.len)));
   PyBuffer_Release(&buffer);
   return true;
 }
