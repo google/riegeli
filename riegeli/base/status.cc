@@ -88,10 +88,14 @@ std::string Status::ToStringSlow() const {
   return absl::StrCat(StatusCodeToString(rep_->code), ": ", rep_->message);
 }
 
+Status SetMessage(const Status& status, absl::string_view message) {
+  return Status(status.code(), message);
+}
+
 Status Annotate(const Status& status, absl::string_view message) {
   if (status.ok() || message.empty()) return status;
-  if (status.message().empty()) return Status(status.code(), message);
-  return Status(status.code(), absl::StrCat(status.message(), "; ", message));
+  if (status.message().empty()) return SetMessage(status, message);
+  return SetMessage(status, absl::StrCat(status.message(), "; ", message));
 }
 
 std::ostream& operator<<(std::ostream& out, const Status& status) {

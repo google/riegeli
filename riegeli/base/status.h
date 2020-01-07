@@ -123,6 +123,13 @@ class Status final {
 Status OkStatus();
 
 // Returns a `Status` that is identical to `status` except that the `message()`
+// has been replaced with `message`.
+//
+// OK status values have no message and therefore if `status` is OK, the result
+// is unchanged.
+Status SetMessage(const Status& status, absl::string_view message);
+
+// Returns a `Status` that is identical to `status` except that the `message()`
 // has been augmented by adding `message` to the end of the original message.
 //
 // `Annotate()` adds the appropriate separators, so callers should not include a
