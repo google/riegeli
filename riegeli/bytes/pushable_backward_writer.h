@@ -99,9 +99,6 @@ class PushableBackwardWriter : public BackwardWriter {
   //              (or skip the rest of flushing in `Done()`)
   bool SyncScratch();
 
- protected:
-  void Done() override;
-
  private:
   struct Scratch {
     ChainBlock buffer;

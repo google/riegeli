@@ -28,11 +28,6 @@
 
 namespace riegeli {
 
-void PushableBackwardWriter::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncScratch();
-  BackwardWriter::Done();
-}
-
 void PushableBackwardWriter::PushFromScratchSlow(size_t min_length,
                                                  size_t recommended_length) {
   if (scratch_used()) {
