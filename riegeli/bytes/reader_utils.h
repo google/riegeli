@@ -123,6 +123,12 @@ class ReadLineOptions {
 
 // Reads a line.
 //
+// Warning: if `options.recognize_cr()` is `true`, for lines terminated with CR
+// `ReadLine()` reads ahead one character after the CR. If reading ahead only as
+// much as needed is required, e.g. when communicating with another process,
+// another implementation would be required (which would keep state between
+// calls).
+//
 // Return values:
 //  * `true`                           - success
 //  * `false` (when `src->healthy()`)  - source ends (`dest->empty()`)
@@ -137,6 +143,9 @@ bool ReadByte(Reader* src, uint8_t* data);
 
 // Reads a varint.
 //
+// If no valid varint representation follows the cursor, the cursor is
+// unchanged.
+//
 // `{Read,Copy}Varint{32,64}()` tolerate representations which are not the
 // shortest. They reject representations longer than `kMaxLengthVarint{32,64}`
 // bytes or with bits set outside the range of possible values.
@@ -145,6 +154,11 @@ bool ReadByte(Reader* src, uint8_t* data);
 // casting them to `uint64`, not `uint32` (negative values take 10 bytes, not
 // 5), hence they must be read with `ReadVarint64()`, not `ReadVarint32()`, if
 // negative values are possible.
+//
+// Warning: `{Read,Copy}Varint{32,64}()` may read ahead more than eventually
+// needed. If reading ahead only as much as needed is required, e.g. when
+// communicating with another process, use `StreamingReadVarint{32,64}()`
+// instead. It is slower.
 
 bool ReadVarint32(Reader* src, uint32_t* data);
 bool ReadVarint64(Reader* src, uint64_t* data);
@@ -155,6 +169,15 @@ bool ReadVarint64(Reader* src, uint64_t* data);
 // trailing zero byte, except for 0 itself.
 bool ReadCanonicalVarint32(Reader* src, uint32_t* data);
 bool ReadCanonicalVarint64(Reader* src, uint64_t* data);
+
+// Reads a varint.
+//
+// Reads ahead only as much as needed, which can be required e.g. when
+// communicating with another process. This is slower than
+// `ReadVarint{32,64}()`.
+
+bool StreamingReadVarint32(Reader* src, uint32_t* data);
+bool StreamingReadVarint64(Reader* src, uint64_t* data);
 
 // Copies a varint.
 //
@@ -239,6 +262,39 @@ inline bool ReadCanonicalVarint64(Reader* src, uint64_t* data) {
   if (ABSL_PREDICT_FALSE(cursor[-1] == 0)) return false;
   src->set_cursor(cursor);
   return true;
+}
+
+namespace internal {
+
+bool StreamingReadVarint32Slow(Reader* src, uint32_t* data);
+bool StreamingReadVarint64Slow(Reader* src, uint64_t* data);
+
+}  // namespace internal
+
+inline bool StreamingReadVarint32(Reader* src, uint32_t* data) {
+  if (ABSL_PREDICT_FALSE(!src->Pull(1, kMaxLengthVarint32))) return false;
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint32)) {
+    const char* cursor = src->cursor();
+    if (ABSL_PREDICT_FALSE(!ReadVarint32(&cursor, src->limit(), data))) {
+      return false;
+    }
+    src->set_cursor(cursor);
+    return true;
+  }
+  return internal::StreamingReadVarint32Slow(src, data);
+}
+
+inline bool StreamingReadVarint64(Reader* src, uint64_t* data) {
+  if (ABSL_PREDICT_FALSE(!src->Pull(1, kMaxLengthVarint64))) return false;
+  if (ABSL_PREDICT_TRUE(src->available() >= kMaxLengthVarint64)) {
+    const char* cursor = src->cursor();
+    if (ABSL_PREDICT_FALSE(!ReadVarint64(&cursor, src->limit(), data))) {
+      return false;
+    }
+    src->set_cursor(cursor);
+    return true;
+  }
+  return internal::StreamingReadVarint64Slow(src, data);
 }
 
 inline char* CopyVarint32(Reader* src, char* dest) {
