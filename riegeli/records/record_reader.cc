@@ -353,13 +353,6 @@ bool RecordReaderBase::SupportsRandomAccess() const {
   return src != nullptr && src->SupportsRandomAccess();
 }
 
-bool RecordReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  ChunkReader* const src = src_chunk_reader();
-  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
-  return true;
-}
-
 bool RecordReaderBase::Seek(RecordPosition new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader* const src = src_chunk_reader();
@@ -422,6 +415,13 @@ bool RecordReaderBase::Seek(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();
   }
   chunk_decoder_.SetIndex(IntCast<uint64_t>(new_pos - chunk_begin_));
+  return true;
+}
+
+bool RecordReaderBase::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkReader* const src = src_chunk_reader();
+  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
   return true;
 }
 

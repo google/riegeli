@@ -408,13 +408,6 @@ bool DefaultChunkReaderBase::SupportsRandomAccess() const {
   return src != nullptr && src->SupportsRandomAccess();
 }
 
-bool DefaultChunkReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
-  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
-  return true;
-}
-
 bool DefaultChunkReaderBase::SeekToChunkContaining(Position new_pos) {
   return SeekToChunk<WhichChunk::kContaining>(new_pos);
 }
@@ -513,6 +506,13 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     if (which_chunk == WhichChunk::kBefore && chunk_end > new_pos) return true;
     chunk_begin = chunk_end;
   }
+}
+
+bool DefaultChunkReaderBase::Size(Position* size) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Reader* const src = src_reader();
+  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
+  return true;
 }
 
 }  // namespace riegeli
