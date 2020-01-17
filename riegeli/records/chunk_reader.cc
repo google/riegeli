@@ -388,8 +388,14 @@ find_chunk:
   return true;
 }
 
+bool DefaultChunkReaderBase::SupportsRandomAccess() const {
+  const Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRandomAccess();
+}
+
 bool DefaultChunkReaderBase::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (pos_ == new_pos) return true;
   Reader* const src = src_reader();
   truncated_ = false;
   pos_ = new_pos;
@@ -401,11 +407,6 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
     return Fail(DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
   }
   return true;
-}
-
-bool DefaultChunkReaderBase::SupportsRandomAccess() const {
-  const Reader* const src = src_reader();
-  return src != nullptr && src->SupportsRandomAccess();
 }
 
 bool DefaultChunkReaderBase::SeekToChunkContaining(Position new_pos) {
@@ -423,6 +424,7 @@ bool DefaultChunkReaderBase::SeekToChunkAfter(Position new_pos) {
 template <DefaultChunkReaderBase::WhichChunk which_chunk>
 bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (pos_ == new_pos) return true;
   Reader* const src = src_reader();
   truncated_ = false;
   chunk_.Reset();
@@ -432,7 +434,6 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     // The current chunk begins at or before `new_pos`. If it also ends at or
     // after `block_begin`, it is better to start searching from the current
     // position than to seek back to `block_begin`.
-    if (pos_ == new_pos) return true;
     if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) {
       truncated_ = false;
       return SeekingFailed(src, new_pos);
