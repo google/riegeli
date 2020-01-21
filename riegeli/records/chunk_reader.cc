@@ -427,7 +427,6 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   if (pos_ == new_pos) return true;
   Reader* const src = src_reader();
   truncated_ = false;
-  chunk_.Reset();
   const Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   Position chunk_begin;
   if (pos_ <= new_pos) {
@@ -449,9 +448,11 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       goto read_block_header;
     }
     chunk_begin = chunk_end;
+    chunk_.Reset();
   } else {
   read_block_header:
     pos_ = block_begin;
+    chunk_.Reset();
     if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
       return SeekingFailed(src, new_pos);
     }
@@ -489,10 +490,10 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   }
 
   for (;;) {
-    if (ABSL_PREDICT_FALSE(!src->Seek(chunk_begin))) {
+    pos_ = chunk_begin;
+    if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
       return SeekingFailed(src, new_pos);
     }
-    pos_ = chunk_begin;
   check_current_chunk:
     if (pos_ >= new_pos) return true;
     if (ABSL_PREDICT_FALSE(!ReadChunkHeader())) {
