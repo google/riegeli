@@ -1046,7 +1046,8 @@ void Chain::Append(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopyToChain) {
+  if (src.size() <= kMaxBytesToCopyToChain ||
+      Wasteful(src.capacity(), src.size())) {
     // Not `std::move(src)`: forward to `Append(absl::string_view)`.
     Append(src, options);
     return;
@@ -1207,7 +1208,8 @@ void Chain::Prepend(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopyToChain) {
+  if (src.size() <= kMaxBytesToCopyToChain ||
+      Wasteful(src.capacity(), src.size())) {
     // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
     Prepend(src, options);
     return;
