@@ -479,9 +479,6 @@ class Chain {
                           size_t recommended_length,
                           const Options& options) const;
 
-  void AppendString(std::string&& src, const Options& options);
-  void PrependString(std::string&& src, const Options& options);
-
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
   void AppendImpl(ChainRef&& src, const Options& options);
@@ -1844,17 +1841,8 @@ inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
   return PrependBuffer(length, length, length, options);
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Append(Src&& src, const Options& options) {
-  AppendString(std::move(src), options);
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline void Chain::Prepend(Src&& src, const Options& options) {
-  PrependString(std::move(src), options);
-}
+extern template void Chain::Append(std::string&& src, const Options& options);
+extern template void Chain::Prepend(std::string&& src, const Options& options);
 
 inline void Chain::Append(const ChainBlock& src, const Options& options) {
   if (src.block_ != nullptr) {

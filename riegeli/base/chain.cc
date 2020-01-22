@@ -1040,7 +1040,9 @@ void Chain::Append(absl::string_view src, const Options& options) {
   }
 }
 
-void Chain::AppendString(std::string&& src, const Options& options) {
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+void Chain::Append(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
@@ -1053,6 +1055,8 @@ void Chain::AppendString(std::string&& src, const Options& options) {
              std::forward_as_tuple(std::move(src))),
          options);
 }
+
+template void Chain::Append(std::string&& src, const Options& options);
 
 void Chain::Append(const Chain& src, const Options& options) {
   AppendImpl<Ownership::kShare>(src, options);
@@ -1197,7 +1201,9 @@ void Chain::Prepend(absl::string_view src, const Options& options) {
   }
 }
 
-void Chain::PrependString(std::string&& src, const Options& options) {
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+void Chain::Prepend(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
@@ -1210,6 +1216,8 @@ void Chain::PrependString(std::string&& src, const Options& options) {
               std::forward_as_tuple(std::move(src))),
           options);
 }
+
+template void Chain::Prepend(std::string&& src, const Options& options);
 
 void Chain::Prepend(const Chain& src, const Options& options) {
   PrependImpl<Ownership::kShare>(src, options);
