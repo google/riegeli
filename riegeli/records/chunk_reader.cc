@@ -67,14 +67,13 @@ void DefaultChunkReaderBase::Done() {
   }
 }
 
-inline bool DefaultChunkReaderBase::ReadingFailed(Reader* src) {
+inline bool DefaultChunkReaderBase::FailReading(Reader* src) {
   if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   if (ABSL_PREDICT_FALSE(src->pos() > pos_)) truncated_ = true;
   return false;
 }
 
-inline bool DefaultChunkReaderBase::SeekingFailed(Reader* src,
-                                                  Position new_pos) {
+inline bool DefaultChunkReaderBase::FailSeeking(Reader* src, Position new_pos) {
   if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   recoverable_ = Recoverable::kFindChunk;
   recoverable_pos_ = src->pos();
@@ -131,11 +130,11 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
             &chunk_.data, IntCast<size_t>(UnsignedMin(
                               chunk_.header.data_size() - chunk_.data.size(),
                               internal::RemainingInBlock(src->pos())))))) {
-      return ReadingFailed(src);
+      return FailReading(src);
     }
   }
 
-  if (ABSL_PREDICT_FALSE(!src->Seek(chunk_end))) return ReadingFailed(src);
+  if (ABSL_PREDICT_FALSE(!src->Seek(chunk_end))) return FailReading(src);
 
   const uint64_t computed_data_hash = internal::Hash(chunk_.data);
   if (ABSL_PREDICT_FALSE(computed_data_hash != chunk_.header.data_hash())) {
@@ -231,7 +230,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
         UnsignedMin(remaining_length, internal::RemainingInBlock(src->pos()));
     if (ABSL_PREDICT_FALSE(!src->Read(chunk_.header.bytes() + chunk_header_read,
                                       length_to_read))) {
-      return ReadingFailed(src);
+      return FailReading(src);
     }
   } while (length_to_read < remaining_length);
 
@@ -290,7 +289,7 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
   if (ABSL_PREDICT_FALSE(!src->Read(
           block_header_.bytes() + block_header_.size() - remaining_length,
           remaining_length))) {
-    return ReadingFailed(src);
+    return FailReading(src);
   }
   const uint64_t computed_header_hash = block_header_.computed_header_hash();
   if (ABSL_PREDICT_FALSE(computed_header_hash !=
@@ -400,7 +399,7 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
   truncated_ = false;
   pos_ = new_pos;
   chunk_.Reset();
-  if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) return SeekingFailed(src, pos_);
+  if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) return FailSeeking(src, pos_);
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
@@ -435,7 +434,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     // position than to seek back to `block_begin`.
     if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) {
       truncated_ = false;
-      return SeekingFailed(src, new_pos);
+      return FailSeeking(src, new_pos);
     }
     if (which_chunk == WhichChunk::kContaining &&
         pos_ + chunk_.header.num_records() > new_pos) {
@@ -453,12 +452,10 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   read_block_header:
     pos_ = block_begin;
     chunk_.Reset();
-    if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
-      return SeekingFailed(src, new_pos);
-    }
+    if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) return FailSeeking(src, new_pos);
     if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
       truncated_ = false;
-      return SeekingFailed(src, new_pos);
+      return FailSeeking(src, new_pos);
     }
     if (block_header_.previous_chunk() == 0) {
       // A chunk boundary coincides with block boundary. The current position is
@@ -491,14 +488,12 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
 
   for (;;) {
     pos_ = chunk_begin;
-    if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) {
-      return SeekingFailed(src, new_pos);
-    }
+    if (ABSL_PREDICT_FALSE(!src->Seek(pos_))) return FailSeeking(src, new_pos);
   check_current_chunk:
     if (pos_ >= new_pos) return true;
     if (ABSL_PREDICT_FALSE(!ReadChunkHeader())) {
       truncated_ = false;
-      return SeekingFailed(src, new_pos);
+      return FailSeeking(src, new_pos);
     }
     if (which_chunk == WhichChunk::kContaining &&
         pos_ + chunk_.header.num_records() > new_pos) {

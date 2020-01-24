@@ -161,14 +161,14 @@ class DefaultChunkReaderBase : public Object {
   // was in the middle of a chunk.
   //
   // Always returns `false`.
-  bool ReadingFailed(Reader* src);
+  bool FailReading(Reader* src);
 
   // Interprets a `false` result from `*src` reading or seeking function.
   //
   // End of file (i.e. if `healthy()`) fails the `ChunkReader`.
   //
   // Always returns `false`.
-  bool SeekingFailed(Reader* src, Position new_pos);
+  bool FailSeeking(Reader* src, Position new_pos);
 
   // Reads or continues reading `chunk_.header`.
   bool ReadChunkHeader();
