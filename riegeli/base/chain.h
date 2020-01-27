@@ -183,15 +183,20 @@ class Chain {
   //   explicit operator absl::string_view() const;
   // ```
   //
+  // In particular to attach static immutable memory, `T` can be
+  // `absl::string_view` itself.
+  //
   // `T` may also support the following member functions, either with or without
   // the `data` parameter, with the following definitions assumed by default:
   // ```
   //   // Called once before the destructor, except on a moved-from object.
+  //   // If only this function is needed, `T` can be a lambda.
   //   void operator()(absl::string_view data) const {}
   //
   //   // Registers this object with MemoryEstimator.
   //   void RegisterSubobjects(absl::string_view data,
   //                           MemoryEstimator* memory_estimator) const {
+  //     if (std::is_same<T, absl::string_view>::value) return;
   //     if (memory_estimator->RegisterNode(data.data())) {
   //       memory_estimator->RegisterDynamicMemory(data.size());
   //     }
@@ -1058,6 +1063,11 @@ inline void RegisterSubobjects(T* object, absl::string_view data,
     memory_estimator->RegisterDynamicMemory(data.size());
   }
 }
+
+template <>
+inline void RegisterSubobjects(absl::string_view* object,
+                               absl::string_view data,
+                               MemoryEstimator* memory_estimator) {}
 
 template <typename T, typename Enable = void>
 struct HasDumpStructureWithData : public std::false_type {};
