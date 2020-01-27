@@ -221,7 +221,7 @@ class Chain {
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `std::string_view`
-  // (e.g. `const char *`).
+  // (e.g. `const char*`).
   explicit Chain(absl::string_view src);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
@@ -310,7 +310,7 @@ class Chain {
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `std::string_view`
-  // (e.g. `const char *`).
+  // (e.g. `const char*`).
   void Append(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>

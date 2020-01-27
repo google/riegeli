@@ -110,7 +110,7 @@ class Writer : public Object {
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `std::string_view`
-  // (e.g. `const char *`).
+  // (e.g. `const char*`).
   //
   // Return values:
   //  * `true`  - success (`src.size()` bytes written)
