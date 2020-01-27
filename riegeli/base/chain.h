@@ -33,6 +33,7 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -338,8 +339,8 @@ class Chain {
 
   friend void swap(Chain& a, Chain& b) noexcept;
 
-  int Compare(absl::string_view that) const;
-  int Compare(const Chain& that) const;
+  absl::strong_ordering Compare(absl::string_view that) const;
+  absl::strong_ordering Compare(const Chain& that) const;
 
   friend bool operator==(const Chain& a, const Chain& b);
   friend bool operator!=(const Chain& a, const Chain& b);

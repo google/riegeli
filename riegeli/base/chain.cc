@@ -1643,23 +1643,24 @@ void swap(Chain& a, Chain& b) noexcept {
   swap(a.size_, b.size_);
 }
 
-int Chain::Compare(absl::string_view that) const {
+absl::strong_ordering Chain::Compare(absl::string_view that) const {
   Chain::BlockIterator this_iter = blocks().cbegin();
   size_t this_pos = 0;
   size_t that_pos = 0;
   while (this_iter != blocks().cend()) {
     if (that_pos == that.size()) {
       do {
-        if (!this_iter->empty()) return 1;
+        if (!this_iter->empty()) return absl::strong_ordering::greater;
         ++this_iter;
       } while (this_iter != blocks().cend());
-      return 0;
+      return absl::strong_ordering::equal;
     }
     const size_t length =
         UnsignedMin(this_iter->size() - this_pos, that.size() - that_pos);
     const int result = std::memcmp(this_iter->data() + this_pos,
                                    that.data() + that_pos, length);
-    if (result != 0) return result;
+    if (result < 0) return absl::strong_ordering::less;
+    if (result > 0) return absl::strong_ordering::greater;
     this_pos += length;
     if (this_pos == this_iter->size()) {
       ++this_iter;
@@ -1667,10 +1668,11 @@ int Chain::Compare(absl::string_view that) const {
     }
     that_pos += length;
   }
-  return that_pos == that.size() ? 0 : -1;
+  return that_pos == that.size() ? absl::strong_ordering::equal
+                                 : absl::strong_ordering::less;
 }
 
-int Chain::Compare(const Chain& that) const {
+absl::strong_ordering Chain::Compare(const Chain& that) const {
   Chain::BlockIterator this_iter = blocks().cbegin();
   Chain::BlockIterator that_iter = that.blocks().cbegin();
   size_t this_pos = 0;
@@ -1678,16 +1680,17 @@ int Chain::Compare(const Chain& that) const {
   while (this_iter != blocks().cend()) {
     if (that_iter == that.blocks().cend()) {
       do {
-        if (!this_iter->empty()) return 1;
+        if (!this_iter->empty()) return absl::strong_ordering::greater;
         ++this_iter;
       } while (this_iter != blocks().cend());
-      return 0;
+      return absl::strong_ordering::equal;
     }
     const size_t length =
         UnsignedMin(this_iter->size() - this_pos, that_iter->size() - that_pos);
     const int result = std::memcmp(this_iter->data() + this_pos,
                                    that_iter->data() + that_pos, length);
-    if (result != 0) return result;
+    if (result < 0) return absl::strong_ordering::less;
+    if (result > 0) return absl::strong_ordering::greater;
     this_pos += length;
     if (this_pos == this_iter->size()) {
       ++this_iter;
@@ -1700,10 +1703,10 @@ int Chain::Compare(const Chain& that) const {
     }
   }
   while (that_iter != that.blocks().cend()) {
-    if (!that_iter->empty()) return -1;
+    if (!that_iter->empty()) return absl::strong_ordering::less;
     ++that_iter;
   }
-  return 0;
+  return absl::strong_ordering::equal;
 }
 
 std::ostream& operator<<(std::ostream& out, const Chain& str) {
