@@ -212,18 +212,6 @@ class BackwardWriter : public Object {
   void set_buffer(char* limit = nullptr, size_t buffer_size = 0,
                   size_t written_to_buffer = 0);
 
-  // Destination position corresponding to `start()`.
-  Position start_pos() const { return start_pos_; }
-
-  // Destination position corresponding to `limit()`.
-  Position limit_pos() const;
-
-  // Increments the value of `start_pos()`.
-  void move_start_pos(Position length);
-
-  // Sets the value of `start_pos()`.
-  void set_start_pos(Position start_pos);
-
   // Implementation of the slow part of `Write()`.
   //
   // By default `WriteSlow(absl::string_view)` is implemented in terms of
@@ -239,6 +227,18 @@ class BackwardWriter : public Object {
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
+
+  // Destination position corresponding to `start()`.
+  Position start_pos() const { return start_pos_; }
+
+  // Destination position corresponding to `limit()`.
+  Position limit_pos() const;
+
+  // Increments the value of `start_pos()`.
+  void move_start_pos(Position length);
+
+  // Sets the value of `start_pos()`.
+  void set_start_pos(Position start_pos);
 
  private:
   char* start_ = nullptr;
