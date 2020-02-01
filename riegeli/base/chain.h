@@ -2059,11 +2059,11 @@ inline ChainBlock::operator absl::string_view() const {
 }
 
 inline const char* ChainBlock::data() const {
-  return block_ == nullptr ? nullptr : absl::string_view(*block_).data();
+  return block_ == nullptr ? nullptr : block_->data_begin();
 }
 
 inline size_t ChainBlock::size() const {
-  return block_ == nullptr ? size_t{0} : absl::string_view(*block_).size();
+  return block_ == nullptr ? size_t{0} : block_->size();
 }
 
 inline bool ChainBlock::empty() const {
