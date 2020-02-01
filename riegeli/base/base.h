@@ -612,7 +612,7 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 // Proposes a buffer length with constraints:
 //
 //  * At least `min_length`.
-//  * At most `max_length`.
+//  * At most `max(max_length, min_length)`.
 //  * If `current_size < size_hint`, prefer `size_hint - current_size`.
 //  * If `current_size >= size_hint`, prefer `recommended_length`.
 inline size_t BufferLength(size_t min_length, size_t max_length,
