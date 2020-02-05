@@ -73,7 +73,8 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     std::vector<std::string> filenames;
     filenames.reserve(IntCast<size_t>(filenames_tensor->NumElements()));
     for (int i = 0; i < filenames_tensor->NumElements(); ++i) {
-      filenames.push_back(filenames_tensor->flat<::tensorflow::tstring>()(i));
+      filenames.emplace_back(
+          filenames_tensor->flat<::tensorflow::tstring>()(i));
     }
 
     *output = new Dataset(ctx, std::move(filenames));
