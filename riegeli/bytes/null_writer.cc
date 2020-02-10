@@ -72,14 +72,14 @@ inline void NullWriter::SyncBuffer() {
 
 inline bool NullWriter::MakeBuffer(size_t min_length) {
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(UnsignedMax(kDefaultBufferSize, min_length));
-  char* const buffer = buffer_.GetData();
-  set_buffer(buffer,
-             UnsignedMin(buffer_.size(),
-                         std::numeric_limits<Position>::max() - start_pos()));
+  const size_t buffer_length =
+      UnsignedMin(UnsignedMax(kDefaultBufferSize, min_length),
+                  std::numeric_limits<Position>::max() - start_pos());
+  buffer_.Resize(buffer_length);
+  set_buffer(buffer_.GetData(), buffer_length);
   return true;
 }
 

@@ -100,7 +100,7 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
 }
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
-  size_t length = buffer_.size();
+  size_t length = buffer_size_;
   if (written_to_buffer() > 0) {
     // Two writes are needed because current contents of `buffer_` must be
     // pushed. Write directly if writing through `buffer_` would need more than
@@ -122,11 +122,11 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(UnsignedMax(buffer_size_, min_length));
-  char* const buffer = buffer_.GetData();
-  set_buffer(buffer,
-             UnsignedMin(buffer_.size(),
-                         std::numeric_limits<Position>::max() - start_pos()));
+  const size_t buffer_length =
+      UnsignedMin(UnsignedMax(buffer_size_, min_length, recommended_length),
+                  std::numeric_limits<Position>::max() - start_pos());
+  buffer_.Resize(buffer_length);
+  set_buffer(buffer_.GetData(), buffer_length);
   return true;
 }
 

@@ -27,7 +27,7 @@
 namespace riegeli {
 
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
-  size_t length = buffer_.size();
+  size_t length = buffer_size_;
   if (written_to_buffer() > 0) {
     // Two writes are needed because current contents of `buffer_` must be
     // pushed. Write directly if writing through `buffer_` would need more than
@@ -57,12 +57,12 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  buffer_.Resize(
-      BufferLength(min_length, buffer_size_, size_hint_, start_pos()));
-  char* const buffer = buffer_.GetData();
-  set_buffer(buffer,
-             UnsignedMin(buffer_.size(),
-                         std::numeric_limits<Position>::max() - start_pos()));
+  const size_t buffer_length =
+      UnsignedMin(BufferLength(UnsignedMax(min_length, recommended_length),
+                               buffer_size_, size_hint_, start_pos()),
+                  std::numeric_limits<Position>::max() - start_pos());
+  buffer_.Resize(buffer_length);
+  set_buffer(buffer_.GetData(), buffer_length);
   return true;
 }
 
