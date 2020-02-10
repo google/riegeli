@@ -47,11 +47,11 @@ bool LimitingReaderBase::PullSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   const size_t min_length_to_pull =
       UnsignedMin(min_length, size_limit_ - pos());
   const bool ok = src->Pull(min_length_to_pull, recommended_length);
@@ -78,11 +78,11 @@ bool LimitingReaderBase::ReadSlow(Chain* dest, size_t length) {
 
 template <typename Dest>
 inline bool LimitingReaderBase::ReadInternal(Dest* dest, size_t length) {
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src->Read(dest, length_to_read);
   MakeBuffer(src);
@@ -93,11 +93,11 @@ bool LimitingReaderBase::CopyToSlow(Writer* dest, Position length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(Writer*): "
          "length too small, use CopyTo(Writer*) instead";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
   const bool ok = src->CopyTo(dest, length_to_copy);
   MakeBuffer(src);
@@ -108,11 +108,11 @@ bool LimitingReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
          "length too small, use CopyTo(BackwardWriter*) instead";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
     src->Seek(size_limit_);
     MakeBuffer(src);

@@ -46,6 +46,8 @@ bool LimitingWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
          "length too small, use Push() instead";
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -77,10 +79,10 @@ bool LimitingWriterBase::WriteSlow(Chain&& src) {
 
 template <typename Src>
 inline bool LimitingWriterBase::WriteInternal(Src&& src) {
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
-      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     return FailOverflow();

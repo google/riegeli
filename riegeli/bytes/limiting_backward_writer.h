@@ -76,12 +76,15 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is
   // exceeded.
+  //
+  // Postcondition: pos() <= size_limit_
   bool SyncBuffer(BackwardWriter* dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
   // `*this` if `*dest` failed.
   void MakeBuffer(BackwardWriter* dest);
 
+  // Invariant: start_pos() <= size_limit_
   Position size_limit_ = kNoSizeLimit;
 
  private:

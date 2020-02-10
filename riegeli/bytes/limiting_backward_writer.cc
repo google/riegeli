@@ -46,6 +46,9 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "length too small, use Push() instead";
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+      << "Failed invariant of LimitingBackwardWriterBase: "
+         "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -77,11 +80,11 @@ bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
 
 template <typename Src>
 inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter* const dest = dest_writer();
-  RIEGELI_ASSERT_LE(pos(), size_limit_)
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter* const dest = dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     return FailOverflow();

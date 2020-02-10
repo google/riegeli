@@ -78,12 +78,15 @@ class LimitingWriterBase : public Writer {
 
   // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is
   // exceeded.
+  //
+  // Postcondition: pos() <= size_limit_
   bool SyncBuffer(Writer* dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
   // `*this` if `*dest` failed.
   void MakeBuffer(Writer* dest);
 
+  // Invariant: start_pos() <= size_limit_
   Position size_limit_ = kNoSizeLimit;
 
  private:

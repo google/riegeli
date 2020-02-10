@@ -84,6 +84,7 @@ class LimitingReaderBase : public Reader {
   // them for the size limit. Fails `*this` if `*src` failed.
   void MakeBuffer(Reader* src);
 
+  // Invariant: pos() <= size_limit_
   Position size_limit_ = kNoSizeLimit;
 
  private:
