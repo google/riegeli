@@ -52,11 +52,19 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
          "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t available_length = available();
-  buffer_.RemovePrefix(read_from_buffer());
-  const absl::Span<char> flat_buffer = buffer_.AppendFixedBuffer(
-      BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
-                   size_hint_, limit_pos()) -
-      available_length);
+  size_t cursor_index = read_from_buffer();
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+      0, 0, UnsignedMax(buffer_size_, min_length, recommended_length));
+  if (flat_buffer.size() < min_length - available_length) {
+    // Resize `buffer_`, keeping available data.
+    buffer_.RemoveSuffix(flat_buffer.size());
+    buffer_.RemovePrefix(cursor_index);
+    cursor_index = 0;
+    flat_buffer = buffer_.AppendFixedBuffer(
+        BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
+                     size_hint_, pos()) -
+        available_length);
+  }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
   const bool ok = ReadInternal(
@@ -67,7 +75,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
       << "BufferedReader::ReadInternal() read more than requested";
   buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-  set_buffer(buffer_.data(), buffer_.size());
+  set_buffer(buffer_.data(), buffer_.size(), cursor_index);
   return ok;
 }
 
@@ -123,20 +131,17 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
       }
       return true;
     }
-    size_t buffer_length =
-        BufferLength(0, buffer_size_, size_hint_, limit_pos());
-    if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
-      // Append a part of `buffer_` to `*dest` and make a new buffer.
+    size_t cursor_index = read_from_buffer();
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
+    if (flat_buffer.empty()) {
+      // Append available data to `*dest` and make a new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
-    } else {
-      // Extend `buffer_` with new data.
-      buffer_length -= available();
-      buffer_.RemovePrefix(read_from_buffer());
+      cursor_index = 0;
+      flat_buffer = buffer_.AppendFixedBuffer(
+          BufferLength(0, buffer_size_, size_hint_, limit_pos()));
     }
-    const absl::Span<char> flat_buffer =
-        buffer_.AppendFixedBuffer(buffer_length);
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
     ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -146,7 +151,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-    set_buffer(buffer_.data(), buffer_.size());
+    set_buffer(buffer_.data(), buffer_.size(), cursor_index);
   }
   buffer_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
   move_cursor(length);
@@ -166,10 +171,10 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
       enough_read = false;
       break;
     }
-    size_t buffer_length =
-        BufferLength(0, buffer_size_, size_hint_, limit_pos());
-    if (available() >= buffer_length || !Wasteful(buffer_length, available())) {
-      // Write a part of `buffer_` to `*dest` and make a new buffer.
+    size_t cursor_index = read_from_buffer();
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
+    if (flat_buffer.empty()) {
+      // Append available data to `*dest` and make a new buffer.
       if (available() > 0) {
         length -= available();
         Chain data;
@@ -181,13 +186,10 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
         }
       }
       buffer_.Clear();
-    } else {
-      // Extend `buffer_` with new data.
-      buffer_length -= available();
-      buffer_.RemovePrefix(read_from_buffer());
+      cursor_index = 0;
+      flat_buffer = buffer_.AppendFixedBuffer(
+          BufferLength(0, buffer_size_, size_hint_, limit_pos()));
     }
-    const absl::Span<char> flat_buffer =
-        buffer_.AppendFixedBuffer(buffer_length);
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
     read_ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
@@ -197,7 +199,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
         << "BufferedReader::ReadInternal() read more than requested";
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-    set_buffer(buffer_.data(), buffer_.size());
+    set_buffer(buffer_.data(), buffer_.size(), cursor_index);
   }
   bool write_ok = true;
   if (length > 0) {
