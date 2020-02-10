@@ -28,14 +28,35 @@
 
 namespace riegeli {
 
+class ParseOptions {
+ public:
+  ParseOptions() noexcept {}
+
+  // If `false`, missing required fields cause a failure.
+  //
+  // If `true`, missing required fields result in a partial parsed message,
+  // not having these fields.
+  //
+  // Default: `false`
+  ParseOptions& set_partial(bool partial) & {
+    partial_ = partial;
+    return *this;
+  }
+  ParseOptions&& set_partial(bool partial) && {
+    return std::move(set_partial(partial));
+  }
+  bool partial() const { return partial_; }
+
+ private:
+  bool partial_ = false;
+};
+
 // Reads a message in binary format from the given `Reader`. If successful, the
 // entire input will be consumed.
 //
-// `ParsePartialFromReader()` allows missing required fields.
-//
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
-// e.g. `Reader*` (not owned, default), `std::unique_ptr<Reader>` (owned),
+// e.g. `Reader*` (not owned), `std::unique_ptr<Reader>` (owned),
 // `ChainReader<>` (owned).
 //
 // With a `src_args` parameter, reads from a `Src` constructed from elements of
@@ -45,47 +66,36 @@ namespace riegeli {
 //  * `status.ok()`  - success (`*dest` is filled)
 //  * `!status.ok()` - failure (`*dest` is unspecified)
 template <typename Src>
-Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src);
+Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src,
+                       ParseOptions options = ParseOptions());
 template <typename Src, typename... SrcArgs>
 Status ParseFromReader(google::protobuf::MessageLite* dest,
-                       std::tuple<SrcArgs...> src_args);
-template <typename Src>
-Status ParsePartialFromReader(google::protobuf::MessageLite* dest, Src&& src);
-template <typename Src, typename... SrcArgs>
-Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
-                              std::tuple<SrcArgs...> src_args);
+                       std::tuple<SrcArgs...> src_args,
+                       ParseOptions options = ParseOptions());
 
 // Reads a message in binary format from the given `Chain`. If successful, the
 // entire input will be consumed.
 //
-// `ParsePartialFromChain()` allows missing required fields.
-//
 // Returns status:
 //  * `status.ok()`  - success (`*dest` is filled)
 //  * `!status.ok()` - failure (`*dest` is unspecified)
-Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src);
-Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
-                             const Chain& src);
+Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                      ParseOptions options = ParseOptions());
 
 // Implementation details follow.
 
 namespace internal {
 
-Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src);
-Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
-                                  Reader* src);
-
-Status ParseFromReaderUsingInputStream(google::protobuf::MessageLite* dest,
-                                       Reader* src);
-Status ParsePartialFromReaderUsingInputStream(
-    google::protobuf::MessageLite* dest, Reader* src);
+Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                           ParseOptions options);
 
 }  // namespace internal
 
 template <typename Src>
-inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src) {
+inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src,
+                              ParseOptions options) {
   Dependency<Reader*, std::decay_t<Src>> src_dep(std::forward<Src>(src));
-  Status status = internal::ParseFromReaderImpl(dest, src_dep.get());
+  Status status = internal::ParseFromReaderImpl(dest, src_dep.get(), options);
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();
@@ -96,35 +106,10 @@ inline Status ParseFromReader(google::protobuf::MessageLite* dest, Src&& src) {
 
 template <typename Src, typename... SrcArgs>
 inline Status ParseFromReader(google::protobuf::MessageLite* dest,
-                              std::tuple<SrcArgs...> src_args) {
+                              std::tuple<SrcArgs...> src_args,
+                              ParseOptions options) {
   Dependency<Reader*, Src> src_dep(std::move(src_args));
-  Status status = internal::ParseFromReaderImpl(dest, src_dep.get());
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();
-    }
-  }
-  return status;
-}
-
-template <typename Src>
-inline Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
-                                     Src&& src) {
-  Dependency<Reader*, std::decay_t<Src>> src_dep(std::forward<Src>(src));
-  Status status = internal::ParsePartialFromReaderImpl(dest, src_dep.get());
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();
-    }
-  }
-  return status;
-}
-
-template <typename Src, typename... SrcArgs>
-inline Status ParsePartialFromReader(google::protobuf::MessageLite* dest,
-                                     std::tuple<SrcArgs...> src_args) {
-  Dependency<Reader*, Src> src_dep(std::move(src_args));
-  Status status = internal::ParsePartialFromReaderImpl(dest, src_dep.get());
+  Status status = internal::ParseFromReaderImpl(dest, src_dep.get(), options);
   if (src_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();

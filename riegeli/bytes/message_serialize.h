@@ -28,13 +28,52 @@
 
 namespace riegeli {
 
+class SerializeOptions {
+ public:
+  SerializeOptions() noexcept {}
+
+  // If `false`, missing required fields cause a failure.
+  //
+  // If `true`, missing required fields result in a partial serialized message,
+  // not having these fields.
+  //
+  // Default: `false`
+  SerializeOptions& set_partial(bool partial) & {
+    partial_ = partial;
+    return *this;
+  }
+  SerializeOptions&& set_partial(bool partial) && {
+    return std::move(set_partial(partial));
+  }
+  bool partial() const { return partial_; }
+
+  // If `false`, a deterministic result is not guaranteed but serialization can
+  // be faster.
+  //
+  // If `true`, a deterministic result is guaranteed (as long as the schema
+  // does not change in inappropriate ways and there are no unknown fields)
+  // but serialization can be slower.
+  //
+  // Default: `false`
+  SerializeOptions& set_deterministic(bool deterministic) & {
+    deterministic_ = deterministic;
+    return *this;
+  }
+  SerializeOptions&& set_deterministic(bool deterministic) && {
+    return std::move(set_deterministic(deterministic));
+  }
+  bool deterministic() const { return deterministic_; }
+
+ private:
+  bool partial_ = false;
+  bool deterministic_ = false;
+};
+
 // Writes the message in binary format to the given `Writer`.
-//
-// `SerializePartialToWriter()` allows missing required fields.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
+// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned),
 // `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
 // With a `dest_args` parameter, writes to a `Dest` constructed from elements of
@@ -44,44 +83,35 @@ namespace riegeli {
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Dest>
-Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest&& dest);
+Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest&& dest,
+                         SerializeOptions options = SerializeOptions());
 template <typename Dest, typename... DestArgs>
 Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                         std::tuple<DestArgs...> dest_args);
-template <typename Dest>
-Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
-                                Dest&& dest);
-template <typename Dest, typename... DestArgs>
-Status SerializeToPartialWriter(const google::protobuf::MessageLite& src,
-                                std::tuple<DestArgs...> dest_args);
+                         std::tuple<DestArgs...> dest_args,
+                         SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `Chain`, clearing it first.
-//
-// `SerializePartialToChain()` allows missing required fields.
 //
 // Returns status:
 //  * `status.ok()`  - success (`*dest` is filled)
 //  * `!status.ok()` - failure (`*dest` is unspecified)
-Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest);
-Status SerializePartialToChain(const google::protobuf::MessageLite& src,
-                               Chain* dest);
+Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
+                        SerializeOptions options = SerializeOptions());
 
 // Implementation details follow.
 
 namespace internal {
 
 Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                             Writer* dest);
-Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
-                                    Writer* dest);
+                             Writer* dest, SerializeOptions options);
 
 }  // namespace internal
 
 template <typename Dest>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                Dest&& dest) {
+                                Dest&& dest, SerializeOptions options) {
   Dependency<Writer*, std::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
-  Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
+  Status status = internal::SerializeToWriterImpl(src, dest_dep.get(), options);
   if (dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();
@@ -92,35 +122,10 @@ inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
 
 template <typename Dest, typename... DestArgs>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
-                                std::tuple<DestArgs...> dest_args) {
+                                std::tuple<DestArgs...> dest_args,
+                                SerializeOptions options) {
   Dependency<Writer*, Dest> dest_dep(std::move(dest_args));
-  Status status = internal::SerializeToWriterImpl(src, dest_dep.get());
-  if (dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();
-    }
-  }
-  return status;
-}
-
-template <typename Dest>
-inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
-                                       Dest&& dest) {
-  Dependency<Writer*, std::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
-  Status status = internal::SerializePartialToWriterImpl(src, dest_dep.get());
-  if (dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();
-    }
-  }
-  return status;
-}
-
-template <typename Dest, typename... DestArgs>
-inline Status SerializePartialToWriter(const google::protobuf::MessageLite& src,
-                                       std::tuple<DestArgs...> dest_args) {
-  Dependency<Writer*, Dest> dest_dep(std::move(dest_args));
-  Status status = internal::SerializePartialToWriterImpl(src, dest_dep.get());
+  Status status = internal::SerializeToWriterImpl(src, dest_dep.get(), options);
   if (dest_dep.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();

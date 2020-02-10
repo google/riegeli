@@ -22,6 +22,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -98,18 +99,13 @@ int64_t WriterOutputStream::ByteCount() const {
 namespace internal {
 
 Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                             Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!src.IsInitialized())) {
+                             Writer* dest, SerializeOptions options) {
+  if (!options.partial() && ABSL_PREDICT_FALSE(!src.IsInitialized())) {
     return InvalidArgumentError(
         absl::StrCat("Failed to serialize message of type ", src.GetTypeName(),
                      " because it is missing required fields: ",
                      src.InitializationErrorString()));
   }
-  return SerializePartialToWriterImpl(src, dest);
-}
-
-Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
-                                    Writer* dest) {
   const size_t size = src.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return ResourceExhaustedError(absl::StrCat(
@@ -117,11 +113,12 @@ Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
   WriterOutputStream output_stream(dest);
-  if (ABSL_PREDICT_FALSE(
-          !src.SerializePartialToZeroCopyStream(&output_stream))) {
+  google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
+  coded_stream.SetSerializationDeterministic(options.deterministic());
+  if (ABSL_PREDICT_FALSE(!src.SerializePartialToCodedStream(&coded_stream))) {
     RIEGELI_ASSERT(!dest->healthy())
         << "Failed to serialize message of type " << src.GetTypeName()
-        << ": SerializePartialToZeroCopyStream() failed for an unknown reason";
+        << ": SerializePartialToCodedStream() failed for an unknown reason";
     return dest->status();
   }
   return OkStatus();
@@ -129,19 +126,14 @@ Status SerializePartialToWriterImpl(const google::protobuf::MessageLite& src,
 
 }  // namespace internal
 
-Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest) {
+Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
+                        SerializeOptions options) {
   dest->Clear();
   return SerializeToWriter<ChainWriter<>>(
-      src, std::forward_as_tuple(dest, ChainWriterBase::Options().set_size_hint(
-                                           src.ByteSizeLong())));
-}
-
-Status SerializePartialToChain(const google::protobuf::MessageLite& src,
-                               Chain* dest) {
-  dest->Clear();
-  return SerializePartialToWriter<ChainWriter<>>(
-      src, std::forward_as_tuple(dest, ChainWriterBase::Options().set_size_hint(
-                                           src.ByteSizeLong())));
+      src,
+      std::forward_as_tuple(
+          dest, ChainWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      options);
 }
 
 }  // namespace riegeli

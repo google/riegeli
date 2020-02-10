@@ -107,18 +107,9 @@ int64_t ReaderInputStream::ByteCount() const {
   return IntCast<int64_t>(relative_pos());
 }
 
-}  // namespace
-
-namespace internal {
-
-Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
-  {
-    const Status status = ParsePartialFromReaderImpl(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
-  }
-  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
+inline Status CheckInitialized(google::protobuf::MessageLite* dest,
+                               ParseOptions options) {
+  if (!options.partial() && ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
     return DataLossError(
         absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
                      " because it is missing required fields: ",
@@ -127,8 +118,12 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src) {
   return OkStatus();
 }
 
-Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
-                                  Reader* src) {
+}  // namespace
+
+namespace internal {
+
+Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+                           ParseOptions options) {
   src->Pull();
   if (src->available() <= kMaxBytesToCopy && src->SupportsRandomAccess()) {
     Position size;
@@ -145,31 +140,9 @@ Status ParsePartialFromReaderImpl(google::protobuf::MessageLite* dest,
         return DataLossError(absl::StrCat("Failed to parse message of type ",
                                           dest->GetTypeName()));
       }
-      return OkStatus();
+      return CheckInitialized(dest, options);
     }
   }
-  return ParsePartialFromReaderUsingInputStream(dest, src);
-}
-
-Status ParseFromReaderUsingInputStream(google::protobuf::MessageLite* dest,
-                                       Reader* src) {
-  {
-    const Status status = ParsePartialFromReaderUsingInputStream(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
-  }
-  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
-    return DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
-                     " because it is missing required fields: ",
-                     dest->InitializationErrorString()));
-  }
-  return OkStatus();
-}
-
-Status ParsePartialFromReaderUsingInputStream(
-    google::protobuf::MessageLite* dest, Reader* src) {
   ReaderInputStream input_stream(src);
   if (ABSL_PREDICT_FALSE(
           !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
@@ -177,29 +150,13 @@ Status ParsePartialFromReaderUsingInputStream(
     return DataLossError(
         absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
   }
-  return OkStatus();
+  return CheckInitialized(dest, options);
 }
 
 }  // namespace internal
 
-Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src) {
-  {
-    const Status status = ParsePartialFromChain(dest, src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
-  }
-  if (ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
-    return DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
-                     " because it is missing required fields: ",
-                     dest->InitializationErrorString()));
-  }
-  return OkStatus();
-}
-
-Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
-                             const Chain& src) {
+Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+                      ParseOptions options) {
   if (src.size() <= kMaxBytesToCopy) {
     if (absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
@@ -209,11 +166,11 @@ Status ParsePartialFromChain(google::protobuf::MessageLite* dest,
         return DataLossError(absl::StrCat("Failed to parse message of type ",
                                           dest->GetTypeName()));
       }
-      return OkStatus();
+      return CheckInitialized(dest, options);
     }
   }
   ChainReader<> reader(&src);
-  return internal::ParsePartialFromReaderImpl(dest, &reader);
+  return internal::ParseFromReaderImpl(dest, &reader, options);
   // Do not bother closing the `ChainReader<>`, it can never fail.
 }
 
