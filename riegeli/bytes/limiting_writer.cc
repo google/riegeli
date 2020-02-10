@@ -92,6 +92,17 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+void LimitingWriterBase::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Writer* const dest = dest_writer();
+  dest->WriteHint(UnsignedMin(length, SaturatingSub(size_limit_, pos())));
+}
+
 bool LimitingWriterBase::SupportsRandomAccess() const {
   const Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsRandomAccess();

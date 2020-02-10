@@ -79,6 +79,12 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
   return WriteSlow(src);
 }
 
+void BackwardWriter::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+}
+
 bool BackwardWriter::Truncate(Position new_size) {
   return Fail(UnimplementedError("BackwardWriter::Truncate() not supported"));
 }

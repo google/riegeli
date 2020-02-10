@@ -136,6 +136,7 @@ class FileWriterBase : public Writer {
 
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
+  void WriteHintSlow(size_t length) override;
 
   // Writes `src` to the destination.
   //

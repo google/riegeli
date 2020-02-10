@@ -74,6 +74,7 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
+  void WriteHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
   // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is

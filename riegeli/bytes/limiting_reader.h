@@ -75,6 +75,7 @@ class LimitingReaderBase : public Reader {
   using Reader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  void ReadHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
   // Sets cursor of `*src` to cursor of `*this`.

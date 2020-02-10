@@ -94,6 +94,18 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+      << "Failed invariant of LimitingBackwardWriterBase: "
+         "position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  BackwardWriter* const dest = dest_writer();
+  dest->WriteHint(UnsignedMin(length, SaturatingSub(size_limit_, pos())));
+}
+
 bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter* const dest = dest_writer();

@@ -67,6 +67,7 @@ class BufferedReader : public Reader {
   using Reader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  void ReadHintSlow(size_t length) override;
 
   // Reads data from the source, from the physical source position which is
   // `limit_pos()`.

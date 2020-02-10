@@ -173,6 +173,18 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
+void FileWriterBase::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return;
+  const size_t buffer_length =
+      UnsignedMin(UnsignedMax(buffer_size_, length),
+                  std::numeric_limits<Position>::max() - start_pos());
+  buffer_.Resize(buffer_length);
+  set_buffer(buffer_.GetData(), buffer_length);
+}
+
 bool FileWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   ::tensorflow::WritableFile* const dest = dest_file();

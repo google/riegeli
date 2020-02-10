@@ -81,6 +81,18 @@ inline bool TeeWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+void TeeWriterBase::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Writer* const dest = dest_writer();
+  Writer* const side_dest = side_dest_writer();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest, side_dest))) return;
+  dest->WriteHint(length);
+  MakeBuffer(dest);
+}
+
 bool TeeWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();

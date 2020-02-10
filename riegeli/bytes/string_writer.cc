@@ -116,6 +116,26 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
   return true;
 }
 
+void StringWriterBase::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  std::string* const dest = dest_string();
+  SyncBuffer(dest);
+  if (length > dest->capacity() - dest->size()) {
+    dest->reserve(UnsignedMin(
+        UnsignedMax(SaturatingAdd(dest->size(), length),
+                    // Double the capacity, and round up to one below a possible
+                    // allocated size (for NUL terminator).
+                    EstimatedAllocatedSize(SaturatingAdd(
+                        dest->capacity(), dest->capacity(), size_t{1})) -
+                        1),
+        dest->max_size()));
+  }
+  MakeBuffer(dest);
+}
+
 bool StringWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string* const dest = dest_string();

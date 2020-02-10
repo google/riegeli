@@ -98,6 +98,18 @@ bool TeeReaderBase::ReadSlow(Chain* dest, size_t length) {
   return ok;
 }
 
+void TeeReaderBase::ReadHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Reader::ReadHintSlow(): "
+         "length too small, use ReadHint() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Reader* const src = src_reader();
+  Writer* const side_dest = side_dest_writer();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src, side_dest))) return;
+  src->ReadHint(length);
+  MakeBuffer(src);
+}
+
 bool TeeReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();

@@ -112,6 +112,17 @@ class BackwardWriter : public Object {
   bool Write(const Chain& src);
   bool Write(Chain&& src);
 
+  // Hints that several consecutive `Push()` or `Write()` calls will follow,
+  // writing this amount of data in total.
+  //
+  // This can make these calls faster by preparing a larger internal buffer for
+  // all the data, and then pushing the data at once to the destination.
+  //
+  // Many classes derived from `BackwardWriter` accept a `size_hint` in their
+  // `Options`, which serves a similar purpose, but `WriteHint()` can be used
+  // later and can be applied to any `BackwardWriter`.
+  void WriteHint(size_t length);
+
   // Pushes data written between `start()` and `cursor()` to the destination.
   //
   // Additionally, attempts to ensure the following, depending on `flush_type`
@@ -227,6 +238,13 @@ class BackwardWriter : public Object {
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
+
+  // Implementation of the slow part of `WriteHint()`.
+  //
+  // By default does nothing.
+  //
+  // Precondition: `length > available()`
+  virtual void WriteHintSlow(size_t length);
 
   // Destination position corresponding to `start()`.
   Position start_pos() const { return start_pos_; }
@@ -374,6 +392,11 @@ inline bool BackwardWriter::Write(Chain&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
+}
+
+inline void BackwardWriter::WriteHint(size_t length) {
+  if (ABSL_PREDICT_TRUE(length <= available())) return;
+  WriteHintSlow(length);
 }
 
 inline Position BackwardWriter::pos() const {

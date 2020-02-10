@@ -157,6 +157,13 @@ class Reader : public Object {
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
 
+  // Hints that several consecutive `Pull()`, `Read()`, or `CopyTo()` calls will
+  // follow, reading this amount of data in total.
+  //
+  // This can make these calls faster by by prefetching all the data at once
+  // into an internal buffer.
+  void ReadHint(size_t length);
+
   // Informs the source that data between `start()` and `cursor()` have been
   // read.
   //
@@ -283,6 +290,13 @@ class Reader : public Object {
   virtual bool ReadSlow(Chain* dest, size_t length);
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
+
+  // Implementation of the slow part of `ReadHint()`.
+  //
+  // By default does nothing.
+  //
+  // Precondition: `length > available()`
+  virtual void ReadHintSlow(size_t length);
 
   // Source position corresponding to `start()`.
   Position start_pos() const;
@@ -446,6 +460,11 @@ inline bool Reader::CopyTo(BackwardWriter* dest, size_t length) {
     return dest->Write(data);
   }
   return CopyToSlow(dest, length);
+}
+
+inline void Reader::ReadHint(size_t length) {
+  if (ABSL_PREDICT_TRUE(length <= available())) return;
+  ReadHintSlow(length);
 }
 
 inline Position Reader::pos() const {

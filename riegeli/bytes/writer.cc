@@ -76,6 +76,12 @@ bool Writer::WriteSlow(Chain&& src) {
   return WriteSlow(src);
 }
 
+void Writer::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+}
+
 bool Writer::SeekSlow(Position new_pos) {
   return Fail(UnimplementedError("Writer::Seek() not supported"));
 }

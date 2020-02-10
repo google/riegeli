@@ -79,6 +79,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
+  void WriteHintSlow(size_t length) override;
 
  private:
   // Discards uninitialized space from the end of `*dest`, so that it contains

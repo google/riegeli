@@ -85,4 +85,16 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
   return Writer::WriteSlow(src);
 }
 
+void BufferedWriter::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Writer::WriteHintSlow(): "
+         "length too small, use WriteHint() instead";
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return;
+  const size_t buffer_length =
+      UnsignedMin(BufferLength(length, buffer_size_, size_hint_, start_pos()),
+                  std::numeric_limits<Position>::max() - start_pos());
+  buffer_.Resize(buffer_length);
+  set_buffer(buffer_.GetData(), buffer_length);
+}
+
 }  // namespace riegeli

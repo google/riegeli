@@ -123,6 +123,17 @@ bool LimitingReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   return ok;
 }
 
+void LimitingReaderBase::ReadHintSlow(size_t length) {
+  RIEGELI_ASSERT_GT(length, available())
+      << "Failed precondition of Reader::ReadHintSlow(): "
+         "length too small, use ReadHint() instead";
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Reader* const src = src_reader();
+  src->ReadHint(UnsignedMin(length, size_limit_ - pos()));
+}
+
 bool LimitingReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
