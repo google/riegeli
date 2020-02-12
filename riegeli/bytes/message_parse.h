@@ -66,6 +66,9 @@ class ParseOptions {
 //  * `status.ok()`  - success (`*dest` is filled)
 //  * `!status.ok()` - failure (`*dest` is unspecified)
 template <typename Src>
+Status ParseFromReader(const Src& src, google::protobuf::MessageLite* dest,
+                       ParseOptions options = ParseOptions());
+template <typename Src>
 Status ParseFromReader(Src&& src, google::protobuf::MessageLite* dest,
                        ParseOptions options = ParseOptions());
 template <typename Src, typename... SrcArgs>
@@ -89,33 +92,43 @@ namespace internal {
 Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
                            ParseOptions options);
 
+template <typename Src>
+inline Status ParseFromReaderImpl(Dependency<Reader*, Src> src,
+                                  google::protobuf::MessageLite* dest,
+                                  ParseOptions options) {
+  Status status = ParseFromReaderImpl(src.get(), dest, options);
+  if (src.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!src->Close())) {
+      if (ABSL_PREDICT_TRUE(status.ok())) status = src->status();
+    }
+  }
+  return status;
+}
+
 }  // namespace internal
+
+template <typename Src>
+inline Status ParseFromReader(const Src& src,
+                              google::protobuf::MessageLite* dest,
+                              ParseOptions options) {
+  return internal::ParseFromReaderImpl(Dependency<Reader*, Src>(src), dest,
+                                       options);
+}
 
 template <typename Src>
 inline Status ParseFromReader(Src&& src, google::protobuf::MessageLite* dest,
                               ParseOptions options) {
-  Dependency<Reader*, std::decay_t<Src>> src_dep(std::forward<Src>(src));
-  Status status = internal::ParseFromReaderImpl(src_dep.get(), dest, options);
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();
-    }
-  }
-  return status;
+  return internal::ParseFromReaderImpl(
+      Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)), dest,
+      options);
 }
 
 template <typename Src, typename... SrcArgs>
 inline Status ParseFromReader(std::tuple<SrcArgs...> src_args,
                               google::protobuf::MessageLite* dest,
                               ParseOptions options) {
-  Dependency<Reader*, Src> src_dep(std::move(src_args));
-  Status status = internal::ParseFromReaderImpl(src_dep.get(), dest, options);
-  if (src_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src_dep->status();
-    }
-  }
-  return status;
+  return internal::ParseFromReaderImpl(
+      Dependency<Reader*, Src>(std::move(src_args)), dest, options);
 }
 
 }  // namespace riegeli

@@ -83,6 +83,10 @@ class SerializeOptions {
 //  * `status.ok()`  - success (`dest` is written to)
 //  * `!status.ok()` - failure (`dest` is unspecified)
 template <typename Dest>
+Status SerializeToWriter(const google::protobuf::MessageLite& src,
+                         const Dest& dest,
+                         SerializeOptions options = SerializeOptions());
+template <typename Dest>
 Status SerializeToWriter(const google::protobuf::MessageLite& src, Dest&& dest,
                          SerializeOptions options = SerializeOptions());
 template <typename Dest, typename... DestArgs>
@@ -105,33 +109,42 @@ namespace internal {
 Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                              Writer* dest, SerializeOptions options);
 
+template <typename Dest>
+inline Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                                    Dependency<Writer*, Dest> dest,
+                                    SerializeOptions options) {
+  Status status = SerializeToWriterImpl(src, dest.get(), options);
+  if (dest.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest->Close())) {
+      if (ABSL_PREDICT_TRUE(status.ok())) status = dest->status();
+    }
+  }
+  return status;
+}
+
 }  // namespace internal
 
 template <typename Dest>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
+                                const Dest& dest, SerializeOptions options) {
+  return internal::SerializeToWriterImpl(src, Dependency<Writer*, Dest>(dest),
+                                         options);
+}
+
+template <typename Dest>
+inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                 Dest&& dest, SerializeOptions options) {
-  Dependency<Writer*, std::decay_t<Dest>> dest_dep(std::forward<Dest>(dest));
-  Status status = internal::SerializeToWriterImpl(src, dest_dep.get(), options);
-  if (dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();
-    }
-  }
-  return status;
+  return internal::SerializeToWriterImpl(
+      src, Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)),
+      options);
 }
 
 template <typename Dest, typename... DestArgs>
 inline Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                 std::tuple<DestArgs...> dest_args,
                                 SerializeOptions options) {
-  Dependency<Writer*, Dest> dest_dep(std::move(dest_args));
-  Status status = internal::SerializeToWriterImpl(src, dest_dep.get(), options);
-  if (dest_dep.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest_dep->status();
-    }
-  }
-  return status;
+  return internal::SerializeToWriterImpl(
+      src, Dependency<Writer*, Dest>(std::move(dest_args)), options);
 }
 
 }  // namespace riegeli

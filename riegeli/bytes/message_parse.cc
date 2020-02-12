@@ -170,8 +170,15 @@ Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
     }
   }
   ChainReader<> reader(&src);
-  return internal::ParseFromReaderImpl(&reader, dest, options);
-  // Do not bother closing the `ChainReader<>`, it can never fail.
+  // Do not bother with `reader.healthy()` or `reader.Close()`. A `ChainReader`
+  // can never fail.
+  ReaderInputStream input_stream(&reader);
+  if (ABSL_PREDICT_FALSE(
+          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+    return DataLossError(
+        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+  }
+  return CheckInitialized(dest, options);
 }
 
 }  // namespace riegeli
