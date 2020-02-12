@@ -173,7 +173,7 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
     return false;
   }
   {
-    Status status = ParseFromChain(metadata, serialized_metadata);
+    Status status = ParseFromChain(serialized_metadata, metadata);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

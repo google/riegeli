@@ -122,7 +122,7 @@ inline Status CheckInitialized(google::protobuf::MessageLite* dest,
 
 namespace internal {
 
-Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
+Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
                            ParseOptions options) {
   src->Pull();
   if (src->available() <= kMaxBytesToCopy && src->SupportsRandomAccess()) {
@@ -155,7 +155,7 @@ Status ParseFromReaderImpl(google::protobuf::MessageLite* dest, Reader* src,
 
 }  // namespace internal
 
-Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
+Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
                       ParseOptions options) {
   if (src.size() <= kMaxBytesToCopy) {
     if (absl::optional<absl::string_view> flat = src.TryFlat()) {
@@ -170,7 +170,7 @@ Status ParseFromChain(google::protobuf::MessageLite* dest, const Chain& src,
     }
   }
   ChainReader<> reader(&src);
-  return internal::ParseFromReaderImpl(dest, &reader, options);
+  return internal::ParseFromReaderImpl(&reader, dest, options);
   // Do not bother closing the `ChainReader<>`, it can never fail.
 }
 

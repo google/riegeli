@@ -92,7 +92,7 @@ Status DescribeFileMetadataChunk(const Chunk& chunk,
       << "Metadata chunk has unexpected record limits";
   RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata.size())
       << "Metadata chunk has unexpected record limits";
-  return ParseFromChain(records_metadata, serialized_metadata);
+  return ParseFromChain(serialized_metadata, records_metadata);
 }
 
 Status DescribeSimpleChunk(const Chunk& chunk,
