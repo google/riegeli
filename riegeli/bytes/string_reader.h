@@ -37,6 +37,7 @@ class StringReaderBase : public Reader {
   virtual absl::string_view src_string_view() const = 0;
 
   bool SupportsRandomAccess() const override { return true; }
+  bool SupportsSize() const override { return true; }
   bool Size(Position* size) override;
 
  protected:

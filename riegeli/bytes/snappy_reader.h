@@ -58,7 +58,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
-// The compressed `Reader` must support random access.
+// The compressed `Reader` must support `Size()`.
 //
 // The compressed `Reader` must not be accessed until the `SnappyReader` is
 // closed or no longer used.

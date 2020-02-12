@@ -187,6 +187,8 @@ class Reader : public Object {
 
   // Returns `true` if this `Reader` supports `Seek()` backwards (`Seek()`
   // forwards is always supported) and `Size()`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`
   virtual bool SupportsRandomAccess() const { return false; }
 
   // Sets the current position for subsequent operations.
@@ -212,6 +214,9 @@ class Reader : public Object {
   //                                  (position is set to the end)
   //  * `false` (when `!healthy()`) - failure
   bool Skip(Position length);
+
+  // Returns `true` if this `Reader` supports `Size()`.
+  virtual bool SupportsSize() const { return false; }
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //

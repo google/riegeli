@@ -51,7 +51,7 @@ class WriterSnappySink : public snappy::Sink {
 class ReaderSnappySource : public snappy::Source {
  public:
   explicit ReaderSnappySource(Reader* src) : src_(RIEGELI_ASSERT_NOTNULL(src)) {
-    RIEGELI_ASSERT(src->SupportsRandomAccess());
+    RIEGELI_ASSERT(src->SupportsSize());
   }
 
   ReaderSnappySource(const ReaderSnappySource&) = delete;

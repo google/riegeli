@@ -35,7 +35,7 @@ namespace riegeli {
 
 bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
   max_size = UnsignedMin(max_size, dest->max_size());
-  if (src->SupportsRandomAccess()) {
+  if (src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) {
       *dest = absl::string_view();
@@ -69,7 +69,7 @@ bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
 
 bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
   max_size = UnsignedMin(max_size, dest->max_size() - dest->size());
-  if (src->SupportsRandomAccess()) {
+  if (src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
     const Position remaining = SaturatingSub(size, src->pos());
@@ -101,7 +101,7 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
 bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
   max_size =
       UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
-  if (src->SupportsRandomAccess()) {
+  if (src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
     const Position remaining = SaturatingSub(size, src->pos());
@@ -129,7 +129,7 @@ bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
 }
 
 bool CopyAll(Reader* src, Writer* dest, Position max_size) {
-  if (src->SupportsRandomAccess()) {
+  if (src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
     const Position remaining = SaturatingSub(size, src->pos());
@@ -161,7 +161,7 @@ bool CopyAll(Reader* src, Writer* dest, Position max_size) {
 }
 
 bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
-  if (src->SupportsRandomAccess()) {
+  if (src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
     const Position remaining = SaturatingSub(size, src->pos());

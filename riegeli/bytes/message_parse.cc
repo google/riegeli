@@ -125,7 +125,7 @@ namespace internal {
 Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
                            ParseOptions options) {
   src->Pull();
-  if (src->available() <= kMaxBytesToCopy && src->SupportsRandomAccess()) {
+  if (src->available() <= kMaxBytesToCopy && src->SupportsSize()) {
     Position size;
     if (ABSL_PREDICT_FALSE(!src->Size(&size))) return src->status();
     if (src->pos() + src->available() == size &&

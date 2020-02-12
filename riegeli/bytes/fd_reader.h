@@ -114,6 +114,7 @@ class FdReaderBase : public internal::FdReaderCommon {
 
   bool Sync() override;
   bool SupportsRandomAccess() const override { return true; }
+  bool SupportsSize() const override { return true; }
   bool Size(Position* size) override;
 
  protected:

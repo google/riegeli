@@ -53,6 +53,7 @@ class LimitingReaderBase : public Reader {
 
   bool Sync() override;
   bool SupportsRandomAccess() const override;
+  bool SupportsSize() const override;
   bool Size(Position* size) override;
 
  protected:
