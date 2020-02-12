@@ -40,6 +40,12 @@ namespace riegeli {
 // is optionally supported.
 class BackwardWriter : public Object {
  public:
+  // `BackwardWriter` overrides `Object::Fail()` to set buffer pointers to
+  // `nullptr`. Derived classes which override it further should include a call
+  // to `BackwardWriter::Fail()`.
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
+
   // Ensures that enough space is available for writing: pushes previously
   // written data to the destination, and points `cursor()` and `limit()` to
   // space with length at least `min_length`, preferably `recommended_length`.
@@ -191,12 +197,6 @@ class BackwardWriter : public Object {
   // `nullptr`. Derived classes which override it further should include a call
   // to `BackwardWriter::Done()`.
   void Done() override;
-
-  // `BackwardWriter` overrides `Object::Fail()` to set buffer pointers to
-  // `nullptr`. Derived classes which override it further should include a call
-  // to `BackwardWriter::Fail()`.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.

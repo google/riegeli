@@ -53,6 +53,12 @@ namespace riegeli {
 // for its output to be available in the destination.
 class Writer : public Object {
  public:
+  // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`.
+  // Derived classes which override it further should include a call to
+  // `Writer::Fail()`.
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
+
   // Ensures that enough space is available for writing: pushes previously
   // written data to the destination, and points `cursor()` and `limit()` to
   // space with length at least `min_length`, preferably `recommended_length`.
@@ -220,12 +226,6 @@ class Writer : public Object {
   // Derived classes which override it further should include a call to
   // `Writer::Done()`.
   void Done() override;
-
-  // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`.
-  // Derived classes which override it further should include a call to
-  // `Writer::Fail()`.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
 
   // Marks the `Writer` as failed with message "Writer position overflow".
   // Always returns `false`.
