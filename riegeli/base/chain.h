@@ -32,6 +32,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
@@ -234,6 +235,7 @@ class Chain {
   explicit Chain(Src&& src);
   explicit Chain(const ChainBlock& src);
   explicit Chain(ChainBlock&& src);
+  explicit Chain(const absl::Cord& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -256,6 +258,7 @@ class Chain {
   void Reset(Src&& src);
   void Reset(const ChainBlock& src);
   void Reset(ChainBlock&& src);
+  void Reset(const absl::Cord& src);
 
   void Clear();
 
@@ -268,8 +271,14 @@ class Chain {
   void CopyTo(char* dest) const;
   void AppendTo(std::string* dest) const&;
   void AppendTo(std::string* dest) &&;
+  void AppendTo(absl::Cord* dest) const&;
+  void AppendTo(absl::Cord* dest) &&;
+  void PrependTo(absl::Cord* dest) const&;
+  void PrependTo(absl::Cord* dest) &&;
   explicit operator std::string() const&;
   explicit operator std::string() &&;
+  explicit operator absl::Cord() const&;
+  explicit operator absl::Cord() &&;
 
   // If the `Chain` contents are flat, returns them, otherwise returns
   // `absl::nullopt`.
@@ -323,6 +332,7 @@ class Chain {
   void Append(Src&& src, const Options& options = kDefaultOptions);
   void Append(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Append(ChainBlock&& src, const Options& options = kDefaultOptions);
+  void Append(const absl::Cord& src, const Options& options = kDefaultOptions);
   void Append(const Chain& src, const Options& options = kDefaultOptions);
   void Append(Chain&& src, const Options& options = kDefaultOptions);
   void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
@@ -331,8 +341,14 @@ class Chain {
   void Prepend(Src&& src, const Options& options = kDefaultOptions);
   void Prepend(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Prepend(ChainBlock&& src, const Options& options = kDefaultOptions);
+  void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
   void Prepend(const Chain& src, const Options& options = kDefaultOptions);
   void Prepend(Chain&& src, const Options& options = kDefaultOptions);
+
+  // `AppendFrom(&iter, length)` is equivalent to
+  // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
+  void AppendFrom(absl::Cord::CharIterator* iter, size_t length,
+                  const Options& options = kDefaultOptions);
 
   void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
   void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
@@ -375,6 +391,7 @@ class Chain {
   struct BlockPtrPtr;
   class BlockRef;
   class StringRef;
+  class FlatCordRef;
 
   friend ptrdiff_t operator-(BlockPtrPtr a, BlockPtrPtr b);
   friend bool operator==(BlockPtrPtr a, BlockPtrPtr b);
@@ -396,6 +413,14 @@ class Chain {
   // When deciding whether to copy an array of bytes or share memory to a
   // `Chain`, prefer copying up to this length.
   static constexpr size_t kMaxBytesToCopyToChain = kMaxShortDataSize;
+
+  // When deciding whether to copy an array of bytes or share memory from an
+  // `absl::Cord` to a `Chain`, prefer copying up to this length.
+  //
+  // A higher threshold than `kMaxBytesToCopyToChain` is used when copying from
+  // an `absl::Cord`, because sharing memory from an `absl::Cord` is unusually
+  // expensive.
+  static constexpr size_t kMaxBytesToCopyFromCordToChain = 255;
 
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
@@ -620,6 +645,7 @@ class Chain::BlockIterator {
   //
   // Precondition: this is not past the end iterator.
   void AppendTo(Chain* dest, const Options& options = kDefaultOptions) const;
+  void AppendTo(absl::Cord* dest) const;
 
   // Appends `substr` to `*dest`. `substr` must be empty or contained in
   // `**this`.
@@ -628,6 +654,12 @@ class Chain::BlockIterator {
   //   if `substr` is not empty then this is not past the end iterator.
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       const Options& options = kDefaultOptions) const;
+  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest) const;
+
+  // Prepends `**this` to `*dest`.
+  //
+  // Precondition: this is not past the end iterator.
+  void PrependTo(absl::Cord* dest) const;
 
  private:
   friend class Chain;
@@ -787,12 +819,14 @@ class ChainBlock {
   // Appends `*this` to `*dest`.
   void AppendTo(Chain* dest,
                 const Chain::Options& options = Chain::kDefaultOptions) const;
+  void AppendTo(absl::Cord* dest) const;
 
   // Appends `substr` to `*dest`. `substr` must be empty or contained in
   // `*this`.
   void AppendSubstrTo(
       absl::string_view substr, Chain* dest,
       const Chain::Options& options = Chain::kDefaultOptions) const;
+  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest) const;
 
   // Releases the ownership of the block, which must be deleted using
   // `DeleteReleased()` if not `nullptr`.
@@ -928,9 +962,17 @@ class Chain::RawBlock {
   bool TryRemovePrefix(size_t length);
 
   void AppendTo(Chain* dest, const Options& options);
+  // This template is defined and used only in chain.cc.
+  template <Ownership ownership>
+  void AppendTo(absl::Cord* dest);
 
   void AppendSubstrTo(absl::string_view substr, Chain* dest,
                       const Options& options);
+  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest);
+
+  // This template is defined and used only in chain.cc.
+  template <Ownership ownership>
+  void PrependTo(absl::Cord* dest);
 
  private:
   template <typename T>
@@ -1729,6 +1771,10 @@ inline Chain::Chain(ChainBlock&& src) {
   }
 }
 
+inline Chain::Chain(const absl::Cord& src) {
+  Append(src, Options().set_size_hint(src.size()));
+}
+
 inline Chain::Chain(Chain&& that) noexcept
     : size_(std::exchange(that.size_, 0)) {
   // Use `std::memcpy()` instead of copy constructor to silence
@@ -1802,6 +1848,11 @@ inline void Chain::Reset(const ChainBlock& src) {
 inline void Chain::Reset(ChainBlock&& src) {
   Clear();
   Append(std::move(src), Options().set_size_hint(src.size()));
+}
+
+inline void Chain::Reset(const absl::Cord& src) {
+  Clear();
+  Append(src, Options().set_size_hint(src.size()));
 }
 
 inline void Chain::Clear() {

@@ -15,6 +15,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -39,6 +40,7 @@ cc_library(
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -158,6 +160,7 @@ cc_library(
         "//riegeli/bytes:writer_utils",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -196,6 +199,7 @@ cc_library(
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:cord_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
@@ -206,6 +210,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
     ],
 )
@@ -273,6 +278,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )

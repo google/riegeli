@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -88,6 +89,28 @@ bool TeeReaderBase::ReadSlow(Chain* dest, size_t length) {
   Writer* const side_dest = side_dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(src, side_dest))) return false;
   Chain data;
+  bool ok = src->Read(&data, length);
+  if (ABSL_PREDICT_FALSE(!side_dest->Write(data))) {
+    Fail(*side_dest);
+    ok = false;
+  }
+  dest->Append(std::move(data));
+  MakeBuffer(src);
+  return ok;
+}
+
+bool TeeReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "Cord size overflow";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Reader* const src = src_reader();
+  Writer* const side_dest = side_dest_writer();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src, side_dest))) return false;
+  absl::Cord data;
   bool ok = src->Read(&data, length);
   if (ABSL_PREDICT_FALSE(!side_dest->Write(data))) {
     Fail(*side_dest);

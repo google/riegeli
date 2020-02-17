@@ -40,6 +40,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -63,6 +64,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
@@ -71,11 +73,13 @@ cc_library(
 
 cc_library(
     name = "buffer",
+    srcs = ["buffer.cc"],
     hdrs = ["buffer.h"],
     deps = [
         ":base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 

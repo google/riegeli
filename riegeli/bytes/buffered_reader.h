@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -64,6 +65,7 @@ class BufferedReader : public Reader {
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
+  bool ReadSlow(absl::Cord* dest, size_t length) override;
   using Reader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;

@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -117,6 +118,7 @@ class BackwardWriter : public Object {
   bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
+  bool Write(const absl::Cord& src);
 
   // Hints that several consecutive `Push()` or `Write()` calls will follow,
   // writing this amount of data in total.
@@ -226,18 +228,19 @@ class BackwardWriter : public Object {
   // Implementation of the slow part of `Write()`.
   //
   // By default `WriteSlow(absl::string_view)` is implemented in terms of
-  // `Push()`; `WriteSlow(const Chain&)` is implemented in terms of
-  // `WriteSlow(absl::string_view)`; and `WriteSlow(Chain&&)` is implemented in
-  // terms of `WriteSlow(const Chain&)`.
+  // `Push()`; `WriteSlow(const Chain&)` and `WriteSlow(absl::Cord)` are
+  // implemented in terms of `WriteSlow(absl::string_view)`; and
+  // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`.
   //
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `src.size() > available()`
   //
-  // Precondition for `WriteSlow(Chain&&)`:
+  // Precondition for `WriteSlow(Chain&&)` and `WriteSlow(absl::Cord)`:
   //   `src.size() > UnsignedMin(available(), kMaxBytesToCopy)`
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
+  virtual bool WriteSlow(const absl::Cord& src);
 
   // Implementation of the slow part of `WriteHint()`.
   //
@@ -392,6 +395,20 @@ inline bool BackwardWriter::Write(Chain&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
+}
+
+inline bool BackwardWriter::Write(const absl::Cord& src) {
+  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    char* dest = cursor();
+    for (absl::string_view fragment : src.Chunks()) {
+      std::memcpy(dest, fragment.data(), fragment.size());
+      dest += fragment.size();
+    }
+    return true;
+  }
+  return WriteSlow(src);
 }
 
 inline void BackwardWriter::WriteHint(size_t length) {

@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -77,6 +78,7 @@ class SnappyWriterBase : public Writer {
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
 
  private:
   // `snappy::kBlockSize`

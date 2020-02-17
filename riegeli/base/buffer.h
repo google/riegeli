@@ -20,6 +20,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 
@@ -74,6 +76,11 @@ class Buffer {
   char* data_ = nullptr;
   size_t size_ = 0;
 };
+
+// Converts `Buffer` to `absl::Cord`. `substr` must be contained in `*buffer`.
+// `*buffer` is left unchanged or deallocated; in any case its size is
+// unchanged.
+absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer);
 
 // Implementation details follow.
 

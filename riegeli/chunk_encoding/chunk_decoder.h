@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -114,6 +115,7 @@ class ChunkDecoder : public Object {
   bool ReadRecord(absl::string_view* record);
   bool ReadRecord(std::string* record);
   bool ReadRecord(Chain* record);
+  bool ReadRecord(absl::Cord* record);
 
   // If `!healthy()` and the failure was caused by an unparsable message, then
   // `Recover()` allows reading again by skipping the unparsable message.
@@ -228,6 +230,21 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
 }
 
 inline bool ChunkDecoder::ReadRecord(Chain* record) {
+  if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
+  const size_t start = IntCast<size_t>(values_reader_.pos());
+  const size_t limit = limits_[IntCast<size_t>(index_)];
+  RIEGELI_ASSERT_LE(start, limit)
+      << "Failed invariant of ChunkDecoder: record end positions not sorted";
+  record->Clear();
+  if (!values_reader_.Read(record, limit - start)) {
+    RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
+                                 << values_reader_.status();
+  }
+  ++index_;
+  return true;
+}
+
+inline bool ChunkDecoder::ReadRecord(absl::Cord* record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];

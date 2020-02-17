@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
@@ -99,6 +100,36 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
 }
 
 bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
+  max_size =
+      UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
+  if (src->SupportsSize()) {
+    Position size;
+    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
+    const Position remaining = SaturatingSub(size, src->pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_size)) {
+      if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
+        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      }
+      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+    }
+    if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
+      return src->healthy();
+    }
+    return true;
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
+        src->Read(dest, max_size);
+        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      }
+      max_size -= src->available();
+      src->Read(dest, src->available());
+    } while (src->Pull());
+    return src->healthy();
+  }
+}
+
+bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
   max_size =
       UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
   if (src->SupportsSize()) {

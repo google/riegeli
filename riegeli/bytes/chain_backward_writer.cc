@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -83,6 +84,25 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   dest->Prepend(std::move(src), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
+bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chain* const dest = dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+      << "ChainBackwardWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  move_start_pos(src.size());
+  dest->Prepend(src, options_);
   MakeBuffer(dest);
   return true;
 }

@@ -730,6 +730,8 @@ template bool RecordWriterBase::WriteRecordImpl(const Chain& record,
                                                 FutureRecordPosition* key);
 template bool RecordWriterBase::WriteRecordImpl(Chain&& record,
                                                 FutureRecordPosition* key);
+template bool RecordWriterBase::WriteRecordImpl(const absl::Cord& record,
+                                                FutureRecordPosition* key);
 
 bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

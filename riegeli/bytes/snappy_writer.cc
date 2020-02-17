@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -95,6 +96,22 @@ bool SnappyWriterBase::WriteSlow(Chain&& src) {
   SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(std::move(src), options_);
+  MakeBuffer();
+  return true;
+}
+
+bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer();
+  move_start_pos(src.size());
+  uncompressed_.Append(src, options_);
   MakeBuffer();
   return true;
 }

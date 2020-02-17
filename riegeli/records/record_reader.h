@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
@@ -229,6 +230,7 @@ class RecordReaderBase : public Object {
   bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
   bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
+  bool ReadRecord(absl::Cord* record, RecordPosition* key = nullptr);
 
   // If `!healthy()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
@@ -507,6 +509,8 @@ extern template bool RecordReaderBase::ReadRecordSlow(std::string* record,
                                                       RecordPosition* key);
 extern template bool RecordReaderBase::ReadRecordSlow(Chain* record,
                                                       RecordPosition* key);
+extern template bool RecordReaderBase::ReadRecordSlow(absl::Cord* record,
+                                                      RecordPosition* key);
 
 inline bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite* record,
                                          RecordPosition* key) {
@@ -548,6 +552,19 @@ inline bool RecordReaderBase::ReadRecord(std::string* record,
 }
 
 inline bool RecordReaderBase::ReadRecord(Chain* record, RecordPosition* key) {
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
+    RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+        << "ChunkDecoder::ReadRecord() left record index at 0";
+    if (key != nullptr) {
+      *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
+    }
+    return true;
+  }
+  return ReadRecordSlow(record, key);
+}
+
+inline bool RecordReaderBase::ReadRecord(absl::Cord* record,
+                                         RecordPosition* key) {
   if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
     RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
         << "ChunkDecoder::ReadRecord() left record index at 0";

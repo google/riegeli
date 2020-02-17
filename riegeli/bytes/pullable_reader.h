@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -110,6 +111,7 @@ class PullableReader : public Reader {
   // Precondition for `CopyScratchTo()`:
   //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
   bool ReadScratch(Chain* dest, size_t* length);
+  bool ReadScratch(absl::Cord* dest, size_t* length);
   bool CopyScratchTo(Writer* dest, Position* length);
 
   // Helps to implement `SeekSlow()` if scratch is used.
@@ -142,6 +144,7 @@ class PullableReader : public Reader {
 
   void PullToScratchSlow(size_t min_length, size_t recommended_length);
   bool ReadScratchSlow(Chain* dest, size_t* length);
+  bool ReadScratchSlow(absl::Cord* dest, size_t* length);
   bool CopyScratchToSlow(Writer* dest, Position* length);
   bool SeekUsingScratchSlow(Position new_pos);
   void SyncScratchSlow();
@@ -202,6 +205,19 @@ inline bool PullableReader::ReadScratch(Chain* dest, size_t* length) {
   RIEGELI_ASSERT_LE(*length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of PullableReader::ReadScratch(Chain*): "
          "Chain size overflow";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    return ReadScratchSlow(dest, length);
+  }
+  return true;
+}
+
+inline bool PullableReader::ReadScratch(absl::Cord* dest, size_t* length) {
+  RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of PullableReader::ReadScratch(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(*length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of PullableReader::ReadScratch(Cord*): "
+         "Cord size overflow";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     return ReadScratchSlow(dest, length);
   }

@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -112,6 +113,25 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
   }
   SyncBuffer(dest);
   std::move(src).AppendTo(dest);
+  MakeBuffer(dest);
+  return true;
+}
+
+bool StringWriterBase::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  std::string* const dest = dest_string();
+  RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > dest->max_size() - written_to_buffer())) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  for (absl::string_view fragment : src.Chunks()) {
+    dest->append(fragment.data(), fragment.size());
+  }
   MakeBuffer(dest);
   return true;
 }

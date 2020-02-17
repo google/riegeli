@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -38,6 +39,20 @@ bool NullWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         std::numeric_limits<Position>::max() - pos())) {
+    return FailOverflow();
+  }
+  SyncBuffer();
+  move_start_pos(src.size());
+  return MakeBuffer();
+}
+
+bool NullWriter::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - pos())) {

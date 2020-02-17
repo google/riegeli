@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -108,6 +109,29 @@ void PullableReader::PullToScratchSlow(size_t min_length,
 bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::ReadScratchSlow(Chain*): "
+         "scratch not used";
+  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  if (ScratchEnds()) return true;
+  const size_t length_to_read = UnsignedMin(*length, available());
+  scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
+                                  dest);
+  *length -= length_to_read;
+  move_cursor(length_to_read);
+  if (available() == 0) {
+    SyncScratchSlow();
+    return true;
+  }
+  return false;
+}
+
+bool PullableReader::ReadScratchSlow(absl::Cord* dest, size_t* length) {
+  RIEGELI_ASSERT(scratch_used())
+      << "Failed precondition of PullableReader::ReadScratchSlow(Cord*): "
          "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "

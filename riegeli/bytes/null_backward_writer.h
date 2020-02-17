@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -59,6 +60,7 @@ class NullBackwardWriter : public BackwardWriter {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
 
  private:
   // Resets buffer pointers to the beginning of the buffer.

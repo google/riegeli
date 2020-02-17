@@ -22,6 +22,7 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -35,8 +36,8 @@ namespace riegeli {
 
 // Reads all remaining bytes from `*src` to `*dest`.
 //
-// `ReadAll(std::string*)` and `ReadAll(Chain*)` append to any existing data
-// in `*dest`.
+// `ReadAll(std::string*)`, `ReadAll(Chain*)`, and `ReadAll(absl::Cord*)`
+// append to any existing data in `*dest`.
 //
 // `CopyAll(Writer*)` writes as much as could be read if reading failed, and
 // reads an unspecified length (between what could be written and the
@@ -60,6 +61,8 @@ bool ReadAll(Reader* src, absl::string_view* dest,
 bool ReadAll(Reader* src, std::string* dest,
              size_t max_size = std::numeric_limits<size_t>::max());
 bool ReadAll(Reader* src, Chain* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, absl::Cord* dest,
              size_t max_size = std::numeric_limits<size_t>::max());
 bool CopyAll(Reader* src, Writer* dest,
              Position max_size = std::numeric_limits<Position>::max());

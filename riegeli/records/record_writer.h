@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
@@ -410,6 +411,8 @@ class RecordWriterBase : public Object {
   bool WriteRecord(Src&& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
+  bool WriteRecord(const absl::Cord& record,
+                   FutureRecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the `Writer`.
   // If `Options::set_parallelism()` was used, waits for any background writing
@@ -559,6 +562,8 @@ extern template bool RecordWriterBase::WriteRecordImpl(
     const Chain& record, FutureRecordPosition* key);
 extern template bool RecordWriterBase::WriteRecordImpl(
     Chain&& record, FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecordImpl(
+    const absl::Cord& record, FutureRecordPosition* key);
 
 inline bool RecordWriterBase::WriteRecord(
     const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
@@ -589,6 +594,11 @@ inline bool RecordWriterBase::WriteRecord(const Chain& record,
 inline bool RecordWriterBase::WriteRecord(Chain&& record,
                                           FutureRecordPosition* key) {
   return WriteRecordImpl(std::move(record), key);
+}
+
+inline bool RecordWriterBase::WriteRecord(const absl::Cord& record,
+                                          FutureRecordPosition* key) {
+  return WriteRecordImpl(record, key);
 }
 
 template <typename Dest>

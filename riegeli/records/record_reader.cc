@@ -311,6 +311,8 @@ template bool RecordReaderBase::ReadRecordSlow(std::string* record,
                                                RecordPosition* key);
 template bool RecordReaderBase::ReadRecordSlow(Chain* record,
                                                RecordPosition* key);
+template bool RecordReaderBase::ReadRecordSlow(absl::Cord* record,
+                                               RecordPosition* key);
 
 bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;

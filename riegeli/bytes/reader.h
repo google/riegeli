@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -118,8 +119,8 @@ class Reader : public Object {
   // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
   // the source as needed.
   //
-  // `Read(std::string*)` and `Read(Chain*)` append to any existing data in
-  // `*dest`.
+  // `Read(std::string*)`, `Read(Chain*)`, and `Read(absl::Cord*)` append to any
+  // existing data in `*dest`.
   //
   // `Read(absl::string_view*)` points `*dest` to an array holding the data. The
   // array is valid until the next non-const operation on the `Reader`.
@@ -134,7 +135,7 @@ class Reader : public Object {
   // Precondition for `Read(std::string*)`:
   //   `length <= dest->max_size() - dest->size()`
   //
-  // Precondition for `Read(Chain*)`:
+  // Precondition for `Read(Chain*)` and `Read(absl::Cord*)`:
   //   `length <= std::numeric_limits<size_t>::max() - dest->size()`
   //
   // Return values for `Read()`:
@@ -154,6 +155,7 @@ class Reader : public Object {
   bool Read(char* dest, size_t length);
   bool Read(std::string* dest, size_t length);
   bool Read(Chain* dest, size_t length);
+  bool Read(absl::Cord* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
 
@@ -275,24 +277,27 @@ class Reader : public Object {
   // Implementations of the slow part of `Read()` and `CopyTo()`.
   //
   // By default `ReadSlow(char*)` and `CopyToSlow(Writer*)` are implemented in
-  // terms of `PullSlow()`; `ReadSlow(Chain*)` is implemented in terms of
-  // `ReadSlow(char*)`; and `CopyToSlow(BackwardWriter*)` is implemented in
-  // terms of `ReadSlow(char*)` and `ReadSlow(Chain*)`.
+  // terms of `PullSlow()`; `ReadSlow(Chain*)` and `ReadSlow(absl::Cord*)` are
+  // implemented in terms of `ReadSlow(char*)`; and
+  // `CopyToSlow(BackwardWriter*)` is implemented in terms of `ReadSlow(char*)`
+  // and `ReadSlow(Chain*)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string*)`:
   //   `length > available()`
   //
-  // Precondition for `ReadSlow(Chain*)` and `CopyToSlow()`:
+  // Precondition for `ReadSlow(Chain*)`, `ReadSlow(absl::Cord*)`, and
+  // `CopyToSlow()`:
   //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
   //
   // Precondition for `ReadSlow(std::string*)`:
   //   `length <= dest->max_size() - dest->size()`
   //
-  // Precondition for `ReadSlow(Chain*)`:
+  // Precondition for `ReadSlow(Chain*)` and `ReadSlow(absl::Cord*)`:
   //   `length <= std::numeric_limits<size_t>::max() - dest->size()`
   virtual bool ReadSlow(char* dest, size_t length);
   bool ReadSlow(std::string* dest, size_t length);
   virtual bool ReadSlow(Chain* dest, size_t length);
+  virtual bool ReadSlow(absl::Cord* dest, size_t length);
   virtual bool CopyToSlow(Writer* dest, Position length);
   virtual bool CopyToSlow(BackwardWriter* dest, size_t length);
 
@@ -441,6 +446,17 @@ inline bool Reader::Read(std::string* dest, size_t length) {
 inline bool Reader::Read(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
+    dest->Append(absl::string_view(cursor(), length));
+    move_cursor(length);
+    return true;
+  }
+  return ReadSlow(dest, length);
+}
+
+inline bool Reader::Read(absl::Cord* dest, size_t length) {
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::Read(Cord*): Cord size overflow";
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     dest->Append(absl::string_view(cursor(), length));
     move_cursor(length);

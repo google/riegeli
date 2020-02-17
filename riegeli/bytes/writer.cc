@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
@@ -74,6 +75,16 @@ bool Writer::WriteSlow(Chain&& src) {
          "length too small, use Write(Chain&&) instead";
   // Not `std::move(src)`: forward to `WriteSlow(const Chain&)`.
   return WriteSlow(src);
+}
+
+bool Writer::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  for (const absl::string_view fragment : src.Chunks()) {
+    if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;
+  }
+  return true;
 }
 
 void Writer::WriteHintSlow(size_t length) {

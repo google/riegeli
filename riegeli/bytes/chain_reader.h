@@ -20,6 +20,7 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -59,6 +60,7 @@ class ChainReaderBase : public PullableReader {
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using PullableReader::ReadSlow;
   bool ReadSlow(Chain* dest, size_t length) override;
+  bool ReadSlow(absl::Cord* dest, size_t length) override;
   using PullableReader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;
   bool CopyToSlow(BackwardWriter* dest, size_t length) override;

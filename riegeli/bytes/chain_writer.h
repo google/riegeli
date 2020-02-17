@@ -20,6 +20,7 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -113,6 +114,7 @@ class ChainWriterBase : public Writer {
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
 
  private:
   // Discards uninitialized space from the end of `*dest`, so that it contains

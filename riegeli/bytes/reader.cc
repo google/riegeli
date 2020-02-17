@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -111,6 +112,25 @@ bool Reader::ReadSlow(Chain* dest, size_t length) {
     }
     length -= buffer.size();
   } while (length > 0);
+  return true;
+}
+
+bool Reader::ReadSlow(absl::Cord* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "Cord size overflow";
+  while (length > available()) {
+    const size_t available_length = available();
+    dest->Append(absl::string_view(cursor(), available_length));
+    move_cursor(available_length);
+    length -= available_length;
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, length))) return false;
+  }
+  dest->Append(absl::string_view(cursor(), length));
+  move_cursor(length);
   return true;
 }
 

@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
@@ -61,6 +62,7 @@ class ChunkEncoder : public Object {
   bool AddRecord(Src&& record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
+  virtual bool AddRecord(const absl::Cord& record) = 0;
 
   // Add multiple records, expressed as concatenated record values and sorted
   // record end positions.

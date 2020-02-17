@@ -19,8 +19,10 @@
 #include <cstring>
 #include <iterator>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
@@ -77,6 +79,28 @@ bool BackwardWriter::WriteSlow(Chain&& src) {
          "length too small, use Write(Chain&&) instead";
   // Not `std::move(src)`: forward to `WriteSlow(const Chain&)`.
   return WriteSlow(src);
+}
+
+bool BackwardWriter::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  if (src.size() <= available()) {
+    move_cursor(src.size());
+    char* dest = cursor();
+    for (absl::string_view fragment : src.Chunks()) {
+      std::memcpy(dest, fragment.data(), fragment.size());
+      dest += fragment.size();
+    }
+    return true;
+  }
+  std::vector<absl::string_view> fragments(src.chunk_begin(), src.chunk_end());
+  for (std::vector<absl::string_view>::const_reverse_iterator iter =
+           fragments.crbegin();
+       iter != fragments.crend(); ++iter) {
+    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
+  }
+  return true;
 }
 
 void BackwardWriter::WriteHintSlow(size_t length) {

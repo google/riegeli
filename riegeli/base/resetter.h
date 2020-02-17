@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 
 namespace riegeli {
@@ -97,6 +98,28 @@ struct Resetter<std::string> {
 
   template <typename... Args>
   static void Reset(std::string* object, Args&&... args) {
+    *object = T(std::forward<Args>(args)...);
+  }
+};
+
+template <>
+struct Resetter<absl::Cord> {
+  static void Reset(absl::Cord* object) { object->Clear(); }
+
+  static void Reset(absl::Cord* object, absl::string_view src) {
+    *object = src;
+  }
+
+  static void Reset(absl::Cord* object, const absl::Cord& src) {
+    *object = src;
+  }
+
+  static void Reset(absl::Cord* object, absl::Cord&& src) {
+    *object = std::move(src);
+  }
+
+  template <typename... Args>
+  static void Reset(absl::Cord* object, Args&&... args) {
     *object = T(std::forward<Args>(args)...);
   }
 };

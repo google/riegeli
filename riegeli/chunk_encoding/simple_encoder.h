@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
@@ -53,6 +54,7 @@ class SimpleEncoder : public ChunkEncoder {
   bool AddRecord(absl::string_view record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
+  bool AddRecord(const absl::Cord& record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

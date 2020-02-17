@@ -6,11 +6,11 @@ load("//tf_dependency:tf_configure.bzl", "tf_configure")
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "a100cb47d12b16cea253309d249fa3c20b8575b7cf9cd8b234ddb2d124ffd330",
-    strip_prefix = "abseil-cpp-f0afae0d49af3e15a7169e019634d7719143d94d",
+    sha256 = "4bdb45ca33f5b437d5ccfabea8c26cfe9570031d7bddeabebd5df51800535cb5",
+    strip_prefix = "abseil-cpp-3c814105108680997d0821077694f663693b5382",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/f0afae0d49af3e15a7169e019634d7719143d94d.zip",
-        "https://github.com/abseil/abseil-cpp/archive/f0afae0d49af3e15a7169e019634d7719143d94d.zip",  # 2019-08-20
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/3c814105108680997d0821077694f663693b5382.zip",
+        "https://github.com/abseil/abseil-cpp/archive/3c814105108680997d0821077694f663693b5382.zip",  # 2020-02-14
     ],
 )
 

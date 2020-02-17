@@ -23,10 +23,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -202,6 +204,65 @@ bool FileReaderBase::ReadSlow(Chain* dest, size_t length) {
         return false;
       }
       return true;
+    }
+    size_t cursor_index;
+    absl::Span<char> flat_buffer;
+    if (buffer_.empty()) {
+      // Do not extend `buffer_` if available data are outside of `buffer_`,
+      // because available data would be lost.
+      length -= available();
+      dest->Append(absl::string_view(cursor(), available()));
+      cursor_index = 0;
+      flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+    } else {
+      cursor_index = read_from_buffer();
+      flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
+      if (flat_buffer.empty()) {
+        // Append available data to `*dest` and make a new buffer.
+        length -= available();
+        buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+        buffer_.Clear();
+        cursor_index = 0;
+        flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+      }
+    }
+    // Read more data, preferably into `buffer_`.
+    ok = ReadToBuffer(flat_buffer, cursor_index, src);
+  }
+  if (buffer_.empty()) {
+    dest->Append(absl::string_view(cursor(), length));
+  } else {
+    buffer_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+  }
+  move_cursor(length);
+  return enough_read;
+}
+
+bool FileReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "Cord size overflow";
+  ::tensorflow::RandomAccessFile* const src = src_file();
+  bool enough_read = true;
+  bool ok = healthy();
+  while (length > available()) {
+    if (ABSL_PREDICT_FALSE(!ok)) {
+      // Read as much as is available.
+      length = available();
+      enough_read = false;
+      break;
+    }
+    if (available() == 0 && length >= LengthToReadDirectly()) {
+      Buffer flat_buffer(length);
+      char* const ptr = flat_buffer.GetData();
+      size_t length_read;
+      ok = ReadToDest(ptr, length, src, &length_read);
+      dest->Append(
+          BufferToCord(absl::string_view(ptr, length_read), &flat_buffer));
+      return ok;
     }
     size_t cursor_index;
     absl::Span<char> flat_buffer;

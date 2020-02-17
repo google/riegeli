@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
@@ -79,6 +80,7 @@ class TransposeEncoder : public ChunkEncoder {
   using ChunkEncoder::AddRecord;
   bool AddRecord(absl::string_view record) override;
   bool AddRecord(const Chain& record) override;
+  bool AddRecord(const absl::Cord& record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

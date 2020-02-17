@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -73,6 +74,16 @@ bool LimitingReaderBase::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
+  return ReadInternal(dest, length);
+}
+
+bool LimitingReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "Cord size overflow";
   return ReadInternal(dest, length);
 }
 

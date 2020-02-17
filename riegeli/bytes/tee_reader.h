@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -59,6 +60,7 @@ class TeeReaderBase : public Reader {
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
+  bool ReadSlow(absl::Cord* dest, size_t length) override;
   void ReadHintSlow(size_t length) override;
 
   // Sets cursor of `*src` to cursor of `*this`, writing what has been read from

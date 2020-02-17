@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["file_reader.h"],
     deps = [
         "//riegeli/base",
+        "//riegeli/base:buffer",
         "//riegeli/base:chain",
         "//riegeli/base:status",
         "//riegeli/bytes:backward_writer",
@@ -15,6 +16,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:span",
         "@local_config_tf//:tf_header_lib",
     ],
@@ -32,6 +34,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@local_config_tf//:tf_header_lib",
     ],
 )

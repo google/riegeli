@@ -30,6 +30,7 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -41,6 +42,7 @@
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
+#include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
@@ -205,6 +207,11 @@ bool TransposeEncoder::AddRecord(absl::string_view record) {
 
 bool TransposeEncoder::AddRecord(const Chain& record) {
   ChainReader<> reader(&record);
+  return AddRecordInternal(&reader);
+}
+
+bool TransposeEncoder::AddRecord(const absl::Cord& record) {
+  CordReader<> reader(&record);
   return AddRecordInternal(&reader);
 }
 

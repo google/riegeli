@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -66,6 +67,42 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Reader::ReadSlow(Chain*): "
          "Chain size overflow";
+  if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const Chain* const src = iter_.chain();
+  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+      << "ChainReader source changed unexpectedly";
+  if (length <= available()) {
+    iter_.AppendSubstrTo(absl::string_view(cursor(), length), dest);
+    move_cursor(length);
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(iter_ == src->blocks().cend())) return false;
+  iter_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
+  length -= available();
+  while (++iter_ != src->blocks().cend()) {
+    RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos())
+        << "ChainReader source changed unexpectedly";
+    move_limit_pos(iter_->size());
+    if (length <= iter_->size()) {
+      set_buffer(iter_->data(), iter_->size(), length);
+      iter_.AppendSubstrTo(absl::string_view(start(), length), dest);
+      return true;
+    }
+    iter_.AppendTo(dest);
+    length -= iter_->size();
+  }
+  set_buffer();
+  return false;
+}
+
+bool ChainReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "length too small, use Read(Cord*) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadSlow(Cord*): "
+         "Cord size overflow";
   if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();

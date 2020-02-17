@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
@@ -134,6 +135,7 @@ class FileReaderBase : public Reader {
   using Reader::ReadSlow;
   bool ReadSlow(char* dest, size_t length) override;
   bool ReadSlow(Chain* dest, size_t length) override;
+  bool ReadSlow(absl::Cord* dest, size_t length) override;
   bool SeekSlow(Position new_pos) override;
   using Reader::CopyToSlow;
   bool CopyToSlow(Writer* dest, Position length) override;

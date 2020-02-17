@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -73,6 +74,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
   void WriteHintSlow(size_t length) override;
 
   // Sets cursor of `*dest` to cursor of `*this`. Fails `*this` if size limit is

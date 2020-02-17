@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -78,6 +79,10 @@ bool DeferredEncoder::AddRecord(const Chain& record) {
 
 bool DeferredEncoder::AddRecord(Chain&& record) {
   return AddRecordImpl(std::move(record));
+}
+
+bool DeferredEncoder::AddRecord(const absl::Cord& record) {
+  return AddRecordImpl(record);
 }
 
 template <typename Record>

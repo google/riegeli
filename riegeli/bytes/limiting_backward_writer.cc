@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -76,6 +77,13 @@ bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   return WriteInternal(std::move(src));
+}
+
+bool LimitingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
+         "length too small, use Write(Cord) instead";
+  return WriteInternal(src);
 }
 
 template <typename Src>
