@@ -561,7 +561,7 @@ inline void FdStreamReaderBase::Initialize(
     int src, absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdStreamReader: negative file descriptor";
-  RIEGELI_CHECK(assumed_pos.has_value())
+  RIEGELI_CHECK(assumed_pos != absl::nullopt)
       << "Failed precondition of FdStreamReader: "
          "assumed file position must be specified "
          "if FdStreamReader does not open the file";
@@ -612,7 +612,8 @@ inline void FdMMapReaderBase::Initialize(int src,
 template <typename Src>
 inline FdReader<Src>::FdReader(const internal::type_identity_t<Src>& src,
                                Options options)
-    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdReaderBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       src_(src) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -620,7 +621,8 @@ inline FdReader<Src>::FdReader(const internal::type_identity_t<Src>& src,
 template <typename Src>
 inline FdReader<Src>::FdReader(internal::type_identity_t<Src>&& src,
                                Options options)
-    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdReaderBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       src_(std::move(src)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -628,7 +630,8 @@ inline FdReader<Src>::FdReader(internal::type_identity_t<Src>&& src,
 template <typename Src>
 template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
-    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdReaderBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -636,7 +639,8 @@ inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
 template <typename Src>
 inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
                                Options options)
-    : FdReaderBase(options.buffer_size(), !options.initial_pos().has_value()) {
+    : FdReaderBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt) {
   Initialize(filename, flags, options.initial_pos());
 }
 
@@ -660,7 +664,7 @@ inline void FdReader<Src>::Reset() {
 template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   src_.Reset(src);
   Initialize(src_.get(), options.initial_pos());
 }
@@ -668,7 +672,7 @@ inline void FdReader<Src>::Reset(const Src& src, Options options) {
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -678,7 +682,7 @@ template <typename... SrcArgs>
 inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -687,7 +691,7 @@ template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   src_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.initial_pos());
 }
@@ -807,7 +811,7 @@ inline void FdStreamReader<Src>::Initialize(
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  if (assumed_pos.has_value()) set_limit_pos(*assumed_pos);
+  if (assumed_pos != absl::nullopt) set_limit_pos(*assumed_pos);
 }
 
 template <typename Src>
@@ -825,14 +829,14 @@ void FdStreamReader<Src>::Done() {
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(
     const internal::type_identity_t<Src>& src, Options options)
-    : FdMMapReaderBase(!options.initial_pos().has_value()), src_(src) {
+    : FdMMapReaderBase(options.initial_pos() == absl::nullopt), src_(src) {
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(internal::type_identity_t<Src>&& src,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos().has_value()),
+    : FdMMapReaderBase(options.initial_pos() == absl::nullopt),
       src_(std::move(src)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -841,7 +845,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos().has_value()),
+    : FdMMapReaderBase(options.initial_pos() == absl::nullopt),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.initial_pos());
 }
@@ -849,7 +853,7 @@ inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
                                        Options options)
-    : FdMMapReaderBase(!options.initial_pos().has_value()) {
+    : FdMMapReaderBase(options.initial_pos() == absl::nullopt) {
   Initialize(filename, flags, options.initial_pos());
 }
 
@@ -873,14 +877,14 @@ inline void FdMMapReader<Src>::Reset() {
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(const Src& src, Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
+  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
   src_.Reset(src);
   Initialize(src_.get(), options.initial_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
+  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -889,7 +893,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
+  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.initial_pos());
 }
@@ -897,7 +901,7 @@ inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
-  FdMMapReaderBase::Reset(!options.initial_pos().has_value());
+  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
   src_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.initial_pos());
 }

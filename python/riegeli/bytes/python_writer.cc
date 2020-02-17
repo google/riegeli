@@ -44,7 +44,7 @@ namespace python {
 PythonWriter::PythonWriter(PyObject* dest, Options options)
     : BufferedWriter(options.buffer_size()),
       close_(options.close()),
-      random_access_(!options.assumed_pos().has_value()) {
+      random_access_(options.assumed_pos() == absl::nullopt) {
   PythonLock::AssertHeld();
   Py_INCREF(dest);
   dest_.reset(dest);

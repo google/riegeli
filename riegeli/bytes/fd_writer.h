@@ -471,7 +471,7 @@ inline void FdStreamWriterBase::Initialize(
     int dest, absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdStreamWriter: negative file descriptor";
-  RIEGELI_CHECK(assumed_pos.has_value())
+  RIEGELI_CHECK(assumed_pos != absl::nullopt)
       << "Failed precondition of FdStreamWriter: "
          "assumed file position must be specified "
          "if FdStreamWriter does not open the file";
@@ -482,7 +482,8 @@ inline void FdStreamWriterBase::Initialize(
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
                                 Options options)
-    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdWriterBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       dest_(dest) {
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -490,7 +491,8 @@ inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(internal::type_identity_t<Dest>&& dest,
                                 Options options)
-    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdWriterBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -499,7 +501,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
-    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()),
+    : FdWriterBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -507,7 +510,8 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
                                 Options options)
-    : FdWriterBase(options.buffer_size(), !options.initial_pos().has_value()) {
+    : FdWriterBase(options.buffer_size(),
+                   options.initial_pos() == absl::nullopt) {
   Initialize(filename, flags, options.permissions(), options.initial_pos());
 }
 
@@ -531,7 +535,7 @@ inline void FdWriter<Dest>::Reset() {
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdWriterBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   dest_.Reset(dest);
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -539,7 +543,7 @@ inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdWriterBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -549,7 +553,7 @@ template <typename... DestArgs>
 inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.initial_pos());
 }
@@ -558,7 +562,7 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_size(),
-                      !options.initial_pos().has_value());
+                      options.initial_pos() == absl::nullopt);
   dest_.Reset();  // In case `OpenFd()` fails.
   Initialize(filename, flags, options.permissions(), options.initial_pos());
 }

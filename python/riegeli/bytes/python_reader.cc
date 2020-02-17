@@ -45,7 +45,7 @@ namespace python {
 PythonReader::PythonReader(PyObject* src, Options options)
     : BufferedReader(options.buffer_size()),
       close_(options.close()),
-      random_access_(!options.assumed_pos().has_value()) {
+      random_access_(options.assumed_pos() == absl::nullopt) {
   PythonLock::AssertHeld();
   Py_INCREF(src);
   src_.reset(src);

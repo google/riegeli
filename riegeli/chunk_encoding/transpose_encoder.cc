@@ -451,7 +451,7 @@ inline bool TransposeEncoder::AddBuffer(
     std::vector<size_t>* compressed_bucket_sizes,
     std::vector<size_t>* buffer_sizes) {
   buffer_sizes->push_back(buffer.size());
-  if (new_uncompressed_bucket_size.has_value()) {
+  if (new_uncompressed_bucket_size != absl::nullopt) {
     if (bucket_compressor->writer()->pos() > 0) {
       const Position pos_before = data_writer->pos();
       if (ABSL_PREDICT_FALSE(!bucket_compressor->EncodeAndClose(data_writer))) {
@@ -819,11 +819,11 @@ inline bool TransposeEncoder::WriteTransitions(
           write[--write_start] = IntCast<uint8_t>(pos - current_base);
 
           for (size_t j = write_start; j < kWriteBufSize; ++j) {
-            if (write[j] == 0 && last_transition.has_value() &&
+            if (write[j] == 0 && last_transition != absl::nullopt &&
                 (*last_transition & 3) < 3) {
               ++*last_transition;
             } else {
-              if (last_transition.has_value()) {
+              if (last_transition != absl::nullopt) {
                 if (ABSL_PREDICT_FALSE(
                         !WriteByte(*last_transition, transitions_writer))) {
                   return Fail(*transitions_writer);
@@ -861,11 +861,11 @@ inline bool TransposeEncoder::WriteTransitions(
       RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
       write[--write_start] = IntCast<uint8_t>(pos - current_base);
       for (size_t j = write_start; j < kWriteBufSize; ++j) {
-        if (write[j] == 0 && last_transition.has_value() &&
+        if (write[j] == 0 && last_transition != absl::nullopt &&
             (*last_transition & 3) < 3) {
           ++*last_transition;
         } else {
-          if (last_transition.has_value()) {
+          if (last_transition != absl::nullopt) {
             if (ABSL_PREDICT_FALSE(
                     !WriteByte(*last_transition, transitions_writer))) {
               return Fail(*transitions_writer);
@@ -882,7 +882,7 @@ inline bool TransposeEncoder::WriteTransitions(
     prev_etag = tag;
     current_base = tags_list_[prev_etag].base;
   }
-  if (last_transition.has_value()) {
+  if (last_transition != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(!WriteByte(*last_transition, transitions_writer))) {
       return Fail(*transitions_writer);
     }

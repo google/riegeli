@@ -60,7 +60,7 @@ void IstreamReaderBase::Initialize(std::istream* src,
   // A sticky `std::ios_base::eofbit` breaks future operations like
   // `std::istream::peek()` and `std::istream::tellg()`.
   src->clear(src->rdstate() & ~std::ios_base::eofbit);
-  if (assumed_pos.has_value()) {
+  if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
             Position{std::numeric_limits<std::streamoff>::max()})) {

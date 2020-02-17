@@ -86,8 +86,8 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
 void FdWriterBase::InitializePos(int dest,
                                  absl::optional<Position> initial_pos) {
   int flags = 0;
-  if (!initial_pos.has_value()) {
-    // If `initial_pos.has_value()` then `flags` are not needed, so avoid
+  if (initial_pos == absl::nullopt) {
+    // If `initial_pos != absl::nullopt` then `flags` are not needed, so avoid
     // `fcntl()`.
     flags = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(flags < 0)) {
@@ -100,7 +100,7 @@ void FdWriterBase::InitializePos(int dest,
 
 void FdWriterBase::InitializePos(int dest, int flags,
                                  absl::optional<Position> initial_pos) {
-  if (initial_pos.has_value()) {
+  if (initial_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(*initial_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -245,7 +245,7 @@ again:
 
 void FdStreamWriterBase::InitializePos(int dest, int flags,
                                        absl::optional<Position> assumed_pos) {
-  if (assumed_pos.has_value()) {
+  if (assumed_pos != absl::nullopt) {
     set_start_pos(*assumed_pos);
   } else if ((flags & O_APPEND) != 0) {
     struct stat stat_info;

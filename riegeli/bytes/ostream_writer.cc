@@ -56,7 +56,7 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
     FailOperation("ostream::ostream()");
     return;
   }
-  if (assumed_pos.has_value()) {
+  if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
             Position{std::numeric_limits<std::streamoff>::max()})) {

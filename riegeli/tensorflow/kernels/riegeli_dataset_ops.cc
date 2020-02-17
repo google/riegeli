@@ -141,7 +141,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           bool* end_of_sequence) override ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
         for (;;) {
-          if (reader_.has_value()) {
+          if (reader_ != absl::nullopt) {
             // We are currently processing a file, so try to read the next
             // record.
             ::tensorflow::Tensor result_tensor(::tensorflow::cpu_allocator(),
@@ -201,7 +201,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         TF_RETURN_IF_ERROR(writer->WriteScalar(
             full_name("current_file_index"),
             IntCast<::tensorflow::int64>(current_file_index_)));
-        if (reader_.has_value()) {
+        if (reader_ != absl::nullopt) {
           TF_RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
                                                  reader_->pos().ToBytes()));
         }
@@ -259,7 +259,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       // Invariants:
       //   `current_file_index_ <= dataset()->filenames_.size()`
       //   if `current_file_index_ == dataset()->filenames_.size()` then
-      //       `!reader_.has_value()`
+      //       `reader_ == absl::nullopt`
 
       absl::Mutex mu_;
       size_t current_file_index_ ABSL_GUARDED_BY(mu_) = 0;

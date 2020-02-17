@@ -117,7 +117,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (final_size.has_value()) {
+  if (final_size != absl::nullopt) {
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
         compressor_.get(), IntCast<unsigned long long>(*final_size));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {

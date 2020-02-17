@@ -113,7 +113,7 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
 
 void FdReaderBase::InitializePos(int src,
                                  absl::optional<Position> initial_pos) {
-  if (initial_pos.has_value()) {
+  if (initial_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(*initial_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -309,7 +309,7 @@ void FdMMapReaderBase::InitializePos(int src,
       std::forward_as_tuple(),
       absl::string_view(static_cast<const char*>(data),
                         IntCast<size_t>(stat_info.st_size)))));
-  if (initial_pos.has_value()) {
+  if (initial_pos != absl::nullopt) {
     move_cursor(UnsignedMin(*initial_pos, available()));
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);

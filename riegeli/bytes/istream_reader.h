@@ -204,7 +204,7 @@ inline void IstreamReaderBase::Reset(size_t buffer_size, bool random_access) {
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(const Src& src, Options options)
     : IstreamReaderBase(options.buffer_size(),
-                        !options.assumed_pos().has_value()),
+                        options.assumed_pos() == absl::nullopt),
       src_(src) {
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -212,7 +212,7 @@ inline IstreamReader<Src>::IstreamReader(const Src& src, Options options)
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(Src&& src, Options options)
     : IstreamReaderBase(options.buffer_size(),
-                        !options.assumed_pos().has_value()),
+                        options.assumed_pos() == absl::nullopt),
       src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -222,7 +222,7 @@ template <typename... SrcArgs>
 inline IstreamReader<Src>::IstreamReader(std::tuple<SrcArgs...> src_args,
                                          Options options)
     : IstreamReaderBase(options.buffer_size(),
-                        !options.assumed_pos().has_value()),
+                        options.assumed_pos() == absl::nullopt),
       src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -248,7 +248,7 @@ inline void IstreamReader<Src>::Reset() {
 template <typename Src>
 inline void IstreamReader<Src>::Reset(const Src& src, Options options) {
   IstreamReaderBase::Reset(options.buffer_size(),
-                           !options.assumed_pos().has_value());
+                           options.assumed_pos() == absl::nullopt);
   src_.Reset(src);
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -256,7 +256,7 @@ inline void IstreamReader<Src>::Reset(const Src& src, Options options) {
 template <typename Src>
 inline void IstreamReader<Src>::Reset(Src&& src, Options options) {
   IstreamReaderBase::Reset(options.buffer_size(),
-                           !options.assumed_pos().has_value());
+                           options.assumed_pos() == absl::nullopt);
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -266,7 +266,7 @@ template <typename... SrcArgs>
 inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
   IstreamReaderBase::Reset(options.buffer_size(),
-                           !options.assumed_pos().has_value());
+                           options.assumed_pos() == absl::nullopt);
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_pos());
 }
