@@ -28,18 +28,18 @@
 
 namespace riegeli {
 
-bool WriteByte(Writer* dest, uint8_t data);
+bool WriteByte(uint8_t data, Writer* dest);
 
 size_t LengthVarint32(uint32_t data);  // At most `kMaxLengthVarint32`.
 size_t LengthVarint64(uint64_t data);  // At most `kMaxLengthVarint64`.
 
 // At least `LengthVarint32(data)` bytes of space at `dest[]` must be available.
-char* WriteVarint32(char* dest, uint32_t data);
+char* WriteVarint32(uint32_t data, char* dest);
 // At least `LengthVarint64(data)` bytes of space at `dest[]` must be available.
-char* WriteVarint64(char* dest, uint64_t data);
+char* WriteVarint64(uint64_t data, char* dest);
 
-bool WriteVarint32(Writer* dest, uint32_t data);
-bool WriteVarint64(Writer* dest, uint64_t data);
+bool WriteVarint32(uint32_t data, Writer* dest);
+bool WriteVarint64(uint64_t data, Writer* dest);
 
 bool WriteZeros(Writer* dest, Position length);
 
@@ -51,7 +51,7 @@ bool WriteZerosSlow(Writer* dest, Position length);
 
 }  // namespace internal
 
-inline bool WriteByte(Writer* dest, uint8_t data) {
+inline bool WriteByte(uint8_t data, Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
   *dest->cursor() = static_cast<char>(data);
   dest->move_cursor(1);
@@ -95,7 +95,7 @@ inline size_t LengthVarint64(uint64_t data) {
 #endif
 }
 
-inline char* WriteVarint32(char* dest, uint32_t data) {
+inline char* WriteVarint32(uint32_t data, char* dest) {
   while (data >= 0x80) {
     *dest++ = static_cast<char>(data | 0x80);
     data >>= 7;
@@ -104,7 +104,7 @@ inline char* WriteVarint32(char* dest, uint32_t data) {
   return dest;
 }
 
-inline char* WriteVarint64(char* dest, uint64_t data) {
+inline char* WriteVarint64(uint64_t data, char* dest) {
   while (data >= 0x80) {
     *dest++ = static_cast<char>(data | 0x80);
     data >>= 7;
@@ -113,15 +113,15 @@ inline char* WriteVarint64(char* dest, uint64_t data) {
   return dest;
 }
 
-inline bool WriteVarint32(Writer* dest, uint32_t data) {
+inline bool WriteVarint32(uint32_t data, Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint32))) return false;
-  dest->set_cursor(WriteVarint32(dest->cursor(), data));
+  dest->set_cursor(WriteVarint32(data, dest->cursor()));
   return true;
 }
 
-inline bool WriteVarint64(Writer* dest, uint64_t data) {
+inline bool WriteVarint64(uint64_t data, Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint64))) return false;
-  dest->set_cursor(WriteVarint64(dest->cursor(), data));
+  dest->set_cursor(WriteVarint64(data, dest->cursor()));
   return true;
 }
 

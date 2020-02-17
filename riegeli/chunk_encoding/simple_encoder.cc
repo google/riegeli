@@ -65,8 +65,8 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
-  if (ABSL_PREDICT_FALSE(!WriteVarint64(sizes_compressor_.writer(),
-                                        IntCast<uint64_t>(size)))) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(size),
+                                        sizes_compressor_.writer()))) {
     return Fail(*sizes_compressor_.writer());
   }
   {
@@ -102,8 +102,8 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(record.size());
-  if (ABSL_PREDICT_FALSE(!WriteVarint64(sizes_compressor_.writer(),
-                                        IntCast<uint64_t>(record.size())))) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(record.size()),
+                                        sizes_compressor_.writer()))) {
     return Fail(*sizes_compressor_.writer());
   }
   if (ABSL_PREDICT_FALSE(
@@ -135,8 +135,8 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
     RIEGELI_ASSERT_LE(limit, records.size())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions do not match concatenated record values";
-    if (ABSL_PREDICT_FALSE(!WriteVarint64(sizes_compressor_.writer(),
-                                          IntCast<uint64_t>(limit - start)))) {
+    if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(limit - start),
+                                          sizes_compressor_.writer()))) {
       return Fail(*sizes_compressor_.writer());
     }
     start = limit;
@@ -157,7 +157,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
   *decoded_data_size = decoded_data_size_;
 
   if (ABSL_PREDICT_FALSE(
-          !WriteByte(dest, static_cast<uint8_t>(compression_type_)))) {
+          !WriteByte(static_cast<uint8_t>(compression_type_), dest))) {
     return Fail(*dest);
   }
 
@@ -170,7 +170,7 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
     return Fail(compressed_sizes_writer);
   }
   if (ABSL_PREDICT_FALSE(!WriteVarint64(
-          dest, IntCast<uint64_t>(compressed_sizes_writer.dest().size()))) ||
+          IntCast<uint64_t>(compressed_sizes_writer.dest().size()), dest)) ||
       ABSL_PREDICT_FALSE(
           !dest->Write(std::move(compressed_sizes_writer.dest())))) {
     return Fail(*dest);

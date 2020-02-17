@@ -100,7 +100,7 @@ bool Compressor::EncodeAndClose(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!writer()->Close())) return Fail(*writer());
   if (compressor_options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(
-            !WriteVarint64(dest, IntCast<uint64_t>(uncompressed_size)))) {
+            !WriteVarint64(IntCast<uint64_t>(uncompressed_size), dest))) {
       return Fail(*dest);
     }
   }

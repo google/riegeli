@@ -25,24 +25,24 @@
 
 namespace riegeli {
 
-bool WriteVarint32(BackwardWriter* dest, uint32_t data);
-bool WriteVarint64(BackwardWriter* dest, uint64_t data);
+bool WriteVarint32(uint32_t data, BackwardWriter* dest);
+bool WriteVarint64(uint64_t data, BackwardWriter* dest);
 
 // Implementation details follow.
 
-inline bool WriteVarint32(BackwardWriter* dest, uint32_t data) {
+inline bool WriteVarint32(uint32_t data, BackwardWriter* dest) {
   const size_t length = LengthVarint32(data);
   if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
   dest->move_cursor(length);
-  WriteVarint32(dest->cursor(), data);
+  WriteVarint32(data, dest->cursor());
   return true;
 }
 
-inline bool WriteVarint64(BackwardWriter* dest, uint64_t data) {
+inline bool WriteVarint64(uint64_t data, BackwardWriter* dest) {
   const size_t length = LengthVarint64(data);
   if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
   dest->move_cursor(length);
-  WriteVarint64(dest->cursor(), data);
+  WriteVarint64(data, dest->cursor());
   return true;
 }
 

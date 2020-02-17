@@ -634,7 +634,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
           return Fail(DataLossError("Invalid tag"));
         }
         char* const tag_end =
-            WriteVarint32(state_machine_node.tag_data.data, tag);
+            WriteVarint32(tag, state_machine_node.tag_data.data);
         const size_t tag_length =
             PtrDistance(state_machine_node.tag_data.data, tag_end);
         if (internal::HasSubtype(tag)) {
@@ -1183,7 +1183,7 @@ submessage_start : {
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
     return Fail(DataLossError("Message too large"));
   }
-  if (ABSL_PREDICT_FALSE(!WriteVarint32(dest, IntCast<uint32_t>(length)))) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(length), dest))) {
     return Fail(*dest);
   }
   if (ABSL_PREDICT_FALSE(!dest->Write(
