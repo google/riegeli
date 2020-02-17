@@ -19,17 +19,22 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/snappy_streams.h"
 #include "riegeli/bytes/writer.h"
 #include "snappy.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr size_t SnappyWriterBase::kBlockSize;
+#endif
 
 void SnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) SyncBuffer();
@@ -71,32 +76,26 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
                                           IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  for (Chain::BlockIterator iter = src.blocks().cbegin();
-       iter != src.blocks().cend(); ++iter) {
-    absl::string_view fragment = *iter;
-    const size_t in_first_block = -IntCast<size_t>(pos()) % snappy::kBlockSize;
-    if (fragment.size() > in_first_block) {
-      if (!Write(fragment.substr(0, in_first_block))) {
-        RIEGELI_ASSERT_UNREACHABLE()
-            << "SnappyWriterBase::Write() failed: " << status();
-      }
-      fragment.remove_prefix(in_first_block);
-      const size_t in_whole_blocks =
-          fragment.size() - fragment.size() % snappy::kBlockSize;
-      if (in_whole_blocks > 0) {
-        SyncBuffer();
-        move_start_pos(in_whole_blocks);
-        iter.AppendSubstrTo(fragment.substr(0, in_whole_blocks), &uncompressed_,
-                            Chain::Options().set_size_hint(size_hint_));
-        MakeBuffer();
-        fragment.remove_prefix(in_whole_blocks);
-      }
-    }
-    if (!Write(fragment)) {
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "SnappyWriterBase::Write() failed: " << status();
-    }
+  SyncBuffer();
+  move_start_pos(src.size());
+  uncompressed_.Append(src, options_);
+  MakeBuffer();
+  return true;
+}
+
+bool SnappyWriterBase::WriteSlow(Chain&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Chain&&): "
+         "length too small, use Write(Chain&&) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
   }
+  SyncBuffer();
+  move_start_pos(src.size());
+  uncompressed_.Append(std::move(src), options_);
+  MakeBuffer();
   return true;
 }
 
@@ -110,11 +109,11 @@ inline void SnappyWriterBase::SyncBuffer() {
 
 inline void SnappyWriterBase::MakeBuffer(size_t min_length) {
   const absl::Span<char> buffer = uncompressed_.AppendFixedBuffer(
-      BufferLength(min_length,
-                   min_length + -(uncompressed_.size() + min_length) %
-                                    snappy::kBlockSize,
-                   size_hint_, uncompressed_.size()),
-      Chain::Options().set_size_hint(size_hint_));
+      BufferLength(
+          min_length,
+          min_length + -(uncompressed_.size() + min_length) % kBlockSize,
+          options_.size_hint(), uncompressed_.size()),
+      options_);
   set_buffer(buffer.data(), buffer.size());
 }
 

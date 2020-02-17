@@ -76,8 +76,12 @@ class SnappyWriterBase : public Writer {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(Chain&& src) override;
 
  private:
+  // `snappy::kBlockSize`
+  static constexpr size_t kBlockSize = size_t{64} << 10;
+
   void MoveUncompressed(SnappyWriterBase&& that);
 
   // Discards uninitialized space from the end of `uncompressed_`, so that it
@@ -87,14 +91,15 @@ class SnappyWriterBase : public Writer {
   // Appends uninitialized space to `uncompressed_`.
   void MakeBuffer(size_t min_length = 0);
 
-  size_t size_hint_ = 0;
+  Chain::Options options_;
+
   // `Writer` methods are similar to `ChainWriter` methods writing to
   // `uncompressed_`.
   //
   // `snappy::Compress()` reads data in 64KB blocks, and copies a block to a
   // scratch buffer if it is not contiguous. Hence `Writer` methods try to
-  // ensure that each 64KB block of `uncompressed_` is contiguous (this can be
-  // violated by `Push(min_length)` with `min_length > 1`).
+  // ensure that each 64KB block of `uncompressed_` is contiguous (unless that
+  // would require earlier memory copies).
   Chain uncompressed_;
 };
 
@@ -160,30 +165,36 @@ class SnappyWriter : public SnappyWriterBase {
 
 inline SnappyWriterBase::SnappyWriterBase(Position size_hint)
     : Writer(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(size_hint)) {}
+      options_(Chain::Options()
+                   .set_size_hint(SaturatingIntCast<size_t>(size_hint))
+                   .set_min_block_size(kBlockSize)
+                   .set_max_block_size(kBlockSize)) {}
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
-    : Writer(std::move(that)), size_hint_(that.size_hint_) {
+    : Writer(std::move(that)), options_(that.options_) {
   MoveUncompressed(std::move(that));
 }
 
 inline SnappyWriterBase& SnappyWriterBase::operator=(
     SnappyWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
-  size_hint_ = that.size_hint_;
+  options_ = that.options_;
   MoveUncompressed(std::move(that));
   return *this;
 }
 
 inline void SnappyWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
-  size_hint_ = 0;
+  options_ = Chain::Options();
   uncompressed_.Clear();
 }
 
 inline void SnappyWriterBase::Reset(Position size_hint) {
   Writer::Reset(kInitiallyOpen);
-  size_hint_ = SaturatingIntCast<size_t>(size_hint);
+  options_ = Chain::Options()
+                 .set_size_hint(SaturatingIntCast<size_t>(size_hint))
+                 .set_min_block_size(kBlockSize)
+                 .set_max_block_size(kBlockSize);
   uncompressed_.Clear();
 }
 
