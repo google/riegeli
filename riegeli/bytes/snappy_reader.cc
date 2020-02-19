@@ -38,35 +38,47 @@ void SnappyReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  // Uncompressed size is stored in up to 5 initial bytes.
-  src->Pull(5);
-  size_t uncompressed_size;
-  if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
-          src->cursor(), src->available(), &uncompressed_size))) {
-    uncompressed_size = 0;
+  size_t decompressed_size;
+  if (ABSL_PREDICT_FALSE(!SnappyDecompressedSize(src, &decompressed_size))) {
+    decompressed_size = 0;
   }
-  ChainWriter<Chain> writer(
-      std::forward_as_tuple(),
-      ChainWriterBase::Options().set_size_hint(uncompressed_size));
-  internal::ReaderSnappySource source(src);
-  internal::WriterSnappySink sink(&writer);
-  const bool ok = snappy::Uncompress(&source, &sink);
-  if (ABSL_PREDICT_FALSE(!writer.Close())) {
-    Fail(writer);
-    return;
-  }
-  if (ABSL_PREDICT_FALSE(!src->healthy())) {
-    Fail(*src);
-    return;
-  }
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    Fail(DataLossError("Invalid snappy-compressed stream"));
-    return;
+  Chain decompressed;
+  {
+    Status status = SnappyDecompress<Reader*, ChainWriter<>>(
+        src, std::forward_as_tuple(
+                 &decompressed,
+                 ChainWriterBase::Options().set_size_hint(decompressed_size)));
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
+      return;
+    }
   }
   // `SnappyReaderBase` derives from `ChainReader<Chain>` but the `Chain` to
   // read from was not known in `SnappyReaderBase` constructor. This sets the
   // `Chain` and updates the `ChainReader` to read from it.
-  ChainReader::Reset(std::move(writer.dest()));
+  ChainReader::Reset(std::move(decompressed));
+}
+
+namespace internal {
+
+Status SnappyDecompressImpl(Reader* src, Writer* dest) {
+  ReaderSnappySource source(src);
+  WriterSnappySink sink(dest);
+  const bool ok = snappy::Uncompress(&source, &sink);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) return dest->status();
+  if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    return DataLossError("Invalid snappy-compressed stream");
+  }
+  return OkStatus();
+}
+
+}  // namespace internal
+
+bool SnappyDecompressedSize(Reader* src, size_t* size) {
+  // Decompressed size is stored in up to 5 initial bytes.
+  src->Pull(5);
+  return snappy::GetUncompressedLength(src->cursor(), src->available(), size);
 }
 
 }  // namespace riegeli

@@ -624,6 +624,7 @@ cc_library(
     hdrs = ["snappy_writer.h"],
     deps = [
         ":chain_reader",
+        ":reader",
         ":snappy_streams",
         ":writer",
         "//riegeli/base",
@@ -644,6 +645,7 @@ cc_library(
         ":chain_writer",
         ":reader",
         ":snappy_streams",
+        ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:status",

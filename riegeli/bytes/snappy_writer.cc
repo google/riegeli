@@ -42,14 +42,12 @@ void SnappyWriterBase::Done() {
   Writer::Done();
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
-    ChainReader<> reader(&uncompressed_);
-    internal::ReaderSnappySource source(&reader);
-    internal::WriterSnappySink sink(dest);
-    snappy::Compress(&source, &sink);
-    if (ABSL_PREDICT_FALSE(!dest->healthy())) {
-      Fail(*dest);
-    } else if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) {
-      Fail(reader);
+    {
+      Status status = SnappyCompress<ChainReader<>>(
+          std::forward_as_tuple(&uncompressed_), dest);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        Fail(std::move(status));
+      }
     }
   }
 }
@@ -133,5 +131,18 @@ inline void SnappyWriterBase::MakeBuffer(size_t min_length) {
       options_);
   set_buffer(buffer.data(), buffer.size());
 }
+
+namespace internal {
+
+Status SnappyCompressImpl(Reader* src, Writer* dest) {
+  ReaderSnappySource source(src);
+  WriterSnappySink sink(dest);
+  snappy::Compress(&source, &sink);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) return dest->status();
+  if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
+  return OkStatus();
+}
+
+}  // namespace internal
 
 }  // namespace riegeli
