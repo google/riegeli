@@ -319,7 +319,7 @@ inline char* CopyVarint64(Reader* src, char* dest) {
 inline bool ReadVarint32(const char** src, const char* limit, uint32_t* data) {
   const char* cursor = *src;
   uint32_t acc = 0;
-  int shift = 0;
+  size_t shift = 0;
   uint8_t byte;
   do {
     if (ABSL_PREDICT_FALSE(cursor == limit)) return false;
@@ -345,7 +345,7 @@ inline bool ReadVarint32(const char** src, const char* limit, uint32_t* data) {
 inline bool ReadVarint64(const char** src, const char* limit, uint64_t* data) {
   const char* cursor = *src;
   uint64_t acc = 0;
-  int shift = 0;
+  size_t shift = 0;
   uint8_t byte;
   do {
     if (ABSL_PREDICT_FALSE(cursor == limit)) return false;
