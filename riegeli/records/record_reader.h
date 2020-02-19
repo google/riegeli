@@ -360,6 +360,9 @@ class RecordReaderBase : public Object {
   std::function<bool(const SkippedRegion&)> recovery_;
 
  private:
+  bool FailReading(const ChunkReader* src);
+  bool FailSeeking(const ChunkReader* src);
+
   bool ParseMetadata(const Chunk& chunk, Chain* metadata);
 
   // Precondition: `!chunk_decoder_.healthy() ||

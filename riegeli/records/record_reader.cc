@@ -153,6 +153,20 @@ void RecordReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) Fail(chunk_decoder_);
 }
 
+inline bool RecordReaderBase::FailReading(const ChunkReader* src) {
+  recoverable_ = Recoverable::kRecoverChunkReader;
+  Fail(*src);
+  return TryRecovery();
+}
+
+inline bool RecordReaderBase::FailSeeking(const ChunkReader* src) {
+  chunk_begin_ = src->pos();
+  chunk_decoder_.Clear();
+  recoverable_ = Recoverable::kRecoverChunkReader;
+  Fail(*src);
+  return TryRecovery();
+}
+
 bool RecordReaderBase::CheckFileFormat() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkReader* const src = src_chunk_reader();
@@ -195,11 +209,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   chunk_begin_ = src->pos();
   Chunk chunk;
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
-    if (ABSL_PREDICT_FALSE(!src->healthy())) {
-      recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src);
-      return TryRecovery();
-    }
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return FailReading(src);
     return false;
   }
   RIEGELI_ASSERT(chunk.header.chunk_type() == ChunkType::kFileSignature)
@@ -209,11 +219,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   chunk_begin_ = src->pos();
   const ChunkHeader* chunk_header;
   if (ABSL_PREDICT_FALSE(!src->PullChunkHeader(&chunk_header))) {
-    if (ABSL_PREDICT_FALSE(!src->healthy())) {
-      recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src);
-      return TryRecovery();
-    }
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return FailReading(src);
     return false;
   }
   if (chunk_header->chunk_type() != ChunkType::kFileMetadata) {
@@ -221,11 +227,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
     return true;
   }
   if (ABSL_PREDICT_FALSE(!src->ReadChunk(&chunk))) {
-    if (ABSL_PREDICT_FALSE(!src->healthy())) {
-      recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src);
-      return TryRecovery();
-    }
+    if (ABSL_PREDICT_FALSE(!src->healthy())) return FailReading(src);
     return false;
   }
   if (ABSL_PREDICT_FALSE(!ParseMetadata(chunk, metadata))) {
@@ -369,11 +371,7 @@ bool RecordReaderBase::Seek(RecordPosition new_pos) {
     }
   } else {
     if (ABSL_PREDICT_FALSE(!src->Seek(new_pos.chunk_begin()))) {
-      chunk_begin_ = src->pos();
-      chunk_decoder_.Clear();
-      recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src);
-      return TryRecovery();
+      return FailSeeking(src);
     }
     if (new_pos.record_index() == 0) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
@@ -398,11 +396,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
     // or to the end of file which has been reached.
   } else {
     if (ABSL_PREDICT_FALSE(!src->SeekToChunkContaining(new_pos))) {
-      chunk_begin_ = src->pos();
-      chunk_decoder_.Clear();
-      recoverable_ = Recoverable::kRecoverChunkReader;
-      Fail(*src);
-      return TryRecovery();
+      return FailSeeking(src);
     }
     if (src->pos() >= new_pos) {
       // Seeking to the beginning of a chunk does not need reading the chunk,
