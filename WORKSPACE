@@ -38,11 +38,11 @@ http_archive(
 http_archive(
     name = "snappy",
     build_file = "//third_party:snappy.BUILD",
-    sha256 = "61e05a0295fd849072668b1f3494801237d809427cfe8fd014cda455036c3ef7",
-    strip_prefix = "snappy-1.1.7",
+    sha256 = "38b4aabf88eb480131ed45bfb89c19ca3e2a62daeb081bdf001cfb17ec4cd303",
+    strip_prefix = "snappy-1.1.8",
     urls = [
-        "https://mirror.bazel.build/github.com/google/snappy/archive/1.1.7.zip",
-        "https://github.com/google/snappy/archive/1.1.7.zip",  # 2017-08-25
+        "https://mirror.bazel.build/github.com/google/snappy/archive/1.1.8.zip",
+        "https://github.com/google/snappy/archive/1.1.8.zip",  # 2020-01-14
     ],
 )
 
