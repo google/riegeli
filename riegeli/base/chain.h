@@ -667,7 +667,7 @@ class Chain::BlockIterator {
   static constexpr BlockPtrPtr kBeginShortData{0};
   static constexpr BlockPtrPtr kEndShortData{sizeof(RawBlock*)};
 
-  BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
+  explicit BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
   RawBlock* PinImpl();
 
