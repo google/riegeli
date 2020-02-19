@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -40,10 +41,9 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
   return false;
 }
 
-bool StringReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *size = limit_pos();
-  return true;
+absl::optional<Position> StringReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  return limit_pos();
 }
 
 }  // namespace riegeli

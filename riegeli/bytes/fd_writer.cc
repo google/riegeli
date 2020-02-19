@@ -206,15 +206,15 @@ bool FdWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdWriterBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> FdWriterBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const int dest = dest_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {
-    return FailOperation("fstat()");
+    FailOperation("fstat()");
+    return absl::nullopt;
   }
-  *size = UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
-  return true;
+  return UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
 }
 
 bool FdWriterBase::Truncate(Position new_size) {

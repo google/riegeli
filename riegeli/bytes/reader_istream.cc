@@ -20,6 +20,7 @@
 #include <streambuf>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 
@@ -119,17 +120,18 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
         pos += IntCast<Position>(off);
       }
       break;
-    case std::ios_base::end:
-      if (ABSL_PREDICT_FALSE(!src_->Size(&pos) || off > 0 ||
-                             IntCast<Position>(-off) > pos)) {
+    case std::ios_base::end: {
+      const absl::optional<Position> size = src_->Size();
+      if (ABSL_PREDICT_FALSE(size == absl::nullopt || off > 0 ||
+                             IntCast<Position>(-off) > *size)) {
         return std::streampos(std::streamoff{-1});
       }
-      pos -= IntCast<Position>(-off);
+      pos = *size - IntCast<Position>(-off);
       if (ABSL_PREDICT_FALSE(
               pos > Position{std::numeric_limits<std::streamoff>::max()})) {
         return std::streampos(std::streamoff{-1});
       }
-      break;
+    } break;
     default:
       RIEGELI_ASSERT_UNREACHABLE()
           << "Unknown seek direction: " << static_cast<int>(dir);

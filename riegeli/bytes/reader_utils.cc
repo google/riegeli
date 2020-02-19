@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -37,12 +38,12 @@ namespace riegeli {
 bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
   max_size = UnsignedMin(max_size, dest->max_size());
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) {
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
       *dest = absl::string_view();
       return false;
     }
-    const Position remaining = SaturatingSub(size, src->pos());
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
@@ -71,9 +72,9 @@ bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
 bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
   max_size = UnsignedMin(max_size, dest->max_size() - dest->size());
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, src->pos());
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
@@ -103,9 +104,9 @@ bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
   max_size =
       UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, src->pos());
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
@@ -133,9 +134,9 @@ bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
   max_size =
       UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, src->pos());
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
@@ -161,9 +162,9 @@ bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
 
 bool CopyAll(Reader* src, Writer* dest, Position max_size) {
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, src->pos());
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, max_size))) {
         return dest->healthy() && src->healthy();
@@ -193,9 +194,9 @@ bool CopyAll(Reader* src, Writer* dest, Position max_size) {
 
 bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
   if (src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return false;
-    const Position remaining = SaturatingSub(size, src->pos());
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Skip(max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
@@ -351,12 +352,12 @@ bool ReadLine(Reader* src, std::string* dest, ReadLineOptions options) {
 
 namespace internal {
 
-bool StreamingReadVarint32Slow(Reader* src, uint32_t* data) {
-  uint32_t acc = 0;
+absl::optional<uint32_t> StreamingReadVarint32Slow(Reader* src) {
+  uint32_t result = 0;
   size_t length = 0;
   for (;;) {
     const uint8_t byte = src->cursor()[length];
-    acc |= (uint32_t{byte} & 0x7f) << (length * 7);
+    result |= (uint32_t{byte} & 0x7f) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint32)) {
       // Last possible byte.
@@ -364,26 +365,25 @@ bool StreamingReadVarint32Slow(Reader* src, uint32_t* data) {
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint32`
         // or the represented value does not fit in `uint32_t`.
-        return false;
+        return absl::nullopt;
       }
       break;
     }
     if ((byte & 0x80) == 0) break;
     if (ABSL_PREDICT_FALSE(!src->Pull(length + 1, kMaxLengthVarint32))) {
-      return false;
+      return absl::nullopt;
     }
   }
   src->move_cursor(length);
-  *data = acc;
-  return true;
+  return result;
 }
 
-bool StreamingReadVarint64Slow(Reader* src, uint64_t* data) {
-  uint64_t acc = 0;
+absl::optional<uint64_t> StreamingReadVarint64Slow(Reader* src) {
+  uint64_t result = 0;
   size_t length = 0;
   for (;;) {
     const uint8_t byte = src->cursor()[length];
-    acc |= (uint64_t{byte} & 0x7f) << (length * 7);
+    result |= (uint64_t{byte} & 0x7f) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint64)) {
       // Last possible byte.
@@ -391,18 +391,17 @@ bool StreamingReadVarint64Slow(Reader* src, uint64_t* data) {
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint64`
         // or the represented value does not fit in `uint64_t`.
-        return false;
+        return absl::nullopt;
       }
       break;
     }
     if ((byte & 0x80) == 0) break;
     if (ABSL_PREDICT_FALSE(!src->Pull(length + 1, kMaxLengthVarint64))) {
-      return false;
+      return absl::nullopt;
     }
   }
   src->move_cursor(length);
-  *data = acc;
-  return true;
+  return result;
 }
 
 }  // namespace internal

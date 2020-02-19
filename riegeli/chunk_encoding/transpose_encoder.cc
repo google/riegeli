@@ -86,15 +86,14 @@ bool IsProtoMessage(Reader* record) {
   // We validate that all started proto groups are closed with endgroup tag.
   std::vector<uint32_t> started_groups;
   while (record->Pull()) {
-    uint32_t tag;
-    if (!ReadCanonicalVarint32(record, &tag)) return false;
-    const uint32_t field = tag >> 3;
+    const absl::optional<uint32_t> tag = ReadCanonicalVarint32(record);
+    if (tag == absl::nullopt) return false;
+    const uint32_t field = *tag >> 3;
     if (field == 0) return false;
-    switch (static_cast<internal::WireType>(tag & 7)) {
-      case internal::WireType::kVarint: {
-        uint64_t value;
-        if (!ReadCanonicalVarint64(record, &value)) return false;
-      } break;
+    switch (static_cast<internal::WireType>(*tag & 7)) {
+      case internal::WireType::kVarint:
+        if (ReadCanonicalVarint64(record) == absl::nullopt) return false;
+        break;
       case internal::WireType::kFixed32:
         if (!record->Skip(sizeof(uint32_t))) return false;
         break;
@@ -102,9 +101,9 @@ bool IsProtoMessage(Reader* record) {
         if (!record->Skip(sizeof(uint64_t))) return false;
         break;
       case internal::WireType::kLengthDelimited: {
-        uint32_t length;
-        if (!ReadCanonicalVarint32(record, &length)) return false;
-        if (!record->Skip(length)) return false;
+        const absl::optional<uint32_t> length = ReadCanonicalVarint32(record);
+        if (length == absl::nullopt) return false;
+        if (!record->Skip(*length)) return false;
       } break;
       case internal::WireType::kStartGroup:
         started_groups.push_back(field);
@@ -242,23 +241,23 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
       << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
       << record->status();
   const Position pos_before = record->pos();
-  Position size;
-  if (!record->Size(&size)) {
+  absl::optional<Position> size = record->Size();
+  if (size == absl::nullopt) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Getting record size failed: " << record->status();
   }
-  RIEGELI_ASSERT_LE(pos_before, size)
+  RIEGELI_ASSERT_LE(pos_before, *size)
       << "Current position after the end of record";
-  size -= pos_before;
+  *size -= pos_before;
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
     return Fail(ResourceExhaustedError("Too many records"));
   }
-  if (ABSL_PREDICT_FALSE(size > std::numeric_limits<uint64_t>::max() -
-                                    decoded_data_size_)) {
+  if (ABSL_PREDICT_FALSE(*size > std::numeric_limits<uint64_t>::max() -
+                                     decoded_data_size_)) {
     return Fail(ResourceExhaustedError("Decoded data size too large"));
   }
   ++num_records_;
-  decoded_data_size_ += IntCast<uint64_t>(size);
+  decoded_data_size_ += IntCast<uint64_t>(*size);
   const bool is_proto = IsProtoMessage(record);
   if (!record->Seek(pos_before)) {
     RIEGELI_ASSERT_UNREACHABLE()
@@ -275,10 +274,10 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
     encoded_tags_.push_back(
         GetPosInTagsList(node, internal::Subtype::kTrivial));
     BackwardWriter* const buffer = GetBuffer(node, BufferType::kNonProto);
-    if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, IntCast<size_t>(size)))) {
+    if (ABSL_PREDICT_FALSE(!record->CopyTo(buffer, IntCast<size_t>(*size)))) {
       return Fail(*buffer);
     }
-    if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(size),
+    if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(*size),
                                           &nonproto_lengths_writer_))) {
       return Fail(nonproto_lengths_writer_);
     }
@@ -329,12 +328,12 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
                                          internal::MessageId parent_message_id,
                                          int depth) {
   while (record->Pull()) {
-    uint32_t tag;
-    if (!ReadVarint32(record, &tag)) {
+    const absl::optional<uint32_t> tag = ReadVarint32(record);
+    if (tag == absl::nullopt) {
       RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record->status();
     }
-    Node* node = GetNode(NodeId(parent_message_id, tag));
-    switch (static_cast<internal::WireType>(tag & 7)) {
+    Node* node = GetNode(NodeId(parent_message_id, *tag));
+    switch (static_cast<internal::WireType>(*tag & 7)) {
       case internal::WireType::kVarint: {
         // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
         // and GCC generate better code for clearing high bit of each byte.
@@ -384,17 +383,17 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         }
       } break;
       case internal::WireType::kLengthDelimited: {
-        uint32_t length;
         const Position length_pos = record->pos();
-        if (!ReadVarint32(record, &length)) {
+        const absl::optional<uint32_t> length = ReadVarint32(record);
+        if (length == absl::nullopt) {
           RIEGELI_ASSERT_UNREACHABLE()
               << "Invalid length: " << record->status();
         }
         const Position value_pos = record->pos();
-        SizeLimitSetter size_limiter(record, value_pos + length);
+        SizeLimitSetter size_limiter(record, value_pos + *length);
         // Non-toplevel empty strings are treated as strings, not messages.
         // They have a simpler encoding this way (one node instead of two).
-        if (depth < kMaxRecursionDepth && length != 0 &&
+        if (depth < kMaxRecursionDepth && *length != 0 &&
             IsProtoMessage(record)) {
           encoded_tags_.push_back(GetPosInTagsList(
               node, internal::Subtype::kLengthDelimitedStartOfSubmessage));
@@ -420,7 +419,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
           }
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!record->CopyTo(
-                  buffer, IntCast<size_t>(value_pos - length_pos) + length))) {
+                  buffer, IntCast<size_t>(value_pos - length_pos) + *length))) {
             return Fail(*buffer);
           }
         }
@@ -444,7 +443,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         break;
       default:
-        RIEGELI_ASSERT_UNREACHABLE() << "Invalid wire type: " << (tag & 7);
+        RIEGELI_ASSERT_UNREACHABLE() << "Invalid wire type: " << (*tag & 7);
     }
   }
   RIEGELI_ASSERT(record->healthy())

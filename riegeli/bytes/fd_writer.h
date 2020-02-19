@@ -128,7 +128,7 @@ class FdWriterBase : public internal::FdWriterCommon {
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override { return true; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;
 

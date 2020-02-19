@@ -20,6 +20,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -177,15 +178,14 @@ bool LimitingReaderBase::SupportsSize() const {
   return src != nullptr && src->SupportsSize();
 }
 
-bool LimitingReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> LimitingReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader* const src = src_reader();
   SyncBuffer(src);
-  const bool ok = src->Size(size);
+  const absl::optional<Position> size = src->Size();
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!ok)) return false;
-  *size = UnsignedMin(*size, size_limit_);
-  return true;
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  return UnsignedMin(*size, size_limit_);
 }
 
 }  // namespace riegeli

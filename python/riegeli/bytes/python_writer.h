@@ -118,7 +118,7 @@ class PythonWriter : public BufferedWriter {
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override { return random_access_; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
   bool SupportsTruncate() const override { return random_access_; }
   bool Truncate(Position new_size) override;
 
@@ -132,7 +132,7 @@ class PythonWriter : public BufferedWriter {
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool SizeInternal(Position* size);
+  absl::optional<Position> SizeInternal();
 
   PythonPtrLocking dest_;
   bool close_ = false;

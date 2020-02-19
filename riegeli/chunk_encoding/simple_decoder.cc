@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/object.h"
@@ -51,39 +52,40 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
     return Fail(ResourceExhaustedError("Records too large"));
   }
 
-  uint8_t compression_type_byte;
-  if (ABSL_PREDICT_FALSE(!ReadByte(src, &compression_type_byte))) {
+  const absl::optional<uint8_t> compression_type_byte = ReadByte(src);
+  if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     return Fail(*src, DataLossError("Reading compression type failed"));
   }
   const CompressionType compression_type =
-      static_cast<CompressionType>(compression_type_byte);
+      static_cast<CompressionType>(*compression_type_byte);
 
-  uint64_t sizes_size;
-  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, &sizes_size))) {
+  const absl::optional<uint64_t> sizes_size = ReadVarint64(src);
+  if (ABSL_PREDICT_FALSE(sizes_size == absl::nullopt)) {
     return Fail(*src, DataLossError("Reading size of sizes failed"));
   }
 
-  if (ABSL_PREDICT_FALSE(sizes_size >
+  if (ABSL_PREDICT_FALSE(*sizes_size >
                          std::numeric_limits<Position>::max() - src->pos())) {
     return Fail(ResourceExhaustedError("Size of sizes too large"));
   }
   internal::Decompressor<LimitingReader<>> sizes_decompressor(
-      std::forward_as_tuple(src, src->pos() + sizes_size), compression_type);
+      std::forward_as_tuple(src, src->pos() + *sizes_size), compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
     return Fail(sizes_decompressor);
   }
   limits->clear();
   size_t limit = 0;
   while (limits->size() != num_records) {
-    uint64_t size;
-    if (ABSL_PREDICT_FALSE(!ReadVarint64(sizes_decompressor.reader(), &size))) {
+    const absl::optional<uint64_t> size =
+        ReadVarint64(sizes_decompressor.reader());
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
       return Fail(*sizes_decompressor.reader(),
                   DataLossError("Reading record size failed"));
     }
-    if (ABSL_PREDICT_FALSE(size > decoded_data_size - limit)) {
+    if (ABSL_PREDICT_FALSE(*size > decoded_data_size - limit)) {
       return Fail(DataLossError("Decoded data size larger than expected"));
     }
-    limit += IntCast<size_t>(size);
+    limit += IntCast<size_t>(*size);
     limits->push_back(limit);
   }
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.VerifyEndAndClose())) {

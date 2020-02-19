@@ -22,6 +22,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
@@ -41,18 +42,15 @@ namespace riegeli {
 
 namespace internal {
 
-// Sets `*uncompressed_size` to uncompressed size of `compressed_data`.
+// Returns uncompressed size of `compressed_data`.
 //
 // If `compression_type` is `kNone`, uncompressed size is the same as compressed
 // size, otherwise reads uncompressed size as a varint from the beginning of
 // compressed_data.
 //
-// Return values:
-//  * `true`  - success
-//  * `false` - failure
-bool UncompressedSize(const Chain& compressed_data,
-                      CompressionType compression_type,
-                      uint64_t* uncompressed_size);
+// Returns `absl::nullopt` on failure.
+absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
+                                          CompressionType compression_type);
 
 // Decompresses a compressed stream.
 //
@@ -193,9 +191,9 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
-  uint64_t decompressed_size;
-  if (ABSL_PREDICT_FALSE(
-          !ReadVarint64(compressed_reader.get(), &decompressed_size))) {
+  const absl::optional<uint64_t> decompressed_size =
+      ReadVarint64(compressed_reader.get());
+  if (ABSL_PREDICT_FALSE(decompressed_size == absl::nullopt)) {
     Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
     return;
   }
@@ -209,7 +207,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kZstd:
       reader_.template emplace<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(decompressed_size));
+          ZstdReaderBase::Options().set_size_hint(*decompressed_size));
       return;
     case CompressionType::kSnappy:
       reader_.template emplace<SnappyReader<Src>>(

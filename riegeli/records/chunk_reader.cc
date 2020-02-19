@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -507,11 +508,15 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   }
 }
 
-bool DefaultChunkReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> DefaultChunkReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader* const src = src_reader();
-  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
-  return true;
+  const absl::optional<Position> size = src->Size();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    Fail(*src);
+    return absl::nullopt;
+  }
+  return *size;
 }
 
 }  // namespace riegeli

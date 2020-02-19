@@ -21,6 +21,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/writer.h"
@@ -138,15 +139,14 @@ bool LimitingWriterBase::Flush(FlushType flush_type) {
   return ok;
 }
 
-bool LimitingWriterBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> LimitingWriterBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer* const dest = dest_writer();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest->Size(size);
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
+  const absl::optional<Position> size = dest->Size();
   MakeBuffer(dest);
-  if (ABSL_PREDICT_FALSE(!ok)) return false;
-  *size = UnsignedMin(*size, size_limit_);
-  return true;
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  return UnsignedMin(*size, size_limit_);
 }
 
 bool LimitingWriterBase::SupportsTruncate() const {

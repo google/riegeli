@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
@@ -420,11 +421,15 @@ bool RecordReaderBase::Seek(Position new_pos) {
   return true;
 }
 
-bool RecordReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> RecordReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ChunkReader* const src = src_chunk_reader();
-  if (ABSL_PREDICT_FALSE(!src->Size(size))) return Fail(*src);
-  return true;
+  const absl::optional<Position> size = src->Size();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    Fail(*src);
+    return absl::nullopt;
+  }
+  return *size;
 }
 
 inline bool RecordReaderBase::ReadChunk() {

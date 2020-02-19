@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -109,7 +110,7 @@ class FileReaderBase : public Reader {
 
   bool SupportsRandomAccess() const override { return !filename_.empty(); }
   bool SupportsSize() const override { return !filename_.empty(); }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   FileReaderBase() noexcept : Reader(kInitiallyClosed) {}

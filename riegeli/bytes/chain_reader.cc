@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -283,11 +284,10 @@ bool ChainReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool ChainReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> ChainReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const Chain* const src = iter_.chain();
-  *size = src->size();
-  return true;
+  return src->size();
 }
 
 }  // namespace riegeli

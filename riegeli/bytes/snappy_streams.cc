@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
@@ -84,12 +85,12 @@ char* WriterSnappySink::GetAppendBufferVariable(size_t min_length,
 }
 
 size_t ReaderSnappySource::Available() const {
-  Position size;
-  if (ABSL_PREDICT_FALSE(!src_->Size(&size))) {
+  const absl::optional<Position> size = src_->Size();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
     // There is no way to signal failure here. Pretend that the source ends.
     return 0;
   }
-  return UnsignedMin(SaturatingSub(size, src_->pos()),
+  return UnsignedMin(SaturatingSub(*size, src_->pos()),
                      std::numeric_limits<size_t>::max());
 }
 

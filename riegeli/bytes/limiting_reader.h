@@ -23,6 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -55,7 +56,7 @@ class LimitingReaderBase : public Reader {
   bool Sync() override;
   bool SupportsRandomAccess() const override;
   bool SupportsSize() const override;
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   LimitingReaderBase() noexcept : Reader(kInitiallyClosed) {}

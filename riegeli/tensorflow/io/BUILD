@@ -17,6 +17,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@local_config_tf//:tf_header_lib",
     ],

@@ -87,7 +87,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override { return random_access_; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   OstreamWriterBase() noexcept {}

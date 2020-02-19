@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
@@ -97,8 +98,9 @@ bool Writer::SeekSlow(Position new_pos) {
   return Fail(UnimplementedError("Writer::Seek() not supported"));
 }
 
-bool Writer::Size(Position* size) {
-  return Fail(UnimplementedError("Writer::Size() not supported"));
+absl::optional<Position> Writer::Size() {
+  Fail(UnimplementedError("Writer::Size() not supported"));
+  return absl::nullopt;
 }
 
 bool Writer::Truncate(Position new_size) {

@@ -21,6 +21,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -202,11 +203,10 @@ bool CordReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool CordReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> CordReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const absl::Cord* const src = src_cord();
-  *size = src->size();
-  return true;
+  return src->size();
 }
 
 inline void CordReaderBase::SyncBuffer() {

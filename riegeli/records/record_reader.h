@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -291,10 +292,8 @@ class RecordReaderBase : public Object {
   // Returns the size of the file in bytes, i.e. the position corresponding to
   // its end.
   //
-  // Return values:
-  //  * `true`  - success (`*size` is set, `healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  bool Size(Position* size);
+  // Returns `absl::nullopt` on failure (`!healthy()`).
+  absl::optional<Position> Size();
 
 #if 0
   // Searches the region between the current position and end of file for a

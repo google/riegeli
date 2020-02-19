@@ -138,6 +138,7 @@ cc_library(
         "//riegeli/bytes:zstd_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:variant",
     ],
 )
@@ -178,6 +179,7 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -238,6 +240,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 

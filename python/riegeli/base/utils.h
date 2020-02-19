@@ -32,6 +32,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -412,7 +413,7 @@ inline PythonPtr IntToPython(long value) {
 // Converts C++ `absl::string_view` to a Python `bytes` object (AKA `str` in
 // Python2).
 //
-// Returns nullptr on failure (with Python exception set).
+// Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr BytesToPython(absl::string_view value) {
   return PythonPtr(PyBytes_FromStringAndSize(
       value.data(), IntCast<Py_ssize_t>(value.size())));
@@ -503,8 +504,8 @@ PythonPtr ChainToPython(const Chain& value);
 // Converts a Python `bytes`-like object to C++ `Chain`, using the buffer
 // protocol.
 //
-// Returns `false` on failure (with Python exception set).
-bool ChainFromPython(PyObject* object, Chain* value);
+// Returns `absl::nullopt` on failure (with Python exception set).
+absl::optional<Chain> ChainFromPython(PyObject* object);
 
 // Converts C++ `size_t` to a Python `int` object (or possibly `long` in
 // Python2).
@@ -516,8 +517,8 @@ PythonPtr SizeToPython(size_t value);
 // as for slicing: `int`, `long` (in Python2), or objects supporting
 // `__index__()`.
 //
-// Returns `false` on failure (with Python exception set).
-bool SizeFromPython(PyObject* object, size_t* value);
+// Returns `absl::nullopt` on failure (with Python exception set).
+absl::optional<size_t> SizeFromPython(PyObject* object);
 
 // Converts C++ `Position` to a Python `int` object (or possibly `long` in
 // Python2).
@@ -529,8 +530,8 @@ PythonPtr PositionToPython(Position value);
 // as for slicing: `int`, `long` (in Python2), or objects supporting
 // `__index__()`.
 //
-// Returns `false` on failure (with Python exception set).
-bool PositionFromPython(PyObject* object, Position* value);
+// Returns `absl::nullopt` on failure (with Python exception set).
+absl::optional<Position> PositionFromPython(PyObject* object);
 
 // Implementation details follow.
 

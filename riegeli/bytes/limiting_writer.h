@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -53,7 +54,7 @@ class LimitingWriterBase : public Writer {
 
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override;
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
   bool SupportsTruncate() const override;
   bool Truncate(Position new_size) override;
 

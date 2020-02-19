@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -42,7 +43,7 @@ class CordReaderBase : public PullableReader {
 
   bool SupportsRandomAccess() const override { return true; }
   bool SupportsSize() const override { return true; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   explicit CordReaderBase(InitiallyClosed) noexcept

@@ -126,9 +126,9 @@ Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
                            ParseOptions options) {
   src->Pull();
   if (src->available() <= kMaxBytesToCopy && src->SupportsSize()) {
-    Position size;
-    if (ABSL_PREDICT_FALSE(!src->Size(&size))) return src->status();
-    if (src->pos() + src->available() == size &&
+    const absl::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src->status();
+    if (src->pos() + src->available() == *size &&
         ABSL_PREDICT_TRUE(src->available() <=
                           size_t{std::numeric_limits<int>::max()})) {
       // The data are flat. `ParsePartialFromArray()` is faster than

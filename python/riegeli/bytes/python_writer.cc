@@ -58,12 +58,13 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
       FailOperation("tell()");
       return;
     }
-    Position file_pos;
-    if (ABSL_PREDICT_FALSE(!PositionFromPython(tell_result.get(), &file_pos))) {
+    const absl::optional<Position> file_pos =
+        PositionFromPython(tell_result.get());
+    if (ABSL_PREDICT_FALSE(file_pos == absl::nullopt)) {
       FailOperation("PositionFromPython() after tell()");
       return;
     }
-    set_start_pos(file_pos);
+    set_start_pos(*file_pos);
   }
 }
 
@@ -199,10 +200,12 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
         length_written = length_to_write;
       } else {
         // `io.IOBase.write()` returns the length written.
-        if (ABSL_PREDICT_FALSE(
-                !SizeFromPython(write_result.get(), &length_written))) {
+        const absl::optional<size_t> length_written_opt =
+            SizeFromPython(write_result.get());
+        if (ABSL_PREDICT_FALSE(length_written_opt == absl::nullopt)) {
           return FailOperation("SizeFromPython() after write()");
         }
+        length_written = *length_written_opt;
       }
     }
     if (ABSL_PREDICT_FALSE(length_written > src.size())) {
@@ -247,11 +250,11 @@ bool PythonWriter::SeekSlow(Position new_pos) {
   PythonLock lock;
   if (new_pos >= start_pos()) {
     // Seeking forwards.
-    Position size;
-    if (ABSL_PREDICT_FALSE(!SizeInternal(&size))) return false;
-    if (ABSL_PREDICT_FALSE(new_pos > size)) {
+    const absl::optional<Position> size = SizeInternal();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    if (ABSL_PREDICT_FALSE(new_pos > *size)) {
       // File ends.
-      set_start_pos(size);
+      set_start_pos(*size);
       return false;
     }
   }
@@ -269,27 +272,31 @@ bool PythonWriter::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool PythonWriter::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> PythonWriter::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Size() not supported"));
+    Fail(UnimplementedError("PythonWriter::Size() not supported"));
+    return absl::nullopt;
   }
   PythonLock lock;
-  if (ABSL_PREDICT_FALSE(!SizeInternal(size))) return false;
+  const absl::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
   const PythonPtr file_pos = PositionToPython(start_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    return FailOperation("PositionToPython()");
+    FailOperation("PositionToPython()");
+    return absl::nullopt;
   }
   static constexpr Identifier id_seek("seek");
   const PythonPtr seek_result(PyObject_CallMethodObjArgs(
       dest_.get(), id_seek.get(), file_pos.get(), nullptr));
   if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
-    return FailOperation("seek()");
+    FailOperation("seek()");
+    return absl::nullopt;
   }
-  return true;
+  return *size;
 }
 
-inline bool PythonWriter::SizeInternal(Position* size) {
+inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of PythonWriter::SizeInternal(): " << status();
   RIEGELI_ASSERT(random_access_)
@@ -299,11 +306,13 @@ inline bool PythonWriter::SizeInternal(Position* size) {
   absl::string_view operation;
   const PythonPtr file_pos = PositionToPython(0);
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    return FailOperation("PositionToPython()");
+    FailOperation("PositionToPython()");
+    return absl::nullopt;
   }
   const PythonPtr whence = IntToPython(2);  // `io.SEEK_END`
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
-    return FailOperation("IntToPython()");
+    FailOperation("IntToPython()");
+    return absl::nullopt;
   }
   static constexpr Identifier id_seek("seek");
   PythonPtr result(PyObject_CallMethodObjArgs(
@@ -318,14 +327,16 @@ inline bool PythonWriter::SizeInternal(Position* size) {
     // `io.IOBase.seek()` returns the new position.
     operation = "seek()";
   }
-  if (ABSL_PREDICT_FALSE(result == nullptr)) return FailOperation(operation);
-  Position file_size;
-  if (ABSL_PREDICT_FALSE(!PositionFromPython(result.get(), &file_size))) {
-    return FailOperation(
-        absl::StrCat("PositionFromPython() after ", operation));
+  if (ABSL_PREDICT_FALSE(result == nullptr)) {
+    FailOperation(operation);
+    return absl::nullopt;
   }
-  *size = UnsignedMax(file_size, pos());
-  return true;
+  const absl::optional<Position> size = PositionFromPython(result.get());
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    FailOperation(absl::StrCat("PositionFromPython() after ", operation));
+    return absl::nullopt;
+  }
+  return UnsignedMax(*size, pos());
 }
 
 bool PythonWriter::Truncate(Position new_size) {
@@ -335,11 +346,11 @@ bool PythonWriter::Truncate(Position new_size) {
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   PythonLock lock;
-  Position size;
-  if (ABSL_PREDICT_FALSE(!SizeInternal(&size))) return false;
-  if (ABSL_PREDICT_FALSE(new_size > size)) {
+  const absl::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+  if (ABSL_PREDICT_FALSE(new_size > *size)) {
     // File ends.
-    set_start_pos(size);
+    set_start_pos(*size);
     return false;
   }
   {

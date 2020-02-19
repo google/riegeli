@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_reader.h"
 #include "python/riegeli/records/record_position.h"
@@ -254,19 +255,15 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     python_reader_options.set_close(close_is_true != 0);
   }
   if (assumed_pos_arg != nullptr && assumed_pos_arg != Py_None) {
-    Position assumed_pos;
-    if (ABSL_PREDICT_FALSE(
-            !PositionFromPython(assumed_pos_arg, &assumed_pos))) {
-      return -1;
-    }
-    python_reader_options.set_assumed_pos(assumed_pos);
+    const absl::optional<Position> assumed_pos =
+        PositionFromPython(assumed_pos_arg);
+    if (ABSL_PREDICT_FALSE(assumed_pos == absl::nullopt)) return -1;
+    python_reader_options.set_assumed_pos(*assumed_pos);
   }
   if (buffer_size_arg != nullptr) {
-    size_t buffer_size;
-    if (ABSL_PREDICT_FALSE(!SizeFromPython(buffer_size_arg, &buffer_size))) {
-      return -1;
-    }
-    python_reader_options.set_buffer_size(buffer_size);
+    const absl::optional<size_t> buffer_size = SizeFromPython(buffer_size_arg);
+    if (ABSL_PREDICT_FALSE(buffer_size == absl::nullopt)) return -1;
+    python_reader_options.set_buffer_size(*buffer_size);
   }
 
   RecordReaderBase::Options record_reader_options;
@@ -696,11 +693,11 @@ extern "C" PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
           &pos_arg))) {
     return nullptr;
   }
-  Position pos;
-  if (ABSL_PREDICT_FALSE(!PositionFromPython(pos_arg, &pos))) return nullptr;
+  const absl::optional<Position> pos = PositionFromPython(pos_arg);
+  if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool ok =
-      PythonUnlocked([&] { return self->record_reader->Seek(pos); });
+      PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
@@ -711,14 +708,13 @@ extern "C" PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
 extern "C" PyObject* RecordReaderSize(PyRecordReaderObject* self,
                                       PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  Position size;
-  const bool ok =
-      PythonUnlocked([&] { return self->record_reader->Size(&size); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
+  const absl::optional<Position> size =
+      PythonUnlocked([&] { return self->record_reader->Size(); });
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
   }
-  return PositionToPython(size).release();
+  return PositionToPython(*size).release();
 }
 
 const PyMethodDef RecordReaderMethods[] = {

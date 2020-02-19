@@ -26,6 +26,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
@@ -487,19 +488,19 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FileReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::Size(size);
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> FileReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::Size();
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ::tensorflow::uint64 file_size;
   {
     const ::tensorflow::Status status =
         file_system_->GetFileSize(filename_, &file_size);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "FileSystem::GetFileSize()");
+      FailOperation(status, "FileSystem::GetFileSize()");
+      return absl::nullopt;
     }
   }
-  *size = Position{file_size};
-  return true;
+  return Position{file_size};
 }
 
 void FileReaderBase::ClearBuffer() {

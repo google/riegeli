@@ -34,6 +34,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -282,18 +283,16 @@ PythonPtr ChainToPython(const Chain& value) {
   return bytes;
 }
 
-bool ChainFromPython(PyObject* object, Chain* value) {
+absl::optional<Chain> ChainFromPython(PyObject* object) {
   Py_buffer buffer;
   if (ABSL_PREDICT_FALSE(PyObject_GetBuffer(object, &buffer, PyBUF_CONTIG_RO) <
                          0)) {
-    return false;
+    return absl::nullopt;
   }
-  value->Clear();
-  value->Append(absl::string_view(static_cast<const char*>(buffer.buf),
-                                  IntCast<size_t>(buffer.len)),
-                Chain::Options().set_size_hint(IntCast<size_t>(buffer.len)));
+  Chain result(absl::string_view(static_cast<const char*>(buffer.buf),
+                                 IntCast<size_t>(buffer.len)));
   PyBuffer_Release(&buffer);
-  return true;
+  return result;
 }
 
 PythonPtr SizeToPython(size_t value) {
@@ -312,23 +311,22 @@ PythonPtr SizeToPython(size_t value) {
       PyLong_FromUnsignedLongLong(IntCast<unsigned long long>(value)));
 }
 
-bool SizeFromPython(PyObject* object, size_t* value) {
+absl::optional<size_t> SizeFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
-  if (ABSL_PREDICT_FALSE(index == nullptr)) return false;
+  if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
 #if PY_MAJOR_VERSION < 3
   if (ABSL_PREDICT_TRUE(PyInt_Check(index.get()))) {
     const long index_value = PyInt_AS_LONG(index.get());
     if (ABSL_PREDICT_FALSE(index_value < 0)) {
       PyErr_Format(PyExc_OverflowError, "Size out of range: %ld", index_value);
-      return false;
+      return absl::nullopt;
     }
     if (ABSL_PREDICT_FALSE(IntCast<unsigned long>(index_value) >
                            std::numeric_limits<size_t>::max())) {
       PyErr_Format(PyExc_OverflowError, "Size out of range: %ld", index_value);
-      return false;
+      return absl::nullopt;
     }
-    *value = IntCast<size_t>(index_value);
-    return true;
+    return IntCast<size_t>(index_value);
   }
 #endif
   RIEGELI_ASSERT(PyLong_Check(index.get()))
@@ -337,14 +335,13 @@ bool SizeFromPython(PyObject* object, size_t* value) {
   unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
   if (ABSL_PREDICT_FALSE(index_value == static_cast<unsigned long long>(-1)) &&
       PyErr_Occurred()) {
-    return false;
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(index_value > std::numeric_limits<size_t>::max())) {
     PyErr_Format(PyExc_OverflowError, "Size out of range: %llu", index_value);
-    return false;
+    return absl::nullopt;
   }
-  *value = IntCast<size_t>(index_value);
-  return true;
+  return IntCast<size_t>(index_value);
 }
 
 PythonPtr PositionToPython(Position value) {
@@ -364,25 +361,24 @@ PythonPtr PositionToPython(Position value) {
       PyLong_FromUnsignedLongLong(IntCast<unsigned long long>(value)));
 }
 
-bool PositionFromPython(PyObject* object, Position* value) {
+absl::optional<Position> PositionFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
-  if (ABSL_PREDICT_FALSE(index == nullptr)) return false;
+  if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
 #if PY_MAJOR_VERSION < 3
   if (ABSL_PREDICT_TRUE(PyInt_Check(index.get()))) {
     const long index_value = PyInt_AS_LONG(index.get());
     if (ABSL_PREDICT_FALSE(index_value < 0)) {
       PyErr_Format(PyExc_OverflowError, "Position out of range: %ld",
                    index_value);
-      return false;
+      return absl::nullopt;
     }
     if (ABSL_PREDICT_FALSE(IntCast<unsigned long>(index_value) >
                            std::numeric_limits<Position>::max())) {
       PyErr_Format(PyExc_OverflowError, "Position out of range: %ld",
                    index_value);
-      return false;
+      return absl::nullopt;
     }
-    *value = IntCast<Position>(index_value);
-    return true;
+    return IntCast<Position>(index_value);
   }
 #endif
   RIEGELI_ASSERT(PyLong_Check(index.get()))
@@ -391,15 +387,14 @@ bool PositionFromPython(PyObject* object, Position* value) {
   const unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
   if (ABSL_PREDICT_FALSE(index_value == static_cast<unsigned long long>(-1)) &&
       PyErr_Occurred()) {
-    return false;
+    return absl::nullopt;
   }
   if (ABSL_PREDICT_FALSE(index_value > std::numeric_limits<Position>::max())) {
     PyErr_Format(PyExc_OverflowError, "Position out of range: %llu",
                  index_value);
-    return false;
+    return absl::nullopt;
   }
-  *value = IntCast<Position>(index_value);
-  return true;
+  return IntCast<Position>(index_value);
 }
 
 }  // namespace python

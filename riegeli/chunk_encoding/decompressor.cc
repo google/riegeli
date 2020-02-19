@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader_utils.h"
@@ -24,15 +25,13 @@
 namespace riegeli {
 namespace internal {
 
-bool UncompressedSize(const Chain& compressed_data,
-                      CompressionType compression_type,
-                      uint64_t* uncompressed_size) {
+absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
+                                          CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    *uncompressed_size = compressed_data.size();
-    return true;
+    return compressed_data.size();
   }
   ChainReader<> compressed_data_reader(&compressed_data);
-  return ReadVarint64(&compressed_data_reader, uncompressed_size);
+  return ReadVarint64(&compressed_data_reader);
 }
 
 }  // namespace internal

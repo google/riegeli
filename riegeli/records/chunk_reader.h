@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -133,10 +134,8 @@ class DefaultChunkReaderBase : public Object {
 
   // Returns the size of the file, i.e. the position corresponding to its end.
   //
-  // Return values:
-  //  * `true`  - success (`*size` is set, `healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  bool Size(Position* size);
+  // Returns `absl::nullopt` on failure (`!healthy()`).
+  absl::optional<Position> Size();
 
  protected:
   explicit DefaultChunkReaderBase(InitiallyClosed) : Object(kInitiallyClosed) {}

@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -222,10 +223,8 @@ class Reader : public Object {
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
-  // Return values:
-  //  * `true`  - success (`*size` is set, `healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  virtual bool Size(Position* size);
+  // Returns `absl::nullopt` on failure (`!healthy()`).
+  virtual absl::optional<Position> Size();
 
  protected:
   // Creates a `Reader` with the given initial state.

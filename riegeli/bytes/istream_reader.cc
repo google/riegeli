@@ -214,27 +214,30 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool IstreamReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> IstreamReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("IstreamReaderBase::Size() not supported"));
+    Fail(UnimplementedError("IstreamReaderBase::Size() not supported"));
+    return absl::nullopt;
   }
   std::istream* const src = src_stream();
   errno = 0;
   src->seekg(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(src->fail())) {
-    return FailOperation("istream::seekg()");
+    FailOperation("istream::seekg()");
+    return absl::nullopt;
   }
   const std::streamoff stream_size = src->tellg();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-    return FailOperation("istream::tellg()");
+    FailOperation("istream::tellg()");
+    return absl::nullopt;
   }
-  *size = IntCast<Position>(stream_size);
   src->seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(src->fail())) {
-    return FailOperation("istream::seekg()");
+    FailOperation("istream::seekg()");
+    return absl::nullopt;
   }
-  return true;
+  return IntCast<Position>(stream_size);
 }
 
 }  // namespace riegeli

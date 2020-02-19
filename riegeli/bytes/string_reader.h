@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -38,7 +39,7 @@ class StringReaderBase : public Reader {
 
   bool SupportsRandomAccess() const override { return true; }
   bool SupportsSize() const override { return true; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   explicit StringReaderBase(InitiallyClosed) noexcept

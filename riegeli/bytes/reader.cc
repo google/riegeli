@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/canonical_errors.h"
@@ -198,8 +199,9 @@ bool Reader::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool Reader::Size(Position* size) {
-  return Fail(UnimplementedError("Reader::Size() not supported"));
+absl::optional<Position> Reader::Size() {
+  Fail(UnimplementedError("Reader::Size() not supported"));
+  return absl::nullopt;
 }
 
 }  // namespace riegeli

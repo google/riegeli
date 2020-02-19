@@ -88,7 +88,7 @@ class IstreamReaderBase : public BufferedReader {
   bool Sync() override;
   bool SupportsRandomAccess() const override { return random_access_; }
   bool SupportsSize() const override { return random_access_; }
-  bool Size(Position* size) override;
+  absl::optional<Position> Size() override;
 
  protected:
   IstreamReaderBase() noexcept {}

@@ -159,27 +159,30 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool OstreamWriterBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> OstreamWriterBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("OstreamWriterBase::Size() not supported"));
+    Fail(UnimplementedError("OstreamWriterBase::Size() not supported"));
+    return absl::nullopt;
   }
   std::ostream* const dest = dest_stream();
   errno = 0;
   dest->seekp(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(dest->fail())) {
-    return FailOperation("ostream::seekp()");
+    FailOperation("ostream::seekp()");
+    return absl::nullopt;
   }
   const std::streamoff stream_size = dest->tellp();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
-    return FailOperation("ostream::tellp()");
+    FailOperation("ostream::tellp()");
+    return absl::nullopt;
   }
-  *size = UnsignedMax(IntCast<Position>(stream_size), pos());
   dest->seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(dest->fail())) {
-    return FailOperation("ostream::seekp()");
+    FailOperation("ostream::seekp()");
+    return absl::nullopt;
   }
-  return true;
+  return UnsignedMax(IntCast<Position>(stream_size), pos());
 }
 
 }  // namespace riegeli

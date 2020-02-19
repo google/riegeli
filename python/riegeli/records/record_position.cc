@@ -33,6 +33,7 @@
 #include "absl/hash/hash.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/records/record_position.h"
@@ -70,28 +71,25 @@ extern "C" PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
           &chunk_begin_arg, &record_index_arg))) {
     return nullptr;
   }
-  Position chunk_begin;
-  if (ABSL_PREDICT_FALSE(!PositionFromPython(chunk_begin_arg, &chunk_begin))) {
-    return nullptr;
-  }
-  Position record_index;
-  if (ABSL_PREDICT_FALSE(
-          !PositionFromPython(record_index_arg, &record_index))) {
-    return nullptr;
-  }
-  if (ABSL_PREDICT_FALSE(chunk_begin > std::numeric_limits<uint64_t>::max()) ||
-      ABSL_PREDICT_FALSE(record_index >
-                         std::numeric_limits<uint64_t>::max() - chunk_begin)) {
+  const absl::optional<Position> chunk_begin =
+      PositionFromPython(chunk_begin_arg);
+  if (ABSL_PREDICT_FALSE(chunk_begin == absl::nullopt)) return nullptr;
+  const absl::optional<Position> record_index =
+      PositionFromPython(record_index_arg);
+  if (ABSL_PREDICT_FALSE(record_index == absl::nullopt)) return nullptr;
+  if (ABSL_PREDICT_FALSE(*chunk_begin > std::numeric_limits<uint64_t>::max()) ||
+      ABSL_PREDICT_FALSE(*record_index >
+                         std::numeric_limits<uint64_t>::max() - *chunk_begin)) {
     PyErr_Format(PyExc_OverflowError, "RecordPosition overflow: %llu/%llu",
-                 static_cast<unsigned long long>(chunk_begin),
-                 static_cast<unsigned long long>(record_index));
+                 static_cast<unsigned long long>(*chunk_begin),
+                 static_cast<unsigned long long>(*record_index));
     return nullptr;
   }
   std::unique_ptr<PyRecordPositionObject, Deleter> self(
       reinterpret_cast<PyRecordPositionObject*>(cls->tp_alloc(cls, 0)));
   if (ABSL_PREDICT_FALSE(self == nullptr)) return nullptr;
   self->record_position.emplace(RecordPosition(
-      IntCast<uint64_t>(chunk_begin), IntCast<uint64_t>(record_index)));
+      IntCast<uint64_t>(*chunk_begin), IntCast<uint64_t>(*record_index)));
   return self.release();
 }
 

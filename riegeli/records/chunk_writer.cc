@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -84,13 +85,13 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
                                                  Position chunk_begin,
                                                  Position chunk_end,
                                                  Writer* dest) {
-  Position size;
-  if (!src->Size(&size)) {
+  const absl::optional<Position> size = src->Size();
+  if (size == absl::nullopt) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Getting section size failed: " << src->status();
   }
   RIEGELI_ASSERT_EQ(src->pos(), 0u) << "Non-zero section reader position";
-  while (src->pos() < size) {
+  while (src->pos() < *size) {
     if (internal::IsBlockBoundary(pos_)) {
       internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
                                          IntCast<uint64_t>(chunk_end - pos_));
@@ -101,7 +102,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
       pos_ += block_header.size();
     }
     const Position length =
-        UnsignedMin(size - src->pos(), internal::RemainingInBlock(pos_));
+        UnsignedMin(*size - src->pos(), internal::RemainingInBlock(pos_));
     if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, length))) return Fail(*dest);
     pos_ += length;
   }

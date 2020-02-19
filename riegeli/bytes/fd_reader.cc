@@ -205,15 +205,15 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-bool FdReaderBase::Size(Position* size) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<Position> FdReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const int src = src_fd();
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
-    return FailOperation("fstat()");
+    FailOperation("fstat()");
+    return absl::nullopt;
   }
-  *size = IntCast<Position>(stat_info.st_size);
-  return true;
+  return IntCast<Position>(stat_info.st_size);
 }
 
 bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,

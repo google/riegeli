@@ -29,6 +29,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
@@ -100,41 +101,41 @@ Status DescribeSimpleChunk(const Chunk& chunk,
   // Based on `SimpleDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
 
-  uint8_t compression_type_byte;
-  if (ABSL_PREDICT_FALSE(!ReadByte(&chunk_reader, &compression_type_byte))) {
+  const absl::optional<uint8_t> compression_type_byte = ReadByte(&chunk_reader);
+  if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     return DataLossError("Reading compression type failed");
   }
   const CompressionType compression_type =
-      static_cast<CompressionType>(compression_type_byte);
+      static_cast<CompressionType>(*compression_type_byte);
   simple_chunk->set_compression_type(
       static_cast<summary::CompressionType>(compression_type));
 
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
-    uint64_t sizes_size;
-    if (ABSL_PREDICT_FALSE(!ReadVarint64(&chunk_reader, &sizes_size))) {
+    const absl::optional<uint64_t> sizes_size = ReadVarint64(&chunk_reader);
+    if (ABSL_PREDICT_FALSE(sizes_size == absl::nullopt)) {
       return DataLossError("Reading size of sizes failed");
     }
 
-    if (ABSL_PREDICT_FALSE(sizes_size > std::numeric_limits<Position>::max() -
-                                            chunk_reader.pos())) {
+    if (ABSL_PREDICT_FALSE(*sizes_size > std::numeric_limits<Position>::max() -
+                                             chunk_reader.pos())) {
       return ResourceExhaustedError("Size of sizes too large");
     }
     internal::Decompressor<LimitingReader<>> sizes_decompressor(
-        std::forward_as_tuple(&chunk_reader, chunk_reader.pos() + sizes_size),
+        std::forward_as_tuple(&chunk_reader, chunk_reader.pos() + *sizes_size),
         compression_type);
     if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
       return sizes_decompressor.status();
     }
     while (IntCast<size_t>(simple_chunk->record_sizes_size()) <
            chunk.header.num_records()) {
-      uint64_t size;
-      if (ABSL_PREDICT_FALSE(
-              !ReadVarint64(sizes_decompressor.reader(), &size))) {
+      const absl::optional<uint64_t> size =
+          ReadVarint64(sizes_decompressor.reader());
+      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         return !sizes_decompressor.reader()->healthy()
                    ? sizes_decompressor.reader()->status()
                    : DataLossError("Reading record size failed");
       }
-      simple_chunk->add_record_sizes(size);
+      simple_chunk->add_record_sizes(*size);
     }
     if (ABSL_PREDICT_FALSE(!sizes_decompressor.VerifyEndAndClose())) {
       return sizes_decompressor.status();
@@ -170,12 +171,13 @@ Status DescribeTransposedChunk(const Chunk& chunk,
     }
   } else {
     // Based on `TransposeDecoder::Decode()`.
-    uint8_t compression_type_byte;
-    if (ABSL_PREDICT_FALSE(!ReadByte(&chunk_reader, &compression_type_byte))) {
+    const absl::optional<uint8_t> compression_type_byte =
+        ReadByte(&chunk_reader);
+    if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
       return DataLossError("Reading compression type failed");
     }
     transposed_chunk->set_compression_type(
-        static_cast<summary::CompressionType>(compression_type_byte));
+        static_cast<summary::CompressionType>(*compression_type_byte));
   }
   return OkStatus();
 }
@@ -186,9 +188,9 @@ void DescribeFile(absl::string_view filename) {
             << absl::Utf8SafeCEscape(filename) << "\"\n";
   DefaultChunkReader<FdReader<>> chunk_reader(
       std::forward_as_tuple(filename, O_RDONLY));
-  Position size;
-  if (chunk_reader.Size(&size)) {
-    std::cout << "  file_size: " << size << "\n";
+  const absl::optional<Position> size = chunk_reader.Size();
+  if (size != absl::nullopt) {
+    std::cout << "  file_size: " << *size << "\n";
   }
   google::protobuf::TextFormat::Printer printer;
   printer.SetInitialIndentLevel(2);
