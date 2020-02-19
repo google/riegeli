@@ -240,6 +240,10 @@ _PARAMETERIZE_BY_RANDOM_ACCESS_AND_PARALLELISM = (
     parameterized.named_parameters(
         combine_named_parameters(_RANDOM_ACCESS_VALUES, _PARALLELISM_VALUES)))
 
+_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM = (
+    parameterized.named_parameters(
+        combine_named_parameters(_FILE_SPEC_VALUES, _PARALLELISM_VALUES)))
+
 _PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM = (
     parameterized.named_parameters(
         combine_named_parameters(_FILE_SPEC_VALUES, _RANDOM_ACCESS_VALUES,
@@ -563,12 +567,10 @@ class RecordsTest(parameterized.TestCase):
               records_test_pb2.SimpleMessage(id=i, payload=b''))
         self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
 
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_seek(self, file_spec, random_access, parallelism):
-    if not random_access:
-      return
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
+  def test_seek(self, file_spec, parallelism):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
@@ -623,12 +625,10 @@ class RecordsTest(parameterized.TestCase):
         self.assertGreater(reader.pos, keys[10])
         self.assertLessEqual(reader.pos, keys[11])
 
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_seek_numeric(self, file_spec, random_access, parallelism):
-    if not random_access:
-      return
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
+  def test_seek_numeric(self, file_spec, parallelism):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
