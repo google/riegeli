@@ -1056,30 +1056,31 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   } while (false)
 
 // Decode string value from `*node` to `*dest`.
-#define STRING_CALLBACK(tag_length)                                           \
-  do {                                                                        \
-    node->buffer->Pull(kMaxLengthVarint32);                                   \
-    const char* cursor = node->buffer->cursor();                              \
-    const absl::optional<uint32_t> length =                                   \
-        ReadVarint32(&cursor, node->buffer->limit());                         \
-    if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {                        \
-      return Fail(DataLossError("Reading string length failed"));             \
-    }                                                                         \
-    const size_t length_length = PtrDistance(node->buffer->cursor(), cursor); \
-    if (ABSL_PREDICT_FALSE(*length > std::numeric_limits<uint32_t>::max() -   \
-                                         length_length)) {                    \
-      return Fail(DataLossError("String length overflow"));                   \
-    }                                                                         \
-    if (ABSL_PREDICT_FALSE(                                                   \
-            !node->buffer->CopyTo(dest, length_length + size_t{*length}))) {  \
-      if (!dest->healthy()) return Fail(*dest);                               \
-      return Fail(*node->buffer,                                              \
-                  DataLossError("Reading string field failed"));              \
-    }                                                                         \
-    if (ABSL_PREDICT_FALSE(!dest->Write(                                      \
-            absl::string_view(node->tag_data.data, tag_length)))) {           \
-      return Fail(*dest);                                                     \
-    }                                                                         \
+#define STRING_CALLBACK(tag_length)                                  \
+  do {                                                               \
+    node->buffer->Pull(kMaxLengthVarint32);                          \
+    const absl::optional<ReadFromStringResult<uint32_t>> length =    \
+        ReadVarint32(node->buffer->cursor(), node->buffer->limit()); \
+    if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {               \
+      return Fail(DataLossError("Reading string length failed"));    \
+    }                                                                \
+    const size_t length_length =                                     \
+        PtrDistance(node->buffer->cursor(), length->cursor);         \
+    if (ABSL_PREDICT_FALSE(length->value >                           \
+                           std::numeric_limits<uint32_t>::max() -    \
+                               length_length)) {                     \
+      return Fail(DataLossError("String length overflow"));          \
+    }                                                                \
+    if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(                    \
+            dest, length_length + size_t{length->value}))) {         \
+      if (!dest->healthy()) return Fail(*dest);                      \
+      return Fail(*node->buffer,                                     \
+                  DataLossError("Reading string field failed"));     \
+    }                                                                \
+    if (ABSL_PREDICT_FALSE(!dest->Write(                             \
+            absl::string_view(node->tag_data.data, tag_length)))) {  \
+      return Fail(*dest);                                            \
+    }                                                                \
   } while (false)
 
 inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
@@ -1353,13 +1354,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     if (skipped_submessage_level == 0) {
       field_included = FieldIncluded::kExistenceOnly;
       for (const SubmessageStackElement& elem : submessage_stack) {
-        const char* cursor = elem.tag_data.data;
-        const absl::optional<uint32_t> tag =
-            ReadVarint32(&cursor, elem.tag_data.data + kMaxLengthVarint32);
+        const absl::optional<ReadFromStringResult<uint32_t>> tag = ReadVarint32(
+            elem.tag_data.data, elem.tag_data.data + kMaxLengthVarint32);
         if (tag == absl::nullopt) RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
         const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
                                   Context::IncludedField>::const_iterator iter =
-            context->include_fields.find(std::make_pair(field_id, *tag >> 3));
+            context->include_fields.find(
+                std::make_pair(field_id, tag->value >> 3));
         if (iter == context->include_fields.end()) {
           field_included = FieldIncluded::kNo;
           break;
@@ -1382,13 +1383,13 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         static_cast<internal::WireType>(node_template->tag & 7) ==
         internal::WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
-      const char* cursor = node->tag_data.data;
-      const absl::optional<uint32_t> tag =
-          ReadVarint32(&cursor, node->tag_data.data + kMaxLengthVarint32);
+      const absl::optional<ReadFromStringResult<uint32_t>> tag = ReadVarint32(
+          node->tag_data.data, node->tag_data.data + kMaxLengthVarint32);
       if (tag == absl::nullopt) RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
       const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
                                 Context::IncludedField>::const_iterator iter =
-          context->include_fields.find(std::make_pair(field_id, *tag >> 3));
+          context->include_fields.find(
+              std::make_pair(field_id, tag->value >> 3));
       if (iter == context->include_fields.end()) {
         field_included = FieldIncluded::kNo;
       } else {

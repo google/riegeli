@@ -340,14 +340,14 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
         uint64_t value[2];
         static_assert(sizeof(value) >= kMaxLengthVarint64,
                       "value too small to hold a varint64");
-        char* const value_end =
+        const absl::optional<char*> value_end =
             CopyVarint64(record, reinterpret_cast<char*>(value));
-        if (value_end == nullptr) {
+        if (value_end == absl::nullopt) {
           RIEGELI_ASSERT_UNREACHABLE()
               << "Invalid varint: " << record->status();
         }
         const size_t value_length =
-            PtrDistance(reinterpret_cast<char*>(value), value_end);
+            PtrDistance(reinterpret_cast<char*>(value), *value_end);
         if (reinterpret_cast<const unsigned char*>(value)[0] <=
             kMaxVarintInline) {
           encoded_tags_.push_back(GetPosInTagsList(
