@@ -46,7 +46,7 @@ uint64_t Hash(absl::string_view data) {
 }
 
 uint64_t Hash(const Chain& data) {
-  if (absl::optional<absl::string_view> flat = data.TryFlat()) {
+  if (const absl::optional<absl::string_view> flat = data.TryFlat()) {
     return Hash(*flat);
   }
   absl::InlinedVector<highwayhash::StringView, 16> fragments;

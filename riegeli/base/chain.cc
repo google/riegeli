@@ -190,9 +190,7 @@ class Chain::FlatCordRef {
   absl::Cord src_;
 };
 
-inline Chain::FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {
-  absl::string_view fragment;
-}
+inline Chain::FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {}
 
 inline Chain::FlatCordRef::FlatCordRef(absl::Cord&& src)
     : src_(std::move(src)) {}

@@ -158,7 +158,7 @@ Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
 Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
                       ParseOptions options) {
   if (src.size() <= kMaxBytesToCopy) {
-    if (absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
