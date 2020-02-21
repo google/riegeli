@@ -20,6 +20,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -76,6 +78,16 @@ Status ParseFromReader(std::tuple<SrcArgs...> src_args,
                        google::protobuf::MessageLite* dest,
                        ParseOptions options = ParseOptions());
 
+// Reads a message in binary format from the given `absl::string_view`. If
+// successful, the entire input will be consumed.
+//
+// Returns status:
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
+Status ParseFromString(absl::string_view src,
+                       google::protobuf::MessageLite* dest,
+                       ParseOptions options = ParseOptions());
+
 // Reads a message in binary format from the given `Chain`. If successful, the
 // entire input will be consumed.
 //
@@ -84,6 +96,15 @@ Status ParseFromReader(std::tuple<SrcArgs...> src_args,
 //  * `!status.ok()` - failure (`*dest` is unspecified)
 Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
                       ParseOptions options = ParseOptions());
+
+// Reads a message in binary format from the given `absl::Cord`. If successful,
+// the entire input will be consumed.
+//
+// Returns status:
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
+Status ParseFromCord(const absl::Cord& src, google::protobuf::MessageLite* dest,
+                     ParseOptions options = ParseOptions());
 
 // Implementation details follow.
 

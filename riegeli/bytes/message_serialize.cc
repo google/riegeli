@@ -18,9 +18,11 @@
 #include <stdint.h>
 
 #include <limits>
+#include <string>
 #include <tuple>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
@@ -30,6 +32,8 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
+#include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -126,6 +130,16 @@ Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 
 }  // namespace internal
 
+Status SerializeToString(const google::protobuf::MessageLite& src,
+                         std::string* dest, SerializeOptions options) {
+  dest->clear();
+  return SerializeToWriter<StringWriter<>>(
+      src,
+      std::forward_as_tuple(
+          dest, StringWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      options);
+}
+
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
                         SerializeOptions options) {
   dest->Clear();
@@ -133,6 +147,16 @@ Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
       src,
       std::forward_as_tuple(
           dest, ChainWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      options);
+}
+
+Status SerializeToCord(const google::protobuf::MessageLite& src,
+                       absl::Cord* dest, SerializeOptions options) {
+  dest->Clear();
+  return SerializeToWriter<CordWriter<>>(
+      src,
+      std::forward_as_tuple(
+          dest, CordWriterBase::Options().set_size_hint(src.ByteSizeLong())),
       options);
 }
 

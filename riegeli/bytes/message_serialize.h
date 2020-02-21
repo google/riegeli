@@ -15,11 +15,13 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -94,6 +96,16 @@ Status SerializeToWriter(const google::protobuf::MessageLite& src,
                          std::tuple<DestArgs...> dest_args,
                          SerializeOptions options = SerializeOptions());
 
+// Writes the message in binary format to the given `std::string`, clearing it
+// first.
+//
+// Returns status:
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
+Status SerializeToString(const google::protobuf::MessageLite& src,
+                         std::string* dest,
+                         SerializeOptions options = SerializeOptions());
+
 // Writes the message in binary format to the given `Chain`, clearing it first.
 //
 // Returns status:
@@ -101,6 +113,16 @@ Status SerializeToWriter(const google::protobuf::MessageLite& src,
 //  * `!status.ok()` - failure (`*dest` is unspecified)
 Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
                         SerializeOptions options = SerializeOptions());
+
+// Writes the message in binary format to the given `absl::Cord`, clearing it
+// first.
+//
+// Returns status:
+//  * `status.ok()`  - success (`*dest` is filled)
+//  * `!status.ok()` - failure (`*dest` is unspecified)
+Status SerializeToCord(const google::protobuf::MessageLite& src,
+                       absl::Cord* dest,
+                       SerializeOptions options = SerializeOptions());
 
 // Implementation details follow.
 

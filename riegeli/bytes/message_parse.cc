@@ -20,7 +20,9 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
@@ -29,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -128,12 +131,12 @@ Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
   if (src->available() <= kMaxBytesToCopy && src->SupportsSize()) {
     const absl::optional<Position> size = src->Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src->status();
-    if (src->pos() + src->available() == *size &&
-        ABSL_PREDICT_TRUE(src->available() <=
-                          size_t{std::numeric_limits<int>::max()})) {
+    if (src->pos() + src->available() == *size) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      bool ok = dest->ParsePartialFromArray(src->cursor(),
+      bool ok = ABSL_PREDICT_TRUE(src->available() <=
+                                  size_t{std::numeric_limits<int>::max()}) &&
+                dest->ParsePartialFromArray(src->cursor(),
                                             IntCast<int>(src->available()));
       src->move_cursor(src->available());
       if (ABSL_PREDICT_FALSE(!ok)) {
@@ -154,6 +157,18 @@ Status ParseFromReaderImpl(Reader* src, google::protobuf::MessageLite* dest,
 }
 
 }  // namespace internal
+
+Status ParseFromString(absl::string_view src,
+                       google::protobuf::MessageLite* dest,
+                       ParseOptions options) {
+  if (ABSL_PREDICT_FALSE(
+          src.size() > size_t{std::numeric_limits<int>::max()} ||
+          !dest->ParsePartialFromArray(src.data(), IntCast<int>(src.size())))) {
+    return DataLossError(
+        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+  }
+  return CheckInitialized(dest, options);
+}
 
 Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
                       ParseOptions options) {
@@ -179,6 +194,13 @@ Status ParseFromChain(const Chain& src, google::protobuf::MessageLite* dest,
         absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
   }
   return CheckInitialized(dest, options);
+}
+
+Status ParseFromCord(const absl::Cord& src, google::protobuf::MessageLite* dest,
+                     ParseOptions options) {
+  CordReader<> reader(&src);
+  // Do not bother with `reader.Close()`. A `CordReader` can never fail.
+  return internal::ParseFromReaderImpl(&reader, dest, options);
 }
 
 }  // namespace riegeli
