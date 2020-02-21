@@ -27,13 +27,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -165,7 +164,7 @@ ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
          value_parser->options_parser_->options_) {
       if (option.key == key) {
         if (ABSL_PREDICT_FALSE(option.seen)) {
-          return value_parser->Fail(InvalidArgumentError(absl::StrCat(
+          return value_parser->Fail(absl::InvalidArgumentError(absl::StrCat(
               "Option ", value_parser->key(), " conflicts with option ", key)));
         }
         return true;
@@ -180,7 +179,7 @@ ValueParser::Function ValueParser::FailIfAnySeen() {
     for (const OptionsParser::Option& option :
          value_parser->options_parser_->options_) {
       if (ABSL_PREDICT_FALSE(option.seen)) {
-        return value_parser->Fail(InvalidArgumentError(
+        return value_parser->Fail(absl::InvalidArgumentError(
             absl::StrCat("Option ", value_parser->key(), " must be first")));
       }
     }
@@ -228,16 +227,16 @@ bool OptionsParser::FromString(absl::string_view text) {
             absl::StrAppend(&message, ", ", iter->key);
           }
         }
-        return Fail(InvalidArgumentError(message));
+        return Fail(absl::InvalidArgumentError(message));
       }
       if (ABSL_PREDICT_FALSE(option->seen)) {
-        return Fail(InvalidArgumentError(
+        return Fail(absl::InvalidArgumentError(
             absl::StrCat("Option ", key, " is present more than once")));
       }
       ValueParser value_parser(this, key, value);
       if (ABSL_PREDICT_FALSE(!option->function(&value_parser))) {
         if (!value_parser.healthy()) return Fail(value_parser);
-        return Fail(InvalidArgumentError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Option ", key, ": ",
             "invalid value: ", value.empty() ? "(empty)" : value,
             value_parser.valid_values_.empty() ? "" : ", valid values: ",

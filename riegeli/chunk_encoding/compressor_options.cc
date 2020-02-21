@@ -18,10 +18,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -43,7 +43,7 @@ constexpr int CompressorOptions::kMaxWindowLog;
 constexpr int CompressorOptions::kDefaultWindowLog;
 #endif
 
-Status CompressorOptions::FromString(absl::string_view text) {
+absl::Status CompressorOptions::FromString(absl::string_view text) {
   // Set just `compression_type_` first because other parsers depend on
   // `compression_type_`.
   {
@@ -132,7 +132,7 @@ Status CompressorOptions::FromString(absl::string_view text) {
   if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
     return options_parser.status();
   }
-  return OkStatus();
+  return absl::OkStatus();
 }
 
 int CompressorOptions::window_log() const {

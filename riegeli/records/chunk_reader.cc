@@ -21,13 +21,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -48,7 +47,7 @@ void DefaultChunkReaderBase::Initialize(Reader* src) {
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
-    Fail(DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
+    Fail(absl::DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
   }
 }
 
@@ -62,7 +61,7 @@ void DefaultChunkReaderBase::Done() {
            "have been read for the chunk to be considered incomplete";
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = src->pos();
-    Fail(DataLossError(
+    Fail(absl::DataLossError(
         absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
                      pos_, " with length ", recoverable_pos_ - pos_)));
   }
@@ -78,7 +77,7 @@ inline bool DefaultChunkReaderBase::FailSeeking(Reader* src, Position new_pos) {
   if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
   recoverable_ = Recoverable::kFindChunk;
   recoverable_pos_ = src->pos();
-  return Fail(DataLossError(absl::StrCat(
+  return Fail(absl::DataLossError(absl::StrCat(
       "Position ", new_pos, " exceeds file size: ", recoverable_pos_)));
 }
 
@@ -109,7 +108,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
           recoverable_ = Recoverable::kFindChunk;
           recoverable_pos_ = src->pos();
         }
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid Riegeli/records file: chunk boundary is ", pos_,
             " but block header at ", block_begin,
             " implies a different previous chunk boundary: ",
@@ -122,7 +121,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
                              chunk_end - block_begin)) {
         recoverable_ = Recoverable::kFindChunk;
         recoverable_pos_ = src->pos();
-        return Fail(DataLossError(
+        return Fail(absl::DataLossError(
             absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
                          chunk_end, " but block header at ", block_begin,
                          " implies a different next chunk boundary: ",
@@ -146,7 +145,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
     // next chunk is believed to be present after this chunk.
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = chunk_end;
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::DataLossError(absl::StrCat(
         "Corrupted Riegeli/records file: chunk data hash mismatch (computed 0x",
         absl::Hex(computed_data_hash, absl::PadSpec::kZeroPad16), ", stored 0x",
         absl::Hex(chunk_.header.data_hash(), absl::PadSpec::kZeroPad16),
@@ -175,7 +174,7 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
     recoverable_ = Recoverable::kHaveChunk;
     recoverable_pos_ = pos_;
     pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::DataLossError(absl::StrCat(
         "Riegeli/records file ended at ", pos_,
         " but has grown and will be skipped until ", recoverable_pos_)));
   }
@@ -216,7 +215,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
           recoverable_ = Recoverable::kFindChunk;
           recoverable_pos_ = src->pos();
         }
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid Riegeli/records file: chunk boundary is ", pos_,
             " but block header at ", block_begin,
             " implies a different previous chunk boundary: ",
@@ -242,7 +241,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                          chunk_.header.stored_header_hash())) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::DataLossError(absl::StrCat(
         "Corrupted Riegeli/records file: chunk header hash mismatch "
         "(computed 0x",
         absl::Hex(computed_header_hash, absl::PadSpec::kZeroPad16),
@@ -260,7 +259,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                            chunk_end - block_begin)) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(
+      return Fail(absl::DataLossError(
           absl::StrCat("Invalid Riegeli/records file: chunk boundary is ",
                        chunk_end, " but block header at ", block_begin,
                        " implies a different next chunk boundary: ",
@@ -276,7 +275,7 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
                            chunk_.header.decoded_data_size() != 0)) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(
+      return Fail(absl::DataLossError(
           "Invalid Riegeli/records file: missing file signature"));
     }
   }
@@ -299,7 +298,7 @@ inline bool DefaultChunkReaderBase::ReadBlockHeader() {
                          block_header_.stored_header_hash())) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = src->pos();
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::DataLossError(absl::StrCat(
         "Corrupted Riegeli/records file: block header hash mismatch "
         "(computed 0x",
         absl::Hex(computed_header_hash, absl::PadSpec::kZeroPad16),
@@ -406,7 +405,8 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
     recoverable_pos_ = pos_;
-    return Fail(DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
+    return Fail(
+        absl::DataLossError(absl::StrCat("Invalid chunk boundary: ", pos_)));
   }
   return true;
 }
@@ -473,7 +473,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       if (ABSL_PREDICT_FALSE(block_header_.previous_chunk() > block_begin)) {
         recoverable_ = Recoverable::kFindChunk;
         recoverable_pos_ = src->pos();
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid Riegeli/records file: block header at ", block_begin,
             " implies a negative previous chunk boundary: -",
             block_header_.previous_chunk() - block_begin)));
@@ -483,7 +483,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(chunk_begin))) {
       recoverable_ = Recoverable::kFindChunk;
       recoverable_pos_ = src->pos();
-      return Fail(DataLossError(absl::StrCat(
+      return Fail(absl::DataLossError(absl::StrCat(
           "Invalid Riegeli/records file: block header at ", block_begin,
           " implies an invalid chunk boundary: ", chunk_begin)));
     }

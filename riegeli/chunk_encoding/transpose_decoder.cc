@@ -29,10 +29,10 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/object.h"
@@ -422,11 +422,11 @@ bool TransposeDecoder::Decode(Reader* src, uint64_t num_records,
          "non-zero destination position";
   Object::Reset(kInitiallyOpen);
   if (ABSL_PREDICT_FALSE(num_records > limits->max_size())) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail(absl::ResourceExhaustedError("Too many records"));
   }
   if (ABSL_PREDICT_FALSE(decoded_data_size >
                          std::numeric_limits<size_t>::max())) {
-    return Fail(ResourceExhaustedError("Records too large"));
+    return Fail(absl::ResourceExhaustedError("Records too large"));
   }
 
   Context context;
@@ -442,7 +442,7 @@ bool TransposeDecoder::Decode(Reader* src, uint64_t num_records,
       << "Decoded data size larger than expected";
   if (field_projection.includes_all() &&
       ABSL_PREDICT_FALSE(dest->pos() != decoded_data_size)) {
-    return Fail(DataLossError("Decoded data size smaller than expected"));
+    return Fail(absl::DataLossError("Decoded data size smaller than expected"));
   }
   return true;
 }
@@ -491,18 +491,18 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
 
   const absl::optional<uint8_t> compression_type_byte = ReadByte(src);
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-    return Fail(*src, DataLossError("Reading compression type failed"));
+    return Fail(*src, absl::DataLossError("Reading compression type failed"));
   }
   context->compression_type =
       static_cast<CompressionType>(*compression_type_byte);
 
   const absl::optional<uint64_t> header_size = ReadVarint64(src);
   if (ABSL_PREDICT_FALSE(header_size == absl::nullopt)) {
-    return Fail(*src, DataLossError("Reading header size failed"));
+    return Fail(*src, absl::DataLossError("Reading header size failed"));
   }
   Chain header;
   if (ABSL_PREDICT_FALSE(!src->Read(&header, *header_size))) {
-    return Fail(*src, DataLossError("Reading header failed"));
+    return Fail(*src, absl::DataLossError("Reading header failed"));
   }
   internal::Decompressor<ChainReader<>> header_decompressor(
       std::forward_as_tuple(&header), context->compression_type);
@@ -532,7 +532,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
       ReadVarint32(header_decompressor.reader());
   if (ABSL_PREDICT_FALSE(state_machine_size == absl::nullopt)) {
     return Fail(*header_decompressor.reader(),
-                DataLossError("Reading state machine size failed"));
+                absl::DataLossError("Reading state machine size failed"));
   }
   // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
   // TODO: Handle overflow.
@@ -549,7 +549,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
         ReadVarint32(header_decompressor.reader());
     if (ABSL_PREDICT_FALSE(tag == absl::nullopt)) {
       return Fail(*header_decompressor.reader(),
-                  DataLossError("Reading field tag failed"));
+                  absl::DataLossError("Reading field tag failed"));
     }
     tags.push_back(*tag);
     if (ValidTag(*tag) && internal::HasSubtype(*tag)) ++num_subtypes;
@@ -561,7 +561,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
         ReadVarint32(header_decompressor.reader());
     if (ABSL_PREDICT_FALSE(next_node == absl::nullopt)) {
       return Fail(*header_decompressor.reader(),
-                  DataLossError("Reading next node index failed"));
+                  absl::DataLossError("Reading next node index failed"));
     }
     next_node_indices.push_back(*next_node);
   }
@@ -569,7 +569,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   if (ABSL_PREDICT_FALSE(
           !header_decompressor.reader()->Read(&subtypes, num_subtypes))) {
     return Fail(*header_decompressor.reader(),
-                DataLossError("Reading subtypes failed"));
+                absl::DataLossError("Reading subtypes failed"));
   }
   size_t subtype_index = 0;
   for (size_t i = 0; i < *state_machine_size; ++i) {
@@ -586,10 +586,10 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
             ReadVarint32(header_decompressor.reader());
         if (ABSL_PREDICT_FALSE(buffer_index == absl::nullopt)) {
           return Fail(*header_decompressor.reader(),
-                      DataLossError("Reading buffer index failed"));
+                      absl::DataLossError("Reading buffer index failed"));
         }
         if (ABSL_PREDICT_FALSE(*buffer_index >= num_buffers)) {
-          return Fail(DataLossError("Buffer index too large"));
+          return Fail(absl::DataLossError("Buffer index too large"));
         }
         if (projection_enabled) {
           const uint32_t bucket = bucket_indices[*buffer_index];
@@ -633,7 +633,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
           subtype = internal::Subtype::kLengthDelimitedEndOfSubmessage;
         }
         if (ABSL_PREDICT_FALSE((!ValidTag(tag)))) {
-          return Fail(DataLossError("Invalid tag"));
+          return Fail(absl::DataLossError("Invalid tag"));
         }
         char* const tag_end =
             WriteVarint32(tag, state_machine_node.tag_data.data);
@@ -648,10 +648,10 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
                 ReadVarint32(header_decompressor.reader());
             if (ABSL_PREDICT_FALSE(buffer_index == absl::nullopt)) {
               return Fail(*header_decompressor.reader(),
-                          DataLossError("Reading buffer index failed"));
+                          absl::DataLossError("Reading buffer index failed"));
             }
             if (ABSL_PREDICT_FALSE(*buffer_index >= num_buffers)) {
-              return Fail(DataLossError("Buffer index too large"));
+              return Fail(absl::DataLossError("Buffer index too large"));
             }
             const uint32_t bucket = bucket_indices[*buffer_index];
             context->node_templates[i].bucket_index = bucket;
@@ -672,10 +672,10 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
                 ReadVarint32(header_decompressor.reader());
             if (ABSL_PREDICT_FALSE(buffer_index == absl::nullopt)) {
               return Fail(*header_decompressor.reader(),
-                          DataLossError("Reading buffer index failed"));
+                          absl::DataLossError("Reading buffer index failed"));
             }
             if (ABSL_PREDICT_FALSE(*buffer_index >= num_buffers)) {
-              return Fail(DataLossError("Buffer index too large"));
+              return Fail(absl::DataLossError("Buffer index too large"));
             }
             state_machine_node.buffer = &context->buffers[*buffer_index];
           }
@@ -684,7 +684,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
                                         tag_length, projection_enabled);
           if (ABSL_PREDICT_FALSE(state_machine_node.callback_type ==
                                  internal::CallbackType::kUnknown)) {
-            return Fail(DataLossError("Invalid node"));
+            return Fail(absl::DataLossError("Invalid node"));
           }
         }
         // Store subtype right past tag in case this is inline numeric.
@@ -707,7 +707,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
           state_machine_node.callback_type | internal::CallbackType::kImplicit;
     }
     if (ABSL_PREDICT_FALSE(next_node_id >= *state_machine_size)) {
-      return Fail(DataLossError("Node index too large"));
+      return Fail(absl::DataLossError("Node index too large"));
     }
 
     state_machine_node.next_node = &state_machine_nodes[next_node_id];
@@ -717,7 +717,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     // If non-proto state exists then the last buffer is the
     // `nonproto_lengths` buffer.
     if (ABSL_PREDICT_FALSE(num_buffers == 0)) {
-      return Fail(DataLossError("Missing buffer for non-proto records"));
+      return Fail(absl::DataLossError("Missing buffer for non-proto records"));
     }
     if (projection_enabled) {
       const uint32_t bucket = bucket_indices[num_buffers - 1];
@@ -735,10 +735,10 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
       ReadVarint32(header_decompressor.reader());
   if (ABSL_PREDICT_FALSE(first_node == absl::nullopt)) {
     return Fail(*header_decompressor.reader(),
-                DataLossError("Reading first node index failed"));
+                absl::DataLossError("Reading first node index failed"));
   }
   if (ABSL_PREDICT_FALSE(*first_node >= *state_machine_size)) {
-    return Fail(DataLossError("First node index too large"));
+    return Fail(absl::DataLossError("First node index too large"));
   }
   context->first_node = *first_node;
 
@@ -748,7 +748,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
   }
 
   if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(&state_machine_nodes))) {
-    return Fail(DataLossError("Nodes contain an implicit loop"));
+    return Fail(absl::DataLossError("Nodes contain an implicit loop"));
   }
 
   if (ABSL_PREDICT_FALSE(!header_decompressor.VerifyEndAndClose())) {
@@ -766,42 +766,42 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
   const absl::optional<uint32_t> num_buckets = ReadVarint32(header_reader);
   if (ABSL_PREDICT_FALSE(num_buckets == absl::nullopt)) {
     return Fail(*header_reader,
-                DataLossError("Reading number of buckets failed"));
+                absl::DataLossError("Reading number of buckets failed"));
   }
   const absl::optional<uint32_t> num_buffers = ReadVarint32(header_reader);
   if (ABSL_PREDICT_FALSE(num_buffers == absl::nullopt)) {
     return Fail(*header_reader,
-                DataLossError("Reading number of buffers failed"));
+                absl::DataLossError("Reading number of buffers failed"));
   }
   if (ABSL_PREDICT_FALSE(*num_buffers > context->buffers.max_size())) {
-    return Fail(DataLossError("Too many buffers"));
+    return Fail(absl::DataLossError("Too many buffers"));
   }
   if (*num_buckets == 0) {
     if (ABSL_PREDICT_FALSE(*num_buffers != 0)) {
-      return Fail(DataLossError("Too few buckets"));
+      return Fail(absl::DataLossError("Too few buckets"));
     }
     return true;
   }
   context->buffers.reserve(*num_buffers);
   std::vector<internal::Decompressor<ChainReader<Chain>>> bucket_decompressors;
   if (ABSL_PREDICT_FALSE(*num_buckets > bucket_decompressors.max_size())) {
-    return Fail(ResourceExhaustedError("Too many buckets"));
+    return Fail(absl::ResourceExhaustedError("Too many buckets"));
   }
   bucket_decompressors.reserve(*num_buckets);
   for (uint32_t bucket_index = 0; bucket_index < *num_buckets; ++bucket_index) {
     const absl::optional<uint64_t> bucket_length = ReadVarint64(header_reader);
     if (ABSL_PREDICT_FALSE(bucket_length == absl::nullopt)) {
       return Fail(*header_reader,
-                  DataLossError("Reading bucket length failed"));
+                  absl::DataLossError("Reading bucket length failed"));
     }
     if (ABSL_PREDICT_FALSE(*bucket_length >
                            std::numeric_limits<size_t>::max())) {
-      return Fail(ResourceExhaustedError("Bucket too large"));
+      return Fail(absl::ResourceExhaustedError("Bucket too large"));
     }
     Chain bucket;
     if (ABSL_PREDICT_FALSE(
             !src->Read(&bucket, IntCast<size_t>(*bucket_length)))) {
-      return Fail(*src, DataLossError("Reading bucket failed"));
+      return Fail(*src, absl::DataLossError("Reading bucket failed"));
     }
     bucket_decompressors.emplace_back(std::forward_as_tuple(std::move(bucket)),
                                       context->compression_type);
@@ -815,17 +815,17 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
     const absl::optional<uint64_t> buffer_length = ReadVarint64(header_reader);
     if (ABSL_PREDICT_FALSE(buffer_length == absl::nullopt)) {
       return Fail(*header_reader,
-                  DataLossError("Reading buffer length failed"));
+                  absl::DataLossError("Reading buffer length failed"));
     }
     if (ABSL_PREDICT_FALSE(*buffer_length >
                            std::numeric_limits<size_t>::max())) {
-      return Fail(ResourceExhaustedError("Buffer too large"));
+      return Fail(absl::ResourceExhaustedError("Buffer too large"));
     }
     Chain buffer;
     if (ABSL_PREDICT_FALSE(!bucket_decompressors[bucket_index].reader()->Read(
             &buffer, IntCast<size_t>(*buffer_length)))) {
       return Fail(*bucket_decompressors[bucket_index].reader(),
-                  DataLossError("Reading buffer failed"));
+                  absl::DataLossError("Reading buffer failed"));
     }
     context->buffers.emplace_back(std::move(buffer));
     while (!bucket_decompressors[bucket_index].reader()->Pull() &&
@@ -838,7 +838,7 @@ inline bool TransposeDecoder::ParseBuffers(Context* context,
     }
   }
   if (ABSL_PREDICT_FALSE(bucket_index + 1 < *num_buckets)) {
-    return Fail(DataLossError("Too few buckets"));
+    return Fail(absl::DataLossError("Too few buckets"));
   }
   if (ABSL_PREDICT_FALSE(
           !bucket_decompressors[bucket_index].VerifyEndAndClose())) {
@@ -854,22 +854,22 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   const absl::optional<uint32_t> num_buckets = ReadVarint32(header_reader);
   if (ABSL_PREDICT_FALSE(num_buckets == absl::nullopt)) {
     return Fail(*header_reader,
-                DataLossError("Reading number of buckets failed"));
+                absl::DataLossError("Reading number of buckets failed"));
   }
   if (ABSL_PREDICT_FALSE(*num_buckets > context->buckets.max_size())) {
-    return Fail(ResourceExhaustedError("Too many buckets"));
+    return Fail(absl::ResourceExhaustedError("Too many buckets"));
   }
   const absl::optional<uint32_t> num_buffers = ReadVarint32(header_reader);
   if (ABSL_PREDICT_FALSE(num_buffers == absl::nullopt)) {
     return Fail(*header_reader,
-                DataLossError("Reading number of buffers failed"));
+                absl::DataLossError("Reading number of buffers failed"));
   }
   if (ABSL_PREDICT_FALSE(*num_buffers > bucket_indices->max_size())) {
-    return Fail(ResourceExhaustedError("Too many buffers"));
+    return Fail(absl::ResourceExhaustedError("Too many buffers"));
   }
   if (*num_buckets == 0) {
     if (ABSL_PREDICT_FALSE(*num_buffers != 0)) {
-      return Fail(DataLossError("Too few buckets"));
+      return Fail(absl::DataLossError("Too few buckets"));
     }
     return true;
   }
@@ -880,16 +880,16 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
     const absl::optional<uint64_t> bucket_length = ReadVarint64(header_reader);
     if (ABSL_PREDICT_FALSE(bucket_length == absl::nullopt)) {
       return Fail(*header_reader,
-                  DataLossError("Reading bucket length failed"));
+                  absl::DataLossError("Reading bucket length failed"));
     }
     if (ABSL_PREDICT_FALSE(*bucket_length >
                            std::numeric_limits<size_t>::max())) {
-      return Fail(ResourceExhaustedError("Bucket too large"));
+      return Fail(absl::ResourceExhaustedError("Bucket too large"));
     }
     context->buckets.emplace_back();
     if (ABSL_PREDICT_FALSE(!src->Read(&context->buckets.back().compressed_data,
                                       IntCast<size_t>(*bucket_length)))) {
-      return Fail(*src, DataLossError("Reading bucket failed"));
+      return Fail(*src, absl::DataLossError("Reading bucket failed"));
     }
   }
 
@@ -898,22 +898,22 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
   absl::optional<uint64_t> remaining_bucket_size = internal::UncompressedSize(
       context->buckets[0].compressed_data, context->compression_type);
   if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
-    return Fail(DataLossError("Reading uncompressed size failed"));
+    return Fail(absl::DataLossError("Reading uncompressed size failed"));
   }
   for (uint32_t buffer_index = 0; buffer_index < *num_buffers; ++buffer_index) {
     const absl::optional<uint64_t> buffer_length = ReadVarint64(header_reader);
     if (ABSL_PREDICT_FALSE(buffer_length == absl::nullopt)) {
       return Fail(*header_reader,
-                  DataLossError("Reading buffer length failed"));
+                  absl::DataLossError("Reading buffer length failed"));
     }
     if (ABSL_PREDICT_FALSE(*buffer_length >
                            std::numeric_limits<size_t>::max())) {
-      return Fail(ResourceExhaustedError("Buffer too large"));
+      return Fail(absl::ResourceExhaustedError("Buffer too large"));
     }
     context->buckets[bucket_index].buffer_sizes.push_back(
         IntCast<size_t>(*buffer_length));
     if (ABSL_PREDICT_FALSE(*buffer_length > *remaining_bucket_size)) {
-      return Fail(DataLossError("Buffer does not fit in bucket"));
+      return Fail(absl::DataLossError("Buffer does not fit in bucket"));
     }
     *remaining_bucket_size -= *buffer_length;
     bucket_indices->push_back(bucket_index);
@@ -924,15 +924,15 @@ inline bool TransposeDecoder::ParseBuffersForFitering(
           context->buckets[bucket_index].compressed_data,
           context->compression_type);
       if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
-        return Fail(DataLossError("Reading uncompressed size failed"));
+        return Fail(absl::DataLossError("Reading uncompressed size failed"));
       }
     }
   }
   if (ABSL_PREDICT_FALSE(bucket_index + 1 < *num_buckets)) {
-    return Fail(DataLossError("Too few buckets"));
+    return Fail(absl::DataLossError("Too few buckets"));
   }
   if (ABSL_PREDICT_FALSE(*remaining_bucket_size > 0)) {
-    return Fail(DataLossError("End of data expected"));
+    return Fail(absl::DataLossError("End of data expected"));
   }
   return true;
 }
@@ -963,7 +963,7 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
     if (ABSL_PREDICT_FALSE(!bucket.decompressor.reader()->Read(
             &buffer, bucket.buffer_sizes[bucket.buffers.size()]))) {
       Fail(*bucket.decompressor.reader(),
-           DataLossError("Reading buffer failed"));
+           absl::DataLossError("Reading buffer failed"));
       return nullptr;
     }
     bucket.buffers.emplace_back(std::move(buffer));
@@ -1010,7 +1010,26 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   } while (false)
 
 // Decode varint value from `*node` to `*dest`.
-#define VARINT_CALLBACK(tag_length, data_length)                      \
+#define VARINT_CALLBACK(tag_length, data_length)                       \
+  do {                                                                 \
+    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {   \
+      return Fail(*dest);                                              \
+    }                                                                  \
+    dest->move_cursor(tag_length + data_length);                       \
+    char* const buffer = dest->cursor();                               \
+    if (ABSL_PREDICT_FALSE(                                            \
+            !node->buffer->Read(buffer + tag_length, data_length))) {  \
+      return Fail(*node->buffer,                                       \
+                  absl::DataLossError("Reading varint field failed")); \
+    }                                                                  \
+    for (size_t i = 0; i < data_length - 1; ++i) {                     \
+      buffer[tag_length + i] |= 0x80;                                  \
+    }                                                                  \
+    std::memcpy(buffer, node->tag_data.data, tag_length);              \
+  } while (false)
+
+// Decode fixed32 or fixed64 value from `*node` to `*dest`.
+#define FIXED_CALLBACK(tag_length, data_length)                       \
   do {                                                                \
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {  \
       return Fail(*dest);                                             \
@@ -1020,27 +1039,9 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (ABSL_PREDICT_FALSE(                                           \
             !node->buffer->Read(buffer + tag_length, data_length))) { \
       return Fail(*node->buffer,                                      \
-                  DataLossError("Reading varint field failed"));      \
-    }                                                                 \
-    for (size_t i = 0; i < data_length - 1; ++i) {                    \
-      buffer[tag_length + i] |= 0x80;                                 \
+                  absl::DataLossError("Reading fixed field failed")); \
     }                                                                 \
     std::memcpy(buffer, node->tag_data.data, tag_length);             \
-  } while (false)
-
-// Decode fixed32 or fixed64 value from `*node` to `*dest`.
-#define FIXED_CALLBACK(tag_length, data_length)                                \
-  do {                                                                         \
-    if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {           \
-      return Fail(*dest);                                                      \
-    }                                                                          \
-    dest->move_cursor(tag_length + data_length);                               \
-    char* const buffer = dest->cursor();                                       \
-    if (ABSL_PREDICT_FALSE(                                                    \
-            !node->buffer->Read(buffer + tag_length, data_length))) {          \
-      return Fail(*node->buffer, DataLossError("Reading fixed field failed")); \
-    }                                                                          \
-    std::memcpy(buffer, node->tag_data.data, tag_length);                      \
   } while (false)
 
 // Create zero fixed32 or fixed64 value in `*dest`.
@@ -1056,31 +1057,31 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
   } while (false)
 
 // Decode string value from `*node` to `*dest`.
-#define STRING_CALLBACK(tag_length)                                  \
-  do {                                                               \
-    node->buffer->Pull(kMaxLengthVarint32);                          \
-    const absl::optional<ReadFromStringResult<uint32_t>> length =    \
-        ReadVarint32(node->buffer->cursor(), node->buffer->limit()); \
-    if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {               \
-      return Fail(DataLossError("Reading string length failed"));    \
-    }                                                                \
-    const size_t length_length =                                     \
-        PtrDistance(node->buffer->cursor(), length->cursor);         \
-    if (ABSL_PREDICT_FALSE(length->value >                           \
-                           std::numeric_limits<uint32_t>::max() -    \
-                               length_length)) {                     \
-      return Fail(DataLossError("String length overflow"));          \
-    }                                                                \
-    if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(                    \
-            dest, length_length + size_t{length->value}))) {         \
-      if (!dest->healthy()) return Fail(*dest);                      \
-      return Fail(*node->buffer,                                     \
-                  DataLossError("Reading string field failed"));     \
-    }                                                                \
-    if (ABSL_PREDICT_FALSE(!dest->Write(                             \
-            absl::string_view(node->tag_data.data, tag_length)))) {  \
-      return Fail(*dest);                                            \
-    }                                                                \
+#define STRING_CALLBACK(tag_length)                                     \
+  do {                                                                  \
+    node->buffer->Pull(kMaxLengthVarint32);                             \
+    const absl::optional<ReadFromStringResult<uint32_t>> length =       \
+        ReadVarint32(node->buffer->cursor(), node->buffer->limit());    \
+    if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {                  \
+      return Fail(absl::DataLossError("Reading string length failed")); \
+    }                                                                   \
+    const size_t length_length =                                        \
+        PtrDistance(node->buffer->cursor(), length->cursor);            \
+    if (ABSL_PREDICT_FALSE(length->value >                              \
+                           std::numeric_limits<uint32_t>::max() -       \
+                               length_length)) {                        \
+      return Fail(absl::DataLossError("String length overflow"));       \
+    }                                                                   \
+    if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(                       \
+            dest, length_length + size_t{length->value}))) {            \
+      if (!dest->healthy()) return Fail(*dest);                         \
+      return Fail(*node->buffer,                                        \
+                  absl::DataLossError("Reading string field failed"));  \
+    }                                                                   \
+    if (ABSL_PREDICT_FALSE(!dest->Write(                                \
+            absl::string_view(node->tag_data.data, tag_length)))) {     \
+      return Fail(*dest);                                               \
+    }                                                                   \
   } while (false)
 
 inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
@@ -1165,7 +1166,7 @@ skipped_submessage_end:
 
 skipped_submessage_start:
   if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
-    return Fail(DataLossError("Skipped submessage stack underflow"));
+    return Fail(absl::DataLossError("Skipped submessage stack underflow"));
   }
   --skipped_submessage_level;
   goto do_transition;
@@ -1175,18 +1176,18 @@ submessage_end:
   goto do_transition;
 
 failure:
-  return Fail(DataLossError("Invalid node index"));
+  return Fail(absl::DataLossError("Invalid node index"));
 
 submessage_start : {
   if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
-    return Fail(DataLossError("Submessage stack underflow"));
+    return Fail(absl::DataLossError("Submessage stack underflow"));
   }
   const SubmessageStackElement& elem = submessage_stack.back();
   RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
       << "Destination position decreased";
   const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
-    return Fail(DataLossError("Message too large"));
+    return Fail(absl::DataLossError("Message too large"));
   }
   if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(length), dest))) {
     return Fail(*dest);
@@ -1234,7 +1235,7 @@ submessage_start : {
   goto do_transition;                                                       \
   start_projection_group_##tag_length                                       \
       : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                 \
-    return Fail(DataLossError("Submessage stack underflow"));               \
+    return Fail(absl::DataLossError("Submessage stack underflow"));         \
   }                                                                         \
   submessage_stack.pop_back();                                              \
   COPY_TAG_CALLBACK(tag_length);                                            \
@@ -1261,22 +1262,22 @@ non_proto : {
       ReadVarint32(context->nonproto_lengths);
   if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {
     return Fail(*context->nonproto_lengths,
-                DataLossError("Reading non-proto record length failed"));
+                absl::DataLossError("Reading non-proto record length failed"));
   }
   if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(dest, *length))) {
     if (!dest->healthy()) return Fail(*dest);
     return Fail(*node->buffer,
-                DataLossError("Reading non-proto record failed"));
+                absl::DataLossError("Reading non-proto record failed"));
   }
 }
   // Fall through to `message_start`.
 
 message_start:
   if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-    return Fail(DataLossError("Submessages still open"));
+    return Fail(absl::DataLossError("Submessages still open"));
   }
   if (ABSL_PREDICT_FALSE(limits->size() == num_records)) {
-    return Fail(DataLossError("Too many records"));
+    return Fail(absl::DataLossError("Too many records"));
   }
   limits->push_back(IntCast<size_t>(dest->pos()));
   // Fall through to `do_transition`.
@@ -1301,17 +1302,17 @@ done:
     return Fail(context->transitions);
   }
   if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-    return Fail(DataLossError("Submessages still open"));
+    return Fail(absl::DataLossError("Submessages still open"));
   }
   if (ABSL_PREDICT_FALSE(skipped_submessage_level != 0)) {
-    return Fail(DataLossError("Skipped submessages still open"));
+    return Fail(absl::DataLossError("Skipped submessages still open"));
   }
   if (ABSL_PREDICT_FALSE(limits->size() != num_records)) {
-    return Fail(DataLossError("Too few records"));
+    return Fail(absl::DataLossError("Too few records"));
   }
   const size_t size = limits->empty() ? size_t{0} : limits->back();
   if (ABSL_PREDICT_FALSE(size != dest->pos())) {
-    return Fail(DataLossError("Unfinished message"));
+    return Fail(absl::DataLossError("Unfinished message"));
   }
 
   // Reverse limits and complement them, but keep the last limit unchanged

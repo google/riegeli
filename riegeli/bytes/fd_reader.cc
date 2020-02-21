@@ -38,15 +38,14 @@
 #include <tuple>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 
 namespace riegeli {
@@ -291,8 +290,8 @@ void FdMMapReaderBase::InitializePos(int src,
   }
   if (ABSL_PREDICT_FALSE(IntCast<Position>(stat_info.st_size) >
                          std::numeric_limits<size_t>::max())) {
-    Fail(OutOfRangeError(absl::StrCat("mmap() cannot be used reading ",
-                                      filename_, ": File too large")));
+    Fail(absl::OutOfRangeError(absl::StrCat("mmap() cannot be used reading ",
+                                            filename_, ": File too large")));
     return;
   }
   if (stat_info.st_size == 0) return;

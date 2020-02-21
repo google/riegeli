@@ -20,8 +20,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -35,10 +35,10 @@ constexpr uintptr_t Object::kHealthy;
 constexpr uintptr_t Object::kClosedSuccessfully;
 #endif
 
-inline Object::FailedStatus::FailedStatus(Status&& status)
+inline Object::FailedStatus::FailedStatus(absl::Status&& status)
     : status(std::move(status)) {}
 
-bool Object::Fail(Status status) {
+bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
   RIEGELI_ASSERT(!closed())
@@ -62,7 +62,7 @@ bool Object::Fail(const Object& dependency) {
   return Fail(dependency.status());
 }
 
-bool Object::Fail(const Object& dependency, Status fallback) {
+bool Object::Fail(const Object& dependency, absl::Status fallback) {
   RIEGELI_ASSERT(!fallback.ok())
       << "Failed precondition of Object::Fail(): status not failed";
   RIEGELI_ASSERT(!closed())

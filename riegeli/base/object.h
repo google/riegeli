@@ -21,9 +21,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -48,7 +47,7 @@ class TypeId {
 
 // `Object` is an abstract base class for data readers and writers, managing
 // their state: whether they are closed, and whether they failed (with an
-// associated `Status`). An `Object` is healthy when it is not closed nor
+// associated `absl::Status`). An `Object` is healthy when it is not closed nor
 // failed.
 //
 // An `Object` becomes closed when `Close()` finishes, when constructed as
@@ -99,20 +98,20 @@ class Object {
   // Returns `true` if the `Object` is closed.
   bool closed() const;
 
-  // Returns a `Status` describing the failure if the `Object` is failed, or a
-  // `FailedPreconditionError()` if the `Object` is closed, or `OkStatus()` if
-  // the `Object` is healthy.
-  Status status() const;
+  // Returns an `absl::Status` describing the failure if the `Object` is failed,
+  // or an `absl::FailedPreconditionError()` if the `Object` is closed, or
+  // `absl::OkStatus()` if the `Object` is healthy.
+  absl::Status status() const;
 
-  // Marks the `Object` as failed with the specified `Status`.
+  // Marks the `Object` as failed with the specified `absl::Status`.
   //
   // `Fail()` always returns `false`, for convenience of reporting the failure
   // as a `false` result of a failing function.
   //
   // Even though `Fail()` is not const, it may be called concurrently with
   // public member functions, with const member functions, and with other
-  // `Fail()` calls. If `Fail()` is called multiple times, the first `Status`
-  // wins.
+  // `Fail()` calls. If `Fail()` is called multiple times, the first
+  // `absl::Status` wins.
   //
   // `Fail()` is normally called by other methods of the same `Object`, but it
   // is public to allow injecting a failure related to the `Object` (such as
@@ -122,7 +121,7 @@ class Object {
   // Preconditions:
   //   `!status.ok()`
   //   `!closed()`
-  ABSL_ATTRIBUTE_COLD virtual bool Fail(Status status);
+  ABSL_ATTRIBUTE_COLD virtual bool Fail(absl::Status status);
 
   // Propagates failure from another `Object`.
   //
@@ -142,7 +141,8 @@ class Object {
   // Preconditions:
   //   `!fallback.ok()`
   //   `!closed()`
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency, Status fallback);
+  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency,
+                                absl::Status fallback);
 
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
@@ -226,14 +226,14 @@ class Object {
 
  private:
   struct FailedStatus {
-    explicit FailedStatus(Status&& status);
+    explicit FailedStatus(absl::Status&& status);
 
     // The `closed` flag may be changed from `false` to `true` by `Close()`.
     // This happens after `Done()` finishes, and thus any background threads
     // should have stopped interacting with the `Object`.
     bool closed = false;
-    // The actual `Status`, never `OkStatus()`.
-    Status status;
+    // The actual `absl::Status`, never `absl::OkStatus()`.
+    absl::Status status;
   };
 
   static constexpr uintptr_t kHealthy = 0;
@@ -318,11 +318,11 @@ inline bool Object::closed() const {
   return reinterpret_cast<const FailedStatus*>(status_ptr)->closed;
 }
 
-inline Status Object::status() const {
+inline absl::Status Object::status() const {
   const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  if (status_ptr == kHealthy) return OkStatus();
+  if (status_ptr == kHealthy) return absl::OkStatus();
   if (status_ptr == kClosedSuccessfully) {
-    return FailedPreconditionError("Object closed");
+    return absl::FailedPreconditionError("Object closed");
   }
   return reinterpret_cast<const FailedStatus*>(status_ptr)->status;
 }

@@ -21,10 +21,10 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -39,20 +39,20 @@ void BrotliReaderBase::Initialize(Reader* src) {
   }
   decompressor_.reset(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
-    Fail(InternalError("BrotliDecoderCreateInstance() failed"));
+    Fail(absl::InternalError("BrotliDecoderCreateInstance() failed"));
     return;
   }
   if (ABSL_PREDICT_FALSE(!BrotliDecoderSetParameter(
           decompressor_.get(), BROTLI_DECODER_PARAM_LARGE_WINDOW,
           uint32_t{true}))) {
-    Fail(InternalError(
+    Fail(absl::InternalError(
         "BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed"));
   }
 }
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(DataLossError("Truncated Brotli-compressed stream"));
+    Fail(absl::DataLossError("Truncated Brotli-compressed stream"));
   }
   decompressor_.reset();
   PullableReader::Done();
@@ -80,7 +80,7 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
         set_buffer();
-        return Fail(DataLossError(
+        return Fail(absl::DataLossError(
             absl::StrCat("BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
                              BrotliDecoderGetErrorCode(decompressor_.get())))));

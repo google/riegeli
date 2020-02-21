@@ -22,12 +22,12 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/varint.h"
@@ -47,7 +47,7 @@ namespace riegeli {
 // `CopyAll(BackwardWriter*)` writes nothing if reading failed, and reads
 // the full requested length even if writing failed.
 //
-// Fails `*src` with `ResourceExhaustedError(_)` if `max_size` would be
+// Fails `*src` with `absl::ResourceExhaustedError()` if `max_size` would be
 // exceeded.
 //
 // Return values for `ReadAll()`:
@@ -107,7 +107,8 @@ class ReadLineOptions {
 
   // Expected maximal line length.
   //
-  // If this length is exceeded, reading fails with `ResourceExhaustedError(_)`.
+  // If this length is exceeded, reading fails with
+  // `absl::ResourceExhaustedError()`.
   //
   // Default: `std::numeric_limits<size_t>::max()`
   ReadLineOptions& set_max_length(size_t max_length) & {

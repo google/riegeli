@@ -29,13 +29,12 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -76,8 +75,8 @@ bool PythonWriter::FailOperation(absl::string_view operation) {
     return false;
   }
   exception_ = Exception::Fetch();
-  return Fail(
-      UnknownError(absl::StrCat(operation, " failed: ", exception_.message())));
+  return Fail(absl::UnknownError(
+      absl::StrCat(operation, " failed: ", exception_.message())));
 }
 
 void PythonWriter::Done() {
@@ -209,7 +208,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       }
     }
     if (ABSL_PREDICT_FALSE(length_written > src.size())) {
-      return Fail(InternalError("write() wrote more than requested"));
+      return Fail(absl::InternalError("write() wrote more than requested"));
     }
     move_start_pos(length_written);
     src.remove_prefix(length_written);
@@ -242,7 +241,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Seek() not supported"));
+    return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
@@ -275,7 +274,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
 absl::optional<Position> PythonWriter::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    Fail(UnimplementedError("PythonWriter::Size() not supported"));
+    Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
     return absl::nullopt;
   }
   PythonLock lock;
@@ -342,7 +341,8 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
 bool PythonWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("PythonWriter::Truncate() not supported"));
+    return Fail(
+        absl::UnimplementedError("PythonWriter::Truncate() not supported"));
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   PythonLock lock;

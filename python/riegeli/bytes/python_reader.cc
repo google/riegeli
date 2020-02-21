@@ -30,13 +30,12 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
@@ -77,8 +76,8 @@ bool PythonReader::FailOperation(absl::string_view operation) {
     return false;
   }
   exception_ = Exception::Fetch();
-  return Fail(
-      UnknownError(absl::StrCat(operation, " failed: ", exception_.message())));
+  return Fail(absl::UnknownError(
+      absl::StrCat(operation, " failed: ", exception_.message())));
 }
 
 bool PythonReader::SyncPos() {
@@ -231,7 +230,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       length_read = *length_read_opt;
       if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
       if (ABSL_PREDICT_FALSE(length_read > max_length)) {
-        return Fail(InternalError(
+        return Fail(absl::InternalError(
             absl::StrCat(read_function_name_, " read more than requested")));
       }
     } else {
@@ -256,7 +255,7 @@ bool PythonReader::ReadInternal(char* dest, size_t min_length,
       }
       if (ABSL_PREDICT_FALSE(IntCast<size_t>(buffer.len) > max_length)) {
         PyBuffer_Release(&buffer);
-        return Fail(InternalError(
+        return Fail(absl::InternalError(
             absl::StrCat(read_function_name_, " read more than requested")));
       }
       std::memcpy(dest, buffer.buf, IntCast<size_t>(buffer.len));
@@ -317,7 +316,7 @@ bool PythonReader::SeekSlow(Position new_pos) {
 absl::optional<Position> PythonReader::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    Fail(UnimplementedError("PythonReader::Size() not supported"));
+    Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
     return absl::nullopt;
   }
   PythonLock lock;

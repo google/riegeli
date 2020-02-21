@@ -21,11 +21,11 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/skipped_region.h"
@@ -166,7 +166,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
             }
             if (TF_PREDICT_FALSE(!reader_->Close())) {
               // Failed to read the file: return an error.
-              const Status status = reader_->status();
+              const absl::Status status = reader_->status();
               // Further iteration will move on to the next file, if any.
               reader_.reset();
               ++current_file_index_;

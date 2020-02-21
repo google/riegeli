@@ -15,13 +15,14 @@
 #ifndef RIEGELI_BASE_ERRNO_MAPPING_H_
 #define RIEGELI_BASE_ERRNO_MAPPING_H_
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-// Converts `errno` value to `Status`.
-Status ErrnoToCanonicalStatus(int error_number, absl::string_view message);
+// Converts `errno` value to `absl::Status`.
+absl::Status ErrnoToCanonicalStatus(int error_number,
+                                    absl::string_view message);
 
 }  // namespace riegeli
 

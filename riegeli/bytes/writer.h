@@ -25,13 +25,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -59,7 +59,7 @@ class Writer : public Object {
   // Derived classes which override it further should include a call to
   // `Writer::Fail()`.
   using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(Status status) override;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
   // Ensures that enough space is available for writing: pushes previously
   // written data to the destination, and points `cursor()` and `limit()` to

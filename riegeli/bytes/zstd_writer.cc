@@ -28,13 +28,12 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -84,14 +83,14 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
             << "ZSTD_CCtx_reset() failed: " << ZSTD_getErrorName(result);
       });
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-    Fail(InternalError("ZSTD_createCCtx() failed"));
+    Fail(absl::InternalError("ZSTD_createCCtx() failed"));
     return;
   }
   {
     const size_t result = ZSTD_CCtx_setParameter(
         compressor_.get(), ZSTD_c_compressionLevel, compression_level);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat(
+      Fail(absl::InternalError(absl::StrCat(
           "ZSTD_CCtx_setParameter(ZSTD_c_compressionLevel) failed: ",
           ZSTD_getErrorName(result))));
       return;
@@ -101,7 +100,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     const size_t result =
         ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_windowLog, window_log);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_windowLog) failed: ",
                        ZSTD_getErrorName(result))));
       return;
@@ -111,7 +110,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     const size_t result = ZSTD_CCtx_setParameter(
         compressor_.get(), ZSTD_c_checksumFlag, store_checksum ? 1 : 0);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_checksumFlag) failed: ",
                        ZSTD_getErrorName(result))));
       return;
@@ -121,8 +120,9 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
         compressor_.get(), IntCast<unsigned long long>(*final_size));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(absl::InternalError(
+          absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",
+                       ZSTD_getErrorName(result))));
       return;
     }
   }
@@ -132,7 +132,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
         ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_srcSizeHint,
                                SaturatingIntCast<int>(size_hint));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_srcSizeHint) failed: ",
                        ZSTD_getErrorName(result))));
       return;
@@ -185,8 +185,8 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       return true;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      return Fail(InternalError(absl::StrCat("ZSTD_compressStream2() failed: ",
-                                             ZSTD_getErrorName(result))));
+      return Fail(absl::InternalError(absl::StrCat(
+          "ZSTD_compressStream2() failed: ", ZSTD_getErrorName(result))));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)

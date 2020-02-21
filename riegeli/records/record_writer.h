@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
@@ -33,7 +34,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/base/stable_dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/chunk_writer.h"
@@ -90,7 +90,7 @@ class RecordWriterBase : public Object {
     // Returns status:
     //  * `status.ok()`  - success
     //  * `!status.ok()` - failure
-    Status FromString(absl::string_view text);
+    absl::Status FromString(absl::string_view text);
 
     // If `true`, records should be serialized proto messages (but nothing will
     // break if they are not). A chunk of records will be processed in a way

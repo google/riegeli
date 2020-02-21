@@ -17,9 +17,9 @@
 
 #include <utility>
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -47,7 +47,7 @@ class CompressorOptions {
   // Returns status:
   //  * `status.ok()`  - success
   //  * `!status.ok()` - failure
-  Status FromString(absl::string_view text);
+  absl::Status FromString(absl::string_view text);
 
   // Changes compression algorithm to none.
   CompressorOptions& set_uncompressed() & {

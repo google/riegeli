@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -31,10 +32,8 @@
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/message_parse.h"
@@ -56,9 +55,9 @@ class RecordsMetadataDescriptors::ErrorCollector
   void AddError(const std::string& filename, const std::string& element_name,
                 const google::protobuf::Message* descriptor,
                 ErrorLocation location, const std::string& message) override {
-    descriptors_->Fail(
-        DataLossError(absl::StrCat("Error in file ", filename, ", element ",
-                                   element_name, ": ", message)));
+    descriptors_->Fail(absl::DataLossError(
+        absl::StrCat("Error in file ", filename, ", element ", element_name,
+                     ": ", message)));
   }
 
   void AddWarning(const std::string& filename, const std::string& element_name,
@@ -188,7 +187,7 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
     return false;
   }
   {
-    Status status = ParseFromChain(serialized_metadata, metadata);
+    absl::Status status = ParseFromChain(serialized_metadata, metadata);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }
@@ -201,7 +200,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain* metadata) {
   if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader* const src = src_chunk_reader();
   if (ABSL_PREDICT_FALSE(src->pos() != 0)) {
-    return Fail(FailedPreconditionError(
+    return Fail(absl::FailedPreconditionError(
         "RecordReaderBase::ReadMetadata() must be called "
         "while the RecordReader is at the beginning of the file"));
   }
@@ -243,7 +242,7 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
       << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
-    return Fail(DataLossError(absl::StrCat(
+    return Fail(absl::DataLossError(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records())));
   }

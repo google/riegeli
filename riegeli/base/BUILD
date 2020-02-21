@@ -5,18 +5,17 @@ licenses(["notice"])
 cc_library(
     name = "status",
     srcs = [
-        "canonical_errors.cc",
         "errno_mapping.cc",
         "status.cc",
     ],
     hdrs = [
-        "canonical_errors.h",
         "errno_mapping.h",
         "status.h",
     ],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -36,9 +35,9 @@ cc_library(
         "stable_dependency.h",
     ],
     deps = [
-        ":status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -118,8 +117,8 @@ cc_library(
     hdrs = ["options_parser.h"],
     deps = [
         ":base",
-        ":status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )

@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -131,25 +132,27 @@ class SnappyReader : public SnappyReaderBase {
 //
 // The compressed `Reader` must support `Size()`.
 template <typename Src, typename Dest>
-Status SnappyDecompress(const Src& src, const Dest& dest);
+absl::Status SnappyDecompress(const Src& src, const Dest& dest);
 template <typename Src, typename Dest>
-Status SnappyDecompress(const Src& src, Dest&& dest);
+absl::Status SnappyDecompress(const Src& src, Dest&& dest);
 template <typename Src, typename Dest, typename... DestArgs>
-Status SnappyDecompress(const Src& src, std::tuple<DestArgs...> dest_args);
+absl::Status SnappyDecompress(const Src& src,
+                              std::tuple<DestArgs...> dest_args);
 template <typename Src, typename Dest>
-Status SnappyDecompress(Src&& src, const Dest& dest);
+absl::Status SnappyDecompress(Src&& src, const Dest& dest);
 template <typename Src, typename Dest>
-Status SnappyDecompress(Src&& src, Dest&& dest);
+absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 template <typename Src, typename Dest, typename... DestArgs>
-Status SnappyDecompress(Src&& src, std::tuple<DestArgs...> dest_args);
+absl::Status SnappyDecompress(Src&& src, std::tuple<DestArgs...> dest_args);
 template <typename Src, typename Dest, typename... SrcArgs>
-Status SnappyDecompress(std::tuple<SrcArgs...> src_args, const Dest& dest);
+absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
+                              const Dest& dest);
 template <typename Src, typename Dest, typename... SrcArgs>
-Status SnappyDecompress(std::tuple<SrcArgs...> src_args, Dest&& dest);
+absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args, Dest&& dest);
 template <typename Src, typename Dest, typename... SrcArgs,
           typename... DestArgs>
-Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
-                        std::tuple<DestArgs...> dest_args);
+absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
+                              std::tuple<DestArgs...> dest_args);
 
 // Returns the claimed decompressed size of Snappy-compressed data.
 //
@@ -262,12 +265,12 @@ struct Resetter<SnappyReader<Src>> : ResetterByReset<SnappyReader<Src>> {};
 
 namespace internal {
 
-Status SnappyDecompressImpl(Reader* src, Writer* dest);
+absl::Status SnappyDecompressImpl(Reader* src, Writer* dest);
 
 template <typename Src, typename Dest>
-inline Status SnappyDecompressImpl(Dependency<Reader*, Src> src,
-                                   Dependency<Writer*, Dest> dest) {
-  Status status = SnappyDecompressImpl(src.get(), dest.get());
+inline absl::Status SnappyDecompressImpl(Dependency<Reader*, Src> src,
+                                         Dependency<Writer*, Dest> dest) {
+  absl::Status status = SnappyDecompressImpl(src.get(), dest.get());
   if (dest.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = dest->status();
@@ -284,57 +287,59 @@ inline Status SnappyDecompressImpl(Dependency<Reader*, Src> src,
 }  // namespace internal
 
 template <typename Src, typename Dest>
-inline Status SnappyDecompress(const Src& src, const Dest& dest) {
+inline absl::Status SnappyDecompress(const Src& src, const Dest& dest) {
   return internal::SnappyDecompressImpl(Dependency<Reader*, Src>(src),
                                         Dependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest>
-inline Status SnappyDecompress(const Src& src, Dest&& dest) {
+inline absl::Status SnappyDecompress(const Src& src, Dest&& dest) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, Src>(src),
       Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
 }
 
 template <typename Src, typename Dest, typename... DestArgs>
-inline Status SnappyDecompress(const Src& src,
-                               std::tuple<DestArgs...> dest_args) {
+inline absl::Status SnappyDecompress(const Src& src,
+                                     std::tuple<DestArgs...> dest_args) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, Src>(src),
       Dependency<Writer*, Dest>(std::move(dest_args)));
 }
 
 template <typename Src, typename Dest>
-inline Status SnappyDecompress(Src&& src, const Dest& dest) {
+inline absl::Status SnappyDecompress(Src&& src, const Dest& dest) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
       Dependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest>
-inline Status SnappyDecompress(Src&& src, Dest&& dest) {
+inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
       Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
 }
 
 template <typename Src, typename Dest, typename... DestArgs>
-inline Status SnappyDecompress(Src&& src, std::tuple<DestArgs...> dest_args) {
+inline absl::Status SnappyDecompress(Src&& src,
+                                     std::tuple<DestArgs...> dest_args) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
       Dependency<Writer*, Dest>(std::move(dest_args)));
 }
 
 template <typename Src, typename Dest, typename... SrcArgs>
-inline Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
-                               const Dest& dest) {
+inline absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
+                                     const Dest& dest) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest, typename... SrcArgs>
-inline Status SnappyDecompress(std::tuple<SrcArgs...> src_args, Dest&& dest) {
+inline absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
+                                     Dest&& dest) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
@@ -342,8 +347,8 @@ inline Status SnappyDecompress(std::tuple<SrcArgs...> src_args, Dest&& dest) {
 
 template <typename Src, typename Dest, typename... SrcArgs,
           typename... DestArgs>
-inline Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
-                               std::tuple<DestArgs...> dest_args) {
+inline absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
+                                     std::tuple<DestArgs...> dest_args) {
   return internal::SnappyDecompressImpl(
       Dependency<Reader*, Src>(std::move(src_args)),
       Dependency<Writer*, Dest>(std::move(dest_args)));

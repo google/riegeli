@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
@@ -32,7 +33,6 @@
 #include "python/riegeli/records/record_position.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/record_writer.h"
 
@@ -276,7 +276,7 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     TextOrBytes options;
     if (ABSL_PREDICT_FALSE(!options.FromPython(options_arg))) return -1;
     {
-      const Status status =
+      const absl::Status status =
           record_writer_options.FromString(absl::string_view(options));
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         SetRiegeliError(status);

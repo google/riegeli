@@ -24,17 +24,17 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
 namespace {
 
-StatusCode ErrnoToCode(int error_number) {
+absl::StatusCode ErrnoToCode(int error_number) {
   switch (error_number) {
     case 0:
-      return StatusCode::kOk;
+      return absl::StatusCode::kOk;
     case EINVAL:        // Invalid argument
     case ENAMETOOLONG:  // Filename too long
     case E2BIG:         // Argument list too long
@@ -48,10 +48,10 @@ StatusCode ErrnoToCode(int error_number) {
     case ENOTTY:        // Inappropriate I/O control operation
     case EPROTOTYPE:    // Protocol wrong type for socket
     case ESPIPE:        // Invalid seek
-      return StatusCode::kInvalidArgument;
+      return absl::StatusCode::kInvalidArgument;
     case ETIMEDOUT:  // Connection timed out
     case ETIME:      // Timer expired
-      return StatusCode::kDeadlineExceeded;
+      return absl::StatusCode::kDeadlineExceeded;
     case ENODEV:  // No such device
     case ENOENT:  // No such file or directory
 #ifdef ENOMEDIUM
@@ -59,21 +59,21 @@ StatusCode ErrnoToCode(int error_number) {
 #endif
     case ENXIO:  // No such device or address
     case ESRCH:  // No such process
-      return StatusCode::kNotFound;
+      return absl::StatusCode::kNotFound;
     case EEXIST:         // File exists
     case EADDRNOTAVAIL:  // Address not available
     case EALREADY:       // Connection already in progress
 #ifdef ENOTUNIQ
     case ENOTUNIQ:  // Name not unique on network
 #endif
-      return StatusCode::kAlreadyExists;
+      return absl::StatusCode::kAlreadyExists;
     case EPERM:   // Operation not permitted
     case EACCES:  // Permission denied
 #ifdef ENOKEY
     case ENOKEY:  // Required key not available
 #endif
     case EROFS:  // Read only file system
-      return StatusCode::kPermissionDenied;
+      return absl::StatusCode::kPermissionDenied;
     case ENOTEMPTY:   // Directory not empty
     case EISDIR:      // Is a directory
     case ENOTDIR:     // Not a directory
@@ -100,7 +100,7 @@ StatusCode ErrnoToCode(int error_number) {
 #ifdef EUNATCH
     case EUNATCH:  // Protocol driver not attached
 #endif
-      return StatusCode::kFailedPrecondition;
+      return absl::StatusCode::kFailedPrecondition;
     case ENOSPC:  // No space left on device
 #ifdef EDQUOT
     case EDQUOT:  // Disk quota exceeded
@@ -115,14 +115,14 @@ StatusCode ErrnoToCode(int error_number) {
 #ifdef EUSERS
     case EUSERS:  // Too many users
 #endif
-      return StatusCode::kResourceExhausted;
+      return absl::StatusCode::kResourceExhausted;
 #ifdef ECHRNG
     case ECHRNG:  // Channel number out of range
 #endif
     case EFBIG:      // File too large
     case EOVERFLOW:  // Value too large to be stored in data type
     case ERANGE:     // Result too large
-      return StatusCode::kOutOfRange;
+      return absl::StatusCode::kOutOfRange;
 #ifdef ENOPKG
     case ENOPKG:  // Package not installed
 #endif
@@ -137,7 +137,7 @@ StatusCode ErrnoToCode(int error_number) {
     case ESOCKTNOSUPPORT:  // Socket type not supported
 #endif
     case EXDEV:  // Improper link
-      return StatusCode::kUnimplemented;
+      return absl::StatusCode::kUnimplemented;
     case EAGAIN:  // Resource temporarily unavailable
 #ifdef ECOMM
     case ECOMM:  // Communication error on send
@@ -158,16 +158,16 @@ StatusCode ErrnoToCode(int error_number) {
 #ifdef ENONET
     case ENONET:  // Machine is not on the network
 #endif
-      return StatusCode::kUnavailable;
+      return absl::StatusCode::kUnavailable;
     case EDEADLK:  // Resource deadlock avoided
 #ifdef ESTALE
     case ESTALE:  // Stale file handle
 #endif
-      return StatusCode::kAborted;
+      return absl::StatusCode::kAborted;
     case ECANCELED:  // Operation cancelled
-      return StatusCode::kCancelled;
+      return absl::StatusCode::kCancelled;
     default:
-      return StatusCode::kUnknown;
+      return absl::StatusCode::kUnknown;
   }
 }
 
@@ -195,9 +195,10 @@ std::string StrError(int error_code) {
 
 }  // namespace
 
-Status ErrnoToCanonicalStatus(int error_number, absl::string_view message) {
-  return Status(ErrnoToCode(error_number),
-                absl::StrCat(message, ": ", StrError(error_number)));
+absl::Status ErrnoToCanonicalStatus(int error_number,
+                                    absl::string_view message) {
+  return absl::Status(ErrnoToCode(error_number),
+                      absl::StrCat(message, ": ", StrError(error_number)));
 }
 
 }  // namespace riegeli

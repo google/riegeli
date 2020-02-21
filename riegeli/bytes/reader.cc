@@ -22,12 +22,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -41,12 +41,12 @@ bool Reader::VerifyEndAndClose() {
 
 void Reader::VerifyEnd() {
   if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(DataLossError("End of data expected"));
+    Fail(absl::DataLossError("End of data expected"));
   }
 }
 
 bool Reader::FailOverflow() {
-  return Fail(ResourceExhaustedError("Reader position overflow"));
+  return Fail(absl::ResourceExhaustedError("Reader position overflow"));
 }
 
 bool Reader::ReadSlow(char* dest, size_t length) {
@@ -185,7 +185,8 @@ bool Reader::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
-    return Fail(UnimplementedError("Reader::Seek() backwards not supported"));
+    return Fail(
+        absl::UnimplementedError("Reader::Seek() backwards not supported"));
   }
   // Seeking forwards.
   do {
@@ -200,7 +201,7 @@ bool Reader::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> Reader::Size() {
-  Fail(UnimplementedError("Reader::Size() not supported"));
+  Fail(absl::UnimplementedError("Reader::Size() not supported"));
   return absl::nullopt;
 }
 

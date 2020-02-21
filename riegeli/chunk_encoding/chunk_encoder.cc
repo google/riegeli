@@ -17,9 +17,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/message_serialize.h"
 
 namespace riegeli {
@@ -33,7 +33,7 @@ bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain serialized;
   {
-    Status status = SerializeToChain(record, &serialized);
+    absl::Status status = SerializeToChain(record, &serialized);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

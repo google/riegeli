@@ -21,16 +21,15 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
@@ -194,7 +193,8 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
   const absl::optional<uint64_t> decompressed_size =
       ReadVarint64(compressed_reader.get());
   if (ABSL_PREDICT_FALSE(decompressed_size == absl::nullopt)) {
-    Fail(*compressed_reader, DataLossError("Reading decompressed size failed"));
+    Fail(*compressed_reader,
+         absl::DataLossError("Reading decompressed size failed"));
     return;
   }
   switch (compression_type) {
@@ -214,8 +214,8 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
           std::move(compressed_reader.manager()));
       return;
   }
-  Fail(DataLossError(absl::StrCat("Unknown compression type: ",
-                                  static_cast<unsigned>(compression_type))));
+  Fail(absl::DataLossError(absl::StrCat(
+      "Unknown compression type: ", static_cast<unsigned>(compression_type))));
 }
 
 template <typename Src>

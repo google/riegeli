@@ -22,15 +22,14 @@
 #include <tuple>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/string_writer.h"
@@ -102,17 +101,17 @@ int64_t WriterOutputStream::ByteCount() const {
 
 namespace internal {
 
-Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                             Writer* dest, SerializeOptions options) {
+absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
+                                   Writer* dest, SerializeOptions options) {
   if (!options.partial() && ABSL_PREDICT_FALSE(!src.IsInitialized())) {
-    return InvalidArgumentError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Failed to serialize message of type ", src.GetTypeName(),
                      " because it is missing required fields: ",
                      src.InitializationErrorString()));
   }
   const size_t size = src.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
-    return ResourceExhaustedError(absl::StrCat(
+    return absl::ResourceExhaustedError(absl::StrCat(
         "Failed to serialize message of type ", src.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
@@ -125,13 +124,13 @@ Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
         << ": SerializePartialToCodedStream() failed for an unknown reason";
     return dest->status();
   }
-  return OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace internal
 
-Status SerializeToString(const google::protobuf::MessageLite& src,
-                         std::string* dest, SerializeOptions options) {
+absl::Status SerializeToString(const google::protobuf::MessageLite& src,
+                               std::string* dest, SerializeOptions options) {
   dest->clear();
   return SerializeToWriter<StringWriter<>>(
       src,
@@ -140,8 +139,8 @@ Status SerializeToString(const google::protobuf::MessageLite& src,
       options);
 }
 
-Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
-                        SerializeOptions options) {
+absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
+                              Chain* dest, SerializeOptions options) {
   dest->Clear();
   return SerializeToWriter<ChainWriter<>>(
       src,
@@ -150,8 +149,8 @@ Status SerializeToChain(const google::protobuf::MessageLite& src, Chain* dest,
       options);
 }
 
-Status SerializeToCord(const google::protobuf::MessageLite& src,
-                       absl::Cord* dest, SerializeOptions options) {
+absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
+                             absl::Cord* dest, SerializeOptions options) {
   dest->Clear();
   return SerializeToWriter<CordWriter<>>(
       src,

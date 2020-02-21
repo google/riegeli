@@ -17,8 +17,8 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/endian.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/zlib_reader.h"
@@ -45,7 +45,7 @@ bool TFRecordRecognizer::CheckFileFormat(
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;
     if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_before))) {
-      return Fail(*byte_reader_, InternalError("Seeking failed"));
+      return Fail(*byte_reader_, absl::InternalError("Seeking failed"));
     }
     record_reader_options->compression_type =
         tensorflow::io::RecordReaderOptions::NONE;
@@ -65,11 +65,11 @@ bool TFRecordRecognizer::CheckFileFormat(
       ABSL_PREDICT_FALSE(!reader->Read(reinterpret_cast<char*>(&masked_crc),
                                        sizeof(masked_crc)))) {
     if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(*reader);
-    return Fail(DataLossError("Truncated TFRecord file"));
+    return Fail(absl::DataLossError("Truncated TFRecord file"));
   }
   if (tensorflow::crc32c::Unmask(ReadLittleEndian32(masked_crc)) !=
       tensorflow::crc32c::Value(header, sizeof(header))) {
-    return Fail(DataLossError("Corrupted TFRecord file"));
+    return Fail(absl::DataLossError("Corrupted TFRecord file"));
   }
   return true;
 }

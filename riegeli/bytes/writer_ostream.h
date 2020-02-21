@@ -21,10 +21,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -43,7 +42,7 @@ class WriterStreambuf : public std::streambuf {
   void MoveEnd(Writer* dest);
   void close();
   bool is_open() const { return dest_ != nullptr; }
-  Status status() const;
+  absl::Status status() const;
 
  protected:
   int sync() override;
@@ -87,10 +86,10 @@ class WriterOstreamBase : public std::ostream {
   // Returns `true` if the `WriterOstream` is open.
   bool is_open() const { return streambuf_.is_open(); }
 
-  // Returns a `Status` describing the failure if the `WriterOstream` is failed,
-  // or a `FailedPreconditionError()` if the `WriterOstream` is closed, or
-  // `OkStatus()` if the `WriterOstream` is healthy.
-  Status status() const { return streambuf_.status(); }
+  // Returns an `absl::Status` describing the failure if the `WriterOstream` is
+  // failed, or an `absl::FailedPreconditionError()` if the `WriterOstream` is
+  // closed, or `absl::OkStatus()` if the `WriterOstream` is healthy.
+  absl::Status status() const { return streambuf_.status(); }
 
  protected:
   WriterOstreamBase() noexcept : std::ostream(&streambuf_) {}
@@ -195,9 +194,9 @@ inline void WriterStreambuf::close() {
   dest_ = nullptr;
 }
 
-inline Status WriterStreambuf::status() const {
+inline absl::Status WriterStreambuf::status() const {
   if (ABSL_PREDICT_FALSE(!is_open())) {
-    return FailedPreconditionError("Object closed");
+    return absl::FailedPreconditionError("Object closed");
   }
   return dest_->status();
 }

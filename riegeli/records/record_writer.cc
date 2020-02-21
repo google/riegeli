@@ -29,6 +29,7 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/variant.h"
@@ -36,12 +37,10 @@
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/base/parallelism.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -114,7 +113,7 @@ void SetRecordType(RecordsMetadata* metadata,
   collector.AddFile(descriptor->file());
 }
 
-Status RecordWriterBase::Options::FromString(absl::string_view text) {
+absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   std::string compressor_text;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
@@ -497,7 +496,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
 RecordWriterBase::ParallelWorker::~ParallelWorker() {
   if (ABSL_PREDICT_FALSE(!closed())) {
     // Ask the chunk writer thread to stop working and exit.
-    Fail(CancelledError());
+    Fail(absl::CancelledError());
     Done();
   }
 }

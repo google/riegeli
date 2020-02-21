@@ -22,23 +22,22 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-bool BackwardWriter::Fail(Status status) {
+bool BackwardWriter::Fail(absl::Status status) {
   set_buffer();
   return Object::Fail(std::move(status));
 }
 
 bool BackwardWriter::FailOverflow() {
-  return Fail(ResourceExhaustedError("BackwardWriter position overflow"));
+  return Fail(absl::ResourceExhaustedError("BackwardWriter position overflow"));
 }
 
 bool BackwardWriter::WriteSlow(absl::string_view src) {
@@ -110,7 +109,8 @@ void BackwardWriter::WriteHintSlow(size_t length) {
 }
 
 bool BackwardWriter::Truncate(Position new_size) {
-  return Fail(UnimplementedError("BackwardWriter::Truncate() not supported"));
+  return Fail(
+      absl::UnimplementedError("BackwardWriter::Truncate() not supported"));
 }
 
 }  // namespace riegeli

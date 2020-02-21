@@ -22,12 +22,11 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -47,7 +46,7 @@ bool ChunkDecoder::Decode(const Chunk& chunk) {
   Clear();
   ChainReader<> data_reader(&chunk.data);
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits_.max_size())) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail(absl::ResourceExhaustedError("Too many records"));
   }
   Chain values;
   if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
@@ -76,36 +75,36 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid file signature chunk: data size is not zero: ",
             header.data_size())));
       }
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid file signature chunk: number of records is not zero: ",
             header.num_records())));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid file signature chunk: decoded data size is not zero: ",
             header.decoded_data_size())));
       }
       return true;
     case ChunkType::kFileMetadata:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid file metadata chunk: number of records is not zero: ",
             header.num_records())));
       }
       return true;
     case ChunkType::kPadding:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid padding chunk: number of records is not zero: ",
             header.num_records())));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(DataLossError(absl::StrCat(
+        return Fail(absl::DataLossError(absl::StrCat(
             "Invalid padding chunk: decoded data size is not zero: ",
             header.decoded_data_size())));
       }
@@ -121,7 +120,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
       if (ABSL_PREDICT_FALSE(!simple_decoder.reader()->Read(
               dest, IntCast<size_t>(header.decoded_data_size())))) {
         return Fail(*simple_decoder.reader(),
-                    DataLossError("Reading record values failed"));
+                    absl::DataLossError("Reading record values failed"));
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
         return Fail(simple_decoder);
@@ -150,7 +149,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
     // Ignore chunks with no records, even if the type is unknown.
     return true;
   }
-  return Fail(DataLossError(absl::StrCat(
+  return Fail(absl::DataLossError(absl::StrCat(
       "Unknown chunk type: ", static_cast<uint64_t>(header.chunk_type()))));
 }
 
@@ -161,7 +160,7 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   {
-    Status status = ParseFromReader<LimitingReader<>>(
+    absl::Status status = ParseFromReader<LimitingReader<>>(
         std::forward_as_tuple(&values_reader_, limit), record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!values_reader_.Seek(limit)) {

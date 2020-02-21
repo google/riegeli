@@ -9,9 +9,9 @@ cc_library(
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base",
-        "//riegeli/base:status",
         "//riegeli/bytes:buffered_writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@local_config_python//:python_headers",
@@ -25,9 +25,9 @@ cc_library(
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base",
-        "//riegeli/base:status",
         "//riegeli/bytes:buffered_reader",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@local_config_python//:python_headers",

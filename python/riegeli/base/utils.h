@@ -31,11 +31,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 namespace python {
@@ -230,7 +230,7 @@ class Exception {
 
 // Translate a failed status to the active Python exception, a class extending
 // `RiegeliError`.
-void SetRiegeliError(const Status& status);
+void SetRiegeliError(const absl::Status& status);
 
 namespace internal {
 

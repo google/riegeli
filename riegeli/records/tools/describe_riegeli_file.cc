@@ -26,6 +26,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -33,10 +34,8 @@
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -64,11 +63,11 @@ namespace riegeli {
 namespace tools {
 namespace {
 
-Status DescribeFileMetadataChunk(const Chunk& chunk,
-                                 RecordsMetadata* records_metadata) {
+absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
+                                       RecordsMetadata* records_metadata) {
   // Based on `RecordReaderBase::ParseMetadata()`.
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
-    return DataLossError(absl::StrCat(
+    return absl::DataLossError(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records()));
   }
@@ -96,14 +95,14 @@ Status DescribeFileMetadataChunk(const Chunk& chunk,
   return ParseFromChain(serialized_metadata, records_metadata);
 }
 
-Status DescribeSimpleChunk(const Chunk& chunk,
-                           summary::SimpleChunk* simple_chunk) {
+absl::Status DescribeSimpleChunk(const Chunk& chunk,
+                                 summary::SimpleChunk* simple_chunk) {
   // Based on `SimpleDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
 
   const absl::optional<uint8_t> compression_type_byte = ReadByte(&chunk_reader);
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-    return DataLossError("Reading compression type failed");
+    return absl::DataLossError("Reading compression type failed");
   }
   const CompressionType compression_type =
       static_cast<CompressionType>(*compression_type_byte);
@@ -113,12 +112,12 @@ Status DescribeSimpleChunk(const Chunk& chunk,
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
     const absl::optional<uint64_t> sizes_size = ReadVarint64(&chunk_reader);
     if (ABSL_PREDICT_FALSE(sizes_size == absl::nullopt)) {
-      return DataLossError("Reading size of sizes failed");
+      return absl::DataLossError("Reading size of sizes failed");
     }
 
     if (ABSL_PREDICT_FALSE(*sizes_size > std::numeric_limits<Position>::max() -
                                              chunk_reader.pos())) {
-      return ResourceExhaustedError("Size of sizes too large");
+      return absl::ResourceExhaustedError("Size of sizes too large");
     }
     internal::Decompressor<LimitingReader<>> sizes_decompressor(
         std::forward_as_tuple(&chunk_reader, chunk_reader.pos() + *sizes_size),
@@ -133,7 +132,7 @@ Status DescribeSimpleChunk(const Chunk& chunk,
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         return !sizes_decompressor.reader()->healthy()
                    ? sizes_decompressor.reader()->status()
-                   : DataLossError("Reading record size failed");
+                   : absl::DataLossError("Reading record size failed");
       }
       simple_chunk->add_record_sizes(*size);
     }
@@ -141,11 +140,11 @@ Status DescribeSimpleChunk(const Chunk& chunk,
       return sizes_decompressor.status();
     }
   }
-  return OkStatus();
+  return absl::OkStatus();
 }
 
-Status DescribeTransposedChunk(const Chunk& chunk,
-                               summary::TransposedChunk* transposed_chunk) {
+absl::Status DescribeTransposedChunk(
+    const Chunk& chunk, summary::TransposedChunk* transposed_chunk) {
   ChainReader<> chunk_reader(&chunk.data);
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
     // Based on `ChunkDecoder::Parse()`.
@@ -174,12 +173,12 @@ Status DescribeTransposedChunk(const Chunk& chunk,
     const absl::optional<uint8_t> compression_type_byte =
         ReadByte(&chunk_reader);
     if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-      return DataLossError("Reading compression type failed");
+      return absl::DataLossError("Reading compression type failed");
     }
     transposed_chunk->set_compression_type(
         static_cast<summary::CompressionType>(*compression_type_byte));
   }
-  return OkStatus();
+  return absl::OkStatus();
 }
 
 void DescribeFile(absl::string_view filename) {
@@ -218,7 +217,7 @@ void DescribeFile(absl::string_view filename) {
       case ChunkType::kFileMetadata:
         if (absl::GetFlag(FLAGS_show_records_metadata)) {
           {
-            const Status status = DescribeFileMetadataChunk(
+            const absl::Status status = DescribeFileMetadataChunk(
                 chunk, chunk_summary.mutable_file_metadata_chunk());
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               std::cerr << status.message() << "\n";
@@ -227,14 +226,14 @@ void DescribeFile(absl::string_view filename) {
         }
         break;
       case ChunkType::kSimple: {
-        const Status status =
+        const absl::Status status =
             DescribeSimpleChunk(chunk, chunk_summary.mutable_simple_chunk());
         if (ABSL_PREDICT_FALSE(!status.ok())) {
           std::cerr << status.message() << "\n";
         }
       } break;
       case ChunkType::kTransposed: {
-        const Status status = DescribeTransposedChunk(
+        const absl::Status status = DescribeTransposedChunk(
             chunk, chunk_summary.mutable_transposed_chunk());
         if (ABSL_PREDICT_FALSE(!status.ok())) {
           std::cerr << status.message() << "\n";

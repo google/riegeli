@@ -21,12 +21,11 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -90,7 +89,7 @@ inline bool ZlibWriterBase::FailOperation(absl::string_view operation) {
   if (compressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", compressor_->msg);
   }
-  return Fail(InternalError(message));
+  return Fail(absl::InternalError(message));
 }
 
 bool ZlibWriterBase::WriteInternal(absl::string_view src) {

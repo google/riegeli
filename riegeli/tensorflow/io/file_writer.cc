@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -95,9 +96,10 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
          "status not failed";
   std::string context = absl::StrCat(operation, " failed");
   if (!filename_.empty()) absl::StrAppend(&context, " writing ", filename_);
-  return Fail(Annotate(
-      Status(static_cast<StatusCode>(status.code()), status.error_message()),
-      context));
+  return Fail(
+      Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
+                            status.error_message()),
+               context));
 }
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {

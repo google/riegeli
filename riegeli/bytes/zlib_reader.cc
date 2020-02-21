@@ -21,12 +21,11 @@
 
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -55,32 +54,32 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
       [&] {
         std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
         if (ABSL_PREDICT_FALSE(inflateInit2(ptr.get(), window_bits) != Z_OK)) {
-          FailOperation(StatusCode::kInternal, "inflateInit2()");
+          FailOperation(absl::StatusCode::kInternal, "inflateInit2()");
         }
         return ptr;
       },
       [&](z_stream* ptr) {
         if (ABSL_PREDICT_FALSE(inflateReset2(ptr, window_bits) != Z_OK)) {
-          FailOperation(StatusCode::kInternal, "inflateReset2()");
+          FailOperation(absl::StatusCode::kInternal, "inflateReset2()");
         }
       });
 }
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(DataLossError("Truncated zlib-compressed stream"));
+    Fail(absl::DataLossError("Truncated zlib-compressed stream"));
   }
   decompressor_.reset();
   BufferedReader::Done();
 }
 
-inline bool ZlibReaderBase::FailOperation(StatusCode code,
+inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
                                           absl::string_view operation) {
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_->msg);
   }
-  return Fail(Status(code, message));
+  return Fail(absl::Status(code, message));
 }
 
 bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
@@ -135,7 +134,7 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
         decompressor_.reset();
         break;
       default:
-        FailOperation(StatusCode::kDataLoss, "inflate()");
+        FailOperation(absl::StatusCode::kDataLoss, "inflate()");
         break;
     }
     move_limit_pos(length_read);

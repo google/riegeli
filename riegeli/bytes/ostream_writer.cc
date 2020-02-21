@@ -22,13 +22,12 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/errno_mapping.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -42,7 +41,7 @@ bool OstreamWriterBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
   return Fail(error_number == 0
-                  ? UnknownError(message)
+                  ? absl::UnknownError(message)
                   : ErrnoToCanonicalStatus(error_number, message));
 }
 
@@ -128,7 +127,8 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    return Fail(UnimplementedError("OstreamWriterBase::Seek() not supported"));
+    return Fail(
+        absl::UnimplementedError("OstreamWriterBase::Seek() not supported"));
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
@@ -162,7 +162,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
 absl::optional<Position> OstreamWriterBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    Fail(UnimplementedError("OstreamWriterBase::Size() not supported"));
+    Fail(absl::UnimplementedError("OstreamWriterBase::Size() not supported"));
     return absl::nullopt;
   }
   std::ostream* const dest = dest_stream();

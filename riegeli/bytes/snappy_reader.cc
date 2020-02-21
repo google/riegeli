@@ -20,8 +20,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -44,7 +44,7 @@ void SnappyReaderBase::Initialize(Reader* src) {
   }
   Chain decompressed;
   {
-    Status status = SnappyDecompress<Reader*, ChainWriter<>>(
+    absl::Status status = SnappyDecompress<Reader*, ChainWriter<>>(
         src, std::forward_as_tuple(
                  &decompressed,
                  ChainWriterBase::Options().set_size_hint(decompressed_size)));
@@ -61,16 +61,16 @@ void SnappyReaderBase::Initialize(Reader* src) {
 
 namespace internal {
 
-Status SnappyDecompressImpl(Reader* src, Writer* dest) {
+absl::Status SnappyDecompressImpl(Reader* src, Writer* dest) {
   ReaderSnappySource source(src);
   WriterSnappySink sink(dest);
   const bool ok = snappy::Uncompress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest->healthy())) return dest->status();
   if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
   if (ABSL_PREDICT_FALSE(!ok)) {
-    return DataLossError("Invalid snappy-compressed stream");
+    return absl::DataLossError("Invalid snappy-compressed stream");
   }
-  return OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace internal

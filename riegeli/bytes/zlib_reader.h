@@ -22,12 +22,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -158,7 +158,7 @@ class ZlibReaderBase : public BufferedReader {
     }
   };
 
-  ABSL_ATTRIBUTE_COLD bool FailOperation(StatusCode code,
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::StatusCode code,
                                          absl::string_view operation);
 
   // If `true`, the source is truncated (without a clean end of the compressed

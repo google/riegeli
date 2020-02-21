@@ -41,6 +41,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -48,7 +49,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/writer_utils.h"
@@ -380,7 +380,7 @@ void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
                riegeli::IntCast<int>(absl::string_view("riegeli ").size() +
                                      riegeli_options.size()));
   riegeli::RecordWriterBase::Options options;
-  RIEGELI_CHECK_EQ(options.FromString(riegeli_options), riegeli::OkStatus());
+  RIEGELI_CHECK_EQ(options.FromString(riegeli_options), absl::OkStatus());
   riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 

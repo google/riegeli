@@ -32,12 +32,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 namespace python {
@@ -103,7 +103,7 @@ std::string Exception::message() const {
   return message;
 }
 
-void SetRiegeliError(const Status& status) {
+void SetRiegeliError(const absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of SetRiegeliError(): status not failed";
   PythonLock::AssertHeld();
@@ -112,7 +112,7 @@ void SetRiegeliError(const Status& status) {
   PyObject* type;
   switch (status.code()) {
 #define HANDLE_CODE(name)                                     \
-  case StatusCode::k##name: {                                 \
+  case absl::StatusCode::k##name: {                           \
     static constexpr ImportedConstant k##name##Error(         \
         "riegeli.base.riegeli_error", #name "Error");         \
     if (ABSL_PREDICT_FALSE(!k##name##Error.Verify())) return; \

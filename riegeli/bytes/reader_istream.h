@@ -21,10 +21,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -43,7 +42,7 @@ class ReaderStreambuf : public std::streambuf {
   void MoveEnd(Reader* src);
   void close();
   bool is_open() const { return src_ != nullptr; }
-  Status status() const;
+  absl::Status status() const;
 
  protected:
   int sync() override;
@@ -92,10 +91,10 @@ class ReaderIstreamBase : public std::istream {
   // Returns `true` if the `ReaderIstream` is open.
   bool is_open() const { return streambuf_.is_open(); }
 
-  // Returns a `Status` describing the failure if the `ReaderIstream` is failed,
-  // or a `FailedPreconditionError()` if the `ReaderIstream` is closed, or
-  // `OkStatus()` if the `ReaderIstream` is healthy.
-  Status status() const { return streambuf_.status(); }
+  // Returns an `absl::Status` describing the failure if the `ReaderIstream` is
+  // failed, or an `absl::FailedPreconditionError()` if the `ReaderIstream` is
+  // closed, or `absl::OkStatus()` if the `ReaderIstream` is healthy.
+  absl::Status status() const { return streambuf_.status(); }
 
  protected:
   ReaderIstreamBase() noexcept : std::istream(&streambuf_) {}
@@ -199,9 +198,9 @@ inline void ReaderStreambuf::close() {
   src_ = nullptr;
 }
 
-inline Status ReaderStreambuf::status() const {
+inline absl::Status ReaderStreambuf::status() const {
   if (ABSL_PREDICT_FALSE(!is_open())) {
-    return FailedPreconditionError("Object closed");
+    return absl::FailedPreconditionError("Object closed");
   }
   return src_->status();
 }

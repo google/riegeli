@@ -20,11 +20,10 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -49,7 +48,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
             << "ZSTD_DCtx_reset() failed: " << ZSTD_getErrorName(result);
       });
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
-    Fail(InternalError("ZSTD_createDCtx() failed"));
+    Fail(absl::InternalError("ZSTD_createDCtx() failed"));
     return;
   }
   {
@@ -59,7 +58,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
         ZSTD_DCtx_setParameter(decompressor_.get(), ZSTD_d_windowLogMax,
                                sizeof(size_t) == 4 ? 30 : 31);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(InternalError(
+      Fail(absl::InternalError(
           absl::StrCat("ZSTD_DCtx_setParameter(ZSTD_d_windowLogMax) failed: ",
                        ZSTD_getErrorName(result))));
       return;
@@ -77,7 +76,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
 
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(DataLossError("Truncated Zstd-compressed stream"));
+    Fail(absl::DataLossError("Truncated Zstd-compressed stream"));
   }
   decompressor_.reset();
   BufferedReader::Done();
@@ -122,8 +121,8 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       return output.pos >= min_length;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
-                                      ZSTD_getErrorName(result))));
+      Fail(absl::DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
+                                            ZSTD_getErrorName(result))));
       move_limit_pos(output.pos);
       return output.pos >= min_length;
     }

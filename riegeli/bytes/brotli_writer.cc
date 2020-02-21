@@ -21,11 +21,10 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -53,27 +52,28 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   compressor_.reset(BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
-    Fail(InternalError("BrotliEncoderCreateInstance() failed"));
+    Fail(absl::InternalError("BrotliEncoderCreateInstance() failed"));
     return;
   }
   if (ABSL_PREDICT_FALSE(
           !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_QUALITY,
                                      IntCast<uint32_t>(compression_level)))) {
-    Fail(InternalError(
+    Fail(absl::InternalError(
         "BrotliEncoderSetParameter(BROTLI_PARAM_QUALITY) failed"));
     return;
   }
   if (ABSL_PREDICT_FALSE(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,
           uint32_t{window_log > BROTLI_MAX_WINDOW_BITS}))) {
-    Fail(InternalError(
+    Fail(absl::InternalError(
         "BrotliEncoderSetParameter(BROTLI_PARAM_LARGE_WINDOW) failed"));
     return;
   }
   if (ABSL_PREDICT_FALSE(
           !BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_LGWIN,
                                      IntCast<uint32_t>(window_log)))) {
-    Fail(InternalError("BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
+    Fail(absl::InternalError(
+        "BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
     return;
   }
   if (size_hint > 0) {
@@ -127,7 +127,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (ABSL_PREDICT_FALSE(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
-      return Fail(InternalError("BrotliEncoderCompressStream() failed"));
+      return Fail(absl::InternalError("BrotliEncoderCompressStream() failed"));
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(

@@ -23,11 +23,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -48,7 +48,7 @@ bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
       return src->healthy();
@@ -59,7 +59,7 @@ bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         *dest = absl::string_view(src->cursor(), max_size);
         src->move_cursor(max_size);
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
     } while (src->Pull(src->available() + 1,
                        SaturatingAdd(src->available(), src->available())));
@@ -79,7 +79,7 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
       return src->healthy();
@@ -90,7 +90,7 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         dest->append(src->cursor(), max_size);
         src->move_cursor(max_size);
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
       dest->append(src->cursor(), src->available());
@@ -111,7 +111,7 @@ bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
       return src->healthy();
@@ -121,7 +121,7 @@ bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         src->Read(dest, max_size);
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
       src->Read(dest, src->available());
@@ -141,7 +141,7 @@ bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
       return src->healthy();
@@ -151,7 +151,7 @@ bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         src->Read(dest, max_size);
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
       src->Read(dest, src->available());
@@ -169,7 +169,7 @@ bool CopyAll(Reader* src, Writer* dest, Position max_size) {
       if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, max_size))) {
         return dest->healthy() && src->healthy();
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, remaining))) {
       return dest->healthy() && src->healthy();
@@ -181,7 +181,7 @@ bool CopyAll(Reader* src, Writer* dest, Position max_size) {
         if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, max_size))) {
           if (ABSL_PREDICT_FALSE(!dest->healthy())) return false;
         }
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
       if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, src->available()))) {
@@ -201,7 +201,7 @@ bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src->Skip(max_size))) {
         if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
       }
-      return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
     if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, IntCast<size_t>(remaining)))) {
       return dest->healthy() && src->healthy();
@@ -212,7 +212,7 @@ bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         src->move_cursor(max_size);
-        return src->Fail(ResourceExhaustedError("Size limit exceeded"));
+        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
       src->Read(&data, src->available());
@@ -228,7 +228,7 @@ ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader* src, absl::string_view* dest,
                                            size_t max_length) {
   *dest = absl::string_view(src->cursor(), max_length);
   src->move_cursor(max_length);
-  src->Fail(ResourceExhaustedError("Line length limit exceeded"));
+  src->Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
   return true;
 }
 
@@ -236,7 +236,7 @@ ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader* src, std::string* dest,
                                            size_t max_length) {
   dest->append(src->cursor(), max_length);
   src->move_cursor(max_length);
-  src->Fail(ResourceExhaustedError("Line length limit exceeded"));
+  src->Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
   return true;
 }
 

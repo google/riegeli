@@ -30,13 +30,12 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/backward_writer_utils.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -250,11 +249,11 @@ inline bool TransposeEncoder::AddRecordInternal(Reader* record) {
       << "Current position after the end of record";
   *size -= pos_before;
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
-    return Fail(ResourceExhaustedError("Too many records"));
+    return Fail(absl::ResourceExhaustedError("Too many records"));
   }
   if (ABSL_PREDICT_FALSE(*size > std::numeric_limits<uint64_t>::max() -
                                      decoded_data_size_)) {
-    return Fail(ResourceExhaustedError("Decoded data size too large"));
+    return Fail(absl::ResourceExhaustedError("Decoded data size too large"));
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(*size);

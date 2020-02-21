@@ -22,13 +22,12 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/canonical_errors.h"
 #include "riegeli/base/errno_mapping.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
@@ -43,7 +42,7 @@ bool IstreamReaderBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   const std::string message = absl::StrCat(operation, " failed");
   return Fail(error_number == 0
-                  ? UnknownError(message)
+                  ? absl::UnknownError(message)
                   : ErrnoToCanonicalStatus(error_number, message));
 }
 
@@ -217,7 +216,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
 absl::optional<Position> IstreamReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!random_access_)) {
-    Fail(UnimplementedError("IstreamReaderBase::Size() not supported"));
+    Fail(absl::UnimplementedError("IstreamReaderBase::Size() not supported"));
     return absl::nullopt;
   }
   std::istream* const src = src_stream();
