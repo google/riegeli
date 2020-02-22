@@ -705,6 +705,21 @@ extern "C" PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
+extern "C" PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
+                                          PyObject* args) {
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  const bool ok =
+      PythonUnlocked([&] { return self->record_reader->SeekBack(); });
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
+      SetExceptionFromRecordReader(self);
+      return nullptr;
+    }
+    Py_RETURN_FALSE;
+  }
+  Py_RETURN_TRUE;
+}
+
 extern "C" PyObject* RecordReaderSize(PyRecordReaderObject* self,
                                       PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
@@ -910,6 +925,15 @@ records, it is interpreted as the next record.
 
 Args:
   pos: Seek target.
+)doc"},
+    {"seek_back", reinterpret_cast<PyCFunction>(RecordReaderSeekBack),
+     METH_NOARGS, R"doc(
+seek_back(self) -> bool
+
+Seeks back by one record.
+
+Returns:
+  If successful, True. Returns False at the beginning of the file.
 )doc"},
     {"size", reinterpret_cast<PyCFunction>(RecordReaderSize), METH_NOARGS,
      R"doc(

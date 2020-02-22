@@ -272,7 +272,8 @@ class RecordReaderBase : public Object {
   // `pos()` is unchanged by `Close()`.
   RecordPosition pos() const;
 
-  // Returns `true` if this `RecordReader` supports `Seek()` and `Size()`.
+  // Returns `true` if this `RecordReader` supports `Seek()`, `SeekBack()`, and
+  // `Size()`.
   bool SupportsRandomAccess() const;
 
   // Seeks to a position.
@@ -288,6 +289,14 @@ class RecordReaderBase : public Object {
   //  * `false` - failure (`!healthy()`)
   bool Seek(RecordPosition new_pos);
   bool Seek(Position new_pos);
+
+  // Seeks back by one record.
+  //
+  // Return values:
+  //  * `true`                      - success (`healthy()`)
+  //  * `false` (when `healthy()`)  - beginning of the source reached
+  //  * `false` (when `!healthy()`) - failure
+  bool SeekBack();
 
   // Returns the size of the file in bytes, i.e. the position corresponding to
   // its end.

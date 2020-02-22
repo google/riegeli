@@ -233,6 +233,9 @@ _PARALLELISM_VALUES = (('serial', 0),
                        ('parallel', 10))
 # pyformat: enable
 
+_PARAMETERIZE_BY_FILE_SPEC = (
+    parameterized.named_parameters(*_FILE_SPEC_VALUES))
+
 _PARAMETERIZE_BY_RANDOM_ACCESS = (
     parameterized.named_parameters(*_RANDOM_ACCESS_VALUES))
 
@@ -682,6 +685,28 @@ class RecordsTest(parameterized.TestCase):
         reader.close()
         self.assertGreater(reader.pos, keys[10])
         self.assertLessEqual(reader.pos, keys[11])
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_seek_back(self, file_spec):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0)) as writer:
+        for i in range(23):
+          writer.write_record(sample_string(i, 10000))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos) as reader:
+        reader.seek_numeric(reader.size())
+        for i in reversed(range(23)):
+          self.assertTrue(reader.seek_back())
+          self.assertEqual(reader.read_record(), sample_string(i, 10000))
+          self.assertTrue(reader.seek_back())
+        self.assertFalse(reader.seek_back())
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_exception(self, file_spec, random_access, parallelism):

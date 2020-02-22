@@ -414,6 +414,39 @@ bool RecordReaderBase::Seek(Position new_pos) {
   return true;
 }
 
+bool RecordReaderBase::SeekBack() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_TRUE(chunk_decoder_.index() > 0)) {
+    chunk_decoder_.SetIndex(chunk_decoder_.index() - 1);
+    return true;
+  }
+  ChunkReader* const src = src_chunk_reader();
+  Position chunk_pos = chunk_begin_;
+  while (chunk_pos > 0) {
+    if (ABSL_PREDICT_FALSE(!src->SeekToChunkBefore(chunk_pos - 1))) {
+      // If recovery succeeds, continue searching back from the beginning of the
+      // skipped region.
+      chunk_pos = src->pos();
+      if (!FailSeeking(src)) return false;
+      continue;
+    }
+    chunk_pos = chunk_begin_;
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) {
+      // If recovery succeeds, continue searching back from the beginning of the
+      // skipped region.
+      if (!TryRecovery()) return false;
+      continue;
+    }
+    if (ABSL_PREDICT_TRUE(chunk_decoder_.num_records() > 0)) {
+      chunk_decoder_.SetIndex(chunk_decoder_.num_records() - 1);
+      return true;
+    }
+    // The chunk has no records. Continue searching back from the beginning of
+    // the chunk.
+  }
+  return false;
+}
+
 absl::optional<Position> RecordReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ChunkReader* const src = src_chunk_reader();
