@@ -20,6 +20,7 @@ from __future__ import print_function
 import tensorflow as tf
 
 from tensorflow.python.data.ops import dataset_ops
+from tensorflow.python.data.util import convert
 from tensorflow.python.framework import load_library
 from tensorflow.python.platform import resource_loader
 
@@ -28,20 +29,27 @@ gen_riegeli_dataset_ops = load_library.load_op_library(
 
 __all__ = ('RiegeliDataset',)
 
+_DEFAULT_BUFFER_SIZE = 64 << 10
+
 
 class RiegeliDataset(dataset_ops.DatasetSource):
   """A `Dataset` comprising records from one or more Riegeli/records files."""
 
-  __slots__ = ('_filenames',)
+  __slots__ = ('_filenames', '_buffer_size')
 
-  def __init__(self, filenames):
+  def __init__(self, filenames, buffer_size=None):
     """Creates a `RiegeliDataset`.
 
     Args:
       filenames: A `tf.string` tensor containing one or more filenames.
+      buffer_size: A `tf.int64` scalar which tunes how much data is buffered
+        after reading from the file. Default: 64K.
     """
     self._filenames = tf.convert_to_tensor(filenames, name='filenames')
-    variant_tensor = gen_riegeli_dataset_ops.riegeli_dataset(self._filenames)
+    self._buffer_size = convert.optional_param_to_tensor(
+        'buffer_size', buffer_size, argument_default=_DEFAULT_BUFFER_SIZE)
+    variant_tensor = gen_riegeli_dataset_ops.riegeli_dataset(
+        self._filenames, self._buffer_size)
     super(RiegeliDataset, self).__init__(variant_tensor)
 
   @property

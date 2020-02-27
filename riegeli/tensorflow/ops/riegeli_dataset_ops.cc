@@ -20,14 +20,23 @@ namespace tensorflow {
 
 REGISTER_OP("RiegeliDataset")
     .Input("filenames: string")
+    .Input("buffer_size: int64")
     .Output("handle: variant")
     .SetIsStateful()
-    .SetShapeFn(::tensorflow::shape_inference::ScalarShape)
+    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+      ::tensorflow::shape_inference::ShapeHandle unused;
+      // `filenames` must be a scalar or a vector.
+      TF_RETURN_IF_ERROR(c->WithRankAtMost(c->input(0), 1, &unused));
+      // `buffer_size` could only be a scalar.
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 0, &unused));
+      return ::tensorflow::shape_inference::ScalarShape(c);
+    })
     .Doc(R"doc(
 Creates a dataset that emits the records from one or more Riegeli/records files.
 
 filenames: A scalar or vector containing the name(s) of the file(s) to be
   read.
+buffer_size: Tunes how much data is buffered after reading from the file.
 )doc");
 
 }  // namespace tensorflow

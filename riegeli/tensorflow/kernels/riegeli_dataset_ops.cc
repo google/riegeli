@@ -77,16 +77,26 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           filenames_tensor->flat<::tensorflow::tstring>()(i));
     }
 
-    *output = new Dataset(ctx, std::move(filenames));
+    ::tensorflow::int64 buffer_size;
+    OP_REQUIRES_OK(ctx,
+                   ::tensorflow::data::ParseScalarArgument<::tensorflow::int64>(
+                       ctx, "buffer_size", &buffer_size));
+    OP_REQUIRES(
+        ctx, buffer_size > 0,
+        ::tensorflow::errors::InvalidArgument("`buffer_size` must be > 0"));
+
+    *output = new Dataset(ctx, std::move(filenames), buffer_size);
   }
 
  private:
   class Dataset : public ::tensorflow::data::DatasetBase {
    public:
     explicit Dataset(::tensorflow::OpKernelContext* ctx,
-                     std::vector<std::string> filenames)
+                     std::vector<std::string> filenames,
+                     ::tensorflow::int64 buffer_size)
         : DatasetBase(::tensorflow::data::DatasetContext(ctx)),
-          filenames_(std::move(filenames)) {}
+          filenames_(std::move(filenames)),
+          buffer_size_(buffer_size) {}
 
     std::unique_ptr<::tensorflow::data::IteratorBase> MakeIteratorInternal(
         const std::string& prefix) const override {
@@ -125,7 +135,9 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         DatasetGraphDefBuilder* b, ::tensorflow::Node** output) const override {
       ::tensorflow::Node* filenames = nullptr;
       TF_RETURN_IF_ERROR(b->AddVector(filenames_, &filenames));
-      TF_RETURN_IF_ERROR(b->AddDataset(this, {filenames}, output));
+      ::tensorflow::Node* buffer_size = nullptr;
+      TF_RETURN_IF_ERROR(b->AddScalar(buffer_size_, &buffer_size));
+      TF_RETURN_IF_ERROR(b->AddDataset(this, {filenames, buffer_size}, output));
       return ::tensorflow::Status::OK();
     }
 
@@ -253,7 +265,9 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
         reader_.emplace(std::forward_as_tuple(
             dataset()->filenames_[current_file_index_],
-            tensorflow::FileReaderBase::Options().set_env(ctx->env())));
+            tensorflow::FileReaderBase::Options()
+                .set_env(ctx->env())
+                .set_buffer_size(IntCast<size_t>(dataset()->buffer_size_))));
       }
 
       // Invariants:
@@ -269,6 +283,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     };
 
     const std::vector<std::string> filenames_;
+    const ::tensorflow::int64 buffer_size_;
   };
 };
 
