@@ -465,7 +465,6 @@ class RecordWriterBase : public Object {
   class SerialWorker;
   class ParallelWorker;
 
-  // This template is explicitly instantiated.
   template <typename Record>
   bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);
 
@@ -554,52 +553,8 @@ class RecordWriter : public RecordWriterBase {
 
 // Implementation details follow.
 
-extern template bool RecordWriterBase::WriteRecordImpl(
-    const google::protobuf::MessageLite& record, FutureRecordPosition* key);
-extern template bool RecordWriterBase::WriteRecordImpl(
-    const absl::string_view& record, FutureRecordPosition* key);
-extern template bool RecordWriterBase::WriteRecordImpl(
-    const Chain& record, FutureRecordPosition* key);
-extern template bool RecordWriterBase::WriteRecordImpl(
-    Chain&& record, FutureRecordPosition* key);
-extern template bool RecordWriterBase::WriteRecordImpl(
-    const absl::Cord& record, FutureRecordPosition* key);
-
-inline bool RecordWriterBase::WriteRecord(
-    const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
-}
-
-inline bool RecordWriterBase::WriteRecord(absl::string_view record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl<const absl::string_view&>(record, key);
-}
-
-template <typename Src,
-          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline bool RecordWriterBase::WriteRecord(Src&& record,
-                                          FutureRecordPosition* key) {
-  if (ABSL_PREDICT_TRUE(record.size() <= kMaxBytesToCopy)) {
-    return WriteRecordImpl<const absl::string_view&>(record, key);
-  } else {
-    return WriteRecordImpl(Chain(std::move(record)), key);
-  }
-}
-
-inline bool RecordWriterBase::WriteRecord(const Chain& record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
-}
-
-inline bool RecordWriterBase::WriteRecord(Chain&& record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl(std::move(record), key);
-}
-
-inline bool RecordWriterBase::WriteRecord(const absl::Cord& record,
-                                          FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
-}
+extern template bool RecordWriterBase::WriteRecord(std::string&& record,
+                                                   FutureRecordPosition* key);
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(const Dest& dest, Options options)

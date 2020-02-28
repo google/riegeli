@@ -696,9 +696,42 @@ void RecordWriterBase::Done() {
 
 void RecordWriterBase::DoneBackground() { worker_.reset(); }
 
+bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
+                                   FutureRecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
+bool RecordWriterBase::WriteRecord(absl::string_view record,
+                                   FutureRecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+bool RecordWriterBase::WriteRecord(Src&& record, FutureRecordPosition* key) {
+  return WriteRecordImpl(std::move(record), key);
+}
+
+template bool RecordWriterBase::WriteRecord(std::string&& record,
+                                            FutureRecordPosition* key);
+
+bool RecordWriterBase::WriteRecord(const Chain& record,
+                                   FutureRecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
+bool RecordWriterBase::WriteRecord(Chain&& record, FutureRecordPosition* key) {
+  return WriteRecordImpl(std::move(record), key);
+}
+
+bool RecordWriterBase::WriteRecord(const absl::Cord& record,
+                                   FutureRecordPosition* key) {
+  return WriteRecordImpl(record, key);
+}
+
 template <typename Record>
-bool RecordWriterBase::WriteRecordImpl(Record&& record,
-                                       FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
+                                              FutureRecordPosition* key) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
@@ -720,17 +753,6 @@ bool RecordWriterBase::WriteRecordImpl(Record&& record,
   }
   return true;
 }
-
-template bool RecordWriterBase::WriteRecordImpl(
-    const google::protobuf::MessageLite& record, FutureRecordPosition* key);
-template bool RecordWriterBase::WriteRecordImpl(const absl::string_view& record,
-                                                FutureRecordPosition* key);
-template bool RecordWriterBase::WriteRecordImpl(const Chain& record,
-                                                FutureRecordPosition* key);
-template bool RecordWriterBase::WriteRecordImpl(Chain&& record,
-                                                FutureRecordPosition* key);
-template bool RecordWriterBase::WriteRecordImpl(const absl::Cord& record,
-                                                FutureRecordPosition* key);
 
 bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

@@ -270,30 +270,32 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   return true;
 }
 
+bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite* record,
+                                  RecordPosition* key) {
+  return ReadRecordImpl(record, key);
+}
+
+bool RecordReaderBase::ReadRecord(absl::string_view* record,
+                                  RecordPosition* key) {
+  return ReadRecordImpl(record, key);
+}
+
+bool RecordReaderBase::ReadRecord(std::string* record, RecordPosition* key) {
+  return ReadRecordImpl(record, key);
+}
+
+bool RecordReaderBase::ReadRecord(Chain* record, RecordPosition* key) {
+  return ReadRecordImpl(record, key);
+}
+
+bool RecordReaderBase::ReadRecord(absl::Cord* record, RecordPosition* key) {
+  return ReadRecordImpl(record, key);
+}
+
 template <typename Record>
-bool RecordReaderBase::ReadRecordSlow(Record* record, RecordPosition* key) {
-  if (chunk_decoder_.healthy()) {
-    RIEGELI_ASSERT_EQ(chunk_decoder_.index(), chunk_decoder_.num_records())
-        << "Failed precondition of RecordReaderBase::ReadRecordSlow(): "
-           "records available, use ReadRecord() instead";
-  }
-  if (ABSL_PREDICT_FALSE(!healthy())) {
-    if (!TryRecovery()) return false;
-    goto again;
-  }
+inline bool RecordReaderBase::ReadRecordImpl(Record* record,
+                                             RecordPosition* key) {
   for (;;) {
-    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
-      recoverable_ = Recoverable::kRecoverChunkDecoder;
-      Fail(chunk_decoder_);
-      if (!TryRecovery()) return false;
-      goto again;
-    }
-    if (ABSL_PREDICT_FALSE(!ReadChunk())) {
-      if (!TryRecovery()) return false;
-    }
-    // Retrying from here is equivalent to calling `ReadRecord()` again
-    // (not `ReadRecordSlow()`).
-  again:
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
       RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
           << "ChunkDecoder::ReadRecord() left record index at 0";
@@ -302,19 +304,21 @@ bool RecordReaderBase::ReadRecordSlow(Record* record, RecordPosition* key) {
       }
       return true;
     }
+    if (ABSL_PREDICT_FALSE(!healthy())) {
+      if (!TryRecovery()) return false;
+      continue;
+    }
+    if (ABSL_PREDICT_FALSE(!chunk_decoder_.healthy())) {
+      recoverable_ = Recoverable::kRecoverChunkDecoder;
+      Fail(chunk_decoder_);
+      if (!TryRecovery()) return false;
+      continue;
+    }
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) {
+      if (!TryRecovery()) return false;
+    }
   }
 }
-
-template bool RecordReaderBase::ReadRecordSlow(
-    google::protobuf::MessageLite* record, RecordPosition* key);
-template bool RecordReaderBase::ReadRecordSlow(absl::string_view* record,
-                                               RecordPosition* key);
-template bool RecordReaderBase::ReadRecordSlow(std::string* record,
-                                               RecordPosition* key);
-template bool RecordReaderBase::ReadRecordSlow(Chain* record,
-                                               RecordPosition* key);
-template bool RecordReaderBase::ReadRecordSlow(absl::Cord* record,
-                                               RecordPosition* key);
 
 bool RecordReaderBase::SetFieldProjection(FieldProjection field_projection) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
