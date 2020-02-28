@@ -380,17 +380,16 @@ PythonPtr RecordPositionToPython(FutureRecordPosition value) {
   return self;
 }
 
-bool RecordPositionFromPython(PyObject* object, RecordPosition* value) {
+absl::optional<RecordPosition> RecordPositionFromPython(PyObject* object) {
   if (ABSL_PREDICT_FALSE(!PyObject_TypeCheck(object, &PyRecordPosition_Type))) {
     PyErr_Format(PyExc_TypeError, "Expected RecordPosition, not %s",
                  Py_TYPE(object)->tp_name);
-    return false;
+    return absl::nullopt;
   }
-  *value = PythonUnlocked([&] {
+  return PythonUnlocked([&] {
     return reinterpret_cast<PyRecordPositionObject*>(object)
         ->record_position->get();
   });
-  return true;
 }
 
 const char* const kModuleName = "riegeli.records.record_position";

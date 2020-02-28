@@ -189,40 +189,39 @@ extern "C" int RecordReaderClear(PyRecordReaderObject* self) {
   return 0;
 }
 
-bool VerifyTag(unsigned long tag_value, uint32_t* value) {
+absl::optional<uint32_t> VerifyTag(unsigned long tag_value) {
   static_assert(Field::kExistenceOnly == 0,
                 "VerifyTag() assumes that Field::kExistenceOnly == 0");
   if (ABSL_PREDICT_FALSE(tag_value > (uint32_t{1} << 29) - 1)) {
     PyErr_Format(PyExc_OverflowError, "Field tag out of range: %lu", tag_value);
-    return false;
+    return absl::nullopt;
   }
-  *value = IntCast<uint32_t>(tag_value);
-  return true;
+  return IntCast<uint32_t>(tag_value);
 }
 
-bool TagFromPython(PyObject* object, uint32_t* value) {
+absl::optional<uint32_t> TagFromPython(PyObject* object) {
 #if PY_MAJOR_VERSION < 3
   if (ABSL_PREDICT_TRUE(PyInt_Check(object))) {
     const long tag_value = PyInt_AS_LONG(object);
     if (ABSL_PREDICT_FALSE(tag_value < 0)) {
       PyErr_Format(PyExc_OverflowError, "Field tag out of range: %ld",
                    tag_value);
-      return false;
+      return absl::nullopt;
     }
-    return VerifyTag(IntCast<unsigned long>(tag_value), value);
+    return VerifyTag(IntCast<unsigned long>(tag_value));
   }
 #endif
   if (ABSL_PREDICT_FALSE(!PyLong_Check(object))) {
     PyErr_Format(PyExc_TypeError, "Expected int, not %s",
                  Py_TYPE(object)->tp_name);
-    return false;
+    return absl::nullopt;
   }
   const unsigned long tag_value = PyLong_AsUnsignedLong(object);
   if (ABSL_PREDICT_FALSE(tag_value == static_cast<unsigned long>(-1)) &&
       PyErr_Occurred()) {
-    return false;
+    return absl::nullopt;
   }
-  return VerifyTag(tag_value, value);
+  return VerifyTag(tag_value);
 }
 
 extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
@@ -276,11 +275,9 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
       const PythonPtr tag_iter(PyObject_GetIter(field_object.get()));
       if (ABSL_PREDICT_FALSE(tag_iter == nullptr)) return -1;
       while (const PythonPtr tag_object{PyIter_Next(tag_iter.get())}) {
-        uint32_t tag;
-        if (ABSL_PREDICT_FALSE(!TagFromPython(tag_object.get(), &tag))) {
-          return -1;
-        }
-        field.AddTag(IntCast<uint32_t>(tag));
+        const absl::optional<uint32_t> tag = TagFromPython(tag_object.get());
+        if (ABSL_PREDICT_FALSE(tag == absl::nullopt)) return -1;
+        field.AddTag(IntCast<uint32_t>(*tag));
       }
       if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return -1;
       field_projection.AddField(std::move(field));
@@ -668,15 +665,13 @@ extern "C" PyObject* RecordReaderSeek(PyRecordReaderObject* self,
           args, kwargs, "O:seek", const_cast<char**>(keywords), &pos_arg))) {
     return nullptr;
   }
-  RecordPosition pos;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  if (ABSL_PREDICT_FALSE(
-          !kRecordPositionApi->RecordPositionFromPython(pos_arg, &pos))) {
-    return nullptr;
-  }
+  const absl::optional<RecordPosition> pos =
+      kRecordPositionApi->RecordPositionFromPython(pos_arg);
+  if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool ok =
-      PythonUnlocked([&] { return self->record_reader->Seek(pos); });
+      PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
