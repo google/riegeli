@@ -224,6 +224,26 @@ absl::optional<uint32_t> TagFromPython(PyObject* object) {
   return VerifyTag(tag_value);
 }
 
+absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
+  riegeli::FieldProjection field_projection;
+  const PythonPtr field_iter(PyObject_GetIter(object));
+  if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return absl::nullopt;
+  while (const PythonPtr field_object{PyIter_Next(field_iter.get())}) {
+    riegeli::Field field;
+    const PythonPtr tag_iter(PyObject_GetIter(field_object.get()));
+    if (ABSL_PREDICT_FALSE(tag_iter == nullptr)) return absl::nullopt;
+    while (const PythonPtr tag_object{PyIter_Next(tag_iter.get())}) {
+      const absl::optional<uint32_t> tag = TagFromPython(tag_object.get());
+      if (ABSL_PREDICT_FALSE(tag == absl::nullopt)) return absl::nullopt;
+      field.AddTag(IntCast<uint32_t>(*tag));
+    }
+    if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;
+    field_projection.AddField(std::move(field));
+  }
+  if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;
+  return field_projection;
+}
+
 extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
                                 PyObject* kwargs) {
   static constexpr const char* keywords[] = {
@@ -267,23 +287,10 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
 
   RecordReaderBase::Options record_reader_options;
   if (field_projection_arg != nullptr && field_projection_arg != Py_None) {
-    riegeli::FieldProjection field_projection;
-    const PythonPtr field_iter(PyObject_GetIter(field_projection_arg));
-    if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return -1;
-    while (const PythonPtr field_object{PyIter_Next(field_iter.get())}) {
-      riegeli::Field field;
-      const PythonPtr tag_iter(PyObject_GetIter(field_object.get()));
-      if (ABSL_PREDICT_FALSE(tag_iter == nullptr)) return -1;
-      while (const PythonPtr tag_object{PyIter_Next(tag_iter.get())}) {
-        const absl::optional<uint32_t> tag = TagFromPython(tag_object.get());
-        if (ABSL_PREDICT_FALSE(tag == absl::nullopt)) return -1;
-        field.AddTag(IntCast<uint32_t>(*tag));
-      }
-      if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return -1;
-      field_projection.AddField(std::move(field));
-    }
-    if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return -1;
-    record_reader_options.set_field_projection(std::move(field_projection));
+    absl::optional<FieldProjection> field_projection =
+        FieldProjectionFromPython(field_projection_arg);
+    if (ABSL_PREDICT_FALSE(field_projection == absl::nullopt)) return -1;
+    record_reader_options.set_field_projection(*std::move(field_projection));
   }
   if (recovery_arg != nullptr && recovery_arg != Py_None) {
     Py_INCREF(recovery_arg);
@@ -640,6 +647,35 @@ extern "C" PyRecordIterObject* RecordReaderReadMessagesWithKeys(
   iter->args = PyTuple_Pack(1, message_type_arg);
   if (ABSL_PREDICT_FALSE(iter->args == nullptr)) return nullptr;
   return iter.release();
+}
+
+extern "C" PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
+                                                    PyObject* args,
+                                                    PyObject* kwargs) {
+  static constexpr const char* keywords[] = {"field_projection", nullptr};
+  PyObject* field_projection_arg;
+  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "O:set_field_projection", const_cast<char**>(keywords),
+          &field_projection_arg))) {
+    return nullptr;
+  }
+  absl::optional<FieldProjection> field_projection;
+  if (field_projection_arg == Py_None) {
+    field_projection = FieldProjection::All();
+  } else {
+    field_projection = FieldProjectionFromPython(field_projection_arg);
+    if (ABSL_PREDICT_FALSE(field_projection == absl::nullopt)) return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  const bool ok = PythonUnlocked([&] {
+    return self->record_reader->SetFieldProjection(
+        *std::move(field_projection));
+  });
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    SetExceptionFromRecordReader(self);
+    return nullptr;
+  }
+  Py_RETURN_NONE;
 }
 
 extern "C" PyObject* RecordReaderPos(PyRecordReaderObject* self,

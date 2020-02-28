@@ -316,6 +316,20 @@ template bool RecordReaderBase::ReadRecordSlow(Chain* record,
 template bool RecordReaderBase::ReadRecordSlow(absl::Cord* record,
                                                RecordPosition* key);
 
+bool RecordReaderBase::SetFieldProjection(FieldProjection field_projection) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  ChunkReader* const src = src_chunk_reader();
+  const uint64_t record_index = chunk_decoder_.index();
+  chunk_decoder_.Reset(ChunkDecoder::Options().set_field_projection(
+      std::move(field_projection)));
+  if (ABSL_PREDICT_FALSE(!src->Seek(chunk_begin_))) return FailSeeking(src);
+  if (record_index > 0) {
+    if (ABSL_PREDICT_FALSE(!ReadChunk())) return TryRecovery();
+    chunk_decoder_.SetIndex(record_index);
+  }
+  return true;
+}
+
 bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
   ChunkReader* const src = src_chunk_reader();

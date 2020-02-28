@@ -233,6 +233,15 @@ class RecordReaderBase : public Object {
   bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
   bool ReadRecord(absl::Cord* record, RecordPosition* key = nullptr);
 
+  // Like `Options::set_field_projection()`, but can be done at any time.
+  //
+  // This may cause reading the current chunk again.
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  bool SetFieldProjection(FieldProjection field_projection);
+
   // If `!healthy()` and the failure was caused by invalid file contents, then
   // `Recover()` tries to recover from the failure and allow reading again by
   // skipping over the invalid region.
