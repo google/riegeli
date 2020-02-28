@@ -355,8 +355,6 @@ inline absl::Status SnappyCompressImpl(Dependency<Reader*, Src> src,
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(const Src& src, const Dest& dest) {
-  static_assert(std::is_same<Src, std::decay_t<Src>>::value);
-  static_assert(std::is_same<Dest, std::decay_t<Dest>>::value);
   return internal::SnappyCompressImpl(Dependency<Reader*, Src>(src),
                                       Dependency<Writer*, Dest>(dest));
 }
