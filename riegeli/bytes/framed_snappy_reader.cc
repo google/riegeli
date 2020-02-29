@@ -69,26 +69,22 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader* const src = src_reader();
   truncated_ = false;
-  uint32_t chunk_header;
   for (;;) {
-    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(chunk_header)))) {
+    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t)))) {
       set_buffer();
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       if (ABSL_PREDICT_FALSE(src->available() > 0)) truncated_ = true;
       return false;
     }
-    std::memcpy(&chunk_header, src->cursor(), sizeof(chunk_header));
-    const uint8_t chunk_type =
-        static_cast<uint8_t>(ReadLittleEndian32(chunk_header));
-    const size_t chunk_length =
-        IntCast<size_t>(ReadLittleEndian32(chunk_header) >> 8);
-    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(chunk_header) + chunk_length))) {
+    const uint32_t chunk_header = ReadLittleEndian32(src->cursor());
+    const uint8_t chunk_type = static_cast<uint8_t>(chunk_header);
+    const size_t chunk_length = IntCast<size_t>(chunk_header >> 8);
+    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t) + chunk_length))) {
       set_buffer();
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
-      if (ABSL_PREDICT_FALSE(src->available() > 0)) truncated_ = true;
+      truncated_ = true;
       return false;
     }
-    const char* const compressed_chunk = src->cursor();
     if (ABSL_PREDICT_FALSE(src->pos() == 0 &&
                            chunk_type != 0xff /* Stream identifier */)) {
       set_buffer();
@@ -97,15 +93,16 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
     }
     switch (chunk_type) {
       case 0x00: {  // Compressed data.
-        uint32_t checksum;
-        if (ABSL_PREDICT_FALSE(chunk_length < sizeof(checksum))) {
+        if (ABSL_PREDICT_FALSE(chunk_length < sizeof(uint32_t))) {
           set_buffer();
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: compressed data too short"));
         }
+        const uint32_t checksum =
+            ReadLittleEndian32(src->cursor() + sizeof(uint32_t));
         const char* const compressed_data =
-            compressed_chunk + sizeof(chunk_header) + sizeof(checksum);
-        const size_t compressed_length = chunk_length - sizeof(checksum);
+            src->cursor() + 2 * sizeof(uint32_t);
+        const size_t compressed_length = chunk_length - sizeof(uint32_t);
         size_t uncompressed_length;
         if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
                 compressed_data, compressed_length, &uncompressed_length))) {
@@ -127,16 +124,14 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: invalid compressed data"));
         }
-        std::memcpy(&checksum, compressed_chunk + sizeof(chunk_header),
-                    sizeof(checksum));
         if (ABSL_PREDICT_FALSE(MaskChecksum(crc32c::Crc32c(
                                    uncompressed_data, uncompressed_length)) !=
-                               ReadLittleEndian32(checksum))) {
+                               checksum)) {
           set_buffer();
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: wrong checksum"));
         }
-        src->move_cursor(sizeof(chunk_header) + chunk_length);
+        src->move_cursor(sizeof(uint32_t) + chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
         if (ABSL_PREDICT_FALSE(uncompressed_length >
                                std::numeric_limits<Position>::max() -
@@ -149,31 +144,30 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
         return true;
       }
       case 0x01: {  // Uncompressed data.
-        uint32_t checksum;
-        if (ABSL_PREDICT_FALSE(chunk_length < sizeof(checksum))) {
+        if (ABSL_PREDICT_FALSE(chunk_length < sizeof(uint32_t))) {
           set_buffer();
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: uncompressed data too short"));
         }
+        const uint32_t checksum =
+            ReadLittleEndian32(src->cursor() + sizeof(uint32_t));
         const char* const uncompressed_data =
-            compressed_chunk + sizeof(chunk_header) + sizeof(checksum);
-        const size_t uncompressed_length = chunk_length - sizeof(checksum);
+            src->cursor() + 2 * sizeof(uint32_t);
+        const size_t uncompressed_length = chunk_length - sizeof(uint32_t);
         if (ABSL_PREDICT_FALSE(uncompressed_length > snappy::kBlockSize)) {
           set_buffer();
           return Fail(
               absl::DataLossError("Invalid Snappy-compressed stream: "
                                   "uncompressed length too large"));
         }
-        std::memcpy(&checksum, compressed_chunk + sizeof(chunk_header),
-                    sizeof(checksum));
         if (ABSL_PREDICT_FALSE(MaskChecksum(crc32c::Crc32c(
                                    uncompressed_data, uncompressed_length)) !=
-                               ReadLittleEndian32(checksum))) {
+                               checksum)) {
           set_buffer();
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: wrong checksum"));
         }
-        src->move_cursor(sizeof(chunk_header) + chunk_length);
+        src->move_cursor(sizeof(uint32_t) + chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
         if (ABSL_PREDICT_FALSE(uncompressed_length >
                                std::numeric_limits<Position>::max() -
@@ -187,14 +181,14 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
       }
       case 0xff:  // Stream identifier.
         if (ABSL_PREDICT_FALSE(
-                absl::string_view(compressed_chunk + sizeof(chunk_header),
+                absl::string_view(src->cursor() + sizeof(uint32_t),
                                   chunk_length) !=
                 absl::string_view("sNaPpY", 6))) {
           set_buffer();
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: invalid stream identifier"));
         }
-        src->move_cursor(sizeof(chunk_header) + chunk_length);
+        src->move_cursor(sizeof(uint32_t) + chunk_length);
         continue;
       default:
         if (ABSL_PREDICT_FALSE(chunk_type < 0x80)) {
@@ -202,7 +196,7 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           return Fail(absl::DataLossError(
               "Invalid Snappy-compressed stream: reserved unskippable chunk"));
         }
-        src->move_cursor(sizeof(chunk_header) + chunk_length);
+        src->move_cursor(sizeof(uint32_t) + chunk_length);
         continue;
     }
   }

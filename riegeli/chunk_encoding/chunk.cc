@@ -40,8 +40,8 @@ ChunkHeader::ChunkHeader(const Chain& data, ChunkType chunk_type,
 }
 
 uint64_t ChunkHeader::computed_header_hash() const {
-  return internal::Hash(absl::string_view(
-      reinterpret_cast<const char*>(words_ + 1), size() - sizeof(uint64_t)));
+  return internal::Hash(
+      absl::string_view(bytes() + sizeof(uint64_t), size() - sizeof(uint64_t)));
 }
 
 bool Chunk::WriteTo(Writer* dest) const {

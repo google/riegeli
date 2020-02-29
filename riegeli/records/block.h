@@ -40,40 +40,44 @@ class BlockHeader {
   }
 
   BlockHeader(const BlockHeader& that) noexcept {
-    std::memcpy(words_, that.words_, sizeof(words_));
+    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
   }
 
   BlockHeader& operator=(const BlockHeader& that) noexcept {
-    std::memcpy(words_, that.words_, sizeof(words_));
+    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
     return *this;
   }
 
-  char* bytes() { return reinterpret_cast<char*>(words_); }
-  const char* bytes() const { return reinterpret_cast<const char*>(words_); }
-  static constexpr size_t size() {
-    return sizeof(uint64_t) * 3;  // `sizeof(words_)`
-  }
+  char* bytes() { return bytes_; }
+  const char* bytes() const { return bytes_; }
+  static constexpr size_t size() { return sizeof(bytes_); }
 
   uint64_t computed_header_hash() const {
-    return internal::Hash(absl::string_view(
-        reinterpret_cast<const char*>(words_ + 1), size() - sizeof(uint64_t)));
+    return internal::Hash(absl::string_view(bytes() + sizeof(uint64_t),
+                                            size() - sizeof(uint64_t)));
   }
-  uint64_t stored_header_hash() const { return ReadLittleEndian64(words_[0]); }
-  uint64_t previous_chunk() const { return ReadLittleEndian64(words_[1]); }
-  uint64_t next_chunk() const { return ReadLittleEndian64(words_[2]); }
+  uint64_t stored_header_hash() const { return ReadLittleEndian64(bytes_); }
+  uint64_t previous_chunk() const {
+    return ReadLittleEndian64(bytes_ + sizeof(uint64_t));
+  }
+  uint64_t next_chunk() const {
+    return ReadLittleEndian64(bytes_ + 2 * sizeof(uint64_t));
+  }
 
  private:
-  void set_header_hash(uint64_t value) {
-    words_[0] = WriteLittleEndian64(value);
-  }
+  void set_header_hash(uint64_t value) { WriteLittleEndian64(value, bytes_); }
   void set_previous_chunk(uint64_t value) {
-    words_[1] = WriteLittleEndian64(value);
+    WriteLittleEndian64(value, bytes_ + sizeof(uint64_t));
   }
   void set_next_chunk(uint64_t value) {
-    words_[2] = WriteLittleEndian64(value);
+    WriteLittleEndian64(value, bytes_ + 2 * sizeof(uint64_t));
   }
 
-  uint64_t words_[3];
+  // Representation (Little Endian):
+  //  - `uint64_t`: `header_hash`
+  //  - `uint64_t`: `previous_chunk`
+  //  - `uint64_t`: `next_chunk`
+  char bytes_[3 * sizeof(uint64_t)];
 };
 
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);

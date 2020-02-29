@@ -59,16 +59,13 @@ bool TFRecordRecognizer::CheckFileFormat(
     reader = &decompressor;
   }
 
-  char header[sizeof(uint64_t)];
-  uint32_t masked_crc;
-  if (ABSL_PREDICT_FALSE(!reader->Read(header, sizeof(header))) ||
-      ABSL_PREDICT_FALSE(!reader->Read(reinterpret_cast<char*>(&masked_crc),
-                                       sizeof(masked_crc)))) {
+  if (ABSL_PREDICT_FALSE(!reader->Pull(sizeof(uint64_t) + sizeof(uint32_t)))) {
     if (ABSL_PREDICT_FALSE(!reader->healthy())) return Fail(*reader);
     return Fail(absl::DataLossError("Truncated TFRecord file"));
   }
-  if (tensorflow::crc32c::Unmask(ReadLittleEndian32(masked_crc)) !=
-      tensorflow::crc32c::Value(header, sizeof(header))) {
+  if (tensorflow::crc32c::Unmask(
+          ReadLittleEndian32(reader->cursor() + sizeof(uint64_t))) !=
+      tensorflow::crc32c::Value(reader->cursor(), sizeof(uint64_t))) {
     return Fail(absl::DataLossError("Corrupted TFRecord file"));
   }
   return true;

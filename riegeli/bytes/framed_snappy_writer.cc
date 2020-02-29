@@ -93,33 +93,32 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
   if (uncompressed_length == 0) return true;
   set_cursor(start());
   const char* const uncompressed_data = cursor();
-  struct {
-    uint32_t chunk_header, checksum;
-  } header;
-  if (ABSL_PREDICT_FALSE(!dest->Push(
-          sizeof(header) + snappy::MaxCompressedLength(uncompressed_length)))) {
+  if (ABSL_PREDICT_FALSE(
+          !dest->Push(2 * sizeof(uint32_t) +
+                      snappy::MaxCompressedLength(uncompressed_length)))) {
     return Fail(*dest);
   }
   char* const compressed_chunk = dest->cursor();
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
-                      compressed_chunk + sizeof(header), &compressed_length);
+                      compressed_chunk + 2 * sizeof(uint32_t),
+                      &compressed_length);
   if (compressed_length < uncompressed_length) {
-    header.chunk_header = WriteLittleEndian32(
-        0x00 /* Compressed data */ +
-        ((sizeof(header.checksum) + compressed_length) << 8));
+    WriteLittleEndian32(0x00 /* Compressed data */ |
+                            ((sizeof(uint32_t) + compressed_length) << 8),
+                        compressed_chunk);
   } else {
-    std::memcpy(compressed_chunk + sizeof(header), uncompressed_data,
+    std::memcpy(compressed_chunk + 2 * sizeof(uint32_t), uncompressed_data,
                 uncompressed_length);
     compressed_length = uncompressed_length;
-    header.chunk_header = WriteLittleEndian32(
-        0x01 /* Uncompressed data */ +
-        ((sizeof(header.checksum) + compressed_length) << 8));
+    WriteLittleEndian32(0x01 /* Uncompressed data */ |
+                            ((sizeof(uint32_t) + compressed_length) << 8),
+                        compressed_chunk);
   }
-  header.checksum = WriteLittleEndian32(
-      MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)));
-  std::memcpy(compressed_chunk, &header, sizeof(header));
-  dest->move_cursor(sizeof(header) + compressed_length);
+  WriteLittleEndian32(
+      MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)),
+      compressed_chunk + sizeof(uint32_t));
+  dest->move_cursor(2 * sizeof(uint32_t) + compressed_length);
   move_start_pos(uncompressed_length);
   return true;
 }

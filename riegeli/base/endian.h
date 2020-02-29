@@ -17,150 +17,211 @@
 
 #include <stdint.h>
 
+#include <cstring>
+
 namespace riegeli {
 
-// Converts a native 16-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 16-bit Little Endian
-// encoding.
-inline uint16_t WriteLittleEndian16(uint16_t data) {
-  uint16_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
+// Writes a number in a fixed width Little/Big Endian encoding to an array.
+//
+// Writes `sizeof(uint{16,32,64}_t)` bytes to `dest[]`.
+void WriteLittleEndian16(uint16_t data, char* dest);
+void WriteLittleEndian32(uint32_t data, char* dest);
+void WriteLittleEndian64(uint64_t data, char* dest);
+void WriteBigEndian16(uint16_t data, char* dest);
+void WriteBigEndian32(uint32_t data, char* dest);
+void WriteBigEndian64(uint64_t data, char* dest);
+
+// Reads a number in a fixed width Little/Big Endian encoding from an array.
+//
+// Reads `sizeof(uint{16,32,64}_t)` bytes  from `src[]`.
+uint16_t ReadLittleEndian16(const char* src);
+uint32_t ReadLittleEndian32(const char* src);
+uint64_t ReadLittleEndian64(const char* src);
+uint16_t ReadBigEndian16(const char* src);
+uint32_t ReadBigEndian32(const char* src);
+uint64_t ReadBigEndian64(const char* src);
+
+// Implementation details follow.
+
+namespace internal {
+
+// If these functions are manually inlined into their callers, clang generates
+// poor code (with byte shifting even for native endianness).
+
+inline uint16_t EncodeLittleEndian16(uint16_t data) {
+  uint16_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
   ptr[0] = static_cast<unsigned char>(data);
   ptr[1] = static_cast<unsigned char>(data >> 8);
-  return word;
+  return encoded;
 }
 
-// Converts a native 32-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 32-bit Little Endian
-// encoding.
-inline uint32_t WriteLittleEndian32(uint32_t data) {
-  uint32_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
+inline uint32_t EncodeLittleEndian32(uint32_t data) {
+  uint32_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
   ptr[0] = static_cast<unsigned char>(data);
   ptr[1] = static_cast<unsigned char>(data >> 8);
-  ptr[2] = static_cast<unsigned char>(data >> (8 * 2));
-  ptr[3] = static_cast<unsigned char>(data >> (8 * 3));
-  return word;
+  ptr[2] = static_cast<unsigned char>(data >> (2 * 8));
+  ptr[3] = static_cast<unsigned char>(data >> (3 * 8));
+  return encoded;
 }
 
-// Converts a native 64-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 64-bit Little Endian
-// encoding.
-inline uint64_t WriteLittleEndian64(uint64_t data) {
-  uint64_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
+inline uint64_t EncodeLittleEndian64(uint64_t data) {
+  uint64_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
   ptr[0] = static_cast<unsigned char>(data);
   ptr[1] = static_cast<unsigned char>(data >> 8);
-  ptr[2] = static_cast<unsigned char>(data >> (8 * 2));
-  ptr[3] = static_cast<unsigned char>(data >> (8 * 3));
-  ptr[4] = static_cast<unsigned char>(data >> (8 * 4));
-  ptr[5] = static_cast<unsigned char>(data >> (8 * 5));
-  ptr[6] = static_cast<unsigned char>(data >> (8 * 6));
-  ptr[7] = static_cast<unsigned char>(data >> (8 * 7));
-  return word;
+  ptr[2] = static_cast<unsigned char>(data >> (2 * 8));
+  ptr[3] = static_cast<unsigned char>(data >> (3 * 8));
+  ptr[4] = static_cast<unsigned char>(data >> (4 * 8));
+  ptr[5] = static_cast<unsigned char>(data >> (5 * 8));
+  ptr[6] = static_cast<unsigned char>(data >> (6 * 8));
+  ptr[7] = static_cast<unsigned char>(data >> (7 * 8));
+  return encoded;
 }
 
-// Converts a native 16-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 16-bit Big Endian
-// encoding.
-inline uint16_t WriteBigEndian16(uint16_t data) {
-  uint16_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
+inline uint16_t EncodeBigEndian16(uint16_t data) {
+  uint16_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
   ptr[0] = static_cast<unsigned char>(data >> 8);
   ptr[1] = static_cast<unsigned char>(data);
-  return word;
+  return encoded;
 }
 
-// Converts a native 32-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 32-bit Big Endian
-// encoding.
-inline uint32_t WriteBigEndian32(uint32_t data) {
-  uint32_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
-  ptr[0] = static_cast<unsigned char>(data >> (8 * 3));
-  ptr[1] = static_cast<unsigned char>(data >> (8 * 2));
+inline uint32_t EncodeBigEndian32(uint32_t data) {
+  uint32_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
+  ptr[0] = static_cast<unsigned char>(data >> (3 * 8));
+  ptr[1] = static_cast<unsigned char>(data >> (2 * 8));
   ptr[2] = static_cast<unsigned char>(data >> 8);
   ptr[3] = static_cast<unsigned char>(data);
-  return word;
+  return encoded;
 }
 
-// Converts a native 64-bit number to a word such that writing the word to a
-// byte array using `std::memcpy()` writes the number in 64-bit Big Endian
-// encoding.
-inline uint64_t WriteBigEndian64(uint64_t data) {
-  uint64_t word;
-  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&word);
-  ptr[0] = static_cast<unsigned char>(data >> (8 * 7));
-  ptr[1] = static_cast<unsigned char>(data >> (8 * 6));
-  ptr[2] = static_cast<unsigned char>(data >> (8 * 5));
-  ptr[3] = static_cast<unsigned char>(data >> (8 * 4));
-  ptr[4] = static_cast<unsigned char>(data >> (8 * 3));
-  ptr[5] = static_cast<unsigned char>(data >> (8 * 2));
+inline uint64_t EncodeBigEndian64(uint64_t data) {
+  uint64_t encoded;
+  unsigned char* const ptr = reinterpret_cast<unsigned char*>(&encoded);
+  ptr[0] = static_cast<unsigned char>(data >> (7 * 8));
+  ptr[1] = static_cast<unsigned char>(data >> (6 * 8));
+  ptr[2] = static_cast<unsigned char>(data >> (5 * 8));
+  ptr[3] = static_cast<unsigned char>(data >> (4 * 8));
+  ptr[4] = static_cast<unsigned char>(data >> (3 * 8));
+  ptr[5] = static_cast<unsigned char>(data >> (2 * 8));
   ptr[6] = static_cast<unsigned char>(data >> 8);
   ptr[7] = static_cast<unsigned char>(data);
-  return word;
+  return encoded;
 }
 
-// For a byte array containing a number in 16-bit Little Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 16-bit number.
-inline uint16_t ReadLittleEndian16(uint16_t word) {
+inline uint16_t DecodeLittleEndian16(uint16_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
+      reinterpret_cast<const unsigned char*>(&encoded);
   return uint16_t{ptr[0]} | (uint16_t{ptr[1]} << 8);
 }
 
-// For a byte array containing a number in 32-bit Little Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 32-bit number.
-inline uint32_t ReadLittleEndian32(uint32_t word) {
+inline uint32_t DecodeLittleEndian32(uint32_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
+      reinterpret_cast<const unsigned char*>(&encoded);
   return uint32_t{ptr[0]} | (uint32_t{ptr[1]} << 8) |
-         (uint32_t{ptr[2]} << (8 * 2)) | (uint32_t{ptr[3]} << (8 * 3));
+         (uint32_t{ptr[2]} << (2 * 8)) | (uint32_t{ptr[3]} << (3 * 8));
 }
 
-// For a byte array containing a number in 64-bit Little Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 64-bit number.
-inline uint64_t ReadLittleEndian64(uint64_t word) {
+inline uint64_t DecodeLittleEndian64(uint64_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
+      reinterpret_cast<const unsigned char*>(&encoded);
   return uint64_t{ptr[0]} | (uint64_t{ptr[1]} << 8) |
-         (uint64_t{ptr[2]} << (8 * 2)) | (uint64_t{ptr[3]} << (8 * 3)) |
-         (uint64_t{ptr[4]} << (8 * 4)) | (uint64_t{ptr[5]} << (8 * 5)) |
-         (uint64_t{ptr[6]} << (8 * 6)) | (uint64_t{ptr[7]} << (8 * 7));
+         (uint64_t{ptr[2]} << (2 * 8)) | (uint64_t{ptr[3]} << (3 * 8)) |
+         (uint64_t{ptr[4]} << (4 * 8)) | (uint64_t{ptr[5]} << (5 * 8)) |
+         (uint64_t{ptr[6]} << (6 * 8)) | (uint64_t{ptr[7]} << (7 * 8));
 }
 
-// For a byte array containing a number in 16-bit Big Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 16-bit number.
-inline uint16_t ReadBigEndian16(uint16_t word) {
+inline uint16_t DecodeBigEndian16(uint16_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
+      reinterpret_cast<const unsigned char*>(&encoded);
   return (uint16_t{ptr[0]} << 8) | uint16_t{ptr[1]};
 }
 
-// For a byte array containing a number in 32-bit Big Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 32-bit number.
-inline uint32_t ReadBigEndian32(uint32_t word) {
+inline uint32_t DecodeBigEndian32(uint32_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
-  return (uint32_t{ptr[0]} << (8 * 3)) | (uint32_t{ptr[1]} << (8 * 2)) |
+      reinterpret_cast<const unsigned char*>(&encoded);
+  return (uint32_t{ptr[0]} << (3 * 8)) | (uint32_t{ptr[1]} << (2 * 8)) |
          (uint32_t{ptr[2]} << 8) | uint32_t{ptr[3]};
 }
 
-// For a byte array containing a number in 64-bit Big Endian encoding, and a
-// word read from the byte array using `std::memcpy()`, converts the word to the
-// native 64-bit number.
-inline uint64_t ReadBigEndian64(uint64_t word) {
+inline uint64_t DecodeBigEndian64(uint64_t encoded) {
   const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&word);
-  return (uint64_t{ptr[0]} << (8 * 7)) | (uint64_t{ptr[1]} << (8 * 6)) |
-         (uint64_t{ptr[2]} << (8 * 5)) | (uint64_t{ptr[3]} << (8 * 4)) |
-         (uint64_t{ptr[4]} << (8 * 3)) | (uint64_t{ptr[5]} << (8 * 2)) |
+      reinterpret_cast<const unsigned char*>(&encoded);
+  return (uint64_t{ptr[0]} << (7 * 8)) | (uint64_t{ptr[1]} << (6 * 8)) |
+         (uint64_t{ptr[2]} << (5 * 8)) | (uint64_t{ptr[3]} << (4 * 8)) |
+         (uint64_t{ptr[4]} << (3 * 8)) | (uint64_t{ptr[5]} << (2 * 8)) |
          (uint64_t{ptr[6]} << 8) | uint64_t{ptr[7]};
+}
+
+}  // namespace internal
+
+inline void WriteLittleEndian16(uint16_t data, char* dest) {
+  const uint16_t encoded = internal::EncodeLittleEndian16(data);
+  std::memcpy(dest, &encoded, sizeof(uint16_t));
+}
+
+inline void WriteLittleEndian32(uint32_t data, char* dest) {
+  const uint32_t encoded = internal::EncodeLittleEndian32(data);
+  std::memcpy(dest, &encoded, sizeof(uint32_t));
+}
+
+inline void WriteLittleEndian64(uint64_t data, char* dest) {
+  const uint64_t encoded = internal::EncodeLittleEndian64(data);
+  std::memcpy(dest, &encoded, sizeof(uint64_t));
+}
+
+inline void WriteBigEndian16(uint16_t data, char* dest) {
+  const uint16_t encoded = internal::EncodeBigEndian16(data);
+  std::memcpy(dest, &encoded, sizeof(uint16_t));
+}
+
+inline void WriteBigEndian32(uint32_t data, char* dest) {
+  const uint32_t encoded = internal::EncodeBigEndian32(data);
+  std::memcpy(dest, &encoded, sizeof(uint32_t));
+}
+
+inline void WriteBigEndian64(uint64_t data, char* dest) {
+  const uint64_t encoded = internal::EncodeBigEndian64(data);
+  std::memcpy(dest, &encoded, sizeof(uint64_t));
+}
+
+inline uint16_t ReadLittleEndian16(const char* src) {
+  uint16_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint16_t));
+  return internal::DecodeLittleEndian16(encoded);
+}
+
+inline uint32_t ReadLittleEndian32(const char* src) {
+  uint32_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint32_t));
+  return internal::DecodeLittleEndian32(encoded);
+}
+
+inline uint64_t ReadLittleEndian64(const char* src) {
+  uint64_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint64_t));
+  return internal::DecodeLittleEndian64(encoded);
+}
+
+inline uint16_t ReadBigEndian16(const char* src) {
+  uint16_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint16_t));
+  return internal::DecodeBigEndian16(encoded);
+}
+
+inline uint32_t ReadBigEndian32(const char* src) {
+  uint32_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint32_t));
+  return internal::DecodeBigEndian32(encoded);
+}
+
+inline uint64_t ReadBigEndian64(const char* src) {
+  uint64_t encoded;
+  std::memcpy(&encoded, src, sizeof(uint64_t));
+  return internal::DecodeBigEndian64(encoded);
 }
 
 }  // namespace riegeli

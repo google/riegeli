@@ -65,17 +65,18 @@ bool RecordPosition::FromString(absl::string_view serialized) {
 }
 
 std::string RecordPosition::ToBytes() const {
-  const uint64_t words[2] = {WriteBigEndian64(chunk_begin_),
-                             WriteBigEndian64(record_index_)};
-  return std::string(reinterpret_cast<const char*>(words), sizeof(words));
+  std::string serialized(2 * sizeof(uint64_t), '\0');
+  WriteBigEndian64(chunk_begin_, &serialized[0]);
+  WriteBigEndian64(record_index_, &serialized[sizeof(uint64_t)]);
+  return serialized;
 }
 
 bool RecordPosition::FromBytes(absl::string_view serialized) {
-  uint64_t words[2];
-  if (ABSL_PREDICT_FALSE(serialized.size() != sizeof(words))) return false;
-  std::memcpy(words, serialized.data(), sizeof(words));
-  const uint64_t chunk_begin = ReadBigEndian64(words[0]);
-  const uint64_t record_index = ReadBigEndian64(words[1]);
+  if (ABSL_PREDICT_FALSE(serialized.size() != 2 * sizeof(uint64_t))) {
+    return false;
+  }
+  const uint64_t chunk_begin = ReadBigEndian64(&serialized[0]);
+  const uint64_t record_index = ReadBigEndian64(&serialized[sizeof(uint64_t)]);
   if (ABSL_PREDICT_FALSE(record_index >
                          std::numeric_limits<uint64_t>::max() - chunk_begin)) {
     return false;

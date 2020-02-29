@@ -37,50 +37,65 @@ class ChunkHeader {
                        uint64_t num_records, uint64_t decoded_data_size);
 
   ChunkHeader(const ChunkHeader& that) noexcept {
-    std::memcpy(words_, that.words_, sizeof(words_));
+    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
   }
 
   ChunkHeader& operator=(const ChunkHeader& that) noexcept {
-    std::memcpy(words_, that.words_, sizeof(words_));
+    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
     return *this;
   }
 
-  char* bytes() { return reinterpret_cast<char*>(words_); }
-  const char* bytes() const { return reinterpret_cast<const char*>(words_); }
-  static constexpr size_t size() {
-    return sizeof(uint64_t) * 5;  // `sizeof(words_)`
-  }
+  char* bytes() { return bytes_; }
+  const char* bytes() const { return bytes_; }
+  static constexpr size_t size() { return sizeof(bytes_); }
 
   uint64_t computed_header_hash() const;
-  uint64_t stored_header_hash() const { return ReadLittleEndian64(words_[0]); }
-  uint64_t data_size() const { return ReadLittleEndian64(words_[1]); }
-  uint64_t data_hash() const { return ReadLittleEndian64(words_[2]); }
-  ChunkType chunk_type() const {
-    return static_cast<ChunkType>(ReadLittleEndian64(words_[3] & 0xff));
+  uint64_t stored_header_hash() const { return ReadLittleEndian64(bytes_); }
+  uint64_t data_size() const {
+    return ReadLittleEndian64(bytes_ + sizeof(uint64_t));
   }
-  uint64_t num_records() const { return ReadLittleEndian64(words_[3] >> 8); }
-  uint64_t decoded_data_size() const { return ReadLittleEndian64(words_[4]); }
+  uint64_t data_hash() const {
+    return ReadLittleEndian64(bytes_ + 2 * sizeof(uint64_t));
+  }
+  ChunkType chunk_type() const {
+    return static_cast<ChunkType>(
+        ReadLittleEndian64(bytes_ + 3 * sizeof(uint64_t)) & 0xff);
+  }
+  uint64_t num_records() const {
+    return ReadLittleEndian64(bytes_ + 3 * sizeof(uint64_t)) >> 8;
+  }
+  uint64_t decoded_data_size() const {
+    return ReadLittleEndian64(bytes_ + 4 * sizeof(uint64_t));
+  }
 
  private:
-  void set_header_hash(uint64_t value) {
-    words_[0] = WriteLittleEndian64(value);
+  void set_header_hash(uint64_t value) { WriteLittleEndian64(value, bytes_); }
+  void set_data_size(uint64_t value) {
+    WriteLittleEndian64(value, bytes_ + sizeof(uint64_t));
   }
-  void set_data_size(uint64_t value) { words_[1] = WriteLittleEndian64(value); }
-  void set_data_hash(uint64_t value) { words_[2] = WriteLittleEndian64(value); }
+  void set_data_hash(uint64_t value) {
+    WriteLittleEndian64(value, bytes_ + 2 * sizeof(uint64_t));
+  }
   void set_chunk_type_and_num_records(ChunkType chunk_type,
                                       uint64_t num_records) {
     RIEGELI_ASSERT_LE(num_records, kMaxNumRecords)
         << "Failed precondition of "
            "ChunkHeader::set_chunk_type_and_num_records(): "
            "number of records out of range";
-    words_[3] = WriteLittleEndian64(static_cast<uint64_t>(chunk_type) |
-                                    (num_records << 8));
+    WriteLittleEndian64(static_cast<uint64_t>(chunk_type) | (num_records << 8),
+                        bytes_ + 3 * sizeof(uint64_t));
   }
   void set_decoded_data_size(uint64_t value) {
-    words_[4] = WriteLittleEndian64(value);
+    WriteLittleEndian64(value, bytes_ + 4 * sizeof(uint64_t));
   }
 
-  uint64_t words_[5];
+  // Representation (Little Endian):
+  //  - `uint64_t`: `header_hash`
+  //  - `uint64_t`: `data_size`
+  //  - `uint64_t`: `data_hash`
+  //  - `uint64_t`: `chunk_type` (low 8 bits) | `num_records` (high 56 bits)
+  //  - `uint64_t`: `decoded_data_size`
+  char bytes_[5 * sizeof(uint64_t)];
 };
 
 struct Chunk {
