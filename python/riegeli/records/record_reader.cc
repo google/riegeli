@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_reader.h"
@@ -763,6 +764,146 @@ extern "C" PyObject* RecordReaderSize(PyRecordReaderObject* self,
   return PositionToPython(*size).release();
 }
 
+extern "C" PyObject* RecordReaderSearch(PyRecordReaderObject* self,
+                                        PyObject* args, PyObject* kwargs) {
+  static constexpr const char* keywords[] = {"test", nullptr};
+  PyObject* test_arg;
+  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "O:search", const_cast<char**>(keywords), &test_arg))) {
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  PythonWrapped<Exception> test_exception;
+  const bool ok = PythonUnlocked([&] {
+    return self->record_reader->Search([&](RecordReaderBase*) {
+      PythonLock lock;
+      const PythonPtr test_result(
+          PyObject_CallFunctionObjArgs(test_arg, self, nullptr));
+      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      const absl::optional<absl::partial_ordering> ordering =
+          PartialOrderingFromPython(test_result.get());
+      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      return *ordering;
+    });
+  });
+  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+    test_exception->Restore();
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    SetExceptionFromRecordReader(self);
+    return nullptr;
+  }
+  Py_RETURN_NONE;
+}
+
+extern "C" PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
+                                                 PyObject* args,
+                                                 PyObject* kwargs) {
+  static constexpr const char* keywords[] = {"test", nullptr};
+  PyObject* test_arg;
+  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "O:search_for_record", const_cast<char**>(keywords),
+          &test_arg))) {
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  PythonWrapped<Exception> test_exception;
+  const bool ok = PythonUnlocked([&] {
+    return self->record_reader->Search<Chain>([&](const Chain& record) {
+      PythonLock lock;
+      const PythonPtr record_object = ChainToPython(record);
+      if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      const PythonPtr test_result(
+          PyObject_CallFunctionObjArgs(test_arg, record_object.get(), nullptr));
+      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      const absl::optional<absl::partial_ordering> ordering =
+          PartialOrderingFromPython(test_result.get());
+      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      return *ordering;
+    });
+  });
+  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+    test_exception->Restore();
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    SetExceptionFromRecordReader(self);
+    return nullptr;
+  }
+  Py_RETURN_NONE;
+}
+
+extern "C" PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
+                                                  PyObject* args,
+                                                  PyObject* kwargs) {
+  static constexpr const char* keywords[] = {"message_type", "test", nullptr};
+  PyObject* message_type_arg;
+  PyObject* test_arg;
+  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "OO:search_for_message", const_cast<char**>(keywords),
+          &message_type_arg, &test_arg))) {
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  PythonWrapped<Exception> test_exception;
+  const bool ok = PythonUnlocked([&] {
+    return self->record_reader->Search<Chain>([&](const Chain& record) {
+      PythonLock lock;
+      const PythonPtr record_object = ChainToPython(record);
+      if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      // message = message_type.FromString(record)
+      static constexpr Identifier id_FromString("FromString");
+      const PythonPtr message_object(PyObject_CallMethodObjArgs(
+          message_type_arg, id_FromString.get(), record_object.get(), nullptr));
+      if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      const PythonPtr test_result(PyObject_CallFunctionObjArgs(
+          test_arg, message_object.get(), nullptr));
+      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      const absl::optional<absl::partial_ordering> ordering =
+          PartialOrderingFromPython(test_result.get());
+      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+        test_exception.emplace(Exception::Fetch());
+        return absl::partial_ordering::equivalent;
+      }
+      return *ordering;
+    });
+  });
+  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+    test_exception->Restore();
+    return nullptr;
+  }
+  if (ABSL_PREDICT_FALSE(!ok)) {
+    SetExceptionFromRecordReader(self);
+    return nullptr;
+  }
+  Py_RETURN_NONE;
+}
+
 const PyMethodDef RecordReaderMethods[] = {
     {"__enter__", RecordReaderEnter, METH_NOARGS,
      R"doc(
@@ -973,6 +1114,81 @@ size(self) -> int
 Returns the size of the file in bytes.
 
 This is the position corresponding to its end.
+)doc"},
+    {"search", reinterpret_cast<PyCFunction>(RecordReaderSearch),
+     METH_VARARGS | METH_KEYWORDS,
+     R"doc(
+search(self, test: Callable[[RecordReader], Optional[int]]) -> None
+
+Searches the file for a desired record, or for a desired position between
+records, given that it is possible to determine whether a given record is before
+or after the desired position.
+
+The current position before calling search() does not matter.
+
+Args:
+  test: A function which takes the RecordReader as a parameter, seeked to some
+    record, and returns an int or None:
+     * < 0:  the current record is before the desired position
+     * == 0: the current record is desired, searching can stop
+     * > 0:  the current record is after the desired position
+     * None: it could not be determined which is the case; the current record
+             will be skipped
+
+Preconditions:
+ * all < 0 records precede all == 0 records
+ * all < 0 records precede all > 0 records
+ * all == 0 records precede all > 0 records
+
+If there is some == 0 record, search() points to some == 0 record. Otherwise,
+if there is some > 0 record, search() points to earliest > 0 record. Otherwise
+search() points to the end of file.
+
+To find the earliest == 0 record instead of an arbitrary one, test() can be
+changed to return > 0 in place of == 0.
+
+Further guarantees:
+ * If a test() returns == 0, search() points back to the record before test()
+   and returns.
+ * If a test() returns < 0, test() will not be called again at earlier
+   positions.
+ * If a test() returns > 0, test() will not be called again at later positions.
+ * test() will not be called again at the same position.
+
+It follows that if a test() returns == 0 or > 0, search() points to the record
+before the last test() call with one of these results. This allows to
+communicate additional context of a == 0 or > 0 result by a side effect of
+test().
+)doc"},
+    {"search_for_record",
+     reinterpret_cast<PyCFunction>(RecordReaderSearchForRecord),
+     METH_VARARGS | METH_KEYWORDS,
+     R"doc(
+search_for_record(self, test: Callable[[bytes], Optional[int]]) -> None
+
+A variant of search() which reads a record before calling test(), instead of
+letting test() read the record.
+
+Args:
+  test: A function which takes the record read as bytes as a parameter, and
+    returns an int or None, like in search().
+)doc"},
+    {"search_for_message",
+     reinterpret_cast<PyCFunction>(RecordReaderSearchForMessage),
+     METH_VARARGS | METH_KEYWORDS,
+     R"doc(
+search_for_message(
+    self, message_type: Type[Message],
+    test: Callable[[Message], Optional[int]]
+) -> None
+
+A variant of search() which reads a record before calling test(), instead of
+letting test() read the record.
+
+Args:
+  message_type: Type of the message to parse the record as.
+  test: A function which takes the record read as a parsed message as a
+    parameter, and returns an int or None, like in search().
 )doc"},
     {nullptr, nullptr, 0, nullptr},
 };

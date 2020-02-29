@@ -44,6 +44,7 @@ py_extension(
         "//riegeli/records:record_reader",
         "//riegeli/records:skipped_region",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:optional",
         "@local_config_python//:python_headers",
     ],

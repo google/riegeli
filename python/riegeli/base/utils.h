@@ -33,6 +33,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -532,6 +533,13 @@ PythonPtr PositionToPython(Position value);
 //
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<Position> PositionFromPython(PyObject* object);
+
+// Converts a Python object to C++ `absl::partial_ordering`. Valid Python
+// objects are `int` (compared with 0) or `None`.
+//
+// Returns `absl::nullopt` on failure (with Python exception set).
+absl::optional<absl::partial_ordering> PartialOrderingFromPython(
+    PyObject* object);
 
 // Implementation details follow.
 

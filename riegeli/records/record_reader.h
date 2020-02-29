@@ -22,8 +22,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
@@ -255,10 +257,11 @@ class RecordReaderBase : public Object {
   // If `skipped_region != nullptr`, `*skipped_region` is set to the position of
   // the skipped region on success.
   //
-  // If a recovery function is set, then `Recover()` is called automatically.
-  // Otherwise `Recover()` can be called after one of the following functions
-  // returned `false`, and the function can be assumed to have returned `true`
-  // if `Recover()` returns `true`:
+  // If a recovery function (`RecordReaderBase::Options::set_recovery()`) is
+  // set, then `Recover()` is called automatically. Otherwise `Recover()` can be
+  // called after one of the following functions returned `false`, and the
+  // function can be assumed to have returned `true` if `Recover()` returns
+  // `true`:
   //  * `Close()`
   //  * `ReadMetadata()`
   //  * `ReadSerializedMetadata()`
@@ -281,8 +284,8 @@ class RecordReaderBase : public Object {
   // `pos()` is unchanged by `Close()`.
   RecordPosition pos() const;
 
-  // Returns `true` if this `RecordReader` supports `Seek()`, `SeekBack()`, and
-  // `Size()`.
+  // Returns `true` if this `RecordReader` supports `Seek()`, `SeekBack()`,
+  // `Size()`, and `Search()`.
   bool SupportsRandomAccess() const;
 
   // Seeks to a position.
@@ -313,21 +316,65 @@ class RecordReaderBase : public Object {
   // Returns `absl::nullopt` on failure (`!healthy()`).
   absl::optional<Position> Size();
 
-#if 0
-  // Searches the region between the current position and end of file for a
-  // desired record. What is desired is specified by a function, which should
-  // read a record and set the argument pointer to a value < 0, == 0, or > 0,
-  // depending on whether the record read is before, among, or after desired
-  // records. If it returns false, the search is aborted.
+  // Searches the file for a desired record, or for a desired position between
+  // records, given that it is possible to determine whether a given record is
+  // before or after the desired position.
   //
-  // If a desired record has been found, the position is left before the first
-  // desired record, otherwise it is left at end of file. If found != nullptr,
-  // then *found is set to true if the desired record has been found, or false
-  // if it has not been found or the search was aborted.
+  // The current position before calling `Search()` does not matter.
   //
-  // TODO: This is not implemented yet.
-  bool Search(std::function<bool(int*)>, bool* found);
-#endif
+  // The `test` function takes `this` as a parameter, seeked to some record,
+  // and returns `absl::partial_ordering`:
+  //  * `less`       - the current record is before the desired position
+  //  * `equivalent` - the current record is desired, searching can stop
+  //  * `greater`    - the current record is after the desired position
+  //  * `unordered`  - it could not be determined which is the case; the current
+  //                   record will be skipped
+  //
+  // Preconditions:
+  //  * all `less` records precede all `equivalent` records
+  //  * all `less` records precede all `greater` records
+  //  * all `equivalent` records precede all `greater` records
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  //
+  // On success, if there is some `equivalent` record, `Search()` points to some
+  // `equivalent` record. Otherwise, if there is some `greater` record,
+  // `Search()` points to earliest `greater` record. Otherwise `Search()` points
+  // to the end of file.
+  //
+  // To find the earliest `equivalent` record instead of an arbitrary one,
+  // `test()` can be changed to return `greater` in place of `equivalent`.
+  //
+  // Further guarantees:
+  //  * If a `test()` returns `equivalent`, `Search()` points back to the record
+  //    before `test()` and returns.
+  //  * If a `test()` returns `less`, `test()` will not be called again at
+  //    earlier positions.
+  //  * If a `test()` returns `greater`, `test()` will not be called again at
+  //    later positions.
+  //  * `test()` will not be called again at the same position.
+  //
+  // It follows that if a `test()` returns `equivalent` or `greater`, `Search()`
+  // points to the record before the last `test()` call with one of these
+  // results. This allows to communicate additional context of an `equivalent`
+  // or `greater` result by a side effect of `test()`.
+  //
+  // For skipping invalid file regions during `Search()`, a recovery function
+  // (`RecordReaderBase::Options::set_recovery()`) can be set, but `Recover()`
+  // resumes only simple operations and is not applicable here.
+  bool Search(
+      absl::FunctionRef<absl::partial_ordering(RecordReaderBase* reader)> test);
+
+  // A variant of `Search()` which reads a record before calling `test()`,
+  // instead of letting `test()` read the record.
+  //
+  // The `Record` type must be supported by `ReadRecord()`, and `test` must be
+  // callable with an argument of type `Record&` or `const Record&`, returning
+  // `absl::partial_ordering`.
+  template <typename Record, typename Test>
+  bool Search(Test test);
 
  protected:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
@@ -378,6 +425,8 @@ class RecordReaderBase : public Object {
   std::function<bool(const SkippedRegion&)> recovery_;
 
  private:
+  class ChunkSearchTraits;
+
   bool FailReading(const ChunkReader* src);
   bool FailSeeking(const ChunkReader* src);
 
@@ -530,6 +579,17 @@ inline RecordPosition RecordReaderBase::pos() const {
     return RecordPosition(chunk_begin_, chunk_decoder_.index());
   }
   return RecordPosition(src_chunk_reader()->pos(), 0);
+}
+
+template <typename Record, typename Test>
+bool RecordReaderBase::Search(Test test) {
+  Record record;
+  return Search([&](RecordReaderBase* self) {
+    if (ABSL_PREDICT_FALSE(!self->ReadRecord(&record))) {
+      return absl::partial_ordering::unordered;
+    }
+    return test(record);
+  });
 }
 
 template <typename Src>

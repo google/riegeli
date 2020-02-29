@@ -708,6 +708,114 @@ class RecordsTest(parameterized.TestCase):
           self.assertTrue(reader.seek_back())
         self.assertFalse(reader.seek_back())
 
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search(self, file_spec):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0)) as writer:
+        keys = writer.write_messages_with_keys(
+            sample_message(i, 10000) for i in range(23))
+        writer.close()
+        end_pos = writer.pos
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos) as reader:
+
+        def test_function(search_target):
+
+          def test(record_reader):
+            message = record_reader.read_message(records_test_pb2.SimpleMessage)
+            return (message.id > search_target) - (message.id < search_target)
+
+          return test
+
+        reader.search(test_function(7))
+        self.assertEqual(reader.pos, keys[7])
+        reader.search(test_function(0))
+        self.assertEqual(reader.pos, keys[0])
+        reader.search(test_function(22))
+        self.assertEqual(reader.pos, keys[22])
+        reader.search(test_function(23))
+        self.assertEqual(reader.pos, end_pos)
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_record(self, file_spec):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0)) as writer:
+        keys = writer.write_messages_with_keys(
+            sample_message(i, 10000) for i in range(23))
+        writer.close()
+        end_pos = writer.pos
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos) as reader:
+
+        def test_function(search_target):
+
+          def test(record):
+            message = records_test_pb2.SimpleMessage.FromString(record)
+            return (message.id > search_target) - (message.id < search_target)
+
+          return test
+
+        reader.search_for_record(test_function(7))
+        self.assertEqual(reader.pos, keys[7])
+        reader.search_for_record(test_function(0))
+        self.assertEqual(reader.pos, keys[0])
+        reader.search_for_record(test_function(22))
+        self.assertEqual(reader.pos, keys[22])
+        reader.search_for_record(test_function(23))
+        self.assertEqual(reader.pos, end_pos)
+
+  @_PARAMETERIZE_BY_FILE_SPEC
+  def test_search_for_message(self, file_spec):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism=0)) as writer:
+        keys = writer.write_messages_with_keys(
+            sample_message(i, 10000) for i in range(23))
+        writer.close()
+        end_pos = writer.pos
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos) as reader:
+
+        def test_function(search_target):
+
+          def test(message):
+            return (message.id > search_target) - (message.id < search_target)
+
+          return test
+
+        reader.search_for_message(records_test_pb2.SimpleMessage,
+                                  test_function(7))
+        self.assertEqual(reader.pos, keys[7])
+        reader.search_for_message(records_test_pb2.SimpleMessage,
+                                  test_function(0))
+        self.assertEqual(reader.pos, keys[0])
+        reader.search_for_message(records_test_pb2.SimpleMessage,
+                                  test_function(22))
+        self.assertEqual(reader.pos, keys[22])
+        reader.search_for_message(records_test_pb2.SimpleMessage,
+                                  test_function(23))
+        self.assertEqual(reader.pos, end_pos)
+
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_exception(self, file_spec, random_access, parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
