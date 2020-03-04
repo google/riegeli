@@ -103,12 +103,24 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileReaderBase::FailOperation(): "
          "status not failed";
-  std::string context = absl::StrCat(operation, " failed");
-  if (!filename_.empty()) absl::StrAppend(&context, " reading ", filename_);
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of FileReaderBase::FailOperation(): "
+         "Object closed";
   return Fail(
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
                             status.error_message()),
-               context));
+               absl::StrCat(operation, " failed")));
+}
+
+bool FileReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return Reader::Fail(
+      filename_.empty()
+          ? std::move(status)
+          : Annotate(status, absl::StrCat("reading ", filename_)));
 }
 
 inline size_t FileReaderBase::LengthToReadDirectly() const {

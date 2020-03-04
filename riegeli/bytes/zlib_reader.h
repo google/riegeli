@@ -132,6 +132,13 @@ class ZlibReaderBase : public BufferedReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  // `ZlibReaderBase` overrides `Reader::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*src_reader()` might carry annotation with the
+  // compressed position.
+  using BufferedReader::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
+
  protected:
   ZlibReaderBase() noexcept {}
 

@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/chain.h"
@@ -39,6 +40,13 @@ class SnappyReaderBase : public ChainReader<Chain> {
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
+
+  // `SnappyReaderBase` overrides `Reader::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*src_reader()` might carry annotation with the
+  // compressed position.
+  using ChainReader::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
  protected:
   SnappyReaderBase(InitiallyClosed) noexcept {}

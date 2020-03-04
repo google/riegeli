@@ -21,8 +21,10 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -49,7 +51,7 @@ void SnappyReaderBase::Initialize(Reader* src) {
                  &decompressed,
                  ChainWriterBase::Options().set_size_hint(decompressed_size)));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      Fail(std::move(status));
+      FailWithoutAnnotation(std::move(status));
       return;
     }
   }
@@ -57,6 +59,15 @@ void SnappyReaderBase::Initialize(Reader* src) {
   // read from was not known in `SnappyReaderBase` constructor. This sets the
   // `Chain` and updates the `ChainReader` to read from it.
   ChainReader::Reset(std::move(decompressed));
+}
+
+bool SnappyReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 namespace internal {
@@ -68,7 +79,10 @@ absl::Status SnappyDecompressImpl(Reader* src, Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->healthy())) return dest->status();
   if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
   if (ABSL_PREDICT_FALSE(!ok)) {
-    return absl::DataLossError("Invalid snappy-compressed stream");
+    return Annotate(
+        Annotate(absl::DataLossError("Invalid snappy-compressed stream"),
+                 absl::StrCat("at byte ", src->pos())),
+        absl::StrCat("at uncompressed byte ", dest->pos()));
   }
   return absl::OkStatus();
 }

@@ -34,6 +34,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zstd.h"
@@ -153,6 +154,15 @@ void ZstdWriterBase::Done() {
   BufferedWriter::Done();
 }
 
+bool ZstdWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+}
+
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
@@ -185,8 +195,10 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       return true;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      return Fail(absl::InternalError(absl::StrCat(
-          "ZSTD_compressStream2() failed: ", ZSTD_getErrorName(result))));
+      return Fail(Annotate(
+          absl::InternalError(absl::StrCat("ZSTD_compressStream2() failed: ",
+                                           ZSTD_getErrorName(result))),
+          absl::StrCat("at byte ", dest->pos())));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)

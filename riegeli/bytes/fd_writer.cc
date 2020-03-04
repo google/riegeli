@@ -42,6 +42,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -77,8 +78,20 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdWriterCommon::FailOperation(): "
          "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed writing ", filename_)));
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of FdWriterCommon::FailOperation(): "
+         "Object closed";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+}
+
+bool FdWriterCommon::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return BufferedWriter::Fail(
+      Annotate(status, absl::StrCat("writing ", filename_)));
 }
 
 }  // namespace internal

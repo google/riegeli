@@ -55,9 +55,9 @@ namespace riegeli {
 // for its output to be available in the destination.
 class Writer : public Object {
  public:
-  // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`.
-  // Derived classes which override it further should include a call to
-  // `Writer::Fail()`.
+  // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`
+  // and annotate the status with the current position. Derived classes which
+  // override it further should include a call to `Writer::Fail()`.
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
@@ -227,6 +227,11 @@ class Writer : public Object {
   // Derived classes which override it further should include a call to
   // `Writer::Done()`.
   void Done() override;
+
+  // Exposes a `Fail()` override which does not annotate the status with the
+  // current position, unlike the public `Writer::Fail()`.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
   // Marks the `Writer` as failed with message "Writer position overflow".
   // Always returns `false`.

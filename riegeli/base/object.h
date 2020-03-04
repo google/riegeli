@@ -105,6 +105,9 @@ class Object {
 
   // Marks the `Object` as failed with the specified `absl::Status`.
   //
+  // Derived classes may override `Fail()` to annotate the `absl::Status` with
+  // some context.
+  //
   // `Fail()` always returns `false`, for convenience of reporting the failure
   // as a `false` result of a failing function.
   //

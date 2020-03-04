@@ -69,6 +69,9 @@ PythonReader::PythonReader(PyObject* src, Options options)
 }
 
 bool PythonReader::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of PythonReader::FailOperation(): "
+         "Object closed";
   PythonLock::AssertHeld();
   if (ABSL_PREDICT_FALSE(!healthy())) {
     // Ignore this error because `PythonReader` already failed.

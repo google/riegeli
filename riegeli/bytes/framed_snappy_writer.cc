@@ -21,11 +21,13 @@
 #include <limits>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "crc32c/crc32c.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/endian.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "snappy.h"
@@ -64,6 +66,15 @@ void FramedSnappyWriterBase::Done() {
     }
   }
   PushableWriter::Done();
+}
+
+bool FramedSnappyWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool FramedSnappyWriterBase::PushSlow(size_t min_length,

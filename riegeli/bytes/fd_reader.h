@@ -49,6 +49,9 @@ class FdReaderCommon : public BufferedReader {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  using BufferedReader::Fail;
+  bool Fail(absl::Status status) override;
+
  protected:
   FdReaderCommon() noexcept {}
 
@@ -234,6 +237,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  using ChainReader::Fail;
+  bool Fail(absl::Status status) override;
   bool Sync() override;
 
  protected:

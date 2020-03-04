@@ -20,7 +20,9 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
@@ -76,6 +78,13 @@ class ZstdReaderBase : public BufferedReader {
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
+
+  // `ZstdReaderBase` overrides `Reader::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*src_reader()` might carry annotation with the
+  // compressed position.
+  using BufferedReader::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
  protected:
   ZstdReaderBase() noexcept {}

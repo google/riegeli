@@ -83,7 +83,9 @@ inline bool TeeWriterBase::WriteInternal(Src&& src) {
   Writer* const dest = dest_writer();
   Writer* const side_dest = side_dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest, side_dest))) return false;
-  if (ABSL_PREDICT_FALSE(!side_dest->Write(src))) return Fail(*side_dest);
+  if (ABSL_PREDICT_FALSE(!side_dest->Write(src))) {
+    return FailWithoutAnnotation(*side_dest);
+  }
   const bool ok = dest->Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return ok;
@@ -107,7 +109,7 @@ bool TeeWriterBase::Flush(FlushType flush_type) {
   Writer* const side_dest = side_dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest, side_dest))) return false;
   if (ABSL_PREDICT_FALSE(!side_dest->Flush(flush_type))) {
-    return Fail(*side_dest);
+    return FailWithoutAnnotation(*side_dest);
   }
   const bool ok = dest->Flush(flush_type);
   MakeBuffer(dest);

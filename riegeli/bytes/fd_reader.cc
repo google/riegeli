@@ -46,6 +46,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 
 namespace riegeli {
@@ -104,8 +105,20 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdReaderCommon::FailOperation(): "
          "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed reading ", filename_)));
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of FdReaderCommon::FailOperation(): "
+         "Object closed";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+}
+
+bool FdReaderCommon::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return BufferedReader::Fail(
+      Annotate(status, absl::StrCat("reading ", filename_)));
 }
 
 }  // namespace internal
@@ -277,8 +290,11 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
-  return Fail(ErrnoToCanonicalStatus(
-      error_number, absl::StrCat(operation, " failed reading ", filename_)));
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
+         "Object closed";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 void FdMMapReaderBase::InitializePos(int src,
@@ -327,6 +343,15 @@ bool FdMMapReaderBase::SyncPos(int src) {
     }
   }
   return true;
+}
+
+bool FdMMapReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return ChainReader::Fail(
+      Annotate(status, absl::StrCat("reading ", filename_)));
 }
 
 bool FdMMapReaderBase::Sync() {

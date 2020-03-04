@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -61,6 +62,13 @@ class SnappyWriterBase : public Writer {
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
+
+  // `SnappyWriterBase` overrides `Writer::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*dest_writer()` might carry annotation with the
+  // compressed position.
+  using Writer::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
   bool Flush(FlushType flush_type) override;
 

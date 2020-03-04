@@ -20,7 +20,9 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -171,6 +173,13 @@ class ZstdWriterBase : public BufferedWriter {
   // Returns the compressed `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
+
+  // `ZstdWriterBase` overrides `Writer::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*dest_writer()` might carry annotation with the
+  // compressed position.
+  using BufferedWriter::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
   bool Flush(FlushType flush_type) override;
 

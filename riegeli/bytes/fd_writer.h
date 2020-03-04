@@ -49,6 +49,9 @@ class FdWriterCommon : public BufferedWriter {
   // `Close()`.
   const std::string& filename() const { return filename_; }
 
+  using BufferedWriter::Fail;
+  bool Fail(absl::Status status) override;
+
  protected:
   FdWriterCommon() noexcept {}
 

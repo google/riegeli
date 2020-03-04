@@ -108,6 +108,8 @@ class FileReaderBase : public Reader {
   // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  using Reader::Fail;
+  bool Fail(absl::Status status) override;
   bool SupportsRandomAccess() const override { return !filename_.empty(); }
   bool SupportsSize() const override { return !filename_.empty(); }
   absl::optional<Position> Size() override;

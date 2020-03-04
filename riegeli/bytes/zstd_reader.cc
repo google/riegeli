@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -76,10 +77,21 @@ void ZstdReaderBase::Initialize(Reader* src) {
 
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(absl::DataLossError("Truncated Zstd-compressed stream"));
+    Reader* const src = src_reader();
+    Fail(Annotate(absl::DataLossError("Truncated Zstd-compressed stream"),
+                  absl::StrCat("at byte ", src->pos())));
   }
   decompressor_.reset();
   BufferedReader::Done();
+}
+
+bool ZstdReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
@@ -121,8 +133,10 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       return output.pos >= min_length;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
-      Fail(absl::DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
-                                            ZSTD_getErrorName(result))));
+      Fail(Annotate(
+          absl::DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
+                                           ZSTD_getErrorName(result))),
+          absl::StrCat("at byte ", src->pos())));
       move_limit_pos(output.pos);
       return output.pos >= min_length;
     }

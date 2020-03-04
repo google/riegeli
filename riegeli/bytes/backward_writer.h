@@ -42,8 +42,9 @@ namespace riegeli {
 class BackwardWriter : public Object {
  public:
   // `BackwardWriter` overrides `Object::Fail()` to set buffer pointers to
-  // `nullptr`. Derived classes which override it further should include a call
-  // to `BackwardWriter::Fail()`.
+  // `nullptr` and annotate the status with the current position. Derived
+  // classes which override it further should include a call to
+  // `BackwardWriter::Fail()`.
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
@@ -199,6 +200,11 @@ class BackwardWriter : public Object {
   // `nullptr`. Derived classes which override it further should include a call
   // to `BackwardWriter::Done()`.
   void Done() override;
+
+  // Exposes a `Fail()` override which does not annotate the status with the
+  // current position, unlike the public `BackwardWriter::Fail()`.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.

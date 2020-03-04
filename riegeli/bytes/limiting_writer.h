@@ -216,7 +216,7 @@ inline bool LimitingWriterBase::SyncBuffer(Writer* dest) {
 inline void LimitingWriterBase::MakeBuffer(Writer* dest) {
   set_buffer(dest->start(), dest->buffer_size(), dest->written_to_buffer());
   set_start_pos(dest->pos() - written_to_buffer());
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) FailWithoutAnnotation(*dest);
 }
 
 template <typename Dest>
@@ -300,7 +300,7 @@ template <typename Dest>
 void LimitingWriter<Dest>::Done() {
   LimitingWriterBase::Done();
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
   }
 }
 

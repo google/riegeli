@@ -109,6 +109,8 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  using Writer::Fail;
+  bool Fail(absl::Status status) override;
   bool Flush(FlushType flush_type) override;
 
  protected:

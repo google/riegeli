@@ -184,7 +184,7 @@ inline bool TeeReaderBase::SyncBuffer(Reader* src, Writer* side_dest) {
          "cursor of the original Reader changed unexpectedly";
   if (ABSL_PREDICT_FALSE(
           !side_dest->Write(absl::string_view(start(), read_from_buffer())))) {
-    return Fail(*side_dest);
+    return FailWithoutAnnotation(*side_dest);
   }
   src->set_cursor(cursor());
   return true;
@@ -193,7 +193,7 @@ inline bool TeeReaderBase::SyncBuffer(Reader* src, Writer* side_dest) {
 inline void TeeReaderBase::MakeBuffer(Reader* src) {
   set_buffer(src->cursor(), src->available());
   set_limit_pos(src->pos() + available());
-  if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
+  if (ABSL_PREDICT_FALSE(!src->healthy())) FailWithoutAnnotation(*src);
 }
 
 template <typename Src, typename SideDest>
@@ -295,10 +295,12 @@ template <typename Src, typename SideDest>
 void TeeReader<Src, SideDest>::Done() {
   TeeReaderBase::Done();
   if (side_dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!side_dest_->Close())) Fail(*side_dest_);
+    if (ABSL_PREDICT_FALSE(!side_dest_->Close())) {
+      FailWithoutAnnotation(*side_dest_);
+    }
   }
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
   }
 }
 

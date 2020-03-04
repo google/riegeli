@@ -25,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -52,10 +53,21 @@ void BrotliReaderBase::Initialize(Reader* src) {
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(absl::DataLossError("Truncated Brotli-compressed stream"));
+    Reader* const src = src_reader();
+    Fail(Annotate(absl::DataLossError("Truncated Brotli-compressed stream"),
+                  absl::StrCat("at byte ", src->pos())));
   }
   decompressor_.reset();
   PullableReader::Done();
+}
+
+bool BrotliReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
@@ -80,10 +92,12 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
         set_buffer();
-        return Fail(absl::DataLossError(
-            absl::StrCat("BrotliDecoderDecompressStream() failed: ",
+        return Fail(
+            Annotate(absl::DataLossError(absl::StrCat(
+                         "BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
-                             BrotliDecoderGetErrorCode(decompressor_.get())))));
+                             BrotliDecoderGetErrorCode(decompressor_.get())))),
+                     absl::StrCat("at byte ", src->pos())));
       case BROTLI_DECODER_RESULT_SUCCESS:
         set_buffer();
         decompressor_.reset();

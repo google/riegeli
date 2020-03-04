@@ -59,6 +59,13 @@ class FramedSnappyWriterBase : public PushableWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  // `FramedSnappyWriterBase` overrides `Writer::Fail()` to annotate the status
+  // with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*dest_writer()` might carry annotation
+  // with the compressed position.
+  using PushableWriter::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
+
   bool Flush(FlushType flush_type) override;
 
  protected:

@@ -24,11 +24,13 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -41,8 +43,37 @@ bool Reader::VerifyEndAndClose() {
 
 void Reader::VerifyEnd() {
   if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(absl::DataLossError("End of data expected"));
+    Fail(absl::DataLossError(absl::StrCat("End of data expected")));
   }
+}
+
+bool Reader::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at byte ", pos())));
+}
+
+bool Reader::FailWithoutAnnotation(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Reader::FailWithoutAnnotation(): "
+         "status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Reader::FailWithoutAnnotation(): "
+         "Object closed";
+  return Object::Fail(std::move(status));
+}
+
+bool Reader::FailWithoutAnnotation(const Object& dependency) {
+  RIEGELI_ASSERT(!dependency.healthy())
+      << "Failed precondition of Reader::FailWithoutAnnotation(): "
+         "dependency healthy";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Reader::FailWithoutAnnotation(): "
+         "Object closed";
+  return FailWithoutAnnotation(dependency.status());
 }
 
 bool Reader::FailOverflow() {

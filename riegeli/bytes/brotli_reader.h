@@ -21,7 +21,9 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "brotli/decode.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -39,6 +41,13 @@ class BrotliReaderBase : public PullableReader {
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
+
+  // `BrotliReaderBase` overrides `Reader::Fail()` to annotate the status with
+  // the current position, clarifying that this is the uncompressed position.
+  // A status propagated from `*src_reader()` might carry annotation with the
+  // compressed position.
+  using PullableReader::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
  protected:
   explicit BrotliReaderBase(InitiallyClosed) noexcept

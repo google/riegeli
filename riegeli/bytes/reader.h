@@ -51,7 +51,7 @@ namespace riegeli {
 class Reader : public Object {
  public:
   // Verifies that the source ends at the current position, failing the `Reader`
-  // if not. Closes the `Reader`.
+  // with an `absl::DataLossError()` if not. Closes the `Reader`.
   //
   // Return values:
   //  * `true`  - success (the source ends at the former current position)
@@ -61,8 +61,14 @@ class Reader : public Object {
   bool VerifyEndAndClose();
 
   // Verifies that the source ends at the current position, failing the `Reader`
-  // if not.
+  // with an `absl::DataLossError()` if not.
   virtual void VerifyEnd();
+
+  // `Reader` overrides `Object::Fail()` to annotate the status with the current
+  // position. Derived classes which override it further should include a call
+  // to `Reader::Fail()`.
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
   // Ensures that enough data are available for reading: pulls more data from
   // the source, and points `cursor()` and `limit()` to data with length at
@@ -248,6 +254,11 @@ class Reader : public Object {
   // Derived classes which override it further should include a call to
   // `Reader::Done()`.
   void Done() override;
+
+  // Exposes a `Fail()` override which does not annotate the status with the
+  // current position, unlike the public `Reader::Fail()`.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
   // Marks the `Reader` as failed with message "Reader position overflow".
   // Always returns `false`.

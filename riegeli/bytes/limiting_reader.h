@@ -248,7 +248,7 @@ inline void LimitingReaderBase::MakeBuffer(Reader* src) {
                          size_limit_ - (src->pos() - src->read_from_buffer())),
              src->read_from_buffer());
   set_limit_pos(src->pos() + available());
-  if (ABSL_PREDICT_FALSE(!src->healthy())) Fail(*src);
+  if (ABSL_PREDICT_FALSE(!src->healthy())) FailWithoutAnnotation(*src);
 }
 
 template <typename Src>
@@ -331,7 +331,7 @@ template <typename Src>
 void LimitingReader<Src>::Done() {
   LimitingReaderBase::Done();
   if (src_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
+    if (ABSL_PREDICT_FALSE(!src_->Close())) FailWithoutAnnotation(*src_);
   }
 }
 

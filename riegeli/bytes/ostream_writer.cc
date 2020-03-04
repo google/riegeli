@@ -32,6 +32,9 @@
 namespace riegeli {
 
 bool OstreamWriterBase::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of OstreamWriterBase::FailOperation(): "
+         "Object closed";
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.

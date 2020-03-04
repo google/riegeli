@@ -70,7 +70,7 @@ bool TeeReaderBase::ReadSlow(char* dest, size_t length) {
     length = IntCast<size_t>(length_read);
   }
   if (ABSL_PREDICT_FALSE(!side_dest->Write(absl::string_view(dest, length)))) {
-    Fail(*side_dest);
+    FailWithoutAnnotation(*side_dest);
     ok = false;
   }
   MakeBuffer(src);
@@ -91,7 +91,7 @@ bool TeeReaderBase::ReadSlow(Chain* dest, size_t length) {
   Chain data;
   bool ok = src->Read(&data, length);
   if (ABSL_PREDICT_FALSE(!side_dest->Write(data))) {
-    Fail(*side_dest);
+    FailWithoutAnnotation(*side_dest);
     ok = false;
   }
   dest->Append(std::move(data));
@@ -113,7 +113,7 @@ bool TeeReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
   absl::Cord data;
   bool ok = src->Read(&data, length);
   if (ABSL_PREDICT_FALSE(!side_dest->Write(data))) {
-    Fail(*side_dest);
+    FailWithoutAnnotation(*side_dest);
     ok = false;
   }
   dest->Append(std::move(data));

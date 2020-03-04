@@ -21,9 +21,11 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/snappy_streams.h"
 #include "riegeli/bytes/writer.h"
@@ -51,6 +53,15 @@ void SnappyWriterBase::Done() {
       }
     }
   }
+}
+
+bool SnappyWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {

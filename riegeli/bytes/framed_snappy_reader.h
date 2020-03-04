@@ -20,7 +20,9 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -39,6 +41,13 @@ class FramedSnappyReaderBase : public PullableReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  // `FramedSnappyReaderBase` overrides `Reader::Fail()` to annotate the status
+  // with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*src_reader()` might carry annotation
+  // with the compressed position.
+  using PullableReader::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
+
  protected:
   explicit FramedSnappyReaderBase(InitiallyClosed) noexcept
       : PullableReader(kInitiallyClosed) {}
@@ -56,6 +65,8 @@ class FramedSnappyReaderBase : public PullableReader {
   bool PullSlow(size_t min_length, size_t recommended_length) override;
 
  private:
+  ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
+
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.

@@ -68,6 +68,9 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
 }
 
 bool PythonWriter::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of PythonWriter::FailOperation(): "
+         "Object closed";
   PythonLock::AssertHeld();
   if (ABSL_PREDICT_FALSE(!healthy())) {
     // Ignore this error because `PythonWriter` already failed.

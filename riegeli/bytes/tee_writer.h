@@ -189,7 +189,7 @@ inline bool TeeWriterBase::SyncBuffer(Writer* dest, Writer* side_dest) {
          "cursor of the original Writer changed unexpectedly";
   if (ABSL_PREDICT_FALSE(
           !side_dest->Write(absl::string_view(start(), written_to_buffer())))) {
-    return Fail(*side_dest);
+    return FailWithoutAnnotation(*side_dest);
   }
   dest->set_cursor(cursor());
   return true;
@@ -198,7 +198,7 @@ inline bool TeeWriterBase::SyncBuffer(Writer* dest, Writer* side_dest) {
 inline void TeeWriterBase::MakeBuffer(Writer* dest) {
   set_buffer(dest->cursor(), dest->available());
   set_start_pos(dest->pos());
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) FailWithoutAnnotation(*dest);
 }
 
 template <typename Dest, typename SideDest>
@@ -301,10 +301,12 @@ template <typename Dest, typename SideDest>
 void TeeWriter<Dest, SideDest>::Done() {
   TeeWriterBase::Done();
   if (side_dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!side_dest_->Close())) Fail(*side_dest_);
+    if (ABSL_PREDICT_FALSE(!side_dest_->Close())) {
+      FailWithoutAnnotation(*side_dest_);
+    }
   }
   if (dest_.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
+    if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
   }
 }
 

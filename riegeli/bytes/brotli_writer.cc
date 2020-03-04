@@ -22,9 +22,11 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -95,6 +97,15 @@ void BrotliWriterBase::Done() {
   BufferedWriter::Done();
 }
 
+bool BrotliWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+}
+
 bool BrotliWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
@@ -127,7 +138,9 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
     if (ABSL_PREDICT_FALSE(!BrotliEncoderCompressStream(
             compressor_.get(), op, &available_in, &next_in, &available_out,
             nullptr, nullptr))) {
-      return Fail(absl::InternalError("BrotliEncoderCompressStream() failed"));
+      return Fail(
+          Annotate(absl::InternalError("BrotliEncoderCompressStream() failed"),
+                   absl::StrCat("at byte ", dest->pos())));
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(

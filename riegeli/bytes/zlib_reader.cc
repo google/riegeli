@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zconf.h"
@@ -67,7 +68,9 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Fail(absl::DataLossError("Truncated zlib-compressed stream"));
+    Reader* const src = src_reader();
+    Fail(Annotate(absl::DataLossError("Truncated zlib-compressed stream"),
+                  absl::StrCat("at byte ", src->pos())));
   }
   decompressor_.reset();
   BufferedReader::Done();
@@ -75,11 +78,28 @@ void ZlibReaderBase::Done() {
 
 inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
                                           absl::string_view operation) {
+  RIEGELI_ASSERT_NE(code, absl::StatusCode::kOk)
+      << "Failed precondition of ZlibReaderBase::FailOperation(): "
+         "status code not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of ZlibReaderBase::FailOperation(): "
+         "Object closed";
+  Reader* const src = src_reader();
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_->msg);
   }
-  return Fail(absl::Status(code, message));
+  return Fail(Annotate(absl::Status(code, message),
+                       absl::StrCat("at byte ", src->pos())));
+}
+
+bool ZlibReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {

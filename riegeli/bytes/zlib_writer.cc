@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "zconf.h"
@@ -85,11 +86,25 @@ void ZlibWriterBase::Done() {
 }
 
 inline bool ZlibWriterBase::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of ZlibWriterBase::FailOperation(): "
+         "Object closed";
+  Writer* const dest = dest_writer();
   std::string message = absl::StrCat(operation, " failed");
   if (compressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", compressor_->msg);
   }
-  return Fail(absl::InternalError(message));
+  return Fail(Annotate(absl::InternalError(message),
+                       absl::StrCat("at byte ", dest->pos())));
+}
+
+bool ZlibWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  RIEGELI_ASSERT(!closed())
+      << "Failed precondition of Object::Fail(): Object closed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }
 
 bool ZlibWriterBase::WriteInternal(absl::string_view src) {
