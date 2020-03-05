@@ -45,7 +45,8 @@ bool TFRecordRecognizer::CheckFileFormat(
   if (!decompressor.Pull()) {
     if (decompressor.Close()) return false;
     if (ABSL_PREDICT_FALSE(!byte_reader_->Seek(pos_before))) {
-      return Fail(*byte_reader_, absl::InternalError("Seeking failed"));
+      byte_reader_->Fail(absl::InternalError("Seeking failed"));
+      return Fail(*byte_reader_);
     }
     record_reader_options->compression_type =
         tensorflow::io::RecordReaderOptions::NONE;

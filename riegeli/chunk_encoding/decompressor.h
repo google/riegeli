@@ -193,8 +193,9 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
   const absl::optional<uint64_t> decompressed_size =
       ReadVarint64(compressed_reader.get());
   if (ABSL_PREDICT_FALSE(decompressed_size == absl::nullopt)) {
-    Fail(*compressed_reader,
-         absl::DataLossError("Reading decompressed size failed"));
+    compressed_reader->Fail(
+        absl::DataLossError("Reading decompressed size failed"));
+    Fail(*compressed_reader);
     return;
   }
   switch (compression_type) {

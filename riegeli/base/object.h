@@ -135,18 +135,6 @@ class Object {
   //   `!closed()`
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
 
-  // Propagates failure from another `Object`, with a fallback status to use if
-  // the other `Object` is healthy.
-  //
-  // Equivalent to
-  // `Fail(!dependency.healthy() ? dependency.status() : fallback)`.
-  //
-  // Preconditions:
-  //   `!fallback.ok()`
-  //   `!closed()`
-  ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency,
-                                absl::Status fallback);
-
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
   //

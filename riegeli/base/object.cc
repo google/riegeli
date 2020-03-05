@@ -62,15 +62,6 @@ bool Object::Fail(const Object& dependency) {
   return Fail(dependency.status());
 }
 
-bool Object::Fail(const Object& dependency, absl::Status fallback) {
-  RIEGELI_ASSERT(!fallback.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
-  return Fail(!dependency.healthy() ? dependency.status()
-                                    : std::move(fallback));
-}
-
 TypeId Object::GetTypeId() const { return TypeId(); }
 
 }  // namespace riegeli
