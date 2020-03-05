@@ -44,10 +44,10 @@ class BrotliWriterBase : public BufferedWriter {
     // (higher = better density but slower).
     //
     // `compression_level` must be between `kMinCompressionLevel` (0) and
-    // `kMaxCompressionLevel` (11). Default: `kDefaultCompressionLevel` (9).
+    // `kMaxCompressionLevel` (11). Default: `kDefaultCompressionLevel` (6).
     static constexpr int kMinCompressionLevel = BROTLI_MIN_QUALITY;
     static constexpr int kMaxCompressionLevel = BROTLI_MAX_QUALITY;
-    static constexpr int kDefaultCompressionLevel = 9;
+    static constexpr int kDefaultCompressionLevel = 6;
     Options& set_compression_level(int compression_level) & {
       RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "

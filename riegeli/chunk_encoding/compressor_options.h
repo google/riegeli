@@ -39,8 +39,8 @@ class CompressorOptions {
   //     "zstd" (":" zstd_level)? |
   //     "snappy" |
   //     "window_log" ":" window_log
-  //   brotli_level ::= integer 0..11 (default 9)
-  //   zstd_level ::= integer -131072..22 (default 9)
+  //   brotli_level ::= integer 0..11 (default 6)
+  //   zstd_level ::= integer -131072..22 (default 3)
   //   window_log ::= "auto" or integer 10..31
   // ```
   //
@@ -64,7 +64,7 @@ class CompressorOptions {
   // (higher = better density but slower).
   //
   // `compression_level` must be between `kMinBrotli` (0) and `kMaxBrotli` (11).
-  // Default: `kDefaultBrotli` (9).
+  // Default: `kDefaultBrotli` (6).
   //
   // This is the default compression algorithm.
   static constexpr int kMinBrotli =
@@ -94,7 +94,7 @@ class CompressorOptions {
   //
   // `compression_level` must be between `kMinZstd` (-131072) and
   // `kMaxZstd` (22). Level 0 is currently equivalent to 3.
-  // Default: `kDefaultZstd` (9).
+  // Default: `kDefaultZstd` (3).
   static constexpr int kMinZstd = ZstdWriterBase::Options::kMinCompressionLevel;
   static constexpr int kMaxZstd = ZstdWriterBase::Options::kMaxCompressionLevel;
   static constexpr int kDefaultZstd =

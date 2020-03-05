@@ -16,8 +16,8 @@ Options for writing Riegeli/records files can be specified as a string:
     "bucket_fraction" ":" bucket_fraction |
     "pad_to_block_boundary" (":" ("true" | "false"))? |
     "parallelism" ":" parallelism
-  brotli_level ::= integer 0..11 (default 9)
-  zstd_level ::= integer -131072..22 (default 9)
+  brotli_level ::= integer 0..11 (default 6)
+  zstd_level ::= integer -131072..22 (default 3)
   window_log ::= "auto" or integer 10..31
   chunk_size ::=
     integer expressed as real with optional suffix [BkKMGTPE], 1..
@@ -50,7 +50,7 @@ Changes compression algorithm to [Brotli](https://github.com/google/brotli).
 Sets compression level which tunes the tradeoff between compression density and
 compression speed (higher = better density but slower).
 
-`brotli_level` must be between 0 and 11. Default: `9`.
+`brotli_level` must be between 0 and 11. Default: `6`.
 
 This is the default compression algorithm.
 
@@ -61,7 +61,7 @@ compression level which tunes the tradeoff between compression density and
 compression speed (higher = better density but slower).
 
 `zstd_level` must be between -131072 and 22. Level 0 is currently equivalent to
-3. Default: `9`.
+3. Default: `3`.
 
 ### `snappy`
 
