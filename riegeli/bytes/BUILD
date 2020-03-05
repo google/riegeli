@@ -55,10 +55,7 @@ cc_library(
 cc_library(
     name = "writer_utils",
     srcs = ["writer_utils.cc"],
-    hdrs = [
-        "varint.h",
-        "writer_utils.h",
-    ],
+    hdrs = ["writer_utils.h"],
     deps = [
         ":writer",
         "//riegeli/base",
@@ -67,26 +64,9 @@ cc_library(
 )
 
 cc_library(
-    name = "backward_writer_utils",
-    hdrs = [
-        "backward_writer_utils.h",
-        "varint.h",
-    ],
-    deps = [
-        ":backward_writer",
-        ":writer_utils",
-        "//riegeli/base",
-        "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-cc_library(
     name = "reader_utils",
     srcs = ["reader_utils.cc"],
-    hdrs = [
-        "reader_utils.h",
-        "varint.h",
-    ],
+    hdrs = ["reader_utils.h"],
     deps = [
         ":backward_writer",
         ":reader",
@@ -116,6 +96,33 @@ cc_library(
     hdrs = ["endian_reading.h"],
     deps = [
         ":reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "varint_writing",
+    srcs = ["varint.h"],
+    hdrs = ["varint_writing.h"],
+    deps = [
+        ":backward_writer",
+        ":writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
+    name = "varint_reading",
+    srcs = [
+        "varint.h",
+        "varint_reading.cc",
+    ],
+    hdrs = ["varint_reading.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
     ],

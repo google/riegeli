@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/writer_utils.h"
+#include "riegeli/bytes/varint_writing.h"
 
 namespace riegeli {
 namespace internal {

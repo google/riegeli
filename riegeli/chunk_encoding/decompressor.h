@@ -32,8 +32,8 @@
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/snappy_reader.h"
+#include "riegeli/bytes/varint_reading.h"
 #include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 

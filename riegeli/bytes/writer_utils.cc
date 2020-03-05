@@ -25,7 +25,7 @@
 namespace riegeli {
 namespace internal {
 
-bool WriteZerosSlow(Writer* dest, Position length) {
+bool WriteZerosSlow(Position length, Writer* dest) {
   RIEGELI_ASSERT_GT(length, dest->available())
       << "Failed precondition of WriteZerosSlow(): "
          "length too small, use WriteZeros() instead";

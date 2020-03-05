@@ -19,7 +19,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
-#include "riegeli/bytes/reader_utils.h"
+#include "riegeli/bytes/varint_reading.h"
 #include "riegeli/chunk_encoding/constants.h"
 
 namespace riegeli {

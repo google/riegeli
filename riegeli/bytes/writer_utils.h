@@ -22,34 +22,21 @@
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/port.h"
-#include "riegeli/bytes/varint.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
+// Writes a single byte.
+//
+// Returns `false` on failure.
 bool WriteByte(uint8_t data, Writer* dest);
 
-size_t LengthVarint32(uint32_t data);  // At most `kMaxLengthVarint32`.
-size_t LengthVarint64(uint64_t data);  // At most `kMaxLengthVarint64`.
-
-// At least `LengthVarint32(data)` bytes of space at `dest[]` must be available.
-char* WriteVarint32(uint32_t data, char* dest);
-// At least `LengthVarint64(data)` bytes of space at `dest[]` must be available.
-char* WriteVarint64(uint64_t data, char* dest);
-
-bool WriteVarint32(uint32_t data, Writer* dest);
-bool WriteVarint64(uint64_t data, Writer* dest);
-
-bool WriteZeros(Writer* dest, Position length);
+// Writes the given number of zero bytes.
+//
+// Returns `false` on failure.
+bool WriteZeros(Position length, Writer* dest);
 
 // Implementation details follow.
-
-namespace internal {
-
-bool WriteZerosSlow(Writer* dest, Position length);
-
-}  // namespace internal
 
 inline bool WriteByte(uint8_t data, Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
@@ -58,74 +45,13 @@ inline bool WriteByte(uint8_t data, Writer* dest) {
   return true;
 }
 
-inline size_t LengthVarint32(uint32_t data) {
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clz) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 = IntCast<size_t>(
-      sizeof(unsigned) >= 4 ? __builtin_clz(data | 1) ^ __builtin_clz(1)
-                            : __builtin_clzl(data | 1) ^ __builtin_clzl(1));
-  // This is the same as `floor_log2 / 7 + 1` for `floor_log2` in 0..31
-  // but performs division by a power of 2.
-  return (floor_log2 * 9 + 73) / 64;
-#else
-  size_t length = 1;
-  while (data >= 0x80) {
-    ++length;
-    data >>= 7;
-  }
-  return length;
-#endif
-}
+namespace internal {
 
-inline size_t LengthVarint64(uint64_t data) {
-#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
-    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
-  const size_t floor_log2 =
-      IntCast<size_t>(__builtin_clzll(data | 1) ^ __builtin_clzll(1));
-  // This is the same as `floor_log2 / 7 + 1` for `floor_log2` in 0..63
-  // but performs division by a power of 2.
-  return (floor_log2 * 9 + 73) / 64;
-#else
-  size_t length = 1;
-  while (data >= 0x80) {
-    ++length;
-    data >>= 7;
-  }
-  return length;
-#endif
-}
+bool WriteZerosSlow(Position length, Writer* dest);
 
-inline char* WriteVarint32(uint32_t data, char* dest) {
-  while (data >= 0x80) {
-    *dest++ = static_cast<char>(data | 0x80);
-    data >>= 7;
-  }
-  *dest++ = static_cast<char>(data);
-  return dest;
-}
+}  // namespace internal
 
-inline char* WriteVarint64(uint64_t data, char* dest) {
-  while (data >= 0x80) {
-    *dest++ = static_cast<char>(data | 0x80);
-    data >>= 7;
-  }
-  *dest++ = static_cast<char>(data);
-  return dest;
-}
-
-inline bool WriteVarint32(uint32_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint32))) return false;
-  dest->set_cursor(WriteVarint32(data, dest->cursor()));
-  return true;
-}
-
-inline bool WriteVarint64(uint64_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint64))) return false;
-  dest->set_cursor(WriteVarint64(data, dest->cursor()));
-  return true;
-}
-
-inline bool WriteZeros(Writer* dest, Position length) {
+inline bool WriteZeros(Position length, Writer* dest) {
   if (ABSL_PREDICT_TRUE(length <= dest->available())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
@@ -135,7 +61,7 @@ inline bool WriteZeros(Writer* dest, Position length) {
     }
     return true;
   }
-  return internal::WriteZerosSlow(dest, length);
+  return internal::WriteZerosSlow(length, dest);
 }
 
 }  // namespace riegeli

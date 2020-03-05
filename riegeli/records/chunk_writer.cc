@@ -45,7 +45,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos))) {
     const Position length = internal::RemainingInBlock(pos);
-    WriteZeros(dest, length);
+    WriteZeros(length, dest);
     pos += length;
   }
   ChunkWriter::Initialize(pos);
@@ -128,7 +128,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     }
     const Position length =
         UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!WriteZeros(dest, length))) return Fail(*dest);
+    if (ABSL_PREDICT_FALSE(!WriteZeros(length, dest))) return Fail(*dest);
     pos_ += length;
   }
   return true;

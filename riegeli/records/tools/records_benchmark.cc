@@ -51,7 +51,7 @@
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
-#include "riegeli/bytes/writer_utils.h"
+#include "riegeli/bytes/varint_writing.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
