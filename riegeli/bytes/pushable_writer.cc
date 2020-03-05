@@ -42,6 +42,10 @@ void PushableWriter::PushFromScratchSlow(size_t min_length,
       << "Failed precondition of PushableWriter::PushFromScratchSlow(): "
          "trivial min_length";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
+  if (available() == 0 && ABSL_PREDICT_TRUE(PushSlow(1, 0)) &&
+      available() >= min_length) {
+    return;
+  }
   if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
     scratch_ = std::make_unique<Scratch>();
   } else {

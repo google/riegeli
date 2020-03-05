@@ -77,7 +77,8 @@ class PushableWriter : public Writer {
   void Reset(InitiallyOpen);
 
   // Helps to implement `PushSlow(min_length, recommended_length)` if
-  // `min_length > 1` in terms of `Write(absl::string_view)` and `Write(Chain)`.
+  // `min_length > 1` in terms of `PushSlow(1, 0)`, `Write(absl::string_view)`,
+  // and `Write(Chain)`.
   //
   // Return values:
   //  * `true`  - scratch is not used now, `min_length == 1`,
