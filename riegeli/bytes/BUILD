@@ -129,6 +129,20 @@ cc_library(
 )
 
 cc_library(
+    name = "line_reading",
+    srcs = ["line_reading.cc"],
+    hdrs = ["line_reading.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
     name = "pushable_writer",
     srcs = ["pushable_writer.cc"],
     hdrs = ["pushable_writer.h"],

@@ -20,7 +20,6 @@
 
 #include <limits>
 #include <string>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
@@ -68,79 +67,6 @@ bool CopyAll(Reader* src, Writer* dest,
              Position max_size = std::numeric_limits<Position>::max());
 bool CopyAll(Reader* src, BackwardWriter* dest,
              size_t max_size = std::numeric_limits<size_t>::max());
-
-// Options for `ReadLine()`.
-class ReadLineOptions {
- public:
-  ReadLineOptions() noexcept {}
-
-  // If `false`, recognized line terminator is LF ("\n").
-  //
-  // If `true`, recognized line terminators are LF, CR, or CRLF ("\n", "\r", or
-  // "\r\n").
-  //
-  // Default: `false`
-  ReadLineOptions& set_recognize_cr(bool recognize_cr) & {
-    recognize_cr_ = recognize_cr;
-    return *this;
-  }
-  ReadLineOptions&& set_recognize_cr(bool recognize_cr) && {
-    return std::move(set_recognize_cr(recognize_cr));
-  }
-  bool recognize_cr() const { return recognize_cr_; }
-
-  // If `false`, line terminators will be stripped.
-  //
-  // If `true`, each returned line will include its terminator if it was present
-  // (it can be absent in the last line).
-  //
-  // Default: `false`
-  ReadLineOptions& set_keep_newline(bool keep_newline) & {
-    keep_newline_ = keep_newline;
-    return *this;
-  }
-  ReadLineOptions&& set_keep_newline(bool keep_newline) && {
-    return std::move(set_keep_newline(keep_newline));
-  }
-  bool keep_newline() const { return keep_newline_; }
-
-  // Expected maximal line length.
-  //
-  // If this length is exceeded, reading fails with
-  // `absl::ResourceExhaustedError()`.
-  //
-  // Default: `std::numeric_limits<size_t>::max()`
-  ReadLineOptions& set_max_length(size_t max_length) & {
-    max_length_ = max_length;
-    return *this;
-  }
-  ReadLineOptions&& set_max_length(size_t max_length) && {
-    return std::move(set_max_length(max_length));
-  }
-  size_t max_length() const { return max_length_; }
-
- private:
-  bool recognize_cr_ = false;
-  bool keep_newline_ = false;
-  size_t max_length_ = std::numeric_limits<size_t>::max();
-};
-
-// Reads a line.
-//
-// Warning: if `options.recognize_cr()` is `true`, for lines terminated with CR
-// `ReadLine()` reads ahead one character after the CR. If reading ahead only as
-// much as needed is required, e.g. when communicating with another process,
-// another implementation would be required (which would keep state between
-// calls).
-//
-// Return values:
-//  * `true`                           - success
-//  * `false` (when `src->healthy()`)  - source ends (`dest->empty()`)
-//  * `false` (when `!src->healthy()`) - failure (`dest->empty()`)
-bool ReadLine(Reader* src, absl::string_view* dest,
-              ReadLineOptions options = ReadLineOptions());
-bool ReadLine(Reader* src, std::string* dest,
-              ReadLineOptions options = ReadLineOptions());
 
 // Reads a single byte.
 //
