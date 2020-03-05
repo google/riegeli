@@ -104,11 +104,6 @@ cc_library(
 )
 
 cc_library(
-    name = "endian",
-    hdrs = ["endian.h"],
-)
-
-cc_library(
     name = "parallelism",
     srcs = ["parallelism.cc"],
     hdrs = ["parallelism.h"],

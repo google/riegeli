@@ -81,7 +81,7 @@ cc_library(
     hdrs = ["tfrecord_recognizer.h"],
     deps = [
         "//riegeli/base",
-        "//riegeli/base:endian",
+        "//riegeli/bytes:endian_reading",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:zlib_reader",
         "@com_google_absl//absl/base:core_headers",

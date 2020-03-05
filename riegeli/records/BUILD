@@ -84,7 +84,8 @@ cc_library(
     deps = [
         ":block",
         "//riegeli/base",
-        "//riegeli/base:endian",
+        "//riegeli/bytes:endian_reading",
+        "//riegeli/bytes:endian_writing",
         "//riegeli/chunk_encoding:chunk",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
@@ -153,7 +154,8 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base",
-        "//riegeli/base:endian",
+        "//riegeli/bytes:endian_reading",
+        "//riegeli/bytes:endian_writing",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:hash",
         "@com_google_absl//absl/strings",

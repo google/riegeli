@@ -12,14 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_ENDIAN_H_
-#define RIEGELI_BASE_ENDIAN_H_
+#ifndef RIEGELI_BYTES_ENDIAN_WRITING_H_
+#define RIEGELI_BYTES_ENDIAN_WRITING_H_
 
 #include <stdint.h>
 
 #include <cstring>
 
+#include "absl/base/optimization.h"
+#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/writer.h"
+
 namespace riegeli {
+
+// Writes a number in a fixed width Little/Big Endian encoding.
+//
+// Returns `false` on failure.
+bool WriteLittleEndian16(uint16_t data, Writer* dest);
+bool WriteLittleEndian32(uint32_t data, Writer* dest);
+bool WriteLittleEndian64(uint64_t data, Writer* dest);
+bool WriteBigEndian16(uint16_t data, Writer* dest);
+bool WriteBigEndian32(uint32_t data, Writer* dest);
+bool WriteBigEndian64(uint64_t data, Writer* dest);
+bool WriteLittleEndian16(uint16_t data, BackwardWriter* dest);
+bool WriteLittleEndian32(uint32_t data, BackwardWriter* dest);
+bool WriteLittleEndian64(uint64_t data, BackwardWriter* dest);
+bool WriteBigEndian16(uint16_t data, BackwardWriter* dest);
+bool WriteBigEndian32(uint32_t data, BackwardWriter* dest);
+bool WriteBigEndian64(uint64_t data, BackwardWriter* dest);
 
 // Writes a number in a fixed width Little/Big Endian encoding to an array.
 //
@@ -31,17 +51,90 @@ void WriteBigEndian16(uint16_t data, char* dest);
 void WriteBigEndian32(uint32_t data, char* dest);
 void WriteBigEndian64(uint64_t data, char* dest);
 
-// Reads a number in a fixed width Little/Big Endian encoding from an array.
-//
-// Reads `sizeof(uint{16,32,64}_t)` bytes  from `src[]`.
-uint16_t ReadLittleEndian16(const char* src);
-uint32_t ReadLittleEndian32(const char* src);
-uint64_t ReadLittleEndian64(const char* src);
-uint16_t ReadBigEndian16(const char* src);
-uint32_t ReadBigEndian32(const char* src);
-uint64_t ReadBigEndian64(const char* src);
-
 // Implementation details follow.
+
+inline bool WriteLittleEndian16(uint16_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
+  WriteLittleEndian16(data, dest->cursor());
+  dest->move_cursor(sizeof(uint16_t));
+  return true;
+}
+
+inline bool WriteLittleEndian32(uint32_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
+  WriteLittleEndian32(data, dest->cursor());
+  dest->move_cursor(sizeof(uint32_t));
+  return true;
+}
+
+inline bool WriteLittleEndian64(uint64_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
+  WriteLittleEndian64(data, dest->cursor());
+  dest->move_cursor(sizeof(uint64_t));
+  return true;
+}
+
+inline bool WriteBigEndian16(uint16_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
+  WriteBigEndian16(data, dest->cursor());
+  dest->move_cursor(sizeof(uint16_t));
+  return true;
+}
+
+inline bool WriteBigEndian32(uint32_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
+  WriteBigEndian32(data, dest->cursor());
+  dest->move_cursor(sizeof(uint32_t));
+  return true;
+}
+
+inline bool WriteBigEndian64(uint64_t data, Writer* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
+  WriteBigEndian64(data, dest->cursor());
+  dest->move_cursor(sizeof(uint64_t));
+  return true;
+}
+
+inline bool WriteLittleEndian16(uint16_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
+  dest->move_cursor(sizeof(uint16_t));
+  WriteLittleEndian16(data, dest->cursor());
+  return true;
+}
+inline bool WriteLittleEndian32(uint32_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
+  dest->move_cursor(sizeof(uint32_t));
+  WriteLittleEndian32(data, dest->cursor());
+  return true;
+}
+
+inline bool WriteLittleEndian64(uint64_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
+  dest->move_cursor(sizeof(uint64_t));
+  WriteLittleEndian64(data, dest->cursor());
+  return true;
+}
+
+inline bool WriteBigEndian16(uint16_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
+  dest->move_cursor(sizeof(uint16_t));
+  WriteBigEndian16(data, dest->cursor());
+  return true;
+}
+
+inline bool WriteBigEndian32(uint32_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
+  dest->move_cursor(sizeof(uint32_t));
+  WriteBigEndian32(data, dest->cursor());
+  return true;
+}
+
+inline bool WriteBigEndian64(uint64_t data, BackwardWriter* dest) {
+  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
+  dest->move_cursor(sizeof(uint64_t));
+  WriteBigEndian64(data, dest->cursor());
+  return true;
+}
 
 namespace internal {
 
@@ -112,50 +205,6 @@ inline uint64_t EncodeBigEndian64(uint64_t data) {
   return encoded;
 }
 
-inline uint16_t DecodeLittleEndian16(uint16_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return uint16_t{ptr[0]} | (uint16_t{ptr[1]} << 8);
-}
-
-inline uint32_t DecodeLittleEndian32(uint32_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return uint32_t{ptr[0]} | (uint32_t{ptr[1]} << 8) |
-         (uint32_t{ptr[2]} << (2 * 8)) | (uint32_t{ptr[3]} << (3 * 8));
-}
-
-inline uint64_t DecodeLittleEndian64(uint64_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return uint64_t{ptr[0]} | (uint64_t{ptr[1]} << 8) |
-         (uint64_t{ptr[2]} << (2 * 8)) | (uint64_t{ptr[3]} << (3 * 8)) |
-         (uint64_t{ptr[4]} << (4 * 8)) | (uint64_t{ptr[5]} << (5 * 8)) |
-         (uint64_t{ptr[6]} << (6 * 8)) | (uint64_t{ptr[7]} << (7 * 8));
-}
-
-inline uint16_t DecodeBigEndian16(uint16_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return (uint16_t{ptr[0]} << 8) | uint16_t{ptr[1]};
-}
-
-inline uint32_t DecodeBigEndian32(uint32_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return (uint32_t{ptr[0]} << (3 * 8)) | (uint32_t{ptr[1]} << (2 * 8)) |
-         (uint32_t{ptr[2]} << 8) | uint32_t{ptr[3]};
-}
-
-inline uint64_t DecodeBigEndian64(uint64_t encoded) {
-  const unsigned char* const ptr =
-      reinterpret_cast<const unsigned char*>(&encoded);
-  return (uint64_t{ptr[0]} << (7 * 8)) | (uint64_t{ptr[1]} << (6 * 8)) |
-         (uint64_t{ptr[2]} << (5 * 8)) | (uint64_t{ptr[3]} << (4 * 8)) |
-         (uint64_t{ptr[4]} << (3 * 8)) | (uint64_t{ptr[5]} << (2 * 8)) |
-         (uint64_t{ptr[6]} << 8) | uint64_t{ptr[7]};
-}
-
 }  // namespace internal
 
 inline void WriteLittleEndian16(uint16_t data, char* dest) {
@@ -188,42 +237,6 @@ inline void WriteBigEndian64(uint64_t data, char* dest) {
   std::memcpy(dest, &encoded, sizeof(uint64_t));
 }
 
-inline uint16_t ReadLittleEndian16(const char* src) {
-  uint16_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint16_t));
-  return internal::DecodeLittleEndian16(encoded);
-}
-
-inline uint32_t ReadLittleEndian32(const char* src) {
-  uint32_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint32_t));
-  return internal::DecodeLittleEndian32(encoded);
-}
-
-inline uint64_t ReadLittleEndian64(const char* src) {
-  uint64_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint64_t));
-  return internal::DecodeLittleEndian64(encoded);
-}
-
-inline uint16_t ReadBigEndian16(const char* src) {
-  uint16_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint16_t));
-  return internal::DecodeBigEndian16(encoded);
-}
-
-inline uint32_t ReadBigEndian32(const char* src) {
-  uint32_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint32_t));
-  return internal::DecodeBigEndian32(encoded);
-}
-
-inline uint64_t ReadBigEndian64(const char* src) {
-  uint64_t encoded;
-  std::memcpy(&encoded, src, sizeof(uint64_t));
-  return internal::DecodeBigEndian64(encoded);
-}
-
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_ENDIAN_H_
+#endif  // RIEGELI_BYTES_ENDIAN_WRITING_H_

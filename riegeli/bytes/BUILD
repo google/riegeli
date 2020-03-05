@@ -102,6 +102,26 @@ cc_library(
 )
 
 cc_library(
+    name = "endian_writing",
+    hdrs = ["endian_writing.h"],
+    deps = [
+        ":backward_writer",
+        ":writer",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
+    name = "endian_reading",
+    hdrs = ["endian_reading.h"],
+    deps = [
+        ":reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "pushable_writer",
     srcs = ["pushable_writer.cc"],
     hdrs = ["pushable_writer.h"],
@@ -110,7 +130,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
@@ -125,7 +144,6 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
@@ -290,7 +308,6 @@ cc_library(
     hdrs = ["array_writer.h"],
     deps = [
         ":pushable_writer",
-        ":writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:span",
@@ -305,7 +322,6 @@ cc_library(
     ],
     hdrs = ["array_backward_writer.h"],
     deps = [
-        ":backward_writer",
         ":pushable_backward_writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
@@ -704,11 +720,11 @@ cc_library(
     srcs = ["framed_snappy_writer.cc"],
     hdrs = ["framed_snappy_writer.h"],
     deps = [
+        ":endian_writing",
         ":pushable_writer",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:buffer",
-        "//riegeli/base:endian",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -722,11 +738,11 @@ cc_library(
     srcs = ["framed_snappy_reader.cc"],
     hdrs = ["framed_snappy_reader.h"],
     deps = [
+        ":endian_reading",
         ":pullable_reader",
         ":reader",
         "//riegeli/base",
         "//riegeli/base:buffer",
-        "//riegeli/base:endian",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

@@ -26,8 +26,8 @@
 #include "crc32c/crc32c.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
-#include "riegeli/base/endian.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/endian_reading.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "snappy.h"
@@ -89,22 +89,22 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
   Reader* const src = src_reader();
   truncated_ = false;
   for (;;) {
-    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t)))) {
+    const absl::optional<uint32_t> chunk_header = ReadLittleEndian32(src);
+    if (ABSL_PREDICT_FALSE(chunk_header == absl::nullopt)) {
       set_buffer();
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       if (ABSL_PREDICT_FALSE(src->available() > 0)) truncated_ = true;
       return false;
     }
-    const uint32_t chunk_header = ReadLittleEndian32(src->cursor());
-    const uint8_t chunk_type = static_cast<uint8_t>(chunk_header);
-    const size_t chunk_length = IntCast<size_t>(chunk_header >> 8);
-    if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t) + chunk_length))) {
+    const uint8_t chunk_type = static_cast<uint8_t>(*chunk_header);
+    const size_t chunk_length = IntCast<size_t>(*chunk_header >> 8);
+    if (ABSL_PREDICT_FALSE(!src->Pull(chunk_length))) {
       set_buffer();
       if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
       truncated_ = true;
       return false;
     }
-    if (ABSL_PREDICT_FALSE(src->pos() == 0 &&
+    if (ABSL_PREDICT_FALSE(src->pos() == sizeof(uint32_t) &&
                            chunk_type != 0xff /* Stream identifier */)) {
       set_buffer();
       return FailInvalidStream("missing stream identifier");
@@ -115,10 +115,8 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           set_buffer();
           return FailInvalidStream("compressed data too short");
         }
-        const uint32_t checksum =
-            ReadLittleEndian32(src->cursor() + sizeof(uint32_t));
-        const char* const compressed_data =
-            src->cursor() + 2 * sizeof(uint32_t);
+        const uint32_t checksum = ReadLittleEndian32(src->cursor());
+        const char* const compressed_data = src->cursor() + sizeof(uint32_t);
         const size_t compressed_length = chunk_length - sizeof(uint32_t);
         size_t uncompressed_length;
         if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
@@ -144,7 +142,7 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           return FailInvalidStream(
               "Invalid Snappy-compressed stream: wrong checksum");
         }
-        src->move_cursor(sizeof(uint32_t) + chunk_length);
+        src->move_cursor(chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
         if (ABSL_PREDICT_FALSE(uncompressed_length >
                                std::numeric_limits<Position>::max() -
@@ -161,10 +159,8 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           set_buffer();
           return FailInvalidStream("uncompressed data too short");
         }
-        const uint32_t checksum =
-            ReadLittleEndian32(src->cursor() + sizeof(uint32_t));
-        const char* const uncompressed_data =
-            src->cursor() + 2 * sizeof(uint32_t);
+        const uint32_t checksum = ReadLittleEndian32(src->cursor());
+        const char* const uncompressed_data = src->cursor() + sizeof(uint32_t);
         const size_t uncompressed_length = chunk_length - sizeof(uint32_t);
         if (ABSL_PREDICT_FALSE(uncompressed_length > snappy::kBlockSize)) {
           set_buffer();
@@ -176,7 +172,7 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           set_buffer();
           return FailInvalidStream("wrong checksum");
         }
-        src->move_cursor(sizeof(uint32_t) + chunk_length);
+        src->move_cursor(chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
         if (ABSL_PREDICT_FALSE(uncompressed_length >
                                std::numeric_limits<Position>::max() -
@@ -189,21 +185,19 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
         return true;
       }
       case 0xff:  // Stream identifier.
-        if (ABSL_PREDICT_FALSE(
-                absl::string_view(src->cursor() + sizeof(uint32_t),
-                                  chunk_length) !=
-                absl::string_view("sNaPpY", 6))) {
+        if (ABSL_PREDICT_FALSE(absl::string_view(src->cursor(), chunk_length) !=
+                               absl::string_view("sNaPpY", 6))) {
           set_buffer();
           return FailInvalidStream("invalid stream identifier");
         }
-        src->move_cursor(sizeof(uint32_t) + chunk_length);
+        src->move_cursor(chunk_length);
         continue;
       default:
         if (ABSL_PREDICT_FALSE(chunk_type < 0x80)) {
           set_buffer();
           return FailInvalidStream("reserved unskippable chunk");
         }
-        src->move_cursor(sizeof(uint32_t) + chunk_length);
+        src->move_cursor(chunk_length);
         continue;
     }
   }

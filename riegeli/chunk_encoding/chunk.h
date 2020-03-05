@@ -22,7 +22,8 @@
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/endian.h"
+#include "riegeli/bytes/endian_reading.h"
+#include "riegeli/bytes/endian_writing.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
