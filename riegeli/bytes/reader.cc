@@ -193,7 +193,7 @@ bool Reader::CopyToSlow(BackwardWriter* dest, size_t length) {
   }
   if (length <= kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-    dest->set_cursor(dest->cursor() - length);
+    dest->move_cursor(length);
     if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
       dest->set_cursor(dest->cursor() + length);
       return false;
