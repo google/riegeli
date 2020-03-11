@@ -29,20 +29,13 @@ class RiegeliError(Exception):
   """Base class of errors reported by Google APIs.
 
   Sometimes multiple error codes may apply. Services should return the most
-  specific error code that applies. For example, prefer`OutOfRangeError` over
+  specific error code that applies. For example, prefer `OutOfRangeError` over
   `FailedPreconditionError` if both codes apply. Similarly prefer
   `NotFoundError` or `AlreadyExistsError` over `FailedPreconditionError`.
 
   Attributes:
     code: Error code classifying the error, matching C++ StatusCode.
-    message: Human-readable error message.
   """
-
-  __slots__ = ('message',)
-
-  def __init__(self, message):
-    super(RiegeliError, self).__init__(message)
-    self.message = message
 
 
 class CancelledError(RiegeliError):
