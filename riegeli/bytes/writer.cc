@@ -108,6 +108,9 @@ bool Writer::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "length too small, use Write(Cord) instead";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    return Write(*flat);
+  }
   for (const absl::string_view fragment : src.Chunks()) {
     if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;
   }

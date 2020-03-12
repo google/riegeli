@@ -111,6 +111,9 @@ bool BackwardWriter::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "length too small, use Write(Cord) instead";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    return Write(*flat);
+  }
   if (src.size() <= available()) {
     move_cursor(src.size());
     char* dest = cursor();

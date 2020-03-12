@@ -29,6 +29,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
@@ -158,7 +159,8 @@ inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
   out << "[string] { capacity: " << src_.capacity() << " }";
 }
 
-// Stores an `absl::Cord` which must be flat.
+// Stores an `absl::Cord` which must be flat, i.e.
+// `src.TryFlat() != absl::nullopt`.
 //
 // This design relies on the fact that moving a flat `absl::Cord` results in a
 // flat `absl::Cord`.
@@ -187,17 +189,30 @@ class Chain::FlatCordRef {
   void PrependTo(absl::Cord* dest) const;
 
  private:
+  // Invariant: `src_.TryFlat() != absl::nullopt`
   absl::Cord src_;
 };
 
-inline Chain::FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {}
+inline Chain::FlatCordRef::FlatCordRef(const absl::Cord& src) : src_(src) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
 
 inline Chain::FlatCordRef::FlatCordRef(absl::Cord&& src)
-    : src_(std::move(src)) {}
+    : src_(std::move(src)) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
 
 inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator* iter,
                                        size_t length)
-    : src_(absl::Cord::AdvanceAndRead(iter, length)) {}
+    : src_(absl::Cord::AdvanceAndRead(iter, length)) {
+  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+      << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
+         "Cord is not flat";
+}
 
 inline void Chain::FlatCordRef::RegisterSubobjects(
     absl::string_view data, MemoryEstimator* memory_estimator) const {
@@ -217,8 +232,11 @@ inline void Chain::FlatCordRef::RegisterSubobjects(
 }
 
 inline Chain::FlatCordRef::operator absl::string_view() const {
-  for (absl::string_view fragment : src_.Chunks()) return fragment;
-  return absl::string_view();
+  if (const absl::optional<absl::string_view> flat = src_.TryFlat()) {
+    return *flat;
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Failed invariant of FlatCordRef: Cord is not flat";
 }
 
 inline void Chain::FlatCordRef::DumpStructure(std::ostream& out) const {
@@ -1386,6 +1404,15 @@ void Chain::Append(const absl::Cord& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Cord): "
          "Chain size overflow";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+      Append(*flat, options);
+    } else {
+      Append(ChainBlock::FromExternal<FlatCordRef>(std::forward_as_tuple(src)),
+             options);
+    }
+    return;
+  }
   absl::Cord::CharIterator iter = src.char_begin();
   while (iter != src.char_end()) {
     const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
@@ -1566,6 +1593,12 @@ void Chain::Prepend(const absl::Cord& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Cord): "
          "Chain size overflow";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+      Prepend(*flat, options);
+      return;
+    }
+  }
   Prepend(Chain(src), options);
 }
 
