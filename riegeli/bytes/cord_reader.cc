@@ -30,11 +30,6 @@
 
 namespace riegeli {
 
-void CordReaderBase::Done() {
-  PullableReader::Done();
-  iter_ = absl::Cord::CharIterator();
-}
-
 bool CordReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "

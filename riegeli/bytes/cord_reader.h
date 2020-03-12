@@ -58,7 +58,6 @@ class CordReaderBase : public PullableReader {
   void Reset(InitiallyOpen);
   void Initialize(const absl::Cord* src);
 
-  void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using PullableReader::ReadSlow;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -69,7 +68,7 @@ class CordReaderBase : public PullableReader {
   bool SeekSlow(Position new_pos) override;
 
   // Invariant:
-  //   if `closed()` then `iter_` is `absl::Cord::CharIterator()`
+  //   if `closed()` then `iter_` is unspecified and must not be touched
   //   else `iter_` reads from `*src_cord()`
   absl::Cord::CharIterator iter_;
 
@@ -156,7 +155,7 @@ inline CordReaderBase& CordReaderBase::operator=(
 
 inline void CordReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
-  iter_ = absl::Cord::CharIterator();
+  // `iter_` is left unspecified.
 }
 
 inline void CordReaderBase::Reset(InitiallyOpen) {
@@ -243,24 +242,24 @@ inline void CordReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
 
 template <typename Src>
 inline void CordReader<Src>::MoveSrc(CordReader&& that) {
-  if (src_.kIsStable() || ABSL_PREDICT_FALSE(closed())) {
+  if (src_.kIsStable()) {
     src_ = std::move(that.src_);
-    iter_ = std::exchange(that.iter_, absl::Cord::CharIterator());
+    if (ABSL_PREDICT_TRUE(!closed())) iter_ = std::move(that.iter_);
   } else {
     BehindScratch behind_scratch(this);
     const size_t position = IntCast<size_t>(start_pos());
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
-    // Reset `that.iter_` before `iter_` to support self-assignment.
-    that.iter_ = absl::Cord::CharIterator();
-    if (position == src_->size()) {
-      iter_ = src_->char_end();
-      set_buffer();
-    } else {
-      iter_ = src_->char_begin();
-      absl::Cord::Advance(&iter_, position);
-      const absl::string_view fragment = absl::Cord::ChunkRemaining(iter_);
-      set_buffer(fragment.data(), fragment.size(), cursor_index);
+    if (ABSL_PREDICT_TRUE(!closed())) {
+      if (position == src_->size()) {
+        iter_ = src_->char_end();
+        set_buffer();
+      } else {
+        iter_ = src_->char_begin();
+        absl::Cord::Advance(&iter_, position);
+        const absl::string_view fragment = absl::Cord::ChunkRemaining(iter_);
+        set_buffer(fragment.data(), fragment.size(), cursor_index);
+      }
     }
   }
 }
