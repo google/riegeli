@@ -773,7 +773,7 @@ extern "C" PyObject* RecordReaderSearch(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  PythonWrapped<Exception> test_exception;
+  absl::optional<Exception> test_exception;
   const bool ok = PythonUnlocked([&] {
     return self->record_reader->Search([&](RecordReaderBase*) {
       PythonLock lock;
@@ -792,7 +792,7 @@ extern "C" PyObject* RecordReaderSearch(PyRecordReaderObject* self,
       return *ordering;
     });
   });
-  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
     test_exception->Restore();
     return nullptr;
   }
@@ -814,7 +814,7 @@ extern "C" PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  PythonWrapped<Exception> test_exception;
+  absl::optional<Exception> test_exception;
   const bool ok = PythonUnlocked([&] {
     return self->record_reader->Search<Chain>([&](const Chain& record) {
       PythonLock lock;
@@ -838,7 +838,7 @@ extern "C" PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
       return *ordering;
     });
   });
-  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
     test_exception->Restore();
     return nullptr;
   }
@@ -861,7 +861,7 @@ extern "C" PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  PythonWrapped<Exception> test_exception;
+  absl::optional<Exception> test_exception;
   const bool ok = PythonUnlocked([&] {
     return self->record_reader->Search<Chain>([&](const Chain& record) {
       PythonLock lock;
@@ -893,7 +893,7 @@ extern "C" PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
       return *ordering;
     });
   });
-  if (ABSL_PREDICT_FALSE(test_exception.has_value())) {
+  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
     test_exception->Restore();
     return nullptr;
   }
