@@ -153,11 +153,9 @@ inline bool CordBackwardWriterBase::MakeBuffer(absl::Cord* dest,
                          std::numeric_limits<size_t>::max() - dest->size())) {
     return FailOverflow();
   }
-  if (buffer_.size() < min_length || !buffer_.is_allocated()) {
-    buffer_.Resize(BufferLength(
-        min_length, max_block_size_, size_hint_, start_pos(),
-        UnsignedMax(recommended_length, start_pos(), min_block_size_)));
-  }
+  buffer_.Resize(BufferLength(
+      min_length, max_block_size_, size_hint_, start_pos(),
+      UnsignedMax(recommended_length, start_pos(), min_block_size_)));
   char* const buffer = buffer_.GetData();
   set_buffer(buffer,
              UnsignedMin(buffer_.size(),
