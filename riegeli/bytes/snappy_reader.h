@@ -22,6 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -162,12 +163,12 @@ template <typename Src, typename Dest, typename... SrcArgs,
 absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
                               std::tuple<DestArgs...> dest_args);
 
-// Returns the claimed decompressed size of Snappy-compressed data.
+// Returns the claimed uncompressed size of Snappy-compressed data.
 //
-// Return values:
-//  * `true`  - success (`*size` is set)
-//  * `false` - failure
-bool SnappyDecompressedSize(Reader* src, size_t* size);
+// Returns `absl::nullopt` on failure.
+//
+// The current position of `src` is unchanged.
+absl::optional<size_t> SnappyUncompressedSize(Reader* src);
 
 // Implementation details follow.
 

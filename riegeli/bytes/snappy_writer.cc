@@ -157,4 +157,8 @@ absl::Status SnappyCompressImpl(Reader* src, Writer* dest) {
 
 }  // namespace internal
 
+size_t SnappyMaxCompressedSize(size_t uncompressed_size) {
+  return snappy::MaxCompressedLength(uncompressed_size);
+}
+
 }  // namespace riegeli

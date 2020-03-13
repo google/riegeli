@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -40,16 +41,13 @@ void SnappyReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  size_t decompressed_size;
-  if (ABSL_PREDICT_FALSE(!SnappyDecompressedSize(src, &decompressed_size))) {
-    decompressed_size = 0;
-  }
+  const absl::optional<size_t> uncompressed_size = SnappyUncompressedSize(src);
   Chain decompressed;
   {
     absl::Status status = SnappyDecompress<Reader*, ChainWriter<>>(
-        src, std::forward_as_tuple(
-                 &decompressed,
-                 ChainWriterBase::Options().set_size_hint(decompressed_size)));
+        src, std::forward_as_tuple(&decompressed,
+                                   ChainWriterBase::Options().set_size_hint(
+                                       uncompressed_size.value_or(0))));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailWithoutAnnotation(std::move(status));
       return;
@@ -89,10 +87,15 @@ absl::Status SnappyDecompressImpl(Reader* src, Writer* dest) {
 
 }  // namespace internal
 
-bool SnappyDecompressedSize(Reader* src, size_t* size) {
-  // Decompressed size is stored in up to 5 initial bytes.
+absl::optional<size_t> SnappyUncompressedSize(Reader* src) {
+  // Uncompressed size is stored in up to 5 initial bytes.
   src->Pull(5);
-  return snappy::GetUncompressedLength(src->cursor(), src->available(), size);
+  size_t size;
+  if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
+          src->cursor(), src->available(), &size))) {
+    return absl::nullopt;
+  }
+  return size;
 }
 
 }  // namespace riegeli

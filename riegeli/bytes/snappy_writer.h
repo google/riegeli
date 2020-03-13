@@ -210,6 +210,10 @@ template <typename Src, typename Dest, typename... SrcArgs,
 absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                             std::tuple<DestArgs...> dest_args);
 
+// Returns the maximal compressed size produced by the Snappy compressor for
+// data of the given uncompressed size.
+size_t SnappyMaxCompressedSize(size_t uncompressed_size);
+
 // Implementation details follow.
 
 inline SnappyWriterBase::SnappyWriterBase(Position size_hint)
