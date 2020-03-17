@@ -23,6 +23,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
@@ -171,6 +172,14 @@ class ZstdReader : public ZstdReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Returns the claimed uncompressed size of Zstd-compressed data.
+//
+// Returns `absl::nullopt` if the size was not stored or on failure. The size is
+// stored if `ZstdWriterBase::Options().set_final_size()` is used.
+//
+// The current position of `src` is unchanged.
+absl::optional<Position> ZstdUncompressedSize(Reader* src);
 
 // Implementation details follow.
 

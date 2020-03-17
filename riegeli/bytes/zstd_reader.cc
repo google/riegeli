@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -65,13 +66,12 @@ void ZstdReaderBase::Initialize(Reader* src) {
       return;
     }
   }
-  src->Pull(18 /* `ZSTD_FRAMEHEADERSIZE_MAX` */);
-  // Tune the buffer size if the uncompressed size is known.
-  unsigned long long uncompressed_size =
-      ZSTD_getFrameContentSize(src->cursor(), src->available());
-  if (uncompressed_size != ZSTD_CONTENTSIZE_UNKNOWN &&
-      uncompressed_size != ZSTD_CONTENTSIZE_ERROR) {
-    set_size_hint(UnsignedMax(size_t{1}, uncompressed_size));
+  const absl::optional<Position> uncompressed_size = ZstdUncompressedSize(src);
+  if (uncompressed_size != absl::nullopt) {
+    // If `uncompressed_size` is 0, set `size_hint` to 1, because the first
+    // `Pull()` call will need a non-empty destination buffer before calling the
+    // Zstd decoder.
+    set_size_hint(UnsignedMax(Position{1}, *uncompressed_size));
   }
 }
 
@@ -154,6 +154,17 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       return false;
     }
   }
+}
+
+absl::optional<Position> ZstdUncompressedSize(Reader* src) {
+  src->Pull(18 /* `ZSTD_FRAMEHEADERSIZE_MAX` */);
+  unsigned long long uncompressed_size =
+      ZSTD_getFrameContentSize(src->cursor(), src->available());
+  if (uncompressed_size == ZSTD_CONTENTSIZE_UNKNOWN ||
+      uncompressed_size == ZSTD_CONTENTSIZE_ERROR) {
+    return absl::nullopt;
+  }
+  return uncompressed_size;
 }
 
 }  // namespace riegeli
