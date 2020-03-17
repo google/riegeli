@@ -102,7 +102,7 @@ class StringWriterBase : public Writer {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `std::string` being written to. `Dest` must support
-// `Dependency<std::string*, Dest>`, e.g. `std::string`* (not owned, default),
+// `Dependency<std::string*, Dest>`, e.g. `std::string*` (not owned, default),
 // `std::string` (owned).
 //
 // The `std::string` must not be accessed until the `StringWriter` is closed or
