@@ -129,6 +129,15 @@ cc_library(
 )
 
 cc_library(
+    name = "line_writing",
+    hdrs = ["line_writing.h"],
+    deps = [
+        ":writer",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "line_reading",
     srcs = ["line_reading.cc"],
     hdrs = ["line_reading.h"],
