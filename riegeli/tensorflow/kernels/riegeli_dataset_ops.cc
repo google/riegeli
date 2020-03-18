@@ -207,6 +207,11 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
 
      protected:
       ::tensorflow::Status SaveInternal(
+// `::tensorflow::data::SerializationContext` argument was added on
+// 2019-03-17 when `TF_GRAPH_DEF_VERSION` was defined to 343.
+#if TF_GRAPH_DEF_VERSION > 343
+          ::tensorflow::data::SerializationContext* ctx,
+#endif
           ::tensorflow::data::IteratorStateWriter* writer) override
           ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock l(&mu_);
