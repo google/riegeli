@@ -84,30 +84,37 @@ bool ReadLine(Reader* src, absl::string_view* dest, ReadLineOptions options) {
   size_t length = 0;
   if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
   do {
-    if (options.recognize_cr()) {
-      for (const char* newline = src->cursor() + length; newline < src->limit();
-           ++newline) {
-        if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+    switch (options.newline()) {
+      case ReadLineOptions::Newline::kLf: {
+        const char* const newline = static_cast<const char*>(std::memchr(
+            src->cursor() + length, '\n', src->available() - length));
+        if (ABSL_PREDICT_TRUE(newline != nullptr)) {
           return FoundNewline(src, dest, options,
                               PtrDistance(src->cursor(), newline), 1);
         }
-        if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-          length = PtrDistance(src->cursor(), newline);
-          return FoundNewline(src, dest, options, length,
-                              ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
-                                      src->cursor()[length + 1] == '\n'
-                                  ? size_t{2}
-                                  : size_t{1});
+        goto continue_reading;
+      }
+      case ReadLineOptions::Newline::kAny:
+        for (const char* newline = src->cursor() + length;
+             newline < src->limit(); ++newline) {
+          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+            return FoundNewline(src, dest, options,
+                                PtrDistance(src->cursor(), newline), 1);
+          }
+          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+            length = PtrDistance(src->cursor(), newline);
+            return FoundNewline(src, dest, options, length,
+                                ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
+                                        src->cursor()[length + 1] == '\n'
+                                    ? size_t{2}
+                                    : size_t{1});
+          }
         }
-      }
-    } else {
-      const char* const newline = static_cast<const char*>(
-          std::memchr(src->cursor() + length, '\n', src->available() - length));
-      if (ABSL_PREDICT_TRUE(newline != nullptr)) {
-        return FoundNewline(src, dest, options,
-                            PtrDistance(src->cursor(), newline), 1);
-      }
+        goto continue_reading;
     }
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Unknown newline: " << static_cast<int>(options.newline());
+  continue_reading:
     length = src->available();
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
       return MaxLengthExceeded(src, dest, options.max_length());
@@ -123,30 +130,37 @@ bool ReadLine(Reader* src, std::string* dest, ReadLineOptions options) {
   options.set_max_length(UnsignedMin(options.max_length(), dest->max_size()));
   if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
   do {
-    if (options.recognize_cr()) {
-      for (const char* newline = src->cursor(); newline < src->limit();
-           ++newline) {
-        if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+    switch (options.newline()) {
+      case ReadLineOptions::Newline::kLf: {
+        const char* const newline = static_cast<const char*>(
+            std::memchr(src->cursor(), '\n', src->available()));
+        if (ABSL_PREDICT_TRUE(newline != nullptr)) {
           return FoundNewline(src, dest, options,
                               PtrDistance(src->cursor(), newline), 1);
         }
-        if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-          const size_t length = PtrDistance(src->cursor(), newline);
-          return FoundNewline(src, dest, options, length,
-                              ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
-                                      src->cursor()[length + 1] == '\n'
-                                  ? size_t{2}
-                                  : size_t{1});
+        goto continue_reading;
+      }
+      case ReadLineOptions::Newline::kAny:
+        for (const char* newline = src->cursor(); newline < src->limit();
+             ++newline) {
+          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+            return FoundNewline(src, dest, options,
+                                PtrDistance(src->cursor(), newline), 1);
+          }
+          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+            const size_t length = PtrDistance(src->cursor(), newline);
+            return FoundNewline(src, dest, options, length,
+                                ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
+                                        src->cursor()[length + 1] == '\n'
+                                    ? size_t{2}
+                                    : size_t{1});
+          }
         }
-      }
-    } else {
-      const char* const newline = static_cast<const char*>(
-          std::memchr(src->cursor(), '\n', src->available()));
-      if (ABSL_PREDICT_TRUE(newline != nullptr)) {
-        return FoundNewline(src, dest, options,
-                            PtrDistance(src->cursor(), newline), 1);
-      }
+        goto continue_reading;
     }
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Unknown newline: " << static_cast<int>(options.newline());
+  continue_reading:
     if (ABSL_PREDICT_FALSE(src->available() > options.max_length())) {
       return MaxLengthExceeded(src, dest, options.max_length());
     }

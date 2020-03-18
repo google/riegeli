@@ -29,22 +29,25 @@ namespace riegeli {
 // Options for `ReadLine()`.
 class ReadLineOptions {
  public:
+  // Line terminator representations to recognize.
+  enum class Newline {
+    kLf,   // LF ("\n")
+    kAny,  // LF | CR | CR LF ("\n" | "\r" | "\r\n")
+  };
+
   ReadLineOptions() noexcept {}
 
-  // If `false`, recognized line terminator is LF ("\n").
+  // Line terminator representations to recognize.
   //
-  // If `true`, recognized line terminators are LF, CR, or CRLF ("\n", "\r", or
-  // "\r\n").
-  //
-  // Default: `false`
-  ReadLineOptions& set_recognize_cr(bool recognize_cr) & {
-    recognize_cr_ = recognize_cr;
+  // Default: `Newline::kLf`
+  ReadLineOptions& set_newline(Newline newline) & {
+    newline_ = newline;
     return *this;
   }
-  ReadLineOptions&& set_recognize_cr(bool recognize_cr) && {
-    return std::move(set_recognize_cr(recognize_cr));
+  ReadLineOptions&& set_newline(Newline newline) && {
+    return std::move(set_newline(newline));
   }
-  bool recognize_cr() const { return recognize_cr_; }
+  Newline newline() const { return newline_; }
 
   // If `false`, line terminators will be stripped.
   //
@@ -77,16 +80,16 @@ class ReadLineOptions {
   size_t max_length() const { return max_length_; }
 
  private:
-  bool recognize_cr_ = false;
+  Newline newline_ = Newline::kLf;
   bool keep_newline_ = false;
   size_t max_length_ = std::numeric_limits<size_t>::max();
 };
 
 // Reads a line.
 //
-// Warning: if `options.recognize_cr()` is `true`, for lines terminated with CR
-// `ReadLine()` reads ahead one character after the CR. If reading ahead only as
-// much as needed is required, e.g. when communicating with another process,
+// Warning: if `options.newline()` is `Newline::kAny`, for lines terminated with
+// CR `ReadLine()` reads ahead one character after the CR. If reading ahead only
+// as much as needed is required, e.g. when communicating with another process,
 // another implementation would be required (which would keep state between
 // calls).
 //
