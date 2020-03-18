@@ -225,6 +225,9 @@ inline void ChainWriterBase::Initialize(Chain* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ChainWriter: null Chain pointer";
   set_start_pos(dest->size());
+  const absl::Span<char> buffer =
+      dest->AppendBuffer(0, 0, Chain::kAnyLength, options_);
+  set_buffer(buffer.data(), buffer.size());
 }
 
 template <typename Dest>

@@ -180,10 +180,4 @@ inline void StringWriterBase::SyncBuffer(std::string* dest) {
   set_buffer(&(*dest)[0], dest->size(), dest->size());
 }
 
-inline void StringWriterBase::MakeBuffer(std::string* dest) {
-  const size_t cursor_index = dest->size();
-  dest->resize(dest->capacity());
-  set_buffer(&(*dest)[0], dest->size(), cursor_index);
-}
-
 }  // namespace riegeli

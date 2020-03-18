@@ -169,7 +169,13 @@ inline void StringWriterBase::Initialize(std::string* dest,
       << "Failed precondition of StringWriter: null string pointer";
   const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
   if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
-  set_buffer(&(*dest)[0], dest->size(), dest->size());
+  MakeBuffer(dest);
+}
+
+inline void StringWriterBase::MakeBuffer(std::string* dest) {
+  const size_t cursor_index = dest->size();
+  dest->resize(dest->capacity());
+  set_buffer(&(*dest)[0], dest->size(), cursor_index);
 }
 
 template <typename Dest>
