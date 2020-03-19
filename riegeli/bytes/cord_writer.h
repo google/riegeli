@@ -198,12 +198,16 @@ inline CordWriterBase::CordWriterBase(Options&& options)
 inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
     : Writer(std::move(that)),
       size_hint_(that.size_hint_),
+      min_block_size_(that.min_block_size_),
+      max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)) {}
 
 inline CordWriterBase& CordWriterBase::operator=(
     CordWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
   size_hint_ = that.size_hint_;
+  min_block_size_ = that.min_block_size_;
+  max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }
@@ -211,6 +215,8 @@ inline CordWriterBase& CordWriterBase::operator=(
 inline void CordWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
   size_hint_ = 0;
+  min_block_size_ = kMinBufferSize;
+  max_block_size_ = kMaxBufferSize;
 }
 
 inline void CordWriterBase::Reset(Options&& options) {

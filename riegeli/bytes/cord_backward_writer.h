@@ -198,12 +198,16 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
     CordBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
       size_hint_(that.size_hint_),
+      min_block_size_(that.min_block_size_),
+      max_block_size_(that.max_block_size_),
       buffer_(std::move(that.buffer_)) {}
 
 inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
     CordBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
   size_hint_ = that.size_hint_;
+  min_block_size_ = that.min_block_size_;
+  max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
 }
@@ -211,6 +215,8 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
 inline void CordBackwardWriterBase::Reset() {
   BackwardWriter::Reset(kInitiallyClosed);
   size_hint_ = 0;
+  min_block_size_ = kMinBufferSize;
+  max_block_size_ = kMaxBufferSize;
 }
 
 inline void CordBackwardWriterBase::Reset(Options&& options) {
