@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -28,6 +29,13 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int CordWriterBase::kShortBufferSize;
+#endif
 
 void CordWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
@@ -47,8 +55,12 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   absl::Cord* const dest = dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest->size())
       << "CordWriter destination changed unexpectedly";
-  SyncBuffer(dest);
-  return MakeBuffer(dest, min_length, recommended_length);
+  if (start() == short_buffer_) {
+    return MakeBufferFromShortBuffer(dest, min_length, recommended_length);
+  } else {
+    SyncBuffer(dest);
+    return MakeBuffer(dest, min_length, recommended_length);
+  }
 }
 
 bool CordWriterBase::WriteSlow(const Chain& src) {
@@ -138,9 +150,13 @@ inline void CordWriterBase::SyncBuffer(absl::Cord* dest) {
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return;
   set_start_pos(pos());
-  dest->Append(
-      BufferToCord(absl::string_view(start(), buffered_length), &buffer_));
-  if (!buffer_.is_allocated()) set_buffer();
+  if (start() == short_buffer_) {
+    dest->Append(absl::string_view(start(), buffered_length));
+  } else {
+    dest->Append(
+        BufferToCord(absl::string_view(start(), buffered_length), &buffer_));
+    if (!buffer_.is_allocated()) set_buffer();
+  }
   set_cursor(start());
 }
 
@@ -157,6 +173,32 @@ inline bool CordWriterBase::MakeBuffer(absl::Cord* dest, size_t min_length,
   set_buffer(buffer,
              UnsignedMin(buffer_.size(),
                          std::numeric_limits<size_t>::max() - dest->size()));
+  return true;
+}
+
+inline bool CordWriterBase::MakeBufferFromShortBuffer(
+    absl::Cord* dest, size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT(start() == short_buffer_)
+      << "Failed precondition of CordWriterBase::MakeBufferFromShortBuffer(): "
+         "short buffer not active";
+  const size_t buffered_length = written_to_buffer();
+  if (ABSL_PREDICT_FALSE(
+          min_length > std::numeric_limits<size_t>::max() - buffered_length ||
+          buffered_length + min_length >
+              std::numeric_limits<size_t>::max() - dest->size())) {
+    return FailOverflow();
+  }
+  buffer_.Resize(BufferLength(
+      UnsignedMax(buffered_length + min_length, kShortBufferSize),
+      max_block_size_, size_hint_, start_pos(),
+      UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
+                  start_pos(), min_block_size_)));
+  char* const buffer = buffer_.GetData();
+  std::memcpy(buffer, short_buffer_, kShortBufferSize);
+  set_buffer(buffer,
+             UnsignedMin(buffer_.size(),
+                         std::numeric_limits<size_t>::max() - dest->size()),
+             buffered_length);
   return true;
 }
 

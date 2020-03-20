@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -28,6 +29,13 @@
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr int CordBackwardWriterBase::kShortBufferSize;
+#endif
 
 void CordBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
@@ -48,8 +56,12 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
   absl::Cord* const dest = dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest->size())
       << "CordBackwardWriter destination changed unexpectedly";
-  SyncBuffer(dest);
-  return MakeBuffer(dest, min_length, recommended_length);
+  if (start() == short_buffer_) {
+    return MakeBufferFromShortBuffer(dest, min_length, recommended_length);
+  } else {
+    SyncBuffer(dest);
+    return MakeBuffer(dest, min_length, recommended_length);
+  }
 }
 
 bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
@@ -140,9 +152,13 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord* dest) {
   const size_t buffered_length = written_to_buffer();
   if (buffered_length == 0) return;
   set_start_pos(pos());
-  dest->Prepend(
-      BufferToCord(absl::string_view(cursor(), buffered_length), &buffer_));
-  if (!buffer_.is_allocated()) set_buffer();
+  if (limit() == short_buffer_) {
+    dest->Prepend(absl::string_view(cursor(), buffered_length));
+  } else {
+    dest->Prepend(
+        BufferToCord(absl::string_view(cursor(), buffered_length), &buffer_));
+    if (!buffer_.is_allocated()) set_buffer();
+  }
   set_cursor(start());
 }
 
@@ -160,6 +176,31 @@ inline bool CordBackwardWriterBase::MakeBuffer(absl::Cord* dest,
   set_buffer(buffer,
              UnsignedMin(buffer_.size(),
                          std::numeric_limits<size_t>::max() - dest->size()));
+  return true;
+}
+
+inline bool CordBackwardWriterBase::MakeBufferFromShortBuffer(
+    absl::Cord* dest, size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT(limit() == short_buffer_)
+      << "Failed precondition of "
+         "CordBackwardWriterBase::MakeBufferFromShortBuffer(): "
+         "short buffer not active";
+  const size_t buffered_length = written_to_buffer();
+  if (ABSL_PREDICT_FALSE(
+          min_length > std::numeric_limits<size_t>::max() - buffered_length ||
+          buffered_length + min_length >
+              std::numeric_limits<size_t>::max() - dest->size())) {
+    return FailOverflow();
+  }
+  buffer_.Resize(BufferLength(
+      buffered_length + min_length, max_block_size_, size_hint_, start_pos(),
+      UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
+                  start_pos(), min_block_size_)));
+  char* const buffer = buffer_.GetData();
+  const size_t size = UnsignedMin(
+      buffer_.size(), std::numeric_limits<size_t>::max() - dest->size());
+  std::memcpy(buffer + size - buffered_length, cursor(), buffered_length);
+  set_buffer(buffer, size, buffered_length);
   return true;
 }
 

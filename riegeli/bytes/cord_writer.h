@@ -17,6 +17,8 @@
 
 #include <stddef.h>
 
+#include <cstring>
+#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -118,6 +120,8 @@ class CordWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
 
  private:
+  static constexpr size_t kShortBufferSize = 64;
+
   // If the buffer is not empty, appends it to `*dest`.
   void SyncBuffer(absl::Cord* dest);
 
@@ -125,16 +129,25 @@ class CordWriterBase : public Writer {
   bool MakeBuffer(absl::Cord* dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
+  // Like `MakeBuffer`, but moves buffered data from `short_buffer_` to the
+  // beginning of the new buffer.
+  bool MakeBufferFromShortBuffer(absl::Cord* dest, size_t min_length,
+                                 size_t recommended_length);
+
   size_t size_hint_ = 0;
   size_t min_block_size_ = kMinBufferSize;
   size_t max_block_size_ = kMaxBufferSize;
 
-  // Buffered data to be appended.
+  // Buffered data to be appended, in either `buffer_` or `short_buffer_`.
   //
   // Invariant: if `healthy()` then `buffer_.size() > 0`
   Buffer buffer_;
+  char short_buffer_[kShortBufferSize];
 
-  // Invariant: if `healthy()` then `start_pos() == dest_cord()->size()`
+  // Invariants:
+  //   `start() == nullptr` or `start() == buffer_.GetData()`
+  //       or `start() == short_buffer_`
+  //   if `healthy()` then `start_pos() == dest_cord()->size()`
 };
 
 // A `Writer` which appends to an `absl::Cord`.
@@ -200,7 +213,12 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       size_hint_(that.size_hint_),
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
-      buffer_(std::move(that.buffer_)) {}
+      buffer_(std::move(that.buffer_)) {
+  if (start() == that.short_buffer_) {
+    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
+    set_buffer(short_buffer_, buffer_size(), written_to_buffer());
+  }
+}
 
 inline CordWriterBase& CordWriterBase::operator=(
     CordWriterBase&& that) noexcept {
@@ -209,6 +227,10 @@ inline CordWriterBase& CordWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
+  if (start() == that.short_buffer_) {
+    std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
+    set_buffer(short_buffer_, buffer_size(), written_to_buffer());
+  }
   return *this;
 }
 
@@ -230,6 +252,9 @@ inline void CordWriterBase::Initialize(absl::Cord* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
   set_start_pos(dest->size());
+  set_buffer(short_buffer_,
+             UnsignedMin(kShortBufferSize,
+                         std::numeric_limits<size_t>::max() - dest->size()));
 }
 
 template <typename Dest>
