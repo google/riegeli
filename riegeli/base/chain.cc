@@ -1204,19 +1204,22 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    // Do not bother returning short data if `recommended_length` or `size_hint`
-    // is larger, because data will likely need to be copied later to a real
-    // block.
-    if (min_length == 0 || (min_length <= kMaxShortDataSize - size_ &&
-                            recommended_length <= kMaxShortDataSize - size_ &&
-                            options.size_hint() <= kMaxShortDataSize)) {
-      // Append the new space to short data.
-      EnsureHasHere();
-      const absl::Span<char> buffer(
-          block_ptrs_.short_data + size_,
-          UnsignedMin(max_length, kMaxShortDataSize - size_));
-      size_ += buffer.size();
-      return buffer;
+    if (min_length <= kMaxShortDataSize - size_) {
+      // Do not bother returning short data if `recommended_length` or
+      // `size_hint` is larger, because data will likely need to be copied later
+      // to a real block.
+      if (recommended_length <= kMaxShortDataSize - size_ &&
+          options.size_hint() <= kMaxShortDataSize) {
+        // Append the new space to short data.
+        EnsureHasHere();
+        const absl::Span<char> buffer(
+            block_ptrs_.short_data + size_,
+            UnsignedMin(max_length, kMaxShortDataSize - size_));
+        size_ += buffer.size();
+        return buffer;
+      } else if (min_length == 0) {
+        return absl::Span<char>();
+      }
     }
     // Merge short data with the new space to a new block.
     if (ABSL_PREDICT_FALSE(min_length > RawBlock::kMaxCapacity - size_)) {
@@ -1293,21 +1296,24 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
   if (begin_ == end_) {
     RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
-    // Do not bother returning short data if `recommended_length` or `size_hint`
-    // is larger, because data will likely need to be copied later to a real
-    // block.
-    if (min_length == 0 || (min_length <= kMaxShortDataSize - size_ &&
-                            recommended_length <= kMaxShortDataSize - size_ &&
-                            options.size_hint() <= kMaxShortDataSize)) {
-      // Prepend the new space to short data.
-      EnsureHasHere();
-      const absl::Span<char> buffer(
-          block_ptrs_.short_data,
-          UnsignedMin(max_length, kMaxShortDataSize - size_));
-      std::memmove(buffer.data() + buffer.size(), block_ptrs_.short_data,
-                   size_);
-      size_ += buffer.size();
-      return buffer;
+    if (min_length <= kMaxShortDataSize - size_) {
+      // Do not bother returning short data if `recommended_length` or
+      // `size_hint` is larger, because data will likely need to be copied later
+      // to a real block.
+      if (recommended_length <= kMaxShortDataSize - size_ &&
+          options.size_hint() <= kMaxShortDataSize) {
+        // Prepend the new space to short data.
+        EnsureHasHere();
+        const absl::Span<char> buffer(
+            block_ptrs_.short_data,
+            UnsignedMin(max_length, kMaxShortDataSize - size_));
+        std::memmove(buffer.data() + buffer.size(), block_ptrs_.short_data,
+                     size_);
+        size_ += buffer.size();
+        return buffer;
+      } else if (min_length == 0) {
+        return absl::Span<char>();
+      }
     }
     // Merge short data with the new space to a new block.
     if (ABSL_PREDICT_FALSE(min_length > RawBlock::kMaxCapacity - size_)) {

@@ -252,9 +252,11 @@ inline void CordWriterBase::Initialize(absl::Cord* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
   set_start_pos(dest->size());
-  set_buffer(short_buffer_,
-             UnsignedMin(kShortBufferSize,
-                         std::numeric_limits<size_t>::max() - dest->size()));
+  const size_t buffer_length = UnsignedMin(
+      kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
+  if (size_hint_ <= dest->size() + buffer_length) {
+    set_buffer(short_buffer_, buffer_length);
+  }
 }
 
 template <typename Dest>
