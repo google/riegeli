@@ -171,4 +171,14 @@ bool ReadLine(Reader* src, std::string* dest, ReadLineOptions options) {
   return true;
 }
 
+void SkipBOM(riegeli::Reader* src) {
+  if (src->pos() != 0) return;
+  src->Pull(3);
+  if (src->available() >= 3 && src->cursor()[0] == static_cast<char>(0xef) &&
+      src->cursor()[1] == static_cast<char>(0xbb) &&
+      src->cursor()[2] == static_cast<char>(0xbf)) {
+    src->move_cursor(3);
+  }
+}
+
 }  // namespace riegeli

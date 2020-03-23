@@ -102,6 +102,11 @@ bool ReadLine(Reader* src, absl::string_view* dest,
 bool ReadLine(Reader* src, std::string* dest,
               ReadLineOptions options = ReadLineOptions());
 
+// Skips an initial UTF-8 BOM if it is present.
+//
+// Does nothing unless `src->pos() == 0`.
+void SkipBOM(riegeli::Reader* src);
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_LINE_READING_H_
