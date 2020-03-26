@@ -94,7 +94,7 @@ class ReadLineOptions {
 // calls).
 //
 // Return values:
-//  * `true`                           - success
+//  * `true`                           - success (`*dest` is set)
 //  * `false` (when `src->healthy()`)  - source ends (`dest->empty()`)
 //  * `false` (when `!src->healthy()`) - failure (`dest->empty()`)
 bool ReadLine(Reader* src, absl::string_view* dest,

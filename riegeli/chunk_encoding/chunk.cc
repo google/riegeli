@@ -53,8 +53,8 @@ bool Chunk::WriteTo(Writer* dest) const {
 }
 
 bool Chunk::ReadFrom(Reader* src) {
-  data.Clear();
   if (ABSL_PREDICT_FALSE(!src->Read(header.bytes(), header.size()))) {
+    data.Clear();
     return false;
   }
   return src->Read(&data, header.data_size());

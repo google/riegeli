@@ -68,10 +68,13 @@ bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
 }
 
 bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
-  max_size = UnsignedMin(max_size, dest->max_size() - dest->size());
+  max_size = UnsignedMin(max_size, dest->max_size());
   if (src->SupportsSize()) {
     const absl::optional<Position> size = src->Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      dest->clear();
+      return false;
+    }
     const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
@@ -84,6 +87,7 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
     }
     return true;
   } else {
+    dest->clear();
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
         dest->append(src->cursor(), max_size);
@@ -99,11 +103,12 @@ bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
 }
 
 bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
-  max_size =
-      UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
   if (src->SupportsSize()) {
     const absl::optional<Position> size = src->Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      dest->Clear();
+      return false;
+    }
     const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
@@ -116,24 +121,26 @@ bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
     }
     return true;
   } else {
+    dest->Clear();
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        src->Read(dest, max_size);
+        src->ReadAndAppend(dest, max_size);
         return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
-      src->Read(dest, src->available());
+      src->ReadAndAppend(dest, src->available());
     } while (src->Pull());
     return src->healthy();
   }
 }
 
 bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
-  max_size =
-      UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest->size());
   if (src->SupportsSize()) {
     const absl::optional<Position> size = src->Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      dest->Clear();
+      return false;
+    }
     const Position remaining = SaturatingSub(*size, src->pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
       if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
@@ -146,13 +153,14 @@ bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
     }
     return true;
   } else {
+    dest->Clear();
     do {
       if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        src->Read(dest, max_size);
+        src->ReadAndAppend(dest, max_size);
         return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
-      src->Read(dest, src->available());
+      src->ReadAndAppend(dest, src->available());
     } while (src->Pull());
     return src->healthy();
   }
@@ -213,7 +221,7 @@ bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
         return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
       max_size -= src->available();
-      src->Read(&data, src->available());
+      src->ReadAndAppend(&data, src->available());
     } while (src->Pull());
     if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
     return dest->Write(std::move(data));

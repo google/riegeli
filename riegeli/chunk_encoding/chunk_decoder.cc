@@ -116,7 +116,6 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
                                                     &limits_))) {
         return Fail(simple_decoder);
       }
-      dest->Clear();
       if (ABSL_PREDICT_FALSE(!simple_decoder.reader()->Read(
               dest, IntCast<size_t>(header.decoded_data_size())))) {
         simple_decoder.reader()->Fail(

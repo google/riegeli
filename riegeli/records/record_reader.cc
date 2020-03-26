@@ -188,6 +188,7 @@ bool RecordReaderBase::CheckFileFormat() {
 bool RecordReaderBase::ReadMetadata(RecordsMetadata* metadata) {
   Chain serialized_metadata;
   if (ABSL_PREDICT_FALSE(!ReadSerializedMetadata(&serialized_metadata))) {
+    metadata->Clear();
     return false;
   }
   {

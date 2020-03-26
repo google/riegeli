@@ -128,7 +128,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk* chunk) {
                          block_begin + block_header_.next_chunk())));
       }
     }
-    if (ABSL_PREDICT_FALSE(!src->Read(
+    if (ABSL_PREDICT_FALSE(!src->ReadAndAppend(
             &chunk_.data, IntCast<size_t>(UnsignedMin(
                               chunk_.header.data_size() - chunk_.data.size(),
                               internal::RemainingInBlock(src->pos())))))) {

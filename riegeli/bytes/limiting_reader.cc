@@ -65,7 +65,15 @@ bool LimitingReaderBase::ReadSlow(char* dest, size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
-  return ReadInternal(dest, length);
+  RIEGELI_ASSERT_LE(pos(), size_limit_)
+      << "Failed invariant of LimitingReaderBase: position exceeds size limit";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Reader* const src = src_reader();
+  SyncBuffer(src);
+  const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
+  const bool ok = src->Read(dest, length_to_read);
+  MakeBuffer(src);
+  return ok && length_to_read == length;
 }
 
 bool LimitingReaderBase::ReadSlow(Chain* dest, size_t length) {
@@ -96,7 +104,7 @@ inline bool LimitingReaderBase::ReadInternal(Dest* dest, size_t length) {
   Reader* const src = src_reader();
   SyncBuffer(src);
   const size_t length_to_read = UnsignedMin(length, size_limit_ - pos());
-  const bool ok = src->Read(dest, length_to_read);
+  const bool ok = src->ReadAndAppend(dest, length_to_read);
   MakeBuffer(src);
   return ok && length_to_read == length;
 }

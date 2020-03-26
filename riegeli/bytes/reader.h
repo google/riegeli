@@ -124,13 +124,45 @@ class Reader : public Object {
   size_t read_from_buffer() const { return PtrDistance(start_, cursor_); }
 
   // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
-  // the source as needed.
-  //
-  // `Read(std::string*)`, `Read(Chain*)`, and `Read(absl::Cord*)` append to any
-  // existing data in `*dest`.
+  // the source as needed, clearing any existing data in `*dest`.
   //
   // `Read(absl::string_view*)` points `*dest` to an array holding the data. The
   // array is valid until the next non-const operation on the `Reader`.
+  //
+  // Precondition for `Read(std::string*)`:
+  //   `length <= dest->max_size()`
+  //
+  // Return values:
+  //  * `true`                      - success (`length` bytes read)
+  //  * `false` (when `healthy()`)  - source ends
+  //                                  (less than `length` bytes read)
+  //  * `false` (when `!healthy()`) - failure (less than `length` bytes read)
+  bool Read(absl::string_view* dest, size_t length);
+  bool Read(char* dest, size_t length);
+  bool Read(std::string* dest, size_t length);
+  bool Read(Chain* dest, size_t length);
+  bool Read(absl::Cord* dest, size_t length);
+
+  // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
+  // the source as needed, appending to any existing data in `*dest`.
+  //
+  // Precondition for `ReadAndAppend(std::string*)`:
+  //   `length <= dest->max_size() - dest->size()`
+  //
+  // Precondition for `ReadAndAppend(Chain*)` and `ReadAndAppend(absl::Cord*)`:
+  //   `length <= std::numeric_limits<size_t>::max() - dest->size()`
+  //
+  // Return values:
+  //  * `true`                      - success (`length` bytes read)
+  //  * `false` (when `healthy()`)  - source ends
+  //                                  (less than `length` bytes read)
+  //  * `false` (when `!healthy()`) - failure (less than `length` bytes read)
+  bool ReadAndAppend(std::string* dest, size_t length);
+  bool ReadAndAppend(Chain* dest, size_t length);
+  bool ReadAndAppend(absl::Cord* dest, size_t length);
+
+  // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
+  // the source as needed.
   //
   // `CopyTo(Writer*)` writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
@@ -139,30 +171,13 @@ class Reader : public Object {
   // `CopyTo(BackwardWriter*)` writes nothing if reading failed, and reads the
   // full requested length even if writing failed.
   //
-  // Precondition for `Read(std::string*)`:
-  //   `length <= dest->max_size() - dest->size()`
-  //
-  // Precondition for `Read(Chain*)` and `Read(absl::Cord*)`:
-  //   `length <= std::numeric_limits<size_t>::max() - dest->size()`
-  //
-  // Return values for `Read()`:
-  //  * `true`                      - success (`length` bytes read)
-  //  * `false` (when `healthy()`)  - source ends
-  //                                  (less than `length` bytes read)
-  //  * `false` (when `!healthy()`) - failure (less than `length` bytes read)
-  //
-  // Return values for `CopyTo()`:
+  // Return values:
   //  * `true`                                          - success (`length`
   //                                                      bytes copied)
   //  * `false` (when `dest->healthy() && healthy()`)   - source ends (less than
   //                                                      `length` bytes copied)
   //  * `false` (when `!dest->healthy() || !healthy()`) - failure (less than
   //                                                      `length` bytes copied)
-  bool Read(absl::string_view* dest, size_t length);
-  bool Read(char* dest, size_t length);
-  bool Read(std::string* dest, size_t length);
-  bool Read(Chain* dest, size_t length);
-  bool Read(absl::Cord* dest, size_t length);
   bool CopyTo(Writer* dest, Position length);
   bool CopyTo(BackwardWriter* dest, size_t length);
 
@@ -284,7 +299,11 @@ class Reader : public Object {
   void set_buffer(const char* start = nullptr, size_t buffer_size = 0,
                   size_t read_from_buffer = 0);
 
-  // Implementations of the slow part of `Read()` and `CopyTo()`.
+  // Implementations of the slow part of `Read()`, `ReadAndAppend()`, and
+  // `CopyTo()`.
+  //
+  // `ReadSlow(std::string)`, `ReadSlow(Chain*)` and `ReadSlow(absl::Cord*)`
+  // append to any existing data in `*dest`.
   //
   // By default `ReadSlow(char*)` and `CopyToSlow(Writer*)` are implemented in
   // terms of `PullSlow()`; `ReadSlow(Chain*)` and `ReadSlow(absl::Cord*)` are
@@ -443,19 +462,20 @@ inline bool Reader::Read(char* dest, size_t length) {
 }
 
 inline bool Reader::Read(std::string* dest, size_t length) {
-  RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
-      << "Failed precondition of Reader::Read(string*): string size overflow";
+  RIEGELI_CHECK_LE(length, dest->max_size())
+      << "Failed precondition of Reader::Read(string*): "
+         "string size overflow";
   if (ABSL_PREDICT_TRUE(length <= available())) {
-    dest->append(cursor(), length);
+    dest->assign(cursor(), length);
     move_cursor(length);
     return true;
   }
+  dest->clear();
   return ReadSlow(dest, length);
 }
 
 inline bool Reader::Read(Chain* dest, size_t length) {
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::Read(Chain*): Chain size overflow";
+  dest->Clear();
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     dest->Append(absl::string_view(cursor(), length));
     move_cursor(length);
@@ -465,8 +485,43 @@ inline bool Reader::Read(Chain* dest, size_t length) {
 }
 
 inline bool Reader::Read(absl::Cord* dest, size_t length) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
+    *dest = absl::string_view(cursor(), length);
+    move_cursor(length);
+    return true;
+  }
+  dest->Clear();
+  return ReadSlow(dest, length);
+}
+
+inline bool Reader::ReadAndAppend(std::string* dest, size_t length) {
+  RIEGELI_CHECK_LE(length, dest->max_size() - dest->size())
+      << "Failed precondition of Reader::ReadAndAppend(string*): "
+         "string size overflow";
+  if (ABSL_PREDICT_TRUE(length <= available())) {
+    dest->append(cursor(), length);
+    move_cursor(length);
+    return true;
+  }
+  return ReadSlow(dest, length);
+}
+
+inline bool Reader::ReadAndAppend(Chain* dest, size_t length) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::Read(Cord*): Cord size overflow";
+      << "Failed precondition of Reader::ReadAndAppend(Chain*): "
+         "Chain size overflow";
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
+    dest->Append(absl::string_view(cursor(), length));
+    move_cursor(length);
+    return true;
+  }
+  return ReadSlow(dest, length);
+}
+
+inline bool Reader::ReadAndAppend(absl::Cord* dest, size_t length) {
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest->size())
+      << "Failed precondition of Reader::ReadAndAppend(Cord*): "
+         "Cord size overflow";
   if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
     dest->Append(absl::string_view(cursor(), length));
     move_cursor(length);

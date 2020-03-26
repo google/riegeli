@@ -33,10 +33,25 @@
 
 namespace riegeli {
 
-// Reads all remaining bytes from `*src` to `*dest`.
+// Reads all remaining bytes from `*src` to `*dest`, clearing any existing data
+// in `*dest`.
 //
-// `ReadAll(std::string*)`, `ReadAll(Chain*)`, and `ReadAll(absl::Cord*)`
-// append to any existing data in `*dest`.
+// Fails `*src` with `absl::ResourceExhaustedError()` if `max_size` would be
+// exceeded.
+//
+// Return values:
+//  * `true` (`src->healthy()`)   - success
+//  * `false` (`!src->healthy()`) - failure
+bool ReadAll(Reader* src, absl::string_view* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, std::string* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, Chain* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAll(Reader* src, absl::Cord* dest,
+             size_t max_size = std::numeric_limits<size_t>::max());
+
+// Reads all remaining bytes from `*src` to `*dest`.
 //
 // `CopyAll(Writer*)` writes as much as could be read if reading failed, and
 // reads an unspecified length (between what could be written and the
@@ -48,21 +63,9 @@ namespace riegeli {
 // Fails `*src` with `absl::ResourceExhaustedError()` if `max_size` would be
 // exceeded.
 //
-// Return values for `ReadAll()`:
-//  * `true` (`src->healthy()`)   - success
-//  * `false` (`!src->healthy()`) - failure
-//
-// Return values for `CopyAllTo()`:
+// Return values:
 //  * `true` (`dest->healthy() && src->healthy()`)    - success
 //  * `false` (`!dest->healthy() || !src->healthy()`) - failure
-bool ReadAll(Reader* src, absl::string_view* dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, std::string* dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, Chain* dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, absl::Cord* dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
 bool CopyAll(Reader* src, Writer* dest,
              Position max_size = std::numeric_limits<Position>::max());
 bool CopyAll(Reader* src, BackwardWriter* dest,
