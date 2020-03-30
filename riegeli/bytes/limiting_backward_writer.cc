@@ -111,7 +111,9 @@ void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
          "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   BackwardWriter* const dest = dest_writer();
-  dest->WriteHint(UnsignedMin(length, SaturatingSub(size_limit_, pos())));
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return;
+  dest->WriteHint(UnsignedMin(length, size_limit_ - pos()));
+  MakeBuffer(dest);
 }
 
 bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {

@@ -151,7 +151,9 @@ void LimitingReaderBase::ReadHintSlow(size_t length) {
       << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Reader* const src = src_reader();
+  SyncBuffer(src);
   src->ReadHint(UnsignedMin(length, size_limit_ - pos()));
+  MakeBuffer(src);
 }
 
 bool LimitingReaderBase::Sync() {

@@ -109,7 +109,9 @@ void LimitingWriterBase::WriteHintSlow(size_t length) {
       << "Failed invariant of LimitingWriterBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Writer* const dest = dest_writer();
-  dest->WriteHint(UnsignedMin(length, SaturatingSub(size_limit_, pos())));
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return;
+  dest->WriteHint(UnsignedMin(length, size_limit_ - pos()));
+  MakeBuffer(dest);
 }
 
 bool LimitingWriterBase::SupportsRandomAccess() const {
