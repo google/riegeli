@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -1418,17 +1419,32 @@ void Chain::Append(const absl::Cord& src, const Options& options) {
     }
     return;
   }
+  // Avoid creating wasteful blocks and then rewriting them: append copied
+  // fragments when their accumulated size is known, tweaking `size_hint` for
+  // block sizing.
+  absl::InlinedVector<absl::string_view, 4> copied_fragments;
+  Options copy_options = options;
+  copy_options.set_size_hint(size());
   absl::Cord::CharIterator iter = src.char_begin();
   while (iter != src.char_end()) {
     const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
     if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
-      Append(fragment, options);
+      copied_fragments.push_back(fragment);
+      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(&iter, fragment.size());
     } else {
+      for (const absl::string_view copied_fragment : copied_fragments) {
+        Append(copied_fragment, copy_options);
+      }
+      copied_fragments.clear();
       Append(ChainBlock::FromExternal<FlatCordRef>(
                  std::forward_as_tuple(&iter, fragment.size())),
              options);
+      copy_options.set_size_hint(size());
     }
+  }
+  for (const absl::string_view copied_fragment : copied_fragments) {
+    Append(copied_fragment, options);
   }
 }
 
@@ -1739,19 +1755,34 @@ void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendFrom(): "
          "Chain size overflow";
+  // Avoid creating wasteful blocks and then rewriting them: append copied
+  // fragments when their accumulated size is known, tweaking `size_hint` for
+  // block sizing.
+  absl::InlinedVector<absl::string_view, 4> copied_fragments;
+  Options copy_options = options;
+  copy_options.set_size_hint(size());
   while (length > 0) {
     absl::string_view fragment = absl::Cord::ChunkRemaining(*iter);
     fragment = absl::string_view(fragment.data(),
                                  UnsignedMin(fragment.size(), length));
     if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
-      Append(fragment, options);
+      copied_fragments.push_back(fragment);
+      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(iter, fragment.size());
     } else {
+      for (const absl::string_view copied_fragment : copied_fragments) {
+        Append(copied_fragment, copy_options);
+      }
+      copied_fragments.clear();
       Append(ChainBlock::FromExternal<FlatCordRef>(
                  std::forward_as_tuple(iter, fragment.size())),
              options);
+      copy_options.set_size_hint(size());
     }
     length -= fragment.size();
+  }
+  for (const absl::string_view copied_fragment : copied_fragments) {
+    Append(copied_fragment, options);
   }
 }
 
