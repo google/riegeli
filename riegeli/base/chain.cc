@@ -540,8 +540,8 @@ inline void Chain::RawBlock::AppendTo(absl::Cord* dest) {
     return;
   }
   Ref<ownership>();
-  dest->Append(absl::MakeCordFromExternal(
-      absl::string_view(*this), [this](absl::string_view) { Unref(); }));
+  dest->Append(absl::MakeCordFromExternal(absl::string_view(*this),
+                                          [this] { Unref(); }));
 }
 
 inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
@@ -595,8 +595,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
     return;
   }
   Ref();
-  dest->Append(absl::MakeCordFromExternal(
-      substr, [this](absl::string_view) { Unref(); }));
+  dest->Append(absl::MakeCordFromExternal(substr, [this] { Unref(); }));
 }
 
 template <Chain::Ownership ownership>
@@ -619,8 +618,8 @@ inline void Chain::RawBlock::PrependTo(absl::Cord* dest) {
     return;
   }
   Ref<ownership>();
-  dest->Prepend(absl::MakeCordFromExternal(
-      absl::string_view(*this), [this](absl::string_view) { Unref(); }));
+  dest->Prepend(absl::MakeCordFromExternal(absl::string_view(*this),
+                                           [this] { Unref(); }));
 }
 
 Chain::RawBlock* Chain::BlockIterator::PinImpl() {

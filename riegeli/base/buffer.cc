@@ -34,7 +34,7 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer) {
          "substring not contained in the buffer";
 
   struct Releaser {
-    void operator()(absl::string_view) const {
+    void operator()() const {
       // Nothing to do: the destructor does the work.
     }
     Buffer buffer;
