@@ -135,6 +135,7 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:snappy_reader",
         "//riegeli/bytes:varint_reading",
+        "//riegeli/bytes:wrapped_reader",
         "//riegeli/bytes:zstd_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

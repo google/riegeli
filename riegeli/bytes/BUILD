@@ -228,6 +228,51 @@ cc_library(
 )
 
 cc_library(
+    name = "wrapped_writer",
+    srcs = ["wrapped_writer.cc"],
+    hdrs = ["wrapped_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "wrapped_backward_writer",
+    srcs = ["wrapped_backward_writer.cc"],
+    hdrs = ["wrapped_backward_writer.h"],
+    deps = [
+        ":backward_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
+    name = "wrapped_reader",
+    srcs = ["wrapped_reader.cc"],
+    hdrs = ["wrapped_reader.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "limiting_writer",
     srcs = ["limiting_writer.cc"],
     hdrs = ["limiting_writer.h"],

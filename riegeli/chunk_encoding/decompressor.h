@@ -34,6 +34,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/snappy_reader.h"
 #include "riegeli/bytes/varint_reading.h"
+#include "riegeli/bytes/wrapped_reader.h"
 #include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 
@@ -111,7 +112,7 @@ class Decompressor : public Object {
   template <typename SrcInit>
   void Initialize(SrcInit&& src_init, CompressionType compression_type);
 
-  absl::variant<Dependency<Reader*, Src>, BrotliReader<Src>, ZstdReader<Src>,
+  absl::variant<WrappedReader<Src>, BrotliReader<Src>, ZstdReader<Src>,
                 SnappyReader<Src>>
       reader_;
 };
@@ -155,7 +156,7 @@ inline Decompressor<Src>& Decompressor<Src>::operator=(
 template <typename Src>
 inline void Decompressor<Src>::Reset() {
   Object::Reset(kInitiallyClosed);
-  reader_.template emplace<Dependency<Reader*, Src>>();
+  reader_.template emplace<WrappedReader<Src>>();
 }
 
 template <typename Src>
@@ -185,7 +186,7 @@ template <typename SrcInit>
 void Decompressor<Src>::Initialize(SrcInit&& src_init,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    reader_.template emplace<Dependency<Reader*, Src>>(
+    reader_.template emplace<WrappedReader<Src>>(
         std::forward<SrcInit>(src_init));
     return;
   }
@@ -221,31 +222,18 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
 
 template <typename Src>
 inline Reader* Decompressor<Src>::reader() {
-  struct Visitor {
-    Reader* operator()(Dependency<Reader*, Src>& reader) const {
-      return reader.get();
-    }
-    Reader* operator()(Reader& reader) const { return &reader; }
-  };
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Decompressor::reader(): " << status();
-  return absl::visit(Visitor(), reader_);
+  return absl::visit([](Reader& reader) { return &reader; }, reader_);
 }
 
 template <typename Src>
 void Decompressor<Src>::Done() {
-  struct Visitor {
-    void operator()(Dependency<Reader*, Src>& reader) const {
-      if (reader.is_owning()) {
-        if (ABSL_PREDICT_FALSE(!reader->Close())) self->Fail(*reader);
-      }
-    }
-    void operator()(Reader& reader) const {
-      if (ABSL_PREDICT_FALSE(!reader.Close())) self->Fail(reader);
-    }
-    Decompressor* self;
-  };
-  absl::visit(Visitor{this}, reader_);
+  absl::visit(
+      [this](Reader& reader) {
+        if (ABSL_PREDICT_FALSE(!reader.Close())) Fail(reader);
+      },
+      reader_);
 }
 
 template <typename Src>
@@ -256,13 +244,9 @@ inline bool Decompressor<Src>::VerifyEndAndClose() {
 
 template <typename Src>
 inline void Decompressor<Src>::VerifyEnd() {
-  struct Visitor {
-    void operator()(Dependency<Reader*, Src>& reader) const {
-      if (reader.is_owning()) reader->VerifyEnd();
-    }
-    void operator()(Reader& reader) const { reader.VerifyEnd(); }
-  };
-  if (ABSL_PREDICT_TRUE(healthy())) absl::visit(Visitor(), reader_);
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    absl::visit([](Reader& reader) { reader.VerifyEnd(); }, reader_);
+  }
 }
 
 }  // namespace internal
