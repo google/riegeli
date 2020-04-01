@@ -87,6 +87,11 @@ class ZstdReaderBase : public BufferedReader {
   using BufferedReader::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
+  bool SupportsSize() const override {
+    return uncompressed_size_ != absl::nullopt;
+  }
+  absl::optional<Position> Size() override;
+
  protected:
   ZstdReaderBase() noexcept {}
 
@@ -116,6 +121,8 @@ class ZstdReaderBase : public BufferedReader {
   // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
   RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
+  // Uncompressed size, if known.
+  absl::optional<Position> uncompressed_size_;
 };
 
 // A `Reader` which decompresses data with Zstd after getting it from another
@@ -189,13 +196,15 @@ inline ZstdReaderBase::ZstdReaderBase(size_t buffer_size, Position size_hint)
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       truncated_(that.truncated_),
-      decompressor_(std::move(that.decompressor_)) {}
+      decompressor_(std::move(that.decompressor_)),
+      uncompressed_size_(that.uncompressed_size_) {}
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
   truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
+  uncompressed_size_ = that.uncompressed_size_;
   return *this;
 }
 
@@ -203,12 +212,14 @@ inline void ZstdReaderBase::Reset() {
   BufferedReader::Reset();
   truncated_ = false;
   decompressor_.reset();
+  uncompressed_size_ = absl::nullopt;
 }
 
 inline void ZstdReaderBase::Reset(size_t buffer_size, Position size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
   truncated_ = false;
   decompressor_.reset();
+  uncompressed_size_ = absl::nullopt;
 }
 
 template <typename Src>

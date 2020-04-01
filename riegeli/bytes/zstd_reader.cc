@@ -66,12 +66,12 @@ void ZstdReaderBase::Initialize(Reader* src) {
       return;
     }
   }
-  const absl::optional<Position> uncompressed_size = ZstdUncompressedSize(src);
-  if (uncompressed_size != absl::nullopt) {
-    // If `uncompressed_size` is 0, set `size_hint` to 1, because the first
+  uncompressed_size_ = ZstdUncompressedSize(src);
+  if (uncompressed_size_ != absl::nullopt) {
+    // If `uncompressed_size_` is 0, set `size_hint` to 1, because the first
     // `Pull()` call will need a non-empty destination buffer before calling the
     // Zstd decoder.
-    set_size_hint(UnsignedMax(Position{1}, *uncompressed_size));
+    set_size_hint(UnsignedMax(Position{1}, *uncompressed_size_));
   }
 }
 
@@ -154,6 +154,16 @@ bool ZstdReaderBase::ReadInternal(char* dest, size_t min_length,
       return false;
     }
   }
+}
+
+absl::optional<Position> ZstdReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(uncompressed_size_ == absl::nullopt)) {
+    Fail(absl::UnimplementedError(
+        "Uncompressed size was not stored in the Zstd-compressed stream"));
+    return absl::nullopt;
+  }
+  return *uncompressed_size_;
 }
 
 absl::optional<Position> ZstdUncompressedSize(Reader* src) {
