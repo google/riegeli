@@ -1406,58 +1406,16 @@ void Chain::Append(Src&& src, const Options& options) {
 
 template void Chain::Append(std::string&& src, const Options& options);
 
-void Chain::Append(const absl::Cord& src, const Options& options) {
-  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::Append(Cord): "
-         "Chain size overflow";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
-      Append(*flat, options);
-    } else {
-      Append(ChainBlock::FromExternal<FlatCordRef>(std::forward_as_tuple(src)),
-             options);
-    }
-    return;
-  }
-  // Avoid creating wasteful blocks and then rewriting them: append copied
-  // fragments when their accumulated size is known, tweaking `size_hint` for
-  // block sizing.
-  absl::InlinedVector<absl::string_view, 4> copied_fragments;
-  Options copy_options = options;
-  copy_options.set_size_hint(size());
-  absl::Cord::CharIterator iter = src.char_begin();
-  while (iter != src.char_end()) {
-    const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
-    if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
-      copied_fragments.push_back(fragment);
-      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
-      absl::Cord::Advance(&iter, fragment.size());
-    } else {
-      for (const absl::string_view copied_fragment : copied_fragments) {
-        Append(copied_fragment, copy_options);
-      }
-      copied_fragments.clear();
-      Append(ChainBlock::FromExternal<FlatCordRef>(
-                 std::forward_as_tuple(&iter, fragment.size())),
-             options);
-      copy_options.set_size_hint(size());
-    }
-  }
-  for (const absl::string_view copied_fragment : copied_fragments) {
-    Append(copied_fragment, options);
-  }
-}
-
 void Chain::Append(const Chain& src, const Options& options) {
-  AppendImpl<Ownership::kShare>(src, options);
+  AppendChain<Ownership::kShare>(src, options);
 }
 
 void Chain::Append(Chain&& src, const Options& options) {
-  AppendImpl<Ownership::kSteal>(std::move(src), options);
+  AppendChain<Ownership::kSteal>(std::move(src), options);
 }
 
 template <Chain::Ownership ownership, typename ChainRef>
-inline void Chain::AppendImpl(ChainRef&& src, const Options& options) {
+inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Chain): "
          "Chain size overflow";
@@ -1578,6 +1536,48 @@ inline void Chain::AppendImpl(ChainRef&& src, const Options& options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
+void Chain::Append(const absl::Cord& src, const Options& options) {
+  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::Append(Cord): "
+         "Chain size overflow";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+      Append(*flat, options);
+    } else {
+      Append(ChainBlock::FromExternal<FlatCordRef>(std::forward_as_tuple(src)),
+             options);
+    }
+    return;
+  }
+  // Avoid creating wasteful blocks and then rewriting them: append copied
+  // fragments when their accumulated size is known, tweaking `size_hint` for
+  // block sizing.
+  absl::InlinedVector<absl::string_view, 4> copied_fragments;
+  Options copy_options = options;
+  copy_options.set_size_hint(size());
+  absl::Cord::CharIterator iter = src.char_begin();
+  while (iter != src.char_end()) {
+    const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
+    if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
+      copied_fragments.push_back(fragment);
+      copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
+      absl::Cord::Advance(&iter, fragment.size());
+    } else {
+      for (const absl::string_view copied_fragment : copied_fragments) {
+        Append(copied_fragment, copy_options);
+      }
+      copied_fragments.clear();
+      Append(ChainBlock::FromExternal<FlatCordRef>(
+                 std::forward_as_tuple(&iter, fragment.size())),
+             options);
+      copy_options.set_size_hint(size());
+    }
+  }
+  for (const absl::string_view copied_fragment : copied_fragments) {
+    Append(copied_fragment, options);
+  }
+}
+
 void Chain::Prepend(absl::string_view src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string_view): "
@@ -1610,29 +1610,16 @@ void Chain::Prepend(Src&& src, const Options& options) {
 
 template void Chain::Prepend(std::string&& src, const Options& options);
 
-void Chain::Prepend(const absl::Cord& src, const Options& options) {
-  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::Prepend(Cord): "
-         "Chain size overflow";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
-      Prepend(*flat, options);
-      return;
-    }
-  }
-  Prepend(Chain(src), options);
-}
-
 void Chain::Prepend(const Chain& src, const Options& options) {
-  PrependImpl<Ownership::kShare>(src, options);
+  PrependChain<Ownership::kShare>(src, options);
 }
 
 void Chain::Prepend(Chain&& src, const Options& options) {
-  PrependImpl<Ownership::kSteal>(std::move(src), options);
+  PrependChain<Ownership::kSteal>(std::move(src), options);
 }
 
 template <Chain::Ownership ownership, typename ChainRef>
-inline void Chain::PrependImpl(ChainRef&& src, const Options& options) {
+inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Chain): "
          "Chain size overflow";
@@ -1748,6 +1735,19 @@ inline void Chain::PrependImpl(ChainRef&& src, const Options& options) {
   PrependBlocks<ownership>(src.begin_, src_iter);
   size_ += src.size_;
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
+}
+
+void Chain::Prepend(const absl::Cord& src, const Options& options) {
+  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::Prepend(Cord): "
+         "Chain size overflow";
+  if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
+    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+      Prepend(*flat, options);
+      return;
+    }
+  }
+  Prepend(Chain(src), options);
 }
 
 void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,

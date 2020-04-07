@@ -330,20 +330,20 @@ class Chain {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   void Append(Src&& src, const Options& options = kDefaultOptions);
+  void Append(const Chain& src, const Options& options = kDefaultOptions);
+  void Append(Chain&& src, const Options& options = kDefaultOptions);
   void Append(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Append(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Append(const absl::Cord& src, const Options& options = kDefaultOptions);
-  void Append(const Chain& src, const Options& options = kDefaultOptions);
-  void Append(Chain&& src, const Options& options = kDefaultOptions);
   void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   void Prepend(Src&& src, const Options& options = kDefaultOptions);
+  void Prepend(const Chain& src, const Options& options = kDefaultOptions);
+  void Prepend(Chain&& src, const Options& options = kDefaultOptions);
   void Prepend(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Prepend(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
-  void Prepend(const Chain& src, const Options& options = kDefaultOptions);
-  void Prepend(Chain&& src, const Options& options = kDefaultOptions);
 
   // `AppendFrom(&iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
@@ -512,10 +512,10 @@ class Chain {
 
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void AppendImpl(ChainRef&& src, const Options& options);
+  void AppendChain(ChainRef&& src, const Options& options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership, typename ChainRef>
-  void PrependImpl(ChainRef&& src, const Options& options);
+  void PrependChain(ChainRef&& src, const Options& options);
 
   // This template is explicitly instantiated.
   template <Ownership ownership>
