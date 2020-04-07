@@ -45,8 +45,6 @@ namespace riegeli {
 constexpr Chain::Options Chain::kDefaultOptions;
 constexpr size_t Chain::kAnyLength;
 constexpr size_t Chain::kMaxShortDataSize;
-constexpr size_t Chain::kMaxBytesToCopyToChain;
-constexpr size_t Chain::kMaxBytesToCopyFromCordToChain;
 constexpr size_t Chain::kAllocationCost;
 constexpr size_t Chain::RawBlock::kMaxCapacity;
 constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
@@ -562,7 +560,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
     dest->AppendBlock<Ownership::kShare>(this, options);
     return;
   }
-  if (substr.size() <= kMaxBytesToCopyToChain) {
+  if (substr.size() <= kMaxBytesToCopy) {
     dest->Append(substr, options);
     return;
   }
@@ -1393,8 +1391,7 @@ void Chain::Append(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopyToChain ||
-      Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
     // Not `std::move(src)`: forward to `Append(absl::string_view)`.
     Append(src, options);
     return;
@@ -1541,7 +1538,7 @@ void Chain::Append(const absl::Cord& src, const Options& options) {
       << "Failed precondition of Chain::Append(Cord): "
          "Chain size overflow";
   if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+    if (flat->size() <= kMaxBytesToCopy) {
       Append(*flat, options);
     } else {
       Append(ChainBlock::FromExternal<FlatCordRef>(std::forward_as_tuple(src)),
@@ -1558,7 +1555,7 @@ void Chain::Append(const absl::Cord& src, const Options& options) {
   absl::Cord::CharIterator iter = src.char_begin();
   while (iter != src.char_end()) {
     const absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
-    if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
+    if (fragment.size() <= kMaxBytesToCopy) {
       copied_fragments.push_back(fragment);
       copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(&iter, fragment.size());
@@ -1597,8 +1594,7 @@ void Chain::Prepend(Src&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(string&&): "
          "Chain size overflow";
-  if (src.size() <= kMaxBytesToCopyToChain ||
-      Wasteful(src.capacity(), src.size())) {
+  if (src.size() <= kMaxBytesToCopy || Wasteful(src.capacity(), src.size())) {
     // Not `std::move(src)`: forward to `Prepend(absl::string_view)`.
     Prepend(src, options);
     return;
@@ -1742,7 +1738,7 @@ void Chain::Prepend(const absl::Cord& src, const Options& options) {
       << "Failed precondition of Chain::Prepend(Cord): "
          "Chain size overflow";
   if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopyFromCordToChain) {
+    if (flat->size() <= kMaxBytesToCopy) {
       Prepend(*flat, options);
       return;
     }
@@ -1765,7 +1761,7 @@ void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,
     absl::string_view fragment = absl::Cord::ChunkRemaining(*iter);
     fragment = absl::string_view(fragment.data(),
                                  UnsignedMin(fragment.size(), length));
-    if (fragment.size() <= kMaxBytesToCopyFromCordToChain) {
+    if (fragment.size() <= kMaxBytesToCopy) {
       copied_fragments.push_back(fragment);
       copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
       absl::Cord::Advance(iter, fragment.size());
@@ -1993,7 +1989,7 @@ void Chain::RemoveSuffixSlow(size_t length, const Options& options) {
   data.remove_suffix(length);
   // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopyToChain) {
+  if (data.size() <= kMaxBytesToCopy) {
     Append(data, options);
     block->Unref();
     return;
@@ -2052,7 +2048,7 @@ void Chain::RemovePrefixSlow(size_t length, const Options& options) {
   data.remove_prefix(length);
   // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();
-  if (data.size() <= kMaxBytesToCopyToChain) {
+  if (data.size() <= kMaxBytesToCopy) {
     Prepend(data, options);
     block->Unref();
     return;

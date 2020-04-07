@@ -410,18 +410,6 @@ class Chain {
 
   static constexpr size_t kMaxShortDataSize = 2 * sizeof(RawBlock*);
 
-  // When deciding whether to copy an array of bytes or share memory to a
-  // `Chain`, prefer copying up to this length.
-  static constexpr size_t kMaxBytesToCopyToChain = kMaxShortDataSize;
-
-  // When deciding whether to copy an array of bytes or share memory from an
-  // `absl::Cord` to a `Chain`, prefer copying up to this length.
-  //
-  // A higher threshold than `kMaxBytesToCopyToChain` is used when copying from
-  // an `absl::Cord`, because sharing memory from an `absl::Cord` is unusually
-  // expensive.
-  static constexpr size_t kMaxBytesToCopyFromCordToChain = 255;
-
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
 
