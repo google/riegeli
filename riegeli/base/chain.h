@@ -163,6 +163,7 @@ class Chain {
 
   class Blocks;
   class BlockIterator;
+  class CharPosition;
 
   // A sentinel value for the `max_length` parameter of
   // `AppendBuffer()`/`PrependBuffer()`.
@@ -284,6 +285,12 @@ class Chain {
   // `absl::nullopt`.
   absl::optional<absl::string_view> TryFlat() const;
 
+  // Locates the block containing the given character position, and the
+  // character index within the block.
+  //
+  // Precondition: `pos <= size()`
+  CharPosition FindPosition(size_t pos) const;
+
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
   // Registers this `Chain` with `MemoryEstimator`.
@@ -381,6 +388,10 @@ class Chain {
 
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
+  // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
+  // otherwise does nothing.
+  void VerifyInvariants() const;
+
  private:
   friend class ChainBlock;
 
@@ -403,12 +414,28 @@ class Chain {
 
   struct Empty {};
 
-  struct Allocated {
-    RawBlock** begin;
-    RawBlock** end;
+  // A union of either a block pointer or a block offset. Having a union makes
+  // easier to allocate an array containing both kinds of data, with block
+  // offsets following block pointers.
+  union BlockPtr {
+    RawBlock* block_ptr;
+    size_t block_offset;
   };
 
-  static constexpr size_t kMaxShortDataSize = 2 * sizeof(RawBlock*);
+  struct Allocated {
+    // The extent of the allocated array of block pointers. This array is
+    // immediately followed by the array of block offsets of the same size,
+    // used for efficient finding of the block covering the given position.
+    // Only some middle portion of each array is filled.
+    //
+    // The offset of the first block is not necessarily 0 but an arbitrary value
+    // (with possible wrapping around the `size_t` range), to avoid having to
+    // update all offsets in `Prepend()` or `RemovePrefix()`.
+    BlockPtr* begin;
+    BlockPtr* end;
+  };
+
+  static constexpr size_t kMaxShortDataSize = 2 * sizeof(BlockPtr);
 
   union BlockPtrs {
     constexpr BlockPtrs() noexcept : empty() {}
@@ -424,10 +451,10 @@ class Chain {
     // `short_data`.
     char short_data[kMaxShortDataSize];
     // If `has_here()`, array of block pointers between `begin_` i.e. `here` and
-    // `end_` (0 to 2 pointers).
-    RawBlock* here[2];
+    // `end_` (0 to 2 pointers). In this case block offsets are implicit.
+    BlockPtr here[2];
     // If `has_allocated()`, pointers to a heap-allocated array of block
-    // pointers.
+    // pointers and block offsets.
     Allocated allocated;
   };
 
@@ -453,7 +480,7 @@ class Chain {
 
   absl::string_view short_data() const;
 
-  static RawBlock** NewBlockPtrs(size_t capacity);
+  static BlockPtr* NewBlockPtrs(size_t capacity);
   void DeleteBlockPtrs();
   // If `has_allocated()`, delete the block pointer array and make `has_here()`
   // `true`. This is used before appending to `short_data`.
@@ -462,28 +489,46 @@ class Chain {
   void EnsureHasHere();
 
   void UnrefBlocks();
-  static void UnrefBlocks(RawBlock* const* begin, RawBlock* const* end);
-  static void UnrefBlocksSlow(RawBlock* const* begin, RawBlock* const* end);
+  static void UnrefBlocks(const BlockPtr* begin, const BlockPtr* end);
+  static void UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end);
 
   void DropStolenBlocks(
       std::integral_constant<Ownership, Ownership::kShare>) const;
   void DropStolenBlocks(std::integral_constant<Ownership, Ownership::kSteal>);
 
-  RawBlock*& back() { return end_[-1]; }
-  RawBlock* const& back() const { return end_[-1]; }
-  RawBlock*& front() { return begin_[0]; }
-  RawBlock* const& front() const { return begin_[0]; }
+  // The offset of the block offsets part of the block pointer array, in array
+  // elements.
+  size_t block_offsets() const {
+    RIEGELI_ASSERT(has_allocated())
+        << "Failed precondition of block_offsets(): "
+           "block pointer array is not allocated";
+    return PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end);
+  }
 
+  // Returns the last block. Can be changed in place (if its own constraints
+  // allow that).
+  RawBlock* const& back() const { return end_[-1].block_ptr; }
+  // Returns the first block. If its size changes, this must be reflected in the
+  // array of block offset, e.g. with `RefreshFront()`.
+  RawBlock* const& front() const { return begin_[0].block_ptr; }
+
+  void SetBack(RawBlock* block);
+  void SetFront(RawBlock* block);
+  // Like `SetFront()`, but skips the `RefreshFront()` step. This is enough if
+  // the block has the same size as the block being replaced.
+  void SetFrontSameSize(RawBlock* block);
+  // Recomputes the block offset of the first block if needed.
+  void RefreshFront();
   void PushBack(RawBlock* block);
   void PushFront(RawBlock* block);
   void PopBack();
   void PopFront();
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
-  void AppendBlocks(RawBlock* const* begin, RawBlock* const* end);
+  void AppendBlocks(const BlockPtr* begin, const BlockPtr* end);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
-  void PrependBlocks(RawBlock* const* begin, RawBlock* const* end);
+  void PrependBlocks(const BlockPtr* begin, const BlockPtr* end);
   void ReserveBack(size_t extra_capacity);
   void ReserveFront(size_t extra_capacity);
 
@@ -525,8 +570,8 @@ class Chain {
   //                    and `end_ <= block_ptrs_.here + 2`
   //   if `has_allocated()` then `begin_ >= block_ptrs_.allocated.begin`
   //                         and `end_ <= block_ptrs_.allocated.end`
-  RawBlock** begin_ = block_ptrs_.here;
-  RawBlock** end_ = block_ptrs_.here;
+  BlockPtr* begin_ = block_ptrs_.here;
+  BlockPtr* end_ = block_ptrs_.here;
 
   // Invariants:
   //   if `begin_ == end_` then `size_ <= kMaxShortDataSize`
@@ -536,15 +581,15 @@ class Chain {
   size_t size_ = 0;
 };
 
-// Represents either `RawBlock* const*`, or one of two special values
+// Represents either `const BlockPtr*`, or one of two special values
 // (`kBeginShortData` and `kEndShortData`) behaving as if they were pointers in
-// a single-element `RawBlock*` array.
+// a single-element `BlockPtr` array.
 struct Chain::BlockPtrPtr {
  public:
-  static BlockPtrPtr from_ptr(RawBlock* const* ptr);
+  static BlockPtrPtr from_ptr(const BlockPtr* ptr);
 
   bool is_special() const;
-  RawBlock* const* as_ptr() const;
+  const BlockPtr* as_ptr() const;
 
   BlockPtrPtr operator+(ptrdiff_t n) const;
   BlockPtrPtr operator-(ptrdiff_t n) const;
@@ -653,7 +698,7 @@ class Chain::BlockIterator {
   friend class Chain;
 
   static constexpr BlockPtrPtr kBeginShortData{0};
-  static constexpr BlockPtrPtr kEndShortData{sizeof(RawBlock*)};
+  static constexpr BlockPtrPtr kEndShortData{sizeof(BlockPtr)};
 
   explicit BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
@@ -708,6 +753,19 @@ class Chain::Blocks {
   explicit Blocks(const Chain* chain) noexcept : chain_(chain) {}
 
   const Chain* chain_ = nullptr;
+};
+
+// Represents the position of a character in a `Chain`.
+//
+// A `CharIterator` is not provided because it is more efficient to iterate by
+// blocks and process character ranges within a block.
+struct Chain::CharPosition {
+  // Intended invariant:
+  //   if `block_iter == block_iter.chain()->blocks().cend()`
+  //       then `char_index == 0`
+  //       else `char_index < block_iter->size()`
+  BlockIterator block_iter;
+  size_t char_index;
 };
 
 // A simplified variant of `Chain` constrained to have at most one block.
@@ -1344,17 +1402,17 @@ inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
   return false;
 }
 
-inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(RawBlock* const* ptr) {
+inline Chain::BlockPtrPtr Chain::BlockPtrPtr::from_ptr(const BlockPtr* ptr) {
   return BlockPtrPtr{reinterpret_cast<uintptr_t>(ptr)};
 }
 
 inline bool Chain::BlockPtrPtr::is_special() const {
-  return repr <= sizeof(RawBlock*);
+  return repr <= sizeof(BlockPtr);
 }
 
-inline Chain::RawBlock* const* Chain::BlockPtrPtr::as_ptr() const {
+inline const Chain::BlockPtr* Chain::BlockPtrPtr::as_ptr() const {
   RIEGELI_ASSERT(!is_special()) << "Unexpected special BlockPtrPtr value";
-  return reinterpret_cast<RawBlock* const*>(repr);
+  return reinterpret_cast<const BlockPtr*>(repr);
 }
 
 // Code conditional on `is_special()` is written such that both branches
@@ -1483,7 +1541,7 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return chain_->short_data();
   } else {
-    return absl::string_view(**ptr_.as_ptr());
+    return absl::string_view(*ptr_.as_ptr()->block_ptr);
   }
 }
 
@@ -1603,7 +1661,7 @@ inline const T* Chain::BlockIterator::external_object() const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     return nullptr;
   } else {
-    return (*ptr_.as_ptr())->checked_external_object<T>();
+    return ptr_.as_ptr()->block_ptr->checked_external_object<T>();
   }
 }
 
@@ -1674,7 +1732,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::operator[](
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return absl::string_view(*chain_->begin_[n]);
+    return absl::string_view(*chain_->begin_[n].block_ptr);
   }
 }
 
@@ -1684,7 +1742,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return absl::string_view(*chain_->begin_[n]);
+    return absl::string_view(*chain_->begin_[n].block_ptr);
   }
 }
 
@@ -1694,7 +1752,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::front() const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return absl::string_view(*chain_->begin_[0]);
+    return absl::string_view(*chain_->begin_[0].block_ptr);
   }
 }
 
@@ -1704,7 +1762,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::back() const {
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
     return chain_->short_data();
   } else {
-    return absl::string_view(*chain_->end_[-1]);
+    return absl::string_view(*chain_->end_[-1].block_ptr);
   }
 }
 
@@ -1746,7 +1804,7 @@ inline Chain::Chain(Src&& src) {
 inline Chain::Chain(const ChainBlock& src) {
   if (src.block_ != nullptr) {
     RawBlock* const block = src.block_->Ref();
-    *end_++ = block;
+    (end_++)->block_ptr = block;
     size_ = block->size();
   }
 }
@@ -1754,7 +1812,7 @@ inline Chain::Chain(const ChainBlock& src) {
 inline Chain::Chain(ChainBlock&& src) {
   if (src.block_ != nullptr) {
     RawBlock* const block = std::exchange(src.block_, nullptr);
-    *end_++ = block;
+    (end_++)->block_ptr = block;
     size_ = block->size();
   }
 }
@@ -1784,8 +1842,8 @@ inline Chain::Chain(Chain&& that) noexcept
 
 inline Chain& Chain::operator=(Chain&& that) noexcept {
   // Exchange `that.begin_` and `that.end_` early to support self-assignment.
-  RawBlock** begin;
-  RawBlock** end;
+  BlockPtr* begin;
+  BlockPtr* end;
   if (that.has_here()) {
     // `that.has_here()` implies that `that.begin_ == that.block_ptrs_.here`
     // already.
@@ -1856,16 +1914,41 @@ inline absl::string_view Chain::short_data() const {
 
 inline void Chain::DeleteBlockPtrs() {
   if (has_allocated()) {
-    std::allocator<RawBlock*>().deallocate(
+    std::allocator<BlockPtr>().deallocate(
         block_ptrs_.allocated.begin,
-        PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end));
+        2 * PtrDistance(block_ptrs_.allocated.begin,
+                        block_ptrs_.allocated.end));
   }
 }
 
 inline void Chain::UnrefBlocks() { UnrefBlocks(begin_, end_); }
 
-inline void Chain::UnrefBlocks(RawBlock* const* begin, RawBlock* const* end) {
+inline void Chain::UnrefBlocks(const BlockPtr* begin, const BlockPtr* end) {
   if (begin != end) UnrefBlocksSlow(begin, end);
+}
+
+inline void Chain::SetBack(RawBlock* block) {
+  end_[-1].block_ptr = block;
+  // There is no need to adjust block offsets because the size of the last block
+  // is not reflected in block offsets.
+}
+
+inline void Chain::SetFront(RawBlock* block) {
+  SetFrontSameSize(block);
+  RefreshFront();
+}
+
+inline void Chain::SetFrontSameSize(RawBlock* block) {
+  begin_[0].block_ptr = block;
+}
+
+inline void Chain::RefreshFront() {
+  if (has_allocated()) {
+    begin_[block_offsets()].block_offset =
+        begin_ == end_ ? size_t{0}
+                       : begin_[block_offsets() + 1].block_offset -
+                             begin_[0].block_ptr->size();
+  }
 }
 
 inline Chain::Blocks Chain::blocks() const { return Blocks(this); }
@@ -1959,6 +2042,7 @@ inline void Chain::RemovePrefix(size_t length, const Options& options) {
   }
   if (ABSL_PREDICT_TRUE(length <= front()->size() &&
                         front()->TryRemovePrefix(length))) {
+    RefreshFront();
     return;
   }
   RemovePrefixSlow(length, options);

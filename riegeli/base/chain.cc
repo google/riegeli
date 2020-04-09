@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -631,7 +632,7 @@ Chain::RawBlock* Chain::BlockIterator::PinImpl() {
                                         kMaxShortDataSize);
     return block;
   }
-  return (*ptr_.as_ptr())->Ref();
+  return ptr_.as_ptr()->block_ptr->Ref();
 }
 
 void Chain::BlockIterator::AppendTo(Chain* dest, const Options& options) const {
@@ -645,7 +646,7 @@ void Chain::BlockIterator::AppendTo(Chain* dest, const Options& options) const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     dest->Append(chain_->short_data(), options);
   } else {
-    (*ptr_.as_ptr())->AppendTo(dest, options);
+    ptr_.as_ptr()->block_ptr->AppendTo(dest, options);
   }
 }
 
@@ -660,7 +661,7 @@ void Chain::BlockIterator::AppendTo(absl::Cord* dest) const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     dest->Append(chain_->short_data());
   } else {
-    (*ptr_.as_ptr())->AppendTo<Ownership::kShare>(dest);
+    ptr_.as_ptr()->block_ptr->AppendTo<Ownership::kShare>(dest);
   }
 }
 
@@ -688,7 +689,7 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
            "substring not contained in data";
     dest->Append(substr, options);
   } else {
-    (*ptr_.as_ptr())->AppendSubstrTo(substr, dest, options);
+    ptr_.as_ptr()->block_ptr->AppendSubstrTo(substr, dest, options);
   }
 }
 
@@ -716,7 +717,7 @@ void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr,
            "substring not contained in data";
     dest->Append(substr);
   } else {
-    (*ptr_.as_ptr())->AppendSubstrTo(substr, dest);
+    ptr_.as_ptr()->block_ptr->AppendSubstrTo(substr, dest);
   }
 }
 
@@ -731,7 +732,7 @@ void Chain::BlockIterator::PrependTo(absl::Cord* dest) const {
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     dest->Prepend(chain_->short_data());
   } else {
-    (*ptr_.as_ptr())->PrependTo<Ownership::kShare>(dest);
+    ptr_.as_ptr()->block_ptr->PrependTo<Ownership::kShare>(dest);
   }
 }
 
@@ -763,13 +764,13 @@ void Chain::ClearSlow() {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::ClearSlow(): "
          "no blocks, use Clear() instead";
-  RawBlock** const new_end = begin_ + ((*begin_)->TryClear() ? 1 : 0);
+  BlockPtr* const new_end = begin_ + (begin_->block_ptr->TryClear() ? 1 : 0);
   UnrefBlocks(new_end, end_);
   end_ = new_end;
 }
 
-inline Chain::RawBlock** Chain::NewBlockPtrs(size_t capacity) {
-  return std::allocator<RawBlock*>().allocate(capacity);
+inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
+  return std::allocator<BlockPtr>().allocate(2 * capacity);
 }
 
 inline void Chain::EnsureHasHere() {
@@ -782,12 +783,12 @@ inline void Chain::EnsureHasHere() {
   }
 }
 
-void Chain::UnrefBlocksSlow(RawBlock* const* begin, RawBlock* const* end) {
+void Chain::UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end) {
   RIEGELI_ASSERT(begin < end)
       << "Failed precondition of Chain::UnrefBlocksSlow(): "
          "no blocks, use UnrefBlocks() instead";
   do {
-    (*begin++)->Unref();
+    (begin++)->block_ptr->Unref();
   } while (begin != end);
 }
 
@@ -802,13 +803,13 @@ inline void Chain::DropStolenBlocks(
 
 void Chain::CopyTo(char* dest) const {
   if (empty()) return;  // `std::memcpy(nullptr, _, 0)` is undefined.
-  RawBlock* const* iter = begin_;
+  const BlockPtr* iter = begin_;
   if (iter == end_) {
     std::memcpy(dest, block_ptrs_.short_data, size_);
   } else {
     do {
-      std::memcpy(dest, (*iter)->data_begin(), (*iter)->size());
-      dest += (*iter)->size();
+      std::memcpy(dest, iter->block_ptr->data_begin(), iter->block_ptr->size());
+      dest += iter->block_ptr->size();
       ++iter;
     } while (iter != end_);
   }
@@ -851,12 +852,12 @@ void Chain::AppendTo(std::string* dest) && {
 void Chain::AppendTo(absl::Cord* dest) const& {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::AppendTo(Cord*): Cord size overflow";
-  RawBlock* const* iter = begin_;
+  const BlockPtr* iter = begin_;
   if (iter == end_) {
     dest->Append(short_data());
   } else {
     do {
-      (*iter)->AppendTo<Ownership::kShare>(dest);
+      iter->block_ptr->AppendTo<Ownership::kShare>(dest);
       ++iter;
     } while (iter != end_);
   }
@@ -865,12 +866,12 @@ void Chain::AppendTo(absl::Cord* dest) const& {
 void Chain::AppendTo(absl::Cord* dest) && {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::AppendTo(Cord*): Cord size overflow";
-  RawBlock* const* iter = begin_;
+  const BlockPtr* iter = begin_;
   if (iter == end_) {
     dest->Append(short_data());
   } else {
     do {
-      (*iter)->AppendTo<Ownership::kSteal>(dest);
+      iter->block_ptr->AppendTo<Ownership::kSteal>(dest);
       ++iter;
     } while (iter != end_);
     end_ = begin_;
@@ -881,13 +882,13 @@ void Chain::AppendTo(absl::Cord* dest) && {
 void Chain::PrependTo(absl::Cord* dest) const& {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::PrependTo(Cord*): Cord size overflow";
-  RawBlock* const* iter = end_;
+  const BlockPtr* iter = end_;
   if (iter == begin_) {
     dest->Prepend(short_data());
   } else {
     do {
       --iter;
-      (*iter)->PrependTo<Ownership::kShare>(dest);
+      iter->block_ptr->PrependTo<Ownership::kShare>(dest);
     } while (iter != begin_);
   }
 }
@@ -895,13 +896,13 @@ void Chain::PrependTo(absl::Cord* dest) const& {
 void Chain::PrependTo(absl::Cord* dest) && {
   RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
       << "Failed precondition of Chain::PrependTo(Cord*): Cord size overflow";
-  RawBlock* const* iter = end_;
+  const BlockPtr* iter = end_;
   if (iter == begin_) {
     dest->Prepend(short_data());
   } else {
     do {
       --iter;
-      (*iter)->PrependTo<Ownership::kSteal>(dest);
+      iter->block_ptr->PrependTo<Ownership::kSteal>(dest);
     } while (iter != begin_);
     end_ = begin_;
   }
@@ -946,6 +947,39 @@ Chain::operator absl::Cord() && {
   return dest;
 }
 
+Chain::CharPosition Chain::FindPosition(size_t pos) const {
+  RIEGELI_ASSERT_LE(pos, size())
+      << "Failed precondition of Chain::FindPosition(): "
+         "position out of range";
+  if (pos == size()) {
+    return CharPosition{blocks().cend(), 0};
+  } else if (begin_ == end_) {
+    return CharPosition{blocks().cbegin(), pos};
+  } else if (has_here()) {
+    BlockIterator block_iter = blocks().cbegin();
+    if (pos >= block_iter->size()) {
+      pos -= block_iter->size();
+      ++block_iter;
+      RIEGELI_ASSERT_LT(pos, block_iter->size())
+          << "Failed invariant of Chain: "
+             "only two block pointers fit without allocating their array";
+    }
+    return CharPosition{block_iter, pos};
+  } else {
+    const size_t offset_base = begin_[block_offsets()].block_offset;
+    const BlockPtr* const found =
+        std::upper_bound(begin_ + block_offsets() + 1, end_ + block_offsets(),
+                         pos,
+                         [&](size_t value, BlockPtr element) {
+                           return value < element.block_offset - offset_base;
+                         }) -
+        1;
+    return CharPosition{
+        BlockIterator(this, PtrDistance(begin_ + block_offsets(), found)),
+        pos - (found->block_offset - offset_base)};
+  }
+}
+
 size_t Chain::EstimateMemory() const {
   MemoryEstimator memory_estimator;
   memory_estimator.RegisterMemory(sizeof(Chain));
@@ -956,31 +990,47 @@ size_t Chain::EstimateMemory() const {
 void Chain::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
   if (has_allocated()) {
     memory_estimator->RegisterMemory(
+        2 *
         PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end) *
-        sizeof(RawBlock*));
+        sizeof(BlockPtr));
   }
-  for (RawBlock* const* iter = begin_; iter != end_; ++iter) {
-    (*iter)->RegisterShared(memory_estimator);
+  for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
+    iter->block_ptr->RegisterShared(memory_estimator);
   }
 }
 
 void Chain::DumpStructure(std::ostream& out) const {
   out << "chain {\n  size: " << size_ << " memory: " << EstimateMemory();
-  for (RawBlock* const* iter = begin_; iter != end_; ++iter) {
+  for (const BlockPtr* iter = begin_; iter != end_; ++iter) {
     out << "\n  ";
-    (*iter)->DumpStructure(out);
+    iter->block_ptr->DumpStructure(out);
   }
   out << "\n}\n";
 }
 
 inline void Chain::PushBack(RawBlock* block) {
   ReserveBack(1);
-  *end_++ = block;
+  end_[0].block_ptr = block;
+  if (has_allocated()) {
+    end_[block_offsets()].block_offset =
+        begin_ == end_ ? size_t{0}
+                       : end_[block_offsets() - 1].block_offset +
+                             end_[-1].block_ptr->size();
+  }
+  ++end_;
 }
 
 inline void Chain::PushFront(RawBlock* block) {
   ReserveFront(1);
-  *--begin_ = block;
+  BlockPtr* const old_begin = begin_;
+  --begin_;
+  begin_[0].block_ptr = block;
+  if (has_allocated()) {
+    begin_[block_offsets()].block_offset =
+        old_begin == end_ ? size_t{0}
+                          : begin_[block_offsets() + 1].block_offset -
+                                begin_[0].block_ptr->size();
+  }
 }
 
 inline void Chain::PopBack() {
@@ -994,10 +1044,9 @@ inline void Chain::PopFront() {
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
-    // `begin_` must remain at `block_ptrs_.here`. Use `std::memcpy()` instead
-    // of assignment because the pointer being copied might be invalid if there
-    // are 0 block pointers; it is cheaper to copy unconditionally.
-    std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));
+    // `begin_` must remain at `block_ptrs_.here`. There might be no pointer to
+    // copy; it is cheaper to copy the array slot unconditionally.
+    block_ptrs_.here[0] = block_ptrs_.here[1];
     --end_;
   } else {
     ++begin_;
@@ -1005,23 +1054,78 @@ inline void Chain::PopFront() {
 }
 
 template <Chain::Ownership ownership>
-inline void Chain::AppendBlocks(RawBlock* const* begin, RawBlock* const* end) {
+inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
+  if (begin == end) return;
   ReserveBack(PtrDistance(begin, end));
-  RawBlock** dest_iter = end_;
-  while (begin != end) *dest_iter++ = (*begin++)->Ref<ownership>();
+  BlockPtr* dest_iter = end_;
+  dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+  if (has_allocated()) {
+    const size_t offsets = block_offsets();
+    size_t offset = begin_ == end_ ? size_t{0}
+                                   : dest_iter[offsets - 1].block_offset +
+                                         dest_iter[-1].block_ptr->size();
+    dest_iter[offsets].block_offset = offset;
+    ++begin;
+    ++dest_iter;
+    while (begin != end) {
+      dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+      offset += dest_iter[-1].block_ptr->size();
+      dest_iter[offsets].block_offset = offset;
+      ++begin;
+      ++dest_iter;
+    }
+  } else {
+    ++begin;
+    ++dest_iter;
+    if (begin != end) {
+      dest_iter->block_ptr = begin->block_ptr->Ref<ownership>();
+      ++begin;
+      ++dest_iter;
+      RIEGELI_ASSERT(begin == end)
+          << "Failed invariant of Chain: "
+             "only two block pointers fit without allocating their array";
+    }
+  }
   end_ = dest_iter;
 }
 
 template <Chain::Ownership ownership>
-inline void Chain::PrependBlocks(RawBlock* const* begin, RawBlock* const* end) {
+inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
+  if (begin == end) return;
   ReserveFront(PtrDistance(begin, end));
-  RawBlock** dest_iter = begin_;
-  while (end != begin) *--dest_iter = (*--end)->Ref<ownership>();
-  begin_ = dest_iter;
+  BlockPtr* dest_iter = begin_;
+  BlockPtr* const old_begin = begin_;
+  begin_ -= PtrDistance(begin, end);  // For `has_allocated()` to work.
+  --end;
+  --dest_iter;
+  dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+  if (has_allocated()) {
+    const size_t offsets = block_offsets();
+    size_t offset = old_begin == end_ ? size_t{0}
+                                      : dest_iter[offsets + 1].block_offset -
+                                            dest_iter->block_ptr->size();
+    dest_iter[offsets].block_offset = offset;
+    while (end != begin) {
+      --end;
+      --dest_iter;
+      dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+      offset -= dest_iter->block_ptr->size();
+      dest_iter[offsets].block_offset = offset;
+    }
+  } else {
+    if (end != begin) {
+      --end;
+      --dest_iter;
+      dest_iter->block_ptr = end->block_ptr->Ref<ownership>();
+      RIEGELI_ASSERT(begin == end)
+          << "Failed invariant of Chain: "
+             "only two block pointers fit without allocating their array";
+    }
+  }
 }
 
 inline void Chain::ReserveBack(size_t extra_capacity) {
-  RawBlock** const allocated_end =
+  BlockPtr* const allocated_end =
       has_here() ? block_ptrs_.here + 2 : block_ptrs_.allocated.end;
   if (ABSL_PREDICT_FALSE(extra_capacity > PtrDistance(end_, allocated_end))) {
     // The slow path is in a separate function to make easier for the compiler
@@ -1031,7 +1135,7 @@ inline void Chain::ReserveBack(size_t extra_capacity) {
 }
 
 inline void Chain::ReserveFront(size_t extra_capacity) {
-  RawBlock** const allocated_begin =
+  BlockPtr* const allocated_begin =
       has_here() ? block_ptrs_.here : block_ptrs_.allocated.begin;
   if (ABSL_PREDICT_FALSE(extra_capacity >
                          PtrDistance(allocated_begin, begin_))) {
@@ -1045,8 +1149,8 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   RIEGELI_ASSERT_GT(extra_capacity, 0u)
       << "Failed precondition of Chain::ReserveBackSlow(): "
          "nothing to do, use ReserveBack() instead";
-  RawBlock** old_allocated_begin;
-  RawBlock** old_allocated_end;
+  BlockPtr* old_allocated_begin;
+  BlockPtr* old_allocated_end;
   if (has_here()) {
     old_allocated_begin = block_ptrs_.here;
     old_allocated_end = block_ptrs_.here + 2;
@@ -1057,42 +1161,62 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   RIEGELI_ASSERT_GT(extra_capacity, PtrDistance(end_, old_allocated_end))
       << "Failed precondition of Chain::ReserveBackSlow(): "
          "extra capacity fits in allocated space, use ReserveBack() instead";
-  RIEGELI_ASSERT_LE(extra_capacity,
-                    std::numeric_limits<size_t>::max() / sizeof(RawBlock*) -
-                        PtrDistance(old_allocated_begin, end_))
+  RIEGELI_ASSERT_LE(extra_capacity, std::numeric_limits<size_t>::max() /
+                                            (2 * sizeof(BlockPtr)) -
+                                        PtrDistance(old_allocated_begin, end_))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
-  const size_t final_size = PtrDistance(begin_, end_) + extra_capacity;
+  const size_t size = PtrDistance(begin_, end_);
+  const size_t final_size = size + extra_capacity;
   if (final_size * 2 <= old_capacity) {
+    RIEGELI_ASSERT(has_allocated())
+        << "Failed invariant of Chain: "
+           "only two block pointers fit without allocating their array, "
+           "existing array cannot have at least twice more space than "
+           "necessary in the slow path of Chain::ReserveBack()";
     // Existing array has at least twice more space than necessary: move
     // contents to the middle of the array, which keeps the amortized cost of
     // adding one element constant.
-    RawBlock** const new_begin =
+    BlockPtr* const new_begin =
         old_allocated_begin + (old_capacity - final_size) / 2;
-    RawBlock** const new_end = new_begin + PtrDistance(begin_, end_);
-    std::memmove(new_begin, begin_,
-                 PtrDistance(begin_, end_) * sizeof(RawBlock*));
+    BlockPtr* const new_end = new_begin + size;
+    // Moving left, so block pointers must be moved before block offsets.
+    std::memmove(new_begin, begin_, size * sizeof(BlockPtr));
+    std::memmove(new_begin + old_capacity, begin_ + old_capacity,
+                 size * sizeof(BlockPtr));
     begin_ = new_begin;
     end_ = new_end;
     return;
   }
   // Reallocate the array, keeping space before the contents unchanged.
-  RIEGELI_ASSERT_LE(
-      old_capacity / 2,
-      std::numeric_limits<size_t>::max() / sizeof(RawBlock*) - old_capacity)
+  RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
+                                              (2 * sizeof(BlockPtr)) -
+                                          old_capacity)
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t new_capacity =
       UnsignedMax(PtrDistance(old_allocated_begin, end_) + extra_capacity,
                   old_capacity + old_capacity / 2, size_t{16});
-  RawBlock** const new_allocated_begin = NewBlockPtrs(new_capacity);
-  RawBlock** const new_allocated_end = new_allocated_begin + new_capacity;
-  RawBlock** const new_begin =
+  BlockPtr* const new_allocated_begin = NewBlockPtrs(new_capacity);
+  BlockPtr* const new_allocated_end = new_allocated_begin + new_capacity;
+  BlockPtr* const new_begin =
       new_allocated_begin + PtrDistance(old_allocated_begin, begin_);
-  RawBlock** const new_end = new_begin + PtrDistance(begin_, end_);
-  std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(RawBlock*));
+  BlockPtr* const new_end = new_begin + size;
+  std::memcpy(new_begin, begin_, size * sizeof(BlockPtr));
+  if (has_allocated()) {
+    std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
+                size * sizeof(BlockPtr));
+  } else if (size >= 1) {
+    RIEGELI_ASSERT_LE(size, 2)
+        << "Failed invariant of Chain: "
+           "only two block pointers fit without allocating their array";
+    new_begin[new_capacity].block_offset = 0;
+    if (size == 2) {
+      new_begin[new_capacity + 1].block_offset = new_begin[0].block_ptr->size();
+    }
+  }
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;
   block_ptrs_.allocated.end = new_allocated_end;
@@ -1104,17 +1228,16 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   RIEGELI_ASSERT_GT(extra_capacity, 0u)
       << "Failed precondition of Chain::ReserveFrontSlow(): "
          "nothing to do, use ReserveFront() instead";
-  RawBlock** old_allocated_begin;
-  RawBlock** old_allocated_end;
+  BlockPtr* old_allocated_begin;
+  BlockPtr* old_allocated_end;
   if (has_here()) {
     if (ABSL_PREDICT_TRUE(extra_capacity <=
                           PtrDistance(end_, block_ptrs_.here + 2))) {
       // There is space without reallocation. Shift 1 block pointer to the right
       // by 1, or 0 block pointers by 1 or 2, because `begin_` must remain at
-      // `block_ptrs_.here`. Use `std::memcpy()` instead of assignment because
-      // the pointer being copied might be invalid if there are 0 block
-      // pointers; it is cheaper to copy unconditionally.
-      std::memcpy(block_ptrs_.here + 1, block_ptrs_.here, sizeof(RawBlock*));
+      // `block_ptrs_.here`. There might be no pointer to copy; it is cheaper to
+      // copy the array slot unconditionally.
+      block_ptrs_.here[1] = block_ptrs_.here[0];
       begin_ += extra_capacity;
       end_ += extra_capacity;
       return;
@@ -1128,42 +1251,62 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   RIEGELI_ASSERT_GT(extra_capacity, PtrDistance(old_allocated_begin, begin_))
       << "Failed precondition of Chain::ReserveFrontSlow(): "
          "extra capacity fits in allocated space, use ReserveFront() instead";
-  RIEGELI_ASSERT_LE(extra_capacity,
-                    std::numeric_limits<size_t>::max() / sizeof(RawBlock*) -
-                        PtrDistance(begin_, old_allocated_end))
+  RIEGELI_ASSERT_LE(extra_capacity, std::numeric_limits<size_t>::max() /
+                                            (2 * sizeof(BlockPtr)) -
+                                        PtrDistance(begin_, old_allocated_end))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
-  const size_t final_size = PtrDistance(begin_, end_) + extra_capacity;
+  const size_t size = PtrDistance(begin_, end_);
+  const size_t final_size = size + extra_capacity;
   if (final_size * 2 <= old_capacity) {
+    RIEGELI_ASSERT(has_allocated())
+        << "Failed invariant of Chain: "
+           "only two block pointers fit without allocating their array, "
+           "existing array cannot have at least twice more space than "
+           "necessary in the slow path of Chain::ReserveFront()";
     // Existing array has at least twice more space than necessary: move
     // contents to the middle of the array, which keeps the amortized cost of
     // adding one element constant.
-    RawBlock** const new_end =
+    BlockPtr* const new_end =
         old_allocated_end - (old_capacity - final_size) / 2;
-    RawBlock** const new_begin = new_end - PtrDistance(begin_, end_);
-    std::memmove(new_begin, begin_,
-                 PtrDistance(begin_, end_) * sizeof(RawBlock*));
+    BlockPtr* const new_begin = new_end - size;
+    // Moving right, so block offsets must be moved before block pointers.
+    std::memmove(new_begin + old_capacity, begin_ + old_capacity,
+                 size * sizeof(BlockPtr));
+    std::memmove(new_begin, begin_, size * sizeof(BlockPtr));
     begin_ = new_begin;
     end_ = new_end;
     return;
   }
   // Reallocate the array, keeping space after the contents unchanged.
-  RIEGELI_ASSERT_LE(
-      old_capacity / 2,
-      std::numeric_limits<size_t>::max() / sizeof(RawBlock*) - old_capacity)
+  RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
+                                              (2 * sizeof(BlockPtr)) -
+                                          old_capacity)
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t new_capacity =
       UnsignedMax(PtrDistance(begin_, old_allocated_end) + extra_capacity,
                   old_capacity + old_capacity / 2, size_t{16});
-  RawBlock** const new_allocated_begin = NewBlockPtrs(new_capacity);
-  RawBlock** const new_allocated_end = new_allocated_begin + new_capacity;
-  RawBlock** const new_end =
+  BlockPtr* const new_allocated_begin = NewBlockPtrs(new_capacity);
+  BlockPtr* const new_allocated_end = new_allocated_begin + new_capacity;
+  BlockPtr* const new_end =
       new_allocated_end - PtrDistance(end_, old_allocated_end);
-  RawBlock** const new_begin = new_end - PtrDistance(begin_, end_);
-  std::memcpy(new_begin, begin_, PtrDistance(begin_, end_) * sizeof(RawBlock*));
+  BlockPtr* const new_begin = new_end - size;
+  std::memcpy(new_begin, begin_, size * sizeof(BlockPtr));
+  if (has_allocated()) {
+    std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
+                size * sizeof(BlockPtr));
+  } else if (size >= 1) {
+    RIEGELI_ASSERT_LE(size, 2)
+        << "Failed invariant of Chain: "
+           "only two block pointers fit without allocating their array";
+    new_begin[new_capacity].block_offset = 0;
+    if (size == 2) {
+      new_begin[new_capacity + 1].block_offset = new_begin[0].block_ptr->size();
+    }
+  }
   DeleteBlockPtrs();
   block_ptrs_.allocated.begin = new_allocated_begin;
   block_ptrs_.allocated.end = new_allocated_end;
@@ -1249,14 +1392,14 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
           last->size(), min_length, recommended_length, options));
       block->Append(absl::string_view(*last));
       last->Unref();
-      back() = block;
+      SetBack(block);
     } else {
       block = nullptr;
       if (last->wasteful()) {
         // The last block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        back() = last->Copy<Ownership::kShare>();
+        SetBack(last->Copy<Ownership::kShare>());
         if (last->TryClear() && last->can_append(min_length)) {
           // Reuse this block.
           block = last;
@@ -1342,14 +1485,14 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
           first->size(), min_length, recommended_length, options));
       block->Prepend(absl::string_view(*first));
       first->Unref();
-      front() = block;
+      SetFront(block);
     } else {
       block = nullptr;
       if (first->wasteful()) {
         // The first block must be rewritten. Rewrite it separately from the new
         // block to avoid rewriting the same data again if the new block gets
         // only partially filled.
-        front() = first->Copy<Ownership::kShare>();
+        SetFrontSameSize(first->Copy<Ownership::kShare>());
         if (first->TryClear() && first->can_prepend(min_length)) {
           // Reuse this block.
           block = first;
@@ -1369,6 +1512,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
   RIEGELI_ASSERT_GE(buffer.size(), min_length)
       << "Chain::RawBlock::PrependBuffer() returned less than the free space";
+  RefreshFront();
   size_ += buffer.size();
   return buffer;
 }
@@ -1420,9 +1564,9 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
     Append(src.short_data(), options);
     return;
   }
-  RawBlock* const* src_iter = src.begin_;
+  const BlockPtr* src_iter = src.begin_;
   // If the first block of `src` is handled specially,
-  // `(*src_iter++)->Unref<ownership>()` skips it so that
+  // `(src_iter++)->block_ptr->Unref<ownership>()` skips it so that
   // `AppendBlocks<ownership>()` does not append it again.
   RawBlock* const src_first = src.front();
   if (begin_ == end_) {
@@ -1446,7 +1590,7 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
         merged->Append(absl::string_view(*src_first));
         PushBack(merged);
       }
-      (*src_iter++)->Unref<ownership>();
+      (src_iter++)->block_ptr->Unref<ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
       RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
@@ -1483,9 +1627,9 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
         merged->Append(absl::string_view(*last));
         merged->Append(absl::string_view(*src_first));
         last->Unref();
-        back() = merged;
+        SetBack(merged);
       }
-      (*src_iter++)->Unref<ownership>();
+      (src_iter++)->block_ptr->Unref<ownership>();
     } else if (last->empty()) {
       if (src.end_ - src.begin_ > 1 && src_first->wasteful()) goto merge;
       // The last block is empty and must be removed.
@@ -1503,16 +1647,16 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
         last->Append(absl::string_view(*src_first));
-        (*src_iter++)->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<ownership>();
       } else {
         // Appending in place is not possible, or rewriting the last block is
         // cheaper.
-        back() = last->Copy<Ownership::kSteal>();
+        SetBack(last->Copy<Ownership::kSteal>());
       }
     } else if (src.end_ - src.begin_ > 1) {
       if (src_first->empty()) {
         // The first block of `src` is empty and must be skipped.
-        (*src_iter++)->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<ownership>();
       } else if (src_first->wasteful()) {
         // The first block of `src` must reduce waste.
         if (last->can_append(src_first->size()) &&
@@ -1524,7 +1668,7 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
           // Appending in place is not possible.
           PushBack(src_first->Copy<Ownership::kShare>());
         }
-        (*src_iter++)->Unref<ownership>();
+        (src_iter++)->block_ptr->Unref<ownership>();
       }
     }
   }
@@ -1623,9 +1767,9 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
     Prepend(src.short_data(), options);
     return;
   }
-  RawBlock* const* src_iter = src.end_;
+  const BlockPtr* src_iter = src.end_;
   // If the last block of src is handled specially,
-  // `(*--src_iter)->Unref<ownership>()` skips it so that
+  // `(--src_iter)->block_ptr->Unref<ownership>()` skips it so that
   // `PrependBlocks<ownership>()` does not prepend it again.
   RawBlock* const src_last = src.back();
   if (begin_ == end_) {
@@ -1646,7 +1790,7 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
         merged->Prepend(absl::string_view(*src_last));
         PushFront(merged);
       }
-      (*--src_iter)->Unref<ownership>();
+      (--src_iter)->block_ptr->Unref<ownership>();
     } else if (!empty()) {
       // Copy short data to a real block.
       RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
@@ -1668,6 +1812,7 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
         first->Prepend(absl::string_view(*src_last));
+        RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
@@ -1683,9 +1828,9 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
         merged->Prepend(absl::string_view(*first));
         merged->Prepend(absl::string_view(*src_last));
         first->Unref();
-        front() = merged;
+        SetFront(merged);
       }
-      (*--src_iter)->Unref<ownership>();
+      (--src_iter)->block_ptr->Unref<ownership>();
     } else if (first->empty()) {
       if (src.end_ - src.begin_ > 1 && src_last->wasteful()) goto merge;
       // The first block is empty and must be removed.
@@ -1703,16 +1848,17 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
         first->Prepend(absl::string_view(*src_last));
-        (*--src_iter)->Unref<ownership>();
+        RefreshFront();
+        (--src_iter)->block_ptr->Unref<ownership>();
       } else {
         // Prepending in place is not possible, or rewriting the first block is
         // cheaper.
-        front() = first->Copy<Ownership::kSteal>();
+        SetFrontSameSize(first->Copy<Ownership::kSteal>());
       }
     } else if (src.end_ - src.begin_ > 1) {
       if (src_last->empty()) {
         // The last block of `src` is empty and must be skipped.
-        (*--src_iter)->Unref<ownership>();
+        (--src_iter)->block_ptr->Unref<ownership>();
       } else if (src_last->wasteful()) {
         // The last block of `src` must reduce waste.
         if (first->can_prepend(src_last->size()) &&
@@ -1720,11 +1866,12 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
           // Prepending in place is possible; this is always cheaper than
           // rewriting the last block of `src`.
           first->Prepend(absl::string_view(*src_last));
+          RefreshFront();
         } else {
           // Prepending in place is not possible.
           PushFront(src_last->Copy<Ownership::kShare>());
         }
-        (*--src_iter)->Unref<ownership>();
+        (--src_iter)->block_ptr->Unref<ownership>();
       }
     }
   }
@@ -1832,7 +1979,7 @@ void Chain::AppendBlock(RawBlock* block, const Options& options) {
         merged->Append(absl::string_view(*last));
         merged->Append(absl::string_view(*block));
         last->Unref();
-        back() = merged;
+        SetBack(merged);
       }
       size_ += block->size();
       block->Unref<ownership>();
@@ -1841,7 +1988,7 @@ void Chain::AppendBlock(RawBlock* block, const Options& options) {
     if (last->empty()) {
       // The last block is empty and must be removed.
       last->Unref();
-      back() = block->Ref();
+      SetBack(block->Ref());
       size_ += block->size();
       block->Unref<ownership>();
       return;
@@ -1859,7 +2006,7 @@ void Chain::AppendBlock(RawBlock* block, const Options& options) {
       }
       // Appending in place is not possible, or rewriting the last block is
       // cheaper.
-      back() = last->Copy<Ownership::kSteal>();
+      SetBack(last->Copy<Ownership::kSteal>());
     }
   }
   PushBack(block->Ref<ownership>());
@@ -1905,6 +2052,7 @@ void Chain::PrependBlock(RawBlock* block, const Options& options) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
         first->Prepend(absl::string_view(*block));
+        RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
@@ -1915,7 +2063,7 @@ void Chain::PrependBlock(RawBlock* block, const Options& options) {
         merged->Prepend(absl::string_view(*first));
         merged->Prepend(absl::string_view(*block));
         first->Unref();
-        front() = merged;
+        SetFront(merged);
       }
       size_ += block->size();
       block->Unref<ownership>();
@@ -1924,7 +2072,7 @@ void Chain::PrependBlock(RawBlock* block, const Options& options) {
     if (first->empty()) {
       // The first block is empty and must be removed.
       first->Unref();
-      front() = block->Ref();
+      SetFront(block->Ref());
       size_ += block->size();
       block->Unref<ownership>();
       return;
@@ -1936,13 +2084,14 @@ void Chain::PrependBlock(RawBlock* block, const Options& options) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
         first->Prepend(absl::string_view(*block));
+        RefreshFront();
         size_ += block->size();
         block->Unref<ownership>();
         return;
       }
       // Prepending in place is not possible, or rewriting the first block is
       // cheaper.
-      front() = first->Copy<Ownership::kSteal>();
+      SetFrontSameSize(first->Copy<Ownership::kSteal>());
     }
   }
   PushFront(block->Ref<ownership>());
@@ -1965,21 +2114,21 @@ void Chain::RemoveSuffixSlow(size_t length, const Options& options) {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemoveSuffixSlow(): "
          "no blocks, use RemoveSuffix() instead";
-  RawBlock** iter = end_;
-  if (length > iter[-1]->size()) {
+  BlockPtr* iter = end_;
+  if (length > iter[-1].block_ptr->size()) {
     do {
-      length -= iter[-1]->size();
-      (*--iter)->Unref();
+      length -= iter[-1].block_ptr->size();
+      (--iter)->block_ptr->Unref();
       RIEGELI_ASSERT(iter != begin_)
           << "Failed invariant of Chain: "
              "sum of block sizes smaller than Chain size";
-    } while (length > iter[-1]->size());
-    if (iter[-1]->TryRemoveSuffix(length)) {
+    } while (length > iter[-1].block_ptr->size());
+    if (iter[-1].block_ptr->TryRemoveSuffix(length)) {
       end_ = iter;
       return;
     }
   }
-  RawBlock* const block = *--iter;
+  RawBlock* const block = (--iter)->block_ptr;
   end_ = iter;
   if (length == block->size()) {
     block->Unref();
@@ -2008,16 +2157,16 @@ void Chain::RemovePrefixSlow(size_t length, const Options& options) {
   RIEGELI_ASSERT(begin_ != end_)
       << "Failed precondition of Chain::RemovePrefixSlow(): "
          "no blocks, use RemovePrefix() instead";
-  RawBlock** iter = begin_;
-  if (length > iter[0]->size()) {
+  BlockPtr* iter = begin_;
+  if (length > iter[0].block_ptr->size()) {
     do {
-      length -= iter[0]->size();
-      (*iter++)->Unref();
+      length -= iter[0].block_ptr->size();
+      (iter++)->block_ptr->Unref();
       RIEGELI_ASSERT(iter != end_)
           << "Failed invariant of Chain: "
              "sum of block sizes smaller than Chain size";
-    } while (length > iter[0]->size());
-    if (iter[0]->TryRemovePrefix(length)) {
+    } while (length > iter[0].block_ptr->size());
+    if (iter[0].block_ptr->TryRemovePrefix(length)) {
       if (has_here()) {
         // Shift 1 block pointer to the left by 1 because `begin_` must remain
         // at `block_ptrs_.here`.
@@ -2025,17 +2174,17 @@ void Chain::RemovePrefixSlow(size_t length, const Options& options) {
         --end_;
       } else {
         begin_ = iter;
+        RefreshFront();
       }
       return;
     }
   }
-  RawBlock* const block = *iter++;
+  RawBlock* const block = (iter++)->block_ptr;
   if (has_here()) {
     // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
-    // because `begin_` must remain at `block_ptrs_.here`. Use `std::memcpy()`
-    // instead of assignment because the pointer being copied might be invalid
-    // if there are 0 block pointers; it is cheaper to copy unconditionally.
-    std::memcpy(block_ptrs_.here, block_ptrs_.here + 1, sizeof(RawBlock*));
+    // because `begin_` must remain at `block_ptrs_.here`. There might be no
+    // pointer to copy; it is cheaper to copy the array slot unconditionally.
+    block_ptrs_.here[0] = block_ptrs_.here[1];
     end_ -= PtrDistance(block_ptrs_.here, iter);
   } else {
     begin_ = iter;
@@ -2169,6 +2318,49 @@ std::ostream& operator<<(std::ostream& out, const Chain& str) {
     out.width(0);
   }
   return out;
+}
+
+void Chain::VerifyInvariants() const {
+#if RIEGELI_DEBUG
+  if (begin_ == end_) {
+    if (has_here()) {
+      RIEGELI_CHECK_LE(size(), kMaxShortDataSize);
+    } else {
+      RIEGELI_CHECK_EQ(size(), 0u);
+    }
+  } else {
+    RIEGELI_CHECK(begin_ <= end_);
+    if (has_here()) {
+      RIEGELI_CHECK_LE(PtrDistance(begin_, end_), 2u);
+    } else {
+      RIEGELI_CHECK(begin_ >= block_ptrs_.allocated.begin);
+      RIEGELI_CHECK(end_ <= block_ptrs_.allocated.end);
+    }
+    bool is_tiny = false;
+    size_t offset =
+        has_allocated() ? begin_[block_offsets()].block_offset : size_t{0};
+    const BlockPtr* iter = begin_;
+    do {
+      if (is_tiny) {
+        RIEGELI_CHECK(!iter->block_ptr->tiny());
+        is_tiny = false;
+      } else {
+        is_tiny = iter->block_ptr->tiny();
+      }
+      if (iter != begin_ && iter != end_ - 1) {
+        RIEGELI_CHECK(!iter->block_ptr->empty());
+        RIEGELI_CHECK(!iter->block_ptr->wasteful());
+      }
+      if (has_allocated()) {
+        RIEGELI_CHECK_EQ(iter[block_offsets()].block_offset, offset);
+      }
+      offset += iter->block_ptr->size();
+      ++iter;
+    } while (iter != end_);
+    if (has_allocated()) offset -= begin_[block_offsets()].block_offset;
+    RIEGELI_CHECK_EQ(size(), offset);
+  }
+#endif
 }
 
 size_t ChainBlock::EstimateMemory() const {

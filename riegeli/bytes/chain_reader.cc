@@ -212,75 +212,17 @@ bool ChainReaderBase::SeekSlow(Position new_pos) {
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
       << "ChainReader source changed unexpectedly";
-  if (new_pos > limit_pos()) {
-    // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(new_pos > src->size())) {
-      // Source ends.
-      iter_ = src->blocks().cend();
-      set_limit_pos(src->size());
-      set_buffer();
-      return false;
-    }
-    if (src->size() - new_pos < new_pos - limit_pos()) {
-      // Iterate backwards from the end, it is closer.
-      iter_ = src->blocks().cend();
-      set_limit_pos(src->size());
-      RIEGELI_ASSERT(iter_ != src->blocks().cbegin()) << "Malformed Chain";
-      --iter_;
-      RIEGELI_ASSERT_LE(iter_->size(), limit_pos()) << "Malformed Chain";
-      Position block_begin = limit_pos() - iter_->size();
-      while (new_pos < block_begin) {
-        set_limit_pos(block_begin);
-        RIEGELI_ASSERT(iter_ != src->blocks().cbegin()) << "Malformed Chain";
-        --iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), block_begin) << "Malformed Chain";
-        block_begin -= iter_->size();
-      }
-    } else {
-      // Iterate forwards from the current position, it is closer.
-      do {
-        RIEGELI_ASSERT(iter_ != src->blocks().cend())
-            << "ChainReader source changed unexpectedly or is malformed";
-        ++iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos())
-            << "ChainReader source changed unexpectedly or is malformed";
-        move_limit_pos(iter_->size());
-      } while (new_pos > limit_pos());
-    }
-  } else {
-    // Seeking backwards.
-    Position block_begin = start_pos();
-    if (new_pos < block_begin - new_pos) {
-      // Iterate forwards from the beginning, it is closer.
-      iter_ = src->blocks().cbegin();
-      set_limit_pos(iter_->size());
-      while (new_pos > limit_pos()) {
-        RIEGELI_ASSERT(iter_ != src->blocks().cend()) << "Malformed Chain";
-        ++iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), src->size() - limit_pos())
-            << "Malformed Chain";
-        move_limit_pos(iter_->size());
-      }
-    } else {
-      // Iterate backwards from the current position, it is closer.
-      do {
-        set_limit_pos(block_begin);
-        RIEGELI_ASSERT(iter_ != src->blocks().cbegin())
-            << "ChainReader source changed unexpectedly or is malformed";
-        --iter_;
-        RIEGELI_ASSERT_LE(iter_->size(), block_begin)
-            << "ChainReader source changed unexpectedly or is malformed";
-        block_begin -= iter_->size();
-      } while (new_pos < block_begin);
-    }
+  if (new_pos >= src->size()) {
+    // Source ends.
+    iter_ = src->blocks().cend();
+    set_limit_pos(src->size());
+    set_buffer();
+    return new_pos == src->size();
   }
-  set_buffer(iter_->data(), iter_->size());
-  RIEGELI_ASSERT_GE(limit_pos(), new_pos)
-      << "ChainReader::SeekSlow() stopped before the target";
-  const Position available_length = limit_pos() - new_pos;
-  RIEGELI_ASSERT_LE(available_length, buffer_size())
-      << "ChainReader::SeekSlow() stopped after the target";
-  set_cursor(limit() - available_length);
+  const Chain::CharPosition char_pos = src->FindPosition(new_pos);
+  iter_ = char_pos.block_iter;
+  set_buffer(iter_->data(), iter_->size(), char_pos.char_index);
+  set_limit_pos(new_pos + available());
   return true;
 }
 
