@@ -1945,9 +1945,9 @@ inline void Chain::SetFrontSameSize(RawBlock* block) {
 inline void Chain::RefreshFront() {
   if (has_allocated()) {
     begin_[block_offsets()].block_offset =
-        begin_ == end_ ? size_t{0}
-                       : begin_[block_offsets() + 1].block_offset -
-                             begin_[0].block_ptr->size();
+        begin_ + 1 == end_ ? size_t{0}
+                           : begin_[block_offsets() + 1].block_offset -
+                                 begin_[0].block_ptr->size();
   }
 }
 
