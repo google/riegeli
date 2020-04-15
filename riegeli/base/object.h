@@ -106,15 +106,16 @@ class Object {
   // Marks the `Object` as failed with the specified `absl::Status`.
   //
   // Derived classes may override `Fail()` to annotate the `absl::Status` with
-  // some context.
+  // some context or update other state.
+  //
+  // Even though `Fail()` is not const, if the derived class allows this, it may
+  // be called concurrently with public member functions, with const member
+  // functions, and with other `Fail()` calls.
+  //
+  // If `Fail()` is called multiple times, the first `absl::Status` wins.
   //
   // `Fail()` always returns `false`, for convenience of reporting the failure
   // as a `false` result of a failing function.
-  //
-  // Even though `Fail()` is not const, it may be called concurrently with
-  // public member functions, with const member functions, and with other
-  // `Fail()` calls. If `Fail()` is called multiple times, the first
-  // `absl::Status` wins.
   //
   // `Fail()` is normally called by other methods of the same `Object`, but it
   // is public to allow injecting a failure related to the `Object` (such as
