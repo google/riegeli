@@ -2135,6 +2135,26 @@ void Chain::RemoveSuffix(size_t length, const Options& options) {
   RawBlock* const last = iter[-1].block_ptr;
   if (last->TryRemoveSuffix(length)) {
     end_ = iter;
+    if (end_ - begin_ > 1 && last->tiny()) {
+      RawBlock* const before_last = end_[-2].block_ptr;
+      if (before_last->tiny()) {
+        // Last two blocks must be merged.
+        --end_;
+        if (!last->empty()) {
+          RIEGELI_ASSERT_LE(last->size(),
+                            RawBlock::kMaxCapacity - before_last->size())
+              << "Sum of sizes of two tiny blocks exceeds "
+                 "RawBlock::kMaxCapacity";
+          RawBlock* const merged = RawBlock::NewInternal(NewBlockCapacity(
+              before_last->size() + last->size(), 0, 0, options));
+          merged->Append(absl::string_view(*before_last));
+          merged->Append(absl::string_view(*last));
+          before_last->Unref();
+          SetBack(merged);
+        }
+        last->Unref();
+      }
+    }
     return;
   }
   end_ = --iter;
@@ -2193,6 +2213,36 @@ void Chain::RemovePrefix(size_t length, const Options& options) {
     } else {
       begin_ = iter;
       RefreshFront();
+    }
+    if (end_ - begin_ > 1 && first->tiny()) {
+      RawBlock* const after_first = begin_[1].block_ptr;
+      if (after_first->tiny()) {
+        // First two blocks must be merged.
+        if (has_here()) {
+          RIEGELI_ASSERT_EQ(PtrDistance(begin_, end_), 2u)
+              << "Failed invariant of Chain: "
+                 "only two block pointers fit without allocating their array";
+          // Shift 1 block pointer to the left by 1 because `begin_` must remain
+          // at `block_ptrs_.here`.
+          block_ptrs_.here[0] = block_ptrs_.here[1];
+          --end_;
+        } else {
+          ++begin_;
+        }
+        if (!first->empty()) {
+          RIEGELI_ASSERT_LE(first->size(),
+                            RawBlock::kMaxCapacity - after_first->size())
+              << "Sum of sizes of two tiny blocks exceeds "
+                 "RawBlock::kMaxCapacity";
+          RawBlock* const merged = RawBlock::NewInternal(NewBlockCapacity(
+              first->size() + after_first->size(), 0, 0, options));
+          merged->Prepend(absl::string_view(*after_first));
+          merged->Prepend(absl::string_view(*first));
+          after_first->Unref();
+          SetFront(merged);
+        }
+        first->Unref();
+      }
     }
     return;
   }
