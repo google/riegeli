@@ -56,10 +56,39 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_EQ(start_pos(), dest->size())
       << "CordWriter destination changed unexpectedly";
   if (start() == short_buffer_) {
-    return MakeBufferFromShortBuffer(dest, min_length, recommended_length);
+    const size_t buffered_length = written_to_buffer();
+    if (ABSL_PREDICT_FALSE(
+            min_length > std::numeric_limits<size_t>::max() - buffered_length ||
+            buffered_length + min_length >
+                std::numeric_limits<size_t>::max() - dest->size())) {
+      return FailOverflow();
+    }
+    buffer_.Resize(BufferLength(
+        UnsignedMax(buffered_length + min_length, kShortBufferSize),
+        max_block_size_, size_hint_, start_pos(),
+        UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
+                    start_pos(), min_block_size_)));
+    char* const buffer = buffer_.GetData();
+    std::memcpy(buffer, short_buffer_, kShortBufferSize);
+    set_buffer(buffer,
+               UnsignedMin(buffer_.size(),
+                           std::numeric_limits<size_t>::max() - dest->size()),
+               buffered_length);
+    return true;
   } else {
     SyncBuffer(dest);
-    return MakeBuffer(dest, min_length, recommended_length);
+    if (ABSL_PREDICT_FALSE(min_length >
+                           std::numeric_limits<size_t>::max() - dest->size())) {
+      return FailOverflow();
+    }
+    buffer_.Resize(BufferLength(
+        min_length, max_block_size_, size_hint_, start_pos(),
+        UnsignedMax(recommended_length, start_pos(), min_block_size_)));
+    char* const buffer = buffer_.GetData();
+    set_buffer(buffer,
+               UnsignedMin(buffer_.size(),
+                           std::numeric_limits<size_t>::max() - dest->size()));
+    return true;
   }
 }
 
@@ -79,7 +108,7 @@ bool CordWriterBase::WriteSlow(const Chain& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   src.AppendTo(dest);
-  return MakeBuffer(dest);
+  return true;
 }
 
 bool CordWriterBase::WriteSlow(Chain&& src) {
@@ -99,7 +128,7 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   std::move(src).AppendTo(dest);
-  return MakeBuffer(dest);
+  return true;
 }
 
 bool CordWriterBase::WriteSlow(const absl::Cord& src) {
@@ -118,7 +147,7 @@ bool CordWriterBase::WriteSlow(const absl::Cord& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   dest->Append(src);
-  return MakeBuffer(dest);
+  return true;
 }
 
 bool CordWriterBase::WriteSlow(absl::Cord&& src) {
@@ -142,7 +171,7 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   dest->Append(std::move(src));
-  return MakeBuffer(dest);
+  return true;
 }
 
 bool CordWriterBase::Flush(FlushType flush_type) {
@@ -171,59 +200,18 @@ bool CordWriterBase::Truncate(Position new_size) {
 }
 
 inline void CordWriterBase::SyncBuffer(absl::Cord* dest) {
-  const size_t buffered_length = written_to_buffer();
-  if (buffered_length == 0) return;
   set_start_pos(pos());
-  if (start() == short_buffer_) {
-    dest->Append(absl::string_view(start(), buffered_length));
+  if (written_to_buffer() <= MaxBytesToCopyToCord(dest) ||
+      start() == short_buffer_) {
+    const absl::string_view data(start(), written_to_buffer());
+    set_buffer();
+    dest->Append(data);
   } else {
-    dest->Append(
-        BufferToCord(absl::string_view(start(), buffered_length), &buffer_));
-    if (!buffer_.is_allocated()) set_buffer();
+    absl::Cord data =
+        BufferToCord(absl::string_view(start(), written_to_buffer()), &buffer_);
+    set_buffer();
+    dest->Append(std::move(data));
   }
-  set_cursor(start());
-}
-
-inline bool CordWriterBase::MakeBuffer(absl::Cord* dest, size_t min_length,
-                                       size_t recommended_length) {
-  if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<size_t>::max() - dest->size())) {
-    return FailOverflow();
-  }
-  buffer_.Resize(BufferLength(
-      min_length, max_block_size_, size_hint_, start_pos(),
-      UnsignedMax(recommended_length, start_pos(), min_block_size_)));
-  char* const buffer = buffer_.GetData();
-  set_buffer(buffer,
-             UnsignedMin(buffer_.size(),
-                         std::numeric_limits<size_t>::max() - dest->size()));
-  return true;
-}
-
-inline bool CordWriterBase::MakeBufferFromShortBuffer(
-    absl::Cord* dest, size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT(start() == short_buffer_)
-      << "Failed precondition of CordWriterBase::MakeBufferFromShortBuffer(): "
-         "short buffer not active";
-  const size_t buffered_length = written_to_buffer();
-  if (ABSL_PREDICT_FALSE(
-          min_length > std::numeric_limits<size_t>::max() - buffered_length ||
-          buffered_length + min_length >
-              std::numeric_limits<size_t>::max() - dest->size())) {
-    return FailOverflow();
-  }
-  buffer_.Resize(BufferLength(
-      UnsignedMax(buffered_length + min_length, kShortBufferSize),
-      max_block_size_, size_hint_, start_pos(),
-      UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
-                  start_pos(), min_block_size_)));
-  char* const buffer = buffer_.GetData();
-  std::memcpy(buffer, short_buffer_, kShortBufferSize);
-  set_buffer(buffer,
-             UnsignedMin(buffer_.size(),
-                         std::numeric_limits<size_t>::max() - dest->size()),
-             buffered_length);
-  return true;
 }
 
 }  // namespace riegeli

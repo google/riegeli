@@ -88,10 +88,9 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
 void BrotliWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
-    const size_t buffered_length = written_to_buffer();
-    set_cursor(start());
-    WriteInternal(absl::string_view(start(), buffered_length), dest,
-                  BROTLI_OPERATION_FINISH);
+    const absl::string_view data(start(), written_to_buffer());
+    set_buffer();
+    WriteInternal(data, dest, BROTLI_OPERATION_FINISH);
   }
   compressor_.reset();
   BufferedWriter::Done();
@@ -159,11 +158,9 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
 bool BrotliWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
-  const size_t buffered_length = written_to_buffer();
-  set_cursor(start());
-  if (ABSL_PREDICT_FALSE(
-          !WriteInternal(absl::string_view(start(), buffered_length), dest,
-                         BROTLI_OPERATION_FLUSH))) {
+  const absl::string_view data(start(), written_to_buffer());
+  set_buffer();
+  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, BROTLI_OPERATION_FLUSH))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);

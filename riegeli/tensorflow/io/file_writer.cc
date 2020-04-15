@@ -147,10 +147,9 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 
 bool FileWriterBase::PushInternal() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const size_t buffered_length = written_to_buffer();
-  if (buffered_length == 0) return true;
-  set_cursor(start());
-  return WriteInternal(absl::string_view(start(), buffered_length));
+  const absl::string_view data(start(), written_to_buffer());
+  set_buffer();
+  return data.empty() || WriteInternal(data);
 }
 
 bool FileWriterBase::WriteSlow(absl::string_view src) {

@@ -28,6 +28,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -608,6 +609,18 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBufferSize, size_t{64} << 10);
 // especially in a virtual slow path, so copying sufficiently short lengths
 // performs better.
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
+
+// When deciding whether to copy an array of bytes or share memory to an
+// `absl::Cord`, prefer copying up to this length.
+//
+// For an empty `absl::Cord` this matches `absl::Cord::InlineRep::kMaxInline`.
+//
+// For a non-empty `absl::Cord` this matches `kMaxBytesToCopy` from `cord.cc`.
+// `absl::Cord::Append(absl::Cord)` chooses to copy bytes from an `absl::Cord`
+// up to this length if the destination is not empty.
+inline size_t MaxBytesToCopyToCord(absl::Cord* dest) {
+  return dest->empty() ? 15 : 511;
+}
 
 // Proposes a buffer length with constraints:
 //

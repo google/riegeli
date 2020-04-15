@@ -77,9 +77,9 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
 void ZlibWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer* const dest = dest_writer();
-    const size_t buffered_length = written_to_buffer();
-    set_cursor(start());
-    WriteInternal(absl::string_view(start(), buffered_length), dest, Z_FINISH);
+    const absl::string_view data(start(), written_to_buffer());
+    set_buffer();
+    WriteInternal(data, dest, Z_FINISH);
   }
   compressor_.reset();
   BufferedWriter::Done();
@@ -178,11 +178,9 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
 bool ZlibWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer* const dest = dest_writer();
-  const size_t buffered_length = written_to_buffer();
-  set_cursor(start());
-  if (ABSL_PREDICT_FALSE(
-          !WriteInternal(absl::string_view(start(), buffered_length), dest,
-                         Z_PARTIAL_FLUSH))) {
+  const absl::string_view data(start(), written_to_buffer());
+  set_buffer();
+  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, Z_PARTIAL_FLUSH))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);

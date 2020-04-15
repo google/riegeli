@@ -126,15 +126,6 @@ class CordBackwardWriterBase : public BackwardWriter {
   // If the buffer is not empty, prepends it to `*dest`.
   void SyncBuffer(absl::Cord* dest);
 
-  // Ensures that the buffer has a sufficient size.
-  bool MakeBuffer(absl::Cord* dest, size_t min_length = 0,
-                  size_t recommended_length = 0);
-
-  // Like `MakeBuffer`, but moves buffered data from `short_buffer_` to the
-  // end of the new buffer.
-  bool MakeBufferFromShortBuffer(absl::Cord* dest, size_t min_length,
-                                 size_t recommended_length);
-
   size_t size_hint_ = 0;
   size_t min_block_size_ = kMinBufferSize;
   size_t max_block_size_ = kMaxBufferSize;
