@@ -115,6 +115,8 @@ inline bool ChunkEncoder::AddRecord(Src&& record) {
   if (ABSL_PREDICT_TRUE(record.size() <= kMaxBytesToCopy)) {
     return AddRecord(absl::string_view(record));
   } else {
+    // `std::move(record)` is correct and `std::forward<Src>(record)` is not
+    // necessary: `Src` is always `std::string`, never an lvalue reference.
     return AddRecord(Chain(std::move(record)));
   }
 }

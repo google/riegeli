@@ -717,6 +717,8 @@ bool RecordWriterBase::WriteRecord(absl::string_view record,
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 bool RecordWriterBase::WriteRecord(Src&& record, FutureRecordPosition* key) {
+  // `std::move(record)` is correct and `std::forward<Src>(record)` is not
+  // necessary: `Src` is always `std::string`, never an lvalue reference.
   return WriteRecordImpl(std::move(record), key);
 }
 

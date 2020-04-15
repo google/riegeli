@@ -1528,6 +1528,8 @@ void Chain::Append(Src&& src, const Options& options) {
     Append(src, options);
     return;
   }
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   Append(ChainBlock::FromExternal<StringRef>(
              std::forward_as_tuple(std::move(src))),
          options);
@@ -1741,6 +1743,8 @@ void Chain::Prepend(Src&& src, const Options& options) {
     Prepend(src, options);
     return;
   }
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   Prepend(ChainBlock::FromExternal<StringRef>(
               std::forward_as_tuple(std::move(src))),
           options);

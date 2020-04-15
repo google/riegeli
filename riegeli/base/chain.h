@@ -1807,6 +1807,8 @@ template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline Chain::Chain(Src&& src) {
   const size_t size = src.size();
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   Append(std::move(src), Options().set_size_hint(size));
 }
 
@@ -1898,6 +1900,8 @@ template <typename Src,
 inline void Chain::Reset(Src&& src) {
   Clear();
   const size_t size = src.size();
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   Append(std::move(src), Options().set_size_hint(size));
 }
 

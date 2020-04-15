@@ -80,6 +80,8 @@ inline bool WriteLine(absl::string_view src, Writer* dest,
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool WriteLine(Src&& src, Writer* dest, WriteLineOptions options) {
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
+  // `Src` is always `std::string`, never an lvalue reference.
   if (ABSL_PREDICT_FALSE(!dest->Write(std::move(src)))) return false;
   return WriteLine(dest, options);
 }

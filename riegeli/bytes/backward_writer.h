@@ -382,6 +382,8 @@ inline bool BackwardWriter::Write(Src&& src) {
   if (ABSL_PREDICT_TRUE(src.size() <= kMaxBytesToCopy)) {
     return Write(absl::string_view(src));
   } else {
+    // `std::move(src)` is correct and `std::forward<Src>(src)` is not
+    // necessary: `Src` is always `std::string`, never an lvalue reference.
     return WriteSlow(Chain(std::move(src)));
   }
 }
