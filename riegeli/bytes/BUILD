@@ -867,3 +867,9 @@ cc_library(
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
+
+cc_library(
+    name = "message_wire_format",
+    hdrs = ["message_wire_format.h"],
+    deps = ["@com_google_absl//absl/base"],
+)

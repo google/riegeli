@@ -190,26 +190,23 @@ extern "C" int RecordReaderClear(PyRecordReaderObject* self) {
   return 0;
 }
 
-absl::optional<uint32_t> VerifyTag(unsigned long tag_value) {
+absl::optional<int> VerifyFieldNumber(long field_number_value) {
   static_assert(Field::kExistenceOnly == 0,
-                "VerifyTag() assumes that Field::kExistenceOnly == 0");
-  if (ABSL_PREDICT_FALSE(tag_value > (uint32_t{1} << 29) - 1)) {
-    PyErr_Format(PyExc_OverflowError, "Field tag out of range: %lu", tag_value);
+                "VerifyFieldNumber() assumes that Field::kExistenceOnly == 0");
+  if (ABSL_PREDICT_FALSE(field_number_value < Field::kExistenceOnly ||
+                         field_number_value > (1 << 29) - 1)) {
+    PyErr_Format(PyExc_OverflowError, "Field number out of range: %ld",
+                 field_number_value);
     return absl::nullopt;
   }
-  return IntCast<uint32_t>(tag_value);
+  return IntCast<int>(field_number_value);
 }
 
-absl::optional<uint32_t> TagFromPython(PyObject* object) {
+absl::optional<int> FieldNumberFromPython(PyObject* object) {
 #if PY_MAJOR_VERSION < 3
   if (ABSL_PREDICT_TRUE(PyInt_Check(object))) {
-    const long tag_value = PyInt_AS_LONG(object);
-    if (ABSL_PREDICT_FALSE(tag_value < 0)) {
-      PyErr_Format(PyExc_OverflowError, "Field tag out of range: %ld",
-                   tag_value);
-      return absl::nullopt;
-    }
-    return VerifyTag(IntCast<unsigned long>(tag_value));
+    const long field_number_value = PyInt_AS_LONG(object);
+    return VerifyFieldNumber(field_number_value);
   }
 #endif
   if (ABSL_PREDICT_FALSE(!PyLong_Check(object))) {
@@ -217,12 +214,11 @@ absl::optional<uint32_t> TagFromPython(PyObject* object) {
                  Py_TYPE(object)->tp_name);
     return absl::nullopt;
   }
-  const unsigned long tag_value = PyLong_AsUnsignedLong(object);
-  if (ABSL_PREDICT_FALSE(tag_value == static_cast<unsigned long>(-1)) &&
-      PyErr_Occurred()) {
+  const long field_number_value = PyLong_AsLong(object);
+  if (ABSL_PREDICT_FALSE(field_number_value == -1) && PyErr_Occurred()) {
     return absl::nullopt;
   }
-  return VerifyTag(tag_value);
+  return VerifyFieldNumber(field_number_value);
 }
 
 absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
@@ -231,12 +227,15 @@ absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
   if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return absl::nullopt;
   while (const PythonPtr field_object{PyIter_Next(field_iter.get())}) {
     riegeli::Field field;
-    const PythonPtr tag_iter(PyObject_GetIter(field_object.get()));
-    if (ABSL_PREDICT_FALSE(tag_iter == nullptr)) return absl::nullopt;
-    while (const PythonPtr tag_object{PyIter_Next(tag_iter.get())}) {
-      const absl::optional<uint32_t> tag = TagFromPython(tag_object.get());
-      if (ABSL_PREDICT_FALSE(tag == absl::nullopt)) return absl::nullopt;
-      field.AddTag(IntCast<uint32_t>(*tag));
+    const PythonPtr field_number_iter(PyObject_GetIter(field_object.get()));
+    if (ABSL_PREDICT_FALSE(field_number_iter == nullptr)) return absl::nullopt;
+    while (const PythonPtr field_number_object{
+        PyIter_Next(field_number_iter.get())}) {
+      const absl::optional<int> field_number =
+          FieldNumberFromPython(field_number_object.get());
+      if (ABSL_PREDICT_FALSE(field_number == absl::nullopt))
+        return absl::nullopt;
+      field.AddFieldNumber(*field_number);
     }
     if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;
     field_projection.AddField(std::move(field));
@@ -1282,8 +1281,8 @@ Args:
     options. Additionally, "bucket_fraction" in RecordWriter options with a
     lower value can make reading with projection faster. A field projection is
     specified as an iterable of field paths. A field path is specified as an
-    iterable of proto field tags descending from the root message. A special
-    tag value EXISTENCE_ONLY can be added to the end of the path; it preserves
+    iterable of proto field numbers descending from the root message. A special
+    field EXISTENCE_ONLY can be added to the end of the path; it preserves
     field existence but ignores its value; warning: for a repeated field this
     preserves the field count only if the field is not packed.
   recovery: If None, then invalid file contents cause RecordReader to raise

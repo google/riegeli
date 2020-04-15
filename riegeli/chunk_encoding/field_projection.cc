@@ -14,15 +14,13 @@
 
 #include "riegeli/chunk_encoding/field_projection.h"
 
-#include <stdint.h>
-
 namespace riegeli {
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
-constexpr uint32_t Field::kExistenceOnly;
+constexpr int Field::kExistenceOnly;
 #endif
 
 }  // namespace riegeli

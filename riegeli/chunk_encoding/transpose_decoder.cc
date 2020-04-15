@@ -39,6 +39,7 @@
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_backward_writer.h"
+#include "riegeli/bytes/message_wire_format.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/string_reader.h"
@@ -86,13 +87,13 @@ enum class FieldIncluded {
 
 // Returns `true` if `tag` is a valid protocol buffer tag.
 bool ValidTag(uint32_t tag) {
-  switch (static_cast<internal::WireType>(tag & 7)) {
-    case internal::WireType::kVarint:
-    case internal::WireType::kFixed32:
-    case internal::WireType::kFixed64:
-    case internal::WireType::kLengthDelimited:
-    case internal::WireType::kStartGroup:
-    case internal::WireType::kEndGroup:
+  switch (GetTagWireType(tag)) {
+    case WireType::kVarint:
+    case WireType::kFixed32:
+    case WireType::kFixed64:
+    case WireType::kLengthDelimited:
+    case WireType::kStartGroup:
+    case WireType::kEndGroup:
       return tag >= 8;
     default:
       return false;
@@ -305,7 +306,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
   RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (field_included) {
     case FieldIncluded::kYes:
-      switch (static_cast<WireType>(tag & 7)) {
+      switch (GetTagWireType(tag)) {
         case WireType::kVarint:
           return GetVarintCallbackType(subtype, tag_length);
         case WireType::kFixed32:
@@ -326,7 +327,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           return CallbackType::kUnknown;
       }
     case FieldIncluded::kNo:
-      switch (static_cast<WireType>(tag & 7)) {
+      switch (GetTagWireType(tag)) {
         case WireType::kVarint:
         case WireType::kFixed32:
         case WireType::kFixed64:
@@ -341,7 +342,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           return CallbackType::kUnknown;
       }
     case FieldIncluded::kExistenceOnly:
-      switch (static_cast<WireType>(tag & 7)) {
+      switch (GetTagWireType(tag)) {
         case WireType::kVarint:
           return GetCopyTagCallbackType(tag_length + 1);
         case WireType::kFixed32:
@@ -404,8 +405,7 @@ struct TransposeDecoder::Context {
   // holds the include information of the child with field number `f`. The root
   // ID is assumed to be `kInvalidPos` and the root `IncludeType` is assumed to
   // be `kIncludeChild`.
-  absl::flat_hash_map<std::pair<uint32_t, uint32_t>, IncludedField>
-      include_fields;
+  absl::flat_hash_map<std::pair<uint32_t, int>, IncludedField> include_fields;
   // Data buckets.
   std::vector<DataBucket> buckets;
   // Template that can later be used later to finalize `StateMachineNode`.
@@ -464,8 +464,8 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
     }
     uint32_t current_id = kInvalidPos;
     for (size_t i = 0; i < path_len; ++i) {
-      const uint32_t tag = include_field.path()[i];
-      if (tag == Field::kExistenceOnly) {
+      const int field_number = include_field.path()[i];
+      if (field_number == Field::kExistenceOnly) {
         return false;
       }
       uint32_t next_id = context->include_fields.size();
@@ -476,7 +476,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
       }
       Context::IncludedField& val =
           context->include_fields
-              .emplace(std::make_pair(current_id, tag),
+              .emplace(std::make_pair(current_id, field_number),
                        Context::IncludedField{next_id, include_type})
               .first->second;
       current_id = val.field_id;
@@ -633,11 +633,10 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
             internal::Subtype::kLengthDelimitedString ==
                 internal::Subtype::kTrivial,
             "Subtypes kLengthDelimitedString and kTrivial must be equal");
-        // End of submessage is encoded as `WireType::kSubmessage`.
-        if (static_cast<internal::WireType>(tag & 7) ==
-            internal::WireType::kSubmessage) {
-          tag -= internal::WireType::kSubmessage -
-                 internal::WireType::kLengthDelimited;
+        // End of submessage is encoded as `kSubmessageWireType`.
+        if (GetTagWireType(tag) == internal::kSubmessageWireType) {
+          tag -= static_cast<uint32_t>(internal::kSubmessageWireType) -
+                 static_cast<uint32_t>(WireType::kLengthDelimited);
           subtype = internal::Subtype::kLengthDelimitedEndOfSubmessage;
         }
         if (ABSL_PREDICT_FALSE(!ValidTag(tag))) {
@@ -698,8 +697,7 @@ inline bool TransposeDecoder::Parse(Context* context, Reader* src,
           }
         }
         // Store subtype right past tag in case this is inline numeric.
-        if (static_cast<internal::WireType>(tag & 7) ==
-                internal::WireType::kVarint &&
+        if (GetTagWireType(tag) == WireType::kVarint &&
             subtype >= internal::Subtype::kVarintInline0) {
           state_machine_node.tag_data.data[tag_length] =
               subtype - internal::Subtype::kVarintInline0;
@@ -1379,10 +1377,10 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         const absl::optional<ReadFromStringResult<uint32_t>> tag = ReadVarint32(
             elem.tag_data.data, elem.tag_data.data + kMaxLengthVarint32);
         if (tag == absl::nullopt) RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
-        const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
+        const absl::flat_hash_map<std::pair<uint32_t, int>,
                                   Context::IncludedField>::const_iterator iter =
             context->include_fields.find(
-                std::make_pair(field_id, tag->value >> 3));
+                std::make_pair(field_id, GetTagFieldNumber(tag->value)));
         if (iter == context->include_fields.end()) {
           field_included = FieldIncluded::kNo;
           break;
@@ -1402,16 +1400,15 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     //    `submessage_stack` and in that case we already checked its tag in
     //    `include_fields` in the loop above.
     const bool start_group_tag =
-        static_cast<internal::WireType>(node_template->tag & 7) ==
-        internal::WireType::kStartGroup;
+        GetTagWireType(node_template->tag) == WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       const absl::optional<ReadFromStringResult<uint32_t>> tag = ReadVarint32(
           node->tag_data.data, node->tag_data.data + kMaxLengthVarint32);
       if (tag == absl::nullopt) RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag";
-      const absl::flat_hash_map<std::pair<uint32_t, uint32_t>,
+      const absl::flat_hash_map<std::pair<uint32_t, int>,
                                 Context::IncludedField>::const_iterator iter =
           context->include_fields.find(
-              std::make_pair(field_id, tag->value >> 3));
+              std::make_pair(field_id, GetTagFieldNumber(tag->value)));
       if (iter == context->include_fields.end()) {
         field_included = FieldIncluded::kNo;
       } else {
@@ -1442,8 +1439,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
                                           node_template->subtype,
                                           node_template->tag_length, true);
     if (field_included == FieldIncluded::kExistenceOnly &&
-        static_cast<internal::WireType>(node_template->tag & 7) ==
-            internal::WireType::kVarint) {
+        GetTagWireType(node_template->tag) == WireType::kVarint) {
       // The tag in `TagData` was followed by a subtype but must be followed by
       // zero now.
       node->tag_data.data[node_template->tag_length] = 0;

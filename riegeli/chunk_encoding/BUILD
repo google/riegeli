@@ -206,6 +206,7 @@ cc_library(
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:cord_reader",
         "//riegeli/bytes:limiting_reader",
+        "//riegeli/bytes:message_wire_format",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
         "//riegeli/bytes:varint_reading",
@@ -236,6 +237,7 @@ cc_library(
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:limiting_backward_writer",
+        "//riegeli/bytes:message_wire_format",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/bytes:string_reader",
@@ -257,6 +259,7 @@ cc_library(
     ],
     deps = [
         "//riegeli/base",
+        "//riegeli/bytes:message_wire_format",
         "//riegeli/bytes:varint_writing",
     ],
 )

@@ -42,6 +42,7 @@
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
+#include "riegeli/bytes/message_wire_format.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/varint_reading.h"
@@ -83,32 +84,32 @@ constexpr int kMaxRecursionDepth = 100;
 // in non-canonical way.
 bool IsProtoMessage(Reader* record) {
   // We validate that all started proto groups are closed with endgroup tag.
-  std::vector<uint32_t> started_groups;
+  std::vector<int> started_groups;
   while (record->Pull()) {
     const absl::optional<uint32_t> tag = ReadCanonicalVarint32(record);
     if (tag == absl::nullopt) return false;
-    const uint32_t field = *tag >> 3;
-    if (field == 0) return false;
-    switch (static_cast<internal::WireType>(*tag & 7)) {
-      case internal::WireType::kVarint:
+    const int field_number = GetTagFieldNumber(*tag);
+    if (field_number == 0) return false;
+    switch (GetTagWireType(*tag)) {
+      case WireType::kVarint:
         if (ReadCanonicalVarint64(record) == absl::nullopt) return false;
         break;
-      case internal::WireType::kFixed32:
+      case WireType::kFixed32:
         if (!record->Skip(sizeof(uint32_t))) return false;
         break;
-      case internal::WireType::kFixed64:
+      case WireType::kFixed64:
         if (!record->Skip(sizeof(uint64_t))) return false;
         break;
-      case internal::WireType::kLengthDelimited: {
+      case WireType::kLengthDelimited: {
         const absl::optional<uint32_t> length = ReadCanonicalVarint32(record);
         if (length == absl::nullopt) return false;
         if (!record->Skip(*length)) return false;
       } break;
-      case internal::WireType::kStartGroup:
-        started_groups.push_back(field);
+      case WireType::kStartGroup:
+        started_groups.push_back(field_number);
         break;
-      case internal::WireType::kEndGroup:
-        if (started_groups.empty() || started_groups.back() != field) {
+      case WireType::kEndGroup:
+        if (started_groups.empty() || started_groups.back() != field_number) {
           return false;
         }
         started_groups.pop_back();
@@ -332,8 +333,8 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
       RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record->status();
     }
     Node* node = GetNode(NodeId(parent_message_id, *tag));
-    switch (static_cast<internal::WireType>(*tag & 7)) {
-      case internal::WireType::kVarint: {
+    switch (GetTagWireType(*tag)) {
+      case WireType::kVarint: {
         // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
         // and GCC generate better code for clearing high bit of each byte.
         uint64_t value[2];
@@ -365,7 +366,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
           }
         }
       } break;
-      case internal::WireType::kFixed32: {
+      case WireType::kFixed32: {
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
@@ -373,7 +374,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
           return Fail(*buffer);
         }
       } break;
-      case internal::WireType::kFixed64: {
+      case WireType::kFixed64: {
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
@@ -381,7 +382,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
           return Fail(*buffer);
         }
       } break;
-      case internal::WireType::kLengthDelimited: {
+      case WireType::kLengthDelimited: {
         const Position length_pos = record->pos();
         const absl::optional<uint32_t> length = ReadVarint32(record);
         if (length == absl::nullopt) {
@@ -423,14 +424,14 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
           }
         }
       } break;
-      case internal::WireType::kStartGroup: {
+      case WireType::kStartGroup: {
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         group_stack_.push_back(parent_message_id);
         ++depth;
         parent_message_id = node->second.message_id;
       } break;
-      case internal::WireType::kEndGroup:
+      case WireType::kEndGroup:
         parent_message_id = group_stack_.back();
         group_stack_.pop_back();
         --depth;
@@ -442,7 +443,9 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase* record,
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         break;
       default:
-        RIEGELI_ASSERT_UNREACHABLE() << "Invalid wire type: " << (*tag & 7);
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Invalid wire type: "
+            << static_cast<uint32_t>(GetTagWireType(*tag));
     }
   }
   RIEGELI_ASSERT(record->healthy())
@@ -654,8 +657,8 @@ inline bool TransposeEncoder::WriteStatesAndData(
     NodeId node_id = etag_info.node_id;
     internal::Subtype subtype = etag_info.subtype;
     if (node_id.tag != 0) {
-      const bool is_string = static_cast<internal::WireType>(node_id.tag & 7) ==
-                             internal::WireType::kLengthDelimited;
+      const bool is_string =
+          GetTagWireType(node_id.tag) == WireType::kLengthDelimited;
       if (is_string &&
           subtype == internal::Subtype::kLengthDelimitedStartOfSubmessage) {
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
@@ -666,11 +669,12 @@ inline bool TransposeEncoder::WriteStatesAndData(
       } else if (is_string &&
                  subtype ==
                      internal::Subtype::kLengthDelimitedEndOfSubmessage) {
-        // End of submessage is encoded as `WireType::kSubmessage` instead of
+        // End of submessage is encoded as `kSubmessageWireType` instead of
         // `WireType::kLengthDelimited`.
         if (ABSL_PREDICT_FALSE(!WriteVarint32(
-                node_id.tag + (internal::WireType::kSubmessage -
-                               internal::WireType::kLengthDelimited),
+                node_id.tag +
+                    (static_cast<uint32_t>(internal::kSubmessageWireType) -
+                     static_cast<uint32_t>(WireType::kLengthDelimited)),
                 header_writer))) {
           return Fail(*header_writer);
         }

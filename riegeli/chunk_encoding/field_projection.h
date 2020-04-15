@@ -15,8 +15,6 @@
 #ifndef RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_
 #define RIEGELI_CHUNK_ENCODING_FIELD_PROJECTION_H_
 
-#include <stdint.h>
-
 #include <initializer_list>
 #include <utility>
 
@@ -28,29 +26,30 @@ namespace riegeli {
 // Specifies a proto field path.
 class Field {
  public:
-  using Path = absl::InlinedVector<uint32_t, 1>;
+  using Path = absl::InlinedVector<int, 1>;
 
-  // A special tag value which can be added to the end of the path.
+  // A special field number value which can be added to the end of the path.
   //
   // It preserves field existence but ignores its value, which is replaced with
   // a default value for the type (zero, empty string, empty message).
   //
   // This is useful to include a required field which is not otherwise needed.
-  // This works similarly to specifying a non-existent child tag, but applies
+  // This works similarly to specifying a non-existent child field, but applies
   // not only to submessages.
   //
   // Warning: for a repeated field this preserves the field count only if the
   // field is not packed.
-  static constexpr uint32_t kExistenceOnly = 0;
+  static constexpr int kExistenceOnly = 0;
 
-  // Specifies the path using a sequence of proto field tags descending from the
-  // root message.
+  // Specifies the path using a sequence of proto field numbers descending from
+  // the root message.
   //
-  // Tags can be obtained from `Type::k*FieldNumber` constants exported by
-  // compiled proto messages, or from `FieldDescriptor::number()`.
-  /*implicit*/ Field(std::initializer_list<uint32_t> path);
+  // Field numbers can be obtained from `Type::k*FieldNumber` constants exported
+  // by compiled proto messages, or from `FieldDescriptor::number()`.
+  /*implicit*/ Field(std::initializer_list<int> path);
 
-  // Starts with the root message. Field tags can be added by `AddTag()`.
+  // Starts with the root message. Field path can be built with
+  // `AddFieldNumber()`.
   Field() noexcept {}
 
   Field(const Field& that);
@@ -59,15 +58,16 @@ class Field {
   Field(Field&& that) noexcept;
   Field& operator=(Field&& that) noexcept;
 
-  // Adds a field tag to the end of the path.
-  Field& AddTag(uint32_t tag) &;
-  Field&& AddTag(uint32_t tag) &&;
+  // Adds a field to the end of the path.
+  Field& AddFieldNumber(int field_number) &;
+  Field&& AddFieldNumber(int field_number) &&;
 
-  // Returns the sequence of proto field tags descending from the root message.
+  // Returns the sequence of proto field numbers descending from the root
+  // message.
   const Path& path() const { return path_; }
 
  private:
-  static void AssertValid(uint32_t tag);
+  static void AssertValid(int field_number);
 
   Path path_;
 };
@@ -109,14 +109,15 @@ class FieldProjection {
 
 // Implementation details follow.
 
-inline Field::Field(std::initializer_list<uint32_t> path) : path_(path) {
-  for (const uint32_t tag : path_) AssertValid(tag);
+inline Field::Field(std::initializer_list<int> path) : path_(path) {
+  for (const int field_number : path_) AssertValid(field_number);
 }
 
-inline void Field::AssertValid(uint32_t tag) {
+inline void Field::AssertValid(int field_number) {
   static_assert(kExistenceOnly == 0,
                 "Field::AssertValid() assumes that kExistenceOnly == 0");
-  RIEGELI_ASSERT_LE(tag, (uint32_t{1} << 29) - 1) << "Field tag out of range";
+  RIEGELI_ASSERT_GE(field_number, 0) << "Field number out of range";
+  RIEGELI_ASSERT_LE(field_number, (1 << 29) - 1) << "Field number out of range";
 }
 
 inline Field::Field(const Field& that) : path_(that.path_) {}
@@ -133,13 +134,15 @@ inline Field& Field::operator=(Field&& that) noexcept {
   return *this;
 }
 
-inline Field& Field::AddTag(uint32_t tag) & {
-  AssertValid(tag);
-  path_.push_back(tag);
+inline Field& Field::AddFieldNumber(int field_number) & {
+  AssertValid(field_number);
+  path_.push_back(field_number);
   return *this;
 }
 
-inline Field&& Field::AddTag(uint32_t tag) && { return std::move(AddTag(tag)); }
+inline Field&& Field::AddFieldNumber(int field_number) && {
+  return std::move(AddFieldNumber(field_number));
+}
 
 inline FieldProjection FieldProjection::All() {
   FieldProjection field_projection;
