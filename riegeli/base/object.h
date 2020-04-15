@@ -122,18 +122,14 @@ class Object {
   // unexpected data returned by it) if that failure does not have to be
   // distinguished from failures of the `Object` itself.
   //
-  // Preconditions:
-  //   `!status.ok()`
-  //   `!closed()`
+  // Precondition: `!status.ok()`
   ABSL_ATTRIBUTE_COLD virtual bool Fail(absl::Status status);
 
   // Propagates failure from another `Object`.
   //
   // Equivalent to `Fail(dependency.status())`.
   //
-  // Preconditions:
-  //   `!dependency.healthy()`
-  //   `!closed()`
+  // Precondition: `!dependency.healthy()`
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
 
   // Returns a token which allows to detect the class of the `Object` at

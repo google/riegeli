@@ -50,8 +50,6 @@ void Reader::VerifyEnd() {
 bool Reader::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at byte ", pos())));
 }
@@ -60,9 +58,6 @@ bool Reader::FailWithoutAnnotation(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Reader::FailWithoutAnnotation(): "
          "status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Reader::FailWithoutAnnotation(): "
-         "Object closed";
   return Object::Fail(std::move(status));
 }
 
@@ -70,9 +65,6 @@ bool Reader::FailWithoutAnnotation(const Object& dependency) {
   RIEGELI_ASSERT(!dependency.healthy())
       << "Failed precondition of Reader::FailWithoutAnnotation(): "
          "dependency healthy";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Reader::FailWithoutAnnotation(): "
-         "Object closed";
   return FailWithoutAnnotation(dependency.status());
 }
 

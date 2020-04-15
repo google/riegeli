@@ -88,8 +88,6 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
 bool FdWriterCommon::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return BufferedWriter::Fail(
       Annotate(status, absl::StrCat("writing ", filename_)));
 }

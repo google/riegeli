@@ -115,8 +115,6 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
 bool FdReaderCommon::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return BufferedReader::Fail(
       Annotate(status, absl::StrCat("reading ", filename_)));
 }
@@ -348,8 +346,6 @@ bool FdMMapReaderBase::SyncPos(int src) {
 bool FdMMapReaderBase::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return ChainReader::Fail(
       Annotate(status, absl::StrCat("reading ", filename_)));
 }

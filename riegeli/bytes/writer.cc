@@ -35,8 +35,6 @@ namespace riegeli {
 bool Writer::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at byte ", pos())));
 }
@@ -45,9 +43,6 @@ bool Writer::FailWithoutAnnotation(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Writer::FailWithoutAnnotation(): "
          "status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Writer::FailWithoutAnnotation(): "
-         "Object closed";
   set_buffer();
   return Object::Fail(std::move(status));
 }
@@ -56,9 +51,6 @@ bool Writer::FailWithoutAnnotation(const Object& dependency) {
   RIEGELI_ASSERT(!dependency.healthy())
       << "Failed precondition of Writer::FailWithoutAnnotation(): "
          "dependency healthy";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Writer::FailWithoutAnnotation(): "
-         "Object closed";
   return FailWithoutAnnotation(dependency.status());
 }
 

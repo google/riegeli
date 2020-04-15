@@ -212,8 +212,6 @@ class BackwardWriter : public Object {
   //
   // This can be called if the destination would exceed its maximum possible
   // size or if `start_pos()` would overflow.
-  //
-  // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of the slow part of `Push()`.

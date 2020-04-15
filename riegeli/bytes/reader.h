@@ -279,8 +279,6 @@ class Reader : public Object {
   // Always returns `false`.
   //
   // This can be called if `limit_pos()` would overflow.
-  //
-  // Precondition: `!closed()`
   ABSL_ATTRIBUTE_COLD bool FailOverflow();
 
   // Implementation of the slow part of `Pull()`.

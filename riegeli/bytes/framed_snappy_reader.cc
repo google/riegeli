@@ -71,8 +71,6 @@ bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
 bool FramedSnappyReaderBase::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
 }

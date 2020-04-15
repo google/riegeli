@@ -41,14 +41,17 @@ inline Object::FailedStatus::FailedStatus(absl::Status&& status)
 bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   const uintptr_t new_status_ptr =
       reinterpret_cast<uintptr_t>(new FailedStatus(std::move(status)));
   uintptr_t old_status = kHealthy;
+  if (ABSL_PREDICT_FALSE(status_ptr_.load(std::memory_order_relaxed) ==
+                         kClosedSuccessfully)) {
+    reinterpret_cast<FailedStatus*>(new_status_ptr)->closed = true;
+    old_status = kClosedSuccessfully;
+  }
   if (ABSL_PREDICT_FALSE(!status_ptr_.compare_exchange_strong(
           old_status, new_status_ptr, std::memory_order_release))) {
-    // `status_ptr_` was already set, `new_status_ptr` loses.
+    // A failure was already set in `status_ptr_`, `new_status_ptr` loses.
     DeleteStatus(new_status_ptr);
   }
   return false;
@@ -57,8 +60,6 @@ bool Object::Fail(absl::Status status) {
 bool Object::Fail(const Object& dependency) {
   RIEGELI_ASSERT(!dependency.healthy())
       << "Failed precondition of Object::Fail(): dependency healthy";
-  RIEGELI_ASSERT(!closed())
-      << "Failed precondition of Object::Fail(): Object closed";
   return Fail(dependency.status());
 }
 
