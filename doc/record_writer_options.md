@@ -19,8 +19,8 @@ Options for writing Riegeli/records files can be specified as a string:
   brotli_level ::= integer 0..11 (default 6)
   zstd_level ::= integer -131072..22 (default 3)
   window_log ::= "auto" or integer 10..31
-  chunk_size ::=
-    integer expressed as real with optional suffix [BkKMGTPE], 1..
+  chunk_size ::= "auto" or integer expressed as real with optional suffix
+    [BkKMGTPE], 1..
   bucket_fraction ::= real 0..1
   parallelism ::= integer 0..
 ```
@@ -92,7 +92,10 @@ A larger chunk size improves compression density; a smaller chunk size allows to
 read pieces of the file independently with finer granularity, and reduces memory
 usage of both writer and reader.
 
-Default: `1M`.
+Special value `auto` means to keep the default (compressed: 1M, uncompressed:
+4k).
+
+Default: `auto`.
 
 ## `bucket_fraction`
 

@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
@@ -76,8 +77,8 @@ class RecordWriterBase : public Object {
     //   brotli_level ::= integer 0..11 (default 6)
     //   zstd_level ::= integer -131072..22 (default 3)
     //   window_log ::= "auto" or integer 10..31
-    //   chunk_size ::=
-    //     integer expressed as real with optional suffix [BkKMGTPE], 1..
+    //   chunk_size ::= "auto" or integer expressed as real with optional suffix
+    //     [BkKMGTPE], 1..
     //   bucket_fraction ::= real 0..1
     //   parallelism ::= integer 0..
     // ```
@@ -226,20 +227,31 @@ class RecordWriterBase : public Object {
     // allows to read pieces of the file independently with finer granularity,
     // and reduces memory usage of both writer and reader.
     //
-    // Default: `kDefaultChunkSize` (1M)
-    static constexpr uint64_t kDefaultChunkSize = uint64_t{1} << 20;
-    Options& set_chunk_size(uint64_t chunk_size) & {
-      RIEGELI_ASSERT_GT(chunk_size, 0u)
-          << "Failed precondition of "
-             "RecordWriterBase::Options::set_chunk_size(): "
-             "zero chunk size";
+    // Special value `absl::nullopt` means to keep the default
+    // (compressed: 1M, uncompressed: 4k).
+    //
+    // Default: `absl::nullopt`
+    Options& set_chunk_size(absl::optional<uint64_t> chunk_size) & {
+      if (chunk_size != absl::nullopt) {
+        RIEGELI_ASSERT_GT(*chunk_size, 0u)
+            << "Failed precondition of "
+               "RecordWriterBase::Options::set_chunk_size(): "
+               "zero chunk size";
+      }
       chunk_size_ = chunk_size;
       return *this;
     }
-    Options&& set_chunk_size(uint64_t chunk_size) && {
+    Options&& set_chunk_size(absl::optional<uint64_t> chunk_size) && {
       return std::move(set_chunk_size(chunk_size));
     }
-    uint64_t chunk_size() const { return chunk_size_; }
+    absl::optional<uint64_t> chunk_size() const { return chunk_size_; }
+    uint64_t effective_chunk_size() const {
+      if (chunk_size_ == absl::nullopt) {
+        return compression_type() == CompressionType::kNone ? uint64_t{4} << 10
+                                                            : uint64_t{1} << 20;
+      }
+      return *chunk_size_;
+    }
 
     // Sets the desired uncompressed size of a bucket which groups values of
     // several fields of the given wire type to be compressed together,
@@ -373,7 +385,7 @@ class RecordWriterBase : public Object {
    private:
     bool transpose_ = false;
     CompressorOptions compressor_options_;
-    uint64_t chunk_size_ = kDefaultChunkSize;
+    absl::optional<uint64_t> chunk_size_;
     double bucket_fraction_ = 1.0;
     RecordsMetadata metadata_;
     Chain serialized_metadata_;

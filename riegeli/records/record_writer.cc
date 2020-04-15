@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
@@ -68,7 +69,6 @@ constexpr int RecordWriterBase::Options::kDefaultZstd;
 constexpr int RecordWriterBase::Options::kMinWindowLog;
 constexpr int RecordWriterBase::Options::kMaxWindowLog;
 constexpr int RecordWriterBase::Options::kDefaultWindowLog;
-constexpr uint64_t RecordWriterBase::Options::kDefaultChunkSize;
 #endif
 
 namespace {
@@ -115,6 +115,7 @@ void SetRecordType(RecordsMetadata* metadata,
 
 absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   std::string compressor_text;
+  uint64_t chunk_size;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
   options_parser.AddOption(
@@ -128,8 +129,16 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   options_parser.AddOption("snappy", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("window_log", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption(
-      "chunk_size", ValueParser::Bytes(&chunk_size_, 1,
-                                       std::numeric_limits<uint64_t>::max()));
+      "chunk_size",
+      ValueParser::Or(
+          ValueParser::Enum(&chunk_size_, {{"auto", absl::nullopt}}),
+          ValueParser::And(
+              ValueParser::Bytes(&chunk_size, 1,
+                                 std::numeric_limits<uint64_t>::max()),
+              [this, &chunk_size](ValueParser* value_parser) {
+                chunk_size_ = chunk_size;
+                return true;
+              })));
   options_parser.AddOption("bucket_fraction",
                            ValueParser::Real(&bucket_fraction_, 0.0, 1.0));
   options_parser.AddOption(
@@ -220,7 +229,7 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
   std::unique_ptr<ChunkEncoder> chunk_encoder;
   if (options_.transpose()) {
     const long double long_double_bucket_size =
-        std::round(static_cast<long double>(options_.chunk_size()) *
+        std::round(static_cast<long double>(options_.effective_chunk_size()) *
                    static_cast<long double>(options_.bucket_fraction()));
     const uint64_t bucket_size =
         ABSL_PREDICT_FALSE(
@@ -234,7 +243,7 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
         options_.compressor_options(), bucket_size);
   } else {
     chunk_encoder = std::make_unique<SimpleEncoder>(
-        options_.compressor_options(), options_.chunk_size());
+        options_.compressor_options(), options_.effective_chunk_size());
   }
   if (options_.parallelism() == 0) {
     return chunk_encoder;
@@ -670,8 +679,8 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   }
   // Ensure that `num_records` does not overflow when `WriteRecordImpl()` keeps
   // `num_records * sizeof(uint64_t)` under `desired_chunk_size_`.
-  desired_chunk_size_ =
-      UnsignedMin(options.chunk_size(), kMaxNumRecords * sizeof(uint64_t));
+  desired_chunk_size_ = UnsignedMin(options.effective_chunk_size(),
+                                    kMaxNumRecords * sizeof(uint64_t));
   if (options.parallelism() == 0) {
     worker_ = std::make_unique<SerialWorker>(dest, std::move(options));
   } else {
