@@ -90,6 +90,7 @@ class SnappyWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
 
  private:
   // `snappy::kBlockSize`

@@ -413,6 +413,7 @@ class RecordWriterBase : public Object {
   bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
   bool WriteRecord(const absl::Cord& record,
                    FutureRecordPosition* key = nullptr);
+  bool WriteRecord(absl::Cord&& record, FutureRecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the `Writer`.
   // If `Options::set_parallelism()` was used, waits for any background writing

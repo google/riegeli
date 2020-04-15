@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
@@ -126,7 +127,7 @@ bool CordReaderBase::CopyToSlow(Writer* dest, Position length) {
     if (!Read(&data, IntCast<size_t>(length_to_copy))) {
       RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(Cord*) failed";
     }
-    ok = dest->Write(data);
+    ok = dest->Write(std::move(data));
   }
   return ok && length_to_copy == length;
 }
@@ -164,7 +165,7 @@ bool CordReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
   if (!ReadSlow(&data, length)) {
     RIEGELI_ASSERT_UNREACHABLE() << "CordReader::ReadSlow(Cord*) failed";
   }
-  return dest->Write(data);
+  return dest->Write(std::move(data));
 }
 
 bool CordReaderBase::SeekSlow(Position new_pos) {

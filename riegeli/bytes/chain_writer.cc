@@ -106,6 +106,25 @@ bool ChainWriterBase::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
+bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chain* const dest = dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+      << "ChainWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  move_start_pos(src.size());
+  dest->Append(std::move(src), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
 bool ChainWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain* const dest = dest_chain();

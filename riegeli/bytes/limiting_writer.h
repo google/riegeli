@@ -77,6 +77,7 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
   void WriteHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
 

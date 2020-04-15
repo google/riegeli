@@ -1678,6 +1678,15 @@ inline void Chain::AppendChain(ChainRef&& src, const Options& options) {
 }
 
 void Chain::Append(const absl::Cord& src, const Options& options) {
+  return AppendCord(src, options);
+}
+
+void Chain::Append(absl::Cord&& src, const Options& options) {
+  return AppendCord(std::move(src), options);
+}
+
+template <typename CordRef>
+void Chain::AppendCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Cord): "
          "Chain size overflow";
@@ -1685,7 +1694,8 @@ void Chain::Append(const absl::Cord& src, const Options& options) {
     if (flat->size() <= kMaxBytesToCopy) {
       Append(*flat, options);
     } else {
-      Append(ChainBlock::FromExternal<FlatCordRef>(std::forward_as_tuple(src)),
+      Append(ChainBlock::FromExternal<FlatCordRef>(
+                 std::forward_as_tuple(std::forward<CordRef>(src))),
              options);
     }
     return;
@@ -1881,6 +1891,15 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
 }
 
 void Chain::Prepend(const absl::Cord& src, const Options& options) {
+  return PrependCord(src, options);
+}
+
+void Chain::Prepend(absl::Cord&& src, const Options& options) {
+  return PrependCord(std::move(src), options);
+}
+
+template <typename CordRef>
+void Chain::PrependCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Cord): "
          "Chain size overflow";
@@ -1890,7 +1909,7 @@ void Chain::Prepend(const absl::Cord& src, const Options& options) {
       return;
     }
   }
-  Prepend(Chain(src), options);
+  Prepend(Chain(std::move(src)), options);
 }
 
 void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,

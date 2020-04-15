@@ -18,6 +18,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/message_serialize.h"
@@ -43,6 +44,11 @@ bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
 
 bool ChunkEncoder::AddRecord(Chain&& record) {
   // Not `std::move(record)`: forward to `AddRecord(const Chain&)`.
+  return AddRecord(record);
+}
+
+bool ChunkEncoder::AddRecord(absl::Cord&& record) {
+  // Not `std::move(record)`: forward to `AddRecord(const absl::Cord&)`.
   return AddRecord(record);
 }
 

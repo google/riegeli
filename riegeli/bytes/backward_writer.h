@@ -120,6 +120,7 @@ class BackwardWriter : public Object {
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
+  bool Write(absl::Cord&& src);
 
   // Hints that several consecutive `Push()` or `Write()` calls will follow,
   // writing this amount of data in total.
@@ -235,18 +236,22 @@ class BackwardWriter : public Object {
   //
   // By default `WriteSlow(absl::string_view)` is implemented in terms of
   // `Push()`; `WriteSlow(const Chain&)` and `WriteSlow(absl::Cord)` are
-  // implemented in terms of `WriteSlow(absl::string_view)`; and
-  // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`.
+  // implemented in terms of `WriteSlow(absl::string_view)`;
+  // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`;
+  // and `WriteSlow(absl::Cord&&)` is implemented in terms of
+  // `WriteSlow(const absl::Cord&)`;
   //
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `src.size() > available()`
   //
-  // Precondition for `WriteSlow(Chain&&)` and `WriteSlow(absl::Cord)`:
+  // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
+  // `WriteSlow(const absl::Cord&)`, and `WriteSlow(absl::Cord&&):
   //   `src.size() > UnsignedMin(available(), kMaxBytesToCopy)`
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
+  virtual bool WriteSlow(absl::Cord&& src);
 
   // Implementation of the slow part of `WriteHint()`.
   //
@@ -415,6 +420,20 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
     return true;
   }
   return WriteSlow(src);
+}
+
+inline bool BackwardWriter::Write(absl::Cord&& src) {
+  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    char* dest = cursor();
+    for (absl::string_view fragment : src.Chunks()) {
+      std::memcpy(dest, fragment.data(), fragment.size());
+      dest += fragment.size();
+    }
+    return true;
+  }
+  return WriteSlow(std::move(src));
 }
 
 inline void BackwardWriter::WriteHint(size_t length) {

@@ -96,6 +96,10 @@ bool SimpleEncoder::AddRecord(const absl::Cord& record) {
   return AddRecordImpl(record);
 }
 
+bool SimpleEncoder::AddRecord(absl::Cord&& record) {
+  return AddRecordImpl(std::move(record));
+}
+
 template <typename Record>
 bool SimpleEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

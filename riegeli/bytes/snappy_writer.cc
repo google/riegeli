@@ -126,6 +126,22 @@ bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
+bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer();
+  move_start_pos(src.size());
+  uncompressed_.Append(std::move(src), options_);
+  MakeBuffer();
+  return true;
+}
+
 bool SnappyWriterBase::Flush(FlushType flush_type) { return healthy(); }
 
 inline void SnappyWriterBase::SyncBuffer() {

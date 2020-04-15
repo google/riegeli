@@ -91,7 +91,7 @@ bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
     // Not `std::move(src)`: forward to
     // `BackwardWriter::WriteSlow(const Chain&)`, because
     // `BackwardWriter::WriteSlow(Chain&&)` would forward to
-    // `CordBackwardWriter::WriteSlow(const Chain&)`.
+    // `CordBackwardWriterBase::WriteSlow(const Chain&)`.
     return BackwardWriter::WriteSlow(src);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -120,6 +120,31 @@ bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   SyncBuffer(dest);
   move_start_pos(src.size());
   dest->Prepend(src);
+  return MakeBuffer(dest);
+}
+
+bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  if (src.size() <= kMaxBytesToCopy) {
+    // Not `std::move(src)`: forward to
+    // `BackwardWriter::WriteSlow(const absl::Cord&)`, because
+    // `BackwardWriter::WriteSlow(absl::Cord&&)` would forward to
+    // `CordBackwardWriterBase::WriteSlow(const absl::Cord&)`.
+    return BackwardWriter::WriteSlow(src);
+  }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  absl::Cord* const dest = dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+      << "CordBackwardWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  move_start_pos(src.size());
+  dest->Prepend(std::move(src));
   return MakeBuffer(dest);
 }
 

@@ -55,6 +55,7 @@ class SimpleEncoder : public ChunkEncoder {
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
   bool AddRecord(const absl::Cord& record) override;
+  bool AddRecord(absl::Cord&& record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

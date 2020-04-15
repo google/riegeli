@@ -63,6 +63,7 @@ class ChunkEncoder : public Object {
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
   virtual bool AddRecord(const absl::Cord& record) = 0;
+  virtual bool AddRecord(absl::Cord&& record);
 
   // Add multiple records, expressed as concatenated record values and sorted
   // record end positions.

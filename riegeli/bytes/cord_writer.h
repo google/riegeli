@@ -118,6 +118,7 @@ class CordWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;

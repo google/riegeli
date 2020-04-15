@@ -132,6 +132,14 @@ bool BackwardWriter::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
+bool BackwardWriter::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  // Not `std::move(src)`: forward to `WriteSlow(const absl::Cord&)`.
+  return WriteSlow(src);
+}
+
 void BackwardWriter::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of BackwardWriter::WriteHintSlow(): "

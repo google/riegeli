@@ -237,6 +237,7 @@ class Chain {
   explicit Chain(const ChainBlock& src);
   explicit Chain(ChainBlock&& src);
   explicit Chain(const absl::Cord& src);
+  explicit Chain(absl::Cord&& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -260,6 +261,7 @@ class Chain {
   void Reset(const ChainBlock& src);
   void Reset(ChainBlock&& src);
   void Reset(const absl::Cord& src);
+  void Reset(absl::Cord&& src);
 
   void Clear();
 
@@ -342,6 +344,7 @@ class Chain {
   void Append(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Append(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Append(const absl::Cord& src, const Options& options = kDefaultOptions);
+  void Append(absl::Cord&& src, const Options& options = kDefaultOptions);
   void Prepend(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
@@ -351,6 +354,7 @@ class Chain {
   void Prepend(const ChainBlock& src, const Options& options = kDefaultOptions);
   void Prepend(ChainBlock&& src, const Options& options = kDefaultOptions);
   void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
+  void Prepend(absl::Cord&& src, const Options& options = kDefaultOptions);
 
   // `AppendFrom(&iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
@@ -556,6 +560,13 @@ class Chain {
   // This template is explicitly instantiated.
   template <Ownership ownership>
   void PrependBlock(RawBlock* block, const Options& options);
+
+  // This template is defined and used only in chain.cc.
+  template <typename CordRef>
+  void AppendCord(CordRef&& src, const Options& options);
+  // This template is defined and used only in chain.cc.
+  template <typename CordRef>
+  void PrependCord(CordRef&& src, const Options& options);
 
   void RemoveSuffixSlow(size_t length, const Options& options);
   void RemovePrefixSlow(size_t length, const Options& options);
@@ -1798,7 +1809,8 @@ inline Chain::Chain(absl::string_view src) {
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline Chain::Chain(Src&& src) {
-  Append(std::move(src), Options().set_size_hint(src.size()));
+  const size_t size = src.size();
+  Append(std::move(src), Options().set_size_hint(size));
 }
 
 inline Chain::Chain(const ChainBlock& src) {
@@ -1819,6 +1831,11 @@ inline Chain::Chain(ChainBlock&& src) {
 
 inline Chain::Chain(const absl::Cord& src) {
   Append(src, Options().set_size_hint(src.size()));
+}
+
+inline Chain::Chain(absl::Cord&& src) {
+  const size_t size = src.size();
+  Append(std::move(src), Options().set_size_hint(size));
 }
 
 inline Chain::Chain(Chain&& that) noexcept
@@ -1883,7 +1900,8 @@ template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline void Chain::Reset(Src&& src) {
   Clear();
-  Append(std::move(src), Options().set_size_hint(src.size()));
+  const size_t size = src.size();
+  Append(std::move(src), Options().set_size_hint(size));
 }
 
 inline void Chain::Reset(const ChainBlock& src) {
@@ -1899,6 +1917,12 @@ inline void Chain::Reset(ChainBlock&& src) {
 inline void Chain::Reset(const absl::Cord& src) {
   Clear();
   Append(src, Options().set_size_hint(src.size()));
+}
+
+inline void Chain::Reset(absl::Cord&& src) {
+  Clear();
+  const size_t size = src.size();
+  Append(std::move(src), Options().set_size_hint(size));
 }
 
 inline void Chain::Clear() {

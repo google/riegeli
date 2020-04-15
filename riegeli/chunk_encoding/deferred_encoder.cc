@@ -84,6 +84,10 @@ bool DeferredEncoder::AddRecord(const absl::Cord& record) {
   return AddRecordImpl(record);
 }
 
+bool DeferredEncoder::AddRecord(absl::Cord&& record) {
+  return AddRecordImpl(std::move(record));
+}
+
 template <typename Record>
 bool DeferredEncoder::AddRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

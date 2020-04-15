@@ -61,6 +61,7 @@ class TeeWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
   void WriteHintSlow(size_t length) override;
 
   // Sets cursor of `*dest` to cursor of `*this`, writing what has been written

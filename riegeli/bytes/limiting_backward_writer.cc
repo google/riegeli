@@ -86,6 +86,13 @@ bool LimitingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   return WriteInternal(src);
 }
 
+bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  return WriteInternal(std::move(src));
+}
+
 template <typename Src>
 inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   RIEGELI_ASSERT_LE(start_pos(), size_limit_)

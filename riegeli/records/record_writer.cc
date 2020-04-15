@@ -729,6 +729,11 @@ bool RecordWriterBase::WriteRecord(const absl::Cord& record,
   return WriteRecordImpl(record, key);
 }
 
+bool RecordWriterBase::WriteRecord(absl::Cord&& record,
+                                   FutureRecordPosition* key) {
+  return WriteRecordImpl(std::move(record), key);
+}
+
 template <typename Record>
 inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
                                               FutureRecordPosition* key) {

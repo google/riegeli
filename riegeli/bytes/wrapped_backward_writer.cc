@@ -76,6 +76,13 @@ bool WrappedBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   return WriteInternal(src);
 }
 
+bool WrappedBackwardWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  return WriteInternal(std::move(src));
+}
+
 template <typename Src>
 inline bool WrappedBackwardWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

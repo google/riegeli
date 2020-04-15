@@ -77,6 +77,13 @@ bool TeeWriterBase::WriteSlow(const absl::Cord& src) {
   return WriteInternal(src);
 }
 
+bool TeeWriterBase::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteSlow(Cord&&): "
+         "length too small, use Write(Cord&&) instead";
+  return WriteInternal(std::move(src));
+}
+
 template <typename Src>
 inline bool TeeWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
