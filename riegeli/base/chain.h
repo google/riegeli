@@ -568,9 +568,6 @@ class Chain {
   template <typename CordRef>
   void PrependCord(CordRef&& src, const Options& options);
 
-  void RemoveSuffixSlow(size_t length, const Options& options);
-  void RemovePrefixSlow(size_t length, const Options& options);
-
   BlockPtrs block_ptrs_;
 
   // The range of the block pointers array which is actually used.
@@ -2034,43 +2031,6 @@ extern template void Chain::PrependBlock<Chain::Ownership::kShare>(
     RawBlock* block, const Options& options);
 extern template void Chain::PrependBlock<Chain::Ownership::kSteal>(
     RawBlock* block, const Options& options);
-
-inline void Chain::RemoveSuffix(size_t length, const Options& options) {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of Chain::RemoveSuffix(): "
-      << "length to remove greater than current size";
-  size_ -= length;
-  if (begin_ == end_) {
-    // `Chain` has short data which have suffix removed in place.
-    return;
-  }
-  if (ABSL_PREDICT_TRUE(length <= back()->size() &&
-                        back()->TryRemoveSuffix(length))) {
-    return;
-  }
-  RemoveSuffixSlow(length, options);
-}
-
-inline void Chain::RemovePrefix(size_t length, const Options& options) {
-  if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
-      << "Failed precondition of Chain::RemovePrefix(): "
-      << "length to remove greater than current size";
-  size_ -= length;
-  if (begin_ == end_) {
-    // `Chain` has short data which have prefix removed by shifting the rest.
-    std::memmove(block_ptrs_.short_data, block_ptrs_.short_data + length,
-                 size_);
-    return;
-  }
-  if (ABSL_PREDICT_TRUE(length <= front()->size() &&
-                        front()->TryRemovePrefix(length))) {
-    RefreshFront();
-    return;
-  }
-  RemovePrefixSlow(length, options);
-}
 
 inline bool operator==(const Chain& a, const Chain& b) {
   return a.size() == b.size() && a.Compare(b) == 0;

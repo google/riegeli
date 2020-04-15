@@ -2114,80 +2114,93 @@ template void Chain::PrependBlock<Chain::Ownership::kShare>(
 template void Chain::PrependBlock<Chain::Ownership::kSteal>(
     RawBlock* block, const Options& options);
 
-void Chain::RemoveSuffixSlow(size_t length, const Options& options) {
-  RIEGELI_ASSERT_GT(length, 0u)
-      << "Failed precondition of Chain::RemoveSuffixSlow(): "
-         "nothing to do, use RemoveSuffix() instead";
-  RIEGELI_ASSERT(begin_ != end_)
-      << "Failed precondition of Chain::RemoveSuffixSlow(): "
-         "no blocks, use RemoveSuffix() instead";
-  BlockPtr* iter = end_;
-  if (length > iter[-1].block_ptr->size()) {
-    do {
-      length -= iter[-1].block_ptr->size();
-      (--iter)->block_ptr->Unref();
-      RIEGELI_ASSERT(iter != begin_)
-          << "Failed invariant of Chain: "
-             "sum of block sizes smaller than Chain size";
-    } while (length > iter[-1].block_ptr->size());
-    if (iter[-1].block_ptr->TryRemoveSuffix(length)) {
-      end_ = iter;
-      return;
-    }
-  }
-  RawBlock* const block = (--iter)->block_ptr;
-  end_ = iter;
-  if (length == block->size()) {
-    block->Unref();
+void Chain::RemoveSuffix(size_t length, const Options& options) {
+  if (length == 0) return;
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of Chain::RemoveSuffix(): "
+      << "length to remove greater than current size";
+  size_ -= length;
+  if (begin_ == end_) {
+    // `Chain` has short data which have suffix removed in place.
     return;
   }
-  absl::string_view data = absl::string_view(*block);
+  BlockPtr* iter = end_;
+  while (length > iter[-1].block_ptr->size()) {
+    length -= iter[-1].block_ptr->size();
+    (--iter)->block_ptr->Unref();
+    RIEGELI_ASSERT(iter != begin_)
+        << "Failed invariant of Chain: "
+           "sum of block sizes smaller than Chain size";
+  }
+  RawBlock* const last = iter[-1].block_ptr;
+  if (last->TryRemoveSuffix(length)) {
+    end_ = iter;
+    return;
+  }
+  end_ = --iter;
+  if (length == last->size()) {
+    last->Unref();
+    return;
+  }
+  absl::string_view data(*last);
   data.remove_suffix(length);
   // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Append(data, options);
-    block->Unref();
+    last->Unref();
     return;
   }
   Append(ChainBlock::FromExternal<BlockRef>(
              std::forward_as_tuple(
-                 block, std::integral_constant<Ownership, Ownership::kSteal>()),
+                 last, std::integral_constant<Ownership, Ownership::kSteal>()),
              data),
          options);
 }
 
-void Chain::RemovePrefixSlow(size_t length, const Options& options) {
-  RIEGELI_ASSERT_GT(length, 0u)
-      << "Failed precondition of Chain::RemovePrefixSlow(): "
-         "nothing to do, use RemovePrefix() instead";
-  RIEGELI_ASSERT(begin_ != end_)
-      << "Failed precondition of Chain::RemovePrefixSlow(): "
-         "no blocks, use RemovePrefix() instead";
+void Chain::RemovePrefix(size_t length, const Options& options) {
+  if (length == 0) return;
+  RIEGELI_CHECK_LE(length, size())
+      << "Failed precondition of Chain::RemovePrefix(): "
+      << "length to remove greater than current size";
+  size_ -= length;
+  if (begin_ == end_) {
+    // `Chain` has short data which have prefix removed by shifting the rest.
+    std::memmove(block_ptrs_.short_data, block_ptrs_.short_data + length,
+                 size_);
+    return;
+  }
   BlockPtr* iter = begin_;
-  if (length > iter[0].block_ptr->size()) {
-    do {
-      length -= iter[0].block_ptr->size();
-      (iter++)->block_ptr->Unref();
-      RIEGELI_ASSERT(iter != end_)
+  while (length > iter[0].block_ptr->size()) {
+    length -= iter[0].block_ptr->size();
+    (iter++)->block_ptr->Unref();
+    RIEGELI_ASSERT(iter != end_)
+        << "Failed invariant of Chain: "
+           "sum of block sizes smaller than Chain size";
+  }
+  RawBlock* const first = iter[0].block_ptr;
+  if (first->TryRemovePrefix(length)) {
+    if (has_here()) {
+      RIEGELI_ASSERT_LE(PtrDistance(begin_, iter), 1u)
           << "Failed invariant of Chain: "
-             "sum of block sizes smaller than Chain size";
-    } while (length > iter[0].block_ptr->size());
-    if (iter[0].block_ptr->TryRemovePrefix(length)) {
-      if (has_here()) {
+             "only two block pointers fit without allocating their array";
+      if (iter > begin_) {
         // Shift 1 block pointer to the left by 1 because `begin_` must remain
         // at `block_ptrs_.here`.
         block_ptrs_.here[0] = block_ptrs_.here[1];
         --end_;
-      } else {
-        begin_ = iter;
-        RefreshFront();
       }
-      return;
+    } else {
+      begin_ = iter;
+      RefreshFront();
     }
+    return;
   }
-  RawBlock* const block = (iter++)->block_ptr;
+  ++iter;
   if (has_here()) {
+    RIEGELI_ASSERT_LE(PtrDistance(begin_, iter), 2u)
+        << "Failed invariant of Chain: "
+           "only two block pointers fit without allocating their array";
     // Shift 1 block pointer to the left by 1, or 0 block pointers by 1 or 2,
     // because `begin_` must remain at `block_ptrs_.here`. There might be no
     // pointer to copy; it is cheaper to copy the array slot unconditionally.
@@ -2196,23 +2209,23 @@ void Chain::RemovePrefixSlow(size_t length, const Options& options) {
   } else {
     begin_ = iter;
   }
-  if (length == block->size()) {
-    block->Unref();
+  if (length == first->size()) {
+    first->Unref();
     return;
   }
-  absl::string_view data = absl::string_view(*block);
+  absl::string_view data(*first);
   data.remove_prefix(length);
   // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();
   if (data.size() <= kMaxBytesToCopy) {
     Prepend(data, options);
-    block->Unref();
+    first->Unref();
     return;
   }
   Prepend(
       ChainBlock::FromExternal<BlockRef>(
           std::forward_as_tuple(
-              block, std::integral_constant<Ownership, Ownership::kSteal>()),
+              first, std::integral_constant<Ownership, Ownership::kSteal>()),
           data),
       options);
 }
@@ -2477,7 +2490,7 @@ void ChainBlock::RemoveSuffixSlow(size_t length, const Options& options) {
     block_ = nullptr;
     return;
   }
-  absl::string_view data = absl::string_view(*block_);
+  absl::string_view data(*block_);
   data.remove_suffix(length);
   RawBlock* const block = RawBlock::NewInternal(
       UnsignedMax(data.size(), data.size() < options.size_hint()
@@ -2497,7 +2510,7 @@ void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
     block_ = nullptr;
     return;
   }
-  absl::string_view data = absl::string_view(*block_);
+  absl::string_view data(*block_);
   data.remove_prefix(length);
   RawBlock* const block = RawBlock::NewInternal(
       UnsignedMax(data.size(), data.size() < options.size_hint()
