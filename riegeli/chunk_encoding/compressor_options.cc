@@ -20,6 +20,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/brotli_writer.h"
@@ -40,7 +41,6 @@ constexpr int CompressorOptions::kMaxZstd;
 constexpr int CompressorOptions::kDefaultZstd;
 constexpr int CompressorOptions::kMinWindowLog;
 constexpr int CompressorOptions::kMaxWindowLog;
-constexpr int CompressorOptions::kDefaultWindowLog;
 #endif
 
 absl::Status CompressorOptions::FromString(absl::string_view text) {
@@ -82,6 +82,7 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
       return options_parser.status();
     }
   }
+  int window_log;
   OptionsParser options_parser;
   options_parser.AddOption(
       "uncompressed",
@@ -113,16 +114,26 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
         return ValueParser::FailIfSeen("uncompressed");
       case CompressionType::kBrotli:
         return ValueParser::Or(
-            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog}}),
-            ValueParser::Int(&window_log_,
-                             BrotliWriterBase::Options::kMinWindowLog,
-                             BrotliWriterBase::Options::kMaxWindowLog));
+            ValueParser::Enum(&window_log_, {{"auto", absl::nullopt}}),
+            ValueParser::And(
+                ValueParser::Int(&window_log,
+                                 BrotliWriterBase::Options::kMinWindowLog,
+                                 BrotliWriterBase::Options::kMaxWindowLog),
+                [this, &window_log](ValueParser* value_parser) {
+                  window_log_ = window_log;
+                  return true;
+                }));
       case CompressionType::kZstd:
         return ValueParser::Or(
-            ValueParser::Enum(&window_log_, {{"auto", kDefaultWindowLog}}),
-            ValueParser::Int(&window_log_,
-                             ZstdWriterBase::Options::kMinWindowLog,
-                             ZstdWriterBase::Options::kMaxWindowLog));
+            ValueParser::Enum(&window_log_, {{"auto", absl::nullopt}}),
+            ValueParser::And(
+                ValueParser::Int(&window_log,
+                                 ZstdWriterBase::Options::kMinWindowLog,
+                                 ZstdWriterBase::Options::kMaxWindowLog),
+                [this, &window_log](ValueParser* value_parser) {
+                  window_log_ = window_log;
+                  return true;
+                }));
       case CompressionType::kSnappy:
         return ValueParser::FailIfSeen("snappy");
     }
@@ -135,43 +146,36 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
   return absl::OkStatus();
 }
 
-int CompressorOptions::window_log() const {
-  switch (compression_type_) {
-    case CompressionType::kNone:
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Failed precondition of CompressorOptions::window_log(): "
-             "uncompressed";
-    case CompressionType::kBrotli:
-      if (window_log_ == kDefaultWindowLog) {
-        return BrotliWriterBase::Options::kDefaultWindowLog;
-      } else {
-        RIEGELI_ASSERT_GE(window_log_, BrotliWriterBase::Options::kMinWindowLog)
-            << "Failed precondition of CompressorOptions::set_window_log(): "
-               "window log out of range for brotli";
-        RIEGELI_ASSERT_LE(window_log_, BrotliWriterBase::Options::kMaxWindowLog)
-            << "Failed precondition of CompressorOptions::set_window_log(): "
-               "window log out of range for brotli";
-        return window_log_;
-      }
-    case CompressionType::kZstd:
-      if (window_log_ == kDefaultWindowLog) {
-        return ZstdWriterBase::Options::kDefaultWindowLog;
-      } else {
-        RIEGELI_ASSERT_GE(window_log_, ZstdWriterBase::Options::kMinWindowLog)
-            << "Failed precondition of CompressorOptions::set_window_log(): "
-               "window log out of range for zstd";
-        RIEGELI_ASSERT_LE(window_log_, ZstdWriterBase::Options::kMaxWindowLog)
-            << "Failed precondition of CompressorOptions::set_window_log(): "
-               "window log out of range for zstd";
-        return window_log_;
-      }
-    case CompressionType::kSnappy:
-      RIEGELI_ASSERT_UNREACHABLE()
-          << "Failed precondition of CompressorOptions::window_log(): "
-             "snappy";
+int CompressorOptions::brotli_window_log() const {
+  RIEGELI_ASSERT(compression_type_ == CompressionType::kBrotli)
+      << "Failed precodition of CompressorOptions::brotli_window_log(): "
+         "compression type must be Brotli";
+  if (window_log_ == absl::nullopt) {
+    return BrotliWriterBase::Options::kDefaultWindowLog;
+  } else {
+    RIEGELI_ASSERT_GE(*window_log_, BrotliWriterBase::Options::kMinWindowLog)
+        << "Failed precondition of CompressorOptions::set_window_log(): "
+           "window log out of range for Brotli";
+    RIEGELI_ASSERT_LE(*window_log_, BrotliWriterBase::Options::kMaxWindowLog)
+        << "Failed precondition of CompressorOptions::set_window_log(): "
+           "window log out of range for Brotli";
+    return *window_log_;
   }
-  RIEGELI_ASSERT_UNREACHABLE() << "Unknown compression type: "
-                               << static_cast<unsigned>(compression_type_);
+}
+
+absl::optional<int> CompressorOptions::zstd_window_log() const {
+  RIEGELI_ASSERT(compression_type_ == CompressionType::kZstd)
+      << "Failed precodition of CompressorOptions::zstd_window_log(): "
+         "compression type must be Zstd";
+  if (window_log_ != absl::nullopt) {
+    RIEGELI_ASSERT_GE(*window_log_, ZstdWriterBase::Options::kMinWindowLog)
+        << "Failed precondition of CompressorOptions::set_window_log(): "
+           "window log out of range for Zstd";
+    RIEGELI_ASSERT_LE(*window_log_, ZstdWriterBase::Options::kMaxWindowLog)
+        << "Failed precondition of CompressorOptions::set_window_log(): "
+           "window log out of range for Zstd";
+  }
+  return window_log_;
 }
 
 }  // namespace riegeli

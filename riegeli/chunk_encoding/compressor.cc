@@ -69,7 +69,7 @@ void Compressor::Initialize() {
           std::forward_as_tuple(&compressed_),
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
-              .set_window_log(compressor_options_.window_log())
+              .set_window_log(compressor_options_.brotli_window_log())
               .set_size_hint(tuning_options_.final_size().value_or(
                   tuning_options_.size_hint())));
       return;
@@ -78,7 +78,7 @@ void Compressor::Initialize() {
           std::forward_as_tuple(&compressed_),
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
-              .set_window_log(compressor_options_.window_log())
+              .set_window_log(compressor_options_.zstd_window_log())
               .set_final_size(tuning_options_.final_size())
               .set_size_hint(tuning_options_.size_hint()));
       return;

@@ -19,6 +19,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/brotli_writer.h"
 #include "riegeli/bytes/zstd_writer.h"
@@ -49,7 +50,7 @@ class CompressorOptions {
   //  * `!status.ok()` - failure
   absl::Status FromString(absl::string_view text);
 
-  // Changes compression algorithm to none.
+  // Changes compression algorithm to Uncompressed (turns compression off).
   CompressorOptions& set_uncompressed() & {
     compression_type_ = CompressionType::kNone;
     compression_level_ = 0;
@@ -132,53 +133,58 @@ class CompressorOptions {
   // between compression density and memory usage (higher = better density but
   // more memory).
   //
-  // Special value `kDefaultWindowLog` (-1) means to keep the default
-  // (brotli: 22, zstd: derived from compression level and chunk size).
+  // Special value `absl::nullopt` means to keep the default (Brotli: 22,
+  // Zstd: derived from compression level and chunk size).
   //
-  // For uncompressed and snappy, `window_log` must be `kDefaultWindowLog` (-1).
+  // For Uncompressed and Snappy, `window_log` must be `absl::nullopt`.
   //
-  // For brotli, `window_log` must be `kDefaultWindowLog` (-1) or between
+  // For Brotli, `window_log` must be `absl::nullopt` or between
   // `BrotliWriterBase::Options::kMinWindowLog` (10) and
   // `BrotliWriterBase::Options::kMaxWindowLog` (30).
   //
-  // For zstd, `window_log` must be `kDefaultWindowLog` (-1) or between
+  // For Zstd, `window_log` must be `absl::nullopt` or between
   // `ZstdWriterBase::Options::kMinWindowLog` (10) and
   // `ZstdWriterBase::Options::kMaxWindowLog` (30 in 32-bit build,
   // 31 in 64-bit build).
   //
-  // Default: `kDefaultWindowLog` (-1).
+  // Default: `absl::nullopt`.
   static constexpr int kMinWindowLog =
       SignedMin(BrotliWriterBase::Options::kMinWindowLog,
                 ZstdWriterBase::Options::kMinWindowLog);
   static constexpr int kMaxWindowLog =
       SignedMax(BrotliWriterBase::Options::kMaxWindowLog,
                 ZstdWriterBase::Options::kMaxWindowLog);
-  static constexpr int kDefaultWindowLog = -1;
-  CompressorOptions& set_window_log(int window_log) & {
-    if (window_log != kDefaultWindowLog) {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+  CompressorOptions& set_window_log(absl::optional<int> window_log) & {
+    if (window_log != absl::nullopt) {
+      RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+      RIEGELI_ASSERT_LE(*window_log, kMaxWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
     }
     window_log_ = window_log;
     return *this;
   }
-  CompressorOptions&& set_window_log(int window_log) && {
+  CompressorOptions&& set_window_log(absl::optional<int> window_log) && {
     return std::move(set_window_log(window_log));
   }
+  absl::optional<int> window_log() const { return window_log_; }
 
-  // Returns `window_log` translated for `BrotliWriter` or `ZstdWriter`.
+  // Returns `window_log()` translated for `BrotliWriter`.
   //
-  // Precondition: `compression_type() != CompressionType::kNone`
-  int window_log() const;
+  // Precondition: `compression_type() == CompressionType::kBrotli`
+  int brotli_window_log() const;
+
+  // Returns `window_log()` translated for `ZstdWriter`.
+  //
+  // Precondition: `compression_type() == CompressionType::kZstd`
+  absl::optional<int> zstd_window_log() const;
 
  private:
   CompressionType compression_type_ = CompressionType::kBrotli;
   int compression_level_ = kDefaultBrotli;
-  int window_log_ = kDefaultWindowLog;
+  absl::optional<int> window_log_;
 };
 
 }  // namespace riegeli

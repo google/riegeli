@@ -42,7 +42,7 @@ Default: `false`.
 
 ### `uncompressed`
 
-Changes compression algorithm to none.
+Changes compression algorithm to Uncompressed (turns compression off).
 
 ### `brotli`
 

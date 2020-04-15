@@ -68,7 +68,6 @@ constexpr int RecordWriterBase::Options::kMaxZstd;
 constexpr int RecordWriterBase::Options::kDefaultZstd;
 constexpr int RecordWriterBase::Options::kMinWindowLog;
 constexpr int RecordWriterBase::Options::kMaxWindowLog;
-constexpr int RecordWriterBase::Options::kDefaultWindowLog;
 #endif
 
 namespace {

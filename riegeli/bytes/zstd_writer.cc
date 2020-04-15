@@ -50,7 +50,6 @@ constexpr int ZstdWriterBase::Options::kMaxCompressionLevel;
 constexpr int ZstdWriterBase::Options::kDefaultCompressionLevel;
 constexpr int ZstdWriterBase::Options::kMinWindowLog;
 constexpr int ZstdWriterBase::Options::kMaxWindowLog;
-constexpr int ZstdWriterBase::Options::kDefaultWindowLog;
 #endif
 
 namespace {
@@ -64,7 +63,7 @@ struct ZSTD_CCtxParamsDeleter {
 }  // namespace
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
-                                int window_log,
+                                absl::optional<int> window_log,
                                 absl::optional<Position> final_size,
                                 Position size_hint, bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
@@ -97,9 +96,9 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (window_log != Options::kDefaultWindowLog) {
-    const size_t result =
-        ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_windowLog, window_log);
+  if (window_log != absl::nullopt) {
+    const size_t result = ZSTD_CCtx_setParameter(compressor_.get(),
+                                                 ZSTD_c_windowLog, *window_log);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_windowLog) failed: ",

@@ -73,23 +73,22 @@ class ZstdWriterBase : public BufferedWriter {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value `kDefaultWindowLog` (-1) means to derive `window_log` from
+    // Special value `absl::nullopt` means to derive `window_log` from
     // `compression_level` and `size_hint`.
     //
-    // `window_log` must be `kDefaultWindowLog` (-1) or between
-    // `kMinWindowLog` (10) and `kMaxWindowLog` (30 in 32-bit build,
-    // 31 in 64-bit build). Default: `kDefaultWindowLog` (-1).
+    // `window_log` must be `absl::nullopt` or between `kMinWindowLog` (10) and
+    // `kMaxWindowLog` (30 in 32-bit build, 31 in 64-bit build). Default:
+    // `absl::nullopt`.
     static constexpr int kMinWindowLog = 10;  // `ZSTD_WINDOWLOG_MIN`
     static constexpr int kMaxWindowLog =
         sizeof(size_t) == 4 ? 30 : 31;  // `ZSTD_WINDOWLOG_MAX`
-    static constexpr int kDefaultWindowLog = -1;
-    Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+    Options& set_window_log(absl::optional<int> window_log) & {
+      if (window_log != absl::nullopt) {
+        RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+        RIEGELI_ASSERT_LE(*window_log, kMaxWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
@@ -97,10 +96,10 @@ class ZstdWriterBase : public BufferedWriter {
       window_log_ = window_log;
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(absl::optional<int> window_log) && {
       return std::move(set_window_log(window_log));
     }
-    int window_log() const { return window_log_; }
+    absl::optional<int> window_log() const { return window_log_; }
 
     // Exact uncompressed size. This may improve compression density and
     // performance, and causes the size to be stored in the compressed stream
@@ -163,7 +162,7 @@ class ZstdWriterBase : public BufferedWriter {
 
    private:
     int compression_level_ = kDefaultCompressionLevel;
-    int window_log_ = kDefaultWindowLog;
+    absl::optional<int> window_log_;
     absl::optional<Position> final_size_;
     Position size_hint_ = 0;
     bool store_checksum_ = false;
@@ -193,7 +192,8 @@ class ZstdWriterBase : public BufferedWriter {
 
   void Reset();
   void Reset(size_t buffer_size, Position size_hint);
-  void Initialize(Writer* dest, int compression_level, int window_log,
+  void Initialize(Writer* dest, int compression_level,
+                  absl::optional<int> window_log,
                   absl::optional<Position> final_size, Position size_hint,
                   bool store_checksum);
 
