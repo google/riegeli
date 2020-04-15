@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
@@ -46,32 +47,32 @@ class ZlibReaderBase : public BufferedReader {
 
     // Maximum acceptable logarithm of the LZ77 sliding window size.
     //
-    // `kDefaultWindowLog` means any value is acceptable, otherwise this must
-    // not be lower than the corresponding setting of the compressor.
+    // Special value `absl::nullopt` (not applicable when
+    // `set_header(Header::kRaw)` is used) means any value is acceptable,
+    // otherwise this must not be lower than the corresponding setting of the
+    // compressor.
     //
-    // `window_log` must be `kDefaultWindowLog` (0) or between
-    // `kMinWindowLog` (9) and `kMaxWindowLog` (15).
-    // Default: `kDefaultWindowLog` (0).
+    // `window_log` must be `absl::nullopt` or between `kMinWindowLog` (9) and
+    // `kMaxWindowLog` (15). Default: `absl::nullopt`.
     static constexpr int kMinWindowLog = 9;
     static constexpr int kMaxWindowLog = MAX_WBITS;
-    static constexpr int kDefaultWindowLog = 0;
-    Options& set_window_log(int window_log) & {
-      if (window_log != kDefaultWindowLog) {
-        RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+    Options& set_window_log(absl::optional<int> window_log) & {
+      if (window_log != absl::nullopt) {
+        RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
             << "Failed precondition of "
                "ZlibReaderBase::Options::set_window_log(): "
                "window log out of range";
-        RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+        RIEGELI_ASSERT_LE(*window_log, kMaxWindowLog)
             << "Failed precondition of "
                "ZlibReaderBase::Options::set_window_log(): "
                "window log out of range";
       }
       return *this;
     }
-    Options&& set_window_log(int window_log) && {
+    Options&& set_window_log(absl::optional<int> window_log) && {
       return std::move(set_window_log(window_log));
     }
-    int window_log() const { return window_log_; }
+    absl::optional<int> window_log() const { return window_log_; }
 
     // What format of header to expect:
     //
@@ -79,7 +80,9 @@ class ZlibReaderBase : public BufferedReader {
     //  * `Header::kGzip`       - gzip header
     //  * `Header::kZlibOrGzip` - zlib or gzip header
     //  * `Header::kRaw`        - no header
-    //                            (compressor must write no header too)
+    //                            (compressor must write no header too;
+    //                            requires `set_window_log()` with a value other
+    //                            than `absl::nullopt`)
     //
     // Default: `Header::kZlibOrGzip`.
     static constexpr Header kDefaultHeader = Header::kZlibOrGzip;
@@ -122,7 +125,7 @@ class ZlibReaderBase : public BufferedReader {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
-    int window_log_ = kDefaultWindowLog;
+    absl::optional<int> window_log_;
     Header header_ = kDefaultHeader;
     Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -261,9 +264,13 @@ inline void ZlibReaderBase::Reset(size_t buffer_size, Position size_hint) {
 }
 
 inline int ZlibReaderBase::GetWindowBits(const Options& options) {
-  return options.header() == Header::kRaw
-             ? -options.window_log()
-             : options.window_log() + static_cast<int>(options.header());
+  if (options.header() == Header::kRaw) {
+    RIEGELI_ASSERT(options.window_log() != absl::nullopt)
+        << "ZlibReaderBase::Options::set_header(Header::kRaw) "
+           "requires set_window_log() with a value other than nullopt";
+    return -*options.window_log();
+  }
+  return options.window_log().value_or(0) + static_cast<int>(options.header());
 }
 
 template <typename Src>

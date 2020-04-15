@@ -40,7 +40,6 @@ namespace riegeli {
 #if __cplusplus < 201703
 constexpr int ZlibReaderBase::Options::kMinWindowLog;
 constexpr int ZlibReaderBase::Options::kMaxWindowLog;
-constexpr int ZlibReaderBase::Options::kDefaultWindowLog;
 constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 #endif
 
