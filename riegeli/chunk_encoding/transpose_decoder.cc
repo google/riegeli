@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -105,9 +106,6 @@ bool ValidTag(uint32_t tag) {
 namespace internal {
 
 // The types of callbacks in state machine states.
-// Note: `CallbackType` is used to index labels array in
-// `TransposeDecoder::Decode()` method so the ordering of `CallbackType` must
-// not change without a corresponding change in `TransposeDecoder::Decode()`.
 enum class CallbackType : uint8_t {
   kNoOp,
   kMessageStart,
@@ -1124,196 +1122,181 @@ inline bool TransposeDecoder::Decode(Context* context, uint64_t num_records,
   // without reading transition byte.
   int num_iters = 0;
 
-  // Note: `CallbackType` is used to index labels so the ordering of labels
-  // must not change without a corresponding change in `CallbackType` enum.
-  static constexpr void* labels[] = {
-      &&do_transition,  // `CallbackType::kNoOp`
-      &&message_start,
-      &&submessage_start,
-      &&submessage_end,
-      &&select_callback,
-      &&skipped_submessage_start,
-      &&skipped_submessage_end,
-      &&non_proto,
-      &&failure,
-
-#define LABELS_FOR_TAG_LEN(tag_length)                                       \
-  &&copy_tag_##tag_length, &&varint_1_##tag_length, &&varint_2_##tag_length, \
-      &&varint_3_##tag_length, &&varint_4_##tag_length,                      \
-      &&varint_5_##tag_length, &&varint_6_##tag_length,                      \
-      &&varint_7_##tag_length, &&varint_8_##tag_length,                      \
-      &&varint_9_##tag_length, &&varint_10_##tag_length,                     \
-      &&fixed32_##tag_length, &&fixed64_##tag_length,                        \
-      &&fixed32_existence_##tag_length, &&fixed64_existence_##tag_length,    \
-      &&string_##tag_length, &&start_projection_group_##tag_length,          \
-      &&end_projection_group_##tag_length
-
-      LABELS_FOR_TAG_LEN(1),
-      LABELS_FOR_TAG_LEN(2),
-      LABELS_FOR_TAG_LEN(3),
-      LABELS_FOR_TAG_LEN(4),
-      LABELS_FOR_TAG_LEN(5),
-#undef LABELS_FOR_TAG_LEN
-
-      &&copy_tag_6,
-      &&failure,  // `CallbackType::kUnknown`
-  };
-
-  for (StateMachineNode& state : context->state_machine_nodes) {
-    state.callback =
-        labels[static_cast<uint8_t>(state.callback_type) &
-               ~static_cast<uint8_t>(internal::CallbackType::kImplicit)];
-  }
-
   if (internal::IsImplicit(node->callback_type)) ++num_iters;
-  goto * node->callback;
+  for (;;) {
+    switch (static_cast<riegeli::internal::CallbackType>(
+        static_cast<uint8_t>(node->callback_type) &
+        ~static_cast<uint8_t>(internal::CallbackType::kImplicit))) {
+      case internal::CallbackType::kSelectCallback:
+        if (ABSL_PREDICT_FALSE(!SetCallbackType(
+                context, skipped_submessage_level, submessage_stack, node))) {
+          return false;
+        }
+        continue;
 
-select_callback:
-  if (ABSL_PREDICT_FALSE(!SetCallbackType(context, skipped_submessage_level,
-                                          submessage_stack, node))) {
-    return false;
-  }
-  node->callback =
-      labels[static_cast<uint8_t>(node->callback_type) &
-             ~static_cast<uint8_t>(internal::CallbackType::kImplicit)];
-  goto * node->callback;
+      case internal::CallbackType::kSkippedSubmessageEnd:
+        ++skipped_submessage_level;
+        goto do_transition;
 
-skipped_submessage_end:
-  ++skipped_submessage_level;
-  goto do_transition;
+      case internal::CallbackType::kSkippedSubmessageStart:
+        if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
+          return Fail(
+              absl::DataLossError("Skipped submessage stack underflow"));
+        }
+        --skipped_submessage_level;
+        goto do_transition;
 
-skipped_submessage_start:
-  if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
-    return Fail(absl::DataLossError("Skipped submessage stack underflow"));
-  }
-  --skipped_submessage_level;
-  goto do_transition;
+      case internal::CallbackType::kSubmessageEnd:
+        submessage_stack.push_back(
+            {IntCast<size_t>(dest->pos()), node->tag_data});
+        goto do_transition;
 
-submessage_end:
-  submessage_stack.push_back({IntCast<size_t>(dest->pos()), node->tag_data});
-  goto do_transition;
+      case internal::CallbackType::kSubmessageStart: {
+        if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
+          return Fail(absl::DataLossError("Submessage stack underflow"));
+        }
+        const SubmessageStackElement& elem = submessage_stack.back();
+        RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
+            << "Destination position decreased";
+        const size_t length =
+            IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
+        if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
+          return Fail(absl::DataLossError("Message too large"));
+        }
+        if (ABSL_PREDICT_FALSE(
+                !WriteVarint32(IntCast<uint32_t>(length), dest))) {
+          return Fail(*dest);
+        }
+        if (ABSL_PREDICT_FALSE(!dest->Write(
+                absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
+          return Fail(*dest);
+        }
+        submessage_stack.pop_back();
+      }
+        goto do_transition;
 
-failure:
-  return Fail(absl::DataLossError("Invalid node index"));
+#define ACTIONS_FOR_TAG_LEN(tag_length)                               \
+  case internal::CallbackType::kCopyTag_##tag_length:                 \
+    COPY_TAG_CALLBACK(tag_length);                                    \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_1_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 1);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_2_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 2);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_3_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 3);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_4_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 4);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_5_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 5);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_6_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 6);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_7_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 7);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_8_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 8);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_9_##tag_length:                \
+    VARINT_CALLBACK(tag_length, 9);                                   \
+    goto do_transition;                                               \
+  case internal::CallbackType::kVarint_10_##tag_length:               \
+    VARINT_CALLBACK(tag_length, 10);                                  \
+    goto do_transition;                                               \
+  case internal::CallbackType::kFixed32_##tag_length:                 \
+    FIXED_CALLBACK(tag_length, 4);                                    \
+    goto do_transition;                                               \
+  case internal::CallbackType::kFixed64_##tag_length:                 \
+    FIXED_CALLBACK(tag_length, 8);                                    \
+    goto do_transition;                                               \
+  case internal::CallbackType::kFixed32Existence_##tag_length:        \
+    FIXED_EXISTENCE_CALLBACK(tag_length, 4);                          \
+    goto do_transition;                                               \
+  case internal::CallbackType::kFixed64Existence_##tag_length:        \
+    FIXED_EXISTENCE_CALLBACK(tag_length, 8);                          \
+    goto do_transition;                                               \
+  case internal::CallbackType::kString_##tag_length:                  \
+    STRING_CALLBACK(tag_length);                                      \
+    goto do_transition;                                               \
+  case internal::CallbackType::kStartProjectionGroup_##tag_length:    \
+    if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {               \
+      return Fail(absl::DataLossError("Submessage stack underflow")); \
+    }                                                                 \
+    submessage_stack.pop_back();                                      \
+    COPY_TAG_CALLBACK(tag_length);                                    \
+    goto do_transition;                                               \
+  case internal::CallbackType::kEndProjectionGroup_##tag_length:      \
+    submessage_stack.push_back(                                       \
+        {IntCast<size_t>(dest->pos()), node->tag_data});              \
+    COPY_TAG_CALLBACK(tag_length);                                    \
+    goto do_transition
 
-submessage_start : {
-  if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {
-    return Fail(absl::DataLossError("Submessage stack underflow"));
-  }
-  const SubmessageStackElement& elem = submessage_stack.back();
-  RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
-      << "Destination position decreased";
-  const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
-  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
-    return Fail(absl::DataLossError("Message too large"));
-  }
-  if (ABSL_PREDICT_FALSE(!WriteVarint32(IntCast<uint32_t>(length), dest))) {
-    return Fail(*dest);
-  }
-  if (ABSL_PREDICT_FALSE(!dest->Write(
-          absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
-    return Fail(*dest);
-  }
-  submessage_stack.pop_back();
-}
-  goto do_transition;
-
-#define ACTIONS_FOR_TAG_LEN(tag_length)                                     \
-  copy_tag_##tag_length : COPY_TAG_CALLBACK(tag_length);                    \
-  goto do_transition;                                                       \
-  varint_1_##tag_length : VARINT_CALLBACK(tag_length, 1);                   \
-  goto do_transition;                                                       \
-  varint_2_##tag_length : VARINT_CALLBACK(tag_length, 2);                   \
-  goto do_transition;                                                       \
-  varint_3_##tag_length : VARINT_CALLBACK(tag_length, 3);                   \
-  goto do_transition;                                                       \
-  varint_4_##tag_length : VARINT_CALLBACK(tag_length, 4);                   \
-  goto do_transition;                                                       \
-  varint_5_##tag_length : VARINT_CALLBACK(tag_length, 5);                   \
-  goto do_transition;                                                       \
-  varint_6_##tag_length : VARINT_CALLBACK(tag_length, 6);                   \
-  goto do_transition;                                                       \
-  varint_7_##tag_length : VARINT_CALLBACK(tag_length, 7);                   \
-  goto do_transition;                                                       \
-  varint_8_##tag_length : VARINT_CALLBACK(tag_length, 8);                   \
-  goto do_transition;                                                       \
-  varint_9_##tag_length : VARINT_CALLBACK(tag_length, 9);                   \
-  goto do_transition;                                                       \
-  varint_10_##tag_length : VARINT_CALLBACK(tag_length, 10);                 \
-  goto do_transition;                                                       \
-  fixed32_##tag_length : FIXED_CALLBACK(tag_length, 4);                     \
-  goto do_transition;                                                       \
-  fixed64_##tag_length : FIXED_CALLBACK(tag_length, 8);                     \
-  goto do_transition;                                                       \
-  fixed32_existence_##tag_length : FIXED_EXISTENCE_CALLBACK(tag_length, 4); \
-  goto do_transition;                                                       \
-  fixed64_existence_##tag_length : FIXED_EXISTENCE_CALLBACK(tag_length, 8); \
-  goto do_transition;                                                       \
-  string_##tag_length : STRING_CALLBACK(tag_length);                        \
-  goto do_transition;                                                       \
-  start_projection_group_##tag_length                                       \
-      : if (ABSL_PREDICT_FALSE(submessage_stack.empty())) {                 \
-    return Fail(absl::DataLossError("Submessage stack underflow"));         \
-  }                                                                         \
-  submessage_stack.pop_back();                                              \
-  COPY_TAG_CALLBACK(tag_length);                                            \
-  goto do_transition;                                                       \
-  end_projection_group_##tag_length                                         \
-      : submessage_stack.push_back(                                         \
-            {IntCast<size_t>(dest->pos()), node->tag_data});                \
-  COPY_TAG_CALLBACK(tag_length);                                            \
-  goto do_transition
-
-  ACTIONS_FOR_TAG_LEN(1);
-  ACTIONS_FOR_TAG_LEN(2);
-  ACTIONS_FOR_TAG_LEN(3);
-  ACTIONS_FOR_TAG_LEN(4);
-  ACTIONS_FOR_TAG_LEN(5);
+        ACTIONS_FOR_TAG_LEN(1);
+        ACTIONS_FOR_TAG_LEN(2);
+        ACTIONS_FOR_TAG_LEN(3);
+        ACTIONS_FOR_TAG_LEN(4);
+        ACTIONS_FOR_TAG_LEN(5);
 #undef ACTIONS_FOR_TAG_LEN
 
-copy_tag_6:
-  COPY_TAG_CALLBACK(6);
-  goto do_transition;
+      case internal::CallbackType::kCopyTag_6:
+        COPY_TAG_CALLBACK(6);
+        goto do_transition;
 
-non_proto : {
-  const absl::optional<uint32_t> length =
-      ReadVarint32(context->nonproto_lengths);
-  if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {
-    context->nonproto_lengths->Fail(
-        absl::DataLossError("Reading non-proto record length failed"));
-    return Fail(*context->nonproto_lengths);
-  }
-  if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(dest, *length))) {
-    if (!dest->healthy()) return Fail(*dest);
-    node->buffer->Fail(absl::DataLossError("Reading non-proto record failed"));
-    return Fail(*node->buffer);
-  }
-}
-  // Fall through to `message_start`.
+      case internal::CallbackType::kUnknown:
+      case internal::CallbackType::kFailure:
+        return Fail(absl::DataLossError("Invalid node index"));
 
-message_start:
-  if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
-    return Fail(absl::DataLossError("Submessages still open"));
-  }
-  if (ABSL_PREDICT_FALSE(limits->size() == num_records)) {
-    return Fail(absl::DataLossError("Too many records"));
-  }
-  limits->push_back(IntCast<size_t>(dest->pos()));
-  // Fall through to `do_transition`.
+      case internal::CallbackType::kNonProto: {
+        const absl::optional<uint32_t> length =
+            ReadVarint32(context->nonproto_lengths);
+        if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {
+          context->nonproto_lengths->Fail(
+              absl::DataLossError("Reading non-proto record length failed"));
+          return Fail(*context->nonproto_lengths);
+        }
+        if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(dest, *length))) {
+          if (!dest->healthy()) return Fail(*dest);
+          node->buffer->Fail(
+              absl::DataLossError("Reading non-proto record failed"));
+          return Fail(*node->buffer);
+        }
+      }
+        ABSL_FALLTHROUGH_INTENDED;
 
-do_transition:
-  node = node->next_node;
-  if (num_iters == 0) {
-    const absl::optional<uint8_t> transition_byte =
-        ReadByte(transitions_reader);
-    if (ABSL_PREDICT_FALSE(transition_byte == absl::nullopt)) goto done;
-    node += (*transition_byte >> 2);
-    num_iters = *transition_byte & 3;
-    if (internal::IsImplicit(node->callback_type)) ++num_iters;
-    goto * node->callback;
-  } else {
-    if (!internal::IsImplicit(node->callback_type)) --num_iters;
-    goto * node->callback;
+      case internal::CallbackType::kMessageStart:
+        if (ABSL_PREDICT_FALSE(!submessage_stack.empty())) {
+          return Fail(absl::DataLossError("Submessages still open"));
+        }
+        if (ABSL_PREDICT_FALSE(limits->size() == num_records)) {
+          return Fail(absl::DataLossError("Too many records"));
+        }
+        limits->push_back(IntCast<size_t>(dest->pos()));
+        ABSL_FALLTHROUGH_INTENDED;
+
+      case internal::CallbackType::kNoOp:
+      do_transition:
+        node = node->next_node;
+        if (num_iters == 0) {
+          const absl::optional<uint8_t> transition_byte =
+              ReadByte(transitions_reader);
+          if (ABSL_PREDICT_FALSE(transition_byte == absl::nullopt)) goto done;
+          node += (*transition_byte >> 2);
+          num_iters = *transition_byte & 3;
+          if (internal::IsImplicit(node->callback_type)) ++num_iters;
+        } else {
+          if (!internal::IsImplicit(node->callback_type)) --num_iters;
+        }
+        continue;
+
+      case internal::CallbackType::kImplicit:
+        RIEGELI_ASSERT_UNREACHABLE() << "kImplicit is masked out";
+    }
   }
 
 done:

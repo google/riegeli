@@ -92,14 +92,6 @@ class TransposeDecoder : public Object {
 
   // Node of the state machine read from input.
   struct StateMachineNode {
-    union {
-      // Every state has callback assigned to it that performs the state action.
-      // This is an address of a label in `TransposeDecoder::Decode()` method
-      // which is filled when that method is called.
-      void* callback;
-      // Used to verify there are no implicit loops in the state machine.
-      size_t implicit_loop_id;
-    };
     // Tag for the field decoded by this node.
     TagData tag_data;
     // Note: `callback_type` is after `tag_data` which is 7 bytes and may
@@ -114,6 +106,8 @@ class TransposeDecoder : public Object {
     };
     // Node to move to after finishing the callback for this node.
     StateMachineNode* next_node;
+    // Used to verify there are no implicit loops in the state machine.
+    size_t implicit_loop_id;
   };
 
   // Note: If more bytes is needed in `StateMachineNode`, `callback_type` can be
