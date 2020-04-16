@@ -998,17 +998,18 @@ inline Reader* TransposeDecoder::GetBuffer(Context* context,
 
 inline bool TransposeDecoder::ContainsImplicitLoop(
     std::vector<StateMachineNode>* state_machine_nodes) {
-  for (StateMachineNode& node : *state_machine_nodes) node.implicit_loop_id = 0;
+  std::vector<size_t> implicit_loop_ids(state_machine_nodes->size(), 0);
   size_t next_loop_id = 1;
-  for (StateMachineNode& node : *state_machine_nodes) {
-    if (node.implicit_loop_id != 0) continue;
-    StateMachineNode* node_ptr = &node;
-    node_ptr->implicit_loop_id = next_loop_id;
-    while (internal::IsImplicit(node_ptr->callback_type)) {
-      node_ptr = node_ptr->next_node;
-      if (node_ptr->implicit_loop_id == next_loop_id) return true;
-      if (node_ptr->implicit_loop_id != 0) break;
-      node_ptr->implicit_loop_id = next_loop_id;
+  for (size_t i = 0; i < state_machine_nodes->size(); ++i) {
+    if (implicit_loop_ids[i] != 0) continue;
+    StateMachineNode* node = &(*state_machine_nodes)[i];
+    implicit_loop_ids[i] = next_loop_id;
+    while (internal::IsImplicit(node->callback_type)) {
+      node = node->next_node;
+      const size_t j = node - state_machine_nodes->data();
+      if (implicit_loop_ids[j] == next_loop_id) return true;
+      if (implicit_loop_ids[j] != 0) break;
+      implicit_loop_ids[j] = next_loop_id;
     }
     ++next_loop_id;
   }

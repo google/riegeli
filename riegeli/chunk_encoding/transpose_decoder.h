@@ -106,13 +106,11 @@ class TransposeDecoder : public Object {
     };
     // Node to move to after finishing the callback for this node.
     StateMachineNode* next_node;
-    // Used to verify there are no implicit loops in the state machine.
-    size_t implicit_loop_id;
   };
 
   // Note: If more bytes is needed in `StateMachineNode`, `callback_type` can be
   // moved to a separate vector with some refactoring.
-  static_assert(sizeof(StateMachineNode) == 3 * sizeof(void*) + 8,
+  static_assert(sizeof(StateMachineNode) == 8 + 2 * sizeof(void*),
                 "Unexpected padding in StateMachineNode.");
 
   struct Context;
