@@ -23,6 +23,15 @@
 
 namespace riegeli {
 
+void ArrayWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    if (ABSL_PREDICT_TRUE(SyncScratch())) {
+      written_ = absl::Span<char>(start(), written_to_buffer());
+    }
+  }
+  PushableWriter::Done();
+}
+
 bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "

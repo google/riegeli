@@ -404,17 +404,6 @@ inline void Reader::Done() {
   limit_ = nullptr;
 }
 
-inline bool Reader::VerifyEndAndClose() {
-  VerifyEnd();
-  return Close();
-}
-
-inline void Reader::VerifyEnd() {
-  if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(absl::DataLossError(absl::StrCat("End of data expected")));
-  }
-}
-
 inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_TRUE(available() >= min_length)) return true;
   if (ABSL_PREDICT_FALSE(!PullSlow(min_length, recommended_length))) {

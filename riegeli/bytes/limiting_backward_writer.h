@@ -213,14 +213,6 @@ inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
   size_limit_ = size_limit;
 }
 
-inline void LimitingBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    BackwardWriter* const dest = dest_writer();
-    SyncBuffer(dest);
-  }
-  BackwardWriter::Done();
-}
-
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
   if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
   dest->set_cursor(cursor());

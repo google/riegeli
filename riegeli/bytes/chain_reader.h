@@ -159,11 +159,6 @@ inline void ChainReaderBase::Initialize(const Chain* src) {
   }
 }
 
-inline void ChainReaderBase::Done() {
-  PullableReader::Done();
-  iter_ = Chain::BlockIterator();
-}
-
 template <typename Src>
 inline ChainReader<Src>::ChainReader(const Src& src)
     : ChainReaderBase(kInitiallyOpen), src_(src) {

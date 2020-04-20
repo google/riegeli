@@ -31,6 +31,11 @@
 
 namespace riegeli {
 
+void ChainReaderBase::Done() {
+  PullableReader::Done();
+  iter_ = Chain::BlockIterator();
+}
+
 bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "

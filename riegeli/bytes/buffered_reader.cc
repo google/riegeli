@@ -41,6 +41,13 @@ inline size_t BufferedReader::LengthToReadDirectly() const {
                        BufferLength(0, buffer_size_, size_hint_, limit_pos()));
 }
 
+void BufferedReader::VerifyEnd() {
+  // No more data are expected, so allocate a minimal non-empty buffer for
+  // verifying that.
+  set_size_hint(SaturatingAdd(pos(), Position{1}));
+  Reader::VerifyEnd();
+}
+
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "

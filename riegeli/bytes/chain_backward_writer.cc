@@ -28,6 +28,16 @@
 
 namespace riegeli {
 
+void ChainBackwardWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Chain* const dest = dest_chain();
+    RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+        << "ChainBackwardWriter destination changed unexpectedly";
+    SyncBuffer(dest);
+  }
+  BackwardWriter::Done();
+}
+
 bool ChainBackwardWriterBase::PushSlow(size_t min_length,
                                        size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
@@ -139,6 +149,19 @@ bool ChainBackwardWriterBase::Truncate(Position new_size) {
   dest->RemovePrefix(dest->size() - IntCast<size_t>(new_size));
   set_buffer();
   return true;
+}
+
+inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
+  set_start_pos(pos());
+  dest->RemovePrefix(available());
+  set_buffer();
+}
+
+inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
+                                                size_t recommended_length) {
+  const absl::Span<char> buffer = dest->PrependBuffer(
+      min_length, recommended_length, Chain::kAnyLength, options_);
+  set_buffer(buffer.data(), buffer.size());
 }
 
 }  // namespace riegeli

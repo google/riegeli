@@ -109,11 +109,6 @@ inline void ChunkEncoder::Clear() {
   decoded_data_size_ = 0;
 }
 
-inline void ChunkEncoder::Done() {
-  num_records_ = 0;
-  decoded_data_size_ = 0;
-}
-
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
 inline bool ChunkEncoder::AddRecord(Src&& record) {
@@ -124,16 +119,6 @@ inline bool ChunkEncoder::AddRecord(Src&& record) {
     // necessary: `Src` is always `std::string`, never an lvalue reference.
     return AddRecord(Chain(std::move(record)));
   }
-}
-
-inline bool ChunkEncoder::AddRecord(Chain&& record) {
-  // Not `std::move(record)`: forward to `AddRecord(const Chain&)`.
-  return AddRecord(record);
-}
-
-inline bool ChunkEncoder::AddRecord(absl::Cord&& record) {
-  // Not `std::move(record)`: forward to `AddRecord(const absl::Cord&)`.
-  return AddRecord(record);
 }
 
 }  // namespace riegeli

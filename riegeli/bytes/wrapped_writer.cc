@@ -28,6 +28,14 @@
 
 namespace riegeli {
 
+void WrappedWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Writer* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
+  Writer::Done();
+}
+
 bool WrappedWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "

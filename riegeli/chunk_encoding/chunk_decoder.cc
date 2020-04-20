@@ -40,6 +40,8 @@
 
 namespace riegeli {
 
+void ChunkDecoder::Done() { recoverable_ = false; }
+
 bool ChunkDecoder::Decode(const Chunk& chunk) {
   Clear();
   ChainReader<> data_reader(&chunk.data);

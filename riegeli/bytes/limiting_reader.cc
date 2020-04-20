@@ -36,6 +36,14 @@ namespace riegeli {
 constexpr Position LimitingReaderBase::kNoSizeLimit;
 #endif
 
+void LimitingReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Reader* const src = src_reader();
+    SyncBuffer(src);
+  }
+  Reader::Done();
+}
+
 bool LimitingReaderBase::PullSlow(size_t min_length,
                                   size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
