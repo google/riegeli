@@ -147,6 +147,15 @@ inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
   set_buffer(dest.data(), dest.size());
 }
 
+inline void ArrayBackwardWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    if (ABSL_PREDICT_TRUE(SyncScratch())) {
+      written_ = absl::Span<char>(cursor(), written_to_buffer());
+    }
+  }
+  PushableBackwardWriter::Done();
+}
+
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(const Dest& dest)
     : ArrayBackwardWriterBase(kInitiallyOpen), dest_(dest) {

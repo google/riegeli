@@ -200,6 +200,8 @@ inline void ChunkDecoder::Clear() {
   recoverable_ = false;
 }
 
+inline void ChunkDecoder::Done() { recoverable_ = false; }
+
 inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
     *record = absl::string_view();

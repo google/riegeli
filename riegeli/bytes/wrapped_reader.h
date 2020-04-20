@@ -158,6 +158,14 @@ inline void WrappedReaderBase::Initialize(Reader* src) {
   MakeBuffer(src);
 }
 
+inline void WrappedReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Reader* const src = src_reader();
+    SyncBuffer(src);
+  }
+  Reader::Done();
+}
+
 inline void WrappedReaderBase::SyncBuffer(Reader* src) {
   src->set_cursor(cursor());
 }

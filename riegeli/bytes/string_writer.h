@@ -172,10 +172,25 @@ inline void StringWriterBase::Initialize(std::string* dest,
   MakeBuffer(dest);
 }
 
+inline void StringWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    std::string* const dest = dest_string();
+    RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
+        << "StringWriter destination changed unexpectedly";
+    SyncBuffer(dest);
+  }
+  Writer::Done();
+}
+
 inline void StringWriterBase::MakeBuffer(std::string* dest) {
   const size_t cursor_index = dest->size();
   dest->resize(dest->capacity());
   set_buffer(&(*dest)[0], dest->size(), cursor_index);
+}
+
+inline void StringWriterBase::SyncBuffer(std::string* dest) {
+  dest->erase(written_to_buffer());
+  set_buffer(&(*dest)[0], dest->size(), dest->size());
 }
 
 template <typename Dest>

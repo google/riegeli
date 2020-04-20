@@ -23,15 +23,6 @@
 
 namespace riegeli {
 
-void ArrayBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    if (ABSL_PREDICT_TRUE(SyncScratch())) {
-      written_ = absl::Span<char>(cursor(), written_to_buffer());
-    }
-  }
-  PushableBackwardWriter::Done();
-}
-
 bool ArrayBackwardWriterBase::PushSlow(size_t min_length,
                                        size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())

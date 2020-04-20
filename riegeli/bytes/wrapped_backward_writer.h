@@ -160,6 +160,14 @@ inline void WrappedBackwardWriterBase::Initialize(BackwardWriter* dest) {
   MakeBuffer(dest);
 }
 
+void WrappedBackwardWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    BackwardWriter* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
+  BackwardWriter::Done();
+}
+
 inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
   dest->set_cursor(cursor());
 }

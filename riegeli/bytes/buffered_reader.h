@@ -151,6 +151,13 @@ inline void BufferedReader::Reset(size_t buffer_size, Position size_hint) {
   buffer_.Clear();
 }
 
+inline void BufferedReader::VerifyEnd() {
+  // No more data are expected, so allocate a minimal non-empty buffer for
+  // verifying that.
+  set_size_hint(SaturatingAdd(pos(), Position{1}));
+  Reader::VerifyEnd();
+}
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BYTES_BUFFERED_READER_H_

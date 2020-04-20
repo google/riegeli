@@ -231,6 +231,29 @@ inline void ChainWriterBase::Initialize(Chain* dest) {
   set_buffer(buffer.data(), buffer.size());
 }
 
+inline void ChainWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Chain* const dest = dest_chain();
+    RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+        << "ChainWriter destination changed unexpectedly";
+    SyncBuffer(dest);
+  }
+  Writer::Done();
+}
+
+inline void ChainWriterBase::SyncBuffer(Chain* dest) {
+  set_start_pos(pos());
+  dest->RemoveSuffix(available());
+  set_buffer();
+}
+
+inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_length,
+                                        size_t recommended_length) {
+  const absl::Span<char> buffer = dest->AppendBuffer(
+      min_length, recommended_length, Chain::kAnyLength, options_);
+  set_buffer(buffer.data(), buffer.size());
+}
+
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
     : ChainWriterBase(std::move(options)), dest_(dest) {

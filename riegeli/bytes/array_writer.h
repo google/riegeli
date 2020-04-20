@@ -145,6 +145,15 @@ inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
   set_buffer(dest.data(), dest.size());
 }
 
+inline void ArrayWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    if (ABSL_PREDICT_TRUE(SyncScratch())) {
+      written_ = absl::Span<char>(start(), written_to_buffer());
+    }
+  }
+  PushableWriter::Done();
+}
+
 template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(const Dest& dest)
     : ArrayWriterBase(kInitiallyOpen), dest_(dest) {

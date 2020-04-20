@@ -29,16 +29,6 @@
 
 namespace riegeli {
 
-void StringWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    std::string* const dest = dest_string();
-    RIEGELI_ASSERT_EQ(buffer_size(), dest->size())
-        << "StringWriter destination changed unexpectedly";
-    SyncBuffer(dest);
-  }
-  Writer::Done();
-}
-
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Writer::PushSlow(): "
@@ -173,11 +163,6 @@ bool StringWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   set_cursor(start() + new_size);
   return true;
-}
-
-inline void StringWriterBase::SyncBuffer(std::string* dest) {
-  dest->erase(written_to_buffer());
-  set_buffer(&(*dest)[0], dest->size(), dest->size());
 }
 
 }  // namespace riegeli

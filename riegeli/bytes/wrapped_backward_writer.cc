@@ -27,14 +27,6 @@
 
 namespace riegeli {
 
-void WrappedBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    BackwardWriter* const dest = dest_writer();
-    SyncBuffer(dest);
-  }
-  BackwardWriter::Done();
-}
-
 bool WrappedBackwardWriterBase::PushSlow(size_t min_length,
                                          size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())

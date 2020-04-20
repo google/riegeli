@@ -156,6 +156,14 @@ inline void WrappedWriterBase::Initialize(Writer* dest) {
   MakeBuffer(dest);
 }
 
+inline void WrappedWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Writer* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
+  Writer::Done();
+}
+
 inline void WrappedWriterBase::SyncBuffer(Writer* dest) {
   dest->set_cursor(cursor());
 }

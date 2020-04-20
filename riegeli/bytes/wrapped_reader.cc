@@ -29,14 +29,6 @@
 
 namespace riegeli {
 
-void WrappedReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    Reader* const src = src_reader();
-    SyncBuffer(src);
-  }
-  Reader::Done();
-}
-
 bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_GT(min_length, available())
       << "Failed precondition of Reader::PullSlow(): "

@@ -238,6 +238,14 @@ inline void LimitingReaderBase::set_size_limit(Position size_limit) {
   }
 }
 
+inline void LimitingReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Reader* const src = src_reader();
+    SyncBuffer(src);
+  }
+  Reader::Done();
+}
+
 inline void LimitingReaderBase::SyncBuffer(Reader* src) {
   src->set_cursor(cursor());
 }

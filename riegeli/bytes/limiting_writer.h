@@ -208,6 +208,14 @@ inline void LimitingWriterBase::set_size_limit(Position size_limit) {
   size_limit_ = size_limit;
 }
 
+inline void LimitingWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    Writer* const dest = dest_writer();
+    SyncBuffer(dest);
+  }
+  Writer::Done();
+}
+
 inline bool LimitingWriterBase::SyncBuffer(Writer* dest) {
   if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
   dest->set_cursor(cursor());
