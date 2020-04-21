@@ -1197,7 +1197,7 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
     std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
                 size * sizeof(BlockPtr));
   } else if (size >= 1) {
-    RIEGELI_ASSERT_LE(size, 2)
+    RIEGELI_ASSERT_LE(size, 2u)
         << "Failed invariant of Chain: "
            "only two block pointers fit without allocating their array";
     new_begin[new_capacity].block_offset = 0;
@@ -1287,7 +1287,7 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
                 size * sizeof(BlockPtr));
   } else if (size >= 1) {
-    RIEGELI_ASSERT_LE(size, 2)
+    RIEGELI_ASSERT_LE(size, 2u)
         << "Failed invariant of Chain: "
            "only two block pointers fit without allocating their array";
     new_begin[new_capacity].block_offset = 0;
