@@ -51,13 +51,23 @@ char* WriteVarint64(uint64_t data, char* dest);
 // Implementation details follow.
 
 inline bool WriteVarint32(uint32_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint32))) return false;
+  if (ABSL_PREDICT_FALSE(!dest->Push(RIEGELI_IS_CONSTANT(data) ||
+                                             RIEGELI_IS_CONSTANT(data < 0x80)
+                                         ? LengthVarint32(data)
+                                         : kMaxLengthVarint32))) {
+    return false;
+  }
   dest->set_cursor(WriteVarint32(data, dest->cursor()));
   return true;
 }
 
 inline bool WriteVarint64(uint64_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(kMaxLengthVarint64))) return false;
+  if (ABSL_PREDICT_FALSE(!dest->Push(RIEGELI_IS_CONSTANT(data) ||
+                                             RIEGELI_IS_CONSTANT(data < 0x80)
+                                         ? LengthVarint64(data)
+                                         : kMaxLengthVarint64))) {
+    return false;
+  }
   dest->set_cursor(WriteVarint64(data, dest->cursor()));
   return true;
 }
