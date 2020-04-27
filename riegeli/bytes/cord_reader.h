@@ -58,6 +58,7 @@ class CordReaderBase : public PullableReader {
   void Reset(InitiallyOpen);
   void Initialize(const absl::Cord* src);
 
+  void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using PullableReader::ReadSlow;
   bool ReadSlow(Chain* dest, size_t length) override;
@@ -68,26 +69,39 @@ class CordReaderBase : public PullableReader {
   bool SeekSlow(Position new_pos) override;
 
   // Invariant:
-  //   if `closed()` then `iter_` is unspecified and must not be touched
-  //   else `iter_` reads from `*src_cord()`
-  absl::Cord::CharIterator iter_;
+  //   if `closed()` or
+  //      `*src_cord()` is flat with size at most `kMaxBytesToCopy`
+  //       then `iter_ == absl::nullopt`
+  //       else `iter_ != absl::nullopt` and
+  //            `*iter_` reads from `*src_cord()`
+  absl::optional<absl::Cord::CharIterator> iter_;
 
  private:
-  // Moves `iter_` to account for data which have been read from the buffer.
+  // Moves `*iter_` to account for data which have been read from the buffer.
+  //
+  // Precondition: `iter_ != absl::nullopt`
   void SyncBuffer();
 
-  // Sets buffer pointers to `absl::Cord::ChunkRemaining(iter_)`,
-  // or to `nullptr` if `iter_ == src->char_end()`.
+  // Sets buffer pointers to `absl::Cord::ChunkRemaining(*iter_)`,
+  // or to `nullptr` if `*iter_ == src->char_end()`.
+  //
+  // Precondition: `iter_ != absl::nullopt`
   void MakeBuffer(const absl::Cord* src);
 
-  // Invariants if `!closed()` and scratch is not used:
-  //   `start() == (iter_ == src_cord()->char_end()
+  // Invariants if `iter_ == absl::nullopt` and not `closed()`:
+  //   scratch is not used
+  //   `start() == src_cord()->TryFlat()->data()`
+  //   `buffer_size() == src_cord()->TryFlat()->size()`
+  //   `start_pos() == 0`
+  //
+  // Invariants if `iter_ != absl::nullopt` and scratch is not used:
+  //   `start() == (*iter_ == src_cord()->char_end()
   //                    ? nullptr
-  //                    : absl::Cord::ChunkRemaining(iter_).data())`
-  //   `buffer_size() == (iter_ == src_cord()->char_end()
+  //                    : absl::Cord::ChunkRemaining(*iter_).data())`
+  //   `buffer_size() == (*iter_ == src_cord()->char_end()
   //                          ? 0
-  //                          : absl::Cord::ChunkRemaining(iter_).size())`
-  //   `start_pos()` is the position of `iter_` in `*src_cord()`
+  //                          : absl::Cord::ChunkRemaining(*iter_).size())`
+  //   `start_pos()` is the position of `*iter_` in `*src_cord()`
 };
 
 // A `Reader` which reads from an `absl::Cord`. It supports random access.
@@ -155,27 +169,37 @@ inline CordReaderBase& CordReaderBase::operator=(
 
 inline void CordReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
-  // `iter_` is left unspecified.
+  iter_ = absl::nullopt;
 }
 
 inline void CordReaderBase::Reset(InitiallyOpen) {
   PullableReader::Reset(kInitiallyOpen);
-  // `iter_` will be set by `Initialize()`;
+  iter_ = absl::nullopt;
 }
 
 inline void CordReaderBase::Initialize(const absl::Cord* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CordReader: null Cord pointer";
+  if (const absl::optional<absl::string_view> flat = src->TryFlat()) {
+    if (flat->size() <= kMaxBytesToCopy) {
+      set_buffer(flat->data(), flat->size());
+      move_limit_pos(available());
+      return;
+    }
+  }
   iter_ = src->char_begin();
   MakeBuffer(src);
 }
 
 inline void CordReaderBase::MakeBuffer(const absl::Cord* src) {
-  if (iter_ == src->char_end()) {
+  RIEGELI_ASSERT(iter_ != absl::nullopt)
+      << "Failed precondition of CordReaderBase::MakeBuffer(): "
+         "no Cord iterator";
+  if (*iter_ == src->char_end()) {
     set_buffer();
     return;
   }
-  const absl::string_view fragment = absl::Cord::ChunkRemaining(iter_);
+  const absl::string_view fragment = absl::Cord::ChunkRemaining(*iter_);
   set_buffer(fragment.data(), fragment.size());
   move_limit_pos(available());
 }
@@ -244,20 +268,29 @@ template <typename Src>
 inline void CordReader<Src>::MoveSrc(CordReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
-    if (ABSL_PREDICT_TRUE(!closed())) iter_ = std::move(that.iter_);
+    iter_ = std::move(that.iter_);
   } else {
     BehindScratch behind_scratch(this);
     const size_t position = IntCast<size_t>(start_pos());
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
-    if (ABSL_PREDICT_TRUE(!closed())) {
+    if (that.iter_ == absl::nullopt) {
+      iter_ = absl::nullopt;
+      if (start() != nullptr) {
+        const absl::optional<absl::string_view> flat = src_->TryFlat();
+        RIEGELI_ASSERT(flat != absl::nullopt)
+            << "Failed invariant of CordReaderBase: "
+               "no Cord iterator but Cord is not flat";
+        set_buffer(flat->data(), flat->size(), cursor_index);
+      }
+    } else {
       if (position == src_->size()) {
         iter_ = src_->char_end();
         set_buffer();
       } else {
         iter_ = src_->char_begin();
-        absl::Cord::Advance(&iter_, position);
-        const absl::string_view fragment = absl::Cord::ChunkRemaining(iter_);
+        absl::Cord::Advance(&*iter_, position);
+        const absl::string_view fragment = absl::Cord::ChunkRemaining(*iter_);
         set_buffer(fragment.data(), fragment.size(), cursor_index);
       }
     }
