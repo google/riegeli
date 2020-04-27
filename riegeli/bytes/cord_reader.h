@@ -268,7 +268,7 @@ template <typename Src>
 inline void CordReader<Src>::MoveSrc(CordReader&& that) {
   if (src_.kIsStable()) {
     src_ = std::move(that.src_);
-    iter_ = std::move(that.iter_);
+    iter_ = std::exchange(that.iter_, absl::nullopt);
   } else {
     BehindScratch behind_scratch(this);
     const size_t position = IntCast<size_t>(start_pos());
@@ -284,6 +284,8 @@ inline void CordReader<Src>::MoveSrc(CordReader&& that) {
         set_buffer(flat->data(), flat->size(), cursor_index);
       }
     } else {
+      // Reset `that.iter_` before `iter_` to support self-assignment.
+      that.iter_ = absl::nullopt;
       if (position == src_->size()) {
         iter_ = src_->char_end();
         set_buffer();
