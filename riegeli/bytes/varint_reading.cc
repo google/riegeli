@@ -29,12 +29,11 @@ absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
   uint8_t byte;
   size_t shift = kReadVarint64SlowThreshold;
   do {
-    result -= uint64_t{0x80} << shift;
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
+    result += (uint64_t{byte} - 1) << shift;
     shift += 7;
-    result += uint64_t{byte} << shift;
-    if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint64 - 1) * 7)) {
+    if (ABSL_PREDICT_FALSE(shift == kMaxLengthVarint64 * 7)) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
@@ -53,12 +52,11 @@ absl::optional<uint32_t> StreamingReadVarint32Slow(Reader* src) {
   uint32_t result = uint32_t{byte};
   size_t length = 1;
   while (byte >= 0x80) {
-    result -= uint32_t{0x80} << ((length - 1) * 7);
     if (ABSL_PREDICT_FALSE(!src->Pull(length + 1, kMaxLengthVarint32))) {
       return absl::nullopt;
     }
     byte = src->cursor()[length];
-    result += uint32_t{byte} << (length * 7);
+    result += (uint32_t{byte} - 1) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint32)) {
       // Last possible byte.
@@ -80,12 +78,11 @@ absl::optional<uint64_t> StreamingReadVarint64Slow(Reader* src) {
   uint64_t result = uint64_t{byte};
   size_t length = 1;
   while (byte >= 0x80) {
-    result -= uint64_t{0x80} << ((length - 1) * 7);
     if (ABSL_PREDICT_FALSE(!src->Pull(length + 1, kMaxLengthVarint64))) {
       return absl::nullopt;
     }
     byte = src->cursor()[length];
-    result += uint64_t{byte} << (length * 7);
+    result += (uint64_t{byte} - 1) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint64)) {
       // Last possible byte.

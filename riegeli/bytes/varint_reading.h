@@ -220,14 +220,13 @@ inline absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32(
   if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
   uint8_t byte = static_cast<uint8_t>(*src++);
   uint32_t result = uint32_t{byte};
-  size_t shift = 0;
+  size_t shift = 7;
   while (byte >= 0x80) {
-    result -= uint32_t{0x80} << shift;
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
+    result += (uint32_t{byte} - 1) << shift;
     shift += 7;
-    result += uint32_t{byte} << shift;
-    if (ABSL_PREDICT_FALSE(shift == (kMaxLengthVarint32 - 1) * 7)) {
+    if (ABSL_PREDICT_FALSE(shift == kMaxLengthVarint32 * 7)) {
       // Last possible byte.
       if (ABSL_PREDICT_FALSE(
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
@@ -243,7 +242,7 @@ inline absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32(
 
 namespace internal {
 
-constexpr size_t kReadVarint64SlowThreshold = 4 * 7;
+constexpr size_t kReadVarint64SlowThreshold = 5 * 7;
 
 absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
     const char* src, const char* limit, uint64_t result);
@@ -255,16 +254,15 @@ inline absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64(
   if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
   uint8_t byte = static_cast<uint8_t>(*src++);
   uint64_t result = uint64_t{byte};
-  size_t shift = 0;
+  size_t shift = 7;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(shift == internal::kReadVarint64SlowThreshold)) {
       return internal::ReadVarint64Slow(src, limit, result);
     }
-    result -= uint64_t{0x80} << shift;
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
+    result += (uint64_t{byte} - 1) << shift;
     shift += 7;
-    result += uint64_t{byte} << shift;
   }
   return ReadFromStringResult<uint64_t>{result, src};
 }
