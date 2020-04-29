@@ -126,19 +126,27 @@ inline size_t LengthVarint64(uint64_t data) {
 }
 
 inline char* WriteVarint32(uint32_t data, char* dest) {
-  while (data >= 0x80) {
+  if (data < 0x80) {
+    *dest++ = static_cast<char>(data);
+    return dest;
+  }
+  do {
     *dest++ = static_cast<char>(data | 0x80);
     data >>= 7;
-  }
+  } while (data >= 0x80);
   *dest++ = static_cast<char>(data);
   return dest;
 }
 
 inline char* WriteVarint64(uint64_t data, char* dest) {
-  while (data >= 0x80) {
+  if (data < 0x80) {
+    *dest++ = static_cast<char>(data);
+    return dest;
+  }
+  do {
     *dest++ = static_cast<char>(data | 0x80);
     data >>= 7;
-  }
+  } while (data >= 0x80);
   *dest++ = static_cast<char>(data);
   return dest;
 }
