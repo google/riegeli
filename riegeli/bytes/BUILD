@@ -538,6 +538,20 @@ cc_library(
 )
 
 cc_library(
+    name = "std_io",
+    srcs = ["std_io.cc"],
+    hdrs = ["std_io.h"],
+    deps = [
+        ":istream_reader",
+        ":ostream_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "ostream_writer",
     srcs = [
         "ostream_writer.cc",

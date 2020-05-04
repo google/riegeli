@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_MESSAGE_PARSE_H_
 #define RIEGELI_BYTES_MESSAGE_PARSE_H_
 
+#include <stdint.h>
+
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -23,7 +25,9 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/reader.h"
@@ -108,6 +112,27 @@ absl::Status ParseFromChain(const Chain& src,
 absl::Status ParseFromCord(const absl::Cord& src,
                            google::protobuf::MessageLite* dest,
                            ParseOptions options = ParseOptions());
+
+// Adapts a `Reader` to a `google::protobuf::io::ZeroCopyInputStream`.
+class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
+ public:
+  explicit ReaderInputStream(Reader* src)
+      : src_(RIEGELI_ASSERT_NOTNULL(src)), initial_pos_(src_->pos()) {}
+
+  bool Next(const void** data, int* size) override;
+  void BackUp(int length) override;
+  bool Skip(int length) override;
+  int64_t ByteCount() const override;
+
+ private:
+  Position relative_pos() const;
+
+  Reader* src_;
+  // Invariants:
+  //   `src_->pos() >= initial_pos_`
+  //   `src_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
+  Position initial_pos_;
+};
 
 // Implementation details follow.
 

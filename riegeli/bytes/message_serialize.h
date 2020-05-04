@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_BYTES_MESSAGE_SERIALIZE_H_
 
+#include <stdint.h>
+
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -23,7 +25,9 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/writer.h"
@@ -125,6 +129,26 @@ absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
                              absl::Cord* dest,
                              SerializeOptions options = SerializeOptions());
+
+// Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.
+class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
+ public:
+  explicit WriterOutputStream(Writer* dest)
+      : dest_(RIEGELI_ASSERT_NOTNULL(dest)), initial_pos_(dest_->pos()) {}
+
+  bool Next(void** data, int* size) override;
+  void BackUp(int length) override;
+  int64_t ByteCount() const override;
+
+ private:
+  Position relative_pos() const;
+
+  Writer* dest_;
+  // Invariants:
+  //   `dest_->pos() >= initial_pos_`
+  //   `dest_->pos() - initial_pos_ <= std::numeric_limits<int64_t>::max()`
+  Position initial_pos_;
+};
 
 // Implementation details follow.
 
