@@ -38,7 +38,8 @@ class SerializeOptions {
  public:
   SerializeOptions() noexcept {}
 
-  // If `false`, missing required fields cause a failure.
+  // If `false`, all required fields must be set. This is verified in debug
+  // mode.
   //
   // If `true`, missing required fields result in a partial serialized message,
   // not having these fields.

@@ -40,12 +40,10 @@ namespace internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
                                    Writer* dest, SerializeOptions options) {
-  if (!options.partial() && ABSL_PREDICT_FALSE(!src.IsInitialized())) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Failed to serialize message of type ", src.GetTypeName(),
-                     " because it is missing required fields: ",
-                     src.InitializationErrorString()));
-  }
+  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << " because it is missing required fields: "
+      << src.InitializationErrorString();
   const size_t size = src.ByteSizeLong();
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return absl::ResourceExhaustedError(absl::StrCat(
