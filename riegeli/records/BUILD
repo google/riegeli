@@ -20,6 +20,7 @@ cc_library(
         "//riegeli/base:options_parser",
         "//riegeli/base:parallelism",
         "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:message_serialize",
         "//riegeli/bytes:writer",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:chunk_encoder",

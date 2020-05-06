@@ -93,15 +93,6 @@ class FileDescriptorCollector {
   absl::flat_hash_set<std::string> files_seen_;
 };
 
-template <typename Record>
-inline size_t RecordSize(const Record& record) {
-  return record.size();
-}
-
-inline size_t RecordSize(const google::protobuf::MessageLite& record) {
-  return record.ByteSizeLong();
-}
-
 }  // namespace
 
 void SetRecordType(RecordsMetadata* metadata,
@@ -173,6 +164,8 @@ class RecordWriterBase::Worker : public Object {
   // Precondition: chunk is open.
   template <typename Record>
   bool AddRecord(Record&& record);
+  bool AddRecord(const google::protobuf::MessageLite& record,
+                 SerializeOptions serialize_options);
 
   // Precondition: chunk is open.
   //
@@ -259,9 +252,10 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk* chunk) {
   TransposeEncoder transpose_encoder(options_.compressor_options(),
                                      std::numeric_limits<uint64_t>::max());
   if (ABSL_PREDICT_FALSE(
-          options_.serialized_metadata().empty()
-              ? !transpose_encoder.AddRecord(options_.metadata())
-              : !transpose_encoder.AddRecord(options_.serialized_metadata()))) {
+          options_.metadata() != absl::nullopt
+              ? !transpose_encoder.AddRecord(*options_.metadata())
+              : !transpose_encoder.AddRecord(
+                    *options_.serialized_metadata()))) {
     return Fail(transpose_encoder);
   }
   ChainWriter<> data_writer(&chunk->data);
@@ -283,6 +277,17 @@ inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(std::forward<Record>(record)))) {
+    return Fail(*chunk_encoder_);
+  }
+  return true;
+}
+
+inline bool RecordWriterBase::Worker::AddRecord(
+    const google::protobuf::MessageLite& record,
+    SerializeOptions serialize_options) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(
+          !chunk_encoder_->AddRecord(record, std::move(serialize_options)))) {
     return Fail(*chunk_encoder_);
   }
   return true;
@@ -339,8 +344,8 @@ bool RecordWriterBase::SerialWorker::WriteSignature() {
 
 bool RecordWriterBase::SerialWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata().ByteSizeLong() == 0 &&
-      options_.serialized_metadata().empty()) {
+  if (options_.metadata() == absl::nullopt &&
+      options_.serialized_metadata() == absl::nullopt) {
     return true;
   }
   Chunk chunk;
@@ -543,8 +548,8 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
 
 bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (options_.metadata().ByteSizeLong() == 0 &&
-      options_.serialized_metadata().empty()) {
+  if (options_.metadata() == absl::nullopt &&
+      options_.serialized_metadata() == absl::nullopt) {
     return true;
   }
   ChunkPromises* const chunk_promises = new ChunkPromises();
@@ -705,8 +710,29 @@ void RecordWriterBase::Done() {
 void RecordWriterBase::DoneBackground() { worker_.reset(); }
 
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
+                                   SerializeOptions serialize_options,
                                    FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  // Decoding a chunk writes records to one array, and their positions to
+  // another array. We limit the size of both arrays together, to include
+  // attempts to accumulate an unbounded number of empty records.
+  const size_t size = serialize_options.GetByteSize(record);
+  const uint64_t added_size =
+      SaturatingAdd(IntCast<uint64_t>(size), uint64_t{sizeof(uint64_t)});
+  if (ABSL_PREDICT_FALSE(chunk_size_so_far_ > desired_chunk_size_ ||
+                         added_size >
+                             desired_chunk_size_ - chunk_size_so_far_) &&
+      chunk_size_so_far_ > 0) {
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) return Fail(*worker_);
+    worker_->OpenChunk();
+    chunk_size_so_far_ = 0;
+  }
+  chunk_size_so_far_ += added_size;
+  if (key != nullptr) *key = worker_->Pos();
+  if (ABSL_PREDICT_FALSE(!worker_->AddRecord(record, serialize_options))) {
+    return Fail(*worker_);
+  }
+  return true;
 }
 
 bool RecordWriterBase::WriteRecord(absl::string_view record,
@@ -751,8 +777,8 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
-  const uint64_t added_size = SaturatingAdd(
-      IntCast<uint64_t>(RecordSize(record)), uint64_t{sizeof(uint64_t)});
+  const uint64_t added_size = SaturatingAdd(IntCast<uint64_t>(record.size()),
+                                            uint64_t{sizeof(uint64_t)});
   if (ABSL_PREDICT_FALSE(chunk_size_so_far_ > desired_chunk_size_ ||
                          added_size >
                              desired_chunk_size_ - chunk_size_so_far_) &&

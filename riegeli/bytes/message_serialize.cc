@@ -44,7 +44,7 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
-  const size_t size = src.ByteSizeLong();
+  const size_t size = options.GetByteSize(src);
   if (ABSL_PREDICT_FALSE(size > size_t{std::numeric_limits<int>::max()})) {
     return absl::ResourceExhaustedError(absl::StrCat(
         "Failed to serialize message of type ", src.GetTypeName(),
@@ -53,12 +53,20 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
   WriterOutputStream output_stream(dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
   coded_stream.SetSerializationDeterministic(options.deterministic());
-  if (ABSL_PREDICT_FALSE(!src.SerializePartialToCodedStream(&coded_stream))) {
+  src.SerializeWithCachedSizes(&coded_stream);
+  if (ABSL_PREDICT_FALSE(coded_stream.HadError())) {
     RIEGELI_ASSERT(!dest->healthy())
         << "Failed to serialize message of type " << src.GetTypeName()
-        << ": SerializePartialToCodedStream() failed for an unknown reason";
+        << ": SerializeWithCachedSizes() failed for an unknown reason";
     return dest->status();
   }
+  RIEGELI_ASSERT_EQ(size, src.ByteSizeLong())
+      << src.GetTypeName() << " was modified concurrently during serialization";
+  RIEGELI_ASSERT_EQ(coded_stream.ByteCount(), size)
+      << "Byte size calculation and serialization were inconsistent. This "
+         "may indicate a bug in protocol buffers or it may be caused by "
+         "concurrent modification of "
+      << src.GetTypeName();
   return absl::OkStatus();
 }
 
@@ -67,30 +75,33 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string* dest, SerializeOptions options) {
   dest->clear();
+  const size_t size = options.GetByteSize(src);
   return SerializeToWriter<StringWriter<>>(
       src,
-      std::forward_as_tuple(
-          dest, StringWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      std::forward_as_tuple(dest,
+                            StringWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
                               Chain* dest, SerializeOptions options) {
   dest->Clear();
+  const size_t size = options.GetByteSize(src);
   return SerializeToWriter<ChainWriter<>>(
       src,
-      std::forward_as_tuple(
-          dest, ChainWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      std::forward_as_tuple(dest,
+                            ChainWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
                              absl::Cord* dest, SerializeOptions options) {
   dest->Clear();
+  const size_t size = options.GetByteSize(src);
   return SerializeToWriter<CordWriter<>>(
       src,
-      std::forward_as_tuple(
-          dest, CordWriterBase::Options().set_size_hint(src.ByteSizeLong())),
+      std::forward_as_tuple(dest,
+                            CordWriterBase::Options().set_size_hint(size)),
       options);
 }
 

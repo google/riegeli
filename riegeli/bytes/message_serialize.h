@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <limits>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -71,9 +72,35 @@ class SerializeOptions {
   }
   bool deterministic() const { return deterministic_; }
 
+  // If `true`, promises that `ByteSizeLong()` has been called on the message
+  // being serialized after its last modification, and that its result does not
+  // exceed `std::numeric_limits<int>::max()`.
+  //
+  // This makes serialization faster by allowing to use `GetCachedSize()`
+  // instead of `ByteSizeLong()`.
+  //
+  // Default: `false`
+  SerializeOptions& set_has_cached_size(bool has_cached_size) & {
+    has_cached_size_ = has_cached_size;
+    return *this;
+  }
+  SerializeOptions&& set_has_cached_size(bool has_cached_size) && {
+    return std::move(set_has_cached_size(has_cached_size));
+  }
+  bool has_cached_size() const { return has_cached_size_; }
+
+  // Returns `message.ByteSizeLong()` faster.
+  //
+  // Requires that these `SerializeOptions` will be used only for serializing
+  // this `message`, which will not be modified in the meantime.
+  //
+  // This consults and updates `has_cached_size()` in these `SerializeOptions`.
+  size_t GetByteSize(const google::protobuf::MessageLite& message);
+
  private:
   bool partial_ = false;
   bool deterministic_ = false;
+  bool has_cached_size_ = false;
 };
 
 // Writes the message in binary format to the given `Writer`.
@@ -152,6 +179,16 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 };
 
 // Implementation details follow.
+
+inline size_t SerializeOptions::GetByteSize(
+    const google::protobuf::MessageLite& message) {
+  if (has_cached_size()) return IntCast<size_t>(message.GetCachedSize());
+  const size_t size = message.ByteSizeLong();
+  if (ABSL_PREDICT_TRUE(size <= size_t{std::numeric_limits<int>::max()})) {
+    set_has_cached_size(true);
+  }
+  return size;
+}
 
 namespace internal {
 

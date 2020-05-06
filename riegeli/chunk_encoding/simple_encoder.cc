@@ -54,9 +54,10 @@ void SimpleEncoder::Clear() {
   values_compressor_.Clear();
 }
 
-bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
+bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
+                              SerializeOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const size_t size = record.ByteSizeLong();
+  const size_t size = serialize_options.GetByteSize(record);
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
   }
@@ -71,8 +72,8 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record) {
     return Fail(*sizes_compressor_.writer());
   }
   {
-    absl::Status status =
-        SerializeToWriter(record, values_compressor_.writer());
+    absl::Status status = SerializeToWriter(record, values_compressor_.writer(),
+                                            std::move(serialize_options));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

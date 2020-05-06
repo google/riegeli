@@ -27,6 +27,7 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
 
@@ -55,7 +56,9 @@ class ChunkEncoder : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool AddRecord(const google::protobuf::MessageLite& record);
+  bool AddRecord(const google::protobuf::MessageLite& record);
+  virtual bool AddRecord(const google::protobuf::MessageLite& record,
+                         SerializeOptions serialize_options);
   virtual bool AddRecord(absl::string_view record) = 0;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
@@ -107,6 +110,11 @@ inline void ChunkEncoder::Clear() {
   Object::Reset(kInitiallyOpen);
   num_records_ = 0;
   decoded_data_size_ = 0;
+}
+
+inline bool ChunkEncoder::AddRecord(
+    const google::protobuf::MessageLite& record) {
+  return AddRecord(record, SerializeOptions());
 }
 
 template <typename Src,

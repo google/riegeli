@@ -35,6 +35,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/base/stable_dependency.h"
+#include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/records/chunk_writer.h"
@@ -277,8 +278,8 @@ class RecordWriterBase : public Object {
     }
     double bucket_fraction() const { return bucket_fraction_; }
 
-    // Sets file metadata to be written at the beginning (if metadata has any
-    // fields set).
+    // Sets file metadata to be written at the beginning (unless
+    // `absl::nullopt`).
     //
     // Metadata are written only when the file is written from the beginning,
     // not when it is appended to.
@@ -286,15 +287,31 @@ class RecordWriterBase : public Object {
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
     // Default: no fields set
+    Options& set_metadata(const absl::optional<RecordsMetadata>& metadata) & {
+      metadata_ = metadata;
+      serialized_metadata_ = absl::nullopt;
+      return *this;
+    }
+    Options& set_metadata(absl::optional<RecordsMetadata>&& metadata) & {
+      metadata_ = std::move(metadata);
+      serialized_metadata_ = absl::nullopt;
+      return *this;
+    }
     Options& set_metadata(const RecordsMetadata& metadata) & {
       metadata_ = metadata;
-      serialized_metadata_.Clear();
+      serialized_metadata_ = absl::nullopt;
       return *this;
     }
     Options& set_metadata(RecordsMetadata&& metadata) & {
       metadata_ = std::move(metadata);
-      serialized_metadata_.Clear();
+      serialized_metadata_ = absl::nullopt;
       return *this;
+    }
+    Options&& set_metadata(const absl::optional<RecordsMetadata>& metadata) && {
+      return std::move(set_metadata(metadata));
+    }
+    Options&& set_metadata(absl::optional<RecordsMetadata>&& metadata) && {
+      return std::move(set_metadata(std::move(metadata)));
     }
     Options&& set_metadata(const RecordsMetadata& metadata) && {
       return std::move(set_metadata(metadata));
@@ -302,23 +319,49 @@ class RecordWriterBase : public Object {
     Options&& set_metadata(RecordsMetadata&& metadata) && {
       return std::move(set_metadata(std::move(metadata)));
     }
-    RecordsMetadata& metadata() & { return metadata_; }
-    const RecordsMetadata& metadata() const& { return metadata_; }
-    RecordsMetadata&& metadata() && { return std::move(metadata_); }
-    const RecordsMetadata&& metadata() const&& { return std::move(metadata_); }
+    absl::optional<RecordsMetadata>& metadata() & { return metadata_; }
+    const absl::optional<RecordsMetadata>& metadata() const& {
+      return metadata_;
+    }
+    absl::optional<RecordsMetadata>&& metadata() && {
+      return std::move(metadata_);
+    }
+    const absl::optional<RecordsMetadata>&& metadata() const&& {
+      return std::move(metadata_);
+    }
 
     // Like `set_metadata()`, but metadata are passed in the serialized form.
     //
     // This is faster if the caller has metadata already serialized.
+    Options& set_serialized_metadata(
+        const absl::optional<Chain>& serialized_metadata) & {
+      metadata_ = absl::nullopt;
+      serialized_metadata_ = serialized_metadata;
+      return *this;
+    }
+    Options& set_serialized_metadata(
+        absl::optional<Chain>&& serialized_metadata) & {
+      metadata_ = absl::nullopt;
+      serialized_metadata_ = std::move(serialized_metadata);
+      return *this;
+    }
     Options& set_serialized_metadata(const Chain& serialized_metadata) & {
-      metadata_.Clear();
+      metadata_ = absl::nullopt;
       serialized_metadata_ = serialized_metadata;
       return *this;
     }
     Options& set_serialized_metadata(Chain&& serialized_metadata) & {
-      metadata_.Clear();
+      metadata_ = absl::nullopt;
       serialized_metadata_ = std::move(serialized_metadata);
       return *this;
+    }
+    Options&& set_serialized_metadata(
+        const absl::optional<Chain>& serialized_metadata) && {
+      return std::move(set_serialized_metadata(serialized_metadata));
+    }
+    Options&& set_serialized_metadata(
+        absl::optional<Chain>&& serialized_metadata) && {
+      return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
     Options&& set_serialized_metadata(const Chain& serialized_metadata) && {
       return std::move(set_serialized_metadata(serialized_metadata));
@@ -326,10 +369,16 @@ class RecordWriterBase : public Object {
     Options&& set_serialized_metadata(Chain&& serialized_metadata) && {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
-    Chain& serialized_metadata() & { return serialized_metadata_; }
-    const Chain& serialized_metadata() const& { return serialized_metadata_; }
-    Chain&& serialized_metadata() && { return std::move(serialized_metadata_); }
-    const Chain&& serialized_metadata() const&& {
+    absl::optional<Chain>& serialized_metadata() & {
+      return serialized_metadata_;
+    }
+    const absl::optional<Chain>& serialized_metadata() const& {
+      return serialized_metadata_;
+    }
+    absl::optional<Chain>&& serialized_metadata() && {
+      return std::move(serialized_metadata_);
+    }
+    const absl::optional<Chain>&& serialized_metadata() const&& {
       return std::move(serialized_metadata_);
     }
 
@@ -382,8 +431,8 @@ class RecordWriterBase : public Object {
     CompressorOptions compressor_options_;
     absl::optional<uint64_t> chunk_size_;
     double bucket_fraction_ = 1.0;
-    RecordsMetadata metadata_;
-    Chain serialized_metadata_;
+    absl::optional<RecordsMetadata> metadata_;
+    absl::optional<Chain> serialized_metadata_;
     bool pad_to_block_boundary_ = false;
     int parallelism_ = 0;
   };
@@ -410,6 +459,9 @@ class RecordWriterBase : public Object {
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
   bool WriteRecord(const google::protobuf::MessageLite& record,
+                   FutureRecordPosition* key = nullptr);
+  bool WriteRecord(const google::protobuf::MessageLite& record,
+                   SerializeOptions serialize_options,
                    FutureRecordPosition* key = nullptr);
   bool WriteRecord(absl::string_view record,
                    FutureRecordPosition* key = nullptr);
@@ -563,6 +615,11 @@ class RecordWriter : public RecordWriterBase {
 
 extern template bool RecordWriterBase::WriteRecord(std::string&& record,
                                                    FutureRecordPosition* key);
+
+inline bool RecordWriterBase::WriteRecord(
+    const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
+  return WriteRecord(record, SerializeOptions(), key);
+}
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(const Dest& dest, Options options)

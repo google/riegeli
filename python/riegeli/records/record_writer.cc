@@ -284,7 +284,6 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
       }
     }
   }
-  bool had_metadata = false;
   if (metadata_arg != nullptr && metadata_arg != Py_None) {
     static constexpr Identifier id_SerializeToString("SerializeToString");
     const PythonPtr serialized_metadata_str(PyObject_CallMethodObjArgs(
@@ -295,22 +294,20 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     if (ABSL_PREDICT_FALSE(serialized_metadata == absl::nullopt)) return -1;
     record_writer_options.set_serialized_metadata(
         *std::move(serialized_metadata));
-    had_metadata = true;
   }
-  if (serialized_metadata_arg != nullptr) {
+  if (serialized_metadata_arg != nullptr &&
+      serialized_metadata_arg != Py_None) {
     absl::optional<Chain> serialized_metadata =
         ChainFromPython(serialized_metadata_arg);
     if (ABSL_PREDICT_FALSE(serialized_metadata == absl::nullopt)) return -1;
-    if (!serialized_metadata->empty()) {
-      if (had_metadata) {
-        PyErr_SetString(PyExc_TypeError,
-                        "RecordWriter() got conflicting keyword arguments "
-                        "'metadata' and 'serialized_metadata'");
-        return -1;
-      }
-      record_writer_options.set_serialized_metadata(
-          *std::move(serialized_metadata));
+    if (record_writer_options.serialized_metadata() != absl::nullopt) {
+      PyErr_SetString(PyExc_TypeError,
+                      "RecordWriter() got conflicting keyword arguments "
+                      "'metadata' and 'serialized_metadata'");
+      return -1;
     }
+    record_writer_options.set_serialized_metadata(
+        *std::move(serialized_metadata));
   }
 
   PythonWriter python_writer(dest_arg, std::move(python_writer_options));

@@ -24,6 +24,7 @@
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/message_serialize.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
@@ -50,7 +51,8 @@ class SimpleEncoder : public ChunkEncoder {
   void Clear() override;
 
   using ChunkEncoder::AddRecord;
-  bool AddRecord(const google::protobuf::MessageLite& record) override;
+  bool AddRecord(const google::protobuf::MessageLite& record,
+                 SerializeOptions serialize_options) override;
   bool AddRecord(absl::string_view record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;

@@ -45,9 +45,10 @@ void DeferredEncoder::Clear() {
   limits_.clear();
 }
 
-bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
+bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
+                                SerializeOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const size_t size = record.ByteSizeLong();
+  const size_t size = serialize_options.GetByteSize(record);
   if (ABSL_PREDICT_FALSE(num_records_ ==
                          UnsignedMin(limits_.max_size(), kMaxNumRecords))) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
@@ -59,7 +60,8 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record) {
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
   {
-    absl::Status status = SerializeToWriter(record, &records_writer_);
+    absl::Status status = SerializeToWriter(record, &records_writer_,
+                                            std::move(serialize_options));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }

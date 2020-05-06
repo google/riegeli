@@ -30,11 +30,13 @@ void ChunkEncoder::Done() {
   decoded_data_size_ = 0;
 }
 
-bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record) {
+bool ChunkEncoder::AddRecord(const google::protobuf::MessageLite& record,
+                             SerializeOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain serialized;
   {
-    absl::Status status = SerializeToChain(record, &serialized);
+    absl::Status status =
+        SerializeToChain(record, &serialized, std::move(serialize_options));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }
