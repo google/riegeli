@@ -68,7 +68,7 @@ class WriterStreambuf : public std::streambuf {
 // Template parameter independent part of `WriterOstream`.
 class WriterOstreamBase : public std::ostream {
  public:
-  // Returns the `Writer`. Unchanged by `Close()`.
+  // Returns the `Writer`. Unchanged by `close()`.
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
@@ -99,7 +99,6 @@ class WriterOstreamBase : public std::ostream {
 
   void Initialize(Writer* dest);
 
- protected:
   internal::WriterStreambuf streambuf_;
 
   // Invariant: rdbuf() == &streambuf_

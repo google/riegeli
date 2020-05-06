@@ -69,7 +69,7 @@ class ReaderStreambuf : public std::streambuf {
 // Template parameter independent part of `ReaderIstream`.
 class ReaderIstreamBase : public std::istream {
  public:
-  // Returns the `Reader`. Unchanged by `Close()`.
+  // Returns the `Reader`. Unchanged by `close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
@@ -104,7 +104,6 @@ class ReaderIstreamBase : public std::istream {
 
   void Initialize(Reader* src);
 
- protected:
   internal::ReaderStreambuf streambuf_;
 
   // Invariant: rdbuf() == &streambuf_

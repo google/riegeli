@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <functional>
-#include <limits>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
@@ -90,8 +89,7 @@ size_t ReaderSnappySource::Available() const {
     // There is no way to signal failure here. Pretend that the source ends.
     return 0;
   }
-  return UnsignedMin(SaturatingSub(*size, src_->pos()),
-                     std::numeric_limits<size_t>::max());
+  return SaturatingIntCast<size_t>(SaturatingSub(*size, src_->pos()));
 }
 
 const char* ReaderSnappySource::Peek(size_t* length) {
