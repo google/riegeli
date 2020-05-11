@@ -22,6 +22,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
@@ -94,8 +95,8 @@ class RecyclingPool {
   // Returns a default global pool specific to template parameters of
   // `RecyclingPool`.
   //
-  // If called multiple times with different `max_size` arguments, the effective
-  // `max_size` is their maximum.
+  // If called multiple times with different `max_size` arguments, the last
+  // `max_size` is in effect.
   static RecyclingPool& global(size_t max_size = kDefaultMaxSize);
 
   // Creates an object, or returns an existing object from the pool if possible.
@@ -128,7 +129,7 @@ class RecyclingPool {
 
   using ByKey = absl::flat_hash_map<Key, Entries>;
 
-  void adjust_max_size(size_t max_size);
+  void set_max_size(size_t max_size);
 
   void Put(const Key& key, std::unique_ptr<T, Deleter> object);
 
@@ -192,7 +193,7 @@ class RecyclingPool<T, Deleter, void> {
   Handle Get(Factory factory, Refurbisher refurbisher = DefaultRefurbisher());
 
  private:
-  void adjust_max_size(size_t max_size);
+  void set_max_size(size_t max_size);
 
   void Put(std::unique_ptr<T, Deleter> object);
 
@@ -216,17 +217,13 @@ template <typename T, typename Deleter, typename Key>
 RecyclingPool<T, Deleter, Key>& RecyclingPool<T, Deleter, Key>::global(
     size_t max_size) {
   static NoDestructor<RecyclingPool> kStaticRecyclingPool(max_size);
-  kStaticRecyclingPool->adjust_max_size(max_size);
+  kStaticRecyclingPool->set_max_size(max_size);
   return *kStaticRecyclingPool;
 }
 
 template <typename T, typename Deleter, typename Key>
-inline void RecyclingPool<T, Deleter, Key>::adjust_max_size(size_t max_size) {
-  size_t prev_max_size = max_size_.load(std::memory_order_relaxed);
-  while (prev_max_size < max_size &&
-         !max_size_.compare_exchange_weak(prev_max_size, max_size,
-                                          std::memory_order_relaxed)) {
-  }
+inline void RecyclingPool<T, Deleter, Key>::set_max_size(size_t max_size) {
+  max_size_.store(std::memory_order_relaxed);
 }
 
 template <typename T, typename Deleter, typename Key>
@@ -275,7 +272,7 @@ RecyclingPool<T, Deleter, Key>::Get(Key key, Factory factory,
 template <typename T, typename Deleter, typename Key>
 void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
                                          std::unique_ptr<T, Deleter> object) {
-  std::unique_ptr<T, Deleter> evicted;
+  std::vector<std::unique_ptr<T, Deleter>> evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry with this key.
   if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
@@ -301,8 +298,8 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
   --by_freshness_iter;
   // This invalidates `by_key_` iterators, including `cache_`.
   by_key_[key].emplace_back(std::move(object), by_freshness_iter);
-  if (ABSL_PREDICT_FALSE(by_freshness_.size() >
-                         max_size_.load(std::memory_order_relaxed))) {
+  while (ABSL_PREDICT_FALSE(by_freshness_.size() >
+                            max_size_.load(std::memory_order_relaxed))) {
     // Evict the oldest entry.
     const Key& evicted_key = by_freshness_.front();
     const typename ByKey::iterator by_key_iter = by_key_.find(evicted_key);
@@ -315,7 +312,7 @@ void RecyclingPool<T, Deleter, Key>::Put(const Key& key,
     RIEGELI_ASSERT(entries.back().object != nullptr)
         << "Failed invariant of RecyclingPool: "
            "nullptr object not pointed to by cache_";
-    evicted = std::move(entries.front().object);
+    evicted.push_back(std::move(entries.front().object));
     entries.pop_front();
     if (entries.empty()) by_key_.erase(by_key_iter);
     by_freshness_.pop_front();
@@ -335,17 +332,13 @@ inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
 template <typename T, typename Deleter>
 RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(size_t max_size) {
   static NoDestructor<RecyclingPool> kStaticRecyclingPool(max_size);
-  kStaticRecyclingPool->adjust_max_size(max_size);
+  kStaticRecyclingPool->set_max_size(max_size);
   return *kStaticRecyclingPool;
 }
 
 template <typename T, typename Deleter>
-inline void RecyclingPool<T, Deleter>::adjust_max_size(size_t max_size) {
-  size_t prev_max_size = max_size_.load(std::memory_order_relaxed);
-  while (prev_max_size < max_size &&
-         !max_size_.compare_exchange_weak(prev_max_size, max_size,
-                                          std::memory_order_relaxed)) {
-  }
+inline void RecyclingPool<T, Deleter>::set_max_size(size_t max_size) {
+  max_size_.store(std::memory_order_relaxed);
 }
 
 template <typename T, typename Deleter>
@@ -372,14 +365,14 @@ typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
 
 template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
-  std::unique_ptr<T, Deleter> evicted;
+  std::vector<std::unique_ptr<T, Deleter>> evicted;
   absl::MutexLock lock(&mutex_);
   // Add a newest entry.
   by_freshness_.push_back(std::move(object));
   if (ABSL_PREDICT_FALSE(by_freshness_.size() >
                          max_size_.load(std::memory_order_relaxed))) {
     // Evict the oldest entry.
-    evicted = std::move(by_freshness_.front());
+    evicted.push_back(std::move(by_freshness_.front()));
     by_freshness_.pop_front();
   }
   // Destroy `evicted` after releasing `mutex_`.
