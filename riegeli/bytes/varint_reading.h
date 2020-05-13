@@ -268,7 +268,12 @@ inline absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64(
 }
 
 inline absl::optional<char*> CopyVarint32(Reader* src, char* dest) {
-  src->Pull(kMaxLengthVarint32);
+  if (src->available() > 0 && static_cast<uint8_t>(src->limit()[-1]) < 0x80) {
+    // The buffer contains a potential varint terminator. Avoid pulling the
+    // maximum varint length which can be expensive.
+  } else {
+    src->Pull(kMaxLengthVarint32);
+  }
   const absl::optional<ReadFromStringResult<char*>> result =
       CopyVarint32(src->cursor(), src->limit(), dest);
   if (ABSL_PREDICT_FALSE(result == absl::nullopt)) return absl::nullopt;
@@ -277,7 +282,12 @@ inline absl::optional<char*> CopyVarint32(Reader* src, char* dest) {
 }
 
 inline absl::optional<char*> CopyVarint64(Reader* src, char* dest) {
-  src->Pull(kMaxLengthVarint64);
+  if (src->available() > 0 && static_cast<uint8_t>(src->limit()[-1]) < 0x80) {
+    // The buffer contains a potential varint terminator. Avoid pulling the
+    // maximum varint length which can be expensive.
+  } else {
+    src->Pull(kMaxLengthVarint64);
+  }
   const absl::optional<ReadFromStringResult<char*>> result =
       CopyVarint64(src->cursor(), src->limit(), dest);
   if (ABSL_PREDICT_FALSE(result == absl::nullopt)) return absl::nullopt;
@@ -287,9 +297,11 @@ inline absl::optional<char*> CopyVarint64(Reader* src, char* dest) {
 
 inline absl::optional<ReadFromStringResult<char*>> CopyVarint32(
     const char* src, const char* limit, char* dest) {
-  int remaining = kMaxLengthVarint32;
-  uint8_t byte;
-  do {
+  if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
+  uint8_t byte = static_cast<uint8_t>(*src++);
+  *dest++ = static_cast<char>(byte);
+  size_t remaining = kMaxLengthVarint32 - 1;
+  while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
     *dest++ = static_cast<char>(byte);
@@ -303,15 +315,17 @@ inline absl::optional<ReadFromStringResult<char*>> CopyVarint32(
       }
       break;
     }
-  } while (byte >= 0x80);
+  }
   return ReadFromStringResult<char*>{dest, src};
 }
 
 inline absl::optional<ReadFromStringResult<char*>> CopyVarint64(
     const char* src, const char* limit, char* dest) {
-  int remaining = kMaxLengthVarint64;
-  uint8_t byte;
-  do {
+  if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
+  uint8_t byte = static_cast<uint8_t>(*src++);
+  *dest++ = static_cast<char>(byte);
+  size_t remaining = kMaxLengthVarint64 - 1;
+  while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
     *dest++ = static_cast<char>(byte);
@@ -325,7 +339,7 @@ inline absl::optional<ReadFromStringResult<char*>> CopyVarint64(
       }
       break;
     }
-  } while (byte >= 0x80);
+  }
   return ReadFromStringResult<char*>{dest, src};
 }
 
