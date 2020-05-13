@@ -132,9 +132,9 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       const absl::optional<uint64_t> size =
           ReadVarint64(sizes_decompressor.reader());
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-        return !sizes_decompressor.reader()->healthy()
-                   ? sizes_decompressor.reader()->status()
-                   : absl::DataLossError("Reading record size failed");
+        sizes_decompressor.reader()->Fail(
+            absl::DataLossError("Reading record size failed"));
+        return sizes_decompressor.reader()->status();
       }
       simple_chunk->add_record_sizes(*size);
     }
