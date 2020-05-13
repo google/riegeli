@@ -62,7 +62,7 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
   }
   RIEGELI_ASSERT_EQ(size, src.ByteSizeLong())
       << src.GetTypeName() << " was modified concurrently during serialization";
-  RIEGELI_ASSERT_EQ(coded_stream.ByteCount(), size)
+  RIEGELI_ASSERT_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
       << "Byte size calculation and serialization were inconsistent. This "
          "may indicate a bug in protocol buffers or it may be caused by "
          "concurrent modification of "
