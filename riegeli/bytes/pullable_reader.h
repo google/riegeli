@@ -92,27 +92,27 @@ class PullableReader : public Reader {
   // Precondition: `min_length > available()`
   bool PullUsingScratch(size_t min_length, size_t recommended_length);
 
-  // Helps to implement `{Read,CopyTo}Slow(dest, *length)` if scratch is used.
+  // Helps to implement `{Read,CopyTo}Slow(length, dest)` if scratch is used.
   //
   // Return values:
-  //  * `true`  - some data have been copied from scratch to `*dest`,
-  //              `*length` was appropriately reduced, scratch is not used now,
-  //              the caller should continue `{Read,CopyTo}Slow(dest, *length)`
+  //  * `true`  - some data have been copied from scratch to `dest`,
+  //              `length` was appropriately reduced, scratch is not used now,
+  //              the caller should continue `{Read,CopyTo}Slow(length, dest)`
   //              no longer assuming that
-  //              `*length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //              `length > UnsignedMin(available(), kMaxBytesToCopy)`
   //  * `false` - `{Read,CopyTo}Slow()` is done,
-  //              the caller should return `*length == 0` for `ReadSlow()`, or
-  //              `*length == 0 && dest->healthy()` for `CopyToSlow()`
+  //              the caller should return `length == 0` for `ReadSlow()`, or
+  //              `length == 0 && dest.healthy()` for `CopyToSlow()`
   //
   // Preconditions for `ReadScratch()`:
-  //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
-  //   `*length <= std::numeric_limits<size_t>::max() - dest->size()`
+  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `length <= std::numeric_limits<size_t>::max() - dest.size()`
   //
   // Precondition for `CopyScratchTo()`:
-  //   `*length > UnsignedMin(available(), kMaxBytesToCopy)`
-  bool ReadScratch(Chain* dest, size_t* length);
-  bool ReadScratch(absl::Cord* dest, size_t* length);
-  bool CopyScratchTo(Writer* dest, Position* length);
+  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  bool ReadScratch(size_t& length, Chain& dest);
+  bool ReadScratch(size_t& length, absl::Cord& dest);
+  bool CopyScratchTo(Position& length, Writer& dest);
 
   // Helps to implement `SeekSlow()` if scratch is used.
   //
@@ -143,9 +143,9 @@ class PullableReader : public Reader {
   bool ScratchEnds();
 
   void PullToScratchSlow(size_t min_length, size_t recommended_length);
-  bool ReadScratchSlow(Chain* dest, size_t* length);
-  bool ReadScratchSlow(absl::Cord* dest, size_t* length);
-  bool CopyScratchToSlow(Writer* dest, Position* length);
+  bool ReadScratchSlow(size_t& length, Chain& dest);
+  bool ReadScratchSlow(size_t& length, absl::Cord& dest);
+  bool CopyScratchToSlow(Position& length, Writer& dest);
   bool SeekUsingScratchSlow(Position new_pos);
   void SyncScratchSlow();
 
@@ -198,38 +198,38 @@ inline bool PullableReader::PullUsingScratch(size_t min_length,
   return true;
 }
 
-inline bool PullableReader::ReadScratch(Chain* dest, size_t* length) {
-  RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of PullableReader::ReadScratch(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  RIEGELI_ASSERT_LE(*length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of PullableReader::ReadScratch(Chain*): "
+inline bool PullableReader::ReadScratch(size_t& length, Chain& dest) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of PullableReader::ReadScratch(Chain&): "
+         "length too small, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of PullableReader::ReadScratch(Chain&): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return ReadScratchSlow(dest, length);
+    return ReadScratchSlow(length, dest);
   }
   return true;
 }
 
-inline bool PullableReader::ReadScratch(absl::Cord* dest, size_t* length) {
-  RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of PullableReader::ReadScratch(Cord*): "
-         "length too small, use Read(Cord*) instead";
-  RIEGELI_ASSERT_LE(*length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of PullableReader::ReadScratch(Cord*): "
+inline bool PullableReader::ReadScratch(size_t& length, absl::Cord& dest) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of PullableReader::ReadScratch(Cord&): "
+         "length too small, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of PullableReader::ReadScratch(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return ReadScratchSlow(dest, length);
+    return ReadScratchSlow(length, dest);
   }
   return true;
 }
 
-inline bool PullableReader::CopyScratchTo(Writer* dest, Position* length) {
-  RIEGELI_ASSERT_GT(*length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of PullableReader::CopyToInScratchSlow(): "
-         "length too small, use CopyTo(Writer*) instead";
+inline bool PullableReader::CopyScratchTo(Position& length, Writer& dest) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of PullableReader::CopyScratchTo(): "
+         "length too small, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return CopyScratchToSlow(dest, length);
+    return CopyScratchToSlow(length, dest);
   }
   return true;
 }

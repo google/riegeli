@@ -134,9 +134,9 @@ class DefaultChunkWriterBase : public ChunkWriter {
   void Initialize(Writer* dest, Position pos);
 
  private:
-  bool WriteSection(Reader* src, Position chunk_begin, Position chunk_end,
-                    Writer* dest);
-  bool WritePadding(Position chunk_begin, Position chunk_end, Writer* dest);
+  bool WriteSection(Reader& src, Position chunk_begin, Position chunk_end,
+                    Writer& dest);
+  bool WritePadding(Position chunk_begin, Position chunk_end, Writer& dest);
 };
 
 // The default `ChunkWriter`. Writes chunks to a byte `Writer`, interleaving

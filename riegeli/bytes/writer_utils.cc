@@ -25,23 +25,23 @@
 namespace riegeli {
 namespace internal {
 
-bool WriteZerosSlow(Position length, Writer* dest) {
-  RIEGELI_ASSERT_GT(length, dest->available())
+bool WriteZerosSlow(Position length, Writer& dest) {
+  RIEGELI_ASSERT_GT(length, dest.available())
       << "Failed precondition of WriteZerosSlow(): "
          "length too small, use WriteZeros() instead";
   do {
-    const size_t available_length = dest->available();
+    const size_t available_length = dest.available();
     if (
         // `std::memset(nullptr, _, 0)` is undefined.
         available_length > 0) {
-      std::memset(dest->cursor(), 0, available_length);
-      dest->move_cursor(available_length);
+      std::memset(dest.cursor(), 0, available_length);
+      dest.move_cursor(available_length);
       length -= available_length;
     }
-    if (ABSL_PREDICT_FALSE(!dest->Push(1, length))) return false;
-  } while (length > dest->available());
-  std::memset(dest->cursor(), 0, IntCast<size_t>(length));
-  dest->move_cursor(IntCast<size_t>(length));
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, length))) return false;
+  } while (length > dest.available());
+  std::memset(dest.cursor(), 0, IntCast<size_t>(length));
+  dest.move_cursor(IntCast<size_t>(length));
   return true;
 }
 

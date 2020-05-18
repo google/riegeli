@@ -59,26 +59,26 @@ class WrappedReaderBase : public Reader {
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
-  bool ReadSlow(char* dest, size_t length) override;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool ReadSlow(absl::Cord* dest, size_t length) override;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
   using Reader::CopyToSlow;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool CopyToSlow(Position length, Writer& dest) override;
+  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
   void ReadHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
-  // Sets cursor of `*src` to cursor of `*this`.
-  void SyncBuffer(Reader* src);
+  // Sets cursor of `src` to cursor of `*this`.
+  void SyncBuffer(Reader& src);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `*src`, adjusting
-  // them for the size limit. Fails `*this` if `*src` failed.
-  void MakeBuffer(Reader* src);
+  // Sets buffer pointers of `*this` to buffer pointers of `src`. Fails `*this`
+  // if `src` failed.
+  void MakeBuffer(Reader& src);
 
  private:
-  // This template is defined and used only in limiting_reader.cc.
+  // This template is defined and used only in wrapped_reader.cc.
   template <typename Dest>
-  bool ReadInternal(Dest* dest, size_t length);
+  bool ReadInternal(size_t length, Dest& dest);
 
   // Invariants if `!closed()`:
   //   `start() == src_reader()->start()`
@@ -155,17 +155,17 @@ inline WrappedReaderBase& WrappedReaderBase::operator=(
 inline void WrappedReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of WrappedReader: null Reader pointer";
-  MakeBuffer(src);
+  MakeBuffer(*src);
 }
 
-inline void WrappedReaderBase::SyncBuffer(Reader* src) {
-  src->set_cursor(cursor());
+inline void WrappedReaderBase::SyncBuffer(Reader& src) {
+  src.set_cursor(cursor());
 }
 
-inline void WrappedReaderBase::MakeBuffer(Reader* src) {
-  set_buffer(src->start(), src->buffer_size(), src->read_from_buffer());
-  set_limit_pos(src->pos() + available());
-  if (ABSL_PREDICT_FALSE(!src->healthy())) FailWithoutAnnotation(*src);
+inline void WrappedReaderBase::MakeBuffer(Reader& src) {
+  set_buffer(src.start(), src.buffer_size(), src.read_from_buffer());
+  set_limit_pos(src.pos() + available());
+  if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
 }
 
 template <typename Src>
@@ -236,9 +236,9 @@ inline void WrappedReader<Src>::MoveSrc(WrappedReader&& that) {
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `src_` is not moved yet so `src_` is taken from `that`.
-    SyncBuffer(that.src_.get());
+    SyncBuffer(*that.src_);
     src_ = std::move(that.src_);
-    MakeBuffer(src_.get());
+    MakeBuffer(*src_);
   }
 }
 
@@ -254,9 +254,9 @@ template <typename Src>
 void WrappedReader<Src>::VerifyEnd() {
   WrappedReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) {
-    SyncBuffer(src_.get());
+    SyncBuffer(*src_);
     src_->VerifyEnd();
-    MakeBuffer(src_.get());
+    MakeBuffer(*src_);
   }
 }
 

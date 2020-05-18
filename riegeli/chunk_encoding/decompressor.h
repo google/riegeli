@@ -87,7 +87,7 @@ class Decompressor : public Object {
   // Returns the `Reader` from which uncompressed data should be read.
   //
   // Precondition: `healthy()`
-  Reader* reader();
+  Reader& reader();
 
   // Verifies that the source ends at the current position (i.e. has no more
   // compressed data and has no data after the compressed stream), failing the
@@ -192,7 +192,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
   const absl::optional<uint64_t> uncompressed_size =
-      ReadVarint64(compressed_reader.get());
+      ReadVarint64(*compressed_reader);
   if (ABSL_PREDICT_FALSE(uncompressed_size == absl::nullopt)) {
     compressed_reader->Fail(
         absl::DataLossError("Reading uncompressed size failed"));
@@ -221,10 +221,10 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
 }
 
 template <typename Src>
-inline Reader* Decompressor<Src>::reader() {
+inline Reader& Decompressor<Src>::reader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Decompressor::reader(): " << status();
-  return absl::visit([](Reader& reader) { return &reader; }, reader_);
+  return absl::visit([](Reader& reader) -> Reader& { return reader; }, reader_);
 }
 
 template <typename Src>

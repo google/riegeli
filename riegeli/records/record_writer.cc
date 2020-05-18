@@ -110,8 +110,8 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
   options_parser.AddOption(
       "transpose",
-      ValueParser::Enum(&transpose_,
-                        {{"", true}, {"true", true}, {"false", false}}));
+      ValueParser::Enum({{"", true}, {"true", true}, {"false", false}},
+                        &transpose_));
   options_parser.AddOption("uncompressed",
                            ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("brotli", ValueParser::CopyTo(&compressor_text));
@@ -121,23 +121,23 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   options_parser.AddOption(
       "chunk_size",
       ValueParser::Or(
-          ValueParser::Enum(&chunk_size_, {{"auto", absl::nullopt}}),
+          ValueParser::Enum({{"auto", absl::nullopt}}, &chunk_size_),
           ValueParser::And(
-              ValueParser::Bytes(&chunk_size, 1,
-                                 std::numeric_limits<uint64_t>::max()),
-              [this, &chunk_size](ValueParser* value_parser) {
+              ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
+                                 &chunk_size),
+              [this, &chunk_size](ValueParser& value_parser) {
                 chunk_size_ = chunk_size;
                 return true;
               })));
   options_parser.AddOption("bucket_fraction",
-                           ValueParser::Real(&bucket_fraction_, 0.0, 1.0));
+                           ValueParser::Real(0.0, 1.0, &bucket_fraction_));
   options_parser.AddOption(
       "pad_to_block_boundary",
-      ValueParser::Enum(&pad_to_block_boundary_,
-                        {{"", true}, {"true", true}, {"false", false}}));
+      ValueParser::Enum({{"", true}, {"true", true}, {"false", false}},
+                        &pad_to_block_boundary_));
   options_parser.AddOption(
       "parallelism",
-      ValueParser::Int(&parallelism_, 0, std::numeric_limits<int>::max()));
+      ValueParser::Int(0, std::numeric_limits<int>::max(), &parallelism_));
   if (ABSL_PREDICT_FALSE(!options_parser.FromString(text))) {
     return options_parser.status();
   }
@@ -263,7 +263,7 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk* chunk) {
   uint64_t num_records;
   uint64_t decoded_data_size;
   if (ABSL_PREDICT_FALSE(!transpose_encoder.EncodeAndClose(
-          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
+          data_writer, chunk_type, num_records, decoded_data_size))) {
     return Fail(transpose_encoder);
   }
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
@@ -302,7 +302,7 @@ inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder* chunk_encoder,
   chunk->data.Clear();
   ChainWriter<> data_writer(&chunk->data);
   if (ABSL_PREDICT_FALSE(!chunk_encoder->EncodeAndClose(
-          &data_writer, &chunk_type, &num_records, &decoded_data_size))) {
+          data_writer, chunk_type, num_records, decoded_data_size))) {
     return Fail(*chunk_encoder);
   }
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);

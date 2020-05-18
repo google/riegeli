@@ -69,11 +69,11 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
   decoded_data_size_ += IntCast<uint64_t>(size);
   if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(size),
                                         sizes_compressor_.writer()))) {
-    return Fail(*sizes_compressor_.writer());
+    return Fail(sizes_compressor_.writer());
   }
   {
-    absl::Status status = SerializeToWriter(record, values_compressor_.writer(),
-                                            std::move(serialize_options));
+    absl::Status status = SerializeToWriter(
+        record, &values_compressor_.writer(), std::move(serialize_options));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return Fail(std::move(status));
     }
@@ -115,11 +115,11 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
   decoded_data_size_ += IntCast<uint64_t>(record.size());
   if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(record.size()),
                                         sizes_compressor_.writer()))) {
-    return Fail(*sizes_compressor_.writer());
+    return Fail(sizes_compressor_.writer());
   }
   if (ABSL_PREDICT_FALSE(
-          !values_compressor_.writer()->Write(std::forward<Record>(record)))) {
-    return Fail(*values_compressor_.writer());
+          !values_compressor_.writer().Write(std::forward<Record>(record)))) {
+    return Fail(values_compressor_.writer());
   }
   return true;
 }
@@ -148,33 +148,33 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
            "record end positions do not match concatenated record values";
     if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(limit - start),
                                           sizes_compressor_.writer()))) {
-      return Fail(*sizes_compressor_.writer());
+      return Fail(sizes_compressor_.writer());
     }
     start = limit;
   }
   if (ABSL_PREDICT_FALSE(
-          !values_compressor_.writer()->Write(std::move(records)))) {
-    return Fail(*values_compressor_.writer());
+          !values_compressor_.writer().Write(std::move(records)))) {
+    return Fail(values_compressor_.writer());
   }
   return true;
 }
 
-bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
-                                   uint64_t* num_records,
-                                   uint64_t* decoded_data_size) {
+bool SimpleEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
+                                   uint64_t& num_records,
+                                   uint64_t& decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  *chunk_type = ChunkType::kSimple;
-  *num_records = num_records_;
-  *decoded_data_size = decoded_data_size_;
+  chunk_type = ChunkType::kSimple;
+  num_records = num_records_;
+  decoded_data_size = decoded_data_size_;
 
   if (ABSL_PREDICT_FALSE(
           !WriteByte(static_cast<uint8_t>(compression_type_), dest))) {
-    return Fail(*dest);
+    return Fail(dest);
   }
 
   ChainWriter<Chain> compressed_sizes_writer(std::forward_as_tuple());
   if (ABSL_PREDICT_FALSE(
-          !sizes_compressor_.EncodeAndClose(&compressed_sizes_writer))) {
+          !sizes_compressor_.EncodeAndClose(compressed_sizes_writer))) {
     return Fail(sizes_compressor_);
   }
   if (ABSL_PREDICT_FALSE(!compressed_sizes_writer.Close())) {
@@ -183,8 +183,8 @@ bool SimpleEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
   if (ABSL_PREDICT_FALSE(!WriteVarint64(
           IntCast<uint64_t>(compressed_sizes_writer.dest().size()), dest)) ||
       ABSL_PREDICT_FALSE(
-          !dest->Write(std::move(compressed_sizes_writer.dest())))) {
-    return Fail(*dest);
+          !dest.Write(std::move(compressed_sizes_writer.dest())))) {
+    return Fail(dest);
   }
 
   if (ABSL_PREDICT_FALSE(!values_compressor_.EncodeAndClose(dest))) {

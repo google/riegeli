@@ -88,7 +88,7 @@ bool PushableWriter::SyncScratchSlow() {
   } else {
     Chain data;
     buffer.AppendSubstrTo(absl::string_view(buffer.data(), length_to_write),
-                          &data);
+                          data);
     ok = Write(std::move(data));
   }
   return ok;

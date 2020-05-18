@@ -322,7 +322,7 @@ bool Benchmarks::ReadRiegeli(
       std::forward_as_tuple(filename, O_RDONLY),
       std::move(record_reader_options));
   std::string record;
-  while (record_reader.ReadRecord(&record)) {
+  while (record_reader.ReadRecord(record)) {
     if (size_limiter != nullptr &&
         ABSL_PREDICT_FALSE(!size_limiter->Accept(
             riegeli::LengthVarint64(record.size()) + record.size()))) {
@@ -366,13 +366,13 @@ void Benchmarks::RegisterTFRecord(absl::string_view tfrecord_options) {
       "uncompressed",
       riegeli::ValueParser::And(
           riegeli::ValueParser::FailIfSeen("gzip"),
-          riegeli::ValueParser::Empty(&compression,
-                                      tensorflow::io::compression::kNone)));
+          riegeli::ValueParser::Empty(tensorflow::io::compression::kNone,
+                                      &compression)));
   options_parser.AddOption(
       "gzip", riegeli::ValueParser::And(
                   riegeli::ValueParser::FailIfSeen("uncompressed"),
                   riegeli::ValueParser::Empty(
-                      &compression, tensorflow::io::compression::kGzip)));
+                      tensorflow::io::compression::kGzip, &compression)));
   RIEGELI_CHECK(options_parser.FromString(tfrecord_options))
       << options_parser.status();
   tfrecord_benchmarks_.emplace_back(tfrecord_options, compression);

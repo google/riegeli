@@ -437,7 +437,7 @@ extern "C" PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
   const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadSerializedMetadata(&metadata); });
+      [&] { return self->record_reader->ReadSerializedMetadata(metadata); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
@@ -461,7 +461,7 @@ extern "C" PyObject* RecordReaderReadSerializedMetadata(
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
   const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadSerializedMetadata(&metadata); });
+      [&] { return self->record_reader->ReadSerializedMetadata(metadata); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
@@ -477,7 +477,7 @@ extern "C" PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain record;
   const bool ok =
-      PythonUnlocked([&] { return self->record_reader->ReadRecord(&record); });
+      PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
@@ -494,7 +494,7 @@ extern "C" PyObject* RecordReaderReadRecordWithKey(PyRecordReaderObject* self,
   Chain record;
   RecordPosition key;
   const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadRecord(&record, &key); });
+      [&] { return self->record_reader->ReadRecord(record, &key); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
@@ -524,7 +524,7 @@ extern "C" PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain record;
   const bool ok =
-      PythonUnlocked([&] { return self->record_reader->ReadRecord(&record); });
+      PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);
@@ -554,7 +554,7 @@ extern "C" PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
   Chain record;
   RecordPosition key;
   const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadRecord(&record, &key); });
+      [&] { return self->record_reader->ReadRecord(record, &key); });
   if (ABSL_PREDICT_FALSE(!ok)) {
     if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
       SetExceptionFromRecordReader(self);

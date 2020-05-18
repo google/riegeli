@@ -69,8 +69,8 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
-  const bool ok = ReadInternal(
-      flat_buffer.data(), min_length - available_length, flat_buffer.size());
+  const bool ok = ReadInternal(min_length - available_length,
+                               flat_buffer.size(), flat_buffer.data());
   RIEGELI_ASSERT_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;
@@ -81,7 +81,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   return ok;
 }
 
-bool BufferedReader::ReadSlow(char* dest, size_t length) {
+bool BufferedReader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
@@ -96,17 +96,17 @@ bool BufferedReader::ReadSlow(char* dest, size_t length) {
     }
     ClearBuffer();
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
-    return ReadInternal(dest, length, length);
+    return ReadInternal(length, length, dest);
   }
-  return Reader::ReadSlow(dest, length);
+  return Reader::ReadSlow(length, dest);
 }
 
-bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
+bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "length too small, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   bool enough_read = true;
   bool ok = healthy();
@@ -119,16 +119,16 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     }
     if (available() == 0 && length >= LengthToReadDirectly()) {
       ClearBuffer();
-      const absl::Span<char> flat_buffer = dest->AppendFixedBuffer(length);
+      const absl::Span<char> flat_buffer = dest.AppendFixedBuffer(length);
       const Position pos_before = limit_pos();
       if (ABSL_PREDICT_FALSE(!ReadInternal(
-              flat_buffer.data(), flat_buffer.size(), flat_buffer.size()))) {
+              flat_buffer.size(), flat_buffer.size(), flat_buffer.data()))) {
         RIEGELI_ASSERT_GE(limit_pos(), pos_before)
             << "BufferedReader::ReadInternal() decreased limit_pos()";
         const Position length_read = limit_pos() - pos_before;
         RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
             << "BufferedReader::ReadInternal() read more than requested";
-        dest->RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
+        dest.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
         return false;
       }
       return true;
@@ -146,7 +146,7 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
+    ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -160,12 +160,12 @@ bool BufferedReader::ReadSlow(Chain* dest, size_t length) {
   return enough_read;
 }
 
-bool BufferedReader::ReadSlow(absl::Cord* dest, size_t length) {
+bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
-         "length too small, use Read(Cord*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "length too small, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   bool enough_read = true;
   bool ok = healthy();
@@ -181,18 +181,18 @@ bool BufferedReader::ReadSlow(absl::Cord* dest, size_t length) {
       Buffer flat_buffer(length);
       char* const ptr = flat_buffer.GetData();
       const Position pos_before = limit_pos();
-      if (ABSL_PREDICT_FALSE(!ReadInternal(ptr, length, length))) {
+      if (ABSL_PREDICT_FALSE(!ReadInternal(length, length, ptr))) {
         RIEGELI_ASSERT_GE(limit_pos(), pos_before)
             << "BufferedReader::ReadInternal() decreased limit_pos()";
         const Position length_read = limit_pos() - pos_before;
         RIEGELI_ASSERT_LE(length_read, length)
             << "BufferedReader::ReadInternal() read more than requested";
-        dest->Append(
+        dest.Append(
             BufferToCord(absl::string_view(ptr, IntCast<size_t>(length_read)),
                          &flat_buffer));
         return false;
       }
-      dest->Append(BufferToCord(absl::string_view(ptr, length), &flat_buffer));
+      dest.Append(BufferToCord(absl::string_view(ptr, length), &flat_buffer));
       return true;
     }
     size_t cursor_index = read_from_buffer();
@@ -208,7 +208,7 @@ bool BufferedReader::ReadSlow(absl::Cord* dest, size_t length) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
+    ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -222,10 +222,10 @@ bool BufferedReader::ReadSlow(absl::Cord* dest, size_t length) {
   return enough_read;
 }
 
-bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
+bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopyToSlow(Writer&): "
+         "length too small, use CopyTo(Writer&) instead";
   bool enough_read = true;
   bool read_ok = healthy();
   while (length > available()) {
@@ -238,13 +238,13 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     size_t cursor_index = read_from_buffer();
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
     if (flat_buffer.empty()) {
-      // Append available data to `*dest` and make a new buffer.
+      // Append available data to `dest` and make a new buffer.
       if (available() > 0) {
         length -= available();
         Chain data;
-        buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), &data,
+        buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), data,
                                Chain::Options().set_size_hint(available()));
-        if (ABSL_PREDICT_FALSE(!dest->Write(std::move(data)))) {
+        if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) {
           move_cursor(available());
           return false;
         }
@@ -256,7 +256,7 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    read_ok = ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
+    read_ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -269,30 +269,30 @@ bool BufferedReader::CopyToSlow(Writer* dest, Position length) {
   if (length > 0) {
     Chain data;
     buffer_.AppendSubstrTo(
-        absl::string_view(cursor(), IntCast<size_t>(length)), &data,
+        absl::string_view(cursor(), IntCast<size_t>(length)), data,
         Chain::Options().set_size_hint(IntCast<size_t>(length)));
-    write_ok = dest->Write(std::move(data));
+    write_ok = dest.Write(std::move(data));
     move_cursor(IntCast<size_t>(length));
   }
   return write_ok && enough_read;
 }
 
-bool BufferedReader::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool BufferedReader::CopyToSlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "length too small, use CopyTo(BackwardWriter*) instead";
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
+         "length too small, use CopyTo(BackwardWriter&) instead";
   if (length <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-    dest->move_cursor(length);
-    if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
-      dest->set_cursor(dest->cursor() + length);
+    if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+    dest.move_cursor(length);
+    if (ABSL_PREDICT_FALSE(!ReadSlow(length, dest.cursor()))) {
+      dest.set_cursor(dest.cursor() + length);
       return false;
     }
     return true;
   }
   Chain data;
-  if (ABSL_PREDICT_FALSE(!ReadSlow(&data, length))) return false;
-  return dest->Write(std::move(data));
+  if (ABSL_PREDICT_FALSE(!ReadSlow(length, data))) return false;
+  return dest.Write(std::move(data));
 }
 
 void BufferedReader::ReadHintSlow(size_t length) {
@@ -314,7 +314,7 @@ void BufferedReader::ReadHintSlow(size_t length) {
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
-  ReadInternal(flat_buffer.data(), 1, flat_buffer.size());
+  ReadInternal(1, flat_buffer.size(), flat_buffer.data());
   RIEGELI_ASSERT_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;

@@ -76,7 +76,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
 
 void ZlibWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer* const dest = dest_writer();
+    Writer& dest = *dest_writer();
     const absl::string_view data(start(), written_to_buffer());
     set_buffer();
     WriteInternal(data, dest, Z_FINISH);
@@ -89,13 +89,13 @@ inline bool ZlibWriterBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   std::string message = absl::StrCat(operation, " failed");
   if (compressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", compressor_->msg);
   }
   return Fail(Annotate(absl::InternalError(message),
-                       absl::StrCat("at byte ", dest->pos())));
+                       absl::StrCat("at byte ", dest.pos())));
 }
 
 bool ZlibWriterBase::Fail(absl::Status status) {
@@ -114,11 +114,11 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   return WriteInternal(src, dest, Z_NO_FLUSH);
 }
 
-inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
+inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           int flush) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of ZlibWriterBase::WriteInternal(): " << status();
@@ -133,8 +133,8 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       const_cast<z_const Bytef*>(reinterpret_cast<const Bytef*>(src.data()));
   for (;;) {
     // If `compressor_->avail_out == 0` then `deflate()` returns `Z_BUF_ERROR`,
-    // so `dest->Push()` first.
-    if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
+    // so `dest.Push()` first.
+    if (ABSL_PREDICT_FALSE(!dest.Push())) return Fail(dest);
     size_t avail_in =
         PtrDistance(reinterpret_cast<const char*>(compressor_->next_in),
                     src.data() + src.size());
@@ -144,10 +144,10 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       op = Z_NO_FLUSH;
     }
     compressor_->avail_in = IntCast<uInt>(avail_in);
-    compressor_->next_out = reinterpret_cast<Bytef*>(dest->cursor());
-    compressor_->avail_out = SaturatingIntCast<uInt>(dest->available());
+    compressor_->next_out = reinterpret_cast<Bytef*>(dest.cursor());
+    compressor_->avail_out = SaturatingIntCast<uInt>(dest.available());
     const int result = deflate(compressor_.get(), op);
-    dest->set_cursor(reinterpret_cast<char*>(compressor_->next_out));
+    dest.set_cursor(reinterpret_cast<char*>(compressor_->next_out));
     const size_t length_written = PtrDistance(
         src.data(), reinterpret_cast<const char*>(compressor_->next_in));
     switch (result) {
@@ -175,13 +175,13 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer* dest,
 
 bool ZlibWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
   if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, Z_PARTIAL_FLUSH))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
   return true;
 }
 

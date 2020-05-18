@@ -30,8 +30,8 @@ namespace riegeli {
 
 void ChainWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Chain* const dest = dest_chain();
-    RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+    Chain& dest = *dest_chain();
+    RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
         << "ChainWriter destination changed unexpectedly";
     SyncBuffer(dest);
   }
@@ -43,11 +43,11 @@ bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<size_t>::max() - dest->size())) {
+                         std::numeric_limits<size_t>::max() - dest.size())) {
     return FailOverflow();
   }
   SyncBuffer(dest);
@@ -60,8 +60,8 @@ bool ChainWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -69,7 +69,7 @@ bool ChainWriterBase::WriteSlow(const Chain& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(src, options_);
+  dest.Append(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -79,10 +79,10 @@ bool ChainWriterBase::WriteSlow(Chain&& src) {
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
+  Chain& dest = *dest_chain();
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(std::move(src), options_);
+  dest.Append(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
@@ -92,8 +92,8 @@ bool ChainWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "length too small, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -101,7 +101,7 @@ bool ChainWriterBase::WriteSlow(const absl::Cord& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(src, options_);
+  dest.Append(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -111,8 +111,8 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "length too small, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -120,15 +120,15 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Append(std::move(src), options_);
+  dest.Append(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
 
 bool ChainWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
@@ -136,8 +136,8 @@ bool ChainWriterBase::Flush(FlushType flush_type) {
 
 bool ChainWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
@@ -145,20 +145,20 @@ bool ChainWriterBase::Truncate(Position new_size) {
     return true;
   }
   set_start_pos(new_size);
-  dest->RemoveSuffix(dest->size() - IntCast<size_t>(new_size));
+  dest.RemoveSuffix(dest.size() - IntCast<size_t>(new_size));
   set_buffer();
   return true;
 }
 
-inline void ChainWriterBase::SyncBuffer(Chain* dest) {
+inline void ChainWriterBase::SyncBuffer(Chain& dest) {
   set_start_pos(pos());
-  dest->RemoveSuffix(available());
+  dest.RemoveSuffix(available());
   set_buffer();
 }
 
-inline void ChainWriterBase::MakeBuffer(Chain* dest, size_t min_length,
+inline void ChainWriterBase::MakeBuffer(Chain& dest, size_t min_length,
                                         size_t recommended_length) {
-  const absl::Span<char> buffer = dest->AppendBuffer(
+  const absl::Span<char> buffer = dest.AppendBuffer(
       min_length, recommended_length, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
 }

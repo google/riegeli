@@ -42,18 +42,18 @@ class TransposeDecoder : public Object {
 
   // Resets the `TransposeDecoder` and parses the chunk.
   //
-  // Writes concatenated record values to `*dest`. Sets `*limits` to sorted
+  // Writes concatenated record values to `dest`. Sets `limits` to sorted
   // record end positions.
   //
-  // Precondition: `dest->pos() == 0`
+  // Precondition: `dest.pos() == 0`
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`);
-  //              if `!dest->healthy()` then the problem was at `*dest`
-  bool Decode(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
-              const FieldProjection& field_projection, BackwardWriter* dest,
-              std::vector<size_t>* limits);
+  //              if `!dest.healthy()` then the problem was at `dest`
+  bool Decode(uint64_t num_records, uint64_t decoded_data_size,
+              const FieldProjection& field_projection, Reader& src,
+              BackwardWriter& dest, std::vector<size_t>& limits);
 
  private:
   // Information about one proto tag.
@@ -115,39 +115,39 @@ class TransposeDecoder : public Object {
 
   struct Context;
 
-  bool Parse(Context* context, Reader* src,
+  bool Parse(Context& context, Reader& src,
              const FieldProjection& field_projection);
 
-  // Parse data buffers in `header_reader` and `src` into `context->buffers`.
+  // Parse data buffers in `header_reader` and `src` into `context.buffers`.
   // This method is used when projection is disabled and all buffers are
   // initially decompressed.
-  bool ParseBuffers(Context* context, Reader* header_reader, Reader* src);
+  bool ParseBuffers(Context& context, Reader& header_reader, Reader& src);
 
-  // Parse data buffers in `header_reader` and `src` into `context->buckets`.
+  // Parse data buffers in `header_reader` and `src` into `context.buckets`.
   // When projection is enabled, buckets are decompressed on demand.
   // `bucket_indices` contains bucket index for each buffer.
   // `first_buffer_indices` contains the index of first buffer for each bucket.
-  bool ParseBuffersForFitering(Context* context, Reader* header_reader,
-                               Reader* src,
-                               std::vector<uint32_t>* first_buffer_indices,
-                               std::vector<uint32_t>* bucket_indices);
+  bool ParseBuffersForFiltering(Context& context, Reader& header_reader,
+                                Reader& src,
+                                std::vector<uint32_t>& first_buffer_indices,
+                                std::vector<uint32_t>& bucket_indices);
 
   // Precondition: `projection_enabled`.
-  Reader* GetBuffer(Context* context, uint32_t bucket_index,
+  Reader* GetBuffer(Context& context, uint32_t bucket_index,
                     uint32_t index_within_bucket);
 
   static bool ContainsImplicitLoop(
       std::vector<StateMachineNode>* state_machine_nodes);
 
-  bool Decode(Context* context, uint64_t num_records, BackwardWriter* dest,
-              std::vector<size_t>* limits);
+  bool Decode(Context& context, uint64_t num_records, BackwardWriter& dest,
+              std::vector<size_t>& limits);
 
   // Set `callback_type` in `node` based on `skipped_submessage_level`,
-  // `submessage_stack`, and `node->node_template`.
+  // `submessage_stack`, and `node.node_template`.
   bool SetCallbackType(
-      Context* context, int skipped_submessage_level,
+      Context& context, int skipped_submessage_level,
       const std::vector<SubmessageStackElement>& submessage_stack,
-      StateMachineNode* node);
+      StateMachineNode& node);
 };
 
 }  // namespace riegeli

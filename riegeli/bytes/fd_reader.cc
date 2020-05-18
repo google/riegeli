@@ -61,7 +61,7 @@ class MMapRef {
   MMapRef& operator=(const MMapRef&) = delete;
 
   void operator()(absl::string_view data) const;
-  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
 };
 
@@ -70,7 +70,7 @@ void MMapRef::operator()(absl::string_view data) const {
       << ErrnoToCanonicalStatus(errno, "munmap() failed").message();
 }
 
-void MMapRef::RegisterSubobjects(MemoryEstimator* memory_estimator) const {}
+void MMapRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
 
 void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
@@ -149,8 +149,8 @@ bool FdReaderBase::SyncPos(int src) {
   return true;
 }
 
-bool FdReaderBase::ReadInternal(char* dest, size_t min_length,
-                                size_t max_length) {
+bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
+                                char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -226,8 +226,8 @@ absl::optional<Position> FdReaderBase::Size() {
   return IntCast<Position>(stat_info.st_size);
 }
 
-bool FdStreamReaderBase::ReadInternal(char* dest, size_t min_length,
-                                      size_t max_length) {
+bool FdStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
+                                      char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";

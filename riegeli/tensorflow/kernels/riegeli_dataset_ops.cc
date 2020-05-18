@@ -159,7 +159,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
             ::tensorflow::Tensor result_tensor(::tensorflow::cpu_allocator(),
                                                ::tensorflow::DT_STRING, {});
             absl::string_view value;
-            if (TF_PREDICT_TRUE(reader_->ReadRecord(&value))) {
+            if (TF_PREDICT_TRUE(reader_->ReadRecord(value))) {
               result_tensor.scalar<::tensorflow::tstring>()().assign(
                   value.data(), value.size());
               out_tensors->push_back(std::move(result_tensor));

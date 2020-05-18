@@ -84,13 +84,13 @@ class StringWriterBase : public Writer {
   void WriteHintSlow(size_t length) override;
 
  private:
-  // Discards uninitialized space from the end of `*dest`, so that it contains
+  // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written.
-  void SyncBuffer(std::string* dest);
+  void SyncBuffer(std::string& dest);
 
-  // Appends some uninitialized space to `*dest` if this can be done without
+  // Appends some uninitialized space to `dest` if this can be done without
   // reallocation.
-  void MakeBuffer(std::string* dest);
+  void MakeBuffer(std::string& dest);
 
   // Invariants if `healthy()`:
   //   `start() == &(*dest_string())[0]`
@@ -169,13 +169,13 @@ inline void StringWriterBase::Initialize(std::string* dest,
       << "Failed precondition of StringWriter: null string pointer";
   const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
   if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
-  MakeBuffer(dest);
+  MakeBuffer(*dest);
 }
 
-inline void StringWriterBase::MakeBuffer(std::string* dest) {
-  const size_t cursor_index = dest->size();
-  dest->resize(dest->capacity());
-  set_buffer(&(*dest)[0], dest->size(), cursor_index);
+inline void StringWriterBase::MakeBuffer(std::string& dest) {
+  const size_t cursor_index = dest.size();
+  dest.resize(dest.capacity());
+  set_buffer(&dest[0], dest.size(), cursor_index);
 }
 
 template <typename Dest>

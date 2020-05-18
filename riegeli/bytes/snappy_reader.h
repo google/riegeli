@@ -168,7 +168,7 @@ absl::Status SnappyDecompress(std::tuple<SrcArgs...> src_args,
 // Returns `absl::nullopt` on failure.
 //
 // The current position of `src` is unchanged.
-absl::optional<size_t> SnappyUncompressedSize(Reader* src);
+absl::optional<size_t> SnappyUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
@@ -274,12 +274,12 @@ struct Resetter<SnappyReader<Src>> : ResetterByReset<SnappyReader<Src>> {};
 
 namespace internal {
 
-absl::Status SnappyDecompressImpl(Reader* src, Writer* dest);
+absl::Status SnappyDecompressImpl(Reader& src, Writer& dest);
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyDecompressImpl(Dependency<Reader*, Src> src,
                                          Dependency<Writer*, Dest> dest) {
-  absl::Status status = SnappyDecompressImpl(src.get(), dest.get());
+  absl::Status status = SnappyDecompressImpl(*src, *dest);
   if (dest.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = dest->status();

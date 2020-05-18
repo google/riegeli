@@ -61,14 +61,14 @@ bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   return false;
 }
 
-bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
+bool ChainReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "length too small, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
@@ -97,14 +97,14 @@ bool ChainReaderBase::ReadSlow(Chain* dest, size_t length) {
   return false;
 }
 
-bool ChainReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+bool ChainReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
-         "length too small, use Read(Cord*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "length too small, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
@@ -133,10 +133,10 @@ bool ChainReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
   return false;
 }
 
-bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
+bool ChainReaderBase::CopyToSlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopyToSlow(Writer&): "
+         "length too small, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
@@ -147,30 +147,30 @@ bool ChainReaderBase::CopyToSlow(Writer* dest, Position length) {
     if (!Skip(length_to_copy)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
-    ok = dest->Write(*src);
+    ok = dest.Write(*src);
   } else if (length_to_copy <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(IntCast<size_t>(length_to_copy)))) {
+    if (ABSL_PREDICT_FALSE(!dest.Push(IntCast<size_t>(length_to_copy)))) {
       return false;
     }
-    if (!Read(dest->cursor(), IntCast<size_t>(length_to_copy))) {
+    if (!Read(IntCast<size_t>(length_to_copy), dest.cursor())) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(char*) failed";
     }
-    dest->move_cursor(IntCast<size_t>(length_to_copy));
+    dest.move_cursor(IntCast<size_t>(length_to_copy));
     ok = true;
   } else {
     Chain data;
-    if (!Read(&data, IntCast<size_t>(length_to_copy))) {
-      RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(Chain*) failed";
+    if (!Read(IntCast<size_t>(length_to_copy), data)) {
+      RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(Chain&) failed";
     }
-    ok = dest->Write(std::move(data));
+    ok = dest.Write(std::move(data));
   }
   return ok && length_to_copy == length;
 }
 
-bool ChainReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool ChainReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "length too small, use CopyTo(BackwardWriter*) instead";
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
+         "length too small, use CopyTo(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
@@ -185,22 +185,22 @@ bool ChainReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
     if (!Skip(length)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
-    return dest->Write(*src);
+    return dest.Write(*src);
   }
   if (length <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-    dest->move_cursor(length);
-    if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
-      dest->set_cursor(dest->cursor() + length);
+    if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+    dest.move_cursor(length);
+    if (ABSL_PREDICT_FALSE(!ReadSlow(length, dest.cursor()))) {
+      dest.set_cursor(dest.cursor() + length);
       return false;
     }
     return true;
   }
   Chain data;
-  if (!ReadSlow(&data, length)) {
-    RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::ReadSlow(Chain*) failed";
+  if (!ReadSlow(length, data)) {
+    RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::ReadSlow(Chain&) failed";
   }
-  return dest->Write(std::move(data));
+  return dest.Write(std::move(data));
 }
 
 bool ChainReaderBase::SeekSlow(Position new_pos) {

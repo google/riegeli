@@ -60,11 +60,11 @@ class ChainReaderBase : public PullableReader {
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using PullableReader::ReadSlow;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool ReadSlow(absl::Cord* dest, size_t length) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyToSlow;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool CopyToSlow(Position length, Writer& dest) override;
+  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
   bool SeekSlow(Position new_pos) override;
 
   // Invariant: `iter_.chain() == (closed() ? nullptr : src_chain())`

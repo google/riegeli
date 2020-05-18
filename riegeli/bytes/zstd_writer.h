@@ -205,7 +205,7 @@ class ZstdWriterBase : public BufferedWriter {
     void operator()(ZSTD_CCtx* ptr) const { ZSTD_freeCCtx(ptr); }
   };
 
-  bool WriteInternal(absl::string_view src, Writer* dest,
+  bool WriteInternal(absl::string_view src, Writer& dest,
                      ZSTD_EndDirective end_op);
 
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;

@@ -102,8 +102,8 @@ class ChunkHeader {
 struct Chunk {
   void Reset() { data.Clear(); }
 
-  bool WriteTo(Writer* dest) const;
-  bool ReadFrom(Reader* src);
+  bool WriteTo(Writer& dest) const;
+  bool ReadFrom(Reader& src);
 
   ChunkHeader header;
   Chain data;

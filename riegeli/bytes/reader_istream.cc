@@ -72,7 +72,7 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
   if (ABSL_PREDICT_FALSE(!is_open())) return 0;
   BufferSync buffer_sync(this);
   const Position pos_before = src_->pos();
-  if (ABSL_PREDICT_FALSE(!src_->Read(dest, IntCast<size_t>(length)))) {
+  if (ABSL_PREDICT_FALSE(!src_->Read(IntCast<size_t>(length), dest))) {
     RIEGELI_ASSERT_GE(src_->pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
     const Position length_read = src_->pos() - pos_before;

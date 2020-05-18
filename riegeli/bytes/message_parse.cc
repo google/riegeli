@@ -36,13 +36,13 @@ namespace riegeli {
 
 namespace {
 
-inline absl::Status CheckInitialized(google::protobuf::MessageLite* dest,
+inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
                                      ParseOptions options) {
-  if (!options.partial() && ABSL_PREDICT_FALSE(!dest->IsInitialized())) {
+  if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
     return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName(),
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
                      " because it is missing required fields: ",
-                     dest->InitializationErrorString()));
+                     dest.InitializationErrorString()));
   }
   return absl::OkStatus();
 }
@@ -51,34 +51,34 @@ inline absl::Status CheckInitialized(google::protobuf::MessageLite* dest,
 
 namespace internal {
 
-absl::Status ParseFromReaderImpl(Reader* src,
-                                 google::protobuf::MessageLite* dest,
+absl::Status ParseFromReaderImpl(Reader& src,
+                                 google::protobuf::MessageLite& dest,
                                  ParseOptions options) {
-  src->Pull();
-  if (src->available() <= kMaxBytesToCopy && src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src->status();
-    if (src->pos() + src->available() == *size) {
+  src.Pull();
+  if (src.available() <= kMaxBytesToCopy && src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    if (src.pos() + src.available() == *size) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      bool ok = ABSL_PREDICT_TRUE(src->available() <=
-                                  size_t{std::numeric_limits<int>::max()}) &&
-                dest->ParsePartialFromArray(src->cursor(),
-                                            IntCast<int>(src->available()));
-      src->move_cursor(src->available());
+      const bool ok =
+          ABSL_PREDICT_TRUE(src.available() <=
+                            size_t{std::numeric_limits<int>::max()}) &&
+          dest.ParsePartialFromArray(src.cursor(),
+                                     IntCast<int>(src.available()));
+      src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!ok)) {
         return absl::DataLossError(absl::StrCat(
-            "Failed to parse message of type ", dest->GetTypeName()));
+            "Failed to parse message of type ", dest.GetTypeName()));
       }
       return CheckInitialized(dest, options);
     }
   }
-  ReaderInputStream input_stream(src);
-  if (ABSL_PREDICT_FALSE(
-          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
-    if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
+  ReaderInputStream input_stream(&src);
+  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
+    if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
     return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
 }
@@ -86,28 +86,28 @@ absl::Status ParseFromReaderImpl(Reader* src,
 }  // namespace internal
 
 absl::Status ParseFromString(absl::string_view src,
-                             google::protobuf::MessageLite* dest,
+                             google::protobuf::MessageLite& dest,
                              ParseOptions options) {
   if (ABSL_PREDICT_FALSE(
           src.size() > size_t{std::numeric_limits<int>::max()} ||
-          !dest->ParsePartialFromArray(src.data(), IntCast<int>(src.size())))) {
+          !dest.ParsePartialFromArray(src.data(), IntCast<int>(src.size())))) {
     return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
 }
 
 absl::Status ParseFromChain(const Chain& src,
-                            google::protobuf::MessageLite* dest,
+                            google::protobuf::MessageLite& dest,
                             ParseOptions options) {
   if (src.size() <= kMaxBytesToCopy) {
     if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
+      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
         return absl::DataLossError(absl::StrCat(
-            "Failed to parse message of type ", dest->GetTypeName()));
+            "Failed to parse message of type ", dest.GetTypeName()));
       }
       return CheckInitialized(dest, options);
     }
@@ -116,25 +116,24 @@ absl::Status ParseFromChain(const Chain& src,
   // Do not bother with `reader.healthy()` or `reader.Close()`. A `ChainReader`
   // can never fail.
   ReaderInputStream input_stream(&reader);
-  if (ABSL_PREDICT_FALSE(
-          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
     return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
 }
 
 absl::Status ParseFromCord(const absl::Cord& src,
-                           google::protobuf::MessageLite* dest,
+                           google::protobuf::MessageLite& dest,
                            ParseOptions options) {
   if (src.size() <= kMaxBytesToCopy) {
     if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      if (ABSL_PREDICT_FALSE(!dest->ParsePartialFromArray(
+      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
         return absl::DataLossError(absl::StrCat(
-            "Failed to parse message of type ", dest->GetTypeName()));
+            "Failed to parse message of type ", dest.GetTypeName()));
       }
       return CheckInitialized(dest, options);
     }
@@ -143,10 +142,9 @@ absl::Status ParseFromCord(const absl::Cord& src,
   // Do not bother with `reader.healthy()` or `reader.Close()`. A `CordReader`
   // can never fail.
   ReaderInputStream input_stream(&reader);
-  if (ABSL_PREDICT_FALSE(
-          !dest->ParsePartialFromZeroCopyStream(&input_stream))) {
+  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
     return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest->GetTypeName()));
+        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
 }

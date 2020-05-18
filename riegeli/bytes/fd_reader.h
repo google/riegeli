@@ -134,7 +134,7 @@ class FdReaderBase : public internal::FdReaderCommon {
   void InitializePos(int src, absl::optional<Position> initial_pos);
   bool SyncPos(int src);
 
-  bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
   bool sync_pos_ = false;
@@ -198,7 +198,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
 
   void Initialize(int src, absl::optional<Position> assumed_pos);
 
-  bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 };
 
 // Template parameter independent part of `FdMMapReader`.

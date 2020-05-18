@@ -42,32 +42,32 @@ class ValueParser : public Object {
   //              been called)
   //  * `false` - failure (`InvalidValue()`, `FailIfSeen()`, or
   //              `FailIfAnySeen()` may have been called)
-  using Function = std::function<bool(ValueParser*)>;
+  using Function = std::function<bool(ValueParser&)>;
 
   ValueParser(const ValueParser&) = delete;
   ValueParser& operator=(const ValueParser&) = delete;
 
   // Value parser for absent or empty argument.
   template <typename T>
-  static Function Empty(T* out, T value);
+  static Function Empty(T value, T* out);
 
   // Value parser for explicitly enumerated valid values.
   //
   // An empty possible value matches also the case when ":" with value is
   // absent.
   template <typename T>
-  static Function Enum(T* out,
-                       std::vector<std::pair<std::string, T>> possible_values);
+  static Function Enum(std::vector<std::pair<std::string, T>> possible_values,
+                       T* out);
 
   // Value parser for integers `min_value`..`max_value`.
-  static Function Int(int* out, int min_value, int max_value);
+  static Function Int(int min_value, int max_value, int* out);
 
   // Value parser for integers expressed as reals with optional suffix
   // `[BkKMGTPE]`, `min_value`..`max_value`.
-  static Function Bytes(uint64_t* out, uint64_t min_value, uint64_t max_value);
+  static Function Bytes(uint64_t min_value, uint64_t max_value, uint64_t* out);
 
   // Value parser for reals `min_value`..`max_value`.
-  static Function Real(double* out, double min_value, double max_value);
+  static Function Real(double min_value, double max_value, double* out);
 
   // Value parser which tries multiple parsers and returns the result of the
   // first one which succeeds.
@@ -184,31 +184,31 @@ class OptionsParser : public Object {
 // Implementation details follow.
 
 template <typename T>
-ValueParser::Function ValueParser::Empty(T* out, T value) {
-  return [out, value = std::move(value)](ValueParser* value_parser) {
-    if (ABSL_PREDICT_TRUE(value_parser->value().empty())) {
+ValueParser::Function ValueParser::Empty(T value, T* out) {
+  return [value = std::move(value), out](ValueParser& value_parser) {
+    if (ABSL_PREDICT_TRUE(value_parser.value().empty())) {
       *out = value;
       return true;
     }
-    return value_parser->InvalidValue("(empty)");
+    return value_parser.InvalidValue("(empty)");
   };
 }
 
 template <typename T>
 ValueParser::Function ValueParser::Enum(
-    T* out, std::vector<std::pair<std::string, T>> possible_values) {
-  return [out, possible_values =
-                   std::move(possible_values)](ValueParser* value_parser) {
+    std::vector<std::pair<std::string, T>> possible_values, T* out) {
+  return [possible_values = std::move(possible_values),
+          out](ValueParser& value_parser) {
     for (const std::pair<std::string, T>& possible_value : possible_values) {
-      if (value_parser->value() == possible_value.first) {
+      if (value_parser.value() == possible_value.first) {
         *out = possible_value.second;
         return true;
       }
     }
     for (const std::pair<std::string, T>& possible_value : possible_values) {
-      value_parser->InvalidValue(possible_value.first.empty()
-                                     ? absl::string_view("(empty)")
-                                     : absl::string_view(possible_value.first));
+      value_parser.InvalidValue(possible_value.first.empty()
+                                    ? absl::string_view("(empty)")
+                                    : absl::string_view(possible_value.first));
     }
     return false;
   };

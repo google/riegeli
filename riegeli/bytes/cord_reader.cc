@@ -45,11 +45,11 @@ bool CordReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     return available() >= min_length;
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
   absl::Cord::Advance(&*iter_, read_from_buffer());
-  if (ABSL_PREDICT_FALSE(*iter_ == src->char_end())) {
+  if (ABSL_PREDICT_FALSE(*iter_ == src.char_end())) {
     set_buffer();
     return false;
   }
@@ -59,121 +59,121 @@ bool CordReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
-bool CordReaderBase::ReadSlow(Chain* dest, size_t length) {
+bool CordReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "length too small, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  if (iter_ == absl::nullopt) return PullableReader::ReadSlow(dest, length);
-  if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (iter_ == absl::nullopt) return PullableReader::ReadSlow(length, dest);
+  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
   SyncBuffer();
-  const size_t length_to_read = UnsignedMin(length, src->size() - limit_pos());
-  dest->AppendFrom(&*iter_, length_to_read);
+  const size_t length_to_read = UnsignedMin(length, src.size() - limit_pos());
+  dest.AppendFrom(*iter_, length_to_read);
   move_limit_pos(length_to_read);
   MakeBuffer(src);
   return length_to_read == length;
 }
 
-bool CordReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+bool CordReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
-         "length too small, use Read(Cord*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "length too small, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  if (iter_ == absl::nullopt) return PullableReader::ReadSlow(dest, length);
-  if (ABSL_PREDICT_FALSE(!ReadScratch(dest, &length))) return length == 0;
+  if (iter_ == absl::nullopt) return PullableReader::ReadSlow(length, dest);
+  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
   SyncBuffer();
-  const size_t length_to_read = UnsignedMin(length, src->size() - limit_pos());
-  if (length_to_read == src->size()) {
-    dest->Append(*src);
-    *iter_ = src->char_end();
+  const size_t length_to_read = UnsignedMin(length, src.size() - limit_pos());
+  if (length_to_read == src.size()) {
+    dest.Append(src);
+    *iter_ = src.char_end();
   } else {
-    dest->Append(absl::Cord::AdvanceAndRead(&*iter_, length_to_read));
+    dest.Append(absl::Cord::AdvanceAndRead(&*iter_, length_to_read));
   }
   move_limit_pos(length_to_read);
   MakeBuffer(src);
   return length_to_read == length;
 }
 
-bool CordReaderBase::CopyToSlow(Writer* dest, Position length) {
+bool CordReaderBase::CopyToSlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopyToSlow(Writer&): "
+         "length too small, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
-  const Position length_to_copy = UnsignedMin(length, src->size() - pos());
+  const Position length_to_copy = UnsignedMin(length, src.size() - pos());
   bool ok;
-  if (length_to_copy == src->size()) {
+  if (length_to_copy == src.size()) {
     if (!Skip(length_to_copy)) {
       RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Skip() failed";
     }
-    ok = dest->Write(*src);
+    ok = dest.Write(src);
   } else if (length_to_copy <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(IntCast<size_t>(length_to_copy)))) {
+    if (ABSL_PREDICT_FALSE(!dest.Push(IntCast<size_t>(length_to_copy)))) {
       return false;
     }
-    if (!Read(dest->cursor(), IntCast<size_t>(length_to_copy))) {
+    if (!Read(IntCast<size_t>(length_to_copy), dest.cursor())) {
       RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(char*) failed";
     }
-    dest->move_cursor(IntCast<size_t>(length_to_copy));
+    dest.move_cursor(IntCast<size_t>(length_to_copy));
     ok = true;
   } else {
     absl::Cord data;
-    if (!Read(&data, IntCast<size_t>(length_to_copy))) {
-      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(Cord*) failed";
+    if (!Read(IntCast<size_t>(length_to_copy), data)) {
+      RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Read(Cord&) failed";
     }
-    ok = dest->Write(std::move(data));
+    ok = dest.Write(std::move(data));
   }
   return ok && length_to_copy == length;
 }
 
-bool CordReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool CordReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "length too small, use CopyTo(BackwardWriter*) instead";
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
+         "length too small, use CopyTo(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(length > src->size() - pos())) {
-    if (!Seek(src->size())) {
+  if (ABSL_PREDICT_FALSE(length > src.size() - pos())) {
+    if (!Seek(src.size())) {
       RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Seek() failed";
     }
     return false;
   }
-  if (length == src->size()) {
+  if (length == src.size()) {
     if (!Skip(length)) {
       RIEGELI_ASSERT_UNREACHABLE() << "CordReader::Skip() failed";
     }
-    return dest->Write(*src);
+    return dest.Write(src);
   }
   if (length <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-    dest->move_cursor(length);
-    if (ABSL_PREDICT_FALSE(!ReadSlow(dest->cursor(), length))) {
-      dest->set_cursor(dest->cursor() + length);
+    if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+    dest.move_cursor(length);
+    if (ABSL_PREDICT_FALSE(!ReadSlow(length, dest.cursor()))) {
+      dest.set_cursor(dest.cursor() + length);
       return false;
     }
     return true;
   }
   absl::Cord data;
-  if (!ReadSlow(&data, length)) {
-    RIEGELI_ASSERT_UNREACHABLE() << "CordReader::ReadSlow(Cord*) failed";
+  if (!ReadSlow(length, data)) {
+    RIEGELI_ASSERT_UNREACHABLE() << "CordReader::ReadSlow(Cord&) failed";
   }
-  return dest->Write(std::move(data));
+  return dest.Write(std::move(data));
 }
 
 bool CordReaderBase::SeekSlow(Position new_pos) {
@@ -191,23 +191,23 @@ bool CordReaderBase::SeekSlow(Position new_pos) {
   }
   if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::Cord* const src = src_cord();
-  RIEGELI_ASSERT_LE(limit_pos(), src->size())
+  const absl::Cord& src = *src_cord();
+  RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
   size_t length;
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(new_pos > src->size())) {
+    if (ABSL_PREDICT_FALSE(new_pos > src.size())) {
       // Source ends.
-      *iter_ = src->char_end();
+      *iter_ = src.char_end();
       set_buffer();
-      set_limit_pos(src->size());
+      set_limit_pos(src.size());
       return false;
     }
     length = IntCast<size_t>(new_pos - start_pos());
   } else {
     // Seeking backwards.
-    *iter_ = src->char_begin();
+    *iter_ = src.char_begin();
     length = IntCast<size_t>(new_pos);
   }
   absl::Cord::Advance(&*iter_, length);
@@ -218,8 +218,8 @@ bool CordReaderBase::SeekSlow(Position new_pos) {
 
 absl::optional<Position> CordReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  const absl::Cord* const src = src_cord();
-  return src->size();
+  const absl::Cord& src = *src_cord();
+  return src.size();
 }
 
 inline void CordReaderBase::SyncBuffer() {

@@ -84,19 +84,19 @@ class TransposeEncoder : public ChunkEncoder {
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 
-  bool EncodeAndClose(Writer* dest, ChunkType* chunk_type,
-                      uint64_t* num_records,
-                      uint64_t* decoded_data_size) override;
+  bool EncodeAndClose(Writer& dest, ChunkType& chunk_type,
+                      uint64_t& num_records,
+                      uint64_t& decoded_data_size) override;
 
  private:
-  bool AddRecordInternal(Reader* record);
+  bool AddRecordInternal(Reader& record);
 
   // Encode messages added with `AddRecord()` calls and write the result to
   // `*dest`.
   bool EncodeAndCloseInternal(uint32_t max_transition,
-                              uint32_t min_count_for_state, Writer* dest,
-                              uint64_t* num_records,
-                              uint64_t* decoded_data_size);
+                              uint32_t min_count_for_state, Writer& dest,
+                              uint64_t& num_records,
+                              uint64_t& decoded_data_size);
 
   // Types of data buffers protocol buffer fields are split into.
   // The buffer type information is not used in any way except to group similar
@@ -154,13 +154,13 @@ class TransposeEncoder : public ChunkEncoder {
   // Precondition: `message` is a valid proto message, i.e. `IsProtoMessage()`
   // on this message returns `true`.
   // `depth` is the recursion depth.
-  bool AddMessage(LimitingReaderBase* record,
+  bool AddMessage(LimitingReaderBase& record,
                   internal::MessageId parent_message_id, int depth);
 
   // Write all buffer lengths to `header_writer` and data buffers in `data_` to
   // `data_writer` (compressed using `compressor_`). Fill map with the
   // sequential position of each buffer written.
-  bool WriteBuffers(Writer* header_writer, Writer* data_writer,
+  bool WriteBuffers(Writer& header_writer, Writer& data_writer,
                     absl::flat_hash_map<NodeId, uint32_t>* buffer_pos);
 
   // One state of the state machine created in encoder.
@@ -180,14 +180,14 @@ class TransposeEncoder : public ChunkEncoder {
     uint32_t canonical_source;
   };
 
-  // Add `buffer` to `bucket_compressor->writer()`.
+  // Add `buffer` to `bucket_compressor.writer()`.
   // If `new_uncompressed_bucket_size` is not `absl::nullopt`, flush the current
   // bucket to `data_writer` first and create a new bucket of that size.
   bool AddBuffer(absl::optional<size_t> new_uncompressed_bucket_size,
-                 const Chain& buffer, internal::Compressor* bucket_compressor,
-                 Writer* data_writer,
-                 std::vector<size_t>* compressed_bucket_sizes,
-                 std::vector<size_t>* buffer_sizes);
+                 const Chain& buffer, internal::Compressor& bucket_compressor,
+                 Writer& data_writer,
+                 std::vector<size_t>& compressed_bucket_sizes,
+                 std::vector<size_t>& buffer_sizes);
 
   // Compute base indices for states in `state_machine` that don't have one yet.
   // `public_list_base` is the index of the start of the public list.
@@ -196,7 +196,7 @@ class TransposeEncoder : public ChunkEncoder {
   void ComputeBaseIndices(
       uint32_t max_transition, uint32_t public_list_base,
       const std::vector<std::pair<uint32_t, uint32_t>>& public_list_noops,
-      std::vector<StateInfo>* state_machine);
+      std::vector<StateInfo>& state_machine);
 
   // Traverse `encoded_tags_` and populate `num_incoming_transitions` and
   // `dest_info` in `tags_list_` based on transition distribution.
@@ -210,13 +210,13 @@ class TransposeEncoder : public ChunkEncoder {
   // transitions into `data_writer` (compressed using `compressor_`).
   bool WriteStatesAndData(uint32_t max_transition,
                           const std::vector<StateInfo>& state_machine,
-                          Writer* header_writer, Writer* data_writer);
+                          Writer& header_writer, Writer& data_writer);
 
   // Write all state machine transitions from `encoded_tags_` into
   // `compressor_.writer()`.
   bool WriteTransitions(uint32_t max_transition,
                         const std::vector<StateInfo>& state_machine,
-                        Writer* transitions_writer);
+                        Writer& transitions_writer);
 
   // Value type of node in Nodes map.
   using Node = absl::flat_hash_map<NodeId, MessageNode>::value_type;

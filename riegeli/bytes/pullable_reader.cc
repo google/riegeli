@@ -106,9 +106,9 @@ void PullableReader::PullToScratchSlow(size_t min_length,
   set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
 }
 
-bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
+bool PullableReader::ReadScratchSlow(size_t& length, Chain& dest) {
   RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::ReadScratchSlow(Chain*): "
+      << "Failed precondition of PullableReader::ReadScratchSlow(Chain&): "
          "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
@@ -117,10 +117,10 @@ bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   if (ScratchEnds()) return true;
-  const size_t length_to_read = UnsignedMin(*length, available());
+  const size_t length_to_read = UnsignedMin(length, available());
   scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
                                   dest);
-  *length -= length_to_read;
+  length -= length_to_read;
   move_cursor(length_to_read);
   if (available() == 0) {
     SyncScratchSlow();
@@ -129,9 +129,9 @@ bool PullableReader::ReadScratchSlow(Chain* dest, size_t* length) {
   return false;
 }
 
-bool PullableReader::ReadScratchSlow(absl::Cord* dest, size_t* length) {
+bool PullableReader::ReadScratchSlow(size_t& length, absl::Cord& dest) {
   RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::ReadScratchSlow(Cord*): "
+      << "Failed precondition of PullableReader::ReadScratchSlow(Cord&): "
          "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
@@ -140,10 +140,10 @@ bool PullableReader::ReadScratchSlow(absl::Cord* dest, size_t* length) {
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   if (ScratchEnds()) return true;
-  const size_t length_to_read = UnsignedMin(*length, available());
+  const size_t length_to_read = UnsignedMin(length, available());
   scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
                                   dest);
-  *length -= length_to_read;
+  length -= length_to_read;
   move_cursor(length_to_read);
   if (available() == 0) {
     SyncScratchSlow();
@@ -152,9 +152,9 @@ bool PullableReader::ReadScratchSlow(absl::Cord* dest, size_t* length) {
   return false;
 }
 
-bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
+bool PullableReader::CopyScratchToSlow(Position& length, Writer& dest) {
   RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::CopyToInScratchSlow(): "
+      << "Failed precondition of PullableReader::CopyScratchToSlow(): "
          "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
@@ -163,19 +163,19 @@ bool PullableReader::CopyScratchToSlow(Writer* dest, Position* length) {
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
   if (ScratchEnds()) return true;
-  const size_t length_to_copy = UnsignedMin(*length, available());
+  const size_t length_to_copy = UnsignedMin(length, available());
   bool ok;
   if (length_to_copy == scratch_->buffer.size()) {
-    ok = dest->Write(Chain(scratch_->buffer));
+    ok = dest.Write(Chain(scratch_->buffer));
   } else if (length_to_copy <= kMaxBytesToCopy) {
-    ok = dest->Write(absl::string_view(cursor(), length_to_copy));
+    ok = dest.Write(absl::string_view(cursor(), length_to_copy));
   } else {
     Chain data;
     scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_copy),
-                                    &data);
-    ok = dest->Write(std::move(data));
+                                    data);
+    ok = dest.Write(std::move(data));
   }
-  *length -= length_to_copy;
+  length -= length_to_copy;
   move_cursor(length_to_copy);
   if (available() == 0) {
     SyncScratchSlow();

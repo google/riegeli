@@ -118,12 +118,12 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(absl::Cord&& src) override;
 
  private:
-  // Discards uninitialized space from the beginning of `*dest`, so that it
+  // Discards uninitialized space from the beginning of `dest`, so that it
   // contains only actual data written.
-  void SyncBuffer(Chain* dest);
+  void SyncBuffer(Chain& dest);
 
-  // Prepends uninitialized space to `*dest`.
-  void MakeBuffer(Chain* dest, size_t min_length = 0,
+  // Prepends uninitialized space to `dest`.
+  void MakeBuffer(Chain& dest, size_t min_length = 0,
                   size_t recommended_length = 0);
 
   Chain::Options options_;

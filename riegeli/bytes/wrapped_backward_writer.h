@@ -65,12 +65,12 @@ class WrappedBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(absl::Cord&& src) override;
   void WriteHintSlow(size_t length) override;
 
-  // Sets cursor of `*dest` to cursor of `*this`.
-  void SyncBuffer(BackwardWriter* dest);
+  // Sets cursor of `dest` to cursor of `*this`.
+  void SyncBuffer(BackwardWriter& dest);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
-  // `*this` if `*dest` failed.
-  void MakeBuffer(BackwardWriter* dest);
+  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
+  // if `dest` failed.
+  void MakeBuffer(BackwardWriter& dest);
 
  private:
   // This template is defined and used only in wrapped_backward_writer.cc.
@@ -157,17 +157,17 @@ inline void WrappedBackwardWriterBase::Initialize(BackwardWriter* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of WrappedBackwardWriter: "
          "null BackwardWriter pointer";
-  MakeBuffer(dest);
+  MakeBuffer(*dest);
 }
 
-inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter* dest) {
-  dest->set_cursor(cursor());
+inline void WrappedBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
+  dest.set_cursor(cursor());
 }
 
-inline void WrappedBackwardWriterBase::MakeBuffer(BackwardWriter* dest) {
-  set_buffer(dest->limit(), dest->buffer_size(), dest->written_to_buffer());
-  set_start_pos(dest->pos() - written_to_buffer());
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) FailWithoutAnnotation(*dest);
+inline void WrappedBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
+  set_buffer(dest.limit(), dest.buffer_size(), dest.written_to_buffer());
+  set_start_pos(dest.pos() - written_to_buffer());
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest);
 }
 
 template <typename Dest>
@@ -242,9 +242,9 @@ inline void WrappedBackwardWriter<Dest>::MoveDest(
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(that.dest_.get());
+    SyncBuffer(*that.dest_);
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.get());
+    MakeBuffer(*dest_);
   }
 }
 

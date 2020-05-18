@@ -30,10 +30,10 @@ namespace riegeli {
 // Writes a varint.
 //
 // Returns `false` on failure.
-bool WriteVarint32(uint32_t data, Writer* dest);
-bool WriteVarint64(uint64_t data, Writer* dest);
-bool WriteVarint32(uint32_t data, BackwardWriter* dest);
-bool WriteVarint64(uint64_t data, BackwardWriter* dest);
+bool WriteVarint32(uint32_t data, Writer& dest);
+bool WriteVarint64(uint64_t data, Writer& dest);
+bool WriteVarint32(uint32_t data, BackwardWriter& dest);
+bool WriteVarint64(uint64_t data, BackwardWriter& dest);
 
 // Returns the length needed to write a given value as a varint, which is at
 // most `kMaxLengthVarint{32,64}`.
@@ -50,41 +50,41 @@ char* WriteVarint64(uint64_t data, char* dest);
 
 // Implementation details follow.
 
-inline bool WriteVarint32(uint32_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(RIEGELI_IS_CONSTANT(data) ||
-                                             RIEGELI_IS_CONSTANT(data < 0x80)
-                                         ? LengthVarint32(data)
-                                         : kMaxLengthVarint32))) {
+inline bool WriteVarint32(uint32_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(RIEGELI_IS_CONSTANT(data) ||
+                                            RIEGELI_IS_CONSTANT(data < 0x80)
+                                        ? LengthVarint32(data)
+                                        : kMaxLengthVarint32))) {
     return false;
   }
-  dest->set_cursor(WriteVarint32(data, dest->cursor()));
+  dest.set_cursor(WriteVarint32(data, dest.cursor()));
   return true;
 }
 
-inline bool WriteVarint64(uint64_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(RIEGELI_IS_CONSTANT(data) ||
-                                             RIEGELI_IS_CONSTANT(data < 0x80)
-                                         ? LengthVarint64(data)
-                                         : kMaxLengthVarint64))) {
+inline bool WriteVarint64(uint64_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(RIEGELI_IS_CONSTANT(data) ||
+                                            RIEGELI_IS_CONSTANT(data < 0x80)
+                                        ? LengthVarint64(data)
+                                        : kMaxLengthVarint64))) {
     return false;
   }
-  dest->set_cursor(WriteVarint64(data, dest->cursor()));
+  dest.set_cursor(WriteVarint64(data, dest.cursor()));
   return true;
 }
 
-inline bool WriteVarint32(uint32_t data, BackwardWriter* dest) {
+inline bool WriteVarint32(uint32_t data, BackwardWriter& dest) {
   const size_t length = LengthVarint32(data);
-  if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-  dest->move_cursor(length);
-  WriteVarint32(data, dest->cursor());
+  if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+  dest.move_cursor(length);
+  WriteVarint32(data, dest.cursor());
   return true;
 }
 
-inline bool WriteVarint64(uint64_t data, BackwardWriter* dest) {
+inline bool WriteVarint64(uint64_t data, BackwardWriter& dest) {
   const size_t length = LengthVarint64(data);
-  if (ABSL_PREDICT_FALSE(!dest->Push(length))) return false;
-  dest->move_cursor(length);
-  WriteVarint64(data, dest->cursor());
+  if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+  dest.move_cursor(length);
+  WriteVarint64(data, dest.cursor());
   return true;
 }
 

@@ -28,12 +28,12 @@ namespace riegeli {
 // Reads a number in a fixed width Little/Big Endian encoding.
 //
 // Returns `absl::nullopt` on failure, with the current position unchanged.
-absl::optional<uint16_t> ReadLittleEndian16(Reader* src);
-absl::optional<uint32_t> ReadLittleEndian32(Reader* src);
-absl::optional<uint64_t> ReadLittleEndian64(Reader* src);
-absl::optional<uint16_t> ReadBigEndian16(Reader* src);
-absl::optional<uint32_t> ReadBigEndian32(Reader* src);
-absl::optional<uint64_t> ReadBigEndian64(Reader* src);
+absl::optional<uint16_t> ReadLittleEndian16(Reader& src);
+absl::optional<uint32_t> ReadLittleEndian32(Reader& src);
+absl::optional<uint64_t> ReadLittleEndian64(Reader& src);
+absl::optional<uint16_t> ReadBigEndian16(Reader& src);
+absl::optional<uint32_t> ReadBigEndian32(Reader& src);
+absl::optional<uint64_t> ReadBigEndian64(Reader& src);
 
 // Reads a number in a fixed width Little/Big Endian encoding from an array.
 //
@@ -47,45 +47,45 @@ uint64_t ReadBigEndian64(const char* src);
 
 // Implementation details follow.
 
-inline absl::optional<uint16_t> ReadLittleEndian16(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint16_t)))) return absl::nullopt;
-  const uint16_t data = ReadLittleEndian16(src->cursor());
-  src->move_cursor(sizeof(uint16_t));
+inline absl::optional<uint16_t> ReadLittleEndian16(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint16_t)))) return absl::nullopt;
+  const uint16_t data = ReadLittleEndian16(src.cursor());
+  src.move_cursor(sizeof(uint16_t));
   return data;
 }
 
-inline absl::optional<uint32_t> ReadLittleEndian32(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t)))) return absl::nullopt;
-  const uint32_t data = ReadLittleEndian32(src->cursor());
-  src->move_cursor(sizeof(uint32_t));
+inline absl::optional<uint32_t> ReadLittleEndian32(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) return absl::nullopt;
+  const uint32_t data = ReadLittleEndian32(src.cursor());
+  src.move_cursor(sizeof(uint32_t));
   return data;
 }
 
-inline absl::optional<uint64_t> ReadLittleEndian64(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint64_t)))) return absl::nullopt;
-  const uint64_t data = ReadLittleEndian64(src->cursor());
-  src->move_cursor(sizeof(uint64_t));
+inline absl::optional<uint64_t> ReadLittleEndian64(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint64_t)))) return absl::nullopt;
+  const uint64_t data = ReadLittleEndian64(src.cursor());
+  src.move_cursor(sizeof(uint64_t));
   return data;
 }
 
-inline absl::optional<uint16_t> ReadBigEndian16(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint16_t)))) return absl::nullopt;
-  const uint16_t data = ReadBigEndian16(src->cursor());
-  src->move_cursor(sizeof(uint16_t));
+inline absl::optional<uint16_t> ReadBigEndian16(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint16_t)))) return absl::nullopt;
+  const uint16_t data = ReadBigEndian16(src.cursor());
+  src.move_cursor(sizeof(uint16_t));
   return data;
 }
 
-inline absl::optional<uint32_t> ReadBigEndian32(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint32_t)))) return absl::nullopt;
-  const uint32_t data = ReadBigEndian32(src->cursor());
-  src->move_cursor(sizeof(uint32_t));
+inline absl::optional<uint32_t> ReadBigEndian32(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) return absl::nullopt;
+  const uint32_t data = ReadBigEndian32(src.cursor());
+  src.move_cursor(sizeof(uint32_t));
   return data;
 }
 
-inline absl::optional<uint64_t> ReadBigEndian64(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull(sizeof(uint64_t)))) return absl::nullopt;
-  const uint64_t data = ReadBigEndian64(src->cursor());
-  src->move_cursor(sizeof(uint64_t));
+inline absl::optional<uint64_t> ReadBigEndian64(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint64_t)))) return absl::nullopt;
+  const uint64_t data = ReadBigEndian64(src.cursor());
+  src.move_cursor(sizeof(uint64_t));
   return data;
 }
 

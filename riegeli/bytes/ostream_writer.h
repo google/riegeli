@@ -274,7 +274,7 @@ void OstreamWriter<Dest>::Done() {
   OstreamWriterBase::Done();
   if (dest_.is_owning()) {
     errno = 0;
-    internal::CloseStream(dest_.get());
+    internal::CloseStream(*dest_);
     if (ABSL_PREDICT_FALSE(dest_->fail()) && ABSL_PREDICT_TRUE(healthy())) {
       FailOperation("ostream::close()");
     }

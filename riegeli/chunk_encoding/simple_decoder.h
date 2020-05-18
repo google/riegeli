@@ -39,21 +39,21 @@ class SimpleDecoder : public Object {
   // Resets the `SimpleDecoder` and parses the chunk.
   //
   // Makes concatenated record values available for reading from `reader()`.
-  // Sets `*limits` to sorted record end positions.
+  // Sets `limits` to sorted record end positions.
   //
-  // `src` is not owned by this `SimpleDecoder` and must be kept alive but not
+  // `*src` is not owned by this `SimpleDecoder` and must be kept alive but not
   // accessed until closing the `SimpleDecoder`.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
   bool Decode(Reader* src, uint64_t num_records, uint64_t decoded_data_size,
-              std::vector<size_t>* limits);
+              std::vector<size_t>& limits);
 
   // Returns the `Reader` from which concatenated record values should be read.
   //
   // Precondition: `healthy()`
-  Reader* reader();
+  Reader& reader();
 
   // Verifies that the concatenated record values end at the current position,
   // failing the `SimpleDecoder` if not. Closes the `SimpleDecoder`.
@@ -75,7 +75,7 @@ class SimpleDecoder : public Object {
 
 // Implementation details follow.
 
-inline Reader* SimpleDecoder::reader() {
+inline Reader& SimpleDecoder::reader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of SimpleDecoder::reader(): " << status();
   return values_decompressor_.reader();

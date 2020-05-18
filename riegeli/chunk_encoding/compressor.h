@@ -94,9 +94,9 @@ class Compressor : public Object {
   // Returns the `Writer` to which uncompressed data should be written.
   //
   // Precondition: `healthy()`
-  Writer* writer();
+  Writer& writer();
 
-  // Writes compressed data to `*dest`. Closes the `Compressor`.
+  // Writes compressed data to `dest`. Closes the `Compressor`.
   //
   // If `compressor_options.compression_type()` is not `kNone`, writes
   // uncompressed size as a varint before the data.
@@ -104,7 +104,7 @@ class Compressor : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  bool EncodeAndClose(Writer* dest);
+  bool EncodeAndClose(Writer& dest);
 
  private:
   void Initialize();
@@ -122,10 +122,10 @@ class Compressor : public Object {
 
 // Implementation details follow.
 
-inline Writer* Compressor::writer() {
+inline Writer& Compressor::writer() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Compressor::writer(): " << status();
-  return absl::visit([](Writer& writer) { return &writer; }, writer_);
+  return absl::visit([](Writer& writer) -> Writer& { return writer; }, writer_);
 }
 
 }  // namespace internal

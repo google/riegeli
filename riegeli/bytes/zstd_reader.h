@@ -106,7 +106,7 @@ class ZstdReaderBase : public BufferedReader {
 
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
-  bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 
  private:
   struct ZSTD_DCtxDeleter {
@@ -186,7 +186,7 @@ class ZstdReader : public ZstdReaderBase {
 // stored if `ZstdWriterBase::Options().set_final_size()` is used.
 //
 // The current position of `src` is unchanged.
-absl::optional<Position> ZstdUncompressedSize(Reader* src);
+absl::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Implementation details follow.
 

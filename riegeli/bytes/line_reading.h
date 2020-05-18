@@ -94,18 +94,18 @@ class ReadLineOptions {
 // calls).
 //
 // Return values:
-//  * `true`                           - success (`*dest` is set)
-//  * `false` (when `src->healthy()`)  - source ends (`dest->empty()`)
-//  * `false` (when `!src->healthy()`) - failure (`dest->empty()`)
-bool ReadLine(Reader* src, absl::string_view* dest,
+//  * `true`                          - success (`dest` is set)
+//  * `false` (when `src.healthy()`)  - source ends (`dest.empty()`)
+//  * `false` (when `!src.healthy()`) - failure (`dest.empty()`)
+bool ReadLine(Reader& src, absl::string_view& dest,
               ReadLineOptions options = ReadLineOptions());
-bool ReadLine(Reader* src, std::string* dest,
+bool ReadLine(Reader& src, std::string& dest,
               ReadLineOptions options = ReadLineOptions());
 
 // Skips an initial UTF-8 BOM if it is present.
 //
 // Does nothing unless `src->pos() == 0`.
-void SkipBOM(riegeli::Reader* src);
+void SkipBOM(riegeli::Reader& src);
 
 }  // namespace riegeli
 

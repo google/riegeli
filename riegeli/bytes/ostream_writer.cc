@@ -85,7 +85,7 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
-  std::ostream* const dest = dest_stream();
+  std::ostream& dest = *dest_stream();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<std::streamoff>::max()} -
                              start_pos())) {
@@ -95,8 +95,8 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   do {
     const size_t length_to_write = UnsignedMin(
         src.size(), size_t{std::numeric_limits<std::streamsize>::max()});
-    dest->write(src.data(), IntCast<std::streamsize>(length_to_write));
-    if (ABSL_PREDICT_FALSE(dest->fail())) {
+    dest.write(src.data(), IntCast<std::streamsize>(length_to_write));
+    if (ABSL_PREDICT_FALSE(dest.fail())) {
       return FailOperation("ostream::write()");
     }
     move_start_pos(length_to_write);
@@ -112,10 +112,10 @@ bool OstreamWriterBase::Flush(FlushType flush_type) {
       return true;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine: {
-      std::ostream* const dest = dest_stream();
+      std::ostream& dest = *dest_stream();
       errno = 0;
-      dest->flush();
-      if (ABSL_PREDICT_FALSE(dest->fail())) {
+      dest.flush();
+      if (ABSL_PREDICT_FALSE(dest.fail())) {
         return FailOperation("ostream::flush()");
       }
       return true;
@@ -136,15 +136,15 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";
-  std::ostream* const dest = dest_stream();
+  std::ostream& dest = *dest_stream();
   errno = 0;
   if (new_pos >= start_pos()) {
     // Seeking forwards.
-    dest->seekp(0, std::ios_base::end);
-    if (ABSL_PREDICT_FALSE(dest->fail())) {
+    dest.seekp(0, std::ios_base::end);
+    if (ABSL_PREDICT_FALSE(dest.fail())) {
       return FailOperation("ostream::seekp()");
     }
-    const std::streamoff stream_size = dest->tellp();
+    const std::streamoff stream_size = dest.tellp();
     if (ABSL_PREDICT_FALSE(stream_size < 0)) {
       return FailOperation("ostream::tellp()");
     }
@@ -154,8 +154,8 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
       return false;
     }
   }
-  dest->seekp(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(dest->fail())) {
+  dest.seekp(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) {
     return FailOperation("ostream::seekp()");
   }
   set_start_pos(new_pos);
@@ -168,20 +168,20 @@ absl::optional<Position> OstreamWriterBase::Size() {
     Fail(absl::UnimplementedError("OstreamWriterBase::Size() not supported"));
     return absl::nullopt;
   }
-  std::ostream* const dest = dest_stream();
+  std::ostream& dest = *dest_stream();
   errno = 0;
-  dest->seekp(0, std::ios_base::end);
-  if (ABSL_PREDICT_FALSE(dest->fail())) {
+  dest.seekp(0, std::ios_base::end);
+  if (ABSL_PREDICT_FALSE(dest.fail())) {
     FailOperation("ostream::seekp()");
     return absl::nullopt;
   }
-  const std::streamoff stream_size = dest->tellp();
+  const std::streamoff stream_size = dest.tellp();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
     FailOperation("ostream::tellp()");
     return absl::nullopt;
   }
-  dest->seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(dest->fail())) {
+  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) {
     FailOperation("ostream::seekp()");
     return absl::nullopt;
   }

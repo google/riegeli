@@ -80,7 +80,7 @@ class Chain::BlockRef {
 
   ~BlockRef();
 
-  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
@@ -109,7 +109,7 @@ inline Chain::BlockRef::~BlockRef() {
 }
 
 inline void Chain::BlockRef::RegisterSubobjects(
-    MemoryEstimator* memory_estimator) const {
+    MemoryEstimator& memory_estimator) const {
   block_->RegisterShared(memory_estimator);
 }
 
@@ -129,7 +129,7 @@ class Chain::StringRef {
   StringRef& operator=(const StringRef&) = delete;
 
   explicit operator absl::string_view() const { return src_; }
-  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
 
  private:
@@ -139,8 +139,8 @@ class Chain::StringRef {
 };
 
 inline void Chain::StringRef::RegisterSubobjects(
-    MemoryEstimator* memory_estimator) const {
-  memory_estimator->RegisterDynamicMemory(src_.capacity() + 1);
+    MemoryEstimator& memory_estimator) const {
+  memory_estimator.RegisterDynamicMemory(src_.capacity() + 1);
 }
 
 inline void Chain::StringRef::DumpStructure(std::ostream& out) const {
@@ -156,25 +156,25 @@ class Chain::FlatCordRef {
  public:
   explicit FlatCordRef(const absl::Cord& src);
   explicit FlatCordRef(absl::Cord&& src);
-  explicit FlatCordRef(absl::Cord::CharIterator* iter, size_t length);
+  explicit FlatCordRef(absl::Cord::CharIterator& iter, size_t length);
 
   FlatCordRef(const FlatCordRef&) = delete;
   FlatCordRef& operator=(const FlatCordRef&) = delete;
 
   explicit operator absl::string_view() const;
   void RegisterSubobjects(absl::string_view data,
-                          MemoryEstimator* memory_estimator) const;
+                          MemoryEstimator& memory_estimator) const;
   void DumpStructure(std::ostream& out) const;
 
-  // Appends the `absl::Cord` to `*dest`.
-  void AppendTo(absl::Cord* dest) const;
+  // Appends the `absl::Cord` to `dest`.
+  void AppendTo(absl::Cord& dest) const;
 
-  // Appends `substr` to `*dest`. `substr` must be contained in
+  // Appends `substr` to `dest`. `substr` must be contained in
   // `absl::string_view(*this)`.
-  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest) const;
+  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) const;
 
-  // Prepends the `absl::Cord` to `*dest`.
-  void PrependTo(absl::Cord* dest) const;
+  // Prepends the `absl::Cord` to `dest`.
+  void PrependTo(absl::Cord& dest) const;
 
  private:
   // Invariant: `src_.TryFlat() != absl::nullopt`
@@ -194,16 +194,16 @@ inline Chain::FlatCordRef::FlatCordRef(absl::Cord&& src)
          "Cord is not flat";
 }
 
-inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator* iter,
+inline Chain::FlatCordRef::FlatCordRef(absl::Cord::CharIterator& iter,
                                        size_t length)
-    : src_(absl::Cord::AdvanceAndRead(iter, length)) {
+    : src_(absl::Cord::AdvanceAndRead(&iter, length)) {
   RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
       << "Failed precondition of Chain::FlatCordRef::FlatCordRef(): "
          "Cord is not flat";
 }
 
 inline void Chain::FlatCordRef::RegisterSubobjects(
-    absl::string_view data, MemoryEstimator* memory_estimator) const {
+    absl::string_view data, MemoryEstimator& memory_estimator) const {
   // `absl::Cord` does not expose its internal structure, but this `absl::Cord`
   // is flat, so we can have a reasonable estimation. We identify the
   // `absl::Cord` node by the pointer to the first character. If some of the
@@ -213,8 +213,8 @@ inline void Chain::FlatCordRef::RegisterSubobjects(
   // this case we do not take into account the substring node, and do not detect
   // sharing if the source node itself is present too or if multiple substrings
   // point to different parts of the source node.
-  if (memory_estimator->RegisterNode(data.data())) {
-    memory_estimator->RegisterMemory(
+  if (memory_estimator.RegisterNode(data.data())) {
+    memory_estimator.RegisterMemory(
         SaturatingSub(src_.EstimatedMemoryUsage(), sizeof(absl::Cord)));
   }
 }
@@ -231,22 +231,22 @@ inline void Chain::FlatCordRef::DumpStructure(std::ostream& out) const {
   out << "[cord] { }";
 }
 
-inline void Chain::FlatCordRef::AppendTo(absl::Cord* dest) const {
+inline void Chain::FlatCordRef::AppendTo(absl::Cord& dest) const {
   RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest->size())
+                    std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::FlatCordRef::AppendTo(): "
          "Cord size overflow";
-  dest->Append(src_);
+  dest.Append(src_);
 }
 
 inline void Chain::FlatCordRef::AppendSubstrTo(absl::string_view substr,
-                                               absl::Cord* dest) const {
+                                               absl::Cord& dest) const {
   RIEGELI_ASSERT_LE(substr.size(),
-                    std::numeric_limits<size_t>::max() - dest->size())
+                    std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::FlatCordRef::AppendSubstrTo(): "
          "Cord size overflow";
   if (substr.size() == src_.size()) {
-    dest->Append(src_);
+    dest.Append(src_);
     return;
   }
   const absl::string_view fragment(*this);
@@ -257,16 +257,16 @@ inline void Chain::FlatCordRef::AppendSubstrTo(absl::string_view substr,
                                      fragment.data() + fragment.size()))
       << "Failed precondition of Chain::FlatCordRef::AppendSubstrTo(): "
          "substring not contained in data";
-  dest->Append(
+  dest.Append(
       src_.Subcord(PtrDistance(fragment.data(), substr.data()), substr.size()));
 }
 
-inline void Chain::FlatCordRef::PrependTo(absl::Cord* dest) const {
+inline void Chain::FlatCordRef::PrependTo(absl::Cord& dest) const {
   RIEGELI_ASSERT_LE(src_.size(),
-                    std::numeric_limits<size_t>::max() - dest->size())
+                    std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::FlatCordRef::PrependTo(): "
          "Cord size overflow";
-  dest->Prepend(src_);
+  dest.Prepend(src_);
 }
 
 inline Chain::RawBlock* Chain::RawBlock::NewInternal(size_t min_capacity) {
@@ -359,11 +359,11 @@ inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
 }
 
 inline void Chain::RawBlock::RegisterShared(
-    MemoryEstimator* memory_estimator) const {
-  if (memory_estimator->RegisterNode(this)) {
+    MemoryEstimator& memory_estimator) const {
+  if (memory_estimator.RegisterNode(this)) {
     if (is_internal()) {
-      memory_estimator->RegisterDynamicMemory(kInternalAllocatedOffset() +
-                                              capacity());
+      memory_estimator.RegisterDynamicMemory(kInternalAllocatedOffset() +
+                                             capacity());
     } else {
       external_.methods->register_unique(this, memory_estimator);
     }
@@ -501,20 +501,20 @@ inline void Chain::RawBlock::Prepend(absl::string_view src,
   data_ = absl::string_view(data_begin() - src.size(), size() + src.size());
 }
 
-inline void Chain::RawBlock::AppendTo(Chain* dest, const Options& options) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::RawBlock::AppendTo(Chain*): "
+inline void Chain::RawBlock::AppendTo(Chain& dest, const Options& options) {
+  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::RawBlock::AppendTo(Chain&): "
          "Chain size overflow";
-  dest->AppendBlock<Ownership::kShare>(this, options);
+  dest.AppendBlock<Ownership::kShare>(this, options);
 }
 
 template <Chain::Ownership ownership>
-inline void Chain::RawBlock::AppendTo(absl::Cord* dest) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::RawBlock::AppendTo(Cord*): "
+inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
+  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::RawBlock::AppendTo(Cord&): "
          "Cord size overflow";
   if (size() <= MaxBytesToCopyToCord(dest)) {
-    dest->Append(absl::string_view(*this));
+    dest.Append(absl::string_view(*this));
     Unref<ownership>();
     return;
   }
@@ -528,32 +528,32 @@ inline void Chain::RawBlock::AppendTo(absl::Cord* dest) {
     return;
   }
   Ref<ownership>();
-  dest->Append(absl::MakeCordFromExternal(absl::string_view(*this),
-                                          [this] { Unref(); }));
+  dest.Append(absl::MakeCordFromExternal(absl::string_view(*this),
+                                         [this] { Unref(); }));
 }
 
 inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
-                                            Chain* dest,
+                                            Chain& dest,
                                             const Options& options) {
   RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data_begin()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain*): "
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
          "substring not contained in data";
   RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(), data_end()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain*): "
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
          "substring not contained in data";
   RIEGELI_ASSERT_LE(substr.size(),
-                    std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain*): "
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
          "Chain size overflow";
   if (substr.size() == size()) {
-    dest->AppendBlock<Ownership::kShare>(this, options);
+    dest.AppendBlock<Ownership::kShare>(this, options);
     return;
   }
   if (substr.size() <= kMaxBytesToCopy) {
-    dest->Append(substr, options);
+    dest.Append(substr, options);
     return;
   }
-  dest->Append(
+  dest.Append(
       ChainBlock::FromExternal<BlockRef>(
           std::forward_as_tuple(
               this, std::integral_constant<Ownership, Ownership::kShare>()),
@@ -562,19 +562,19 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
 }
 
 inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
-                                            absl::Cord* dest) {
+                                            absl::Cord& dest) {
   RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data_begin()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord*): "
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "substring not contained in data";
   RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(), data_end()))
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord*): "
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "substring not contained in data";
   RIEGELI_ASSERT_LE(substr.size(),
-                    std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord*): "
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "Cord size overflow";
   if (substr.size() <= MaxBytesToCopyToCord(dest)) {
-    dest->Append(substr);
+    dest.Append(substr);
     return;
   }
   if (const FlatCordRef* const cord_ref =
@@ -583,16 +583,16 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
     return;
   }
   Ref();
-  dest->Append(absl::MakeCordFromExternal(substr, [this] { Unref(); }));
+  dest.Append(absl::MakeCordFromExternal(substr, [this] { Unref(); }));
 }
 
 template <Chain::Ownership ownership>
-inline void Chain::RawBlock::PrependTo(absl::Cord* dest) {
-  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::RawBlock::PrependTo(Cord*): "
+inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
+  RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::RawBlock::PrependTo(Cord&): "
          "Chain size overflow";
   if (size() <= MaxBytesToCopyToCord(dest)) {
-    dest->Prepend(absl::string_view(*this));
+    dest.Prepend(absl::string_view(*this));
     Unref<ownership>();
     return;
   }
@@ -606,8 +606,8 @@ inline void Chain::RawBlock::PrependTo(absl::Cord* dest) {
     return;
   }
   Ref<ownership>();
-  dest->Prepend(absl::MakeCordFromExternal(absl::string_view(*this),
-                                           [this] { Unref(); }));
+  dest.Prepend(absl::MakeCordFromExternal(absl::string_view(*this),
+                                          [this] { Unref(); }));
 }
 
 Chain::RawBlock* Chain::BlockIterator::PinImpl() {
@@ -623,102 +623,102 @@ Chain::RawBlock* Chain::BlockIterator::PinImpl() {
   return ptr_.as_ptr()->block_ptr->Ref();
 }
 
-void Chain::BlockIterator::AppendTo(Chain* dest, const Options& options) const {
+void Chain::BlockIterator::AppendTo(Chain& dest, const Options& options) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain&): "
          "iterator is end()";
   RIEGELI_CHECK_LE(chain_->size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Chain&): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest->Append(chain_->short_data(), options);
+    dest.Append(chain_->short_data(), options);
   } else {
     ptr_.as_ptr()->block_ptr->AppendTo(dest, options);
   }
 }
 
-void Chain::BlockIterator::AppendTo(absl::Cord* dest) const {
+void Chain::BlockIterator::AppendTo(absl::Cord& dest) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Cord*): "
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Cord&): "
          "iterator is end()";
   RIEGELI_CHECK_LE(chain_->size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::BlockIterator::AppendTo(Cord*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::BlockIterator::AppendTo(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest->Append(chain_->short_data());
+    dest.Append(chain_->short_data());
   } else {
     ptr_.as_ptr()->block_ptr->AppendTo<Ownership::kShare>(dest);
   }
 }
 
-void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain* dest,
+void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr, Chain& dest,
                                           const Options& options) const {
   if (substr.empty()) return;
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain&): "
          "iterator is end()";
   RIEGELI_CHECK_LE(substr.size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Chain&): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     RIEGELI_ASSERT(
         std::greater_equal<>()(substr.data(), chain_->short_data().data()))
         << "Failed precondition of "
-           "Chain::BlockIterator::AppendSubstrTo(Chain*): "
+           "Chain::BlockIterator::AppendSubstrTo(Chain&): "
            "substring not contained in data";
     RIEGELI_ASSERT(std::less_equal<>()(
         substr.data() + substr.size(),
         chain_->short_data().data() + chain_->short_data().size()))
         << "Failed precondition of "
-           "Chain::BlockIterator::AppendSubstrTo(Chain*): "
+           "Chain::BlockIterator::AppendSubstrTo(Chain&): "
            "substring not contained in data";
-    dest->Append(substr, options);
+    dest.Append(substr, options);
   } else {
     ptr_.as_ptr()->block_ptr->AppendSubstrTo(substr, dest, options);
   }
 }
 
 void Chain::BlockIterator::AppendSubstrTo(absl::string_view substr,
-                                          absl::Cord* dest) const {
+                                          absl::Cord& dest) const {
   if (substr.empty()) return;
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord): "
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord&): "
          "iterator is end()";
   RIEGELI_CHECK_LE(substr.size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::BlockIterator::AppendSubstrTo(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
     RIEGELI_ASSERT(
         std::greater_equal<>()(substr.data(), chain_->short_data().data()))
         << "Failed precondition of "
-           "Chain::BlockIterator::AppendSubstrTo(Cord*): "
+           "Chain::BlockIterator::AppendSubstrTo(Cord&): "
            "substring not contained in data";
     RIEGELI_ASSERT(std::less_equal<>()(
         substr.data() + substr.size(),
         chain_->short_data().data() + chain_->short_data().size()))
         << "Failed precondition of "
-           "Chain::BlockIterator::AppendSubstrTo(Cord*): "
+           "Chain::BlockIterator::AppendSubstrTo(Cord&): "
            "substring not contained in data";
-    dest->Append(substr);
+    dest.Append(substr);
   } else {
     ptr_.as_ptr()->block_ptr->AppendSubstrTo(substr, dest);
   }
 }
 
-void Chain::BlockIterator::PrependTo(absl::Cord* dest) const {
+void Chain::BlockIterator::PrependTo(absl::Cord& dest) const {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
-      << "Failed precondition of Chain::BlockIterator::PrependTo(Cord*): "
+      << "Failed precondition of Chain::BlockIterator::PrependTo(Cord&): "
          "iterator is end()";
   RIEGELI_CHECK_LE(chain_->size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::BlockIterator::PrependTo(Cord*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::BlockIterator::PrependTo(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(ptr_ == kBeginShortData)) {
-    dest->Prepend(chain_->short_data());
+    dest.Prepend(chain_->short_data());
   } else {
     ptr_.as_ptr()->block_ptr->PrependTo<Ownership::kShare>(dest);
   }
@@ -803,29 +803,29 @@ void Chain::CopyTo(char* dest) const {
   }
 }
 
-void Chain::AppendTo(std::string* dest) const& {
-  const size_t size_before = dest->size();
-  RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
-      << "Failed precondition of Chain::AppendTo(string*): "
+void Chain::AppendTo(std::string& dest) const& {
+  const size_t size_before = dest.size();
+  RIEGELI_CHECK_LE(size_, dest.max_size() - size_before)
+      << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
-  dest->resize(size_before + size_);
-  CopyTo(&(*dest)[size_before]);
+  dest.resize(size_before + size_);
+  CopyTo(&dest[size_before]);
 }
 
-void Chain::AppendTo(std::string* dest) && {
-  const size_t size_before = dest->size();
-  RIEGELI_CHECK_LE(size_, dest->max_size() - size_before)
-      << "Failed precondition of Chain::AppendTo(string*): "
+void Chain::AppendTo(std::string& dest) && {
+  const size_t size_before = dest.size();
+  RIEGELI_CHECK_LE(size_, dest.max_size() - size_before)
+      << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
-  if (dest->empty() && PtrDistance(begin_, end_) == 1) {
+  if (dest.empty() && PtrDistance(begin_, end_) == 1) {
     RawBlock* const block = front();
     if (StringRef* const string_ref =
             block->checked_external_object_with_unique_owner<StringRef>()) {
       RIEGELI_ASSERT_EQ(block->size(), absl::string_view(*string_ref).size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
-      if (dest->capacity() <= string_ref->src_.capacity()) {
-        *dest = std::move(string_ref->src_);
+      if (dest.capacity() <= string_ref->src_.capacity()) {
+        dest = std::move(string_ref->src_);
         block->Unref();
         end_ = begin_;
         size_ = 0;
@@ -833,16 +833,16 @@ void Chain::AppendTo(std::string* dest) && {
       }
     }
   }
-  dest->resize(size_before + size_);
-  CopyTo(&(*dest)[size_before]);
+  dest.resize(size_before + size_);
+  CopyTo(&dest[size_before]);
 }
 
-void Chain::AppendTo(absl::Cord* dest) const& {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::AppendTo(Cord*): Cord size overflow";
+void Chain::AppendTo(absl::Cord& dest) const& {
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
   const BlockPtr* iter = begin_;
   if (iter == end_) {
-    dest->Append(short_data());
+    dest.Append(short_data());
   } else {
     do {
       iter->block_ptr->AppendTo<Ownership::kShare>(dest);
@@ -851,12 +851,12 @@ void Chain::AppendTo(absl::Cord* dest) const& {
   }
 }
 
-void Chain::AppendTo(absl::Cord* dest) && {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::AppendTo(Cord*): Cord size overflow";
+void Chain::AppendTo(absl::Cord& dest) && {
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
   const BlockPtr* iter = begin_;
   if (iter == end_) {
-    dest->Append(short_data());
+    dest.Append(short_data());
   } else {
     do {
       iter->block_ptr->AppendTo<Ownership::kSteal>(dest);
@@ -867,12 +867,12 @@ void Chain::AppendTo(absl::Cord* dest) && {
   size_ = 0;
 }
 
-void Chain::PrependTo(absl::Cord* dest) const& {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::PrependTo(Cord*): Cord size overflow";
+void Chain::PrependTo(absl::Cord& dest) const& {
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
   const BlockPtr* iter = end_;
   if (iter == begin_) {
-    dest->Prepend(short_data());
+    dest.Prepend(short_data());
   } else {
     do {
       --iter;
@@ -881,12 +881,12 @@ void Chain::PrependTo(absl::Cord* dest) const& {
   }
 }
 
-void Chain::PrependTo(absl::Cord* dest) && {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Chain::PrependTo(Cord*): Cord size overflow";
+void Chain::PrependTo(absl::Cord& dest) && {
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
   const BlockPtr* iter = end_;
   if (iter == begin_) {
-    dest->Prepend(short_data());
+    dest.Prepend(short_data());
   } else {
     do {
       --iter;
@@ -899,7 +899,7 @@ void Chain::PrependTo(absl::Cord* dest) && {
 
 Chain::operator std::string() const& {
   std::string dest;
-  AppendTo(&dest);
+  AppendTo(dest);
   return dest;
 }
 
@@ -919,19 +919,19 @@ Chain::operator std::string() && {
     }
   }
   std::string dest;
-  AppendTo(&dest);
+  AppendTo(dest);
   return dest;
 }
 
 Chain::operator absl::Cord() const& {
   absl::Cord dest;
-  AppendTo(&dest);
+  AppendTo(dest);
   return dest;
 }
 
 Chain::operator absl::Cord() && {
   absl::Cord dest;
-  std::move(*this).AppendTo(&dest);
+  std::move(*this).AppendTo(dest);
   return dest;
 }
 
@@ -971,13 +971,13 @@ Chain::CharPosition Chain::FindPosition(size_t pos) const {
 size_t Chain::EstimateMemory() const {
   MemoryEstimator memory_estimator;
   memory_estimator.RegisterMemory(sizeof(Chain));
-  RegisterSubobjects(&memory_estimator);
+  RegisterSubobjects(memory_estimator);
   return memory_estimator.TotalMemory();
 }
 
-void Chain::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
+void Chain::RegisterSubobjects(MemoryEstimator& memory_estimator) const {
   if (has_allocated()) {
-    memory_estimator->RegisterMemory(
+    memory_estimator.RegisterMemory(
         2 *
         PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end) *
         sizeof(BlockPtr));
@@ -1709,7 +1709,7 @@ void Chain::AppendCord(CordRef&& src, const Options& options) {
       }
       copied_fragments.clear();
       Append(ChainBlock::FromExternal<FlatCordRef>(
-                 std::forward_as_tuple(&iter, fragment.size())),
+                 std::forward_as_tuple(iter, fragment.size())),
              options);
       copy_options.set_size_hint(size());
     }
@@ -1904,7 +1904,7 @@ void Chain::PrependCord(CordRef&& src, const Options& options) {
   Prepend(Chain(std::move(src)), options);
 }
 
-void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,
+void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
                        const Options& options) {
   RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendFrom(): "
@@ -1916,13 +1916,13 @@ void Chain::AppendFrom(absl::Cord::CharIterator* iter, size_t length,
   Options copy_options = options;
   copy_options.set_size_hint(size());
   while (length > 0) {
-    absl::string_view fragment = absl::Cord::ChunkRemaining(*iter);
+    absl::string_view fragment = absl::Cord::ChunkRemaining(iter);
     fragment = absl::string_view(fragment.data(),
                                  UnsignedMin(fragment.size(), length));
     if (fragment.size() <= kMaxBytesToCopy) {
       copied_fragments.push_back(fragment);
       copy_options.set_size_hint(copy_options.size_hint() + fragment.size());
-      absl::Cord::Advance(iter, fragment.size());
+      absl::Cord::Advance(&iter, fragment.size());
     } else {
       for (const absl::string_view copied_fragment : copied_fragments) {
         Append(copied_fragment, copy_options);
@@ -2440,11 +2440,11 @@ void Chain::VerifyInvariants() const {
 size_t ChainBlock::EstimateMemory() const {
   MemoryEstimator memory_estimator;
   memory_estimator.RegisterMemory(sizeof(ChainBlock));
-  RegisterSubobjects(&memory_estimator);
+  RegisterSubobjects(memory_estimator);
   return memory_estimator.TotalMemory();
 }
 
-void ChainBlock::RegisterSubobjects(MemoryEstimator* memory_estimator) const {
+void ChainBlock::RegisterSubobjects(MemoryEstimator& memory_estimator) const {
   if (block_ != nullptr) block_->RegisterShared(memory_estimator);
 }
 
@@ -2575,46 +2575,46 @@ void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
   block_ = block;
 }
 
-void ChainBlock::AppendTo(Chain* dest, const Chain::Options& options) const {
+void ChainBlock::AppendTo(Chain& dest, const Chain::Options& options) const {
   if (block_ == nullptr) return;
   RIEGELI_CHECK_LE(block_->size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of ChainBlock::AppendTo(Chain*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of ChainBlock::AppendTo(Chain&): "
          "Chain size overflow";
   block_->AppendTo(dest, options);
 }
 
-void ChainBlock::AppendTo(absl::Cord* dest) const {
+void ChainBlock::AppendTo(absl::Cord& dest) const {
   if (block_ == nullptr) return;
   RIEGELI_CHECK_LE(block_->size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of ChainBlock::AppendTo(Cord*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of ChainBlock::AppendTo(Cord&): "
          "Cord size overflow";
   block_->AppendTo<Chain::Ownership::kShare>(dest);
 }
 
-void ChainBlock::AppendSubstrTo(absl::string_view substr, Chain* dest,
+void ChainBlock::AppendSubstrTo(absl::string_view substr, Chain& dest,
                                 const Chain::Options& options) const {
   if (substr.empty()) return;
   RIEGELI_CHECK_LE(substr.size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain&): "
          "Chain size overflow";
   RIEGELI_ASSERT(block_ != nullptr)
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain*): "
+      << "Failed precondition of ChainBlock::AppendSubstrTo(Chain&): "
          "substring not contained in data";
   block_->AppendSubstrTo(substr, dest, options);
 }
 
 void ChainBlock::AppendSubstrTo(absl::string_view substr,
-                                absl::Cord* dest) const {
+                                absl::Cord& dest) const {
   if (substr.empty()) return;
   RIEGELI_CHECK_LE(substr.size(),
-                   std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord*): "
+                   std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord&): "
          "Cord size overflow";
   RIEGELI_ASSERT(block_ != nullptr)
-      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord*): "
+      << "Failed precondition of ChainBlock::AppendSubstrTo(Cord&): "
          "substring not contained in data";
   block_->AppendSubstrTo(substr, dest);
 }

@@ -163,7 +163,7 @@ class BrotliWriterBase : public BufferedWriter {
     }
   };
 
-  bool WriteInternal(absl::string_view src, Writer* dest,
+  bool WriteInternal(absl::string_view src, Writer& dest,
                      BrotliEncoderOperation op);
 
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;

@@ -45,7 +45,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos))) {
     const Position length = internal::RemainingInBlock(pos);
-    WriteZeros(length, dest);
+    WriteZeros(length, *dest);
     pos += length;
   }
   ChunkWriter::Initialize(pos);
@@ -58,19 +58,19 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   StringReader<> header_reader(
       absl::string_view(chunk.header.bytes(), chunk.header.size()));
   ChainReader<> data_reader(&chunk.data);
   const Position chunk_begin = pos_;
   const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
-  dest->WriteHint(SaturatingIntCast<size_t>(chunk_end - pos_));
+  dest.WriteHint(SaturatingIntCast<size_t>(chunk_end - pos_));
   if (ABSL_PREDICT_FALSE(
-          !WriteSection(&header_reader, chunk_begin, chunk_end, dest))) {
+          !WriteSection(header_reader, chunk_begin, chunk_end, dest))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(
-          !WriteSection(&data_reader, chunk_begin, chunk_end, dest))) {
+          !WriteSection(data_reader, chunk_begin, chunk_end, dest))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!WritePadding(chunk_begin, chunk_end, dest))) {
@@ -81,54 +81,54 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   return true;
 }
 
-inline bool DefaultChunkWriterBase::WriteSection(Reader* src,
+inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
                                                  Position chunk_begin,
                                                  Position chunk_end,
-                                                 Writer* dest) {
-  const absl::optional<Position> size = src->Size();
+                                                 Writer& dest) {
+  const absl::optional<Position> size = src.Size();
   if (size == absl::nullopt) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Getting section size failed: " << src->status();
+        << "Getting section size failed: " << src.status();
   }
-  RIEGELI_ASSERT_EQ(src->pos(), 0u) << "Non-zero section reader position";
-  while (src->pos() < *size) {
+  RIEGELI_ASSERT_EQ(src.pos(), 0u) << "Non-zero section reader position";
+  while (src.pos() < *size) {
     if (internal::IsBlockBoundary(pos_)) {
       internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
                                          IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(!dest->Write(
+      if (ABSL_PREDICT_FALSE(!dest.Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
-        return Fail(*dest);
+        return Fail(dest);
       }
       pos_ += block_header.size();
     }
     const Position length =
-        UnsignedMin(*size - src->pos(), internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, length))) return Fail(*dest);
+        UnsignedMin(*size - src.pos(), internal::RemainingInBlock(pos_));
+    if (ABSL_PREDICT_FALSE(!src.CopyTo(length, dest))) return Fail(dest);
     pos_ += length;
   }
-  if (!src->Close()) {
+  if (!src.Close()) {
     RIEGELI_ASSERT_UNREACHABLE()
-        << "Closing section reader failed: " << src->status();
+        << "Closing section reader failed: " << src.status();
   }
   return true;
 }
 
 inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
                                                  Position chunk_end,
-                                                 Writer* dest) {
+                                                 Writer& dest) {
   while (pos_ < chunk_end) {
     if (internal::IsBlockBoundary(pos_)) {
       internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
                                          IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(!dest->Write(
+      if (ABSL_PREDICT_FALSE(!dest.Write(
               absl::string_view(block_header.bytes(), block_header.size())))) {
-        return Fail(*dest);
+        return Fail(dest);
       }
       pos_ += block_header.size();
     }
     const Position length =
         UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!WriteZeros(length, dest))) return Fail(*dest);
+    if (ABSL_PREDICT_FALSE(!WriteZeros(length, dest))) return Fail(dest);
     pos_ += length;
   }
   return true;
@@ -154,8 +154,8 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
 
 bool DefaultChunkWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
+  Writer& dest = *dest_writer();
+  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
   return true;
 }
 

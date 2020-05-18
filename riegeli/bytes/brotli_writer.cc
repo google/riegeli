@@ -87,7 +87,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
 
 void BrotliWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer* const dest = dest_writer();
+    Writer& dest = *dest_writer();
     const absl::string_view data(start(), written_to_buffer());
     set_buffer();
     WriteInternal(data, dest, BROTLI_OPERATION_FINISH);
@@ -112,11 +112,11 @@ bool BrotliWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   return WriteInternal(src, dest, BROTLI_OPERATION_PROCESS);
 }
 
-inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
+inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                             BrotliEncoderOperation op) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BrotliWriterBase::WriteInternal(): "
@@ -137,14 +137,14 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
             nullptr, nullptr))) {
       return Fail(
           Annotate(absl::InternalError("BrotliEncoderCompressStream() failed"),
-                   absl::StrCat("at byte ", dest->pos())));
+                   absl::StrCat("at byte ", dest.pos())));
     }
     size_t length = 0;
     const char* const data = reinterpret_cast<const char*>(
         BrotliEncoderTakeOutput(compressor_.get(), &length));
     if (length > 0) {
-      if (ABSL_PREDICT_FALSE(!dest->Write(absl::string_view(data, length)))) {
-        return Fail(*dest);
+      if (ABSL_PREDICT_FALSE(!dest.Write(absl::string_view(data, length)))) {
+        return Fail(dest);
       }
     } else if (available_in == 0) {
       move_start_pos(src.size());
@@ -155,13 +155,13 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer* dest,
 
 bool BrotliWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
   if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, BROTLI_OPERATION_FLUSH))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
   return true;
 }
 

@@ -30,8 +30,8 @@ namespace riegeli {
 
 void ChainBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Chain* const dest = dest_chain();
-    RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+    Chain& dest = *dest_chain();
+    RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
         << "ChainBackwardWriter destination changed unexpectedly";
     SyncBuffer(dest);
   }
@@ -44,11 +44,11 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<size_t>::max() - dest->size())) {
+                         std::numeric_limits<size_t>::max() - dest.size())) {
     return FailOverflow();
   }
   SyncBuffer(dest);
@@ -61,8 +61,8 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "length too small, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -70,7 +70,7 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(src, options_);
+  dest.Prepend(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -80,10 +80,10 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "length too small, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
+  Chain& dest = *dest_chain();
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(std::move(src), options_);
+  dest.Prepend(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
@@ -93,8 +93,8 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "length too small, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -102,7 +102,7 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(src, options_);
+  dest.Prepend(src, options_);
   MakeBuffer(dest);
   return true;
 }
@@ -112,8 +112,8 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "length too small, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -121,15 +121,15 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(std::move(src), options_);
+  dest.Prepend(std::move(src), options_);
   MakeBuffer(dest);
   return true;
 }
 
 bool ChainBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
@@ -137,8 +137,8 @@ bool ChainBackwardWriterBase::Flush(FlushType flush_type) {
 
 bool ChainBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Chain* const dest = dest_chain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest->size())
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
@@ -146,20 +146,20 @@ bool ChainBackwardWriterBase::Truncate(Position new_size) {
     return true;
   }
   set_start_pos(new_size);
-  dest->RemovePrefix(dest->size() - IntCast<size_t>(new_size));
+  dest.RemovePrefix(dest.size() - IntCast<size_t>(new_size));
   set_buffer();
   return true;
 }
 
-inline void ChainBackwardWriterBase::SyncBuffer(Chain* dest) {
+inline void ChainBackwardWriterBase::SyncBuffer(Chain& dest) {
   set_start_pos(pos());
-  dest->RemovePrefix(available());
+  dest.RemovePrefix(available());
   set_buffer();
 }
 
-inline void ChainBackwardWriterBase::MakeBuffer(Chain* dest, size_t min_length,
+inline void ChainBackwardWriterBase::MakeBuffer(Chain& dest, size_t min_length,
                                                 size_t recommended_length) {
-  const absl::Span<char> buffer = dest->PrependBuffer(
+  const absl::Span<char> buffer = dest.PrependBuffer(
       min_length, recommended_length, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
 }

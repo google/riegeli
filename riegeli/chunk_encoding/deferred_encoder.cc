@@ -136,9 +136,9 @@ bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   return true;
 }
 
-bool DeferredEncoder::EncodeAndClose(Writer* dest, ChunkType* chunk_type,
-                                     uint64_t* num_records,
-                                     uint64_t* decoded_data_size) {
+bool DeferredEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
+                                     uint64_t& num_records,
+                                     uint64_t& decoded_data_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!records_writer_.Close())) {
     return Fail(records_writer_);

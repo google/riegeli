@@ -63,12 +63,12 @@ class BufferedReader : public Reader {
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
-  bool ReadSlow(char* dest, size_t length) override;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool ReadSlow(absl::Cord* dest, size_t length) override;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
   using Reader::CopyToSlow;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool CopyToSlow(Position length, Writer& dest) override;
+  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
   void ReadHintSlow(size_t length) override;
 
   // Reads data from the source, from the physical source position which is
@@ -83,8 +83,8 @@ class BufferedReader : public Reader {
   // Preconditions:
   //   `0 < min_length <= max_length`
   //   `healthy()`
-  virtual bool ReadInternal(char* dest, size_t min_length,
-                            size_t max_length) = 0;
+  virtual bool ReadInternal(size_t min_length, size_t max_length,
+                            char* dest) = 0;
 
   // Discards buffer contents.
   void ClearBuffer();

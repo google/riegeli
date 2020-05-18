@@ -61,7 +61,7 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
 void FramedSnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     if (ABSL_PREDICT_TRUE(SyncScratch())) {
-      Writer* const dest = dest_writer();
+      Writer& dest = *dest_writer();
       PushInternal(dest);
     }
   }
@@ -84,7 +84,7 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
     return available() >= min_length;
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
@@ -97,17 +97,17 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   return true;
 }
 
-inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
+inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   const size_t uncompressed_length = written_to_buffer();
   if (uncompressed_length == 0) return true;
   set_cursor(start());
   const char* const uncompressed_data = cursor();
   if (ABSL_PREDICT_FALSE(
-          !dest->Push(2 * sizeof(uint32_t) +
-                      snappy::MaxCompressedLength(uncompressed_length)))) {
-    return Fail(*dest);
+          !dest.Push(2 * sizeof(uint32_t) +
+                     snappy::MaxCompressedLength(uncompressed_length)))) {
+    return Fail(dest);
   }
-  char* const compressed_chunk = dest->cursor();
+  char* const compressed_chunk = dest.cursor();
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
                       compressed_chunk + 2 * sizeof(uint32_t),
@@ -127,7 +127,7 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
   WriteLittleEndian32(
       MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)),
       compressed_chunk + sizeof(uint32_t));
-  dest->move_cursor(2 * sizeof(uint32_t) + compressed_length);
+  dest.move_cursor(2 * sizeof(uint32_t) + compressed_length);
   move_start_pos(uncompressed_length);
   return true;
 }
@@ -135,9 +135,9 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer* dest) {
 bool FramedSnappyWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
   return true;
 }
 

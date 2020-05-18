@@ -207,33 +207,33 @@ class RecordReaderBase : public Object {
   //  * `true`                      - success (`*metadata` is set)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
-  bool ReadMetadata(RecordsMetadata* metadata);
+  bool ReadMetadata(RecordsMetadata& metadata);
 
   // Like `ReadMetadata()`, but metadata is returned in the serialized form.
   //
   // This is faster if the caller needs metadata already serialized.
-  bool ReadSerializedMetadata(Chain* metadata);
+  bool ReadSerializedMetadata(Chain& metadata);
 
   // Reads the next record.
   //
-  // `ReadRecord(google::protobuf::MessageLite*)` parses raw bytes to a proto
+  // `ReadRecord(google::protobuf::MessageLite&)` parses raw bytes to a proto
   // message after reading. The remaining overloads read raw bytes. For
-  // `ReadRecord(absl::string_view*)` the `absl::string_view` is valid until the
+  // `ReadRecord(absl::string_view&)` the `absl::string_view` is valid until the
   // next non-const operation on this `RecordReader`.
   //
   // If `key != nullptr`, `*key` is set to the canonical record position on
   // success.
   //
   // Return values:
-  //  * `true`                      - success (`*record` is set)
+  //  * `true`                      - success (`record` is set)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
-  bool ReadRecord(google::protobuf::MessageLite* record,
+  bool ReadRecord(google::protobuf::MessageLite& record,
                   RecordPosition* key = nullptr);
-  bool ReadRecord(absl::string_view* record, RecordPosition* key = nullptr);
-  bool ReadRecord(std::string* record, RecordPosition* key = nullptr);
-  bool ReadRecord(Chain* record, RecordPosition* key = nullptr);
-  bool ReadRecord(absl::Cord* record, RecordPosition* key = nullptr);
+  bool ReadRecord(absl::string_view& record, RecordPosition* key = nullptr);
+  bool ReadRecord(std::string& record, RecordPosition* key = nullptr);
+  bool ReadRecord(Chain& record, RecordPosition* key = nullptr);
+  bool ReadRecord(absl::Cord& record, RecordPosition* key = nullptr);
 
   // Like `Options::set_field_projection()`, but can be done at any time.
   //
@@ -427,16 +427,18 @@ class RecordReaderBase : public Object {
  private:
   class ChunkSearchTraits;
 
-  bool FailReading(const ChunkReader* src);
-  bool FailSeeking(const ChunkReader* src);
+  bool FailReading(const ChunkReader& src);
+  bool FailSeeking(const ChunkReader& src);
 
-  bool ParseMetadata(const Chunk& chunk, Chain* metadata);
+  bool ParseMetadata(const Chunk& chunk, Chain& metadata);
 
   template <typename Record>
-  bool ReadRecordImpl(Record* record, RecordPosition* key);
+  bool ReadRecordImpl(Record& record, RecordPosition* key);
 
   // Reads the next chunk from `chunk_reader_` and decodes it into
   // `chunk_decoder_` and `chunk_begin_`. On failure resets `chunk_decoder_`.
+  //
+  // Precondition: `healthy()`
   bool ReadChunk();
 };
 
@@ -449,7 +451,7 @@ class RecordReaderBase : public Object {
 // For reading records sequentially, this kind of loop can be used:
 // ```
 //   SomeProto record;
-//   while (record_reader_.ReadRecord(&record)) {
+//   while (record_reader_.ReadRecord(record)) {
 //     ... Process record.
 //   }
 //   if (!record_reader_.Close()) {
@@ -471,7 +473,7 @@ class RecordReaderBase : public Object {
 //   Position skipped_bytes = 0;
 //   SomeProto record;
 //   for (;;) {
-//     if (!record_reader_.ReadRecord(&record)) {
+//     if (!record_reader_.ReadRecord(record)) {
 //       SkippedRegion skipped_region;
 //       if (record_reader_.Recover(&skipped_region)) {
 //         skipped_bytes += skipped_region.length();
@@ -585,7 +587,7 @@ template <typename Record, typename Test>
 bool RecordReaderBase::Search(Test test) {
   Record record;
   return Search([&](RecordReaderBase* self) {
-    if (ABSL_PREDICT_FALSE(!self->ReadRecord(&record))) {
+    if (ABSL_PREDICT_FALSE(!self->ReadRecord(record))) {
       return absl::partial_ordering::unordered;
     }
     return test(record);

@@ -99,23 +99,21 @@ class ChunkDecoder : public Object {
 
   // Reads the next record.
   //
-  // `ReadRecord(google::protobuf::MessageLite*)` parses raw bytes to a proto
+  // `ReadRecord(google::protobuf::MessageLite&)` parses raw bytes to a proto
   // message after reading. The remaining overloads read raw bytes (they never
-  // generate a new failure). For `ReadRecord(absl::string_view*)` the
+  // generate a new failure). For `ReadRecord(absl::string_view&)` the
   // `absl::string_view` is valid until the next non-const operation on this
   // `ChunkDecoder`.
   //
-  // If `key != nullptr`, `*key` is set to the record index on success.
-  //
   // Return values:
-  //  * `true`                      - success (`*record` is set, `healthy()`)
+  //  * `true`                      - success (`record` is set, `healthy()`)
   //  * `false` (when `healthy()`)  - chunk ends
   //  * `false` (when `!healthy()`) - failure
-  bool ReadRecord(google::protobuf::MessageLite* record);
-  bool ReadRecord(absl::string_view* record);
-  bool ReadRecord(std::string* record);
-  bool ReadRecord(Chain* record);
-  bool ReadRecord(absl::Cord* record);
+  bool ReadRecord(google::protobuf::MessageLite& record);
+  bool ReadRecord(absl::string_view& record);
+  bool ReadRecord(std::string& record);
+  bool ReadRecord(Chain& record);
+  bool ReadRecord(absl::Cord& record);
 
   // If `!healthy()` and the failure was caused by an unparsable message, then
   // `Recover()` allows reading again by skipping the unparsable message.
@@ -145,7 +143,7 @@ class ChunkDecoder : public Object {
   void Done() override;
 
  private:
-  bool Parse(const ChunkHeader& header, Reader* src, Chain* dest);
+  bool Parse(const ChunkHeader& header, Reader& src, Chain& dest);
 
   FieldProjection field_projection_;
   // Invariants if `healthy()`:
@@ -200,16 +198,16 @@ inline void ChunkDecoder::Clear() {
   recoverable_ = false;
 }
 
-inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
+inline bool ChunkDecoder::ReadRecord(absl::string_view& record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
-    *record = absl::string_view();
+    record = absl::string_view();
     return false;
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  if (!values_reader_.Read(record, limit - start)) {
+  if (!values_reader_.Read(limit - start, record)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.status();
   }
@@ -217,16 +215,16 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view* record) {
   return true;
 }
 
-inline bool ChunkDecoder::ReadRecord(std::string* record) {
+inline bool ChunkDecoder::ReadRecord(std::string& record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
-    record->clear();
+    record.clear();
     return false;
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  if (!values_reader_.Read(record, limit - start)) {
+  if (!values_reader_.Read(limit - start, record)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.status();
   }
@@ -234,16 +232,16 @@ inline bool ChunkDecoder::ReadRecord(std::string* record) {
   return true;
 }
 
-inline bool ChunkDecoder::ReadRecord(Chain* record) {
+inline bool ChunkDecoder::ReadRecord(Chain& record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
-    record->Clear();
+    record.Clear();
     return false;
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  if (!values_reader_.Read(record, limit - start)) {
+  if (!values_reader_.Read(limit - start, record)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.status();
   }
@@ -251,16 +249,16 @@ inline bool ChunkDecoder::ReadRecord(Chain* record) {
   return true;
 }
 
-inline bool ChunkDecoder::ReadRecord(absl::Cord* record) {
+inline bool ChunkDecoder::ReadRecord(absl::Cord& record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) {
-    record->Clear();
+    record.Clear();
     return false;
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  if (!values_reader_.Read(record, limit - start)) {
+  if (!values_reader_.Read(limit - start, record)) {
     RIEGELI_ASSERT_UNREACHABLE() << "Failed reading record from values reader: "
                                  << values_reader_.status();
   }

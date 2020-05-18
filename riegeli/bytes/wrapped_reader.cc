@@ -31,7 +31,7 @@ namespace riegeli {
 
 void WrappedReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Reader* const src = src_reader();
+    Reader& src = *src_reader();
     SyncBuffer(src);
   }
   Reader::Done();
@@ -42,75 +42,75 @@ bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Reader::PullSlow(): "
          "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->Pull(min_length, recommended_length);
+  const bool ok = src.Pull(min_length, recommended_length);
   MakeBuffer(src);
   return ok;
 }
 
-bool WrappedReaderBase::ReadSlow(char* dest, size_t length) {
+bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Reader::ReadSlow(char*): "
          "length too small, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->Read(dest, length);
+  const bool ok = src.Read(length, dest);
   MakeBuffer(src);
   return ok;
 }
 
-bool WrappedReaderBase::ReadSlow(Chain* dest, size_t length) {
+bool WrappedReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
-         "length too small, use Read(Chain*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Chain*): "
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "length too small, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  return ReadInternal(dest, length);
+  return ReadInternal(length, dest);
 }
 
-bool WrappedReaderBase::ReadSlow(absl::Cord* dest, size_t length) {
+bool WrappedReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
-         "length too small, use Read(Cord*) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest->size())
-      << "Failed precondition of Reader::ReadSlow(Cord*): "
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "length too small, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  return ReadInternal(dest, length);
+  return ReadInternal(length, dest);
 }
 
 template <typename Dest>
-inline bool WrappedReaderBase::ReadInternal(Dest* dest, size_t length) {
+inline bool WrappedReaderBase::ReadInternal(size_t length, Dest& dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->ReadAndAppend(dest, length);
+  const bool ok = src.ReadAndAppend(length, dest);
   MakeBuffer(src);
   return ok;
 }
 
-bool WrappedReaderBase::CopyToSlow(Writer* dest, Position length) {
+bool WrappedReaderBase::CopyToSlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "length too small, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopyToSlow(Writer&): "
+         "length too small, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->CopyTo(dest, length);
+  const bool ok = src.CopyTo(length, dest);
   MakeBuffer(src);
   return ok;
 }
 
-bool WrappedReaderBase::CopyToSlow(BackwardWriter* dest, size_t length) {
+bool WrappedReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "length too small, use CopyTo(BackwardWriter*) instead";
+      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
+         "length too small, use CopyTo(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->CopyTo(dest, length);
+  const bool ok = src.CopyTo(length, dest);
   MakeBuffer(src);
   return ok;
 }
@@ -120,17 +120,17 @@ void WrappedReaderBase::ReadHintSlow(size_t length) {
       << "Failed precondition of Reader::ReadHintSlow(): "
          "length too small, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  src->ReadHint(length);
+  src.ReadHint(length);
   MakeBuffer(src);
 }
 
 bool WrappedReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->Sync();
+  const bool ok = src.Sync();
   MakeBuffer(src);
   return ok;
 }
@@ -145,9 +145,9 @@ bool WrappedReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const bool ok = src->Seek(new_pos);
+  const bool ok = src.Seek(new_pos);
   MakeBuffer(src);
   return ok;
 }
@@ -159,9 +159,9 @@ bool WrappedReaderBase::SupportsSize() const {
 
 absl::optional<Position> WrappedReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   SyncBuffer(src);
-  const absl::optional<Position> size = src->Size();
+  const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
   return size;
 }

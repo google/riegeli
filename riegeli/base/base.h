@@ -626,8 +626,8 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
 // For a non-empty `absl::Cord` this matches `kMaxBytesToCopy` from `cord.cc`.
 // `absl::Cord::Append(absl::Cord)` chooses to copy bytes from an `absl::Cord`
 // up to this length if the destination is not empty.
-inline size_t MaxBytesToCopyToCord(absl::Cord* dest) {
-  return dest->empty() ? 15 : 511;
+inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
+  return dest.empty() ? 15 : 511;
 }
 
 // Proposes a buffer length with constraints:

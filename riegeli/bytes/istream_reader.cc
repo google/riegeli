@@ -80,19 +80,19 @@ void IstreamReaderBase::Initialize(std::istream* src,
   }
 }
 
-bool IstreamReaderBase::SyncPos(std::istream* src) {
+bool IstreamReaderBase::SyncPos(std::istream& src) {
   if (available() > 0) {
     errno = 0;
-    src->seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
-    if (ABSL_PREDICT_FALSE(src->fail())) {
+    src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
+    if (ABSL_PREDICT_FALSE(src.fail())) {
       return FailOperation("istream::seekg()");
     }
   }
   return true;
 }
 
-bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
-                                     size_t max_length) {
+bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
+                                     char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -101,7 +101,7 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
          "max_length < min_length";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  std::istream* const src = src_stream();
+  std::istream& src = *src_stream();
   if (ABSL_PREDICT_FALSE(max_length >
                          Position{std::numeric_limits<std::streamoff>::max()} -
                              limit_pos())) {
@@ -112,11 +112,10 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
     std::streamsize length_read;
     if (min_length == max_length) {
       // Use `std::istream::read()` to read a fixed length.
-      src->read(dest,
-                IntCast<std::streamsize>(UnsignedMin(
-                    min_length,
-                    size_t{std::numeric_limits<std::streamsize>::max()})));
-      length_read = src->gcount();
+      src.read(dest, IntCast<std::streamsize>(UnsignedMin(
+                         min_length,
+                         size_t{std::numeric_limits<std::streamsize>::max()})));
+      length_read = src.gcount();
       RIEGELI_ASSERT_GE(length_read, 0) << "negataive istream::gcount()";
       RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), min_length)
           << "istream::read() read more than requested";
@@ -126,17 +125,17 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
       //
       // `std::istream::peek()` forces some characters to be read into the
       // buffer, otherwise `std::istream::readsome()` may return 0.
-      if (ABSL_PREDICT_FALSE(src->peek() == std::char_traits<char>::eof())) {
-        if (ABSL_PREDICT_FALSE(src->fail())) {
+      if (ABSL_PREDICT_FALSE(src.peek() == std::char_traits<char>::eof())) {
+        if (ABSL_PREDICT_FALSE(src.fail())) {
           FailOperation("istream::peek()");
         } else {
           // A sticky `std::ios_base::eofbit` breaks future operations like
           // `std::istream::peek()` and `std::istream::tellg()`.
-          src->clear(src->rdstate() & ~std::ios_base::eofbit);
+          src.clear(src.rdstate() & ~std::ios_base::eofbit);
         }
         return false;
       }
-      length_read = src->readsome(
+      length_read = src.readsome(
           dest, IntCast<std::streamsize>(UnsignedMin(
                     max_length,
                     size_t{std::numeric_limits<std::streamsize>::max()})));
@@ -147,16 +146,16 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
           << "istream::readsome() read more than requested";
     }
     move_limit_pos(IntCast<size_t>(length_read));
-    if (ABSL_PREDICT_FALSE(src->fail())) {
-      if (ABSL_PREDICT_FALSE(src->bad())) {
+    if (ABSL_PREDICT_FALSE(src.fail())) {
+      if (ABSL_PREDICT_FALSE(src.bad())) {
         FailOperation("istream::read()");
       } else {
         // End of stream is not a failure.
         //
         // A sticky `std::ios_base::eofbit` breaks future operations like
         // `std::istream::peek()` and `std::istream::tellg()`.
-        src->clear(src->rdstate() &
-                   ~(std::ios_base::eofbit | std::ios_base::failbit));
+        src.clear(src.rdstate() &
+                  ~(std::ios_base::eofbit | std::ios_base::failbit));
       }
       return IntCast<size_t>(length_read) >= min_length;
     }
@@ -170,12 +169,12 @@ bool IstreamReaderBase::ReadInternal(char* dest, size_t min_length,
 bool IstreamReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (!random_access_) return true;
-  std::istream* const src = src_stream();
+  std::istream& src = *src_stream();
   const bool ok = SyncPos(src);
   set_limit_pos(pos());
   ClearBuffer();
   if (ABSL_PREDICT_FALSE(!ok)) return false;
-  if (ABSL_PREDICT_FALSE(src->sync() != 0)) {
+  if (ABSL_PREDICT_FALSE(src.sync() != 0)) {
     return FailOperation("istream::sync()");
   }
   return true;
@@ -190,15 +189,15 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
     return BufferedReader::SeekSlow(new_pos);
   }
   ClearBuffer();
-  std::istream* const src = src_stream();
+  std::istream& src = *src_stream();
   errno = 0;
   if (new_pos >= limit_pos()) {
     // Seeking forwards.
-    src->seekg(0, std::ios_base::end);
-    if (ABSL_PREDICT_FALSE(src->fail())) {
+    src.seekg(0, std::ios_base::end);
+    if (ABSL_PREDICT_FALSE(src.fail())) {
       return FailOperation("istream::seekg()");
     }
-    const std::streamoff stream_size = src->tellg();
+    const std::streamoff stream_size = src.tellg();
     if (ABSL_PREDICT_FALSE(stream_size < 0)) {
       return FailOperation("istream::tellg()");
     }
@@ -208,8 +207,8 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
       return false;
     }
   }
-  src->seekg(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(src->fail())) {
+  src.seekg(IntCast<std::streamoff>(new_pos), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(src.fail())) {
     return FailOperation("istream::seekg()");
   }
   set_limit_pos(new_pos);
@@ -222,20 +221,20 @@ absl::optional<Position> IstreamReaderBase::Size() {
     Fail(absl::UnimplementedError("IstreamReaderBase::Size() not supported"));
     return absl::nullopt;
   }
-  std::istream* const src = src_stream();
+  std::istream& src = *src_stream();
   errno = 0;
-  src->seekg(0, std::ios_base::end);
-  if (ABSL_PREDICT_FALSE(src->fail())) {
+  src.seekg(0, std::ios_base::end);
+  if (ABSL_PREDICT_FALSE(src.fail())) {
     FailOperation("istream::seekg()");
     return absl::nullopt;
   }
-  const std::streamoff stream_size = src->tellg();
+  const std::streamoff stream_size = src.tellg();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
     FailOperation("istream::tellg()");
     return absl::nullopt;
   }
-  src->seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(src->fail())) {
+  src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(src.fail())) {
     FailOperation("istream::seekg()");
     return absl::nullopt;
   }

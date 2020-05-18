@@ -53,9 +53,9 @@ void BrotliReaderBase::Initialize(Reader* src) {
 
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader* const src = src_reader();
+    Reader& src = *src_reader();
     Fail(Annotate(absl::DataLossError("Truncated Brotli-compressed stream"),
-                  absl::StrCat("at byte ", src->pos())));
+                  absl::StrCat("at byte ", src.pos())));
   }
   decompressor_.reset();
   PullableReader::Done();
@@ -77,16 +77,16 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   truncated_ = false;
   size_t available_out = 0;
   for (;;) {
-    size_t available_in = src->available();
-    const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src->cursor());
+    size_t available_in = src.available();
+    const uint8_t* next_in = reinterpret_cast<const uint8_t*>(src.cursor());
     const BrotliDecoderResult result = BrotliDecoderDecompressStream(
         decompressor_.get(), &available_in, &next_in, &available_out, nullptr,
         nullptr);
-    src->set_cursor(reinterpret_cast<const char*>(next_in));
+    src.set_cursor(reinterpret_cast<const char*>(next_in));
     switch (result) {
       case BROTLI_DECODER_RESULT_ERROR:
         set_buffer();
@@ -95,7 +95,7 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
                          "BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
                              BrotliDecoderGetErrorCode(decompressor_.get())))),
-                     absl::StrCat("at byte ", src->pos())));
+                     absl::StrCat("at byte ", src.pos())));
       case BROTLI_DECODER_RESULT_SUCCESS:
         set_buffer();
         decompressor_.reset();
@@ -123,9 +123,9 @@ bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
             << "BrotliDecoderDecompressStream() returned "
                "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
                "BrotliDecoderTakeOutput() returned no data";
-        if (ABSL_PREDICT_FALSE(!src->Pull())) {
+        if (ABSL_PREDICT_FALSE(!src.Pull())) {
           set_buffer();
-          if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           truncated_ = true;
           return false;
         }

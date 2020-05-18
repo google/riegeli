@@ -133,29 +133,29 @@ absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
 // first.
 //
 // Returns status:
-//  * `status.ok()`  - success (`*dest` is filled)
-//  * `!status.ok()` - failure (`*dest` is unspecified)
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
-                               std::string* dest,
+                               std::string& dest,
                                SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `Chain`, clearing it first.
 //
 // Returns status:
-//  * `status.ok()`  - success (`*dest` is filled)
-//  * `!status.ok()` - failure (`*dest` is unspecified)
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
-                              Chain* dest,
+                              Chain& dest,
                               SerializeOptions options = SerializeOptions());
 
 // Writes the message in binary format to the given `absl::Cord`, clearing it
 // first.
 //
 // Returns status:
-//  * `status.ok()`  - success (`*dest` is filled)
-//  * `!status.ok()` - failure (`*dest` is unspecified)
+//  * `status.ok()`  - success (`dest` is filled)
+//  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
-                             absl::Cord* dest,
+                             absl::Cord& dest,
                              SerializeOptions options = SerializeOptions());
 
 // Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.

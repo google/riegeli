@@ -90,7 +90,7 @@ class FramedSnappyWriterBase : public PushableWriter {
   // Precondition: `healthy()`
   //
   // Postcondition: `written_to_buffer() == 0`
-  bool PushInternal(Writer* dest);
+  bool PushInternal(Writer& dest);
 
   Position size_hint_ = 0;
   // Buffered uncompressed data.

@@ -43,28 +43,28 @@ ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
       key_(key),
       value_(value) {}
 
-ValueParser::Function ValueParser::Int(int* out, int min_value, int max_value) {
+ValueParser::Function ValueParser::Int(int min_value, int max_value, int* out) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of OptionsParser::IntOption(): "
          "bounds in the wrong order";
-  return [out, min_value, max_value](ValueParser* value_parser) {
+  return [min_value, max_value, out](ValueParser& value_parser) {
     int int_value;
-    if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(value_parser->value(), &int_value) &&
+    if (ABSL_PREDICT_TRUE(absl::SimpleAtoi(value_parser.value(), &int_value) &&
                           int_value >= min_value && int_value <= max_value)) {
       *out = int_value;
       return true;
     }
-    return value_parser->InvalidValue(
+    return value_parser.InvalidValue(
         absl::StrCat("integers ", min_value, "..", max_value));
   };
 }
 
-ValueParser::Function ValueParser::Bytes(uint64_t* out, uint64_t min_value,
-                                         uint64_t max_value) {
+ValueParser::Function ValueParser::Bytes(uint64_t min_value, uint64_t max_value,
+                                         uint64_t* out) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of BytesOption(): bounds in the wrong order";
-  return [out, min_value, max_value](ValueParser* value_parser) {
-    absl::string_view value = value_parser->value();
+  return [min_value, max_value, out](ValueParser& value_parser) {
+    absl::string_view value = value_parser.value();
     double scale = 1.0;
     if (ABSL_PREDICT_TRUE(!value.empty())) {
       switch (value.back()) {
@@ -111,61 +111,61 @@ ValueParser::Function ValueParser::Bytes(uint64_t* out, uint64_t min_value,
         return true;
       }
     }
-    return value_parser->InvalidValue(
+    return value_parser.InvalidValue(
         absl::StrCat("integers expressed as reals with "
                      "optional suffix [BkKMGTPE], ",
                      min_value, "..", max_value));
   };
 }
 
-ValueParser::Function ValueParser::Real(double* out, double min_value,
-                                        double max_value) {
+ValueParser::Function ValueParser::Real(double min_value, double max_value,
+                                        double* out) {
   RIEGELI_ASSERT_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
-  return [out, min_value, max_value](ValueParser* value_parser) {
+  return [min_value, max_value, out](ValueParser& value_parser) {
     double double_value;
     if (ABSL_PREDICT_TRUE(
-            absl::SimpleAtod(value_parser->value(), &double_value) &&
+            absl::SimpleAtod(value_parser.value(), &double_value) &&
             double_value >= min_value && double_value <= max_value)) {
       *out = double_value;
       return true;
     }
-    return value_parser->InvalidValue(
+    return value_parser.InvalidValue(
         absl::StrCat("reals ", min_value, "..", max_value));
   };
 }
 
 ValueParser::Function ValueParser::Or(Function function1, Function function2) {
   return [function1 = std::move(function1),
-          function2 = std::move(function2)](ValueParser* value_parser) {
+          function2 = std::move(function2)](ValueParser& value_parser) {
     return function1(value_parser) || function2(value_parser);
   };
 }
 
 ValueParser::Function ValueParser::And(Function function1, Function function2) {
   return [function1 = std::move(function1),
-          function2 = std::move(function2)](ValueParser* value_parser) {
+          function2 = std::move(function2)](ValueParser& value_parser) {
     return function1(value_parser) && function2(value_parser);
   };
 }
 
 ValueParser::Function ValueParser::CopyTo(std::string* text) {
-  return [text](ValueParser* value_parser) {
-    absl::StrAppend(text, text->empty() ? "" : ",", value_parser->key(),
-                    value_parser->value().empty() ? "" : ":",
-                    value_parser->value());
+  return [text](ValueParser& value_parser) {
+    absl::StrAppend(text, text->empty() ? "" : ",", value_parser.key(),
+                    value_parser.value().empty() ? "" : ":",
+                    value_parser.value());
     return true;
   };
 }
 
 ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
-  return [key](ValueParser* value_parser) {
+  return [key](ValueParser& value_parser) {
     for (const OptionsParser::Option& option :
-         value_parser->options_parser_->options_) {
+         value_parser.options_parser_->options_) {
       if (option.key == key) {
         if (ABSL_PREDICT_FALSE(option.seen)) {
-          return value_parser->Fail(absl::InvalidArgumentError(absl::StrCat(
-              "Option ", value_parser->key(), " conflicts with option ", key)));
+          return value_parser.Fail(absl::InvalidArgumentError(absl::StrCat(
+              "Option ", value_parser.key(), " conflicts with option ", key)));
         }
         return true;
       }
@@ -175,12 +175,12 @@ ValueParser::Function ValueParser::FailIfSeen(absl::string_view key) {
 }
 
 ValueParser::Function ValueParser::FailIfAnySeen() {
-  return [](ValueParser* value_parser) {
+  return [](ValueParser& value_parser) {
     for (const OptionsParser::Option& option :
-         value_parser->options_parser_->options_) {
+         value_parser.options_parser_->options_) {
       if (ABSL_PREDICT_FALSE(option.seen)) {
-        return value_parser->Fail(absl::InvalidArgumentError(
-            absl::StrCat("Option ", value_parser->key(), " must be first")));
+        return value_parser.Fail(absl::InvalidArgumentError(
+            absl::StrCat("Option ", value_parser.key(), " must be first")));
       }
     }
     return true;
@@ -234,7 +234,7 @@ bool OptionsParser::FromString(absl::string_view text) {
             absl::StrCat("Option ", key, " is present more than once")));
       }
       ValueParser value_parser(this, key, value);
-      if (ABSL_PREDICT_FALSE(!option->function(&value_parser))) {
+      if (ABSL_PREDICT_FALSE(!option->function(value_parser))) {
         if (!value_parser.healthy()) return Fail(value_parser);
         return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Option ", key, ": ",

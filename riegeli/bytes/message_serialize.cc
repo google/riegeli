@@ -73,34 +73,34 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 }  // namespace internal
 
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
-                               std::string* dest, SerializeOptions options) {
-  dest->clear();
+                               std::string& dest, SerializeOptions options) {
+  dest.clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<StringWriter<>>(
       src,
-      std::forward_as_tuple(dest,
+      std::forward_as_tuple(&dest,
                             StringWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
-                              Chain* dest, SerializeOptions options) {
-  dest->Clear();
+                              Chain& dest, SerializeOptions options) {
+  dest.Clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<ChainWriter<>>(
       src,
-      std::forward_as_tuple(dest,
+      std::forward_as_tuple(&dest,
                             ChainWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
-                             absl::Cord* dest, SerializeOptions options) {
-  dest->Clear();
+                             absl::Cord& dest, SerializeOptions options) {
+  dest.Clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<CordWriter<>>(
       src,
-      std::forward_as_tuple(dest,
+      std::forward_as_tuple(&dest,
                             CordWriterBase::Options().set_size_hint(size)),
       options);
 }

@@ -33,198 +33,198 @@
 
 namespace riegeli {
 
-bool ReadAll(Reader* src, absl::string_view* dest, size_t max_size) {
-  max_size = UnsignedMin(max_size, dest->max_size());
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
+  max_size = UnsignedMin(max_size, dest.max_size());
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      *dest = absl::string_view();
+      dest = absl::string_view();
       return false;
     }
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+        if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
-      return src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+      return src.healthy();
     }
     return true;
   } else {
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        *dest = absl::string_view(src->cursor(), max_size);
-        src->move_cursor(max_size);
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        dest = absl::string_view(src.cursor(), max_size);
+        src.move_cursor(max_size);
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-    } while (src->Pull(src->available() + 1,
-                       SaturatingAdd(src->available(), src->available())));
-    *dest = absl::string_view(src->cursor(), src->available());
-    src->move_cursor(src->available());
-    return src->healthy();
+    } while (src.Pull(src.available() + 1,
+                      SaturatingAdd(src.available(), src.available())));
+    dest = absl::string_view(src.cursor(), src.available());
+    src.move_cursor(src.available());
+    return src.healthy();
   }
 }
 
-bool ReadAll(Reader* src, std::string* dest, size_t max_size) {
-  max_size = UnsignedMin(max_size, dest->max_size());
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool ReadAll(Reader& src, std::string& dest, size_t max_size) {
+  max_size = UnsignedMin(max_size, dest.max_size());
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest->clear();
+      dest.clear();
       return false;
     }
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+        if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
-      return src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+      return src.healthy();
     }
     return true;
   } else {
-    dest->clear();
+    dest.clear();
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        dest->append(src->cursor(), max_size);
-        src->move_cursor(max_size);
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        dest.append(src.cursor(), max_size);
+        src.move_cursor(max_size);
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-      max_size -= src->available();
-      dest->append(src->cursor(), src->available());
-      src->move_cursor(src->available());
-    } while (src->Pull());
-    return src->healthy();
+      max_size -= src.available();
+      dest.append(src.cursor(), src.available());
+      src.move_cursor(src.available());
+    } while (src.Pull());
+    return src.healthy();
   }
 }
 
-bool ReadAll(Reader* src, Chain* dest, size_t max_size) {
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool ReadAll(Reader& src, Chain& dest, size_t max_size) {
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest->Clear();
+      dest.Clear();
       return false;
     }
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+        if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
-      return src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+      return src.healthy();
     }
     return true;
   } else {
-    dest->Clear();
+    dest.Clear();
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        src->ReadAndAppend(dest, max_size);
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        src.ReadAndAppend(max_size, dest);
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-      max_size -= src->available();
-      src->ReadAndAppend(dest, src->available());
-    } while (src->Pull());
-    return src->healthy();
+      max_size -= src.available();
+      src.ReadAndAppend(src.available(), dest);
+    } while (src.Pull());
+    return src.healthy();
   }
 }
 
-bool ReadAll(Reader* src, absl::Cord* dest, size_t max_size) {
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool ReadAll(Reader& src, absl::Cord& dest, size_t max_size) {
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest->Clear();
+      dest.Clear();
       return false;
     }
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->Read(dest, max_size))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+        if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->Read(dest, IntCast<size_t>(remaining)))) {
-      return src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+      return src.healthy();
     }
     return true;
   } else {
-    dest->Clear();
+    dest.Clear();
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        src->ReadAndAppend(dest, max_size);
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        src.ReadAndAppend(max_size, dest);
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-      max_size -= src->available();
-      src->ReadAndAppend(dest, src->available());
-    } while (src->Pull());
-    return src->healthy();
+      max_size -= src.available();
+      src.ReadAndAppend(src.available(), dest);
+    } while (src.Pull());
+    return src.healthy();
   }
 }
 
-bool CopyAll(Reader* src, Writer* dest, Position max_size) {
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool CopyAll(Reader& src, Writer& dest, Position max_size) {
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, max_size))) {
-        return dest->healthy() && src->healthy();
+      if (ABSL_PREDICT_FALSE(!src.CopyTo(max_size, dest))) {
+        return dest.healthy() && src.healthy();
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, remaining))) {
-      return dest->healthy() && src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.CopyTo(remaining, dest))) {
+      return dest.healthy() && src.healthy();
     }
     return true;
   } else {
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, max_size))) {
-          if (ABSL_PREDICT_FALSE(!dest->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        if (ABSL_PREDICT_FALSE(!src.CopyTo(max_size, dest))) {
+          if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
         }
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-      max_size -= src->available();
-      if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, src->available()))) {
-        if (ABSL_PREDICT_FALSE(!dest->healthy())) return false;
+      max_size -= src.available();
+      if (ABSL_PREDICT_FALSE(!src.CopyTo(src.available(), dest))) {
+        if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
       }
-    } while (src->Pull());
-    return src->healthy();
+    } while (src.Pull());
+    return src.healthy();
   }
 }
 
-bool CopyAll(Reader* src, BackwardWriter* dest, size_t max_size) {
-  if (src->SupportsSize()) {
-    const absl::optional<Position> size = src->Size();
+bool CopyAll(Reader& src, BackwardWriter& dest, size_t max_size) {
+  if (src.SupportsSize()) {
+    const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
-    const Position remaining = SaturatingSub(*size, src->pos());
+    const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src->Skip(max_size))) {
-        if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
+      if (ABSL_PREDICT_FALSE(!src.Skip(max_size))) {
+        if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src->CopyTo(dest, IntCast<size_t>(remaining)))) {
-      return dest->healthy() && src->healthy();
+    if (ABSL_PREDICT_FALSE(!src.CopyTo(IntCast<size_t>(remaining), dest))) {
+      return dest.healthy() && src.healthy();
     }
     return true;
   } else {
     Chain data;
     do {
-      if (ABSL_PREDICT_FALSE(src->available() > max_size)) {
-        src->move_cursor(max_size);
-        return src->Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
+        src.move_cursor(max_size);
+        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
       }
-      max_size -= src->available();
-      src->ReadAndAppend(&data, src->available());
-    } while (src->Pull());
-    if (ABSL_PREDICT_FALSE(!src->healthy())) return false;
-    return dest->Write(std::move(data));
+      max_size -= src.available();
+      src.ReadAndAppend(src.available(), data);
+    } while (src.Pull());
+    if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
+    return dest.Write(std::move(data));
   }
 }
 

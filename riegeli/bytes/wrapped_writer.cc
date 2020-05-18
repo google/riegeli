@@ -30,7 +30,7 @@ namespace riegeli {
 
 void WrappedWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer* const dest = dest_writer();
+    Writer& dest = *dest_writer();
     SyncBuffer(dest);
   }
   Writer::Done();
@@ -41,9 +41,9 @@ bool WrappedWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Writer::PushSlow(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest->Push(min_length, recommended_length);
+  const bool ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
   return ok;
 }
@@ -86,9 +86,9 @@ bool WrappedWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src>
 inline bool WrappedWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest->Write(std::forward<Src>(src));
+  const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return ok;
 }
@@ -98,9 +98,9 @@ void WrappedWriterBase::WriteHintSlow(size_t length) {
       << "Failed precondition of Writer::WriteHintSlow(): "
          "length too small, use WriteHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  dest->WriteHint(length);
+  dest.WriteHint(length);
   MakeBuffer(dest);
 }
 
@@ -114,27 +114,27 @@ bool WrappedWriterBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest->Seek(new_pos);
+  const bool ok = dest.Seek(new_pos);
   MakeBuffer(dest);
   return ok;
 }
 
 bool WrappedWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest->Flush(flush_type);
+  const bool ok = dest.Flush(flush_type);
   MakeBuffer(dest);
   return ok;
 }
 
 absl::optional<Position> WrappedWriterBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const absl::optional<Position> size = dest->Size();
+  const absl::optional<Position> size = dest.Size();
   MakeBuffer(dest);
   return size;
 }
@@ -146,9 +146,9 @@ bool WrappedWriterBase::SupportsTruncate() const {
 
 bool WrappedWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   SyncBuffer(dest);
-  const bool ok = dest->Truncate(new_size);
+  const bool ok = dest.Truncate(new_size);
   MakeBuffer(dest);
   return ok;
 }

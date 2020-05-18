@@ -39,8 +39,8 @@ constexpr size_t CordBackwardWriterBase::kShortBufferSize;
 
 void CordBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    absl::Cord* const dest = dest_cord();
-    RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+    absl::Cord& dest = *dest_cord();
+    RIEGELI_ASSERT_EQ(start_pos(), dest.size())
         << "CordBackwardWriter destination changed unexpectedly";
     SyncBuffer(dest);
   }
@@ -53,15 +53,15 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "length too small, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (limit() == short_buffer_) {
     const size_t buffered_length = written_to_buffer();
     if (ABSL_PREDICT_FALSE(
             min_length > std::numeric_limits<size_t>::max() - buffered_length ||
             buffered_length + min_length >
-                std::numeric_limits<size_t>::max() - dest->size())) {
+                std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
     buffer_.Resize(BufferLength(
@@ -70,14 +70,14 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                     start_pos(), min_block_size_)));
     char* const buffer = buffer_.GetData();
     const size_t size = UnsignedMin(
-        buffer_.size(), std::numeric_limits<size_t>::max() - dest->size());
+        buffer_.size(), std::numeric_limits<size_t>::max() - dest.size());
     std::memcpy(buffer + size - buffered_length, cursor(), buffered_length);
     set_buffer(buffer, size, buffered_length);
     return true;
   } else {
     SyncBuffer(dest);
     if (ABSL_PREDICT_FALSE(min_length >
-                           std::numeric_limits<size_t>::max() - dest->size())) {
+                           std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
     buffer_.Resize(BufferLength(
@@ -86,7 +86,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     char* const buffer = buffer_.GetData();
     set_buffer(buffer,
                UnsignedMin(buffer_.size(),
-                           std::numeric_limits<size_t>::max() - dest->size()));
+                           std::numeric_limits<size_t>::max() - dest.size()));
     return true;
   }
 }
@@ -97,8 +97,8 @@ bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
          "length too small, use Write(Chain) instead";
   if (src.size() <= kMaxBytesToCopy) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -122,8 +122,8 @@ bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
     return BackwardWriter::WriteSlow(src);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   move_start_pos(src.size());
@@ -137,8 +137,8 @@ bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
          "length too small, use Write(Cord) instead";
   if (src.size() <= kMaxBytesToCopy) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -146,7 +146,7 @@ bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(src);
+  dest.Prepend(src);
   return true;
 }
 
@@ -162,8 +162,8 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
     return BackwardWriter::WriteSlow(src);
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(pos()))) {
@@ -171,14 +171,14 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   }
   SyncBuffer(dest);
   move_start_pos(src.size());
-  dest->Prepend(std::move(src));
+  dest.Prepend(std::move(src));
   return true;
 }
 
 bool CordBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
@@ -186,8 +186,8 @@ bool CordBackwardWriterBase::Flush(FlushType flush_type) {
 
 bool CordBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  absl::Cord* const dest = dest_cord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest->size())
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;
@@ -195,23 +195,23 @@ bool CordBackwardWriterBase::Truncate(Position new_size) {
     return true;
   }
   set_start_pos(new_size);
-  dest->RemovePrefix(dest->size() - IntCast<size_t>(new_size));
+  dest.RemovePrefix(dest.size() - IntCast<size_t>(new_size));
   set_cursor(start());
   return true;
 }
 
-inline void CordBackwardWriterBase::SyncBuffer(absl::Cord* dest) {
+inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
   set_start_pos(pos());
   if (written_to_buffer() <= MaxBytesToCopyToCord(dest) ||
       limit() == short_buffer_) {
     const absl::string_view data(cursor(), written_to_buffer());
     set_buffer();
-    dest->Prepend(data);
+    dest.Prepend(data);
   } else {
     absl::Cord data = BufferToCord(
         absl::string_view(cursor(), written_to_buffer()), &buffer_);
     set_buffer();
-    dest->Prepend(std::move(data));
+    dest.Prepend(std::move(data));
   }
 }
 

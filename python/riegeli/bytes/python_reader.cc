@@ -110,8 +110,8 @@ void PythonReader::Done() {
   }
 }
 
-bool PythonReader::ReadInternal(char* dest, size_t min_length,
-                                size_t max_length) {
+bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
+                                char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";

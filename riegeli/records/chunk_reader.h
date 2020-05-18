@@ -52,10 +52,10 @@ class DefaultChunkReaderBase : public Object {
   // Reads the next chunk.
   //
   // Return values:
-  //  * `true`                      - success (`*chunk` is set)
+  //  * `true`                      - success (`chunk` is set)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
-  bool ReadChunk(Chunk* chunk);
+  bool ReadChunk(Chunk& chunk);
 
   // Reads the next chunk header, from same chunk which will be read by an
   // immediately following `ReadChunk()`.
@@ -154,27 +154,29 @@ class DefaultChunkReaderBase : public Object {
   enum class Recoverable { kNo, kHaveChunk, kFindChunk };
   enum class WhichChunk { kContaining, kBefore, kAfter };
 
-  // Interprets a `false` result from `*src` reading or seeking function.
+  // Interprets a `false` result from `src` reading or seeking function.
   //
   // End of file (i.e. if `healthy()`) is propagated, setting `truncated_` if it
   // was in the middle of a chunk.
   //
   // Always returns `false`.
-  bool FailReading(Reader* src);
+  bool FailReading(const Reader& src);
 
-  // Interprets a `false` result from `*src` reading or seeking function.
+  // Interprets a `false` result from `src` reading or seeking function.
   //
   // End of file (i.e. if `healthy()`) fails the `ChunkReader`.
   //
   // Always returns `false`.
-  bool FailSeeking(Reader* src, Position new_pos);
+  bool FailSeeking(const Reader& src, Position new_pos);
 
   // Reads or continues reading `chunk_.header`.
   bool ReadChunkHeader();
 
   // Reads or continues reading `block_header_`.
   //
-  // Precondition: `internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
+  // Preconditions:
+  //   `healthy()`
+  //   `internal::RemainingInBlockHeader(src_reader()->pos()) > 0`
   bool ReadBlockHeader();
 
   // Shared implementation of `SeekToChunkContaining()`, `SeekToChunkBefore()`,

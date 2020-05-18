@@ -94,18 +94,18 @@ void Compressor::Initialize() {
       << static_cast<unsigned>(compressor_options_.compression_type());
 }
 
-bool Compressor::EncodeAndClose(Writer* dest) {
+bool Compressor::EncodeAndClose(Writer& dest) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const Position uncompressed_size = writer()->pos();
-  if (ABSL_PREDICT_FALSE(!writer()->Close())) return Fail(*writer());
+  const Position uncompressed_size = writer().pos();
+  if (ABSL_PREDICT_FALSE(!writer().Close())) return Fail(writer());
   if (compressor_options_.compression_type() != CompressionType::kNone) {
     if (ABSL_PREDICT_FALSE(
             !WriteVarint64(IntCast<uint64_t>(uncompressed_size), dest))) {
-      return Fail(*dest);
+      return Fail(dest);
     }
   }
-  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(compressed_)))) {
-    return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(compressed_)))) {
+    return Fail(dest);
   }
   return Close();
 }

@@ -157,7 +157,7 @@ class ZlibReaderBase : public BufferedReader {
 
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
-  bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 
  private:
   struct ZStreamDeleter {

@@ -67,9 +67,9 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
 
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
-    Reader* const src = src_reader();
+    Reader& src = *src_reader();
     Fail(Annotate(absl::DataLossError("Truncated zlib-compressed stream"),
-                  absl::StrCat("at byte ", src->pos())));
+                  absl::StrCat("at byte ", src.pos())));
   }
   decompressor_.reset();
   BufferedReader::Done();
@@ -83,13 +83,13 @@ inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "Object closed";
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   std::string message = absl::StrCat(operation, " failed");
   if (decompressor_->msg != nullptr) {
     absl::StrAppend(&message, ": ", decompressor_->msg);
   }
   return Fail(Annotate(absl::Status(code, message),
-                       absl::StrCat("at byte ", src->pos())));
+                       absl::StrCat("at byte ", src.pos())));
 }
 
 bool ZlibReaderBase::Fail(absl::Status status) {
@@ -109,8 +109,8 @@ bool ZlibReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   return BufferedReader::PullSlow(min_length, recommended_length);
 }
 
-bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
-                                  size_t max_length) {
+bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
+                                  char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
@@ -120,17 +120,17 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedReader::ReadInternal(): " << status();
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
-  Reader* const src = src_reader();
+  Reader& src = *src_reader();
   truncated_ = false;
   decompressor_->next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
     decompressor_->avail_out = SaturatingIntCast<uInt>(PtrDistance(
         reinterpret_cast<char*>(decompressor_->next_out), dest + max_length));
     decompressor_->next_in = const_cast<z_const Bytef*>(
-        reinterpret_cast<const Bytef*>(src->cursor()));
-    decompressor_->avail_in = SaturatingIntCast<uInt>(src->available());
+        reinterpret_cast<const Bytef*>(src.cursor()));
+    decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());
     const int result = inflate(decompressor_.get(), Z_NO_FLUSH);
-    src->set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
+    src.set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
     const size_t length_read =
         PtrDistance(dest, reinterpret_cast<char*>(decompressor_->next_out));
     switch (result) {
@@ -140,9 +140,9 @@ bool ZlibReaderBase::ReadInternal(char* dest, size_t min_length,
       case Z_BUF_ERROR:
         RIEGELI_ASSERT_EQ(decompressor_->avail_in, 0u)
             << "inflate() returned but there are still input data";
-        if (ABSL_PREDICT_FALSE(!src->Pull())) {
+        if (ABSL_PREDICT_FALSE(!src.Pull())) {
           move_limit_pos(length_read);
-          if (ABSL_PREDICT_FALSE(!src->healthy())) return Fail(*src);
+          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           truncated_ = true;
           return false;
         }

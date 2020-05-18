@@ -55,9 +55,9 @@ class DeferredEncoder : public ChunkEncoder {
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 
-  bool EncodeAndClose(Writer* dest, ChunkType* chunk_type,
-                      uint64_t* num_records,
-                      uint64_t* decoded_data_size) override;
+  bool EncodeAndClose(Writer& dest, ChunkType& chunk_type,
+                      uint64_t& num_records,
+                      uint64_t& decoded_data_size) override;
 
  private:
   // This template is defined and used only in deferred_encoder.cc.

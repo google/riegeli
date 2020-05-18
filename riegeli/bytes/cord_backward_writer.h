@@ -123,8 +123,8 @@ class CordBackwardWriterBase : public BackwardWriter {
  private:
   static constexpr size_t kShortBufferSize = 64;
 
-  // If the buffer is not empty, prepends it to `*dest`.
-  void SyncBuffer(absl::Cord* dest);
+  // If the buffer is not empty, prepends it to `dest`.
+  void SyncBuffer(absl::Cord& dest);
 
   size_t size_hint_ = 0;
   size_t min_block_size_ = kMinBufferSize;

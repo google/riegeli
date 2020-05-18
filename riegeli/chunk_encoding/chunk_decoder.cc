@@ -49,7 +49,7 @@ bool ChunkDecoder::Decode(const Chunk& chunk) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
   }
   Chain values;
-  if (ABSL_PREDICT_FALSE(!Parse(chunk.header, &data_reader, &values))) {
+  if (ABSL_PREDICT_FALSE(!Parse(chunk.header, data_reader, values))) {
     limits_.clear();  // Ensure that `index() == num_records()`.
     return false;
   }
@@ -70,8 +70,8 @@ bool ChunkDecoder::Decode(const Chunk& chunk) {
   return true;
 }
 
-inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
-                                Chain* dest) {
+inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
+                                Chain& dest) {
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
@@ -111,37 +111,37 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
       return true;
     case ChunkType::kSimple: {
       SimpleDecoder simple_decoder;
-      if (ABSL_PREDICT_FALSE(!simple_decoder.Decode(src, header.num_records(),
+      if (ABSL_PREDICT_FALSE(!simple_decoder.Decode(&src, header.num_records(),
                                                     header.decoded_data_size(),
-                                                    &limits_))) {
+                                                    limits_))) {
         return Fail(simple_decoder);
       }
-      if (ABSL_PREDICT_FALSE(!simple_decoder.reader()->Read(
-              dest, IntCast<size_t>(header.decoded_data_size())))) {
-        simple_decoder.reader()->Fail(
+      if (ABSL_PREDICT_FALSE(!simple_decoder.reader().Read(
+              IntCast<size_t>(header.decoded_data_size()), dest))) {
+        simple_decoder.reader().Fail(
             absl::DataLossError("Reading record values failed"));
-        return Fail(*simple_decoder.reader());
+        return Fail(simple_decoder.reader());
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
         return Fail(simple_decoder);
       }
-      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) return Fail(*src);
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return Fail(src);
       return true;
     }
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
-      dest->Clear();
+      dest.Clear();
       ChainBackwardWriter<> dest_writer(
-          dest,
+          &dest,
           ChainBackwardWriterBase::Options().set_size_hint(
               field_projection_.includes_all() ? header.decoded_data_size()
                                                : uint64_t{0}));
       const bool ok = transpose_decoder.Decode(
-          src, header.num_records(), header.decoded_data_size(),
-          field_projection_, &dest_writer, &limits_);
+          header.num_records(), header.decoded_data_size(), field_projection_,
+          src, dest_writer, limits_);
       if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return Fail(dest_writer);
       if (ABSL_PREDICT_FALSE(!ok)) return Fail(transpose_decoder);
-      if (ABSL_PREDICT_FALSE(!src->VerifyEndAndClose())) return Fail(*src);
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) return Fail(src);
       return true;
     }
   }
@@ -153,7 +153,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader* src,
       "Unknown chunk type: ", static_cast<uint64_t>(header.chunk_type()))));
 }
 
-bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite* record) {
+bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!healthy() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];

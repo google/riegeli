@@ -143,7 +143,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
 
 void ZstdWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer* const dest = dest_writer();
+    Writer& dest = *dest_writer();
     const absl::string_view data(start(), written_to_buffer());
     set_buffer();
     WriteInternal(data, dest, ZSTD_e_end);
@@ -168,11 +168,11 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "buffer not empty";
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   return WriteInternal(src, dest, ZSTD_e_continue);
 }
 
-bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
+bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                    ZSTD_EndDirective end_op) {
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - limit_pos())) {
@@ -180,10 +180,10 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
   }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
-    ZSTD_outBuffer output = {dest->cursor(), dest->available(), 0};
+    ZSTD_outBuffer output = {dest.cursor(), dest.available(), 0};
     const size_t result =
         ZSTD_compressStream2(compressor_.get(), &output, &input, end_op);
-    dest->set_cursor(static_cast<char*>(output.dst) + output.pos);
+    dest.set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned 0 but there are still input data";
@@ -194,7 +194,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       return Fail(Annotate(
           absl::InternalError(absl::StrCat("ZSTD_compressStream2() failed: ",
                                            ZSTD_getErrorName(result))),
-          absl::StrCat("at byte ", dest->pos())));
+          absl::StrCat("at byte ", dest.pos())));
     }
     if (output.pos < output.size) {
       RIEGELI_ASSERT_EQ(input.pos, input.size)
@@ -203,19 +203,19 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer* dest,
       move_start_pos(input.pos);
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!dest->Push())) return Fail(*dest);
+    if (ABSL_PREDICT_FALSE(!dest.Push())) return Fail(dest);
   }
 }
 
 bool ZstdWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer* const dest = dest_writer();
+  Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
   if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, ZSTD_e_flush))) {
     return false;
   }
-  if (ABSL_PREDICT_FALSE(!dest->Flush(flush_type))) return Fail(*dest);
+  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
   return true;
 }
 

@@ -31,24 +31,24 @@ namespace riegeli {
 
 namespace {
 
-ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader* src, absl::string_view* dest,
+ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader& src, absl::string_view& dest,
                                            size_t max_length) {
-  *dest = absl::string_view(src->cursor(), max_length);
-  src->move_cursor(max_length);
-  src->Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
+  dest = absl::string_view(src.cursor(), max_length);
+  src.move_cursor(max_length);
+  src.Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
   return true;
 }
 
-ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader* src, std::string* dest,
+ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader& src, std::string& dest,
                                            size_t max_length) {
-  dest->append(src->cursor(), max_length);
-  src->move_cursor(max_length);
-  src->Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
+  dest.append(src.cursor(), max_length);
+  src.move_cursor(max_length);
+  src.Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
   return true;
 }
 
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader* src,
-                                                      absl::string_view* dest,
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
+                                                      absl::string_view& dest,
                                                       ReadLineOptions options,
                                                       size_t length,
                                                       size_t newline_length) {
@@ -57,13 +57,13 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader* src,
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
     return MaxLengthExceeded(src, dest, options.max_length());
   }
-  *dest = absl::string_view(src->cursor(), length);
-  src->move_cursor(length_with_newline);
+  dest = absl::string_view(src.cursor(), length);
+  src.move_cursor(length_with_newline);
   return true;
 }
 
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader* src,
-                                                      std::string* dest,
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
+                                                      std::string& dest,
                                                       ReadLineOptions options,
                                                       size_t length,
                                                       size_t newline_length) {
@@ -72,86 +72,40 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader* src,
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
     return MaxLengthExceeded(src, dest, options.max_length());
   }
-  dest->append(src->cursor(), length);
-  src->move_cursor(length_with_newline);
+  dest.append(src.cursor(), length);
+  src.move_cursor(length_with_newline);
   return true;
 }
 
 }  // namespace
 
-bool ReadLine(Reader* src, absl::string_view* dest, ReadLineOptions options) {
-  options.set_max_length(UnsignedMin(options.max_length(), dest->max_size()));
+bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
+  options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
   size_t length = 0;
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
-  do {
-    switch (options.newline()) {
-      case ReadLineOptions::Newline::kLf: {
-        const char* const newline = static_cast<const char*>(std::memchr(
-            src->cursor() + length, '\n', src->available() - length));
-        if (ABSL_PREDICT_TRUE(newline != nullptr)) {
-          return FoundNewline(src, dest, options,
-                              PtrDistance(src->cursor(), newline), 1);
-        }
-        goto continue_reading;
-      }
-      case ReadLineOptions::Newline::kAny:
-        for (const char* newline = src->cursor() + length;
-             newline < src->limit(); ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src->cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            length = PtrDistance(src->cursor(), newline);
-            return FoundNewline(src, dest, options, length,
-                                ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
-                                        src->cursor()[length + 1] == '\n'
-                                    ? size_t{2}
-                                    : size_t{1});
-          }
-        }
-        goto continue_reading;
-    }
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Unknown newline: " << static_cast<int>(options.newline());
-  continue_reading:
-    length = src->available();
-    if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-      return MaxLengthExceeded(src, dest, options.max_length());
-    }
-  } while (src->Pull(length + 1, SaturatingAdd(length, length)));
-  *dest = absl::string_view(src->cursor(), src->available());
-  src->move_cursor(src->available());
-  return true;
-}
-
-bool ReadLine(Reader* src, std::string* dest, ReadLineOptions options) {
-  dest->clear();
-  options.set_max_length(UnsignedMin(options.max_length(), dest->max_size()));
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
   do {
     switch (options.newline()) {
       case ReadLineOptions::Newline::kLf: {
         const char* const newline = static_cast<const char*>(
-            std::memchr(src->cursor(), '\n', src->available()));
+            std::memchr(src.cursor() + length, '\n', src.available() - length));
         if (ABSL_PREDICT_TRUE(newline != nullptr)) {
           return FoundNewline(src, dest, options,
-                              PtrDistance(src->cursor(), newline), 1);
+                              PtrDistance(src.cursor(), newline), 1);
         }
         goto continue_reading;
       }
       case ReadLineOptions::Newline::kAny:
-        for (const char* newline = src->cursor(); newline < src->limit();
+        for (const char* newline = src.cursor() + length; newline < src.limit();
              ++newline) {
           if (ABSL_PREDICT_FALSE(*newline == '\n')) {
             return FoundNewline(src, dest, options,
-                                PtrDistance(src->cursor(), newline), 1);
+                                PtrDistance(src.cursor(), newline), 1);
           }
           if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            const size_t length = PtrDistance(src->cursor(), newline);
+            length = PtrDistance(src.cursor(), newline);
             return FoundNewline(src, dest, options, length,
-                                ABSL_PREDICT_TRUE(src->Pull(length + 2)) &&
-                                        src->cursor()[length + 1] == '\n'
+                                ABSL_PREDICT_TRUE(src.Pull(length + 2)) &&
+                                        src.cursor()[length + 1] == '\n'
                                     ? size_t{2}
                                     : size_t{1});
           }
@@ -161,23 +115,69 @@ bool ReadLine(Reader* src, std::string* dest, ReadLineOptions options) {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
-    if (ABSL_PREDICT_FALSE(src->available() > options.max_length())) {
+    length = src.available();
+    if (ABSL_PREDICT_FALSE(length > options.max_length())) {
       return MaxLengthExceeded(src, dest, options.max_length());
     }
-    options.set_max_length(options.max_length() - src->available());
-    dest->append(src->cursor(), src->available());
-    src->move_cursor(src->available());
-  } while (src->Pull());
+  } while (src.Pull(length + 1, SaturatingAdd(length, length)));
+  dest = absl::string_view(src.cursor(), src.available());
+  src.move_cursor(src.available());
   return true;
 }
 
-void SkipBOM(riegeli::Reader* src) {
-  if (src->pos() != 0) return;
-  src->Pull(3);
-  if (src->available() >= 3 && src->cursor()[0] == static_cast<char>(0xef) &&
-      src->cursor()[1] == static_cast<char>(0xbb) &&
-      src->cursor()[2] == static_cast<char>(0xbf)) {
-    src->move_cursor(3);
+bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
+  dest.clear();
+  options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
+  if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
+  do {
+    switch (options.newline()) {
+      case ReadLineOptions::Newline::kLf: {
+        const char* const newline = static_cast<const char*>(
+            std::memchr(src.cursor(), '\n', src.available()));
+        if (ABSL_PREDICT_TRUE(newline != nullptr)) {
+          return FoundNewline(src, dest, options,
+                              PtrDistance(src.cursor(), newline), 1);
+        }
+        goto continue_reading;
+      }
+      case ReadLineOptions::Newline::kAny:
+        for (const char* newline = src.cursor(); newline < src.limit();
+             ++newline) {
+          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
+            return FoundNewline(src, dest, options,
+                                PtrDistance(src.cursor(), newline), 1);
+          }
+          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
+            const size_t length = PtrDistance(src.cursor(), newline);
+            return FoundNewline(src, dest, options, length,
+                                ABSL_PREDICT_TRUE(src.Pull(length + 2)) &&
+                                        src.cursor()[length + 1] == '\n'
+                                    ? size_t{2}
+                                    : size_t{1});
+          }
+        }
+        goto continue_reading;
+    }
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Unknown newline: " << static_cast<int>(options.newline());
+  continue_reading:
+    if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
+      return MaxLengthExceeded(src, dest, options.max_length());
+    }
+    options.set_max_length(options.max_length() - src.available());
+    dest.append(src.cursor(), src.available());
+    src.move_cursor(src.available());
+  } while (src.Pull());
+  return true;
+}
+
+void SkipBOM(riegeli::Reader& src) {
+  if (src.pos() != 0) return;
+  src.Pull(3);
+  if (src.available() >= 3 && src.cursor()[0] == static_cast<char>(0xef) &&
+      src.cursor()[1] == static_cast<char>(0xbb) &&
+      src.cursor()[2] == static_cast<char>(0xbf)) {
+    src.move_cursor(3);
   }
 }
 

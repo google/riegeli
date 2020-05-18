@@ -28,18 +28,18 @@ namespace riegeli {
 // Writes a number in a fixed width Little/Big Endian encoding.
 //
 // Returns `false` on failure.
-bool WriteLittleEndian16(uint16_t data, Writer* dest);
-bool WriteLittleEndian32(uint32_t data, Writer* dest);
-bool WriteLittleEndian64(uint64_t data, Writer* dest);
-bool WriteBigEndian16(uint16_t data, Writer* dest);
-bool WriteBigEndian32(uint32_t data, Writer* dest);
-bool WriteBigEndian64(uint64_t data, Writer* dest);
-bool WriteLittleEndian16(uint16_t data, BackwardWriter* dest);
-bool WriteLittleEndian32(uint32_t data, BackwardWriter* dest);
-bool WriteLittleEndian64(uint64_t data, BackwardWriter* dest);
-bool WriteBigEndian16(uint16_t data, BackwardWriter* dest);
-bool WriteBigEndian32(uint32_t data, BackwardWriter* dest);
-bool WriteBigEndian64(uint64_t data, BackwardWriter* dest);
+bool WriteLittleEndian16(uint16_t data, Writer& dest);
+bool WriteLittleEndian32(uint32_t data, Writer& dest);
+bool WriteLittleEndian64(uint64_t data, Writer& dest);
+bool WriteBigEndian16(uint16_t data, Writer& dest);
+bool WriteBigEndian32(uint32_t data, Writer& dest);
+bool WriteBigEndian64(uint64_t data, Writer& dest);
+bool WriteLittleEndian16(uint16_t data, BackwardWriter& dest);
+bool WriteLittleEndian32(uint32_t data, BackwardWriter& dest);
+bool WriteLittleEndian64(uint64_t data, BackwardWriter& dest);
+bool WriteBigEndian16(uint16_t data, BackwardWriter& dest);
+bool WriteBigEndian32(uint32_t data, BackwardWriter& dest);
+bool WriteBigEndian64(uint64_t data, BackwardWriter& dest);
 
 // Writes a number in a fixed width Little/Big Endian encoding to an array.
 //
@@ -53,86 +53,86 @@ void WriteBigEndian64(uint64_t data, char* dest);
 
 // Implementation details follow.
 
-inline bool WriteLittleEndian16(uint16_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
-  WriteLittleEndian16(data, dest->cursor());
-  dest->move_cursor(sizeof(uint16_t));
+inline bool WriteLittleEndian16(uint16_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
+  WriteLittleEndian16(data, dest.cursor());
+  dest.move_cursor(sizeof(uint16_t));
   return true;
 }
 
-inline bool WriteLittleEndian32(uint32_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
-  WriteLittleEndian32(data, dest->cursor());
-  dest->move_cursor(sizeof(uint32_t));
+inline bool WriteLittleEndian32(uint32_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
+  WriteLittleEndian32(data, dest.cursor());
+  dest.move_cursor(sizeof(uint32_t));
   return true;
 }
 
-inline bool WriteLittleEndian64(uint64_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
-  WriteLittleEndian64(data, dest->cursor());
-  dest->move_cursor(sizeof(uint64_t));
+inline bool WriteLittleEndian64(uint64_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
+  WriteLittleEndian64(data, dest.cursor());
+  dest.move_cursor(sizeof(uint64_t));
   return true;
 }
 
-inline bool WriteBigEndian16(uint16_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
-  WriteBigEndian16(data, dest->cursor());
-  dest->move_cursor(sizeof(uint16_t));
+inline bool WriteBigEndian16(uint16_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
+  WriteBigEndian16(data, dest.cursor());
+  dest.move_cursor(sizeof(uint16_t));
   return true;
 }
 
-inline bool WriteBigEndian32(uint32_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
-  WriteBigEndian32(data, dest->cursor());
-  dest->move_cursor(sizeof(uint32_t));
+inline bool WriteBigEndian32(uint32_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
+  WriteBigEndian32(data, dest.cursor());
+  dest.move_cursor(sizeof(uint32_t));
   return true;
 }
 
-inline bool WriteBigEndian64(uint64_t data, Writer* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
-  WriteBigEndian64(data, dest->cursor());
-  dest->move_cursor(sizeof(uint64_t));
+inline bool WriteBigEndian64(uint64_t data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
+  WriteBigEndian64(data, dest.cursor());
+  dest.move_cursor(sizeof(uint64_t));
   return true;
 }
 
-inline bool WriteLittleEndian16(uint16_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
-  dest->move_cursor(sizeof(uint16_t));
-  WriteLittleEndian16(data, dest->cursor());
+inline bool WriteLittleEndian16(uint16_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
+  dest.move_cursor(sizeof(uint16_t));
+  WriteLittleEndian16(data, dest.cursor());
   return true;
 }
-inline bool WriteLittleEndian32(uint32_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
-  dest->move_cursor(sizeof(uint32_t));
-  WriteLittleEndian32(data, dest->cursor());
-  return true;
-}
-
-inline bool WriteLittleEndian64(uint64_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
-  dest->move_cursor(sizeof(uint64_t));
-  WriteLittleEndian64(data, dest->cursor());
+inline bool WriteLittleEndian32(uint32_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
+  dest.move_cursor(sizeof(uint32_t));
+  WriteLittleEndian32(data, dest.cursor());
   return true;
 }
 
-inline bool WriteBigEndian16(uint16_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint16_t)))) return false;
-  dest->move_cursor(sizeof(uint16_t));
-  WriteBigEndian16(data, dest->cursor());
+inline bool WriteLittleEndian64(uint64_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
+  dest.move_cursor(sizeof(uint64_t));
+  WriteLittleEndian64(data, dest.cursor());
   return true;
 }
 
-inline bool WriteBigEndian32(uint32_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint32_t)))) return false;
-  dest->move_cursor(sizeof(uint32_t));
-  WriteBigEndian32(data, dest->cursor());
+inline bool WriteBigEndian16(uint16_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
+  dest.move_cursor(sizeof(uint16_t));
+  WriteBigEndian16(data, dest.cursor());
   return true;
 }
 
-inline bool WriteBigEndian64(uint64_t data, BackwardWriter* dest) {
-  if (ABSL_PREDICT_FALSE(!dest->Push(sizeof(uint64_t)))) return false;
-  dest->move_cursor(sizeof(uint64_t));
-  WriteBigEndian64(data, dest->cursor());
+inline bool WriteBigEndian32(uint32_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
+  dest.move_cursor(sizeof(uint32_t));
+  WriteBigEndian32(data, dest.cursor());
+  return true;
+}
+
+inline bool WriteBigEndian64(uint64_t data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
+  dest.move_cursor(sizeof(uint64_t));
+  WriteBigEndian64(data, dest.cursor());
   return true;
 }
 

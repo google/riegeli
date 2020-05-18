@@ -136,13 +136,13 @@ class FileReaderBase : public Reader {
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
-  bool ReadSlow(char* dest, size_t length) override;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool ReadSlow(absl::Cord* dest, size_t length) override;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
   bool SeekSlow(Position new_pos) override;
   using Reader::CopyToSlow;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool CopyToSlow(Position length, Writer& dest) override;
+  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
 
  private:
   // Minimum length for which it is better to append current contents of
@@ -151,13 +151,13 @@ class FileReaderBase : public Reader {
   size_t LengthToReadDirectly() const;
 
   // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
-  // position which is `limit_pos()`, to `*dest`.
+  // position which is `limit_pos()`, to `dest[]`.
   //
-  // Sets `*length_read` to the length read.
+  // Sets `length_read` to the length read.
   //
   // Increments `limit_pos()` by the length read.
-  bool ReadToDest(char* dest, size_t length,
-                  ::tensorflow::RandomAccessFile* src, size_t* length_read);
+  bool ReadToDest(size_t length, ::tensorflow::RandomAccessFile* src,
+                  char* dest, size_t& length_read);
 
   // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, preferably to `flat_buffer.data()`. Newly
@@ -168,8 +168,8 @@ class FileReaderBase : public Reader {
   // Increments `limit_pos()` by the length read. Sets buffer pointers.
   //
   // Precondition: `flat_buffer` is a suffix of `buffer_`
-  bool ReadToBuffer(absl::Span<char> flat_buffer, size_t cursor_index,
-                    ::tensorflow::RandomAccessFile* src);
+  bool ReadToBuffer(size_t cursor_index, ::tensorflow::RandomAccessFile* src,
+                    absl::Span<char> flat_buffer);
 
   // Discards buffer contents.
   void ClearBuffer();

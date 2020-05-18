@@ -345,12 +345,12 @@ struct Resetter<SnappyWriter<Dest>> : ResetterByReset<SnappyWriter<Dest>> {};
 
 namespace internal {
 
-absl::Status SnappyCompressImpl(Reader* src, Writer* dest);
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest);
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompressImpl(Dependency<Reader*, Src> src,
                                        Dependency<Writer*, Dest> dest) {
-  absl::Status status = SnappyCompressImpl(src.get(), dest.get());
+  absl::Status status = SnappyCompressImpl(*src, *dest);
   if (dest.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest->Close())) {
       if (ABSL_PREDICT_TRUE(status.ok())) status = dest->status();

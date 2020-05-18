@@ -44,20 +44,20 @@ uint64_t ChunkHeader::computed_header_hash() const {
       absl::string_view(bytes() + sizeof(uint64_t), size() - sizeof(uint64_t)));
 }
 
-bool Chunk::WriteTo(Writer* dest) const {
+bool Chunk::WriteTo(Writer& dest) const {
   if (ABSL_PREDICT_FALSE(
-          !dest->Write(absl::string_view(header.bytes(), header.size())))) {
+          !dest.Write(absl::string_view(header.bytes(), header.size())))) {
     return false;
   }
-  return dest->Write(data);
+  return dest.Write(data);
 }
 
-bool Chunk::ReadFrom(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Read(header.bytes(), header.size()))) {
+bool Chunk::ReadFrom(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Read(header.size(), header.bytes()))) {
     data.Clear();
     return false;
   }
-  return src->Read(&data, header.data_size());
+  return src.Read(header.data_size(), data);
 }
 
 }  // namespace riegeli

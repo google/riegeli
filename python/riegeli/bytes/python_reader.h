@@ -128,7 +128,7 @@ class PythonReader : public BufferedReader {
 
  protected:
   void Done() override;
-  bool ReadInternal(char* dest, size_t min_length, size_t max_length) override;
+  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
  private:

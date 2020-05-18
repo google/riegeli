@@ -88,7 +88,7 @@ bool PushableBackwardWriter::SyncScratchSlow() {
     buffer.AppendSubstrTo(
         absl::string_view(buffer.data() + buffer.size() - length_to_write,
                           length_to_write),
-        &data);
+        data);
     ok = Write(std::move(data));
   }
   return ok;

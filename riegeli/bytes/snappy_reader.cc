@@ -41,7 +41,7 @@ void SnappyReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  const absl::optional<size_t> uncompressed_size = SnappyUncompressedSize(src);
+  const absl::optional<size_t> uncompressed_size = SnappyUncompressedSize(*src);
   Chain decompressed;
   {
     absl::Status status = SnappyDecompress<Reader*, ChainWriter<>>(
@@ -68,29 +68,29 @@ bool SnappyReaderBase::Fail(absl::Status status) {
 
 namespace internal {
 
-absl::Status SnappyDecompressImpl(Reader* src, Writer* dest) {
-  ReaderSnappySource source(src);
-  WriterSnappySink sink(dest);
+absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
+  ReaderSnappySource source(&src);
+  WriterSnappySink sink(&dest);
   const bool ok = snappy::Uncompress(&source, &sink);
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) return dest->status();
-  if (ABSL_PREDICT_FALSE(!src->healthy())) return src->status();
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
+  if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
   if (ABSL_PREDICT_FALSE(!ok)) {
     return Annotate(
         Annotate(absl::DataLossError("Invalid snappy-compressed stream"),
-                 absl::StrCat("at byte ", src->pos())),
-        absl::StrCat("at uncompressed byte ", dest->pos()));
+                 absl::StrCat("at byte ", src.pos())),
+        absl::StrCat("at uncompressed byte ", dest.pos()));
   }
   return absl::OkStatus();
 }
 
 }  // namespace internal
 
-absl::optional<size_t> SnappyUncompressedSize(Reader* src) {
+absl::optional<size_t> SnappyUncompressedSize(Reader& src) {
   // Uncompressed size is stored in up to 5 initial bytes.
-  src->Pull(5);
+  src.Pull(5);
   size_t size;
   if (ABSL_PREDICT_FALSE(!snappy::GetUncompressedLength(
-          src->cursor(), src->available(), &size))) {
+          src.cursor(), src.available(), &size))) {
     return absl::nullopt;
   }
   return size;

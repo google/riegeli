@@ -198,10 +198,10 @@ class Chain {
   //
   //   // Registers this object with MemoryEstimator.
   //   void RegisterSubobjects(absl::string_view data,
-  //                           MemoryEstimator* memory_estimator) const {
+  //                           MemoryEstimator& memory_estimator) const {
   //     if (std::is_same<T, absl::string_view>::value) return;
-  //     if (memory_estimator->RegisterNode(data.data())) {
-  //       memory_estimator->RegisterDynamicMemory(data.size());
+  //     if (memory_estimator.RegisterNode(data.data())) {
+  //       memory_estimator.RegisterDynamicMemory(data.size());
   //     }
   //   }
   //
@@ -272,12 +272,12 @@ class Chain {
   bool empty() const { return size_ == 0; }
 
   void CopyTo(char* dest) const;
-  void AppendTo(std::string* dest) const&;
-  void AppendTo(std::string* dest) &&;
-  void AppendTo(absl::Cord* dest) const&;
-  void AppendTo(absl::Cord* dest) &&;
-  void PrependTo(absl::Cord* dest) const&;
-  void PrependTo(absl::Cord* dest) &&;
+  void AppendTo(std::string& dest) const&;
+  void AppendTo(std::string& dest) &&;
+  void AppendTo(absl::Cord& dest) const&;
+  void AppendTo(absl::Cord& dest) &&;
+  void PrependTo(absl::Cord& dest) const&;
+  void PrependTo(absl::Cord& dest) &&;
   explicit operator std::string() const&;
   explicit operator std::string() &&;
   explicit operator absl::Cord() const&;
@@ -296,7 +296,7 @@ class Chain {
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
   // Registers this `Chain` with `MemoryEstimator`.
-  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
@@ -356,9 +356,9 @@ class Chain {
   void Prepend(const absl::Cord& src, const Options& options = kDefaultOptions);
   void Prepend(absl::Cord&& src, const Options& options = kDefaultOptions);
 
-  // `AppendFrom(&iter, length)` is equivalent to
+  // `AppendFrom(iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.
-  void AppendFrom(absl::Cord::CharIterator* iter, size_t length,
+  void AppendFrom(absl::Cord::CharIterator& iter, size_t length,
                   const Options& options = kDefaultOptions);
 
   void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
@@ -682,25 +682,25 @@ class Chain::BlockIterator {
   template <typename T>
   const T* external_object() const;
 
-  // Appends `**this` to `*dest`.
+  // Appends `**this` to `dest`.
   //
   // Precondition: this is not past the end iterator.
-  void AppendTo(Chain* dest, const Options& options = kDefaultOptions) const;
-  void AppendTo(absl::Cord* dest) const;
+  void AppendTo(Chain& dest, const Options& options = kDefaultOptions) const;
+  void AppendTo(absl::Cord& dest) const;
 
-  // Appends `substr` to `*dest`. `substr` must be empty or contained in
+  // Appends `substr` to `dest`. `substr` must be empty or contained in
   // `**this`.
   //
   // Precondition:
   //   if `substr` is not empty then this is not past the end iterator.
-  void AppendSubstrTo(absl::string_view substr, Chain* dest,
+  void AppendSubstrTo(absl::string_view substr, Chain& dest,
                       const Options& options = kDefaultOptions) const;
-  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest) const;
+  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) const;
 
-  // Prepends `**this` to `*dest`.
+  // Prepends `**this` to `dest`.
   //
   // Precondition: this is not past the end iterator.
-  void PrependTo(absl::Cord* dest) const;
+  void PrependTo(absl::Cord& dest) const;
 
  private:
   friend class Chain;
@@ -833,7 +833,7 @@ class ChainBlock {
   // Estimates the amount of memory used by this `ChainBlock`.
   size_t EstimateMemory() const;
   // Registers this `ChainBlock` with `MemoryEstimator`.
-  void RegisterSubobjects(MemoryEstimator* memory_estimator) const;
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
@@ -870,17 +870,16 @@ class ChainBlock {
   void RemoveSuffix(size_t length, const Options& options = kDefaultOptions);
   void RemovePrefix(size_t length, const Options& options = kDefaultOptions);
 
-  // Appends `*this` to `*dest`.
-  void AppendTo(Chain* dest,
+  // Appends `*this` to `dest`.
+  void AppendTo(Chain& dest,
                 const Chain::Options& options = Chain::kDefaultOptions) const;
-  void AppendTo(absl::Cord* dest) const;
+  void AppendTo(absl::Cord& dest) const;
 
-  // Appends `substr` to `*dest`. `substr` must be empty or contained in
-  // `*this`.
+  // Appends `substr` to `dest`. `substr` must be empty or contained in `*this`.
   void AppendSubstrTo(
-      absl::string_view substr, Chain* dest,
+      absl::string_view substr, Chain& dest,
       const Chain::Options& options = Chain::kDefaultOptions) const;
-  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest) const;
+  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest) const;
 
   // Releases the ownership of the block, which must be deleted using
   // `DeleteReleased()` if not `nullptr`.
@@ -994,7 +993,7 @@ class Chain::RawBlock {
   bool wasteful(size_t extra_size = 0) const;
 
   // Registers this `RawBlock` with `MemoryEstimator`.
-  void RegisterShared(MemoryEstimator* memory_estimator) const;
+  void RegisterShared(MemoryEstimator& memory_estimator) const;
   // Shows internal structure in a human-readable way, for debugging.
   void DumpStructure(std::ostream& out) const;
 
@@ -1015,18 +1014,18 @@ class Chain::RawBlock {
   bool TryRemoveSuffix(size_t length);
   bool TryRemovePrefix(size_t length);
 
-  void AppendTo(Chain* dest, const Options& options);
+  void AppendTo(Chain& dest, const Options& options);
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
-  void AppendTo(absl::Cord* dest);
+  void AppendTo(absl::Cord& dest);
 
-  void AppendSubstrTo(absl::string_view substr, Chain* dest,
+  void AppendSubstrTo(absl::string_view substr, Chain& dest,
                       const Options& options);
-  void AppendSubstrTo(absl::string_view substr, absl::Cord* dest);
+  void AppendSubstrTo(absl::string_view substr, absl::Cord& dest);
 
   // This template is defined and used only in chain.cc.
   template <Ownership ownership>
-  void PrependTo(absl::Cord* dest);
+  void PrependTo(absl::Cord& dest);
 
  private:
   template <typename T>
@@ -1074,7 +1073,7 @@ class Chain::RawBlock {
 struct Chain::ExternalMethods {
   void (*delete_block)(RawBlock* block);
   void (*register_unique)(const RawBlock* block,
-                          MemoryEstimator* memory_estimator);
+                          MemoryEstimator& memory_estimator);
   void (*dump_structure)(const RawBlock* block, std::ostream& out);
 };
 
@@ -1123,7 +1122,7 @@ template <typename T>
 struct HasRegisterSubobjectsWithData<
     T,
     absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
-        std::declval<absl::string_view>(), std::declval<MemoryEstimator*>()))>>
+        std::declval<absl::string_view>(), std::declval<MemoryEstimator&>()))>>
     : public std::true_type {};
 
 template <typename T, typename Enable = void>
@@ -1132,12 +1131,12 @@ struct HasRegisterSubobjectsWithoutData : public std::false_type {};
 template <typename T>
 struct HasRegisterSubobjectsWithoutData<
     T, absl::void_t<decltype(std::declval<T>().RegisterSubobjects(
-           std::declval<MemoryEstimator*>()))>> : public std::true_type {};
+           std::declval<MemoryEstimator&>()))>> : public std::true_type {};
 
 template <typename T,
           absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
 inline void RegisterSubobjects(T* object, absl::string_view data,
-                               MemoryEstimator* memory_estimator) {
+                               MemoryEstimator& memory_estimator) {
   object->RegisterSubobjects(data, memory_estimator);
 }
 
@@ -1146,7 +1145,7 @@ template <typename T,
                                 HasRegisterSubobjectsWithoutData<T>::value,
                             int> = 0>
 inline void RegisterSubobjects(T* object, absl::string_view data,
-                               MemoryEstimator* memory_estimator) {
+                               MemoryEstimator& memory_estimator) {
   object->RegisterSubobjects(memory_estimator);
 }
 
@@ -1155,16 +1154,16 @@ template <typename T,
                                 !HasRegisterSubobjectsWithoutData<T>::value,
                             int> = 0>
 inline void RegisterSubobjects(T* object, absl::string_view data,
-                               MemoryEstimator* memory_estimator) {
-  if (memory_estimator->RegisterNode(data.data())) {
-    memory_estimator->RegisterDynamicMemory(data.size());
+                               MemoryEstimator& memory_estimator) {
+  if (memory_estimator.RegisterNode(data.data())) {
+    memory_estimator.RegisterDynamicMemory(data.size());
   }
 }
 
 template <>
 inline void RegisterSubobjects(absl::string_view* object,
                                absl::string_view data,
-                               MemoryEstimator* memory_estimator) {}
+                               MemoryEstimator& memory_estimator) {}
 
 template <typename T, typename Enable = void>
 struct HasDumpStructureWithData : public std::false_type {};
@@ -1227,7 +1226,7 @@ struct Chain::ExternalMethodsFor {
  private:
   static void DeleteBlock(RawBlock* block);
   static void RegisterUnique(const RawBlock* block,
-                             MemoryEstimator* memory_estimator);
+                             MemoryEstimator& memory_estimator);
   static void DumpStructure(const RawBlock* block, std::ostream& out);
 };
 
@@ -1264,9 +1263,9 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 
 template <typename T>
 void Chain::ExternalMethodsFor<T>::RegisterUnique(
-    const RawBlock* block, MemoryEstimator* memory_estimator) {
-  memory_estimator->RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
-                                          sizeof(T));
+    const RawBlock* block, MemoryEstimator& memory_estimator) {
+  memory_estimator.RegisterDynamicMemory(RawBlock::kExternalObjectOffset<T>() +
+                                         sizeof(T));
   internal::RegisterSubobjects(block->unchecked_external_object<T>(),
                                absl::string_view(*block), memory_estimator);
 }

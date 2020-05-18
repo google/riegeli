@@ -61,11 +61,11 @@ class CordReaderBase : public PullableReader {
   void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using PullableReader::ReadSlow;
-  bool ReadSlow(Chain* dest, size_t length) override;
-  bool ReadSlow(absl::Cord* dest, size_t length) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyToSlow;
-  bool CopyToSlow(Writer* dest, Position length) override;
-  bool CopyToSlow(BackwardWriter* dest, size_t length) override;
+  bool CopyToSlow(Position length, Writer& dest) override;
+  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
   bool SeekSlow(Position new_pos) override;
 
   // Invariant:
@@ -83,10 +83,10 @@ class CordReaderBase : public PullableReader {
   void SyncBuffer();
 
   // Sets buffer pointers to `absl::Cord::ChunkRemaining(*iter_)`,
-  // or to `nullptr` if `*iter_ == src->char_end()`.
+  // or to `nullptr` if `*iter_ == src.char_end()`.
   //
   // Precondition: `iter_ != absl::nullopt`
-  void MakeBuffer(const absl::Cord* src);
+  void MakeBuffer(const absl::Cord& src);
 
   // Invariants if `iter_ == absl::nullopt` and not `closed()`:
   //   scratch is not used
@@ -188,14 +188,14 @@ inline void CordReaderBase::Initialize(const absl::Cord* src) {
     }
   }
   iter_ = src->char_begin();
-  MakeBuffer(src);
+  MakeBuffer(*src);
 }
 
-inline void CordReaderBase::MakeBuffer(const absl::Cord* src) {
+inline void CordReaderBase::MakeBuffer(const absl::Cord& src) {
   RIEGELI_ASSERT(iter_ != absl::nullopt)
       << "Failed precondition of CordReaderBase::MakeBuffer(): "
          "no Cord iterator";
-  if (*iter_ == src->char_end()) {
+  if (*iter_ == src.char_end()) {
     set_buffer();
     return;
   }

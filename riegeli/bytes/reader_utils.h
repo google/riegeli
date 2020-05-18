@@ -33,55 +33,55 @@
 
 namespace riegeli {
 
-// Reads all remaining bytes from `*src` to `*dest`, clearing any existing data
+// Reads all remaining bytes from `src` to `*dest`, clearing any existing data
 // in `*dest`.
 //
-// Fails `*src` with `absl::ResourceExhaustedError()` if `max_size` would be
+// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
 // exceeded.
 //
 // Return values:
-//  * `true` (`src->healthy()`)   - success
-//  * `false` (`!src->healthy()`) - failure
-bool ReadAll(Reader* src, absl::string_view* dest,
+//  * `true` (`src.healthy()`)   - success
+//  * `false` (`!src.healthy()`) - failure
+bool ReadAll(Reader& src, absl::string_view& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, std::string* dest,
+bool ReadAll(Reader& src, std::string& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, Chain* dest,
+bool ReadAll(Reader& src, Chain& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader* src, absl::Cord* dest,
+bool ReadAll(Reader& src, absl::Cord& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
 
-// Reads all remaining bytes from `*src` to `*dest`.
+// Reads all remaining bytes from `src` to `dest`.
 //
-// `CopyAll(Writer*)` writes as much as could be read if reading failed, and
+// `CopyAll(Writer&)` writes as much as could be read if reading failed, and
 // reads an unspecified length (between what could be written and the
 // requested length) if writing failed.
 //
-// `CopyAll(BackwardWriter*)` writes nothing if reading failed, and reads
+// `CopyAll(BackwardWriter&)` writes nothing if reading failed, and reads
 // the full requested length even if writing failed.
 //
-// Fails `*src` with `absl::ResourceExhaustedError()` if `max_size` would be
+// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
 // exceeded.
 //
 // Return values:
-//  * `true` (`dest->healthy() && src->healthy()`)    - success
-//  * `false` (`!dest->healthy() || !src->healthy()`) - failure
-bool CopyAll(Reader* src, Writer* dest,
+//  * `true` (`dest.healthy() && src.healthy()`)    - success
+//  * `false` (`!dest.healthy() || !src.healthy()`) - failure
+bool CopyAll(Reader& src, Writer& dest,
              Position max_size = std::numeric_limits<Position>::max());
-bool CopyAll(Reader* src, BackwardWriter* dest,
+bool CopyAll(Reader& src, BackwardWriter& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
 
 // Reads a single byte.
 //
 // Returns `absl::nullopt` on failure, with the current position unchanged.
-absl::optional<uint8_t> ReadByte(Reader* src);
+absl::optional<uint8_t> ReadByte(Reader& src);
 
 // Implementation details follow.
 
-inline absl::optional<uint8_t> ReadByte(Reader* src) {
-  if (ABSL_PREDICT_FALSE(!src->Pull())) return absl::nullopt;
-  const uint8_t data = static_cast<uint8_t>(*src->cursor());
-  src->move_cursor(1);
+inline absl::optional<uint8_t> ReadByte(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull())) return absl::nullopt;
+  const uint8_t data = static_cast<uint8_t>(*src.cursor());
+  src.move_cursor(1);
   return data;
 }
 

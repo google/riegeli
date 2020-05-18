@@ -36,7 +36,7 @@ constexpr Position LimitingBackwardWriterBase::kNoSizeLimit;
 
 void LimitingBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
-    BackwardWriter* const dest = dest_writer();
+    BackwardWriter& dest = *dest_writer();
     SyncBuffer(dest);
   }
   BackwardWriter::Done();
@@ -51,9 +51,9 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest->Push(min_length, recommended_length);
+  const bool ok = dest.Push(min_length, recommended_length);
   MakeBuffer(dest);
   return ok;
 }
@@ -99,12 +99,12 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
     return FailOverflow();
   }
-  const bool ok = dest->Write(std::forward<Src>(src));
+  const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
   return ok;
 }
@@ -117,17 +117,17 @@ void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return;
-  dest->WriteHint(UnsignedMin(length, size_limit_ - pos()));
+  dest.WriteHint(UnsignedMin(length, size_limit_ - pos()));
   MakeBuffer(dest);
 }
 
 bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest->Flush(flush_type);
+  const bool ok = dest.Flush(flush_type);
   MakeBuffer(dest);
   return ok;
 }
@@ -139,9 +139,9 @@ bool LimitingBackwardWriterBase::SupportsTruncate() const {
 
 bool LimitingBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter* const dest = dest_writer();
+  BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest->Truncate(new_size);
+  const bool ok = dest.Truncate(new_size);
   MakeBuffer(dest);
   return ok;
 }

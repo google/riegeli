@@ -67,12 +67,12 @@ class WrappedWriterBase : public Writer {
   void WriteHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
 
-  // Sets cursor of `*dest` to cursor of `*this`.
-  void SyncBuffer(Writer* dest);
+  // Sets cursor of `dest` to cursor of `*this`.
+  void SyncBuffer(Writer& dest);
 
-  // Sets buffer pointers of `*this` to buffer pointers of `*dest`. Fails
-  // `*this` if `*dest` failed.
-  void MakeBuffer(Writer* dest);
+  // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
+  // if `dest` failed.
+  void MakeBuffer(Writer& dest);
 
  private:
   // This template is defined and used only in wrapped_writer.cc.
@@ -153,17 +153,17 @@ inline WrappedWriterBase& WrappedWriterBase::operator=(
 inline void WrappedWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of WrappedWriter: null Writer pointer";
-  MakeBuffer(dest);
+  MakeBuffer(*dest);
 }
 
-inline void WrappedWriterBase::SyncBuffer(Writer* dest) {
-  dest->set_cursor(cursor());
+inline void WrappedWriterBase::SyncBuffer(Writer& dest) {
+  dest.set_cursor(cursor());
 }
 
-inline void WrappedWriterBase::MakeBuffer(Writer* dest) {
-  set_buffer(dest->start(), dest->buffer_size(), dest->written_to_buffer());
-  set_start_pos(dest->pos() - written_to_buffer());
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) FailWithoutAnnotation(*dest);
+inline void WrappedWriterBase::MakeBuffer(Writer& dest) {
+  set_buffer(dest.start(), dest.buffer_size(), dest.written_to_buffer());
+  set_start_pos(dest.pos() - written_to_buffer());
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest);
 }
 
 template <typename Dest>
@@ -234,9 +234,9 @@ inline void WrappedWriter<Dest>::MoveDest(WrappedWriter&& that) {
   } else {
     // Buffer pointers are already moved so `SyncBuffer()` is called on `*this`,
     // `dest_` is not moved yet so `dest_` is taken from `that`.
-    SyncBuffer(that.dest_.get());
+    SyncBuffer(*that.dest_);
     dest_ = std::move(that.dest_);
-    MakeBuffer(dest_.get());
+    MakeBuffer(*dest_);
   }
 }
 
