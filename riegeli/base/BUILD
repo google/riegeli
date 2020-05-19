@@ -28,6 +28,7 @@ cc_library(
     hdrs = [
         "base.h",
         "dependency.h",
+        "function_dependency.h",
         "memory.h",
         "object.h",
         "port.h",

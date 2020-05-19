@@ -47,7 +47,7 @@ void SnappyWriterBase::Done() {
     Writer& dest = *dest_writer();
     {
       absl::Status status = SnappyCompress<ChainReader<>>(
-          std::forward_as_tuple(&uncompressed_), &dest);
+          std::forward_as_tuple(&uncompressed_), dest);
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         Fail(std::move(status));
       }

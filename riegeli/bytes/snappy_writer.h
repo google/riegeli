@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -28,6 +27,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/function_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
@@ -181,13 +181,15 @@ class SnappyWriter : public SnappyWriterBase {
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the uncompressed `Reader`. `Src` must support
-// `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned),
-// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
+// `FunctionDependency<Reader*, Src>`, e.g. `Reader&` (not owned),
+// `Reader*` (not owned), `std::unique_ptr<Reader>` (owned),
+// `ChainReader<>` (owned).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the compressed `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned),
-// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
+// `FunctionDependency<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
+// `ChainWriter<>` (owned).
 //
 // The uncompressed `Reader` must support `Size()`.
 template <typename Src, typename Dest>
@@ -368,60 +370,61 @@ inline absl::Status SnappyCompressImpl(Dependency<Reader*, Src> src,
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(const Src& src, const Dest& dest) {
-  return internal::SnappyCompressImpl(Dependency<Reader*, Src>(src),
-                                      Dependency<Writer*, Dest>(dest));
+  return internal::SnappyCompressImpl(FunctionDependency<Reader*, Src>(src),
+                                      FunctionDependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(const Src& src, Dest&& dest) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, Src>(src),
-      Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
+      FunctionDependency<Reader*, Src>(src),
+      FunctionDependency<Writer*, Dest>(std::forward<Dest>(dest)));
 }
 
 template <typename Src, typename Dest, typename... DestArgs>
 inline absl::Status SnappyCompress(const Src& src,
                                    std::tuple<DestArgs...> dest_args) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, Src>(src),
-      Dependency<Writer*, Dest>(std::move(dest_args)));
+      FunctionDependency<Reader*, Src>(src),
+      FunctionDependency<Writer*, Dest>(std::move(dest_args)));
 }
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(Src&& src, const Dest& dest) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
-      Dependency<Writer*, Dest>(dest));
+      FunctionDependency<Reader*, Src>(std::forward<Src>(src)),
+      FunctionDependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest>
 inline absl::Status SnappyCompress(Src&& src, Dest&& dest) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
-      Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
+      FunctionDependency<Reader*, Src>(std::forward<Src>(src)),
+      FunctionDependency<Writer*, Dest>(std::forward<Dest>(dest)));
 }
 
 template <typename Src, typename Dest, typename... DestArgs>
 inline absl::Status SnappyCompress(Src&& src,
                                    std::tuple<DestArgs...> dest_args) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, std::decay_t<Src>>(std::forward<Src>(src)),
-      Dependency<Writer*, Dest>(std::move(dest_args)));
+      FunctionDependency<Reader*, Src>(std::forward<Src>(src)),
+      FunctionDependency<Writer*, Dest>(std::move(dest_args)));
 }
 
 template <typename Src, typename Dest, typename... SrcArgs>
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                                    const Dest& dest) {
-  return internal::SnappyCompressImpl(Dependency<Reader*, Src>(move(src_args)),
-                                      Dependency<Writer*, Dest>(dest));
+  return internal::SnappyCompressImpl(
+      FunctionDependency<Reader*, Src>(move(src_args)),
+      FunctionDependency<Writer*, Dest>(dest));
 }
 
 template <typename Src, typename Dest, typename... SrcArgs>
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                                    Dest&& dest) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, Src>(std::move(src_args)),
-      Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)));
+      FunctionDependency<Reader*, Src>(std::move(src_args)),
+      FunctionDependency<Writer*, Dest>(std::forward<Dest>(dest)));
 }
 
 template <typename Src, typename Dest, typename... SrcArgs,
@@ -429,8 +432,8 @@ template <typename Src, typename Dest, typename... SrcArgs,
 inline absl::Status SnappyCompress(std::tuple<SrcArgs...> src_args,
                                    std::tuple<DestArgs...> dest_args) {
   return internal::SnappyCompressImpl(
-      Dependency<Reader*, Src>(std::move(src_args)),
-      Dependency<Writer*, Dest>(std::move(dest_args)));
+      FunctionDependency<Reader*, Src>(std::move(src_args)),
+      FunctionDependency<Writer*, Dest>(std::move(dest_args)));
 }
 
 }  // namespace riegeli

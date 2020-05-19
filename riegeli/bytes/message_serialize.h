@@ -20,7 +20,6 @@
 #include <limits>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -31,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/function_dependency.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -107,8 +107,9 @@ class SerializeOptions {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
-// `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned),
-// `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
+// `FunctionDependency<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
+// `ChainWriter<>` (owned).
 //
 // With a `dest_args` parameter, writes to a `Dest` constructed from elements of
 // `dest_args`. This avoids constructing a temporary `Dest` and moving from it.
@@ -214,15 +215,15 @@ template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       const Dest& dest,
                                       SerializeOptions options) {
-  return internal::SerializeToWriterImpl(src, Dependency<Writer*, Dest>(dest),
-                                         options);
+  return internal::SerializeToWriterImpl(
+      src, FunctionDependency<Writer*, Dest>(dest), options);
 }
 
 template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   return internal::SerializeToWriterImpl(
-      src, Dependency<Writer*, std::decay_t<Dest>>(std::forward<Dest>(dest)),
+      src, FunctionDependency<Writer*, Dest>(std::forward<Dest>(dest)),
       options);
 }
 
@@ -231,7 +232,7 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       std::tuple<DestArgs...> dest_args,
                                       SerializeOptions options) {
   return internal::SerializeToWriterImpl(
-      src, Dependency<Writer*, Dest>(std::move(dest_args)), options);
+      src, FunctionDependency<Writer*, Dest>(std::move(dest_args)), options);
 }
 
 }  // namespace riegeli
