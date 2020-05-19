@@ -863,9 +863,13 @@ PyTypeObject PyRecordWriter_Type = {
     sizeof(PyRecordWriterObject),                          // tp_basicsize
     0,                                                     // tp_itemsize
     reinterpret_cast<destructor>(RecordWriterDestructor),  // tp_dealloc
-    nullptr,                                               // tp_print
-    nullptr,                                               // tp_getattr
-    nullptr,                                               // tp_setattr
+#if PY_VERSION_HEX >= 0x03080000                           // Python 3.8+
+    0,  // tp_vectorcall_offset
+#else
+    nullptr,  // tp_print
+#endif
+    nullptr,  // tp_getattr
+    nullptr,  // tp_setattr
 #if PY_MAJOR_VERSION >= 3
     nullptr,  // tp_as_async
 #else
