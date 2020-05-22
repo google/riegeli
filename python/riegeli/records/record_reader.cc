@@ -1235,7 +1235,7 @@ PyTypeObject PyRecordReader_Type = {
     sizeof(PyRecordReaderObject),                          // tp_basicsize
     0,                                                     // tp_itemsize
     reinterpret_cast<destructor>(RecordReaderDestructor),  // tp_dealloc
-#if PY_VERSION_HEX >= 0x03080000                           // Python 3.8+
+#if PY_VERSION_HEX >= 0x03080000
     0,  // tp_vectorcall_offset
 #else
     nullptr,  // tp_print
@@ -1383,8 +1383,8 @@ PyTypeObject PyRecordIter_Type = {
     sizeof(PyRecordIterObject),                          // tp_basicsize
     0,                                                   // tp_itemsize
     reinterpret_cast<destructor>(RecordIterDestructor),  // tp_dealloc
-#if PY_VERSION_HEX >= 0x03080000                         // Python 3.8+
-    0,                                                   // tp_vectorcall_offset
+#if PY_VERSION_HEX >= 0x03080000
+    0,  // tp_vectorcall_offset
 #else
     nullptr,  // tp_print
 #endif
