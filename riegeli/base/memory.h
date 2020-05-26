@@ -123,17 +123,26 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
                 "alignment must be a power of 2");
   ptr->~T();
 #if __cpp_aligned_new
+#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     operator delete(ptr, num_bytes);
   } else {
     operator delete(ptr, num_bytes, std::align_val_t(alignment));
   }
 #else
+  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+    operator delete(ptr);
+  } else {
+    operator delete(ptr, std::align_val_t(alignment));
+  }
+#endif
+#else
 #ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
   constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 #else
   constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
 #endif
+#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
   if (alignment <= kDefaultNewAlignment) {
     operator delete(ptr, num_bytes);
   } else {
@@ -149,6 +158,13 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
     operator delete(allocated, sizeof(void*) + num_bytes + alignment -
                                    kDefaultNewAlignment);
   }
+#else
+  if (alignment <= kDefaultNewAlignment) {
+    operator delete(ptr);
+  } else {
+    operator delete(reinterpret_cast<void**>(ptr)[-1]);
+  }
+#endif
 #endif
 }
 
