@@ -41,25 +41,13 @@
 namespace riegeli {
 namespace python {
 
-#if PY_VERSION_HEX < 0x03020000
-using Py_hash_t = long;
-#endif
-
 // Ensures that Python GIL is locked. Reentrant.
 //
 // Same as `PyGILState_Ensure()` / `PyGILState_Release()`.
 class PythonLock {
  public:
   static void AssertHeld() {
-    RIEGELI_ASSERT(
-#if PY_MAJOR_VERSION >= 3
-        PyGILState_Check()
-#else
-        _PyThreadState_Current != nullptr &&
-        _PyThreadState_Current == PyGILState_GetThisThreadState()
-#endif
-            )
-        << "Python GIL was assumed to be held";
+    RIEGELI_ASSERT(PyGILState_Check()) << "Python GIL was assumed to be held";
   }
 
   PythonLock() { gstate_ = PyGILState_Ensure(); }
@@ -411,8 +399,7 @@ inline PythonPtr IntToPython(long value) {
 #endif
 }
 
-// Converts C++ `absl::string_view` to a Python `bytes` object (AKA `str` in
-// Python2).
+// Converts C++ `absl::string_view` to a Python `bytes` object.
 //
 // Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr BytesToPython(absl::string_view value) {
@@ -451,8 +438,8 @@ class BytesLike {
   Py_buffer buffer_;
 };
 
-// Converts C++ `absl::string_view` to a Python `str` object. In Python3 Unicode
-// is converted from UTF-8.
+// Converts C++ `absl::string_view` to a Python `str` object. Unicode is
+// converted from UTF-8.
 //
 // Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr StringToPython(absl::string_view value) {
@@ -466,14 +453,13 @@ inline PythonPtr StringToPython(absl::string_view value) {
 }
 
 // Refers to internals of a Python object representing text. Valid Python
-// objects are `Text` (i.e. `str` in Python3, `unicode` in Python2) or `bytes`
-// (AKA `str` in Python2). Unicode is converted to UTF-8.
-class TextOrBytes {
+// objects are `str` or `bytes`. Unicode is converted to UTF-8.
+class StrOrBytes {
  public:
-  TextOrBytes() noexcept {}
+  StrOrBytes() noexcept {}
 
-  TextOrBytes(const TextOrBytes&) = delete;
-  TextOrBytes& operator=(const TextOrBytes&) = delete;
+  StrOrBytes(const StrOrBytes&) = delete;
+  StrOrBytes& operator=(const StrOrBytes&) = delete;
 
   // Converts from a Python object.
   //
@@ -485,19 +471,9 @@ class TextOrBytes {
 
  private:
   absl::string_view data_;
-#if PY_VERSION_HEX < 0x03030000
-  PythonPtr utf8_;
-#endif
 };
 
-// Type for docstrings.
-#if PY_MAJOR_VERSION >= 3
-#define RIEGELI_TEXT_OR_BYTES "Union[str, bytes]"
-#else
-#define RIEGELI_TEXT_OR_BYTES "Union[str, unicode]"
-#endif
-
-// Converts C++ `Chain` to a Python `bytes` object (AKA `str` in Python2).
+// Converts C++ `Chain` to a Python `bytes` object.
 //
 // Returns `nullptr` on failure (with Python exception set).
 PythonPtr ChainToPython(const Chain& value);

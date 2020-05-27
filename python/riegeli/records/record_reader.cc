@@ -256,14 +256,9 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
   PyObject* field_projection_arg = nullptr;
   PyObject* recovery_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs,
-          "O|"
-#if PY_VERSION_HEX >= 0x03030000
-          "$"
-#endif
-          "OOOOO:RecordReader",
-          const_cast<char**>(keywords), &src_arg, &close_arg, &assumed_pos_arg,
-          &buffer_size_arg, &field_projection_arg, &recovery_arg))) {
+          args, kwargs, "O|$OOOOO:RecordReader", const_cast<char**>(keywords),
+          &src_arg, &close_arg, &assumed_pos_arg, &buffer_size_arg,
+          &field_projection_arg, &recovery_arg))) {
     return -1;
   }
 
@@ -1341,9 +1336,7 @@ unpredictable amount of extra data consumed because of buffering.
     nullptr,                                               // tp_weaklist
     nullptr,                                               // tp_del
     0,                                                     // tp_version_tag
-#if PY_VERSION_HEX >= 0x030400a1
-    nullptr,  // tp_finalize
-#endif
+    nullptr,                                               // tp_finalize
 };
 
 extern "C" void RecordIterDestructor(PyRecordIterObject* self) {
@@ -1433,9 +1426,7 @@ PyTypeObject PyRecordIter_Type = {
     nullptr,                                             // tp_weaklist
     nullptr,                                             // tp_del
     0,                                                   // tp_version_tag
-#if PY_VERSION_HEX >= 0x030400a1
-    nullptr,  // tp_finalize
-#endif
+    nullptr,                                             // tp_finalize
 };
 
 const char* const kModuleName = "riegeli.records.record_reader";

@@ -171,7 +171,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
           &serialized_arg))) {
     return nullptr;
   }
-  TextOrBytes serialized;
+  StrOrBytes serialized;
   if (ABSL_PREDICT_FALSE(!serialized.FromPython(serialized_arg))) {
     return nullptr;
   }
@@ -232,7 +232,7 @@ const PyMethodDef RecordPositionMethods[] = {
     {"from_str", reinterpret_cast<PyCFunction>(RecordPositionFromStr),
      METH_VARARGS | METH_KEYWORDS | METH_CLASS,
      R"doc(
-from_str(type, serialized: )doc" RIEGELI_TEXT_OR_BYTES R"doc() -> RecordPosition
+from_str(type, serialized: Union[str, bytes] -> RecordPosition
 
 Parses RecordPosition from its text format.
 
@@ -371,9 +371,7 @@ might block, waiting for pending operations to complete.
     nullptr,                                          // tp_weaklist
     nullptr,                                          // tp_del
     0,                                                // tp_version_tag
-#if PY_VERSION_HEX >= 0x030400a1
-    nullptr,  // tp_finalize
-#endif
+    nullptr,                                          // tp_finalize
 };
 
 PythonPtr RecordPositionToPython(FutureRecordPosition value) {

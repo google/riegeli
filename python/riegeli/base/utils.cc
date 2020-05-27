@@ -92,10 +92,10 @@ std::string Exception::message() const {
     absl::StrAppend(&message, ": <str() failed>");
     return message;
   }
-  TextOrBytes str;
+  StrOrBytes str;
   if (ABSL_PREDICT_FALSE(!str.FromPython(str_result.get()))) {
     PyErr_Clear();
-    absl::StrAppend(&message, ": <TextOrBytes::FromPython() failed>");
+    absl::StrAppend(&message, ": <StrOrBytes::FromPython() failed>");
     return message;
   }
   if (!absl::string_view(str).empty()) {
@@ -244,30 +244,17 @@ bool ExportCapsule(PyObject* module, const char* capsule_name,
   return true;
 }
 
-bool TextOrBytes::FromPython(PyObject* object) {
+bool StrOrBytes::FromPython(PyObject* object) {
   // TODO: Change this depending on how
   // https://bugs.python.org/issue35295 is resolved.
   if (PyUnicode_Check(object)) {
-#if PY_VERSION_HEX >= 0x03030000
     Py_ssize_t length;
     const char* data = PyUnicode_AsUTF8AndSize(object, &length);
     if (ABSL_PREDICT_FALSE(data == nullptr)) return false;
     data_ = absl::string_view(data, IntCast<size_t>(length));
     return true;
-#else
-    utf8_.reset(PyUnicode_AsUTF8String(object));
-    if (ABSL_PREDICT_FALSE(utf8_ == nullptr)) return false;
-    object = utf8_.get();
-#endif
   } else if (ABSL_PREDICT_FALSE(!PyBytes_Check(object))) {
-    PyErr_Format(PyExc_TypeError,
-                 "Expected "
-#if PY_MAJOR_VERSION >= 3
-                 "str or bytes"
-#else
-                 "str or unicode"
-#endif
-                 ", not %s",
+    PyErr_Format(PyExc_TypeError, "Expected str or bytes, not %s",
                  Py_TYPE(object)->tp_name);
     return false;
   }

@@ -1,5 +1,3 @@
-load("@local_config_python//:build_defs.bzl", "python_version")
-
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
@@ -39,7 +37,7 @@ cc_binary(
 py_test(
     name = "riegeli_dataset_test",
     srcs = ["kernel_tests/riegeli_dataset_test.py"],
-    python_version = python_version,
+    srcs_version = "PY3",
     deps = [
         ":riegeli_dataset_ops",
         "//python/riegeli",

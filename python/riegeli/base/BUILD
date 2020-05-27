@@ -22,4 +22,5 @@ cc_library(
 py_library(
     name = "riegeli_error",
     srcs = ["riegeli_error.py"],
+    srcs_version = "PY3",
 )

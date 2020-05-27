@@ -241,15 +241,9 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   PyObject* metadata_arg = nullptr;
   PyObject* serialized_metadata_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs,
-          "O|"
-#if PY_VERSION_HEX >= 0x03030000
-          "$"
-#endif
-          "OOOOOO:RecordWriter",
-          const_cast<char**>(keywords), &dest_arg, &close_arg, &assumed_pos_arg,
-          &buffer_size_arg, &options_arg, &metadata_arg,
-          &serialized_metadata_arg))) {
+          args, kwargs, "O|$OOOOOO:RecordWriter", const_cast<char**>(keywords),
+          &dest_arg, &close_arg, &assumed_pos_arg, &buffer_size_arg,
+          &options_arg, &metadata_arg, &serialized_metadata_arg))) {
     return -1;
   }
 
@@ -273,7 +267,7 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
 
   RecordWriterBase::Options record_writer_options;
   if (options_arg != nullptr) {
-    TextOrBytes options;
+    StrOrBytes options;
     if (ABSL_PREDICT_FALSE(!options.FromPython(options_arg))) return -1;
     {
       const absl::Status status =
@@ -893,7 +887,7 @@ RecordWriter(
     close: bool = True,
     assumed_pos: Optional[int] = None,
     buffer_size: int = 64 << 10,
-    options: )doc" RIEGELI_TEXT_OR_BYTES R"doc( = '',
+    options: Union[str, bytes] = '',
     metadata: Optional[RecordsMetadata] = None,
     serialized_metadata: Union[bytes, bytearray, memoryview] = b''
 ) -> RecordWriter
@@ -960,9 +954,7 @@ https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
     nullptr,                                               // tp_weaklist
     nullptr,                                               // tp_del
     0,                                                     // tp_version_tag
-#if PY_VERSION_HEX >= 0x030400a1
-    nullptr,  // tp_finalize
-#endif
+    nullptr,                                               // tp_finalize
 };
 
 const char* const kModuleName = "riegeli.records.record_writer";

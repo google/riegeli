@@ -181,43 +181,21 @@ def _get_bash_bin(repository_ctx):
         repository_ctx.os.environ.get("PATH", ""),
     ))
 
-def _get_python_major_version(repository_ctx, python_bin):
-    """Gets major Python version ('2' or '3')."""
-    result = _execute(
-        repository_ctx,
-        [
-            python_bin,
-            "-c",
-            "import sys; " +
-            "print(sys.version_info.major)",
-        ],
-        error_msg = "Problem getting python major version.",
-        error_details = ("Is the Python binary path set up right? " +
-                         "(See ./configure or {}.) ").format(_PYTHON_BIN_PATH),
-    )
-    return result.stdout.splitlines()[0]
-
-def _get_python_runtime_pair(repository_ctx, python_bin, python_major_version):
+def _get_python_runtime_pair(repository_ctx, python_bin):
     """Builds a py_runtime_pair definition."""
     return (
         "py_runtime_pair(\n" +
         '    name = "py_runtime_pair",\n' +
-        "    py2_runtime = {},\n" +
-        "    py3_runtime = {},\n" +
+        "    py2_runtime = None,\n" +
+        "    py3_runtime = \":py3_runtime\",\n" +
         ")\n" +
         "\n" +
         "py_runtime(\n" +
-        '    name = "py{}_runtime",\n' +
+        '    name = "py3_runtime",\n' +
         '    interpreter_path = "{}",\n' +
-        '    python_version = "PY{}",\n' +
+        '    python_version = "PY3",\n' +
         ")\n"
-    ).format(
-        '":py2_runtime"' if python_major_version == "2" else "None",
-        '":py3_runtime"' if python_major_version == "3" else "None",
-        python_major_version,
-        python_bin,
-        python_major_version,
-    )
+    ).format(python_bin)
 
 def _get_python_lib(repository_ctx, python_bin):
     """Gets the python lib path."""
@@ -322,12 +300,7 @@ def _create_local_python_repository(repository_ctx):
     """Creates the repository containing files set up to build with Python."""
     python_bin = _get_python_bin(repository_ctx)
     _check_python_bin(repository_ctx, python_bin)
-    python_major_version = _get_python_major_version(repository_ctx, python_bin)
-    python_runtime_pair = _get_python_runtime_pair(
-        repository_ctx,
-        python_bin,
-        python_major_version,
-    )
+    python_runtime_pair = _get_python_runtime_pair(repository_ctx, python_bin)
     python_lib = _get_python_lib(repository_ctx, python_bin)
     _check_python_lib(repository_ctx, python_lib)
     python_include = _get_python_include(repository_ctx, python_bin)
@@ -372,9 +345,6 @@ def _create_local_python_repository(repository_ctx):
         "%{PYTHON_INCLUDE_GENRULE}": python_include_rule,
         "%{PYTHON_IMPORT_LIB_GENRULE}": python_import_lib_genrule,
         "%{NUMPY_INCLUDE_GENRULE}": numpy_include_rule,
-    })
-    _tpl(repository_ctx, "build_defs.bzl", {
-        "%{PYTHON_MAJOR_VERSION}": python_major_version,
     })
 
 def _create_remote_python_repository(repository_ctx, remote_config_repo):

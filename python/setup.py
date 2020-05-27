@@ -37,9 +37,8 @@ setuptools.setup(
     author='Google LLC',
     author_email='compression-dev@google.com',
     license='Apache License, Version 2.0',
-    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4',
+    python_requires='>=3.5,<4',
     install_requires=[
-        'enum34;python_version<"3.4"',
         'protobuf>=3.8.0,<4',
     ],
     extras_require={
@@ -52,12 +51,11 @@ setuptools.setup(
     classifiers=[
         'Programming Language :: Python',
         'Intended Audience :: Developers',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Libraries',

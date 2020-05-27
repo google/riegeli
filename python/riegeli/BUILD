@@ -10,6 +10,7 @@ py_library(
     name = "riegeli",
     srcs = ["__init__.py"],
     imports = [".."],
+    srcs_version = "PY3",
     deps = [
         "//python/riegeli/base:riegeli_error",
         "//python/riegeli/records:record_position",
