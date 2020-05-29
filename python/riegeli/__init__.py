@@ -13,10 +13,6 @@
 # limitations under the License.
 """Writes or reads Riegeli/records files."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from riegeli.base import riegeli_error
 from riegeli.records import record_position
 from riegeli.records import record_reader

@@ -13,10 +13,6 @@
 # limitations under the License.
 """Simple example which writes and reads a Riegeli/records file."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import io
 
 import riegeli

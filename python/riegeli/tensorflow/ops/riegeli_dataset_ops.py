@@ -13,10 +13,6 @@
 # limitations under the License.
 """TensorFlow dataset for Riegeli/records files."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow as tf
 
 from tensorflow.python.data.ops import dataset_ops

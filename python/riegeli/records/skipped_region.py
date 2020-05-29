@@ -13,10 +13,6 @@
 # limitations under the License.
 """Details about a skipped region of invalid file contents."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 __all__ = ('SkippedRegion',)
 
 
