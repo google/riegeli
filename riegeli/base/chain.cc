@@ -513,7 +513,7 @@ inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendTo(Cord&): "
          "Cord size overflow";
-  if (size() <= MaxBytesToCopyToCord(dest)) {
+  if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
     dest.Append(absl::string_view(*this));
     Unref<ownership>();
     return;
@@ -546,10 +546,14 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Chain&): "
          "Chain size overflow";
   if (substr.size() == size()) {
+    if (wasteful()) {
+      dest.Append(substr, options);
+      return;
+    }
     dest.AppendBlock<Ownership::kShare>(this, options);
     return;
   }
-  if (substr.size() <= kMaxBytesToCopy) {
+  if (substr.size() <= kMaxBytesToCopy || wasteful()) {
     dest.Append(substr, options);
     return;
   }
@@ -573,7 +577,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
                     std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "Cord size overflow";
-  if (substr.size() <= MaxBytesToCopyToCord(dest)) {
+  if (substr.size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
     dest.Append(substr);
     return;
   }
@@ -591,7 +595,7 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::PrependTo(Cord&): "
          "Chain size overflow";
-  if (size() <= MaxBytesToCopyToCord(dest)) {
+  if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
     dest.Prepend(absl::string_view(*this));
     Unref<ownership>();
     return;
