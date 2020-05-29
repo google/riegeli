@@ -176,11 +176,16 @@ inline OstreamWriterBase::OstreamWriterBase(size_t buffer_size,
 }
 
 inline OstreamWriterBase::OstreamWriterBase(OstreamWriterBase&& that) noexcept
-    : BufferedWriter(std::move(that)), random_access_(that.random_access_) {}
+    : BufferedWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      random_access_(that.random_access_) {}
 
 inline OstreamWriterBase& OstreamWriterBase::operator=(
     OstreamWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   random_access_ = that.random_access_;
   return *this;
 }
@@ -226,12 +231,17 @@ inline OstreamWriter<Dest>::OstreamWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline OstreamWriter<Dest>::OstreamWriter(OstreamWriter&& that) noexcept
-    : OstreamWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : OstreamWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline OstreamWriter<Dest>& OstreamWriter<Dest>::operator=(
     OstreamWriter&& that) noexcept {
   OstreamWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

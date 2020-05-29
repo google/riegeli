@@ -177,11 +177,16 @@ inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)), size_limit_(that.size_limit_) {}
+    : BackwardWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      size_limit_(that.size_limit_) {}
 
 inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
     LimitingBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   size_limit_ = that.size_limit_;
   return *this;
 }
@@ -251,6 +256,8 @@ template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
     LimitingBackwardWriter&& that) noexcept
     : LimitingBackwardWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -258,6 +265,8 @@ template <typename Dest>
 inline LimitingBackwardWriter<Dest>& LimitingBackwardWriter<Dest>::operator=(
     LimitingBackwardWriter&& that) noexcept {
   LimitingBackwardWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

@@ -149,6 +149,8 @@ inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
 template <typename Src>
 inline StringReader<Src>::StringReader(StringReader&& that) noexcept
     : StringReaderBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
 }
 
@@ -156,6 +158,8 @@ template <typename Src>
 inline StringReader<Src>& StringReader<Src>::operator=(
     StringReader&& that) noexcept {
   StringReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
   return *this;
 }

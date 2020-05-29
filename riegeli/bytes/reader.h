@@ -367,6 +367,8 @@ class Reader : public Object {
 
 inline Reader::Reader(Reader&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       start_(std::exchange(that.start_, nullptr)),
       cursor_(std::exchange(that.cursor_, nullptr)),
       limit_(std::exchange(that.limit_, nullptr)),
@@ -374,6 +376,8 @@ inline Reader::Reader(Reader&& that) noexcept
 
 inline Reader& Reader::operator=(Reader&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   start_ = std::exchange(that.start_, nullptr);
   cursor_ = std::exchange(that.cursor_, nullptr);
   limit_ = std::exchange(that.limit_, nullptr);

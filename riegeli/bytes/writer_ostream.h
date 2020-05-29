@@ -203,13 +203,18 @@ inline absl::Status WriterStreambuf::status() const {
 }  // namespace internal
 
 inline WriterOstreamBase::WriterOstreamBase(WriterOstreamBase&& that) noexcept
-    : std::ostream(std::move(that)), streambuf_(std::move(that.streambuf_)) {
+    : std::ostream(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      streambuf_(std::move(that.streambuf_)) {
   set_rdbuf(&streambuf_);
 }
 
 inline WriterOstreamBase& WriterOstreamBase::operator=(
     WriterOstreamBase&& that) noexcept {
   std::ostream::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   streambuf_ = std::move(that.streambuf_);
   return *this;
 }
@@ -240,6 +245,8 @@ inline WriterOstream<Dest>::WriterOstream(std::tuple<DestArgs...> dest_args)
 template <typename Dest>
 inline WriterOstream<Dest>::WriterOstream(WriterOstream&& that) noexcept
     : WriterOstreamBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -249,6 +256,8 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::operator=(
   if (ABSL_PREDICT_TRUE(&that != this)) {
     close();
     WriterOstreamBase::operator=(std::move(that));
+    // Using `that` after it was moved is correct because only the base class
+    // part was moved.
     MoveDest(std::move(that));
   }
   return *this;

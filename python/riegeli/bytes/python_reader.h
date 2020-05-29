@@ -147,6 +147,8 @@ class PythonReader : public BufferedReader {
 
 inline PythonReader::PythonReader(PythonReader&& that) noexcept
     : BufferedReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       src_(std::move(that.src_)),
       close_(that.close_),
       random_access_(that.random_access_),
@@ -157,6 +159,8 @@ inline PythonReader::PythonReader(PythonReader&& that) noexcept
 
 inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
   BufferedReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   close_ = that.close_;
   random_access_ = that.random_access_;

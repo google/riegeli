@@ -159,11 +159,16 @@ class PullableReader : public Reader {
 // Implementation details follow.
 
 inline PullableReader::PullableReader(PullableReader&& that) noexcept
-    : Reader(std::move(that)), scratch_(std::move(that.scratch_)) {}
+    : Reader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      scratch_(std::move(that.scratch_)) {}
 
 inline PullableReader& PullableReader::operator=(
     PullableReader&& that) noexcept {
   Reader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   scratch_ = std::move(that.scratch_);
   return *this;
 }

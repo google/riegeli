@@ -659,6 +659,8 @@ void RecordWriterBase::Reset(InitiallyOpen) {
 
 RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       desired_chunk_size_(that.desired_chunk_size_),
       chunk_size_so_far_(that.chunk_size_so_far_),
       worker_(std::move(that.worker_)) {}
@@ -666,6 +668,8 @@ RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
 RecordWriterBase& RecordWriterBase::operator=(
     RecordWriterBase&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   desired_chunk_size_ = that.desired_chunk_size_;
   chunk_size_so_far_ = that.chunk_size_so_far_;
   worker_ = std::move(that.worker_);

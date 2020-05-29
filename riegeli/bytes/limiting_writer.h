@@ -173,11 +173,16 @@ inline LimitingWriterBase::LimitingWriterBase(Position size_limit)
 
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
-    : Writer(std::move(that)), size_limit_(that.size_limit_) {}
+    : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      size_limit_(that.size_limit_) {}
 
 inline LimitingWriterBase& LimitingWriterBase::operator=(
     LimitingWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   size_limit_ = that.size_limit_;
   return *this;
 }
@@ -244,6 +249,8 @@ inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(LimitingWriter&& that) noexcept
     : LimitingWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -251,6 +258,8 @@ template <typename Dest>
 inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
     LimitingWriter&& that) noexcept {
   LimitingWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

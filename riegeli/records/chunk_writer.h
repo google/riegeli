@@ -197,10 +197,15 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 // Implementation details follow.
 
 inline ChunkWriter::ChunkWriter(ChunkWriter&& that) noexcept
-    : Object(std::move(that)), pos_(that.pos_) {}
+    : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      pos_(that.pos_) {}
 
 inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   pos_ = that.pos_;
   return *this;
 }
@@ -250,12 +255,17 @@ inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
 template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
     DefaultChunkWriter&& that) noexcept
-    : DefaultChunkWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : DefaultChunkWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
     DefaultChunkWriter&& that) noexcept {
   DefaultChunkWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

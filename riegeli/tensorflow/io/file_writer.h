@@ -233,6 +233,8 @@ inline FileWriterBase::FileWriterBase(size_t buffer_size)
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       filename_(std::move(that.filename_)),
       buffer_size_(that.buffer_size_),
       buffer_(std::move(that.buffer_)) {}
@@ -240,6 +242,8 @@ inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   filename_ = std::move(that.filename_);
   buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
@@ -294,12 +298,17 @@ inline FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(FileWriter&& that) noexcept
-    : FileWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : FileWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline FileWriter<Dest>& FileWriter<Dest>::operator=(
     FileWriter&& that) noexcept {
   FileWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

@@ -169,6 +169,8 @@ inline ChunkDecoder::ChunkDecoder(Options options)
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       field_projection_(std::move(that.field_projection_)),
       limits_(std::move(that.limits_)),
       values_reader_(std::move(that.values_reader_)),
@@ -177,6 +179,8 @@ inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
 
 inline ChunkDecoder& ChunkDecoder::operator=(ChunkDecoder&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   field_projection_ = std::move(that.field_projection_);
   limits_ = std::move(that.limits_);
   values_reader_ = std::move(that.values_reader_);

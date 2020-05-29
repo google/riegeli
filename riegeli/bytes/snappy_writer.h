@@ -227,13 +227,18 @@ inline SnappyWriterBase::SnappyWriterBase(Position size_hint)
                    .set_max_block_size(kBlockSize)) {}
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
-    : Writer(std::move(that)), options_(that.options_) {
+    : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      options_(that.options_) {
   MoveUncompressed(std::move(that));
 }
 
 inline SnappyWriterBase& SnappyWriterBase::operator=(
     SnappyWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   options_ = that.options_;
   MoveUncompressed(std::move(that));
   return *this;
@@ -295,12 +300,17 @@ inline SnappyWriter<Dest>::SnappyWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline SnappyWriter<Dest>::SnappyWriter(SnappyWriter&& that) noexcept
-    : SnappyWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : SnappyWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline SnappyWriter<Dest>& SnappyWriter<Dest>::operator=(
     SnappyWriter&& that) noexcept {
   SnappyWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

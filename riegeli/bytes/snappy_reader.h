@@ -218,12 +218,17 @@ inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(SnappyReader&& that) noexcept
-    : SnappyReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : SnappyReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline SnappyReader<Src>& SnappyReader<Src>::operator=(
     SnappyReader&& that) noexcept {
   SnappyReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

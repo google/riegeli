@@ -107,6 +107,8 @@ RecordReaderBase::RecordReaderBase(InitiallyOpen) noexcept
 
 RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       chunk_begin_(that.chunk_begin_),
       chunk_decoder_(std::move(that.chunk_decoder_)),
       recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
@@ -115,6 +117,8 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
 RecordReaderBase& RecordReaderBase::operator=(
     RecordReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   chunk_begin_ = that.chunk_begin_;
   chunk_decoder_ = std::move(that.chunk_decoder_);
   recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);

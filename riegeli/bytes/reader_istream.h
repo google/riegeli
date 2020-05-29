@@ -207,13 +207,18 @@ inline absl::Status ReaderStreambuf::status() const {
 }  // namespace internal
 
 inline ReaderIstreamBase::ReaderIstreamBase(ReaderIstreamBase&& that) noexcept
-    : std::istream(std::move(that)), streambuf_(std::move(that.streambuf_)) {
+    : std::istream(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      streambuf_(std::move(that.streambuf_)) {
   set_rdbuf(&streambuf_);
 }
 
 inline ReaderIstreamBase& ReaderIstreamBase::operator=(
     ReaderIstreamBase&& that) noexcept {
   std::istream::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   streambuf_ = std::move(that.streambuf_);
   return *this;
 }
@@ -245,6 +250,8 @@ inline ReaderIstream<Src>::ReaderIstream(std::tuple<SrcArgs...> src_args)
 template <typename Src>
 inline ReaderIstream<Src>::ReaderIstream(ReaderIstream&& that) noexcept
     : ReaderIstreamBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
 }
 
@@ -254,6 +261,8 @@ inline ReaderIstream<Src>& ReaderIstream<Src>::operator=(
   if (ABSL_PREDICT_TRUE(&that != this)) {
     close();
     ReaderIstreamBase::operator=(std::move(that));
+    // Using `that` after it was moved is correct because only the base class
+    // part was moved.
     MoveSrc(std::move(that));
   }
   return *this;

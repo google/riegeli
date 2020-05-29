@@ -144,12 +144,16 @@ class BrotliReader : public BrotliReaderBase {
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
     : PullableReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
     BrotliReaderBase&& that) noexcept {
   PullableReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
@@ -189,12 +193,17 @@ inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(BrotliReader&& that) noexcept
-    : BrotliReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : BrotliReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline BrotliReader<Src>& BrotliReader<Src>::operator=(
     BrotliReader&& that) noexcept {
   BrotliReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

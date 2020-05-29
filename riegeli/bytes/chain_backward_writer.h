@@ -199,11 +199,16 @@ inline ChainBackwardWriterBase::ChainBackwardWriterBase(Options&& options)
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
-    : BackwardWriter(std::move(that)), options_(that.options_) {}
+    : BackwardWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      options_(that.options_) {}
 
 inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
     ChainBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   options_ = that.options_;
   return *this;
 }
@@ -256,6 +261,8 @@ template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     ChainBackwardWriter&& that) noexcept
     : ChainBackwardWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -263,6 +270,8 @@ template <typename Dest>
 inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
     ChainBackwardWriter&& that) noexcept {
   ChainBackwardWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

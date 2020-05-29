@@ -197,11 +197,16 @@ inline LimitingReaderBase::LimitingReaderBase(Position size_limit)
 
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
-    : Reader(std::move(that)), size_limit_(that.size_limit_) {}
+    : Reader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      size_limit_(that.size_limit_) {}
 
 inline LimitingReaderBase& LimitingReaderBase::operator=(
     LimitingReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   size_limit_ = that.size_limit_;
   return *this;
 }
@@ -274,6 +279,8 @@ inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline LimitingReader<Src>::LimitingReader(LimitingReader&& that) noexcept
     : LimitingReaderBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
 }
 
@@ -281,6 +288,8 @@ template <typename Src>
 inline LimitingReader<Src>& LimitingReader<Src>::operator=(
     LimitingReader&& that) noexcept {
   LimitingReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
   return *this;
 }

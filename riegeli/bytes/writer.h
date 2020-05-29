@@ -321,6 +321,8 @@ class Writer : public Object {
 
 inline Writer::Writer(Writer&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       start_(std::exchange(that.start_, nullptr)),
       cursor_(std::exchange(that.cursor_, nullptr)),
       limit_(std::exchange(that.limit_, nullptr)),
@@ -328,6 +330,8 @@ inline Writer::Writer(Writer&& that) noexcept
 
 inline Writer& Writer::operator=(Writer&& that) noexcept {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   start_ = std::exchange(that.start_, nullptr);
   cursor_ = std::exchange(that.cursor_, nullptr);
   limit_ = std::exchange(that.limit_, nullptr);

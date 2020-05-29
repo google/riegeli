@@ -130,11 +130,15 @@ class ChainReader : public ChainReaderBase {
 
 inline ChainReaderBase::ChainReaderBase(ChainReaderBase&& that) noexcept
     : PullableReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       iter_(std::exchange(that.iter_, Chain::BlockIterator())) {}
 
 inline ChainReaderBase& ChainReaderBase::operator=(
     ChainReaderBase&& that) noexcept {
   PullableReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   iter_ = std::exchange(that.iter_, Chain::BlockIterator());
   return *this;
 }
@@ -181,6 +185,8 @@ inline ChainReader<Src>::ChainReader(std::tuple<SrcArgs...> src_args)
 template <typename Src>
 inline ChainReader<Src>::ChainReader(ChainReader&& that) noexcept
     : ChainReaderBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
 }
 
@@ -188,6 +194,8 @@ template <typename Src>
 inline ChainReader<Src>& ChainReader<Src>::operator=(
     ChainReader&& that) noexcept {
   ChainReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
   return *this;
 }

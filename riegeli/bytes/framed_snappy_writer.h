@@ -159,12 +159,16 @@ inline FramedSnappyWriterBase::FramedSnappyWriterBase(Position size_hint)
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     FramedSnappyWriterBase&& that) noexcept
     : PushableWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       size_hint_(that.size_hint_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline FramedSnappyWriterBase& FramedSnappyWriterBase::operator=(
     FramedSnappyWriterBase&& that) noexcept {
   PushableWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   size_hint_ = that.size_hint_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
@@ -205,12 +209,17 @@ inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
 template <typename Dest>
 inline FramedSnappyWriter<Dest>::FramedSnappyWriter(
     FramedSnappyWriter&& that) noexcept
-    : FramedSnappyWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : FramedSnappyWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline FramedSnappyWriter<Dest>& FramedSnappyWriter<Dest>::operator=(
     FramedSnappyWriter&& that) noexcept {
   FramedSnappyWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

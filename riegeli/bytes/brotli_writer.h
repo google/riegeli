@@ -231,11 +231,15 @@ inline BrotliWriterBase::BrotliWriterBase(size_t buffer_size,
 
 inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       compressor_(std::move(that.compressor_)) {}
 
 inline BrotliWriterBase& BrotliWriterBase::operator=(
     BrotliWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   compressor_ = std::move(that.compressor_);
   return *this;
 }
@@ -278,12 +282,17 @@ inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(BrotliWriter&& that) noexcept
-    : BrotliWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : BrotliWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
     BrotliWriter&& that) noexcept {
   BrotliWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

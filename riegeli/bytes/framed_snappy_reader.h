@@ -142,11 +142,15 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 inline FramedSnappyReaderBase::FramedSnappyReaderBase(
     FramedSnappyReaderBase&& that) noexcept
     : PullableReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
     FramedSnappyReaderBase&& that) noexcept {
   PullableReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
@@ -184,6 +188,8 @@ template <typename Src>
 inline FramedSnappyReader<Src>::FramedSnappyReader(
     FramedSnappyReader&& that) noexcept
     : FramedSnappyReaderBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
 }
 
@@ -191,6 +197,8 @@ template <typename Src>
 inline FramedSnappyReader<Src>& FramedSnappyReader<Src>::operator=(
     FramedSnappyReader&& that) noexcept {
   FramedSnappyReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveSrc(std::move(that));
   return *this;
 }

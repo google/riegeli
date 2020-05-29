@@ -557,12 +557,16 @@ class RecordReader : public RecordReaderBase {
 inline RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     RecordsMetadataDescriptors&& that) noexcept
     : Object(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       record_type_name_(std::move(that.record_type_name_)),
       pool_(std::move(that.pool_)) {}
 
 inline RecordsMetadataDescriptors& RecordsMetadataDescriptors::operator=(
     RecordsMetadataDescriptors&& that) {
   Object::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   record_type_name_ = std::move(that.record_type_name_),
   pool_ = std::move(that.pool_);
   return *this;
@@ -616,12 +620,17 @@ inline RecordReader<Src>::RecordReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline RecordReader<Src>::RecordReader(RecordReader&& that) noexcept
-    : RecordReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : RecordReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline RecordReader<Src>& RecordReader<Src>::operator=(
     RecordReader&& that) noexcept {
   RecordReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

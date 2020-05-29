@@ -240,12 +240,16 @@ inline ZlibReaderBase::ZlibReaderBase(size_t buffer_size, Position size_hint)
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
     ZlibReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
@@ -297,11 +301,16 @@ inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(ZlibReader&& that) noexcept
-    : ZlibReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : ZlibReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
   ZlibReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

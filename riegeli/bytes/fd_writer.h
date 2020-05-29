@@ -409,11 +409,16 @@ inline FdWriterCommon::FdWriterCommon(size_t buffer_size)
     : BufferedWriter(buffer_size) {}
 
 inline FdWriterCommon::FdWriterCommon(FdWriterCommon&& that) noexcept
-    : BufferedWriter(std::move(that)), filename_(std::move(that.filename_)) {}
+    : BufferedWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      filename_(std::move(that.filename_)) {}
 
 inline FdWriterCommon& FdWriterCommon::operator=(
     FdWriterCommon&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   filename_ = std::move(that.filename_);
   return *this;
 }
@@ -434,10 +439,15 @@ inline FdWriterBase::FdWriterBase(size_t buffer_size, bool sync_pos)
     : FdWriterCommon(buffer_size), sync_pos_(sync_pos) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
-    : FdWriterCommon(std::move(that)), sync_pos_(that.sync_pos_) {}
+    : FdWriterCommon(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      sync_pos_(that.sync_pos_) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   FdWriterCommon::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   sync_pos_ = that.sync_pos_;
   return *this;
 }
@@ -520,11 +530,16 @@ inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(FdWriter&& that) noexcept
-    : FdWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : FdWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
   FdWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }
@@ -628,12 +643,17 @@ inline FdStreamWriter<Dest>::FdStreamWriter(absl::string_view filename,
 
 template <typename Dest>
 inline FdStreamWriter<Dest>::FdStreamWriter(FdStreamWriter&& that) noexcept
-    : FdStreamWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : FdStreamWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline FdStreamWriter<Dest>& FdStreamWriter<Dest>::operator=(
     FdStreamWriter&& that) noexcept {
   FdStreamWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

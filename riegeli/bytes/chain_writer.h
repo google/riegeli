@@ -200,11 +200,16 @@ inline ChainWriterBase::ChainWriterBase(Options&& options)
               .set_max_block_size(options.max_block_size())) {}
 
 inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
-    : Writer(std::move(that)), options_(that.options_) {}
+    : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      options_(that.options_) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
     ChainWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   options_ = that.options_;
   return *this;
 }
@@ -254,6 +259,8 @@ inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(ChainWriter&& that) noexcept
     : ChainWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -261,6 +268,8 @@ template <typename Dest>
 inline ChainWriter<Dest>& ChainWriter<Dest>::operator=(
     ChainWriter&& that) noexcept {
   ChainWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

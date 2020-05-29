@@ -179,7 +179,10 @@ inline IstreamReaderBase::IstreamReaderBase(size_t buffer_size,
 }
 
 inline IstreamReaderBase::IstreamReaderBase(IstreamReaderBase&& that) noexcept
-    : BufferedReader(std::move(that)), random_access_(that.random_access_) {}
+    : BufferedReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      random_access_(that.random_access_) {}
 
 inline void IstreamReaderBase::Reset() {
   BufferedReader::Reset();
@@ -189,6 +192,8 @@ inline void IstreamReaderBase::Reset() {
 inline IstreamReaderBase& IstreamReaderBase::operator=(
     IstreamReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   random_access_ = that.random_access_;
   return *this;
 }
@@ -229,12 +234,17 @@ inline IstreamReader<Src>::IstreamReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(IstreamReader&& that) noexcept
-    : IstreamReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : IstreamReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline IstreamReader<Src>& IstreamReader<Src>::operator=(
     IstreamReader&& that) noexcept {
   IstreamReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

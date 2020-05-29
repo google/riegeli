@@ -264,6 +264,8 @@ inline FileReaderBase::FileReaderBase(size_t buffer_size)
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       filename_(std::move(that.filename_)),
       file_system_(that.file_system_),
       buffer_size_(that.buffer_size_),
@@ -272,6 +274,8 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
 inline FileReaderBase& FileReaderBase::operator=(
     FileReaderBase&& that) noexcept {
   Reader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   filename_ = std::move(that.filename_);
   file_system_ = that.file_system_;
   buffer_size_ = that.buffer_size_;
@@ -380,11 +384,16 @@ inline void FileReader<Src>::Initialize(absl::string_view filename,
 
 template <typename Src>
 inline FileReader<Src>::FileReader(FileReader&& that) noexcept
-    : FileReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : FileReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FileReader<Src>& FileReader<Src>::operator=(FileReader&& that) noexcept {
   FileReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }

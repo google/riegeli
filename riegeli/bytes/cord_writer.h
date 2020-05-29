@@ -202,6 +202,8 @@ inline CordWriterBase::CordWriterBase(Options&& options)
 
 inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
     : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       size_hint_(that.size_hint_),
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
@@ -215,6 +217,8 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
 inline CordWriterBase& CordWriterBase::operator=(
     CordWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   size_hint_ = that.size_hint_;
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
@@ -273,12 +277,17 @@ inline CordWriter<Dest>::CordWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline CordWriter<Dest>::CordWriter(CordWriter&& that) noexcept
-    : CordWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : CordWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline CordWriter<Dest>& CordWriter<Dest>::operator=(
     CordWriter&& that) noexcept {
   CordWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

@@ -188,6 +188,8 @@ inline WrappedWriter<Dest>::WrappedWriter(std::tuple<DestArgs...> dest_args)
 template <typename Dest>
 inline WrappedWriter<Dest>::WrappedWriter(WrappedWriter&& that) noexcept
     : WrappedWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -195,6 +197,8 @@ template <typename Dest>
 inline WrappedWriter<Dest>& WrappedWriter<Dest>::operator=(
     WrappedWriter&& that) noexcept {
   WrappedWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

@@ -122,11 +122,16 @@ class ArrayWriter : public ArrayWriterBase {
 // Implementation details follow.
 
 inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
-    : PushableWriter(std::move(that)), written_(that.written_) {}
+    : PushableWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      written_(that.written_) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
     ArrayWriterBase&& that) noexcept {
   PushableWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   written_ = that.written_;
   return *this;
 }
@@ -167,6 +172,8 @@ inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
 template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
     : ArrayWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -174,6 +181,8 @@ template <typename Dest>
 inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
     ArrayWriter&& that) noexcept {
   ArrayWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

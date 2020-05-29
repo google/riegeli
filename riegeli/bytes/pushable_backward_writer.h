@@ -123,11 +123,16 @@ class PushableBackwardWriter : public BackwardWriter {
 
 inline PushableBackwardWriter::PushableBackwardWriter(
     PushableBackwardWriter&& that) noexcept
-    : BackwardWriter(std::move(that)), scratch_(std::move(that.scratch_)) {}
+    : BackwardWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      scratch_(std::move(that.scratch_)) {}
 
 inline PushableBackwardWriter& PushableBackwardWriter::operator=(
     PushableBackwardWriter&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   scratch_ = std::move(that.scratch_);
   return *this;
 }

@@ -124,11 +124,16 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 inline ArrayBackwardWriterBase::ArrayBackwardWriterBase(
     ArrayBackwardWriterBase&& that) noexcept
-    : PushableBackwardWriter(std::move(that)), written_(that.written_) {}
+    : PushableBackwardWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      written_(that.written_) {}
 
 inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
     ArrayBackwardWriterBase&& that) noexcept {
   PushableBackwardWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   written_ = that.written_;
   return *this;
 }
@@ -171,6 +176,8 @@ template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
     ArrayBackwardWriter&& that) noexcept
     : ArrayBackwardWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -178,6 +185,8 @@ template <typename Dest>
 inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
     ArrayBackwardWriter&& that) noexcept {
   ArrayBackwardWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

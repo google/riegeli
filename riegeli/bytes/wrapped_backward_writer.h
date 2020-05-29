@@ -194,6 +194,8 @@ template <typename Dest>
 inline WrappedBackwardWriter<Dest>::WrappedBackwardWriter(
     WrappedBackwardWriter&& that) noexcept
     : WrappedBackwardWriterBase(std::move(that)) {
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
 }
 
@@ -201,6 +203,8 @@ template <typename Dest>
 inline WrappedBackwardWriter<Dest>& WrappedBackwardWriter<Dest>::operator=(
     WrappedBackwardWriter&& that) noexcept {
   WrappedBackwardWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   MoveDest(std::move(that));
   return *this;
 }

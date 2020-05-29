@@ -273,11 +273,15 @@ inline ZlibWriterBase::ZlibWriterBase(size_t buffer_size, Position size_hint)
 
 inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       compressor_(std::move(that.compressor_)) {}
 
 inline ZlibWriterBase& ZlibWriterBase::operator=(
     ZlibWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   compressor_ = std::move(that.compressor_);
   return *this;
 }
@@ -322,12 +326,17 @@ inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(ZlibWriter&& that) noexcept
-    : ZlibWriterBase(std::move(that)), dest_(std::move(that.dest_)) {}
+    : ZlibWriterBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      dest_(std::move(that.dest_)) {}
 
 template <typename Dest>
 inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
     ZlibWriter&& that) noexcept {
   ZlibWriterBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   dest_ = std::move(that.dest_);
   return *this;
 }

@@ -501,11 +501,16 @@ inline FdReaderCommon::FdReaderCommon(size_t buffer_size)
     : BufferedReader(buffer_size) {}
 
 inline FdReaderCommon::FdReaderCommon(FdReaderCommon&& that) noexcept
-    : BufferedReader(std::move(that)), filename_(std::move(that.filename_)) {}
+    : BufferedReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      filename_(std::move(that.filename_)) {}
 
 inline FdReaderCommon& FdReaderCommon::operator=(
     FdReaderCommon&& that) noexcept {
   BufferedReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   filename_ = std::move(that.filename_);
   return *this;
 }
@@ -526,10 +531,15 @@ inline FdReaderBase::FdReaderBase(size_t buffer_size, bool sync_pos)
     : FdReaderCommon(buffer_size), sync_pos_(sync_pos) {}
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
-    : FdReaderCommon(std::move(that)), sync_pos_(that.sync_pos_) {}
+    : FdReaderCommon(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      sync_pos_(that.sync_pos_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   FdReaderCommon::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   sync_pos_ = that.sync_pos_;
   return *this;
 }
@@ -581,12 +591,16 @@ inline FdMMapReaderBase::FdMMapReaderBase(bool sync_pos)
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
       filename_(std::move(that.filename_)),
       sync_pos_(that.sync_pos_) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
   ChainReader::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   filename_ = std::move(that.filename_);
   sync_pos_ = that.sync_pos_;
   return *this;
@@ -651,11 +665,16 @@ inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
 
 template <typename Src>
 inline FdReader<Src>::FdReader(FdReader&& that) noexcept
-    : FdReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : FdReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
   FdReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }
@@ -758,12 +777,17 @@ inline FdStreamReader<Src>::FdStreamReader(absl::string_view filename,
 
 template <typename Src>
 inline FdStreamReader<Src>::FdStreamReader(FdStreamReader&& that) noexcept
-    : FdStreamReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : FdStreamReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FdStreamReader<Src>& FdStreamReader<Src>::operator=(
     FdStreamReader&& that) noexcept {
   FdStreamReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }
@@ -864,12 +888,17 @@ inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(FdMMapReader&& that) noexcept
-    : FdMMapReaderBase(std::move(that)), src_(std::move(that.src_)) {}
+    : FdMMapReaderBase(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      src_(std::move(that.src_)) {}
 
 template <typename Src>
 inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
     FdMMapReader&& that) noexcept {
   FdMMapReaderBase::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class part
+  // was moved.
   src_ = std::move(that.src_);
   return *this;
 }
