@@ -98,12 +98,12 @@ class SnappyWriterBase : public Writer {
 
   void MoveUncompressed(SnappyWriterBase&& that);
 
+  // Prefer sharing instead of copying data at least of this length.
+  size_t MinBytesToShare() const;
+
   // Discards uninitialized space from the end of `uncompressed_`, so that it
   // contains only actual data written.
   void SyncBuffer();
-
-  // Appends uninitialized space to `uncompressed_`.
-  void MakeBuffer(size_t min_length = 0);
 
   Chain::Options options_;
 
