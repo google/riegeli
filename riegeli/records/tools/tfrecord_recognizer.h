@@ -28,15 +28,15 @@ class TFRecordRecognizer : public Object {
 
   // Ensures that the file looks like a valid TFRecord file.
   //
-  // Updates `*record_reader_options` on success.
+  // Updates `record_reader_options` on success.
   //
   // Return values:
   //  * `true`                      - success
-  //                                  (`*record_reader_options` is updated)
+  //                                  (`record_reader_options` is updated)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
   bool CheckFileFormat(
-      tensorflow::io::RecordReaderOptions* record_reader_options);
+      tensorflow::io::RecordReaderOptions& record_reader_options);
 
  private:
   Reader* byte_reader_;

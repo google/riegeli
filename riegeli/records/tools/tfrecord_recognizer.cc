@@ -28,7 +28,7 @@
 namespace riegeli {
 
 bool TFRecordRecognizer::CheckFileFormat(
-    tensorflow::io::RecordReaderOptions* record_reader_options) {
+    tensorflow::io::RecordReaderOptions& record_reader_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!byte_reader_->Pull())) {
     if (ABSL_PREDICT_FALSE(!byte_reader_->healthy())) {
@@ -48,15 +48,15 @@ bool TFRecordRecognizer::CheckFileFormat(
       byte_reader_->Fail(absl::InternalError("Seeking failed"));
       return Fail(*byte_reader_);
     }
-    record_reader_options->compression_type =
+    record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::NONE;
     reader = byte_reader_;
   } else {
-    record_reader_options->compression_type =
+    record_reader_options.compression_type =
         tensorflow::io::RecordReaderOptions::ZLIB_COMPRESSION;
-    record_reader_options->zlib_options =
+    record_reader_options.zlib_options =
         tensorflow::io::ZlibCompressionOptions::DEFAULT();
-    record_reader_options->zlib_options.window_bits = 32;
+    record_reader_options.zlib_options.window_bits = 32;
     reader = &decompressor;
   }
 
