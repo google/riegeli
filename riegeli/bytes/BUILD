@@ -856,5 +856,12 @@ cc_library(
 cc_library(
     name = "message_wire_format",
     hdrs = ["message_wire_format.h"],
-    deps = ["@com_google_absl//absl/base"],
+    deps = [
+        ":backward_writer",
+        ":endian_writing",
+        ":varint_writing",
+        "//riegeli/base",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+    ],
 )
