@@ -163,7 +163,7 @@ class Chain {
 
   class Blocks;
   class BlockIterator;
-  class CharPosition;
+  struct CharPosition;
 
   // A sentinel value for the `max_length` parameter of
   // `AppendBuffer()`/`PrependBuffer()`.
