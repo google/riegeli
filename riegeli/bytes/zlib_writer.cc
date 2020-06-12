@@ -160,7 +160,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       case Z_STREAM_END:
         break;
       case Z_BUF_ERROR:
-        RIEGELI_ASSERT_EQ(op, Z_PARTIAL_FLUSH)
+        RIEGELI_ASSERT_EQ(op, Z_SYNC_FLUSH)
             << "deflate() returned an unexpected Z_BUF_ERROR";
         break;
       default:
@@ -178,7 +178,7 @@ bool ZlibWriterBase::Flush(FlushType flush_type) {
   Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
-  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, Z_PARTIAL_FLUSH))) {
+  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, Z_SYNC_FLUSH))) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
