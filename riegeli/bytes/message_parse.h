@@ -149,8 +149,9 @@ inline absl::Status ParseFromReaderImpl(Dependency<Reader*, Src> src,
                                         ParseOptions options) {
   absl::Status status = ParseFromReaderImpl(*src, dest, options);
   if (src.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!src->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = src->status();
+    if (ABSL_PREDICT_FALSE(
+            !(src.is_owning() ? src->Close() : src->healthy()))) {
+      status = src->status();
     }
   }
   return status;

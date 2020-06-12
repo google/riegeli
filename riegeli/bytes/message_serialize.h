@@ -202,8 +202,9 @@ inline absl::Status SerializeToWriterImpl(
     SerializeOptions options) {
   absl::Status status = SerializeToWriterImpl(src, dest.get(), options);
   if (dest.is_owning()) {
-    if (ABSL_PREDICT_FALSE(!dest->Close())) {
-      if (ABSL_PREDICT_TRUE(status.ok())) status = dest->status();
+    if (ABSL_PREDICT_FALSE(
+            !(dest.is_owning() ? dest->Close() : dest->healthy()))) {
+      status = dest->status();
     }
   }
   return status;
