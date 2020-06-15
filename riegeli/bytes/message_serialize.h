@@ -194,18 +194,15 @@ inline size_t SerializeOptions::GetByteSize(
 namespace internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer* dest, SerializeOptions options);
+                                   Writer& dest, SerializeOptions options);
 
 template <typename Dest>
 inline absl::Status SerializeToWriterImpl(
     const google::protobuf::MessageLite& src, Dependency<Writer*, Dest> dest,
     SerializeOptions options) {
-  absl::Status status = SerializeToWriterImpl(src, dest.get(), options);
+  absl::Status status = SerializeToWriterImpl(src, *dest, options);
   if (dest.is_owning()) {
-    if (ABSL_PREDICT_FALSE(
-            !(dest.is_owning() ? dest->Close() : dest->healthy()))) {
-      status = dest->status();
-    }
+    if (ABSL_PREDICT_FALSE(!dest->Close())) status = dest->status();
   }
   return status;
 }

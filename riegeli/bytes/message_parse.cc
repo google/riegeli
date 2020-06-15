@@ -75,8 +75,9 @@ absl::Status ParseFromReaderImpl(Reader& src,
     }
   }
   ReaderInputStream input_stream(&src);
-  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
+  const bool ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
+  if (ABSL_PREDICT_FALSE(!ok)) {
     return absl::DataLossError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }

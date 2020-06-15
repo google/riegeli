@@ -39,7 +39,7 @@ namespace riegeli {
 namespace internal {
 
 absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
-                                   Writer* dest, SerializeOptions options) {
+                                   Writer& dest, SerializeOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -50,16 +50,14 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
         "Failed to serialize message of type ", src.GetTypeName(),
         " because it exceeds maximum protobuf size of 2GB: ", size));
   }
-  WriterOutputStream output_stream(dest);
+  WriterOutputStream output_stream(&dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
   coded_stream.SetSerializationDeterministic(options.deterministic());
   src.SerializeWithCachedSizes(&coded_stream);
-  if (ABSL_PREDICT_FALSE(coded_stream.HadError())) {
-    RIEGELI_ASSERT(!dest->healthy())
-        << "Failed to serialize message of type " << src.GetTypeName()
-        << ": SerializeWithCachedSizes() failed for an unknown reason";
-    return dest->status();
-  }
+  if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
+  RIEGELI_ASSERT(!coded_stream.HadError())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << ": SerializeWithCachedSizes() failed for an unknown reason";
   RIEGELI_ASSERT_EQ(size, src.ByteSizeLong())
       << src.GetTypeName() << " was modified concurrently during serialization";
   RIEGELI_ASSERT_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
