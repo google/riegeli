@@ -298,6 +298,12 @@ inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
 }
 
 template <typename Dest>
+inline void BrotliWriter<Dest>::Reset() {
+  BrotliWriterBase::Reset();
+  dest_.Reset();
+}
+
+template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
   BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
   dest_.Reset(dest);
