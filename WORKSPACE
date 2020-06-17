@@ -27,11 +27,11 @@ http_archive(
 http_archive(
     name = "net_zstd",
     build_file = "//third_party:net_zstd.BUILD",
-    sha256 = "5a874ba43d1ec6d1c03f070f5fa820ff834ef85d5525b03effa7508c9087ba55",
-    strip_prefix = "zstd-1.4.4/lib",
+    sha256 = "b6c537b53356a3af3ca3e621457751fa9a6ba96daf3aebb3526ae0f610863532",
+    strip_prefix = "zstd-1.4.5/lib",
     urls = [
-        "https://mirror.bazel.build/github.com/facebook/zstd/archive/v1.4.4.zip",
-        "https://github.com/facebook/zstd/archive/v1.4.4.zip",  # 2019-11-04
+        "https://mirror.bazel.build/github.com/facebook/zstd/archive/v1.4.5.zip",
+        "https://github.com/facebook/zstd/archive/v1.4.5.zip",  # 2020-05-22
     ],
 )
 

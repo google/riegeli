@@ -13,8 +13,4 @@ cc_library(
         "decompress/*.h",
     ]),
     hdrs = ["zstd.h"],
-    includes = [
-        ".",
-        "common",
-    ],
 )
