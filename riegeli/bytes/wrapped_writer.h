@@ -40,6 +40,7 @@ class WrappedWriterBase : public Writer {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  bool PrefersCopying() const override;
   bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() const override;
   absl::optional<Position> Size() override;

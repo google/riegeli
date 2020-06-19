@@ -121,6 +121,11 @@ bool WrappedWriterBase::SeekSlow(Position new_pos) {
   return ok;
 }
 
+bool WrappedWriterBase::PrefersCopying() const {
+  const Writer* const dest = dest_writer();
+  return dest != nullptr && dest->PrefersCopying();
+}
+
 bool WrappedWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();

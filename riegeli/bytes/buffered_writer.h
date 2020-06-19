@@ -34,6 +34,9 @@ namespace riegeli {
 // `BufferedWriter` accumulates data to be pushed in a flat buffer. Writing a
 // large enough array bypasses the buffer.
 class BufferedWriter : public Writer {
+ public:
+  bool PrefersCopying() const override { return true; }
+
  protected:
   // Creates a closed `BufferedWriter`.
   BufferedWriter() noexcept : Writer(kInitiallyClosed) {}

@@ -51,6 +51,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   virtual BackwardWriter* dest_writer() = 0;
   virtual const BackwardWriter* dest_writer() const = 0;
 
+  bool PrefersCopying() const override;
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override;
   bool Truncate(Position new_size) override;

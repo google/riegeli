@@ -42,6 +42,7 @@ class ArrayWriterBase : public PushableWriter {
   absl::Span<char> written() { return written_; }
   absl::Span<const char> written() const { return written_; }
 
+  bool PrefersCopying() const override { return true; }
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;

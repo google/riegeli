@@ -139,6 +139,11 @@ bool LimitingWriterBase::SeekSlow(Position new_pos) {
   return ok && pos_to_seek == new_pos;
 }
 
+bool LimitingWriterBase::PrefersCopying() const {
+  const Writer* const dest = dest_writer();
+  return dest != nullptr && dest->PrefersCopying();
+}
+
 bool LimitingWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();

@@ -60,6 +60,7 @@ class StringWriterBase : public Writer {
   virtual std::string* dest_string() = 0;
   virtual const std::string* dest_string() const = 0;
 
+  bool PrefersCopying() const override { return true; }
   bool Flush(FlushType flush_type) override;
   bool SupportsTruncate() const override { return true; }
   bool Truncate(Position new_size) override;

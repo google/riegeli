@@ -123,6 +123,11 @@ void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
   MakeBuffer(dest);
 }
 
+bool LimitingBackwardWriterBase::PrefersCopying() const {
+  const BackwardWriter* const dest = dest_writer();
+  return dest != nullptr && dest->PrefersCopying();
+}
+
 bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();

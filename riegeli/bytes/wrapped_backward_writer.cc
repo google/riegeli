@@ -104,6 +104,11 @@ void WrappedBackwardWriterBase::WriteHintSlow(size_t length) {
   MakeBuffer(dest);
 }
 
+bool WrappedBackwardWriterBase::PrefersCopying() const {
+  const BackwardWriter* const dest = dest_writer();
+  return dest != nullptr && dest->PrefersCopying();
+}
+
 bool WrappedBackwardWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();

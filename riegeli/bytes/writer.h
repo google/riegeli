@@ -132,6 +132,12 @@ class Writer : public Object {
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
 
+  // If `true`, a hint that there is no benefit in preparing a `Chain` or
+  // `absl::Cord` for writing instead of `absl::string_view`, e.g. because
+  // `WriteSlow(const Chain&)` and `WriteSlow(const absl::Cord&)` are
+  // implemented in terms of `WriteSlow(absl::string_view)` anyway.
+  virtual bool PrefersCopying() const { return false; }
+
   // Hints that several consecutive `Push()` or `Write()` calls will follow,
   // writing this amount of data in total.
   //
@@ -263,7 +269,7 @@ class Writer : public Object {
   // Implementation of the slow part of `Write()`.
   //
   // By default `WriteSlow(absl::string_view)` is implemented in terms of
-  // `Push()`; `WriteSlow(const Chain&)` and `WriteSlow(absl::Cord)` are
+  // `Push()`; `WriteSlow(const Chain&)` and `WriteSlow(const absl::Cord&)` are
   // implemented in terms of `WriteSlow(absl::string_view)`;
   // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`;
   // and `WriteSlow(absl::Cord&&)` is implemented in terms of

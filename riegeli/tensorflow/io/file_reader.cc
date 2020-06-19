@@ -344,10 +344,17 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
         // Append available data to `dest` and make a new buffer.
         if (available() > 0) {
           length -= available();
-          Chain data;
-          buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), data,
-                                 Chain::Options().set_size_hint(available()));
-          if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) {
+          bool write_ok;
+          if (dest.PrefersCopying()) {
+            write_ok = dest.Write(absl::string_view(cursor(), available()));
+          } else {
+            Chain data;
+            buffer_.AppendSubstrTo(absl::string_view(cursor(), available()),
+                                   data,
+                                   Chain::Options().set_size_hint(available()));
+            write_ok = dest.Write(std::move(data));
+          }
+          if (ABSL_PREDICT_FALSE(!write_ok)) {
             move_cursor(available());
             return false;
           }
@@ -362,7 +369,7 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
   }
   bool write_ok = true;
   if (length > 0) {
-    if (buffer_.empty()) {
+    if (buffer_.empty() || dest.PrefersCopying()) {
       write_ok =
           dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)));
     } else {
