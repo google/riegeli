@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Enables the experimental zstd API:
+//  * `ZSTD_d_stableOutBuffer`
+//
+// Using the experimental zstd API is optional. If this gets removed, there can
+// be an extra a memory copy from an internal buffer of the Zstd engine.
+#define ZSTD_STATIC_LINKING_ONLY
+
 #include "riegeli/bytes/zstd_reader.h"
 
 #include <stddef.h>
@@ -73,6 +80,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
     // Zstd decoder.
     set_size_hint(UnsignedMax(Position{1}, *uncompressed_size_));
   }
+  just_initialized_ = true;
 }
 
 void ZstdReaderBase::Done() {
@@ -119,6 +127,24 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                          std::numeric_limits<Position>::max() - limit_pos())) {
     return FailOverflow();
   }
+  size_t effective_min_length = min_length;
+#ifdef ZSTD_STATIC_LINKING_ONLY
+  if (just_initialized_ && !growing_source_ &&
+      uncompressed_size_ != absl::nullopt &&
+      max_length >= *uncompressed_size_) {
+    // Avoid a memory copy from an internal buffer of the Zstd engine to `dest`
+    // by promising to decompress all remaining data to `dest`.
+    const size_t result =
+        ZSTD_DCtx_setParameter(decompressor_.get(), ZSTD_d_stableOutBuffer, 1);
+    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
+      return Fail(absl::InternalError(absl::StrCat(
+          "ZSTD_DCtx_setParameter(ZSTD_d_stableOutBuffer) failed: ",
+          ZSTD_getErrorName(result))));
+    }
+    effective_min_length = std::numeric_limits<size_t>::max();
+  }
+#endif
+  just_initialized_ = false;
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
     ZSTD_inBuffer input = {src.cursor(), src.available(), 0};
@@ -138,7 +164,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       move_limit_pos(output.pos);
       return output.pos >= min_length;
     }
-    if (output.pos >= min_length) {
+    if (output.pos >= effective_min_length) {
       move_limit_pos(output.pos);
       return true;
     }
@@ -147,9 +173,15 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
            "and output space";
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
       move_limit_pos(output.pos);
-      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
-      truncated_ = true;
-      return false;
+      if (ABSL_PREDICT_FALSE(!src.healthy())) {
+        Fail(src);
+      } else if (growing_source_) {
+        truncated_ = true;
+      } else {
+        Fail(Annotate(absl::DataLossError("Truncated Zstd-compressed stream"),
+                      absl::StrCat("at byte ", src.pos())));
+      }
+      return output.pos >= min_length;
     }
   }
 }

@@ -41,6 +41,20 @@ class ZstdReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    // If `true`, supports decompressing as much as possible from a truncated
+    // source, then retrying when the source has grown. This has a small
+    // performance penalty.
+    //
+    // Default: `false`
+    Options& set_growing_source(bool growing_source) & {
+      growing_source_ = growing_source;
+      return *this;
+    }
+    Options&& set_growing_source(bool growing_source) && {
+      return std::move(set_growing_source(growing_source));
+    }
+    bool growing_source() const { return growing_source_; }
+
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
     //
@@ -72,6 +86,7 @@ class ZstdReaderBase : public BufferedReader {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
+    bool growing_source_ = false;
     Position size_hint_ = 0;
     size_t buffer_size_ = DefaultBufferSize();
   };
@@ -95,13 +110,14 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   ZstdReaderBase() noexcept {}
 
-  explicit ZstdReaderBase(size_t buffer_size, Position size_hint);
+  explicit ZstdReaderBase(bool growing_source, size_t buffer_size,
+                          Position size_hint);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint);
+  void Reset(bool growing_source, size_t buffer_size, Position size_hint);
   void Initialize(Reader* src);
 
   void Done() override;
@@ -113,6 +129,11 @@ class ZstdReaderBase : public BufferedReader {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
 
+  // If `true`, supports decompressing as much as possible from a truncated
+  // source, then retrying when the source has grown.
+  bool growing_source_ = false;
+  // If `true`, calling `ZSTD_DCtx_setParameter()` is valid.
+  bool just_initialized_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
@@ -190,13 +211,16 @@ absl::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
-inline ZstdReaderBase::ZstdReaderBase(size_t buffer_size, Position size_hint)
-    : BufferedReader(buffer_size, size_hint) {}
+inline ZstdReaderBase::ZstdReaderBase(bool growing_source, size_t buffer_size,
+                                      Position size_hint)
+    : BufferedReader(buffer_size, size_hint), growing_source_(growing_source) {}
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      growing_source_(that.growing_source_),
+      just_initialized_(that.just_initialized_),
       truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)),
       uncompressed_size_(that.uncompressed_size_) {}
@@ -206,6 +230,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  growing_source_ = that.growing_source_;
+  just_initialized_ = that.just_initialized_;
   truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   uncompressed_size_ = that.uncompressed_size_;
@@ -214,13 +240,18 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 
 inline void ZstdReaderBase::Reset() {
   BufferedReader::Reset();
+  growing_source_ = false;
+  just_initialized_ = false;
   truncated_ = false;
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
 }
 
-inline void ZstdReaderBase::Reset(size_t buffer_size, Position size_hint) {
+inline void ZstdReaderBase::Reset(bool growing_source, size_t buffer_size,
+                                  Position size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
+  growing_source_ = growing_source;
+  just_initialized_ = false;
   truncated_ = false;
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
@@ -228,13 +259,16 @@ inline void ZstdReaderBase::Reset(size_t buffer_size, Position size_hint) {
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
-    : ZstdReaderBase(options.buffer_size(), options.size_hint()), src_(src) {
+    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
+                     options.size_hint()),
+      src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
-    : ZstdReaderBase(options.buffer_size(), options.size_hint()),
+    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
+                     options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -243,7 +277,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZstdReaderBase(options.buffer_size(), options.size_hint()),
+    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
+                     options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -272,14 +307,16 @@ inline void ZstdReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
-  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
-  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -288,7 +325,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZstdReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
