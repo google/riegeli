@@ -228,9 +228,9 @@ RecordWriterBase::Worker::MakeChunkEncoder() {
             long_double_bucket_size >=
             static_cast<long double>(std::numeric_limits<uint64_t>::max()))
             ? std::numeric_limits<uint64_t>::max()
-            : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
-                  ? static_cast<uint64_t>(long_double_bucket_size)
-                  : uint64_t{1};
+        : ABSL_PREDICT_TRUE(long_double_bucket_size >= 1.0L)
+            ? static_cast<uint64_t>(long_double_bucket_size)
+            : uint64_t{1};
     chunk_encoder = std::make_unique<TransposeEncoder>(
         options_.compressor_options(), bucket_size);
   } else {

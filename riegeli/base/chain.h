@@ -1511,11 +1511,10 @@ inline bool operator>=(Chain::BlockPtrPtr a, Chain::BlockPtrPtr b) {
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            size_t block_index)
     : chain_(chain),
-      ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr)
-                ? kBeginShortData
-                : chain_->begin_ == chain_->end_
-                      ? kBeginShortData + (chain_->empty() ? 1 : 0)
-                      : BlockPtrPtr::from_ptr(chain_->begin_)) +
+      ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
+            : chain_->begin_ == chain_->end_
+                ? kBeginShortData + (chain_->empty() ? 1 : 0)
+                : BlockPtrPtr::from_ptr(chain_->begin_)) +
            IntCast<ptrdiff_t>(block_index)) {}
 
 inline Chain::BlockIterator::BlockIterator(const Chain* chain,
@@ -1534,11 +1533,10 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator=(
 
 inline size_t Chain::BlockIterator::block_index() const {
   return IntCast<size_t>(
-      ptr_ - (ABSL_PREDICT_FALSE(chain_ == nullptr)
-                  ? kBeginShortData
-                  : chain_->begin_ == chain_->end_
-                        ? kBeginShortData + (chain_->empty() ? 1 : 0)
-                        : BlockPtrPtr::from_ptr(chain_->begin_)));
+      ptr_ - (ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
+              : chain_->begin_ == chain_->end_
+                  ? kBeginShortData + (chain_->empty() ? 1 : 0)
+                  : BlockPtrPtr::from_ptr(chain_->begin_)));
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {

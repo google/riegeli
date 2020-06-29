@@ -396,9 +396,9 @@ absl::optional<absl::partial_ordering> PartialOrderingFromPython(
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) {
     return absl::nullopt;
   }
-  return long_value < 0 ? absl::partial_ordering::less
-                        : long_value == 0 ? absl::partial_ordering::equivalent
-                                          : absl::partial_ordering::greater;
+  return long_value < 0    ? absl::partial_ordering::less
+         : long_value == 0 ? absl::partial_ordering::equivalent
+                           : absl::partial_ordering::greater;
 }
 
 }  // namespace python
