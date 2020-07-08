@@ -25,6 +25,8 @@ namespace riegeli {
 
 // Specializations of `Dependency<absl::Span<char>, Manager>`.
 
+// Specialization for `absl::Span<char>` itself is defined separately for
+// `kIsStable()` to be `true`.
 template <>
 class Dependency<absl::Span<char>, absl::Span<char>>
     : public DependencyBase<absl::Span<char>> {
