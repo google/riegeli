@@ -228,7 +228,7 @@ class Chain {
   // Converts from a string-like type.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `std::string_view`
+  // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   explicit Chain(absl::string_view src);
   template <typename Src,
@@ -333,7 +333,7 @@ class Chain {
   // Appends/prepends a string-like type.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
-  // to `std::string` which can be ambiguous against `std::string_view`
+  // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   void Append(absl::string_view src, const Options& options = kDefaultOptions);
   template <typename Src,
