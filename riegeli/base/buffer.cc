@@ -24,12 +24,12 @@
 
 namespace riegeli {
 
-absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer) {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), buffer->GetData()))
+absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer) {
+  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), buffer.GetData()))
       << "Failed precondition of BufferToCord(): "
          "substring not contained in the buffer";
   RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                     buffer->GetData() + buffer->size()))
+                                     buffer.GetData() + buffer.size()))
       << "Failed precondition of BufferToCord(): "
          "substring not contained in the buffer";
 
@@ -41,7 +41,7 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer) {
   };
 
   if (substr.size() <= 15 /* `absl::Cord::InlineRep::kMaxInline` */ ||
-      Wasteful(buffer->size(), substr.size())) {
+      Wasteful(buffer.size(), substr.size())) {
     if (substr.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
       // `absl::Cord(absl::string_view)` allocates a single node of that length.
       return absl::Cord(substr);
@@ -56,7 +56,7 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer) {
         Releaser{std::move(new_buffer)});
   }
 
-  return absl::MakeCordFromExternal(substr, Releaser{std::move(*buffer)});
+  return absl::MakeCordFromExternal(substr, Releaser{std::move(buffer)});
 }
 
 }  // namespace riegeli

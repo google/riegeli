@@ -77,10 +77,9 @@ class Buffer {
   size_t size_ = 0;
 };
 
-// Converts `Buffer` to `absl::Cord`. `substr` must be contained in `*buffer`.
-// `*buffer` is left unchanged or deallocated; in any case its size is
-// unchanged.
-absl::Cord BufferToCord(absl::string_view substr, Buffer* buffer);
+// Converts `Buffer` to `absl::Cord`. `substr` must be contained in `buffer`.
+// `buffer` is left unchanged or deallocated; in any case its size is unchanged.
+absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer);
 
 // Implementation details follow.
 

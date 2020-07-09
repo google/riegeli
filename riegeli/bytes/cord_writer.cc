@@ -208,7 +208,7 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
     dest.Append(data);
   } else {
     absl::Cord data =
-        BufferToCord(absl::string_view(start(), written_to_buffer()), &buffer_);
+        BufferToCord(absl::string_view(start(), written_to_buffer()), buffer_);
     set_buffer();
     dest.Append(std::move(data));
   }

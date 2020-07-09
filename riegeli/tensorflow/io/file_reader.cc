@@ -274,7 +274,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       size_t length_read;
       ok = ReadToDest(length, src, ptr, length_read);
       dest.Append(
-          BufferToCord(absl::string_view(ptr, length_read), &flat_buffer));
+          BufferToCord(absl::string_view(ptr, length_read), flat_buffer));
       return ok;
     }
     size_t cursor_index;

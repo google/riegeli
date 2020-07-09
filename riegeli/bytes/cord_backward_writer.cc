@@ -208,8 +208,8 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
     set_buffer();
     dest.Prepend(data);
   } else {
-    absl::Cord data = BufferToCord(
-        absl::string_view(cursor(), written_to_buffer()), &buffer_);
+    absl::Cord data =
+        BufferToCord(absl::string_view(cursor(), written_to_buffer()), buffer_);
     set_buffer();
     dest.Prepend(std::move(data));
   }
