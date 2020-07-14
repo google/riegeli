@@ -436,11 +436,12 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   truncated_ = false;
   const Position block_begin = internal::RoundDownToBlockBoundary(new_pos);
   Position chunk_begin;
-  if (pos_ <= new_pos) {
-    // The current chunk begins at or before `new_pos`. If it also ends at or
-    // after `block_begin`, it is better to start searching from the current
-    // position than to seek back to `block_begin`.
+  if (pos_ < new_pos) {
+    // The current chunk begins before `new_pos`. If it also ends at or after
+    // `block_begin`, it is better to start searching from the current position
+    // than to seek back to `block_begin`.
     if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) {
+      if (ABSL_PREDICT_FALSE(!healthy())) return false;
       truncated_ = false;
       return FailSeeking(src, new_pos);
     }
@@ -462,6 +463,11 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
     chunk_.Reset();
     if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) return FailSeeking(src, new_pos);
     if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
+      if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      if (ABSL_PREDICT_TRUE(!truncated_)) {
+        // File ends at this block boundary, so a chunk ends here too.
+        if (ABSL_PREDICT_TRUE(pos_ >= new_pos)) return true;
+      }
       truncated_ = false;
       return FailSeeking(src, new_pos);
     }
@@ -500,6 +506,7 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   check_current_chunk:
     if (pos_ >= new_pos) return true;
     if (ABSL_PREDICT_FALSE(!ReadChunkHeader())) {
+      if (ABSL_PREDICT_FALSE(!healthy())) return false;
       truncated_ = false;
       return FailSeeking(src, new_pos);
     }
