@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/types/span.h"
@@ -119,6 +120,14 @@ class ArrayWriter : public ArrayWriterBase {
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+ArrayWriter(Dest&& dest) -> ArrayWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+ArrayWriter(std::tuple<DestArgs...> dest_args) -> ArrayWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

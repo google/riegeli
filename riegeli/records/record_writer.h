@@ -611,6 +611,18 @@ class RecordWriter : public RecordWriterBase {
   StableDependency<ChunkWriter*, Dest> dest_;
 };
 
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+RecordWriter(Dest&& dest,
+             RecordWriterBase::Options options = RecordWriterBase::Options())
+    -> RecordWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+RecordWriter(std::tuple<DestArgs...> dest_args,
+             RecordWriterBase::Options options = RecordWriterBase::Options())
+    -> RecordWriter<void>;  // Delete.
+#endif
+
 // Implementation details follow.
 
 extern template bool RecordWriterBase::WriteRecord(std::string&& record,

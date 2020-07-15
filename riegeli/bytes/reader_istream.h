@@ -18,6 +18,7 @@
 #include <istream>
 #include <streambuf>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -154,6 +155,15 @@ class ReaderIstream : public ReaderIstreamBase {
   // The object providing and possibly owning the `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+ReaderIstream(Src&& src) -> ReaderIstream<std::decay_t<Src>>;
+template <typename... SrcArgs>
+ReaderIstream(std::tuple<SrcArgs...> src_args)
+    -> ReaderIstream<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

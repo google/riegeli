@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -169,6 +170,19 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // The object providing and possibly owning the original `BackwardWriter`.
   Dependency<BackwardWriter*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+LimitingBackwardWriter(
+    Dest&& dest, Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+    -> LimitingBackwardWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+LimitingBackwardWriter(
+    std::tuple<DestArgs...> dest_args,
+    Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+    -> LimitingBackwardWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

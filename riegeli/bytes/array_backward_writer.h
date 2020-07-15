@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/types/span.h"
@@ -120,6 +121,15 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   // The object providing and possibly owning the array being written to.
   Dependency<absl::Span<char>, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+ArrayBackwardWriter(Dest&& dest) -> ArrayBackwardWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)
+    -> ArrayBackwardWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

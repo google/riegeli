@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -264,6 +265,18 @@ class ZstdWriter : public ZstdWriterBase {
   // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+ZstdWriter(Dest&& dest,
+           ZstdWriterBase::Options options = ZstdWriterBase::Options())
+    -> ZstdWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+ZstdWriter(std::tuple<DestArgs...> dest_args,
+           ZstdWriterBase::Options options = ZstdWriterBase::Options())
+    -> ZstdWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

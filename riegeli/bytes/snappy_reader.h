@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_SNAPPY_READER_H_
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -124,6 +125,18 @@ class SnappyReader : public SnappyReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+SnappyReader(Src&& src,
+             SnappyReaderBase::Options options = SnappyReaderBase::Options())
+    -> SnappyReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+SnappyReader(std::tuple<SrcArgs...> src_args,
+             SnappyReaderBase::Options options = SnappyReaderBase::Options())
+    -> SnappyReader<void>;  // Delete.
+#endif
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyDecompress()` is equivalent to copying all data from a

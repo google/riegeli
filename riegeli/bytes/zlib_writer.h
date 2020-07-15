@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -265,6 +266,18 @@ class ZlibWriter : public ZlibWriterBase {
   // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+ZlibWriter(Dest&& dest,
+           ZlibWriterBase::Options options = ZlibWriterBase::Options())
+    -> ZlibWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+ZlibWriter(std::tuple<DestArgs...> dest_args,
+           ZlibWriterBase::Options options = ZlibWriterBase::Options())
+    -> ZlibWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

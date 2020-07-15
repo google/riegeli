@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -136,6 +137,19 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
+                                  FramedSnappyReaderBase::Options())
+    -> FramedSnappyReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+FramedSnappyReader(
+    std::tuple<SrcArgs...> src_args,
+    FramedSnappyReaderBase::Options options = FramedSnappyReaderBase::Options())
+    -> FramedSnappyReader<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 
