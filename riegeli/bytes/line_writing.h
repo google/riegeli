@@ -61,49 +61,49 @@ class WriteLineOptions {
 // Return values:
 //  * `true`  - success
 //  * `false` - failure (`!healthy()`)
-bool WriteLine(absl::string_view src, Writer* dest,
+bool WriteLine(absl::string_view src, Writer& dest,
                WriteLineOptions options = WriteLineOptions());
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-bool WriteLine(Src&& src, Writer* dest,
+bool WriteLine(Src&& src, Writer& dest,
                WriteLineOptions options = WriteLineOptions());
-bool WriteLine(Writer* dest, WriteLineOptions options = WriteLineOptions());
+bool WriteLine(Writer& dest, WriteLineOptions options = WriteLineOptions());
 
 // Implementation details follow.
 
-inline bool WriteLine(absl::string_view src, Writer* dest,
+inline bool WriteLine(absl::string_view src, Writer& dest,
                       WriteLineOptions options) {
-  if (ABSL_PREDICT_FALSE(!dest->Write(src))) return false;
+  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
   return WriteLine(dest, options);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-inline bool WriteLine(Src&& src, Writer* dest, WriteLineOptions options) {
+inline bool WriteLine(Src&& src, Writer& dest, WriteLineOptions options) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
-  if (ABSL_PREDICT_FALSE(!dest->Write(std::move(src)))) return false;
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
   return WriteLine(dest, options);
 }
 
-inline bool WriteLine(Writer* dest, WriteLineOptions options) {
+inline bool WriteLine(Writer& dest, WriteLineOptions options) {
   switch (options.newline()) {
     case WriteLineOptions::Newline::kLf:
-      if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
-      *dest->cursor() = '\n';
-      dest->move_cursor(1);
+      if (ABSL_PREDICT_FALSE(!dest.Push())) return false;
+      *dest.cursor() = '\n';
+      dest.move_cursor(1);
       return true;
     case WriteLineOptions::Newline::kCr:
-      if (ABSL_PREDICT_FALSE(!dest->Push())) return false;
-      *dest->cursor() = '\n';
-      dest->move_cursor(1);
+      if (ABSL_PREDICT_FALSE(!dest.Push())) return false;
+      *dest.cursor() = '\n';
+      dest.move_cursor(1);
       return true;
     case WriteLineOptions::Newline::kCrLf: {
-      if (ABSL_PREDICT_FALSE(!dest->Push(2))) return false;
-      char* const cursor = dest->cursor();
+      if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;
+      char* const cursor = dest.cursor();
       cursor[0] = '\r';
       cursor[1] = '\n';
-      dest->move_cursor(2);
+      dest.move_cursor(2);
       return true;
     }
   }
