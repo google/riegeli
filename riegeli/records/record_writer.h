@@ -50,8 +50,8 @@ namespace riegeli {
 //
 // TODO: This currently includes whole file descriptors. It would be
 // better to prune them to keep only what is needed for the message descriptor.
-void SetRecordType(RecordsMetadata* metadata,
-                   const google::protobuf::Descriptor* descriptor);
+void SetRecordType(const google::protobuf::Descriptor& descriptor,
+                   RecordsMetadata& metadata);
 
 // Template parameter independent part of `RecordWriter`.
 class RecordWriterBase : public Object {

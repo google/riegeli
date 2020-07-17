@@ -95,12 +95,12 @@ class FileDescriptorCollector {
 
 }  // namespace
 
-void SetRecordType(RecordsMetadata* metadata,
-                   const google::protobuf::Descriptor* descriptor) {
-  metadata->set_record_type_name(descriptor->full_name());
-  metadata->clear_file_descriptor();
-  FileDescriptorCollector collector(metadata->mutable_file_descriptor());
-  collector.AddFile(descriptor->file());
+void SetRecordType(const google::protobuf::Descriptor& descriptor,
+                   RecordsMetadata& metadata) {
+  metadata.set_record_type_name(descriptor.full_name());
+  metadata.clear_file_descriptor();
+  FileDescriptorCollector collector(metadata.mutable_file_descriptor());
+  collector.AddFile(descriptor.file());
 }
 
 absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
