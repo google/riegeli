@@ -19,7 +19,6 @@
 
 #include <memory>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -140,18 +139,6 @@ class BrotliReader : public BrotliReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-BrotliReader(Src&& src,
-             BrotliReaderBase::Options options = BrotliReaderBase::Options())
-    -> BrotliReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-BrotliReader(std::tuple<SrcArgs...> src_args,
-             BrotliReaderBase::Options options = BrotliReaderBase::Options())
-    -> BrotliReader<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

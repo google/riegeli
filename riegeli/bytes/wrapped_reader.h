@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -141,15 +140,6 @@ class WrappedReader : public WrappedReaderBase {
   // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-WrappedReader(Src&& src) -> WrappedReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-WrappedReader(std::tuple<SrcArgs...> src_args)
-    -> WrappedReader<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

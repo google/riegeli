@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/strings/string_view.h"
@@ -111,14 +110,6 @@ class StringReader : public StringReaderBase {
   // read from.
   Dependency<absl::string_view, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-StringReader(Src&& src) -> StringReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-StringReader(std::tuple<SrcArgs...> src_args) -> StringReader<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

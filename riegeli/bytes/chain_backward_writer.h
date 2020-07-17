@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/strings/cord.h"
@@ -187,19 +186,6 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // uninitialized space is empty.
   Dependency<Chain*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-ChainBackwardWriter(Dest&& dest, ChainBackwardWriterBase::Options options =
-                                     ChainBackwardWriterBase::Options())
-    -> ChainBackwardWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
-                    ChainBackwardWriterBase::Options options =
-                        ChainBackwardWriterBase::Options())
-    -> ChainBackwardWriter<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

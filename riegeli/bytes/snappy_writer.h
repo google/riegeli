@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -175,18 +174,6 @@ class SnappyWriter : public SnappyWriterBase {
   // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-SnappyWriter(Dest&& dest,
-             SnappyWriterBase::Options options = SnappyWriterBase::Options())
-    -> SnappyWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-SnappyWriter(std::tuple<DestArgs...> dest_args,
-             SnappyWriterBase::Options options = SnappyWriterBase::Options())
-    -> SnappyWriter<void>;  // Delete.
-#endif
 
 // An alternative interface to Snappy which avoids buffering uncompressed data.
 // Calling `SnappyCompress()` is equivalent to copying all data from `src` to a

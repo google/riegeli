@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/strings/cord.h"
@@ -126,14 +125,6 @@ class ChainReader : public ChainReaderBase {
   // The object providing and possibly owning the `Chain` being read from.
   Dependency<const Chain*, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-ChainReader(Src&& src) -> ChainReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-ChainReader(std::tuple<SrcArgs...> src_args) -> ChainReader<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

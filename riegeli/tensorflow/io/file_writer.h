@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -226,21 +225,6 @@ class FileWriter : public FileWriterBase {
   // being written to.
   Dependency<::tensorflow::WritableFile*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-FileWriter(Dest&& dest,
-           FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-FileWriter(std::tuple<DestArgs...> dest_args,
-           FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<void>;  // Delete.
-FileWriter(absl::string_view filename,
-           FileWriterBase::Options options = FileWriterBase::Options())
-    ->FileWriter<>;
-#endif
 
 // Implementation details follow.
 

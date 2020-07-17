@@ -19,7 +19,6 @@
 
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/strings/cord.h"
@@ -153,18 +152,6 @@ class StringWriter : public StringWriterBase {
   // to the uninitialized space.
   Dependency<std::string*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-StringWriter(Dest&& dest,
-             StringWriterBase::Options options = StringWriterBase::Options())
-    -> StringWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-StringWriter(std::tuple<DestArgs...> dest_args,
-             StringWriterBase::Options options = StringWriterBase::Options())
-    -> StringWriter<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

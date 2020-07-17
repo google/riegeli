@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -140,15 +139,6 @@ class WrappedWriter : public WrappedWriterBase {
   // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-WrappedWriter(Dest&& dest) -> WrappedWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-WrappedWriter(std::tuple<DestArgs...> dest_args)
-    -> WrappedWriter<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

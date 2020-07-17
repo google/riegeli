@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -257,21 +256,6 @@ class FileReader : public FileReaderBase {
   // `::tensorflow::RandomAccessFile` being read from.
   Dependency<::tensorflow::RandomAccessFile*, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-FileReader(Src&& src,
-           FileReaderBase::Options options = FileReaderBase::Options())
-    -> FileReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-FileReader(std::tuple<SrcArgs...> src_args,
-           FileReaderBase::Options options = FileReaderBase::Options())
-    -> FileReader<void>;  // Delete.
-FileReader(absl::string_view filename,
-           FileReaderBase::Options options = FileReaderBase::Options())
-    ->FileReader<>;
-#endif
 
 // Implementation details follow.
 

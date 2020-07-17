@@ -16,7 +16,6 @@
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -292,15 +291,6 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   // read from.
   Dependency<Reader*, Src> src_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Src>
-DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-DefaultChunkReader(std::tuple<SrcArgs...> src_args)
-    -> DefaultChunkReader<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 

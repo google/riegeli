@@ -16,7 +16,6 @@
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -194,19 +193,6 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   // written to.
   Dependency<Writer*, Dest> dest_;
 };
-
-// Support CTAD.
-#if __cplusplus >= 201703
-template <typename Dest>
-DefaultChunkWriter(Dest&& dest, DefaultChunkWriterBase::Options options =
-                                    DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<std::decay_t<Dest>>;
-template <typename... DestArgs>
-DefaultChunkWriter(
-    std::tuple<DestArgs...> dest_args,
-    DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<void>;  // Delete.
-#endif
 
 // Implementation details follow.
 
