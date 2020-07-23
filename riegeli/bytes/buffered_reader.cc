@@ -55,10 +55,12 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(
-      0, 0, UnsignedMax(buffer_size_, min_length, recommended_length));
-  if (flat_buffer.size() < min_length - available_length) {
-    // Resize `buffer_`, keeping available data.
+  const size_t buffer_length =
+      UnsignedMax(buffer_size_, min_length, recommended_length);
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
+  if (flat_buffer.size() < min_length - available_length ||
+      Wasteful(buffer_length, flat_buffer.size())) {
+    // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
     buffer_.RemoveSuffix(flat_buffer.size());
     buffer_.RemovePrefix(cursor_index);
     cursor_index = 0;
@@ -135,8 +137,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     size_t cursor_index = read_from_buffer();
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty()) {
-      // Append available data to `*dest` and make a new buffer.
+    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      // `flat_buffer` is too small. Append available data to `*dest` and make a
+      // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
@@ -196,8 +199,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     size_t cursor_index = read_from_buffer();
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty()) {
-      // Append available data to `*dest` and make a new buffer.
+    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      // `flat_buffer` is too small. Append available data to `*dest` and make a
+      // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
@@ -236,8 +240,9 @@ bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
     }
     size_t cursor_index = read_from_buffer();
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty()) {
-      // Append available data to `dest` and make a new buffer.
+    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      // `flat_buffer` is too small. Append available data to `dest` and make a
+      // new buffer.
       if (available() > 0) {
         length -= available();
         bool write_ok;
@@ -312,9 +317,12 @@ void BufferedReader::ReadHintSlow(size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-  if (flat_buffer.size() < length - available_length) {
-    // Resize `buffer_`, keeping data between `cursor()` and `limit()`.
+  const size_t buffer_length = UnsignedMax(buffer_size_, length);
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
+  if (flat_buffer.size() < length - available_length ||
+      Wasteful(buffer_length, flat_buffer.size())) {
+    // `flat_buffer` is too small. Resize `buffer_`, keeping data between
+    // `cursor()` and `limit()`.
     buffer_.RemoveSuffix(flat_buffer.size());
     buffer_.RemovePrefix(cursor_index);
     cursor_index = 0;

@@ -133,7 +133,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
          "length too small, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
-  size_t buffer_length =
+  const size_t buffer_length =
       UnsignedMax(buffer_size_, min_length, recommended_length);
   const size_t available_length = available();
   size_t cursor_index;
@@ -152,8 +152,9 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   } else {
     cursor_index = read_from_buffer();
     flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
-    if (flat_buffer.size() < min_length - available_length) {
-      // Resize `buffer_`, keeping available data.
+    if (flat_buffer.size() < min_length - available_length ||
+        Wasteful(buffer_length, flat_buffer.size())) {
+      // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
       buffer_.RemoveSuffix(flat_buffer.size());
       buffer_.RemovePrefix(cursor_index);
       cursor_index = 0;
@@ -230,8 +231,9 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
     } else {
       cursor_index = read_from_buffer();
       flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty()) {
-        // Append available data to `*dest` and make a new buffer.
+      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+        // `flat_buffer` is too small. Append available data to `*dest` and make
+        // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
         buffer_.Clear();
@@ -289,8 +291,9 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
     } else {
       cursor_index = read_from_buffer();
       flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty()) {
-        // Append available data to `*dest` and make a new buffer.
+      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+        // `flat_buffer` is too small. Append available data to `*dest` and make
+        // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
         buffer_.Clear();
@@ -340,8 +343,9 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
     } else {
       cursor_index = read_from_buffer();
       flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty()) {
-        // Append available data to `dest` and make a new buffer.
+      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+        // `flat_buffer` is too small. Append available data to `dest` and make
+        // a new buffer.
         if (available() > 0) {
           length -= available();
           bool write_ok;
