@@ -64,6 +64,20 @@ bool NullBackwardWriter::WriteSlow(const absl::Cord& src) {
   return MakeBuffer();
 }
 
+bool NullBackwardWriter::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(length >
+                         std::numeric_limits<Position>::max() - pos())) {
+    return FailOverflow();
+  }
+  SyncBuffer();
+  move_start_pos(length);
+  return MakeBuffer();
+}
+
 bool NullBackwardWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   return true;

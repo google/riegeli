@@ -30,7 +30,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/hash.h"
@@ -45,7 +44,7 @@ void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos))) {
     const Position length = internal::RemainingInBlock(pos);
-    WriteZeros(length, *dest);
+    dest->WriteZeros(length);
     pos += length;
   }
   ChunkWriter::Initialize(pos);
@@ -128,7 +127,7 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     }
     const Position length =
         UnsignedMin(chunk_end - pos_, internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!WriteZeros(length, dest))) return Fail(dest);
+    if (ABSL_PREDICT_FALSE(!dest.WriteZeros(length))) return Fail(dest);
     pos_ += length;
   }
   return true;

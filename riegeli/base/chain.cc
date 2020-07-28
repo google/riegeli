@@ -67,6 +67,21 @@ void WritePadding(std::ostream& out, size_t pad) {
   }
 }
 
+class ZeroRef {
+ public:
+  ZeroRef() noexcept {}
+
+  ZeroRef(const ZeroRef&) = delete;
+  ZeroRef& operator=(const ZeroRef&) = delete;
+
+  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
+  void DumpStructure(std::ostream& out) const;
+};
+
+void ZeroRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
+
+void ZeroRef::DumpStructure(std::ostream& out) const { out << "[zero] { }"; }
+
 }  // namespace
 
 class Chain::BlockRef {
@@ -2621,6 +2636,29 @@ void ChainBlock::AppendSubstrTo(absl::string_view substr,
       << "Failed precondition of ChainBlock::AppendSubstrTo(Cord&): "
          "substring not contained in data";
   block_->AppendSubstrTo(substr, dest);
+}
+
+Chain ChainOfZeros(size_t length) {
+  Chain result;
+  while (length >= kArrayOfZeros.size()) {
+    static const NoDestructor<ChainBlock> kChainBlockOfZeros(
+        ChainBlock::FromExternal<ZeroRef>(
+            std::forward_as_tuple(),
+            absl::string_view(kArrayOfZeros.data(), kArrayOfZeros.size())));
+    result.Append(*kChainBlockOfZeros);
+    length -= kArrayOfZeros.size();
+  }
+  if (length > 0) {
+    if (length <= kMaxBytesToCopy) {
+      const absl::Span<char> buffer = result.AppendFixedBuffer(length);
+      std::memset(buffer.data(), '\0', buffer.size());
+    } else {
+      result.Append(ChainBlock::FromExternal<ZeroRef>(
+          std::forward_as_tuple(),
+          absl::string_view(kArrayOfZeros.data(), length)));
+    }
+  }
+  return result;
 }
 
 }  // namespace riegeli

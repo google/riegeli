@@ -116,6 +116,7 @@ class ChainWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains

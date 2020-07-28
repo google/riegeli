@@ -116,7 +116,6 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
         "//riegeli/bytes:writer",
-        "//riegeli/bytes:writer_utils",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:constants",
         "//riegeli/chunk_encoding:hash",

@@ -132,6 +132,13 @@ class Writer : public Object {
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
 
+  // Writes the given number of zero bytes.
+  //
+  // Return values:
+  //  * `true`  - success (`length` bytes written)
+  //  * `false` - failure (less than `length` bytes written, `!healthy()`)
+  bool WriteZeros(Position length);
+
   // If `true`, a hint that there is no benefit in preparing a `Chain` or
   // `absl::Cord` for writing instead of `absl::string_view`, e.g. because
   // `WriteSlow(const Chain&)` and `WriteSlow(const absl::Cord&)` are
@@ -286,6 +293,14 @@ class Writer : public Object {
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
   virtual bool WriteSlow(absl::Cord&& src);
+
+  // Implementation of the slow part of `WriteZeros()`.
+  //
+  // By default implemented in terms of `Push()`.
+  //
+  // Precondition:
+  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  virtual bool WriteZerosSlow(Position length);
 
   // Implementation of the slow part of `WriteHint()`.
   //
@@ -474,6 +489,19 @@ inline bool Writer::Write(absl::Cord&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
+}
+
+inline bool Writer::WriteZeros(Position length) {
+  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memset(nullptr, _, 0)` is undefined.
+            length > 0)) {
+      std::memset(cursor(), 0, IntCast<size_t>(length));
+      move_cursor(IntCast<size_t>(length));
+    }
+    return true;
+  }
+  return WriteZerosSlow(length);
 }
 
 inline void Writer::WriteHint(size_t length) {

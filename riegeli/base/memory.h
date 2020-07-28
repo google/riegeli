@@ -17,10 +17,12 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <limits>
 #include <new>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 
 namespace riegeli {
@@ -215,6 +217,12 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
   new (ptr) T(std::forward<Args>(args)...);
   return ptr;
 }
+
+// `kDefaultBufferSize` of zero bytes.
+extern const std::array<char, kDefaultBufferSize> kArrayOfZeros;
+
+// Returns the given number of zero bytes.
+absl::Cord CordOfZeros(size_t length);
 
 }  // namespace riegeli
 

@@ -54,7 +54,6 @@ cc_library(
 
 cc_library(
     name = "writer_utils",
-    srcs = ["writer_utils.cc"],
     hdrs = ["writer_utils.h"],
     deps = [
         ":writer",

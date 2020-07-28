@@ -117,6 +117,28 @@ bool Writer::WriteSlow(absl::Cord&& src) {
   return WriteSlow(src);
 }
 
+bool Writer::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  while (length > available()) {
+    const size_t available_length = available();
+    if (
+        // `std::memset(nullptr, _, 0)` is undefined.
+        available_length > 0) {
+      std::memset(cursor(), 0, available_length);
+      move_cursor(available_length);
+      length -= available_length;
+    }
+    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
+  }
+  std::memset(cursor(), 0, IntCast<size_t>(length));
+  move_cursor(IntCast<size_t>(length));
+  return true;
+}
+
 void Writer::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Writer::WriteHintSlow(): "

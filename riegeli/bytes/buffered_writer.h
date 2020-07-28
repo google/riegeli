@@ -62,6 +62,7 @@ class BufferedWriter : public Writer {
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
+  bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
 
   // Writes buffered data to the destination, but unlike `PushSlow()`, does not

@@ -132,6 +132,28 @@ bool BackwardWriter::WriteSlow(absl::Cord&& src) {
   return WriteSlow(src);
 }
 
+bool BackwardWriter::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  while (length > available()) {
+    const size_t available_length = available();
+    if (
+        // `std::memset(nullptr, _, 0)` is undefined.
+        available_length > 0) {
+      move_cursor(available_length);
+      std::memset(cursor(), 0, available_length);
+      length -= available_length;
+    }
+    if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(length)))) {
+      return false;
+    }
+  }
+  move_cursor(IntCast<size_t>(length));
+  std::memset(cursor(), 0, IntCast<size_t>(length));
+  return true;
+}
+
 void BackwardWriter::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of BackwardWriter::WriteHintSlow(): "

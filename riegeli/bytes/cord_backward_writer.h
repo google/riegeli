@@ -119,6 +119,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;

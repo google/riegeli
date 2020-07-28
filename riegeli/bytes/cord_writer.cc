@@ -174,6 +174,25 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
   return true;
 }
 
+bool CordWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (length <= kMaxBytesToCopy) return Writer::WriteZerosSlow(length);
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  absl::Cord& dest = *dest_cord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+      << "CordWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
+                                      IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  move_start_pos(length);
+  dest.Append(CordOfZeros(IntCast<size_t>(length)));
+  return true;
+}
+
 bool CordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();

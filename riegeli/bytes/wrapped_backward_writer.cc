@@ -93,6 +93,18 @@ inline bool WrappedBackwardWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool WrappedBackwardWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter& dest = *dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest.WriteZeros(length);
+  MakeBuffer(dest);
+  return ok;
+}
+
 void WrappedBackwardWriterBase::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of BackwardWriter::WriteHintSlow(): "

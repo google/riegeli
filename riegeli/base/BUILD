@@ -23,6 +23,7 @@ cc_library(
     name = "base",
     srcs = [
         "base.cc",
+        "memory.cc",
         "object.cc",
     ],
     hdrs = [

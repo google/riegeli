@@ -107,6 +107,25 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
+bool ChainBackwardWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+      << "ChainBackwardWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
+                                      IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  SyncBuffer(dest);
+  move_start_pos(length);
+  dest.Prepend(ChainOfZeros(IntCast<size_t>(length)), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
 bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "

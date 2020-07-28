@@ -93,6 +93,18 @@ inline bool WrappedWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool WrappedWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Writer& dest = *dest_writer();
+  SyncBuffer(dest);
+  const bool ok = dest.WriteZeros(length);
+  MakeBuffer(dest);
+  return ok;
+}
+
 void WrappedWriterBase::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Writer::WriteHintSlow(): "

@@ -84,6 +84,19 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
   return Writer::WriteSlow(src);
 }
 
+bool BufferedWriter::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  while (length > kArrayOfZeros.size()) {
+    const absl::string_view zeros(kArrayOfZeros.data(), kArrayOfZeros.size());
+    if (ABSL_PREDICT_FALSE(!Write(zeros))) return false;
+    length -= zeros.size();
+  }
+  const absl::string_view zeros(kArrayOfZeros.data(), IntCast<size_t>(length));
+  return Write(zeros);
+}
+
 void BufferedWriter::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of Writer::WriteHintSlow(): "

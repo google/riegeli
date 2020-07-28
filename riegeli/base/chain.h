@@ -906,6 +906,9 @@ class ChainBlock {
   RawBlock* block_ = nullptr;
 };
 
+// Returns the given number of zero bytes.
+Chain ChainOfZeros(size_t length);
+
 // Implementation details follow.
 
 // `Chain` representation consists of blocks.

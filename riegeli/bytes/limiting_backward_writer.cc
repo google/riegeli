@@ -109,6 +109,21 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   return ok;
 }
 
+bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  BackwardWriter& dest = *dest_writer();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
+  if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
+    return FailOverflow();
+  }
+  const bool ok = dest.WriteZeros(length);
+  MakeBuffer(dest);
+  return ok;
+}
+
 void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_GT(length, available())
       << "Failed precondition of BackwardWriter::WriteHintSlow(): "

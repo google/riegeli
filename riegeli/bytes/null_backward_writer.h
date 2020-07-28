@@ -62,6 +62,7 @@ class NullBackwardWriter : public BackwardWriter {
   using BackwardWriter::WriteSlow;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(const absl::Cord& src) override;
+  bool WriteZerosSlow(Position length) override;
 
  private:
   // Resets buffer pointers to the beginning of the buffer.

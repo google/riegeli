@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <limits>
 
 #include "absl/base/optimization.h"
@@ -95,6 +96,37 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
   SyncBuffer();
   move_start_pos(src.size());
   uncompressed_.Append(src, options_);
+  return true;
+}
+
+bool SnappyWriterBase::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+      << "Failed precondition of Writer::WriteZerosSlow(): "
+         "length too small, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
+                                      IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  const size_t first_length =
+      UnsignedMin(RoundUp<kBlockSize>(pos()) - pos(), IntCast<size_t>(length));
+  if (first_length > 0) {
+    if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
+    std::memset(cursor(), '\0', first_length);
+    move_cursor(first_length);
+    length -= first_length;
+  }
+  const size_t middle_length = RoundDown<kBlockSize>(IntCast<size_t>(length));
+  if (middle_length > 0) {
+    Write(ChainOfZeros(middle_length));
+    length -= middle_length;
+  }
+  const size_t last_length = IntCast<size_t>(length);
+  if (last_length > 0) {
+    if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
+    std::memset(cursor(), '\0', last_length);
+    move_cursor(last_length);
+  }
   return true;
 }
 
