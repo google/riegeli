@@ -287,6 +287,10 @@ class Chain {
   // `absl::nullopt`.
   absl::optional<absl::string_view> TryFlat() const;
 
+  // If the `Chain` contents are not flat, flattens them in place. Returns flat
+  // contents.
+  absl::string_view Flatten();
+
   // Locates the block containing the given character position, and the
   // character index within the block.
   //
@@ -478,6 +482,7 @@ class Chain {
   static constexpr size_t kAllocationCost = 256;
 
   void ClearSlow();
+  absl::string_view FlattenSlow();
 
   bool has_here() const { return begin_ == block_ptrs_.here; }
   bool has_allocated() const { return begin_ != block_ptrs_.here; }
@@ -1986,6 +1991,17 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const {
       return absl::string_view(*front());
     default:
       return absl::nullopt;
+  }
+}
+
+inline absl::string_view Chain::Flatten() {
+  switch (end_ - begin_) {
+    case 0:
+      return short_data();
+    case 1:
+      return absl::string_view(*front());
+    default:
+      return FlattenSlow();
   }
 }
 

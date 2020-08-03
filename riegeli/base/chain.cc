@@ -776,6 +776,23 @@ void Chain::ClearSlow() {
   end_ = new_end;
 }
 
+absl::string_view Chain::FlattenSlow() {
+  RIEGELI_ASSERT_GT(end_ - begin_, 1)
+      << "Failed precondition of Chain::FlattenSlow(): "
+         "contents already flat, use Flatten() instead";
+  RawBlock* const block =
+      RawBlock::NewInternal(NewBlockCapacity(0, size_, size_, Options()));
+  const BlockPtr* iter = begin_;
+  do {
+    block->Append(absl::string_view(*iter->block_ptr));
+    ++iter;
+  } while (iter != end_);
+  UnrefBlocks(begin_, end_);
+  end_ = begin_;
+  PushBack(block);
+  return absl::string_view(*block);
+}
+
 inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
   return std::allocator<BlockPtr>().allocate(2 * capacity);
 }
