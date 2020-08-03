@@ -21,7 +21,9 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -100,6 +102,10 @@ class ReadLineOptions {
 bool ReadLine(Reader& src, absl::string_view& dest,
               ReadLineOptions options = ReadLineOptions());
 bool ReadLine(Reader& src, std::string& dest,
+              ReadLineOptions options = ReadLineOptions());
+bool ReadLine(Reader& src, Chain& dest,
+              ReadLineOptions options = ReadLineOptions());
+bool ReadLine(Reader& src, absl::Cord& dest,
               ReadLineOptions options = ReadLineOptions());
 
 // Skips an initial UTF-8 BOM if it is present.

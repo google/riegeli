@@ -19,7 +19,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -67,6 +69,14 @@ template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
 bool WriteLine(Src&& src, Writer& dest,
                WriteLineOptions options = WriteLineOptions());
+bool WriteLine(const Chain& src, Writer& dest,
+               WriteLineOptions options = WriteLineOptions());
+bool WriteLine(Chain&& src, Writer& dest,
+               WriteLineOptions options = WriteLineOptions());
+bool WriteLine(const absl::Cord& src, Writer& dest,
+               WriteLineOptions options = WriteLineOptions());
+bool WriteLine(absl::Cord&& src, Writer& dest,
+               WriteLineOptions options = WriteLineOptions());
 bool WriteLine(Writer& dest, WriteLineOptions options = WriteLineOptions());
 
 // Implementation details follow.
@@ -82,6 +92,29 @@ template <typename Src,
 inline bool WriteLine(Src&& src, Writer& dest, WriteLineOptions options) {
   // `std::move(src)` is correct and `std::forward<Src>(src)` is not necessary:
   // `Src` is always `std::string`, never an lvalue reference.
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
+  return WriteLine(dest, options);
+}
+
+inline bool WriteLine(const Chain& src, Writer& dest,
+                      WriteLineOptions options) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
+  return WriteLine(dest, options);
+}
+
+inline bool WriteLine(Chain&& src, Writer& dest, WriteLineOptions options) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
+  return WriteLine(dest, options);
+}
+
+inline bool WriteLine(const absl::Cord& src, Writer& dest,
+                      WriteLineOptions options) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
+  return WriteLine(dest, options);
+}
+
+inline bool WriteLine(absl::Cord&& src, Writer& dest,
+                      WriteLineOptions options) {
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(src)))) return false;
   return WriteLine(dest, options);
 }

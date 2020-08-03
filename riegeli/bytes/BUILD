@@ -132,7 +132,9 @@ cc_library(
     hdrs = ["line_writing.h"],
     deps = [
         ":writer",
+        "//riegeli/base:chain",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -143,6 +145,7 @@ cc_library(
     deps = [
         ":reader",
         "//riegeli/base",
+        "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
