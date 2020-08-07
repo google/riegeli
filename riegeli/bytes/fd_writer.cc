@@ -254,6 +254,26 @@ again:
   return true;
 }
 
+void FdStreamWriterBase::InitializePos(int dest,
+                                       absl::optional<Position> assumed_pos) {
+  if (assumed_pos != absl::nullopt) {
+    set_start_pos(*assumed_pos);
+  } else {
+    const int flags = fcntl(dest, F_GETFL);
+    if (ABSL_PREDICT_FALSE(flags < 0)) {
+      FailOperation("fcntl()");
+      return;
+    }
+    const off_t file_pos =
+        lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
+    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+      FailOperation("lseek()");
+      return;
+    }
+    set_start_pos(IntCast<Position>(file_pos));
+  }
+}
+
 void FdStreamWriterBase::InitializePos(int dest, int flags,
                                        absl::optional<Position> assumed_pos) {
   if (assumed_pos != absl::nullopt) {

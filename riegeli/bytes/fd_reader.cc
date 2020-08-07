@@ -226,6 +226,20 @@ absl::optional<Position> FdReaderBase::Size() {
   return IntCast<Position>(stat_info.st_size);
 }
 
+void FdStreamReaderBase::InitializePos(int src,
+                                       absl::optional<Position> assumed_pos) {
+  if (assumed_pos != absl::nullopt) {
+    set_limit_pos(*assumed_pos);
+  } else {
+    const off_t file_pos = lseek(src, 0, SEEK_CUR);
+    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
+      FailOperation("lseek()");
+      return;
+    }
+    set_limit_pos(IntCast<Position>(file_pos));
+  }
+}
+
 bool FdStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                       char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)

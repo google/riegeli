@@ -42,9 +42,8 @@ class OstreamWriterBase : public BufferedWriter {
     Options() noexcept {}
 
     // If `absl::nullopt`, `OstreamWriter` will initially get the current stream
-    // position, and will set the final stream position on `Close()`. The stream
-    // must support random access and the `OstreamWriter` will support random
-    // access.
+    // position. The stream must support random access and the `OstreamWriter`
+    // will support random access.
     //
     // If not `absl::nullopt`, this stream position will be assumed initially.
     // The stream does not have to support random access and the `OstreamWriter`

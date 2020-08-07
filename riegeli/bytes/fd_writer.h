@@ -179,11 +179,13 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     mode_t permissions() const { return permissions_; }
 
     // If not `absl::nullopt`, this position will be assumed initially, to be
-    // reported by `pos()`. This is required by the constructor from fd.
+    // reported by `pos()`.
     //
-    // If `absl::nullopt`, which is allowed by the constructor from filename,
-    // the position will be assumed to be 0 when not appending, or file size
-    // when appending.
+    // If `absl::nullopt`, in the constructor from filename, the position will
+    // be assumed to be 0 when not appending, or file size when appending.
+    //
+    // If `absl::nullopt`, in the constructor from fd, `FdStreamWriter` will
+    // initially get the current fd position.
     //
     // In any case writing will start from the current position.
     //
@@ -231,6 +233,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   FdStreamWriterBase& operator=(FdStreamWriterBase&& that) noexcept;
 
   void Initialize(int dest, absl::optional<Position> assumed_pos);
+  void InitializePos(int dest, absl::optional<Position> assumed_pos);
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos);
 
   bool WriteInternal(absl::string_view src) override;
@@ -239,7 +242,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 // A `Writer` which writes to a file descriptor. It supports random access.
 //
 // The fd should support:
-//  * `fcntl()`     - for the constructor from fd
+//  * `fcntl()`     - for the constructor from fd,
 //                    unless `Options::set_initial_pos(pos)`
 //  * `close()`     - if the fd is owned
 //  * `pwrite()`
@@ -320,9 +323,13 @@ class FdWriter : public FdWriterBase {
 // A `Writer` which writes to a fd which does not have to support random access.
 //
 // The fd should support:
+//  * `fcntl()` - for the constructor from fd,
+//                unless `Options::set_initial_pos(pos)`
 //  * `close()` - if the fd is owned
 //  * `write()`
-//  * `fstat()` - when opening for appending
+//  * `lseek()` - for the constructor from fd,
+//                unless `Options::set_assumed_pos(pos)`
+//  * `fstat()` - when opening for appending,
 //                unless `Options::set_assumed_pos(pos)`
 //  * `fsync()` - for Flush(FlushType::kFromMachine)`
 //
@@ -342,23 +349,20 @@ class FdStreamWriter : public FdStreamWriterBase {
 
   // Will write to the fd provided by `dest`.
   //
-  // Requires `Options::set_assumed_pos(pos)`.
-  //
   // `internal::type_identity_t<Dest>` disables template parameter deduction
   // (C++17), letting `FdStreamWriter(fd)` mean `FdStreamWriter<OwnedFd>(fd)`
   // rather than `FdStreamWriter<int>(fd)`.
   explicit FdStreamWriter(const internal::type_identity_t<Dest>& dest,
-                          Options options);
+                          Options options = Options());
   explicit FdStreamWriter(internal::type_identity_t<Dest>&& dest,
-                          Options options);
+                          Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
   // `dest_args`. This avoids constructing a temporary `Dest` and moving from
   // it.
-  //
-  // Requires `Options::set_assumed_pos(pos)`.
   template <typename... DestArgs>
-  explicit FdStreamWriter(std::tuple<DestArgs...> dest_args, Options options);
+  explicit FdStreamWriter(std::tuple<DestArgs...> dest_args,
+                          Options options = Options());
 
   // Opens a file for writing.
   //
@@ -376,10 +380,10 @@ class FdStreamWriter : public FdStreamWriterBase {
   // Makes `*this` equivalent to a newly constructed `FdStreamWriter`. This
   // avoids constructing a temporary `FdStreamWriter` and moving from it.
   void Reset();
-  void Reset(const Dest& dest, Options options);
-  void Reset(Dest&& dest, Options options);
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args, Options options);
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
   void Reset(absl::string_view filename, int flags,
              Options options = Options());
 
@@ -484,12 +488,8 @@ inline void FdStreamWriterBase::Initialize(
     int dest, absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdStreamWriter: negative file descriptor";
-  RIEGELI_CHECK(assumed_pos != absl::nullopt)
-      << "Failed precondition of FdStreamWriter: "
-         "assumed file position must be specified "
-         "if FdStreamWriter does not open the file";
   SetFilename(dest);
-  set_start_pos(*assumed_pos);
+  InitializePos(dest, assumed_pos);
 }
 
 template <typename Dest>

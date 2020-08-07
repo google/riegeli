@@ -47,6 +47,10 @@ namespace python {
 //                         or for `Seek()` or `Size()`
 //  * `tell()`           - unless `Options::set_assumed_pos(pos)`,
 //                         or for `Seek()` or `Size()`
+//
+// Warning: with `Options::set_close(false)` and
+// `Options::set_assumed_pos(pos)`, the stream will have an unpredictable amount
+// of extra data consumed because of buffering.
 class PythonReader : public BufferedReader {
  public:
   class Options {
@@ -68,10 +72,6 @@ class PythonReader : public BufferedReader {
     //
     // If not `absl::nullopt`, this file position will be assumed initially. The
     // file does not have to be seekable.
-    //
-    // Warning: with `set_close(false)` and `set_assumed_pos(pos)`, the file
-    // will have an unpredictable amount of extra data consumed because of
-    // buffering.
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {

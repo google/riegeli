@@ -150,10 +150,13 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
     Options() noexcept {}
 
     // If not `absl::nullopt`, this position will be assumed initially, to be
-    // reported by `pos()`. This is required by the constructor from fd.
+    // reported by `pos()`.
     //
-    // If `absl::nullopt`, which is allowed by the constructor from filename,
-    // the position will be assumed to be 0.
+    // If `absl::nullopt`, in the constructor from filename, the position will
+    // be assumed to be 0.
+    //
+    // If `absl::nullopt`, in the constructor from fd, `FdStreamReader` will
+    // initially get the current fd position.
     //
     // In any case reading will start from the current position.
     //
@@ -197,6 +200,7 @@ class FdStreamReaderBase : public internal::FdReaderCommon {
   FdStreamReaderBase& operator=(FdStreamReaderBase&& that) noexcept;
 
   void Initialize(int src, absl::optional<Position> assumed_pos);
+  void InitializePos(int src, absl::optional<Position> assumed_pos);
 
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 };
@@ -342,6 +346,8 @@ class FdReader : public FdReaderBase {
 // The fd should support:
 //  * `close()` - if the fd is owned
 //  * `read()`
+//  * `lseek()` - for the constructor from fd,
+//                unless `Options::set_assumed_pos(pos)`
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -360,22 +366,19 @@ class FdStreamReader : public FdStreamReaderBase {
 
   // Will read from the fd provided by `src`.
   //
-  // Requires `Options::set_assumed_pos(pos)`.
-  //
   // `internal::type_identity_t<Src>` disables template parameter deduction
   // (C++17), letting `FdStreamReader(fd)` mean `FdStreamReader<OwnedFd>(fd)`
   // rather than `FdStreamReader<int>(fd)`.
   explicit FdStreamReader(const internal::type_identity_t<Src>& src,
-                          Options options);
+                          Options options = Options());
   explicit FdStreamReader(internal::type_identity_t<Src>&& src,
-                          Options options);
+                          Options options = Options());
 
   // Will read from the fd provided by a `Src` constructed from elements of
   // `src_args`. This avoids constructing a temporary `Src `and moving from it.
-  //
-  // Requires `Options::set_assumed_pos(pos)`.
   template <typename... SrcArgs>
-  explicit FdStreamReader(std::tuple<SrcArgs...> src_args, Options options);
+  explicit FdStreamReader(std::tuple<SrcArgs...> src_args,
+                          Options options = Options());
 
   // Opens a file for reading.
   //
@@ -391,10 +394,10 @@ class FdStreamReader : public FdStreamReaderBase {
   // Makes `*this` equivalent to a newly constructed `FdStreamReader`. This
   // avoids constructing a temporary `FdStreamReader` and moving from it.
   void Reset();
-  void Reset(const Src& src, Options options);
-  void Reset(Src&& src, Options options);
+  void Reset(const Src& src, Options options = Options());
+  void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
-  void Reset(std::tuple<SrcArgs...> src_args, Options options);
+  void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
   void Reset(absl::string_view filename, int flags,
              Options options = Options());
 
@@ -576,12 +579,8 @@ inline void FdStreamReaderBase::Initialize(
     int src, absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdStreamReader: negative file descriptor";
-  RIEGELI_CHECK(assumed_pos != absl::nullopt)
-      << "Failed precondition of FdStreamReader: "
-         "assumed file position must be specified "
-         "if FdStreamReader does not open the file";
   SetFilename(src);
-  set_limit_pos(*assumed_pos);
+  InitializePos(src, assumed_pos);
 }
 
 inline FdMMapReaderBase::FdMMapReaderBase(bool sync_pos)

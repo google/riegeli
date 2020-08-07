@@ -65,8 +65,7 @@ class PythonWriter : public BufferedWriter {
     bool close() const { return close_; }
 
     // If `absl::nullopt`, `PythonWriter` will initially get the current file
-    // position, and will set the final file position on `Close()`. The file
-    // must be seekable.
+    // position. The file must be seekable.
     //
     // If not `absl::nullopt`, this file position will be assumed initially. The
     // file does not have to be seekable.
