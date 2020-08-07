@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
-#include "riegeli/base/base.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

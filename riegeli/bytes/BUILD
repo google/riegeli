@@ -57,7 +57,6 @@ cc_library(
     hdrs = ["writer_utils.h"],
     deps = [
         ":writer",
-        "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
     ],
 )
