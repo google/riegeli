@@ -18,6 +18,7 @@
 #include <ostream>
 #include <streambuf>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -152,6 +153,15 @@ class WriterOstream : public WriterOstreamBase {
   // The object providing and possibly owning the `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+WriterOstream(Dest&& dest) -> WriterOstream<std::decay_t<Dest>>;
+template <typename... DestArgs>
+WriterOstream(std::tuple<DestArgs...> dest_args)
+    -> WriterOstream<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

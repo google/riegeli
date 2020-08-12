@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -200,6 +201,18 @@ class ZstdReader : public ZstdReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+ZstdReader(Src&& src,
+           ZstdReaderBase::Options options = ZstdReaderBase::Options())
+    -> ZstdReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+ZstdReader(std::tuple<SrcArgs...> src_args,
+           ZstdReaderBase::Options options = ZstdReaderBase::Options())
+    -> ZstdReader<void>;  // Delete.
+#endif
 
 // Returns the claimed uncompressed size of Zstd-compressed data.
 //

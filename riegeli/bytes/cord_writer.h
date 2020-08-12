@@ -20,6 +20,7 @@
 #include <cstring>
 #include <limits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/strings/cord.h"
@@ -192,6 +193,18 @@ class CordWriter : public CordWriterBase {
   // The object providing and possibly owning the `absl::Cord` being written to.
   Dependency<absl::Cord*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+CordWriter(Dest&& dest,
+           CordWriterBase::Options options = CordWriterBase::Options())
+    -> CordWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+CordWriter(std::tuple<DestArgs...> dest_args,
+           CordWriterBase::Options options = CordWriterBase::Options())
+    -> CordWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

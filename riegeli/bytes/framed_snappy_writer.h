@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -150,6 +151,19 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
   // The object providing and possibly owning the compressed `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+FramedSnappyWriter(Dest&& dest, FramedSnappyWriterBase::Options options =
+                                    FramedSnappyWriterBase::Options())
+    -> FramedSnappyWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+FramedSnappyWriter(
+    std::tuple<DestArgs...> dest_args,
+    FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
+    -> FramedSnappyWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

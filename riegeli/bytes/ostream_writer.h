@@ -20,6 +20,7 @@
 #include <cerrno>
 #include <ostream>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -163,6 +164,18 @@ class OstreamWriter : public OstreamWriterBase {
   // The object providing and possibly owning the stream being written to.
   Dependency<std::ostream*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+OstreamWriter(Dest&& dest,
+              OstreamWriterBase::Options options = OstreamWriterBase::Options())
+    -> OstreamWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+OstreamWriter(std::tuple<DestArgs...> dest_args,
+              OstreamWriterBase::Options options = OstreamWriterBase::Options())
+    -> OstreamWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

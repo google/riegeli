@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -232,6 +233,18 @@ class ZlibReader : public ZlibReaderBase {
   // The object providing and possibly owning the compressed `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+ZlibReader(Src&& src,
+           ZlibReaderBase::Options options = ZlibReaderBase::Options())
+    -> ZlibReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+ZlibReader(std::tuple<SrcArgs...> src_args,
+           ZlibReaderBase::Options options = ZlibReaderBase::Options())
+    -> ZlibReader<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -142,6 +143,15 @@ class WrappedBackwardWriter : public WrappedBackwardWriterBase {
   // The object providing and possibly owning the original `BackwardWriter`.
   Dependency<BackwardWriter*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+WrappedBackwardWriter(Dest&& dest) -> WrappedBackwardWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+WrappedBackwardWriter(std::tuple<DestArgs...> dest_args)
+    -> WrappedBackwardWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

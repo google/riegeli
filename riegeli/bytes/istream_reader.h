@@ -20,6 +20,7 @@
 #include <cerrno>
 #include <istream>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -167,6 +168,18 @@ class IstreamReader : public IstreamReaderBase {
   // The object providing and possibly owning the stream being read from.
   Dependency<std::istream*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+IstreamReader(Src&& src,
+              IstreamReaderBase::Options options = IstreamReaderBase::Options())
+    -> IstreamReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+IstreamReader(std::tuple<SrcArgs...> src_args,
+              IstreamReaderBase::Options options = IstreamReaderBase::Options())
+    -> IstreamReader<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

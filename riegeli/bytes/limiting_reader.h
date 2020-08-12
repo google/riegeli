@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -165,6 +166,18 @@ class LimitingReader : public LimitingReaderBase {
   // The object providing and possibly owning the original `Reader`.
   Dependency<Reader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+LimitingReader(Src&& src,
+               Position size_limit = LimitingReaderBase::kNoSizeLimit)
+    -> LimitingReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+LimitingReader(std::tuple<SrcArgs...> src_args,
+               Position size_limit = LimitingReaderBase::kNoSizeLimit)
+    -> LimitingReader<void>;  // Delete.
+#endif
 
 // Sets the size limit of a `LimitingReader` in the constructor and restores it
 // in the destructor.

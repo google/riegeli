@@ -21,6 +21,7 @@
 
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -263,14 +264,8 @@ class FdWriter : public FdWriterBase {
   FdWriter() noexcept {}
 
   // Will write to the fd provided by `dest`.
-  //
-  // `internal::type_identity_t<Dest>` disables template parameter deduction
-  // (C++17), letting `FdWriter(fd)` mean `FdWriter<OwnedFd>(fd)` rather than
-  // `FdWriter<int>(fd)`.
-  explicit FdWriter(const internal::type_identity_t<Dest>& dest,
-                    Options options = Options());
-  explicit FdWriter(internal::type_identity_t<Dest>&& dest,
-                    Options options = Options());
+  explicit FdWriter(const Dest& dest, Options options = Options());
+  explicit FdWriter(Dest&& dest, Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
   // `dest_args`. This avoids constructing a temporary `Dest` and moving from
@@ -320,6 +315,22 @@ class FdWriter : public FdWriterBase {
   Dependency<int, Dest> dest_;
 };
 
+// Support CTAD.
+#if __cplusplus >= 201703
+FdWriter(int dest, FdWriterBase::Options options = FdWriterBase::Options())
+    ->FdWriter<>;
+template <typename Dest>
+FdWriter(Dest&& dest, FdWriterBase::Options options = FdWriterBase::Options())
+    -> FdWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+FdWriter(std::tuple<DestArgs...> dest_args,
+         FdWriterBase::Options options = FdWriterBase::Options())
+    -> FdWriter<void>;  // Delete.
+FdWriter(absl::string_view filename, int flags,
+         FdWriterBase::Options options = FdWriterBase::Options())
+    ->FdWriter<>;
+#endif
+
 // A `Writer` which writes to a fd which does not have to support random access.
 //
 // The fd should support:
@@ -348,14 +359,8 @@ class FdStreamWriter : public FdStreamWriterBase {
   FdStreamWriter() noexcept {}
 
   // Will write to the fd provided by `dest`.
-  //
-  // `internal::type_identity_t<Dest>` disables template parameter deduction
-  // (C++17), letting `FdStreamWriter(fd)` mean `FdStreamWriter<OwnedFd>(fd)`
-  // rather than `FdStreamWriter<int>(fd)`.
-  explicit FdStreamWriter(const internal::type_identity_t<Dest>& dest,
-                          Options options = Options());
-  explicit FdStreamWriter(internal::type_identity_t<Dest>&& dest,
-                          Options options = Options());
+  explicit FdStreamWriter(const Dest& dest, Options options = Options());
+  explicit FdStreamWriter(Dest&& dest, Options options = Options());
 
   // Will write to the fd provided by a `Dest` constructed from elements of
   // `dest_args`. This avoids constructing a temporary `Dest` and moving from
@@ -404,6 +409,26 @@ class FdStreamWriter : public FdStreamWriterBase {
   // The object providing and possibly owning the fd being written to.
   Dependency<int, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+FdStreamWriter(int dest, FdStreamWriterBase::Options options =
+                             FdStreamWriterBase::Options())
+    ->FdStreamWriter<>;
+template <typename Dest>
+FdStreamWriter(Dest&& dest, FdStreamWriterBase::Options options =
+                                FdStreamWriterBase::Options())
+    -> FdStreamWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+FdStreamWriter(
+    std::tuple<DestArgs...> dest_args,
+    FdStreamWriterBase::Options options = FdStreamWriterBase::Options())
+    -> FdStreamWriter<void>;  // Delete.
+FdStreamWriter(
+    absl::string_view filename, int flags,
+    FdStreamWriterBase::Options options = FdStreamWriterBase::Options())
+    ->FdStreamWriter<>;
+#endif
 
 // Implementation details follow.
 
@@ -493,8 +518,7 @@ inline void FdStreamWriterBase::Initialize(
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
-                                Options options)
+inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
     : FdWriterBase(options.buffer_size(),
                    options.initial_pos() == absl::nullopt),
       dest_(dest) {
@@ -502,8 +526,7 @@ inline FdWriter<Dest>::FdWriter(const internal::type_identity_t<Dest>& dest,
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(internal::type_identity_t<Dest>&& dest,
-                                Options options)
+inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
     : FdWriterBase(options.buffer_size(),
                    options.initial_pos() == absl::nullopt),
       dest_(std::move(dest)) {
@@ -613,15 +636,13 @@ void FdWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-inline FdStreamWriter<Dest>::FdStreamWriter(
-    const internal::type_identity_t<Dest>& dest, Options options)
+inline FdStreamWriter<Dest>::FdStreamWriter(const Dest& dest, Options options)
     : FdStreamWriterBase(options.buffer_size()), dest_(dest) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
-inline FdStreamWriter<Dest>::FdStreamWriter(
-    internal::type_identity_t<Dest>&& dest, Options options)
+inline FdStreamWriter<Dest>::FdStreamWriter(Dest&& dest, Options options)
     : FdStreamWriterBase(options.buffer_size()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos());
 }

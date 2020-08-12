@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -167,6 +168,18 @@ class LimitingWriter : public LimitingWriterBase {
   // The object providing and possibly owning the original `Writer`.
   Dependency<Writer*, Dest> dest_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Dest>
+LimitingWriter(Dest&& dest,
+               Position size_limit = LimitingWriterBase::kNoSizeLimit)
+    -> LimitingWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+LimitingWriter(std::tuple<DestArgs...> dest_args,
+               Position size_limit = LimitingWriterBase::kNoSizeLimit)
+    -> LimitingWriter<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

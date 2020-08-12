@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -551,6 +552,18 @@ class RecordReader : public RecordReaderBase {
   // `ChunkReader`.
   Dependency<ChunkReader*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+RecordReader(Src&& src,
+             RecordReaderBase::Options options = RecordReaderBase::Options())
+    -> RecordReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+RecordReader(std::tuple<SrcArgs...> src_args,
+             RecordReaderBase::Options options = RecordReaderBase::Options())
+    -> RecordReader<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 

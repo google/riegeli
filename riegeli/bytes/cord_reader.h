@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -152,6 +153,14 @@ class CordReader : public CordReaderBase {
   // The object providing and possibly owning the `absl::Cord` being read from.
   Dependency<const absl::Cord*, Src> src_;
 };
+
+// Support CTAD.
+#if __cplusplus >= 201703
+template <typename Src>
+CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
+template <typename... SrcArgs>
+CordReader(std::tuple<SrcArgs...> src_args) -> CordReader<void>;  // Delete.
+#endif
 
 // Implementation details follow.
 
