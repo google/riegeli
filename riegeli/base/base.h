@@ -284,7 +284,7 @@ using type_identity_t = typename type_identity<T>::type;
 #if __cpp_inline_variables
 
 #define RIEGELI_INTERNAL_INLINE_CONSTEXPR(type, name, init) \
-  inline constexpr ::riegeli::type_identity_t<type> name = init
+  inline constexpr ::riegeli::internal::type_identity_t<type> name = init
 
 #else
 
