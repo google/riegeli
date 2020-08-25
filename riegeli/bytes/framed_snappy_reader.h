@@ -49,6 +49,11 @@ class FramedSnappyReaderBase : public PullableReader {
   using PullableReader::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
+  // Returns `true` if the source is truncated (without a clean end of the
+  // compressed stream) at the current position. In such case, if the source
+  // does not grow, `Close()` will fail.
+  bool truncated() const { return truncated_; }
+
  protected:
   explicit FramedSnappyReaderBase(InitiallyClosed) noexcept
       : PullableReader(kInitiallyClosed) {}
