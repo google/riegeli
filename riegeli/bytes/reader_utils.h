@@ -34,7 +34,7 @@
 namespace riegeli {
 
 // Reads all remaining bytes from `src` to `*dest`, clearing any existing data
-// in `*dest`.
+// in `dest`.
 //
 // Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
 // exceeded.
@@ -50,6 +50,22 @@ bool ReadAll(Reader& src, Chain& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
 bool ReadAll(Reader& src, absl::Cord& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
+
+// Reads all remaining bytes from `src` to `*dest`, appending to any existing
+// data in `dest`.
+//
+// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
+// exceeded.
+//
+// Return values:
+//  * `true` (`src.healthy()`)   - success
+//  * `false` (`!src.healthy()`) - failure
+bool ReadAndAppendAll(Reader& src, std::string& dest,
+                      size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAndAppendAll(Reader& src, Chain& dest,
+                      size_t max_size = std::numeric_limits<size_t>::max());
+bool ReadAndAppendAll(Reader& src, absl::Cord& dest,
+                      size_t max_size = std::numeric_limits<size_t>::max());
 
 // Reads all remaining bytes from `src` to `dest`.
 //

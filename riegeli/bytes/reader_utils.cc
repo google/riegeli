@@ -68,26 +68,38 @@ bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
 }
 
 bool ReadAll(Reader& src, std::string& dest, size_t max_size) {
-  max_size = UnsignedMin(max_size, dest.max_size());
+  dest.clear();
+  return ReadAndAppendAll(src, dest, max_size);
+}
+
+bool ReadAll(Reader& src, Chain& dest, size_t max_size) {
+  dest.Clear();
+  return ReadAndAppendAll(src, dest, max_size);
+}
+
+bool ReadAll(Reader& src, absl::Cord& dest, size_t max_size) {
+  dest.Clear();
+  return ReadAndAppendAll(src, dest, max_size);
+}
+
+bool ReadAndAppendAll(Reader& src, std::string& dest, size_t max_size) {
+  max_size = UnsignedMin(max_size, dest.max_size() - dest.size());
   if (src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest.clear();
-      return false;
-    }
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+      if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
       return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+    if (ABSL_PREDICT_FALSE(
+            !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
       return src.healthy();
     }
     return true;
   } else {
-    dest.clear();
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         dest.append(src.cursor(), max_size);
@@ -102,26 +114,25 @@ bool ReadAll(Reader& src, std::string& dest, size_t max_size) {
   }
 }
 
-bool ReadAll(Reader& src, Chain& dest, size_t max_size) {
+bool ReadAndAppendAll(Reader& src, Chain& dest, size_t max_size) {
+  max_size =
+      UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest.size());
   if (src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest.Clear();
-      return false;
-    }
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+      if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
       return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+    if (ABSL_PREDICT_FALSE(
+            !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
       return src.healthy();
     }
     return true;
   } else {
-    dest.Clear();
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         src.ReadAndAppend(max_size, dest);
@@ -134,26 +145,25 @@ bool ReadAll(Reader& src, Chain& dest, size_t max_size) {
   }
 }
 
-bool ReadAll(Reader& src, absl::Cord& dest, size_t max_size) {
+bool ReadAndAppendAll(Reader& src, absl::Cord& dest, size_t max_size) {
+  max_size =
+      UnsignedMin(max_size, std::numeric_limits<size_t>::max() - dest.size());
   if (src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-      dest.Clear();
-      return false;
-    }
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_size)) {
-      if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
+      if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
       return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
     }
-    if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
+    if (ABSL_PREDICT_FALSE(
+            !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
       return src.healthy();
     }
     return true;
   } else {
-    dest.Clear();
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         src.ReadAndAppend(max_size, dest);
