@@ -45,6 +45,9 @@ class LimitingReaderBase : public Reader {
   // Changes the size limit.
   //
   // Precondition: `size_limit >= pos()`
+  //
+  // It is recommended to use `LengthLimitSetter` instead of using
+  // `set_size_limit()` directly.
   void set_size_limit(Position size_limit);
 
   // Returns the current size limit.
@@ -182,24 +185,26 @@ LimitingReader(std::tuple<SrcArgs...> src_args,
 // Sets the size limit of a `LimitingReader` in the constructor and restores it
 // in the destructor.
 //
+// The size limit is set relatively to the current position. With
+// `LengthLimitSetter` the limit can be only reduced, never extended.
+//
 // Temporarily changing the size limit is more efficient than making a new
 // `LimitingReader` reading from a `LimitingReader`.
-class SizeLimitSetter {
+class LengthLimitSetter {
  public:
-  explicit SizeLimitSetter(LimitingReaderBase* limiting_reader,
-                           Position size_limit)
-      : limiting_reader_(limiting_reader),
-        old_size_limit_(limiting_reader_->size_limit()) {
-    limiting_reader->set_size_limit(size_limit);
+  explicit LengthLimitSetter(LimitingReaderBase* reader, Position length)
+      : reader_(reader), old_size_limit_(reader_->size_limit()) {
+    reader->set_size_limit(
+        UnsignedMin(SaturatingAdd(reader_->pos(), length), old_size_limit_));
   }
 
-  SizeLimitSetter(const SizeLimitSetter&) = delete;
-  SizeLimitSetter& operator=(const SizeLimitSetter&) = delete;
+  LengthLimitSetter(const LengthLimitSetter&) = delete;
+  LengthLimitSetter& operator=(const LengthLimitSetter&) = delete;
 
-  ~SizeLimitSetter() { limiting_reader_->set_size_limit(old_size_limit_); }
+  ~LengthLimitSetter() { reader_->set_size_limit(old_size_limit_); }
 
  private:
-  LimitingReaderBase* limiting_reader_;
+  LimitingReaderBase* reader_;
   Position old_size_limit_;
 };
 

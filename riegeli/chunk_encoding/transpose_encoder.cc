@@ -388,7 +388,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid length: " << record.status();
         }
         const Position value_pos = record.pos();
-        SizeLimitSetter size_limiter(&record, value_pos + *length);
+        LengthLimitSetter size_limiter(&record, *length);
         // Non-toplevel empty strings are treated as strings, not messages.
         // They have a simpler encoding this way (one node instead of two).
         if (depth < kMaxRecursionDepth && *length != 0 &&
