@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -208,8 +209,9 @@ inline void SnappyWriterBase::SyncBuffer() {
 
 namespace internal {
 
-absl::Status SnappyCompressImpl(Reader& src, Writer& dest) {
-  ReaderSnappySource source(&src);
+absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
+                                SnappyCompressOptions options) {
+  ReaderSnappySource source(&src, options.assumed_size());
   WriterSnappySink sink(&dest);
   snappy::Compress(&source, &sink);
   if (ABSL_PREDICT_FALSE(!dest.healthy())) return dest.status();
