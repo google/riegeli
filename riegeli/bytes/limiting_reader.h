@@ -46,7 +46,7 @@ class LimitingReaderBase : public Reader {
   //
   // Precondition: `size_limit >= pos()`
   //
-  // It is recommended to use `LengthLimitSetter` instead of using
+  // It is recommended to use `LengthLimiter` instead of using
   // `set_size_limit()` directly.
   void set_size_limit(Position size_limit);
 
@@ -97,6 +97,12 @@ class LimitingReaderBase : public Reader {
   Position size_limit_ = kNoSizeLimit;
 
  private:
+  friend class LengthLimiter;
+
+  // Like `set_size_limit()`, but the new limit is guaranteed to be at least the
+  // current limit.
+  void reset_size_limit(Position size_limit);
+
   // This template is defined and used only in limiting_reader.cc.
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
@@ -105,7 +111,7 @@ class LimitingReaderBase : public Reader {
   //   `start() == src_reader()->start()`
   //   `limit() <= src_reader()->limit()`
   //   `start_pos() == src_reader()->start_pos()`
-  //   `limit_pos() == UnsignedMin(src_reader()->limit_pos(), size_limit_)`
+  //   `limit_pos() <= size_limit_`
 };
 
 // A `Reader` which reads from another `Reader` up to the specified size limit,
@@ -185,23 +191,23 @@ LimitingReader(std::tuple<SrcArgs...> src_args,
 // Sets the size limit of a `LimitingReader` in the constructor and restores it
 // in the destructor.
 //
-// The size limit is set relatively to the current position. With
-// `LengthLimitSetter` the limit can be only reduced, never extended.
+// The size limit is specified relatively to the current position. With
+// `LengthLimiter` the limit can be only reduced, never extended.
 //
 // Temporarily changing the size limit is more efficient than making a new
 // `LimitingReader` reading from a `LimitingReader`.
-class LengthLimitSetter {
+class LengthLimiter {
  public:
-  explicit LengthLimitSetter(LimitingReaderBase* reader, Position length)
+  explicit LengthLimiter(LimitingReaderBase* reader, Position length)
       : reader_(reader), old_size_limit_(reader_->size_limit()) {
     reader->set_size_limit(
         UnsignedMin(SaturatingAdd(reader_->pos(), length), old_size_limit_));
   }
 
-  LengthLimitSetter(const LengthLimitSetter&) = delete;
-  LengthLimitSetter& operator=(const LengthLimitSetter&) = delete;
+  LengthLimiter(const LengthLimiter&) = delete;
+  LengthLimiter& operator=(const LengthLimiter&) = delete;
 
-  ~LengthLimitSetter() { reader_->set_size_limit(old_size_limit_); }
+  ~LengthLimiter() { reader_->reset_size_limit(old_size_limit_); }
 
  private:
   LimitingReaderBase* reader_;
@@ -259,6 +265,13 @@ inline void LimitingReaderBase::set_size_limit(Position size_limit) {
                read_from_buffer());
     set_limit_pos(size_limit_);
   }
+}
+
+inline void LimitingReaderBase::reset_size_limit(Position size_limit) {
+  RIEGELI_ASSERT_GE(size_limit, size_limit_)
+      << "Failed precondition of LimitingReaderBase::reset_size_limit(): "
+         "new size limit smaller than current size limit";
+  size_limit_ = size_limit;
 }
 
 inline void LimitingReaderBase::SyncBuffer(Reader& src) {
