@@ -65,9 +65,9 @@ bool SnappyWriterBase::Fail(absl::Status status) {
 }
 
 bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
                                           uncompressed_.size())) {
@@ -85,9 +85,9 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool SnappyWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -101,9 +101,9 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool SnappyWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
-         "length too small, use WriteZeros() instead";
+         "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max() -
                                       IntCast<size_t>(pos()))) {
@@ -132,9 +132,9 @@ bool SnappyWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool SnappyWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
+         "enough space available, use Write(Chain&&) instead";
   if (src.size() < MinBytesToShare()) {
     // Not `std::move(src)`: forward to `Writer::WriteSlow(const Chain&)`,
     // because `Writer::WriteSlow(Chain&&)` would forward to
@@ -153,9 +153,9 @@ bool SnappyWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   if (src.size() < MinBytesToShare()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
@@ -169,9 +169,9 @@ bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
-         "length too small, use Write(Cord&&) instead";
+         "enough space available, use Write(Cord&&) instead";
   if (src.size() < MinBytesToShare()) {
     // Not `std::move(src)`: forward to `Writer::WriteSlow(const absl::Cord&)`,
     // because `Writer::WriteSlow(absl::Cord&&)` would forward to

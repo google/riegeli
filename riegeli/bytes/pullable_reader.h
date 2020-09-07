@@ -89,7 +89,7 @@ class PullableReader : public Reader {
   //  * `false` - `PullSlow()` is done,
   //              the caller should return `available() >= min_length`
   //
-  // Precondition: `min_length > available()`
+  // Precondition: `available() < min_length`
   bool PullUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `{Read,CopyTo}Slow(length, dest)` if scratch is used.
@@ -99,17 +99,17 @@ class PullableReader : public Reader {
   //              `length` was appropriately reduced, scratch is not used now,
   //              the caller should continue `{Read,CopyTo}Slow(length, dest)`
   //              no longer assuming that
-  //              `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //              `UnsignedMin(available(), kMaxBytesToCopy) < length`
   //  * `false` - `{Read,CopyTo}Slow()` is done,
   //              the caller should return `length == 0` for `ReadSlow()`, or
   //              `length == 0 && dest.healthy()` for `CopyToSlow()`
   //
   // Preconditions for `ReadScratch()`:
-  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   //   `length <= std::numeric_limits<size_t>::max() - dest.size()`
   //
   // Precondition for `CopyScratchTo()`:
-  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   bool ReadScratch(size_t& length, Chain& dest);
   bool ReadScratch(size_t& length, absl::Cord& dest);
   bool CopyScratchTo(Position& length, Writer& dest);
@@ -189,9 +189,9 @@ inline bool PullableReader::scratch_used() const {
 
 inline bool PullableReader::PullUsingScratch(size_t min_length,
                                              size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of PullableReader::PullUsingScratch(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(min_length > 1)) {
     PullToScratchSlow(min_length, recommended_length);
     return false;
@@ -204,9 +204,9 @@ inline bool PullableReader::PullUsingScratch(size_t min_length,
 }
 
 inline bool PullableReader::ReadScratch(size_t& length, Chain& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadScratch(Chain&): "
-         "length too small, use Read(Chain&) instead";
+         "enough data available, use Read(Chain&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadScratch(Chain&): "
          "Chain size overflow";
@@ -217,9 +217,9 @@ inline bool PullableReader::ReadScratch(size_t& length, Chain& dest) {
 }
 
 inline bool PullableReader::ReadScratch(size_t& length, absl::Cord& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadScratch(Cord&): "
-         "length too small, use Read(Cord&) instead";
+         "enough data available, use Read(Cord&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadScratch(Cord&): "
          "Cord size overflow";
@@ -230,9 +230,9 @@ inline bool PullableReader::ReadScratch(size_t& length, absl::Cord& dest) {
 }
 
 inline bool PullableReader::CopyScratchTo(Position& length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::CopyScratchTo(): "
-         "length too small, use CopyTo(Writer&) instead";
+         "enough data available, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     return CopyScratchToSlow(length, dest);
   }

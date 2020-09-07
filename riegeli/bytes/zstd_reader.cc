@@ -101,9 +101,9 @@ bool ZstdReaderBase::Fail(absl::Status status) {
 }
 
 bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   // After all data have been decompressed, skip `BufferedReader::PullSlow()`
   // to avoid allocating the buffer in case it was not allocated yet.
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;

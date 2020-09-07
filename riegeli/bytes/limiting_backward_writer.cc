@@ -44,9 +44,9 @@ void LimitingBackwardWriterBase::Done() {
 
 bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
                                           size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   RIEGELI_ASSERT_LE(start_pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";
@@ -59,37 +59,37 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
+  RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+         "enough space available, use Write(string_view) instead";
   return WriteInternal(src);
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   return WriteInternal(src);
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
+         "enough space available, use Write(Chain&&) instead";
   return WriteInternal(std::move(src));
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   return WriteInternal(src);
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
-         "length too small, use Write(Cord&&) instead";
+         "enough space available, use Write(Cord&&) instead";
   return WriteInternal(std::move(src));
 }
 
@@ -110,9 +110,9 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
 }
 
 bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
-         "length too small, use WriteZeros() instead";
+         "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -125,9 +125,9 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
 }
 
 void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of BackwardWriter::WriteHintSlow(): "
-         "length too small, use WriteHint() instead";
+         "enough space available, use WriteHint() instead";
   RIEGELI_ASSERT_LE(start_pos(), size_limit_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position exceeds size limit";

@@ -62,9 +62,9 @@ bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool ChainReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
-         "length too small, use Read(Chain&) instead";
+         "enough data available, use Read(Chain&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
@@ -98,9 +98,9 @@ bool ChainReaderBase::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool ChainReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
-         "length too small, use Read(Cord&) instead";
+         "enough data available, use Read(Cord&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
@@ -134,9 +134,9 @@ bool ChainReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 bool ChainReaderBase::CopyToSlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "length too small, use CopyTo(Writer&) instead";
+         "enough data available, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())
@@ -168,9 +168,9 @@ bool ChainReaderBase::CopyToSlow(Position length, Writer& dest) {
 }
 
 bool ChainReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "length too small, use CopyTo(BackwardWriter&) instead";
+         "enough data available, use CopyTo(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain* const src = iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src->size())

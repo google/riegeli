@@ -229,7 +229,7 @@ class BackwardWriter : public Object {
 
   // Implementation of the slow part of `Push()`.
   //
-  // Precondition: `min_length > available()`
+  // Precondition: `available() < min_length`
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Sets the values of:
@@ -253,11 +253,11 @@ class BackwardWriter : public Object {
   // `WriteSlow(const absl::Cord&)`;
   //
   // Precondition for `WriteSlow(absl::string_view)`:
-  //   `src.size() > available()`
+  //   `available() < src.size()`
   //
   // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
   // `WriteSlow(const absl::Cord&)`, and `WriteSlow(absl::Cord&&):
-  //   `src.size() > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
@@ -269,14 +269,14 @@ class BackwardWriter : public Object {
   // By default implemented in terms of `Push()`.
   //
   // Precondition:
-  //   `length > UnsignedMin(available(), kMaxBytesToCopy)`
+  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   virtual bool WriteZerosSlow(Position length);
 
   // Implementation of the slow part of `WriteHint()`.
   //
   // By default does nothing.
   //
-  // Precondition: `length > available()`
+  // Precondition: `available() < length`
   virtual void WriteHintSlow(size_t length);
 
   // Destination position corresponding to `start()`.
@@ -388,7 +388,7 @@ inline void BackwardWriter::set_buffer(char* limit, size_t buffer_size,
 }
 
 inline bool BackwardWriter::Write(absl::string_view src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available())) {
+  if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     if (ABSL_PREDICT_TRUE(
             // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
             // are undefined.
@@ -414,7 +414,7 @@ inline bool BackwardWriter::Write(Src&& src) {
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     src.CopyTo(cursor());
@@ -424,7 +424,7 @@ inline bool BackwardWriter::Write(const Chain& src) {
 }
 
 inline bool BackwardWriter::Write(Chain&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     src.CopyTo(cursor());
@@ -434,7 +434,7 @@ inline bool BackwardWriter::Write(Chain&& src) {
 }
 
 inline bool BackwardWriter::Write(const absl::Cord& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     char* dest = cursor();
@@ -448,7 +448,7 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
 }
 
 inline bool BackwardWriter::WriteZeros(Position length) {
-  if (ABSL_PREDICT_TRUE(length <= available() && length <= kMaxBytesToCopy)) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     if (ABSL_PREDICT_TRUE(
             // `std::memset(nullptr, _, 0)` is undefined.
             length > 0)) {
@@ -461,7 +461,7 @@ inline bool BackwardWriter::WriteZeros(Position length) {
 }
 
 inline bool BackwardWriter::Write(absl::Cord&& src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= available() &&
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
     move_cursor(src.size());
     char* dest = cursor();
@@ -475,7 +475,7 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
 }
 
 inline void BackwardWriter::WriteHint(size_t length) {
-  if (ABSL_PREDICT_TRUE(length <= available())) return;
+  if (ABSL_PREDICT_TRUE(available() >= length)) return;
   WriteHintSlow(length);
 }
 

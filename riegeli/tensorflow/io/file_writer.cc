@@ -127,9 +127,9 @@ inline size_t FileWriterBase::LengthToWriteDirectly() const {
 }
 
 bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
                          std::numeric_limits<Position>::max() - start_pos())) {
@@ -151,9 +151,9 @@ bool FileWriterBase::PushInternal() {
 }
 
 bool FileWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
+  RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+         "enough space available, use Write(string_view) instead";
   if (src.size() >= LengthToWriteDirectly()) {
     if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
     return WriteInternal(src);
@@ -186,9 +186,9 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
 }
 
 void FileWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Writer::WriteHintSlow(): "
-         "length too small, use WriteHint() instead";
+         "enough space available, use WriteHint() instead";
   if (ABSL_PREDICT_FALSE(!PushInternal())) return;
   const size_t buffer_length =
       UnsignedMin(UnsignedMax(buffer_size_, length),

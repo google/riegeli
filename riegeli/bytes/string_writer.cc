@@ -40,9 +40,9 @@ void StringWriterBase::Done() {
 }
 
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
@@ -67,9 +67,9 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool StringWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
+  RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+         "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
@@ -84,9 +84,9 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool StringWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
@@ -101,9 +101,9 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool StringWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
@@ -118,9 +118,9 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool StringWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
@@ -137,9 +137,9 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 void StringWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Writer::WriteHintSlow(): "
-         "length too small, use WriteHint() instead";
+         "enough space available, use WriteHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   std::string& dest = *dest_string();
   SyncBuffer(dest);

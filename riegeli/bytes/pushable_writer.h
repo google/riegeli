@@ -86,7 +86,7 @@ class PushableWriter : public Writer {
   //  * `false` - `PushSlow()` is done,
   //              the caller should return `available() >= min_length`
   //
-  // Precondition: `min_length > available()`
+  // Precondition: `available() < min_length`
   bool PushUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
@@ -152,9 +152,9 @@ inline bool PushableWriter::scratch_used() const {
 
 inline bool PushableWriter::PushUsingScratch(size_t min_length,
                                              size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of PushableWriter::PushUsingScratch(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(min_length > 1)) {
     PushFromScratchSlow(min_length, recommended_length);
     return false;

@@ -49,9 +49,9 @@ void BufferedReader::VerifyEnd() {
 }
 
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
@@ -84,9 +84,9 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool BufferedReader::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
-         "length too small, use Read(char*) instead";
+         "enough data available, use Read(char*) instead";
   if (length >= LengthToReadDirectly()) {
     const size_t available_length = available();
     if (
@@ -104,9 +104,9 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
 }
 
 bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
-         "length too small, use Read(Chain&) instead";
+         "enough data available, use Read(Chain&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
@@ -164,9 +164,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
-         "length too small, use Read(Cord&) instead";
+         "enough data available, use Read(Cord&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
@@ -226,9 +226,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "length too small, use CopyTo(Writer&) instead";
+         "enough data available, use CopyTo(Writer&) instead";
   bool enough_read = true;
   bool read_ok = healthy();
   while (length > available()) {
@@ -293,9 +293,9 @@ bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
 }
 
 bool BufferedReader::CopyToSlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "length too small, use CopyTo(BackwardWriter&) instead";
+         "enough data available, use CopyTo(BackwardWriter&) instead";
   if (length <= kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
     dest.move_cursor(length);
@@ -311,9 +311,9 @@ bool BufferedReader::CopyToSlow(size_t length, BackwardWriter& dest) {
 }
 
 void BufferedReader::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadHintSlow(): "
-         "length too small, use ReadHint() instead";
+         "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();

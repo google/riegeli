@@ -33,9 +33,9 @@ void ArrayWriterBase::Done() {
 }
 
 bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length, recommended_length))) {
     return available() >= min_length;
   }

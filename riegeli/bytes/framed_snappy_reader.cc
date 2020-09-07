@@ -77,9 +77,9 @@ bool FramedSnappyReaderBase::Fail(absl::Status status) {
 
 bool FramedSnappyReaderBase::PullSlow(size_t min_length,
                                       size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length, recommended_length))) {
     return available() >= min_length;
   }

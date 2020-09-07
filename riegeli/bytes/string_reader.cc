@@ -23,9 +23,9 @@
 namespace riegeli {
 
 bool StringReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   return false;
 }
 

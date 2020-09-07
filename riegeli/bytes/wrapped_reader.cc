@@ -38,9 +38,9 @@ void WrappedReaderBase::Done() {
 }
 
 bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
-         "length too small, use Pull() instead";
+         "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
@@ -50,9 +50,9 @@ bool WrappedReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
-         "length too small, use Read(char*) instead";
+         "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
@@ -62,9 +62,9 @@ bool WrappedReaderBase::ReadSlow(size_t length, char* dest) {
 }
 
 bool WrappedReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
-         "length too small, use Read(Chain&) instead";
+         "enough data available, use Read(Chain&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
@@ -72,9 +72,9 @@ bool WrappedReaderBase::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool WrappedReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
-         "length too small, use Read(Cord&) instead";
+         "enough data available, use Read(Cord&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
@@ -92,9 +92,9 @@ inline bool WrappedReaderBase::ReadInternal(size_t length, Dest& dest) {
 }
 
 bool WrappedReaderBase::CopyToSlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "length too small, use CopyTo(Writer&) instead";
+         "enough data available, use CopyTo(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
@@ -104,9 +104,9 @@ bool WrappedReaderBase::CopyToSlow(Position length, Writer& dest) {
 }
 
 bool WrappedReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "length too small, use CopyTo(BackwardWriter&) instead";
+         "enough data available, use CopyTo(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
@@ -116,9 +116,9 @@ bool WrappedReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
 }
 
 void WrappedReaderBase::ReadHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadHintSlow(): "
-         "length too small, use ReadHint() instead";
+         "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Reader& src = *src_reader();
   SyncBuffer(src);

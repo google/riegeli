@@ -48,9 +48,9 @@ void CordWriterBase::Done() {
 }
 
 bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
@@ -93,9 +93,9 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool CordWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   if (src.size() <= kMaxBytesToCopy) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();
@@ -112,9 +112,9 @@ bool CordWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool CordWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
+         "enough space available, use Write(Chain&&) instead";
   if (src.size() <= kMaxBytesToCopy) {
     // Not `std::move(src)`: forward to `Writer::WriteSlow(const Chain&)`,
     // because `Writer::WriteSlow(Chain&&)` would forward to
@@ -132,9 +132,9 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool CordWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   if (src.size() <= kMaxBytesToCopy) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();
@@ -151,9 +151,9 @@ bool CordWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool CordWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
-         "length too small, use Write(Cord&&) instead";
+         "enough space available, use Write(Cord&&) instead";
   if (src.size() <= kMaxBytesToCopy) {
     // Not `std::move(src)`: forward to `Writer::WriteSlow(const absl::Cord&)`,
     // because `Writer::WriteSlow(absl::Cord&&)` would forward to
@@ -175,9 +175,9 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
 }
 
 bool CordWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
-         "length too small, use WriteZeros() instead";
+         "enough space available, use WriteZeros() instead";
   if (length <= kMaxBytesToCopy) return Writer::WriteZerosSlow(length);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();

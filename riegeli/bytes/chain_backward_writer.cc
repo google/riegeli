@@ -40,9 +40,9 @@ void ChainBackwardWriterBase::Done() {
 
 bool ChainBackwardWriterBase::PushSlow(size_t min_length,
                                        size_t recommended_length) {
-  RIEGELI_ASSERT_GT(min_length, available())
+  RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
-         "length too small, use Push() instead";
+         "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
@@ -57,9 +57,9 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
 }
 
 bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
@@ -76,9 +76,9 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
+         "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   SyncBuffer(dest);
@@ -89,9 +89,9 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
@@ -108,9 +108,9 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool ChainBackwardWriterBase::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
-         "length too small, use WriteZeros() instead";
+         "enough space available, use WriteZeros() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
@@ -127,9 +127,9 @@ bool ChainBackwardWriterBase::WriteZerosSlow(Position length) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
-         "length too small, use Write(Cord&&) instead";
+         "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())

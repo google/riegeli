@@ -59,9 +59,9 @@ bool Writer::FailOverflow() {
 }
 
 bool Writer::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), available())
+  RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
-         "length too small, use Write(string_view) instead";
+         "enough space available, use Write(string_view) instead";
   do {
     const size_t available_length = available();
     if (
@@ -79,9 +79,9 @@ bool Writer::WriteSlow(absl::string_view src) {
 }
 
 bool Writer::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
-         "length too small, use Write(Chain) instead";
+         "enough space available, use Write(Chain) instead";
   for (const absl::string_view fragment : src.blocks()) {
     if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;
   }
@@ -89,17 +89,17 @@ bool Writer::WriteSlow(const Chain& src) {
 }
 
 bool Writer::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
-         "length too small, use Write(Chain&&) instead";
+         "enough space available, use Write(Chain&&) instead";
   // Not `std::move(src)`: forward to `WriteSlow(const Chain&)`.
   return WriteSlow(src);
 }
 
 bool Writer::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
-         "length too small, use Write(Cord) instead";
+         "enough space available, use Write(Cord) instead";
   if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
     return Write(*flat);
   }
@@ -110,17 +110,17 @@ bool Writer::WriteSlow(const absl::Cord& src) {
 }
 
 bool Writer::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_GT(src.size(), UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
-         "length too small, use Write(Cord&&) instead";
+         "enough space available, use Write(Cord&&) instead";
   // Not `std::move(src)`: forward to `WriteSlow(const absl::Cord&)`.
   return WriteSlow(src);
 }
 
 bool Writer::WriteZerosSlow(Position length) {
-  RIEGELI_ASSERT_GT(length, UnsignedMin(available(), kMaxBytesToCopy))
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Writer::WriteZerosSlow(): "
-         "length too small, use WriteZeros() instead";
+         "enough space available, use WriteZeros() instead";
   while (length > available()) {
     const size_t available_length = available();
     if (
@@ -140,9 +140,9 @@ bool Writer::WriteZerosSlow(Position length) {
 }
 
 void Writer::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_GT(length, available())
+  RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Writer::WriteHintSlow(): "
-         "length too small, use WriteHint() instead";
+         "enough space available, use WriteHint() instead";
 }
 
 bool Writer::SeekSlow(Position new_pos) {
