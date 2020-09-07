@@ -58,9 +58,9 @@ void PullableReader::PullToScratchSlow(size_t min_length,
       << "Failed precondition of PullableReader::PullToScratchSlow(): "
          "trivial min_length";
   if (scratch_used() && ScratchEnds() && available() >= min_length) return;
-  if (available() == 0 && ABSL_PREDICT_TRUE(PullSlow(1, 0)) &&
-      available() >= min_length) {
-    return;
+  if (available() == 0) {
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return;
+    if (available() >= min_length) return;
   }
   recommended_length = UnsignedMax(min_length, recommended_length);
   std::unique_ptr<Scratch> new_scratch;
