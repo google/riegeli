@@ -83,6 +83,14 @@ class PullableReader : public Reader {
   // Helps to implement `PullSlow(min_length, recommended_length)` if
   // `min_length > 1` in terms of `PullSlow(1, 0)`.
   //
+  // Typical usage in `PullSlow()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(
+  //       !PullUsingScratch(min_length, recommended_length))) {
+  //     return available() >= min_length;
+  //   }
+  //   ```
+  //
   // Return values:
   //  * `true`  - scratch is not used now, `min_length == 1`,
   //              the caller should continue `PullSlow(1, 0)`
@@ -93,6 +101,18 @@ class PullableReader : public Reader {
   bool PullUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `{Read,CopyTo}Slow(length, dest)` if scratch is used.
+  //
+  // Typical usage in `ReadSlow()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
+  //   ```
+  //
+  // Typical usage in `CopyToSlow()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(!CopyScratchTo(length, dest))) {
+  //     return length == 0 && dest.healthy();
+  //   }
+  //   ```
   //
   // Return values:
   //  * `true`  - some data have been copied from scratch to `dest`,
@@ -115,6 +135,11 @@ class PullableReader : public Reader {
   bool CopyScratchTo(Position& length, Writer& dest);
 
   // Helps to implement `SeekSlow()` if scratch is used.
+  //
+  // Typical usage in `SeekSlow()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
+  //   ```
   //
   // Return values:
   //  * `true`  - scratch is not used now, the caller should continue

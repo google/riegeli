@@ -76,9 +76,17 @@ class PushableWriter : public Writer {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Helps to implement `PushSlow(min_length, recommended_length)` if
-  // `min_length > 1` in terms of `PushSlow(1, 0)`, `Write(absl::string_view)`,
-  // and `Write(Chain)`.
+  // Helps to implement `PushSlow(min_length, recommended_length)`
+  // if `min_length > 1` in terms of `PushSlow(1, 0)`,
+  // `WriteSlow(absl::string_view)`, and `WriteSlow(Chain&&)`.
+  //
+  // Typical usage in `PushSlow()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(
+  //           !PushUsingScratch(min_length, recommended_length))) {
+  //     return available() >= min_length;
+  //   }
+  //   ```
   //
   // Return values:
   //  * `true`  - scratch is not used now, `min_length == 1`,
@@ -89,9 +97,24 @@ class PushableWriter : public Writer {
   // Precondition: `available() < min_length`
   bool PushUsingScratch(size_t min_length, size_t recommended_length);
 
-  // Helps to implement `Done()`, `WriteSlow()`, `Flush()`, `SeekSlow()`, or
-  // `Truncate()` if scratch is used, in terms of `Write(absl::string_view)` and
-  // `Write(Chain)`.
+  // Helps to implement `Done()`, `WriteSlow()`, `WriteZerosSlow()`, `Flush()`,
+  // `SeekSlow()`, or `Truncate()` if scratch is used, in terms of
+  // `WriteSlow(absl::string_view)` and `WriteSlow(Chain&&)`.
+  //
+  // Typical usage in `Done()`:
+  //   ```
+  //   if (ABSL_PREDICT_TRUE(healthy())) {
+  //     if (ABSL_PREDICT_TRUE(SyncScratch())) {
+  //       ...
+  //     }
+  //   }
+  //   PushableWriter::Done();
+  //   ```
+  //
+  // Typical usage in functions other than `Done()`:
+  //   ```
+  //   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+  //   ```
   //
   // Return values:
   //  * `true`  - scratch is not used now, the caller should continue
