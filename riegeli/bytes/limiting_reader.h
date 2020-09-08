@@ -279,11 +279,14 @@ inline void LimitingReaderBase::SyncBuffer(Reader& src) {
 }
 
 inline void LimitingReaderBase::MakeBuffer(Reader& src) {
-  set_buffer(src.start(),
-             UnsignedMin(src.buffer_size(),
-                         size_limit_ - (src.pos() - src.read_from_buffer())),
-             src.read_from_buffer());
-  set_limit_pos(src.pos() + available());
+  set_buffer(src.start(), src.buffer_size(), src.read_from_buffer());
+  set_limit_pos(src.pos() + src.available());
+  if (limit_pos() > size_limit_) {
+    set_buffer(start(),
+               buffer_size() - IntCast<size_t>(limit_pos() - size_limit_),
+               read_from_buffer());
+    set_limit_pos(size_limit_);
+  }
   if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
 }
 

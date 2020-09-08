@@ -174,7 +174,7 @@ inline void WrappedReaderBase::SyncBuffer(Reader& src) {
 
 inline void WrappedReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.buffer_size(), src.read_from_buffer());
-  set_limit_pos(src.pos() + available());
+  set_limit_pos(src.pos() + src.available());
   if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
 }
 
