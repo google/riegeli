@@ -197,12 +197,12 @@ bool CordReaderBase::SeekSlow(Position new_pos) {
   size_t length;
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (ABSL_PREDICT_FALSE(new_pos > src.size())) {
+    if (new_pos >= src.size()) {
       // Source ends.
       *iter_ = src.char_end();
       set_buffer();
       set_limit_pos(src.size());
-      return false;
+      return new_pos == src.size();
     }
     length = IntCast<size_t>(new_pos - start_pos());
   } else {
