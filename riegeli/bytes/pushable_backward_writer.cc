@@ -77,24 +77,23 @@ bool PushableBackwardWriter::SyncScratchSlow() {
   ChainBlock buffer = std::move(scratch_->buffer);
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source ChainBlock cleared";
-  bool ok;
   if (length_to_write <= kMaxBytesToCopy || PrefersCopying()) {
-    ok = Write(absl::string_view(
+    const bool ok = Write(absl::string_view(
         buffer.data() + buffer.size() - length_to_write, length_to_write));
     // Restore buffer allocation.
     buffer.Clear();
     scratch_->buffer = std::move(buffer);
+    return ok;
   } else if (length_to_write == buffer.size()) {
-    ok = Write(Chain(std::move(buffer)));
+    return Write(Chain(std::move(buffer)));
   } else {
     Chain data;
     buffer.AppendSubstrTo(
         absl::string_view(buffer.data() + buffer.size() - length_to_write,
                           length_to_write),
         data);
-    ok = Write(std::move(data));
+    return Write(std::move(data));
   }
-  return ok;
 }
 
 void PushableBackwardWriter::BehindScratch::Enter() {
