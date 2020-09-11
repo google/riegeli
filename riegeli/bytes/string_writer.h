@@ -155,7 +155,7 @@ class StringWriter : public StringWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 StringWriter(Dest&& dest,
              StringWriterBase::Options options = StringWriterBase::Options())

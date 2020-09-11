@@ -155,7 +155,7 @@ class CordReader : public CordReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
 template <typename... SrcArgs>

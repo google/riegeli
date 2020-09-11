@@ -294,7 +294,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
 template <typename... SrcArgs>

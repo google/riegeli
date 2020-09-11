@@ -228,7 +228,7 @@ class FileWriter : public FileWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 FileWriter(Dest&& dest,
            FileWriterBase::Options options = FileWriterBase::Options())

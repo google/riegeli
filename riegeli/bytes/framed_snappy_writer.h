@@ -153,7 +153,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 FramedSnappyWriter(Dest&& dest, FramedSnappyWriterBase::Options options =
                                     FramedSnappyWriterBase::Options())

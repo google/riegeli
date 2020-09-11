@@ -190,7 +190,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ChainBackwardWriter(Dest&& dest, ChainBackwardWriterBase::Options options =
                                      ChainBackwardWriterBase::Options())

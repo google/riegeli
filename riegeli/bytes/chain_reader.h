@@ -128,7 +128,7 @@ class ChainReader : public ChainReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 ChainReader(Src&& src) -> ChainReader<std::decay_t<Src>>;
 template <typename... SrcArgs>

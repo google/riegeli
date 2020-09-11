@@ -166,7 +166,7 @@ class OstreamWriter : public OstreamWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 OstreamWriter(Dest&& dest,
               OstreamWriterBase::Options options = OstreamWriterBase::Options())

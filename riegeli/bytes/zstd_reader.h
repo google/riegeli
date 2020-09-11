@@ -208,7 +208,7 @@ class ZstdReader : public ZstdReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 ZstdReader(Src&& src,
            ZstdReaderBase::Options options = ZstdReaderBase::Options())

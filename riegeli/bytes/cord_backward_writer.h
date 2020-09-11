@@ -194,7 +194,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 CordBackwardWriter(Dest&& dest, CordBackwardWriterBase::Options options =
                                     CordBackwardWriterBase::Options())

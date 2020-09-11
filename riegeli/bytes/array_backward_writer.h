@@ -123,7 +123,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ArrayBackwardWriter(Dest&& dest) -> ArrayBackwardWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>

@@ -157,7 +157,7 @@ class ReaderIstream : public ReaderIstreamBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 ReaderIstream(Src&& src) -> ReaderIstream<std::decay_t<Src>>;
 template <typename... SrcArgs>

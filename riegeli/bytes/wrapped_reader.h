@@ -143,7 +143,7 @@ class WrappedReader : public WrappedReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 WrappedReader(Src&& src) -> WrappedReader<std::decay_t<Src>>;
 template <typename... SrcArgs>

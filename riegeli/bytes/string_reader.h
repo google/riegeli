@@ -113,7 +113,7 @@ class StringReader : public StringReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 StringReader(Src&& src) -> StringReader<std::decay_t<Src>>;
 template <typename... SrcArgs>

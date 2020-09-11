@@ -170,7 +170,7 @@ class IstreamReader : public IstreamReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 IstreamReader(Src&& src,
               IstreamReaderBase::Options options = IstreamReaderBase::Options())

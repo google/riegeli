@@ -148,7 +148,7 @@ class SnappyReader : public SnappyReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 SnappyReader(Src&& src,
              SnappyReaderBase::Options options = SnappyReaderBase::Options())

@@ -147,7 +147,7 @@ class BrotliReader : public BrotliReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 BrotliReader(Src&& src,
              BrotliReaderBase::Options options = BrotliReaderBase::Options())

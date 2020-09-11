@@ -554,7 +554,7 @@ class RecordReader : public RecordReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 RecordReader(Src&& src,
              RecordReaderBase::Options options = RecordReaderBase::Options())

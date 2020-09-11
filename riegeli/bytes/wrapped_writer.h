@@ -143,7 +143,7 @@ class WrappedWriter : public WrappedWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 WrappedWriter(Dest&& dest) -> WrappedWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>

@@ -240,7 +240,7 @@ class ZlibReader : public ZlibReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 ZlibReader(Src&& src,
            ZlibReaderBase::Options options = ZlibReaderBase::Options())

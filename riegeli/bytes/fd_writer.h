@@ -316,7 +316,7 @@ class FdWriter : public FdWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 FdWriter(int dest, FdWriterBase::Options options = FdWriterBase::Options())
     ->FdWriter<>;
 template <typename Dest>
@@ -411,7 +411,7 @@ class FdStreamWriter : public FdStreamWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 FdStreamWriter(int dest, FdStreamWriterBase::Options options =
                              FdStreamWriterBase::Options())
     ->FdStreamWriter<>;

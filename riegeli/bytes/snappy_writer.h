@@ -179,7 +179,7 @@ class SnappyWriter : public SnappyWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 SnappyWriter(Dest&& dest,
              SnappyWriterBase::Options options = SnappyWriterBase::Options())

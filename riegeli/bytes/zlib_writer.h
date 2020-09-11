@@ -268,7 +268,7 @@ class ZlibWriter : public ZlibWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ZlibWriter(Dest&& dest,
            ZlibWriterBase::Options options = ZlibWriterBase::Options())

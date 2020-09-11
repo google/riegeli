@@ -612,7 +612,7 @@ class RecordWriter : public RecordWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 RecordWriter(Dest&& dest,
              RecordWriterBase::Options options = RecordWriterBase::Options())

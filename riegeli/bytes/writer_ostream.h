@@ -155,7 +155,7 @@ class WriterOstream : public WriterOstreamBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 WriterOstream(Dest&& dest) -> WriterOstream<std::decay_t<Dest>>;
 template <typename... DestArgs>

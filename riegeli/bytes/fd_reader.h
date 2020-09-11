@@ -336,7 +336,7 @@ class FdReader : public FdReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 FdReader(int src, FdReaderBase::Options options = FdReaderBase::Options())
     ->FdReader<>;
 template <typename Src>
@@ -425,7 +425,7 @@ class FdStreamReader : public FdStreamReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 FdStreamReader(int src, FdStreamReaderBase::Options options =
                             FdStreamReaderBase::Options())
     ->FdStreamReader<>;
@@ -516,7 +516,7 @@ class FdMMapReader : public FdMMapReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 FdMMapReader(int src,
              FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
     ->FdMMapReader<>;

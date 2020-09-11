@@ -259,7 +259,7 @@ class FileReader : public FileReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 FileReader(Src&& src,
            FileReaderBase::Options options = FileReaderBase::Options())

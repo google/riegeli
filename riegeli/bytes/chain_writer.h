@@ -192,7 +192,7 @@ class ChainWriter : public ChainWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ChainWriter(Dest&& dest,
             ChainWriterBase::Options options = ChainWriterBase::Options())

@@ -144,7 +144,7 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
                                   FramedSnappyReaderBase::Options())

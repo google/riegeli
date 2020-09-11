@@ -196,7 +196,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 DefaultChunkWriter(Dest&& dest, DefaultChunkWriterBase::Options options =
                                     DefaultChunkWriterBase::Options())

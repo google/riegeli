@@ -173,7 +173,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 LimitingBackwardWriter(
     Dest&& dest, Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)

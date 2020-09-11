@@ -195,7 +195,7 @@ class CordWriter : public CordWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 CordWriter(Dest&& dest,
            CordWriterBase::Options options = CordWriterBase::Options())

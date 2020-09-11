@@ -170,7 +170,7 @@ class LimitingWriter : public LimitingWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 LimitingWriter(Dest&& dest,
                Position size_limit = LimitingWriterBase::kNoSizeLimit)

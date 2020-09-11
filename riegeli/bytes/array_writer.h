@@ -122,7 +122,7 @@ class ArrayWriter : public ArrayWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ArrayWriter(Dest&& dest) -> ArrayWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>

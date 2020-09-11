@@ -177,7 +177,7 @@ class LimitingReader : public LimitingReaderBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Src>
 LimitingReader(Src&& src,
                Position size_limit = LimitingReaderBase::kNoSizeLimit)

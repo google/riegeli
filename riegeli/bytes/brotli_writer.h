@@ -225,7 +225,7 @@ class BrotliWriter : public BrotliWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 BrotliWriter(Dest&& dest,
              BrotliWriterBase::Options options = BrotliWriterBase::Options())

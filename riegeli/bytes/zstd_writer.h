@@ -267,7 +267,7 @@ class ZstdWriter : public ZstdWriterBase {
 };
 
 // Support CTAD.
-#if __cplusplus >= 201703
+#if __cpp_deduction_guides
 template <typename Dest>
 ZstdWriter(Dest&& dest,
            ZstdWriterBase::Options options = ZstdWriterBase::Options())
