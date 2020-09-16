@@ -3,26 +3,26 @@
 Options for writing Riegeli/records files can be specified as a string:
 
 ```data
-  options ::= option? ("," option?)*
-  option ::=
-    "default" |
-    "transpose" (":" ("true" | "false"))? |
-    "uncompressed" |
-    "brotli" (":" brotli_level)? |
-    "zstd" (":" zstd_level)? |
-    "snappy" |
-    "window_log" ":" window_log |
-    "chunk_size" ":" chunk_size |
-    "bucket_fraction" ":" bucket_fraction |
-    "pad_to_block_boundary" (":" ("true" | "false"))? |
-    "parallelism" ":" parallelism
-  brotli_level ::= integer 0..11 (default 6)
-  zstd_level ::= integer -131072..22 (default 3)
-  window_log ::= "auto" or integer 10..31
-  chunk_size ::= "auto" or integer expressed as real with optional suffix
-    [BkKMGTPE], 1..
-  bucket_fraction ::= real 0..1
-  parallelism ::= integer 0..
+options ::= option? ("," option?)*
+option ::=
+  "default" |
+  "transpose" (":" ("true" | "false"))? |
+  "uncompressed" |
+  "brotli" (":" brotli_level)? |
+  "zstd" (":" zstd_level)? |
+  "snappy" |
+  "window_log" ":" window_log |
+  "chunk_size" ":" chunk_size |
+  "bucket_fraction" ":" bucket_fraction |
+  "pad_to_block_boundary" (":" ("true" | "false"))? |
+  "parallelism" ":" parallelism
+brotli_level ::= integer 0..11 (default 6)
+zstd_level ::= integer -131072..22 (default 3)
+window_log ::= "auto" or integer 10..31
+chunk_size ::= "auto" or integer expressed as real with optional suffix
+  [BkKMGTPE], 1..
+bucket_fraction ::= real 0..1
+parallelism ::= integer 0..
 ```
 
 An empty string is the same as `default`.
