@@ -99,6 +99,8 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
 
 inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   const size_t uncompressed_length = written_to_buffer();
+  RIEGELI_ASSERT_LE(uncompressed_length, snappy::kBlockSize)
+      << "Failed invariant of FramedSnappyWriterBase: buffer too large";
   if (uncompressed_length == 0) return true;
   set_cursor(start());
   const char* const uncompressed_data = cursor();
@@ -113,16 +115,18 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
                       compressed_chunk + 2 * sizeof(uint32_t),
                       &compressed_length);
   if (compressed_length < uncompressed_length) {
-    WriteLittleEndian32(0x00 /* Compressed data */ |
-                            ((sizeof(uint32_t) + compressed_length) << 8),
-                        compressed_chunk);
+    WriteLittleEndian32(
+        IntCast<uint32_t>(0x00 /* Compressed data */ |
+                          ((sizeof(uint32_t) + compressed_length) << 8)),
+        compressed_chunk);
   } else {
     std::memcpy(compressed_chunk + 2 * sizeof(uint32_t), uncompressed_data,
                 uncompressed_length);
     compressed_length = uncompressed_length;
-    WriteLittleEndian32(0x01 /* Uncompressed data */ |
-                            ((sizeof(uint32_t) + compressed_length) << 8),
-                        compressed_chunk);
+    WriteLittleEndian32(
+        IntCast<uint32_t>(0x01 /* Uncompressed data */ |
+                          ((sizeof(uint32_t) + compressed_length) << 8)),
+        compressed_chunk);
   }
   WriteLittleEndian32(
       MaskChecksum(crc32c::Crc32c(uncompressed_data, uncompressed_length)),

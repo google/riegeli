@@ -96,6 +96,10 @@ class FramedSnappyWriterBase : public PushableWriter {
   Position size_hint_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
+
+  // Invariants if scratch is not used:
+  //   `start() == nullptr` or `start() == uncompressed_.GetData()`
+  //   `buffer_size() <= snappy::kBlockSize`
 };
 
 // A `Writer` which compresses data with framed Snappy format before passing it
