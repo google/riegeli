@@ -129,6 +129,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
     decompressor_->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src.cursor()));
     decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());
+    if (decompressor_->avail_in > 0) stream_had_data_ = true;
     const int result = inflate(decompressor_.get(), Z_NO_FLUSH);
     src.set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
     const size_t length_read =
@@ -143,11 +144,22 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           move_limit_pos(length_read);
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
-          truncated_ = true;
+          if (ABSL_PREDICT_FALSE(!concatenate_ || stream_had_data_)) {
+            truncated_ = true;
+          }
           return false;
         }
         continue;
       case Z_STREAM_END:
+        if (concatenate_) {
+          if (ABSL_PREDICT_FALSE(inflateReset(decompressor_.get()) != Z_OK)) {
+            FailOperation(absl::StatusCode::kInternal, "inflateReset()");
+            break;
+          }
+          stream_had_data_ = false;
+          if (length_read >= min_length) break;
+          continue;
+        }
         decompressor_.reset();
         break;
       default:

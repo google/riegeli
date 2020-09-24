@@ -96,6 +96,22 @@ class ZlibReaderBase : public BufferedReader {
     }
     Header header() const { return header_; }
 
+    // If `true`, concatenated compressed streams are decoded to concatenation
+    // of their decompressed contents. An empty compressed stream is decoded to
+    // empty decompressed contents.
+    //
+    // If `false`, exactly one compressed stream is consumed.
+    //
+    // Default: `false`
+    Options& set_concatenate(bool concatenate) & {
+      concatenate_ = concatenate;
+      return *this;
+    }
+    Options&& set_concatenate(bool concatenate) && {
+      return std::move(set_concatenate(concatenate));
+    }
+    bool concatenate() const { return concatenate_; }
+
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
     //
@@ -128,6 +144,7 @@ class ZlibReaderBase : public BufferedReader {
    private:
     absl::optional<int> window_log_;
     Header header_ = kDefaultHeader;
+    bool concatenate_ = false;
     Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -146,18 +163,26 @@ class ZlibReaderBase : public BufferedReader {
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
-  bool truncated() const { return truncated_; }
+  //
+  // Precondition: `Options::concatenate()` was `false`.`
+  bool truncated() const {
+    RIEGELI_ASSERT(!concatenate_)
+        << "Failed precondition of ZlibReaderBase::truncated(): "
+           "Options::concatenate() is true";
+    return truncated_;
+  }
 
  protected:
   ZlibReaderBase() noexcept {}
 
-  explicit ZlibReaderBase(size_t buffer_size, Position size_hint);
+  explicit ZlibReaderBase(bool concatenate, size_t buffer_size,
+                          Position size_hint);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint);
+  void Reset(bool concatenate, size_t buffer_size, Position size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src, int window_bits);
 
@@ -177,10 +202,15 @@ class ZlibReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::StatusCode code,
                                          absl::string_view operation);
 
+  bool concatenate_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
+  // If `true`, some compressed data from the current stream were processed.
+  // If `concatenate_` and `!stream_had_data_`, an end of the source is
+  // legitimate, it does not imply that the source is truncated.
+  bool stream_had_data_ = false;
   RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor_;
 };
 
@@ -253,14 +283,17 @@ ZlibReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline ZlibReaderBase::ZlibReaderBase(size_t buffer_size, Position size_hint)
-    : BufferedReader(buffer_size, size_hint) {}
+inline ZlibReaderBase::ZlibReaderBase(bool concatenate, size_t buffer_size,
+                                      Position size_hint)
+    : BufferedReader(buffer_size, size_hint), concatenate_(concatenate) {}
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      concatenate_(that.concatenate_),
       truncated_(that.truncated_),
+      stream_had_data_(that.stream_had_data_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
@@ -268,20 +301,27 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  concatenate_ = that.concatenate_;
   truncated_ = that.truncated_;
+  stream_had_data_ = that.stream_had_data_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
 
 inline void ZlibReaderBase::Reset() {
   BufferedReader::Reset();
+  concatenate_ = false;
   truncated_ = false;
+  stream_had_data_ = false;
   decompressor_.reset();
 }
 
-inline void ZlibReaderBase::Reset(size_t buffer_size, Position size_hint) {
+inline void ZlibReaderBase::Reset(bool concatenate, size_t buffer_size,
+                                  Position size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
+  concatenate_ = concatenate;
   truncated_ = false;
+  stream_had_data_ = false;
   decompressor_.reset();
 }
 
@@ -297,13 +337,16 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
-    : ZlibReaderBase(options.buffer_size(), options.size_hint()), src_(src) {
+    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
+                     options.size_hint()),
+      src_(src) {
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
-    : ZlibReaderBase(options.buffer_size(), options.size_hint()),
+    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
+                     options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -312,7 +355,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZlibReaderBase(options.buffer_size(), options.size_hint()),
+    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
+                     options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -341,14 +385,16 @@ inline void ZlibReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
-  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(src);
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
-  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -357,7 +403,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZlibReaderBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
+                        options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), GetWindowBits(options));
 }
