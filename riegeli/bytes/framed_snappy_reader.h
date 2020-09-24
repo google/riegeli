@@ -163,6 +163,7 @@ inline FramedSnappyReaderBase::FramedSnappyReaderBase(
     : PullableReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      truncated_(that.truncated_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
@@ -170,16 +171,19 @@ inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
   PullableReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  truncated_ = that.truncated_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
 
 inline void FramedSnappyReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
+  truncated_ = false;
 }
 
 inline void FramedSnappyReaderBase::Reset(InitiallyOpen) {
   PullableReader::Reset(kInitiallyOpen);
+  truncated_ = false;
 }
 
 template <typename Src>
