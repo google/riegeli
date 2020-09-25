@@ -819,6 +819,41 @@ cc_library(
 )
 
 cc_library(
+    name = "hadoop_snappy_writer",
+    srcs = ["hadoop_snappy_writer.cc"],
+    hdrs = ["hadoop_snappy_writer.h"],
+    deps = [
+        ":endian_writing",
+        ":pushable_writer",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@snappy",
+    ],
+)
+
+cc_library(
+    name = "hadoop_snappy_reader",
+    srcs = ["hadoop_snappy_reader.cc"],
+    hdrs = ["hadoop_snappy_reader.h"],
+    deps = [
+        ":endian_reading",
+        ":pullable_reader",
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:buffer",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@snappy",
+    ],
+)
+
+cc_library(
     name = "message_serialize",
     srcs = ["message_serialize.cc"],
     hdrs = ["message_serialize.h"],
