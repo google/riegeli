@@ -60,16 +60,18 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
           ZStreamKey{compression_level, window_bits},
           [&] {
             std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-            if (ABSL_PREDICT_FALSE(deflateInit2(ptr.get(), compression_level,
-                                                Z_DEFLATED, window_bits, 8,
-                                                Z_DEFAULT_STRATEGY) != Z_OK)) {
-              FailOperation("deflateInit2()");
+            const int zlib_code =
+                deflateInit2(ptr.get(), compression_level, Z_DEFLATED,
+                             window_bits, 8, Z_DEFAULT_STRATEGY);
+            if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+              FailOperation("deflateInit2()", zlib_code);
             }
             return ptr;
           },
           [&](z_stream* ptr) {
-            if (ABSL_PREDICT_FALSE(deflateReset(ptr) != Z_OK)) {
-              FailOperation("deflateReset()");
+            const int zlib_code = deflateReset(ptr);
+            if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+              FailOperation("deflateReset()", zlib_code);
             }
           });
 }
@@ -85,15 +87,43 @@ void ZlibWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-inline bool ZlibWriterBase::FailOperation(absl::string_view operation) {
+inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
+                                          int zlib_code) {
   RIEGELI_ASSERT(!closed())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
   Writer& dest = *dest_writer();
   std::string message = absl::StrCat(operation, " failed");
-  if (compressor_->msg != nullptr) {
-    absl::StrAppend(&message, ": ", compressor_->msg);
+  const char* details = compressor_->msg;
+  if (details == nullptr) {
+    switch (zlib_code) {
+      case Z_STREAM_END:
+        details = "stream end";
+        break;
+      case Z_NEED_DICT:
+        details = "need dictionary";
+        break;
+      case Z_ERRNO:
+        details = "file error";
+        break;
+      case Z_STREAM_ERROR:
+        details = "stream error";
+        break;
+      case Z_DATA_ERROR:
+        details = "data error";
+        break;
+      case Z_MEM_ERROR:
+        details = "insufficient memory";
+        break;
+      case Z_BUF_ERROR:
+        details = "buffer error";
+        break;
+      case Z_VERSION_ERROR:
+        details = "incompatible version";
+        break;
+    }
   }
+  if (details != nullptr) absl::StrAppend(&message, ": ", details);
   return Fail(Annotate(absl::InternalError(message),
                        absl::StrCat("at byte ", dest.pos())));
 }
@@ -164,7 +194,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
             << "deflate() returned an unexpected Z_BUF_ERROR";
         break;
       default:
-        return FailOperation("deflate()");
+        return FailOperation("deflate()", result);
     }
     RIEGELI_ASSERT_EQ(length_written, src.size())
         << "deflate() returned but there are still input data";

@@ -53,14 +53,18 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
   decompressor_ = RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
       [&] {
         std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-        if (ABSL_PREDICT_FALSE(inflateInit2(ptr.get(), window_bits) != Z_OK)) {
-          FailOperation(absl::StatusCode::kInternal, "inflateInit2()");
+        const int zlib_code = inflateInit2(ptr.get(), window_bits);
+        if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+          FailOperation(absl::StatusCode::kInternal, "inflateInit2()",
+                        zlib_code);
         }
         return ptr;
       },
       [&](z_stream* ptr) {
-        if (ABSL_PREDICT_FALSE(inflateReset2(ptr, window_bits) != Z_OK)) {
-          FailOperation(absl::StatusCode::kInternal, "inflateReset2()");
+        const int zlib_code = inflateReset2(ptr, window_bits);
+        if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+          FailOperation(absl::StatusCode::kInternal, "inflateReset2()",
+                        zlib_code);
         }
       });
 }
@@ -76,7 +80,8 @@ void ZlibReaderBase::Done() {
 }
 
 inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
-                                          absl::string_view operation) {
+                                          absl::string_view operation,
+                                          int zlib_code) {
   RIEGELI_ASSERT_NE(code, absl::StatusCode::kOk)
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "status code not failed";
@@ -85,9 +90,36 @@ inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
          "Object closed";
   Reader& src = *src_reader();
   std::string message = absl::StrCat(operation, " failed");
-  if (decompressor_->msg != nullptr) {
-    absl::StrAppend(&message, ": ", decompressor_->msg);
+  const char* details = decompressor_->msg;
+  if (details == nullptr) {
+    switch (zlib_code) {
+      case Z_STREAM_END:
+        details = "stream end";
+        break;
+      case Z_NEED_DICT:
+        details = "need dictionary";
+        break;
+      case Z_ERRNO:
+        details = "file error";
+        break;
+      case Z_STREAM_ERROR:
+        details = "stream error";
+        break;
+      case Z_DATA_ERROR:
+        details = "data error";
+        break;
+      case Z_MEM_ERROR:
+        details = "insufficient memory";
+        break;
+      case Z_BUF_ERROR:
+        details = "buffer error";
+        break;
+      case Z_VERSION_ERROR:
+        details = "incompatible version";
+        break;
+    }
   }
+  if (details != nullptr) absl::StrAppend(&message, ": ", details);
   return Fail(Annotate(absl::Status(code, message),
                        absl::StrCat("at byte ", src.pos())));
 }
@@ -152,8 +184,10 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         continue;
       case Z_STREAM_END:
         if (concatenate_) {
-          if (ABSL_PREDICT_FALSE(inflateReset(decompressor_.get()) != Z_OK)) {
-            FailOperation(absl::StatusCode::kInternal, "inflateReset()");
+          const int zlib_code = inflateReset(decompressor_.get());
+          if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+            FailOperation(absl::StatusCode::kInternal, "inflateReset()",
+                          zlib_code);
             break;
           }
           stream_had_data_ = false;
@@ -162,8 +196,12 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         }
         decompressor_.reset();
         break;
+      case Z_NEED_DICT:
+      case Z_DATA_ERROR:
+        FailOperation(absl::StatusCode::kDataLoss, "inflate()", result);
+        break;
       default:
-        FailOperation(absl::StatusCode::kDataLoss, "inflate()");
+        FailOperation(absl::StatusCode::kInternal, "inflate()", result);
         break;
     }
     move_limit_pos(length_read);

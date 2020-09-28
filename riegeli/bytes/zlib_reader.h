@@ -200,7 +200,8 @@ class ZlibReaderBase : public BufferedReader {
   };
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::StatusCode code,
-                                         absl::string_view operation);
+                                         absl::string_view operation,
+                                         int zlib_code);
 
   bool concatenate_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed

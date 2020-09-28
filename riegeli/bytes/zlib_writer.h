@@ -207,7 +207,8 @@ class ZlibWriterBase : public BufferedWriter {
     int window_bits;
   };
 
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
+                                         int zlib_code);
   bool WriteInternal(absl::string_view src, Writer& dest, int flush);
 
   RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::Handle compressor_;
