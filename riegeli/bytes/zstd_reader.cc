@@ -50,11 +50,23 @@ void ZstdReaderBase::Initialize(Reader* src) {
       [] {
         return std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxDeleter>(ZSTD_createDCtx());
       },
-      [](ZSTD_DCtx* compressor) {
-        const size_t result =
-            ZSTD_DCtx_reset(compressor, ZSTD_reset_session_and_parameters);
-        RIEGELI_ASSERT(!ZSTD_isError(result))
-            << "ZSTD_DCtx_reset() failed: " << ZSTD_getErrorName(result);
+      [](ZSTD_DCtx* decompressor) {
+        {
+          const size_t result =
+              ZSTD_DCtx_reset(decompressor, ZSTD_reset_session_and_parameters);
+          RIEGELI_ASSERT(!ZSTD_isError(result))
+              << "ZSTD_DCtx_reset() failed: " << ZSTD_getErrorName(result);
+        }
+#ifdef ZSTD_STATIC_LINKING_ONLY
+        // Workaround for https://github.com/facebook/zstd/issues/2331
+        {
+          const size_t result =
+              ZSTD_DCtx_setParameter(decompressor, ZSTD_d_stableOutBuffer, 0);
+          RIEGELI_ASSERT(!ZSTD_isError(result))
+              << "ZSTD_DCtx_setParameter(ZSTD_d_stableOutBuffer) failed: "
+              << ZSTD_getErrorName(result);
+        }
+#endif
       });
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail(absl::InternalError("ZSTD_createDCtx() failed"));
