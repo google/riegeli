@@ -223,7 +223,7 @@ RecyclingPool<T, Deleter, Key>& RecyclingPool<T, Deleter, Key>::global(
 
 template <typename T, typename Deleter, typename Key>
 inline void RecyclingPool<T, Deleter, Key>::set_max_size(size_t max_size) {
-  max_size_.store(std::memory_order_relaxed);
+  max_size_.store(max_size, std::memory_order_relaxed);
 }
 
 template <typename T, typename Deleter, typename Key>
@@ -338,7 +338,7 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(size_t max_size) {
 
 template <typename T, typename Deleter>
 inline void RecyclingPool<T, Deleter>::set_max_size(size_t max_size) {
-  max_size_.store(std::memory_order_relaxed);
+  max_size_.store(max_size, std::memory_order_relaxed);
 }
 
 template <typename T, typename Deleter>
