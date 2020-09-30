@@ -47,8 +47,13 @@ namespace {
 constexpr ImportedCapsule<RecordPositionApi> kRecordPositionApi(
     kRecordPositionCapsuleName);
 
-extern "C" PyObject* GetRecordType(PyObject* self, PyObject* args,
-                                   PyObject* kwargs) {
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. Functions are marked `static` to avoid making their symbols public, as
+// `extern "C"` trumps anonymous namespace.
+extern "C" {
+
+static PyObject* GetRecordType(PyObject* self, PyObject* args,
+                               PyObject* kwargs) {
   static constexpr const char* keywords[] = {"metadata", nullptr};
   PyObject* metadata_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -111,6 +116,8 @@ extern "C" PyObject* GetRecordType(PyObject* self, PyObject* args,
                                     message_descriptor.get(), nullptr);
 }
 
+}  // extern "C"
+
 struct PyRecordReaderObject {
   // clang-format off
   PyObject_HEAD
@@ -155,39 +162,6 @@ void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
     return;
   }
   SetRiegeliError(self->record_reader->status());
-}
-
-extern "C" void RecordReaderDestructor(PyRecordReaderObject* self) {
-  PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
-  PythonUnlocked([&] { self->record_reader.reset(); });
-  Py_XDECREF(self->recovery);
-  self->recovery_exception.reset();
-  Py_TYPE(self)->tp_free(self);
-  Py_TRASHCAN_SAFE_END(self);
-}
-
-extern "C" int RecordReaderTraverse(PyRecordReaderObject* self, visitproc visit,
-                                    void* arg) {
-  Py_VISIT(self->recovery);
-  if (self->recovery_exception.has_value()) {
-    const int recovery_exception_result =
-        self->recovery_exception->Traverse(visit, arg);
-    if (ABSL_PREDICT_FALSE(recovery_exception_result != 0)) {
-      return recovery_exception_result;
-    }
-  }
-  if (self->record_reader.has_value()) {
-    return self->record_reader->src().Traverse(visit, arg);
-  }
-  return 0;
-}
-
-extern "C" int RecordReaderClear(PyRecordReaderObject* self) {
-  PythonUnlocked([&] { self->record_reader.reset(); });
-  Py_CLEAR(self->recovery);
-  self->recovery_exception.reset();
-  return 0;
 }
 
 absl::optional<int> VerifyFieldNumber(long field_number_value) {
@@ -244,8 +218,43 @@ absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
   return field_projection;
 }
 
-extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
-                                PyObject* kwargs) {
+extern "C" {
+
+static void RecordReaderDestructor(PyRecordReaderObject* self) {
+  PyObject_GC_UnTrack(self);
+  Py_TRASHCAN_SAFE_BEGIN(self);
+  PythonUnlocked([&] { self->record_reader.reset(); });
+  Py_XDECREF(self->recovery);
+  self->recovery_exception.reset();
+  Py_TYPE(self)->tp_free(self);
+  Py_TRASHCAN_SAFE_END(self);
+}
+
+static int RecordReaderTraverse(PyRecordReaderObject* self, visitproc visit,
+                                void* arg) {
+  Py_VISIT(self->recovery);
+  if (self->recovery_exception.has_value()) {
+    const int recovery_exception_result =
+        self->recovery_exception->Traverse(visit, arg);
+    if (ABSL_PREDICT_FALSE(recovery_exception_result != 0)) {
+      return recovery_exception_result;
+    }
+  }
+  if (self->record_reader.has_value()) {
+    return self->record_reader->src().Traverse(visit, arg);
+  }
+  return 0;
+}
+
+static int RecordReaderClear(PyRecordReaderObject* self) {
+  PythonUnlocked([&] { self->record_reader.reset(); });
+  Py_CLEAR(self->recovery);
+  self->recovery_exception.reset();
+  return 0;
+}
+
+static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
+                            PyObject* kwargs) {
   static constexpr const char* keywords[] = {
       "src",      "close", "assumed_pos", "buffer_size", "field_projection",
       "recovery", nullptr};
@@ -351,8 +360,7 @@ extern "C" int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
   return 0;
 }
 
-extern "C" PyObject* RecordReaderSrc(PyRecordReaderObject* self,
-                                     void* closure) {
+static PyObject* RecordReaderSrc(PyRecordReaderObject* self, void* closure) {
   PyObject* const src = ABSL_PREDICT_FALSE(!self->record_reader.has_value())
                             ? Py_None
                             : self->record_reader->src().src();
@@ -360,7 +368,7 @@ extern "C" PyObject* RecordReaderSrc(PyRecordReaderObject* self,
   return src;
 }
 
-extern "C" PyObject* RecordReaderRepr(PyRecordReaderObject* self) {
+static PyObject* RecordReaderRepr(PyRecordReaderObject* self) {
   const PythonPtr format = StringToPython("<RecordReader src={!r}>");
   if (ABSL_PREDICT_FALSE(format == nullptr)) return nullptr;
   // return format.format(self.src)
@@ -372,14 +380,13 @@ extern "C" PyObject* RecordReaderRepr(PyRecordReaderObject* self) {
                                     nullptr);
 }
 
-extern "C" PyObject* RecordReaderEnter(PyObject* self, PyObject* args) {
+static PyObject* RecordReaderEnter(PyObject* self, PyObject* args) {
   // return self
   Py_INCREF(self);
   return self;
 }
 
-extern "C" PyObject* RecordReaderExit(PyRecordReaderObject* self,
-                                      PyObject* args) {
+static PyObject* RecordReaderExit(PyRecordReaderObject* self, PyObject* args) {
   PyObject* exc_type;
   PyObject* exc_value;
   PyObject* traceback;
@@ -399,8 +406,7 @@ extern "C" PyObject* RecordReaderExit(PyRecordReaderObject* self,
   Py_RETURN_FALSE;
 }
 
-extern "C" PyObject* RecordReaderClose(PyRecordReaderObject* self,
-                                       PyObject* args) {
+static PyObject* RecordReaderClose(PyRecordReaderObject* self, PyObject* args) {
   if (ABSL_PREDICT_TRUE(self->record_reader.has_value())) {
     const bool ok =
         PythonUnlocked([&] { return self->record_reader->Close(); });
@@ -412,8 +418,8 @@ extern "C" PyObject* RecordReaderClose(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderCheckFileFormat(PyRecordReaderObject* self,
-                                                 PyObject* args) {
+static PyObject* RecordReaderCheckFileFormat(PyRecordReaderObject* self,
+                                             PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool ok =
       PythonUnlocked([&] { return self->record_reader->CheckFileFormat(); });
@@ -427,8 +433,8 @@ extern "C" PyObject* RecordReaderCheckFileFormat(PyRecordReaderObject* self,
   Py_RETURN_TRUE;
 }
 
-extern "C" PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
-                                              PyObject* args) {
+static PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
+                                          PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
   const bool ok = PythonUnlocked(
@@ -451,8 +457,8 @@ extern "C" PyObject* RecordReaderReadMetadata(PyRecordReaderObject* self,
                                     serialized_metadata.get(), nullptr);
 }
 
-extern "C" PyObject* RecordReaderReadSerializedMetadata(
-    PyRecordReaderObject* self, PyObject* args) {
+static PyObject* RecordReaderReadSerializedMetadata(PyRecordReaderObject* self,
+                                                    PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain metadata;
   const bool ok = PythonUnlocked(
@@ -467,8 +473,8 @@ extern "C" PyObject* RecordReaderReadSerializedMetadata(
   return ChainToPython(metadata).release();
 }
 
-extern "C" PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
-                                            PyObject* args) {
+static PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
+                                        PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain record;
   const bool ok =
@@ -483,8 +489,8 @@ extern "C" PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
   return ChainToPython(record).release();
 }
 
-extern "C" PyObject* RecordReaderReadRecordWithKey(PyRecordReaderObject* self,
-                                                   PyObject* args) {
+static PyObject* RecordReaderReadRecordWithKey(PyRecordReaderObject* self,
+                                               PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   Chain record;
   RecordPosition key;
@@ -507,8 +513,8 @@ extern "C" PyObject* RecordReaderReadRecordWithKey(PyRecordReaderObject* self,
   return PyTuple_Pack(2, key_object.get(), record_object.get());
 }
 
-extern "C" PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
-                                             PyObject* args, PyObject* kwargs) {
+static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
+                                         PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", nullptr};
   PyObject* message_type_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -535,9 +541,9 @@ extern "C" PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
                                     record_object.get(), nullptr);
 }
 
-extern "C" PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
-                                                    PyObject* args,
-                                                    PyObject* kwargs) {
+static PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
+                                                PyObject* args,
+                                                PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", nullptr};
   PyObject* message_type_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -572,8 +578,8 @@ extern "C" PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
   return PyTuple_Pack(2, key_object.get(), message.get());
 }
 
-extern "C" PyRecordIterObject* RecordReaderReadRecords(
-    PyRecordReaderObject* self, PyObject* args) {
+static PyRecordIterObject* RecordReaderReadRecords(PyRecordReaderObject* self,
+                                                   PyObject* args) {
   std::unique_ptr<PyRecordIterObject, Deleter> iter(
       PyObject_GC_New(PyRecordIterObject, &PyRecordIter_Type));
   if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
@@ -586,7 +592,7 @@ extern "C" PyRecordIterObject* RecordReaderReadRecords(
   return iter.release();
 }
 
-extern "C" PyRecordIterObject* RecordReaderReadRecordsWithKeys(
+static PyRecordIterObject* RecordReaderReadRecordsWithKeys(
     PyRecordReaderObject* self, PyObject* args) {
   std::unique_ptr<PyRecordIterObject, Deleter> iter(
       PyObject_GC_New(PyRecordIterObject, &PyRecordIter_Type));
@@ -600,8 +606,9 @@ extern "C" PyRecordIterObject* RecordReaderReadRecordsWithKeys(
   return iter.release();
 }
 
-extern "C" PyRecordIterObject* RecordReaderReadMessages(
-    PyRecordReaderObject* self, PyObject* args, PyObject* kwargs) {
+static PyRecordIterObject* RecordReaderReadMessages(PyRecordReaderObject* self,
+                                                    PyObject* args,
+                                                    PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", nullptr};
   PyObject* message_type_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -622,7 +629,7 @@ extern "C" PyRecordIterObject* RecordReaderReadMessages(
   return iter.release();
 }
 
-extern "C" PyRecordIterObject* RecordReaderReadMessagesWithKeys(
+static PyRecordIterObject* RecordReaderReadMessagesWithKeys(
     PyRecordReaderObject* self, PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", nullptr};
   PyObject* message_type_arg;
@@ -644,9 +651,9 @@ extern "C" PyRecordIterObject* RecordReaderReadMessagesWithKeys(
   return iter.release();
 }
 
-extern "C" PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
-                                                    PyObject* args,
-                                                    PyObject* kwargs) {
+static PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
+                                                PyObject* args,
+                                                PyObject* kwargs) {
   static constexpr const char* keywords[] = {"field_projection", nullptr};
   PyObject* field_projection_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -673,8 +680,7 @@ extern "C" PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderPos(PyRecordReaderObject* self,
-                                     void* closure) {
+static PyObject* RecordReaderPos(PyRecordReaderObject* self, void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
   return kRecordPositionApi
@@ -682,14 +688,14 @@ extern "C" PyObject* RecordReaderPos(PyRecordReaderObject* self,
       .release();
 }
 
-extern "C" PyObject* RecordReaderSupportsRandomAccess(
-    PyRecordReaderObject* self, void* closure) {
+static PyObject* RecordReaderSupportsRandomAccess(PyRecordReaderObject* self,
+                                                  void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   return PyBool_FromLong(self->record_reader->SupportsRandomAccess());
 }
 
-extern "C" PyObject* RecordReaderSeek(PyRecordReaderObject* self,
-                                      PyObject* args, PyObject* kwargs) {
+static PyObject* RecordReaderSeek(PyRecordReaderObject* self, PyObject* args,
+                                  PyObject* kwargs) {
   static constexpr const char* keywords[] = {"pos", nullptr};
   PyObject* pos_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -710,8 +716,8 @@ extern "C" PyObject* RecordReaderSeek(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
-                                             PyObject* args, PyObject* kwargs) {
+static PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
+                                         PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"pos", nullptr};
   PyObject* pos_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -731,8 +737,8 @@ extern "C" PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
-                                          PyObject* args) {
+static PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
+                                      PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool ok =
       PythonUnlocked([&] { return self->record_reader->SeekBack(); });
@@ -746,8 +752,7 @@ extern "C" PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
   Py_RETURN_TRUE;
 }
 
-extern "C" PyObject* RecordReaderSize(PyRecordReaderObject* self,
-                                      PyObject* args) {
+static PyObject* RecordReaderSize(PyRecordReaderObject* self, PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const absl::optional<Position> size =
       PythonUnlocked([&] { return self->record_reader->Size(); });
@@ -758,8 +763,8 @@ extern "C" PyObject* RecordReaderSize(PyRecordReaderObject* self,
   return PositionToPython(*size).release();
 }
 
-extern "C" PyObject* RecordReaderSearch(PyRecordReaderObject* self,
-                                        PyObject* args, PyObject* kwargs) {
+static PyObject* RecordReaderSearch(PyRecordReaderObject* self, PyObject* args,
+                                    PyObject* kwargs) {
   static constexpr const char* keywords[] = {"test", nullptr};
   PyObject* test_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -797,9 +802,8 @@ extern "C" PyObject* RecordReaderSearch(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
-                                                 PyObject* args,
-                                                 PyObject* kwargs) {
+static PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
+                                             PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"test", nullptr};
   PyObject* test_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -843,9 +847,9 @@ extern "C" PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
-                                                  PyObject* args,
-                                                  PyObject* kwargs) {
+static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
+                                              PyObject* args,
+                                              PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", "test", nullptr};
   PyObject* message_type_arg;
   PyObject* test_arg;
@@ -897,6 +901,8 @@ extern "C" PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
   }
   Py_RETURN_NONE;
 }
+
+}  // extern "C"
 
 const PyMethodDef RecordReaderMethods[] = {
     {"__enter__", RecordReaderEnter, METH_NOARGS,
@@ -1339,7 +1345,9 @@ unpredictable amount of extra data consumed because of buffering.
     nullptr,                                               // tp_finalize
 };
 
-extern "C" void RecordIterDestructor(PyRecordIterObject* self) {
+extern "C" {
+
+static void RecordIterDestructor(PyRecordIterObject* self) {
   PyObject_GC_UnTrack(self);
   Py_TRASHCAN_SAFE_BEGIN(self);
   Py_XDECREF(self->record_reader);
@@ -1348,25 +1356,27 @@ extern "C" void RecordIterDestructor(PyRecordIterObject* self) {
   Py_TRASHCAN_SAFE_END(self);
 }
 
-extern "C" int RecordIterTraverse(PyRecordIterObject* self, visitproc visit,
-                                  void* arg) {
+static int RecordIterTraverse(PyRecordIterObject* self, visitproc visit,
+                              void* arg) {
   Py_VISIT(self->record_reader);
   Py_VISIT(self->args);
   return 0;
 }
 
-extern "C" int RecordIterClear(PyRecordIterObject* self) {
+static int RecordIterClear(PyRecordIterObject* self) {
   Py_CLEAR(self->record_reader);
   Py_CLEAR(self->args);
   return 0;
 }
 
-extern "C" PyObject* RecordIterNext(PyRecordIterObject* self) {
+static PyObject* RecordIterNext(PyRecordIterObject* self) {
   PythonPtr read_record_result(
       self->read_record(self->record_reader, self->args));
   if (ABSL_PREDICT_FALSE(read_record_result.get() == Py_None)) return nullptr;
   return read_record_result.release();
 }
+
+}  // extern "C"
 
 PyTypeObject PyRecordIter_Type = {
     // clang-format off

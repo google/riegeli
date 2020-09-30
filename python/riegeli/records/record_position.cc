@@ -54,14 +54,19 @@ struct PyRecordPositionObject {
 
 extern PyTypeObject PyRecordPosition_Type;
 
-extern "C" void RecordPositionDestructor(PyRecordPositionObject* self) {
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. Functions are marked `static` to avoid making their symbols public, as
+// `extern "C"` trumps anonymous namespace.
+extern "C" {
+
+static void RecordPositionDestructor(PyRecordPositionObject* self) {
   PythonUnlocked([&] { self->record_position.reset(); });
   Py_TYPE(self)->tp_free(self);
 }
 
-extern "C" PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
-                                                     PyObject* args,
-                                                     PyObject* kwargs) {
+static PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
+                                                 PyObject* args,
+                                                 PyObject* kwargs) {
   static constexpr const char* keywords[] = {"chunk_begin", "record_index",
                                              nullptr};
   PyObject* chunk_begin_arg;
@@ -93,28 +98,28 @@ extern "C" PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
   return self.release();
 }
 
-extern "C" PyObject* RecordPositionChunkBegin(PyRecordPositionObject* self,
-                                              void* closure) {
+static PyObject* RecordPositionChunkBegin(PyRecordPositionObject* self,
+                                          void* closure) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return PositionToPython(pos.chunk_begin()).release();
 }
 
-extern "C" PyObject* RecordPositionRecordIndex(PyRecordPositionObject* self,
-                                               void* closure) {
+static PyObject* RecordPositionRecordIndex(PyRecordPositionObject* self,
+                                           void* closure) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return PositionToPython(pos.record_index()).release();
 }
 
-extern "C" PyObject* RecordPositionNumeric(PyRecordPositionObject* self,
-                                           void* closure) {
+static PyObject* RecordPositionNumeric(PyRecordPositionObject* self,
+                                       void* closure) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return PositionToPython(pos.numeric()).release();
 }
 
-extern "C" PyObject* RecordPositionCompare(PyObject* a, PyObject* b, int op) {
+static PyObject* RecordPositionCompare(PyObject* a, PyObject* b, int op) {
   if (ABSL_PREDICT_FALSE(!PyObject_TypeCheck(a, &PyRecordPosition_Type)) ||
       ABSL_PREDICT_FALSE(!PyObject_TypeCheck(b, &PyRecordPosition_Type))) {
     Py_INCREF(Py_NotImplemented);
@@ -147,7 +152,7 @@ extern "C" PyObject* RecordPositionCompare(PyObject* a, PyObject* b, int op) {
   }
 }
 
-extern "C" Py_hash_t RecordPositionHash(PyRecordPositionObject* self) {
+static Py_hash_t RecordPositionHash(PyRecordPositionObject* self) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   Py_hash_t hash = static_cast<Py_hash_t>(absl::Hash<RecordPosition>()(pos));
@@ -155,15 +160,15 @@ extern "C" Py_hash_t RecordPositionHash(PyRecordPositionObject* self) {
   return hash;
 }
 
-extern "C" PyObject* RecordPositionStr(PyRecordPositionObject* self) {
+static PyObject* RecordPositionStr(PyRecordPositionObject* self) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return StringToPython(pos.ToString()).release();
 }
 
-extern "C" PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
-                                                         PyObject* args,
-                                                         PyObject* kwargs) {
+static PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
+                                                     PyObject* args,
+                                                     PyObject* kwargs) {
   static constexpr const char* keywords[] = {"serialized", nullptr};
   PyObject* serialized_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -187,7 +192,7 @@ extern "C" PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
   return self.release();
 }
 
-extern "C" PyObject* RecordPositionRepr(PyRecordPositionObject* self) {
+static PyObject* RecordPositionRepr(PyRecordPositionObject* self) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return StringToPython(absl::StrCat("RecordPosition(", pos.chunk_begin(), ", ",
@@ -195,16 +200,16 @@ extern "C" PyObject* RecordPositionRepr(PyRecordPositionObject* self) {
       .release();
 }
 
-extern "C" PyObject* RecordPositionToBytes(PyRecordPositionObject* self,
-                                           PyObject* args) {
+static PyObject* RecordPositionToBytes(PyRecordPositionObject* self,
+                                       PyObject* args) {
   const RecordPosition pos =
       PythonUnlocked([&] { return self->record_position->get(); });
   return BytesToPython(pos.ToBytes()).release();
 }
 
-extern "C" PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
-                                                           PyObject* args,
-                                                           PyObject* kwargs) {
+static PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
+                                                       PyObject* args,
+                                                       PyObject* kwargs) {
   static constexpr const char* keywords[] = {"serialized", nullptr};
   PyObject* serialized_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -227,6 +232,8 @@ extern "C" PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
   self->record_position.emplace(pos);
   return self.release();
 }
+
+}  // extern "C"
 
 const PyMethodDef RecordPositionMethods[] = {
     {"from_str", reinterpret_cast<PyCFunction>(RecordPositionFromStr),

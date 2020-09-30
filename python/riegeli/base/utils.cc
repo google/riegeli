@@ -168,12 +168,12 @@ void FreeStaticObjectsImpl() {
   }
 }
 
-namespace {
-
-// `extern "C"` for a calling convention compatible with `Py_AtExit()`.
-extern "C" void FreeStaticObjects() { FreeStaticObjectsImpl(); }
-
-}  // namespace
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. Function is marked `static` to avoid making its symbol public, as
+// `extern "C"` would trump anonymous namespace.
+extern "C" {
+static void FreeStaticObjects() { FreeStaticObjectsImpl(); }
+}  // extern "C"
 
 void StaticObject::RegisterThis() const {
   PythonLock::AssertHeld();

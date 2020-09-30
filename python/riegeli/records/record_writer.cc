@@ -130,8 +130,13 @@ class FileDescriptorCollector {
   PythonPtr files_seen_;
 };
 
-extern "C" PyObject* SetRecordType(PyObject* self, PyObject* args,
-                                   PyObject* kwargs) {
+// `extern "C"` sets the C calling convention for compatibility with the Python
+// API. Functions are marked `static` to avoid making their symbols public, as
+// `extern "C"` trumps anonymous namespace.
+extern "C" {
+
+static PyObject* SetRecordType(PyObject* self, PyObject* args,
+                               PyObject* kwargs) {
   static constexpr const char* keywords[] = {"metadata", "message_type",
                                              nullptr};
   PyObject* metadata_arg;
@@ -185,6 +190,8 @@ extern "C" PyObject* SetRecordType(PyObject* self, PyObject* args,
   Py_RETURN_NONE;
 }
 
+}  // extern "C"
+
 struct PyRecordWriterObject {
   // clang-format off
   PyObject_HEAD
@@ -207,7 +214,9 @@ void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
   SetRiegeliError(self->record_writer->status());
 }
 
-extern "C" void RecordWriterDestructor(PyRecordWriterObject* self) {
+extern "C" {
+
+static void RecordWriterDestructor(PyRecordWriterObject* self) {
   PyObject_GC_UnTrack(self);
   Py_TRASHCAN_SAFE_BEGIN(self);
   PythonUnlocked([&] { self->record_writer.reset(); });
@@ -215,21 +224,21 @@ extern "C" void RecordWriterDestructor(PyRecordWriterObject* self) {
   Py_TRASHCAN_SAFE_END(self);
 }
 
-extern "C" int RecordWriterTraverse(PyRecordWriterObject* self, visitproc visit,
-                                    void* arg) {
+static int RecordWriterTraverse(PyRecordWriterObject* self, visitproc visit,
+                                void* arg) {
   if (self->record_writer.has_value()) {
     return self->record_writer->dest().Traverse(visit, arg);
   }
   return 0;
 }
 
-extern "C" int RecordWriterClear(PyRecordWriterObject* self) {
+static int RecordWriterClear(PyRecordWriterObject* self) {
   PythonUnlocked([&] { self->record_writer.reset(); });
   return 0;
 }
 
-extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
-                                PyObject* kwargs) {
+static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
+                            PyObject* kwargs) {
   static constexpr const char* keywords[] = {
       "dest",    "close",    "assumed_pos",         "buffer_size",
       "options", "metadata", "serialized_metadata", nullptr};
@@ -317,8 +326,7 @@ extern "C" int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   return 0;
 }
 
-extern "C" PyObject* RecordWriterDest(PyRecordWriterObject* self,
-                                      void* closure) {
+static PyObject* RecordWriterDest(PyRecordWriterObject* self, void* closure) {
   PyObject* const dest = ABSL_PREDICT_FALSE(!self->record_writer.has_value())
                              ? Py_None
                              : self->record_writer->dest().dest();
@@ -326,7 +334,7 @@ extern "C" PyObject* RecordWriterDest(PyRecordWriterObject* self,
   return dest;
 }
 
-extern "C" PyObject* RecordWriterRepr(PyRecordWriterObject* self) {
+static PyObject* RecordWriterRepr(PyRecordWriterObject* self) {
   const PythonPtr format = StringToPython("<RecordWriter dest={!r}>");
   if (ABSL_PREDICT_FALSE(format == nullptr)) return nullptr;
   // return format.format(self.dest)
@@ -338,14 +346,13 @@ extern "C" PyObject* RecordWriterRepr(PyRecordWriterObject* self) {
                                     nullptr);
 }
 
-extern "C" PyObject* RecordWriterEnter(PyObject* self, PyObject* args) {
+static PyObject* RecordWriterEnter(PyObject* self, PyObject* args) {
   // return self
   Py_INCREF(self);
   return self;
 }
 
-extern "C" PyObject* RecordWriterExit(PyRecordWriterObject* self,
-                                      PyObject* args) {
+static PyObject* RecordWriterExit(PyRecordWriterObject* self, PyObject* args) {
   PyObject* exc_type;
   PyObject* exc_value;
   PyObject* traceback;
@@ -365,8 +372,7 @@ extern "C" PyObject* RecordWriterExit(PyRecordWriterObject* self,
   Py_RETURN_FALSE;
 }
 
-extern "C" PyObject* RecordWriterClose(PyRecordWriterObject* self,
-                                       PyObject* args) {
+static PyObject* RecordWriterClose(PyRecordWriterObject* self, PyObject* args) {
   if (ABSL_PREDICT_TRUE(self->record_writer.has_value())) {
     const bool ok =
         PythonUnlocked([&] { return self->record_writer->Close(); });
@@ -378,8 +384,8 @@ extern "C" PyObject* RecordWriterClose(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
-                                             PyObject* args, PyObject* kwargs) {
+static PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
+                                         PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"record", nullptr};
   PyObject* record_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -400,9 +406,9 @@ extern "C" PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterWriteRecordWithKey(PyRecordWriterObject* self,
-                                                    PyObject* args,
-                                                    PyObject* kwargs) {
+static PyObject* RecordWriterWriteRecordWithKey(PyRecordWriterObject* self,
+                                                PyObject* args,
+                                                PyObject* kwargs) {
   static constexpr const char* keywords[] = {"record", nullptr};
   PyObject* record_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -425,9 +431,8 @@ extern "C" PyObject* RecordWriterWriteRecordWithKey(PyRecordWriterObject* self,
   return kRecordPositionApi->RecordPositionToPython(std::move(key)).release();
 }
 
-extern "C" PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
-                                              PyObject* args,
-                                              PyObject* kwargs) {
+static PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
+                                          PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"record", nullptr};
   PyObject* record_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -455,9 +460,9 @@ extern "C" PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterWriteMessageWithKey(PyRecordWriterObject* self,
-                                                     PyObject* args,
-                                                     PyObject* kwargs) {
+static PyObject* RecordWriterWriteMessageWithKey(PyRecordWriterObject* self,
+                                                 PyObject* args,
+                                                 PyObject* kwargs) {
   static constexpr const char* keywords[] = {"record", nullptr};
   PyObject* record_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -488,9 +493,8 @@ extern "C" PyObject* RecordWriterWriteMessageWithKey(PyRecordWriterObject* self,
   return kRecordPositionApi->RecordPositionToPython(std::move(key)).release();
 }
 
-extern "C" PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
-                                              PyObject* args,
-                                              PyObject* kwargs) {
+static PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
+                                          PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"records", nullptr};
   PyObject* records_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -520,8 +524,9 @@ extern "C" PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterWriteRecordsWithKeys(
-    PyRecordWriterObject* self, PyObject* args, PyObject* kwargs) {
+static PyObject* RecordWriterWriteRecordsWithKeys(PyRecordWriterObject* self,
+                                                  PyObject* args,
+                                                  PyObject* kwargs) {
   static constexpr const char* keywords[] = {"records", nullptr};
   PyObject* records_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -562,9 +567,8 @@ extern "C" PyObject* RecordWriterWriteRecordsWithKeys(
   return keys.release();
 }
 
-extern "C" PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
-                                               PyObject* args,
-                                               PyObject* kwargs) {
+static PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
+                                           PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"records", nullptr};
   PyObject* records_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -598,8 +602,9 @@ extern "C" PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterWriteMessagesWithKeys(
-    PyRecordWriterObject* self, PyObject* args, PyObject* kwargs) {
+static PyObject* RecordWriterWriteMessagesWithKeys(PyRecordWriterObject* self,
+                                                   PyObject* args,
+                                                   PyObject* kwargs) {
   static constexpr const char* keywords[] = {"records", nullptr};
   PyObject* records_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -645,8 +650,8 @@ extern "C" PyObject* RecordWriterWriteMessagesWithKeys(
   return keys.release();
 }
 
-extern "C" PyObject* RecordWriterFlush(PyRecordWriterObject* self,
-                                       PyObject* args, PyObject* kwargs) {
+static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
+                                   PyObject* kwargs) {
   static constexpr const char* keywords[] = {"flush_type", nullptr};
   PyObject* flush_type_arg;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
@@ -668,13 +673,14 @@ extern "C" PyObject* RecordWriterFlush(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-extern "C" PyObject* RecordWriterPos(PyRecordWriterObject* self,
-                                     void* closure) {
+static PyObject* RecordWriterPos(PyRecordWriterObject* self, void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
   return kRecordPositionApi->RecordPositionToPython(self->record_writer->Pos())
       .release();
 }
+
+}  // extern "C"
 
 const PyMethodDef RecordWriterMethods[] = {
     {"__enter__", RecordWriterEnter, METH_NOARGS,
