@@ -29,6 +29,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
+#include "riegeli/bytes/brotli_allocator.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -37,7 +38,37 @@ namespace riegeli {
 // Template parameter independent part of `BrotliReader`.
 class BrotliReaderBase : public PullableReader {
  public:
-  class Options {};
+  class Options {
+   public:
+    Options() noexcept {}
+
+    // Memory allocator used by the Brotli engine.
+    //
+    // Default: `BrotliAllocator()`
+    Options& set_allocator(const BrotliAllocator& allocator) & {
+      allocator_ = allocator;
+      return *this;
+    }
+    Options& set_allocator(BrotliAllocator&& allocator) & {
+      allocator_ = std::move(allocator);
+      return *this;
+    }
+    Options&& set_allocator(const BrotliAllocator& allocator) && {
+      return std::move(set_allocator(allocator));
+    }
+    Options&& set_allocator(BrotliAllocator&& allocator) && {
+      return std::move(set_allocator(std::move(allocator)));
+    }
+    BrotliAllocator& allocator() & { return allocator_; }
+    const BrotliAllocator& allocator() const& { return allocator_; }
+    BrotliAllocator&& allocator() && { return std::move(allocator_); }
+    const BrotliAllocator&& allocator() const&& {
+      return std::move(allocator_);
+    }
+
+   private:
+    BrotliAllocator allocator_;
+  };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
@@ -56,16 +87,15 @@ class BrotliReaderBase : public PullableReader {
   bool truncated() const { return truncated_; }
 
  protected:
-  explicit BrotliReaderBase(InitiallyClosed) noexcept
-      : PullableReader(kInitiallyClosed) {}
-  explicit BrotliReaderBase(InitiallyOpen) noexcept
-      : PullableReader(kInitiallyOpen) {}
+  BrotliReaderBase() noexcept : PullableReader(kInitiallyClosed) {}
+
+  explicit BrotliReaderBase(BrotliAllocator&& allocator);
 
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset();
+  void Reset(BrotliAllocator&& allocator);
   void Initialize(Reader* src);
 
   void Done() override;
@@ -78,6 +108,7 @@ class BrotliReaderBase : public PullableReader {
     }
   };
 
+  BrotliAllocator allocator_;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
@@ -105,7 +136,7 @@ template <typename Src = Reader*>
 class BrotliReader : public BrotliReaderBase {
  public:
   // Creates a closed `BrotliReader`.
-  BrotliReader() noexcept : BrotliReaderBase(kInitiallyClosed) {}
+  BrotliReader() noexcept {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit BrotliReader(const Src& src, Options options = Options());
@@ -160,10 +191,14 @@ BrotliReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
+inline BrotliReaderBase::BrotliReaderBase(BrotliAllocator&& allocator)
+    : PullableReader(kInitiallyOpen), allocator_(std::move(allocator)) {}
+
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
     : PullableReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      allocator_(std::move(that.allocator_)),
       truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)) {}
 
@@ -172,32 +207,35 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   PullableReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  allocator_ = std::move(that.allocator_);
   truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
 
-inline void BrotliReaderBase::Reset(InitiallyClosed) {
+inline void BrotliReaderBase::Reset() {
   PullableReader::Reset(kInitiallyClosed);
   truncated_ = false;
   decompressor_.reset();
+  allocator_ = BrotliAllocator();
 }
 
-inline void BrotliReaderBase::Reset(InitiallyOpen) {
+inline void BrotliReaderBase::Reset(BrotliAllocator&& allocator) {
   PullableReader::Reset(kInitiallyOpen);
   truncated_ = false;
   decompressor_.reset();
+  allocator_ = std::move(allocator);
 }
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(const Src& src, Options options)
-    : BrotliReaderBase(kInitiallyOpen), src_(src) {
+    : BrotliReaderBase(std::move(options.allocator())), src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(Src&& src, Options options)
-    : BrotliReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : BrotliReaderBase(std::move(options.allocator())), src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -205,7 +243,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : BrotliReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : BrotliReaderBase(std::move(options.allocator())),
+      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -228,20 +267,20 @@ inline BrotliReader<Src>& BrotliReader<Src>::operator=(
 
 template <typename Src>
 inline void BrotliReader<Src>::Reset() {
-  BrotliReaderBase::Reset(kInitiallyClosed);
+  BrotliReaderBase::Reset();
   src_.Reset();
 }
 
 template <typename Src>
 inline void BrotliReader<Src>::Reset(const Src& src, Options options) {
-  BrotliReaderBase::Reset(kInitiallyOpen);
+  BrotliReaderBase::Reset(std::move(options.allocator()));
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void BrotliReader<Src>::Reset(Src&& src, Options options) {
-  BrotliReaderBase::Reset(kInitiallyOpen);
+  BrotliReaderBase::Reset(std::move(options.allocator()));
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -250,7 +289,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void BrotliReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  BrotliReaderBase::Reset(kInitiallyOpen);
+  BrotliReaderBase::Reset(std::move(options.allocator()));
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

@@ -24,11 +24,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/resetter.h"
+#include "riegeli/bytes/brotli_allocator.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -92,6 +94,30 @@ class BrotliWriterBase : public BufferedWriter {
     }
     int window_log() const { return window_log_; }
 
+    // Memory allocator used by the Brotli engine.
+    //
+    // Default: `BrotliAllocator()`
+    Options& set_allocator(const BrotliAllocator& allocator) & {
+      allocator_ = allocator;
+      return *this;
+    }
+    Options& set_allocator(BrotliAllocator&& allocator) & {
+      allocator_ = std::move(allocator);
+      return *this;
+    }
+    Options&& set_allocator(const BrotliAllocator& allocator) && {
+      return std::move(set_allocator(allocator));
+    }
+    Options&& set_allocator(BrotliAllocator&& allocator) && {
+      return std::move(set_allocator(std::move(allocator)));
+    }
+    BrotliAllocator& allocator() & { return allocator_; }
+    const BrotliAllocator& allocator() const& { return allocator_; }
+    BrotliAllocator&& allocator() && { return std::move(allocator_); }
+    const BrotliAllocator&& allocator() const&& {
+      return std::move(allocator_);
+    }
+
     // Expected uncompressed size, or 0 if unknown. This may improve compression
     // density and performance.
     //
@@ -124,6 +150,7 @@ class BrotliWriterBase : public BufferedWriter {
    private:
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
+    BrotliAllocator allocator_;
     Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -144,13 +171,15 @@ class BrotliWriterBase : public BufferedWriter {
  protected:
   BrotliWriterBase() noexcept {}
 
-  explicit BrotliWriterBase(size_t buffer_size, Position size_hint);
+  explicit BrotliWriterBase(BrotliAllocator&& allocator, size_t buffer_size,
+                            Position size_hint);
 
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint);
+  void Reset(BrotliAllocator&& allocator, size_t buffer_size,
+             Position size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   Position size_hint);
 
@@ -167,6 +196,7 @@ class BrotliWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src, Writer& dest,
                      BrotliEncoderOperation op);
 
+  BrotliAllocator allocator_;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
 
@@ -238,14 +268,17 @@ BrotliWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline BrotliWriterBase::BrotliWriterBase(size_t buffer_size,
+inline BrotliWriterBase::BrotliWriterBase(BrotliAllocator&& allocator,
+                                          size_t buffer_size,
                                           Position size_hint)
-    : BufferedWriter(buffer_size, size_hint) {}
+    : BufferedWriter(buffer_size, size_hint),
+      allocator_(std::move(allocator)) {}
 
 inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      allocator_(std::move(that.allocator_)),
       compressor_(std::move(that.compressor_)) {}
 
 inline BrotliWriterBase& BrotliWriterBase::operator=(
@@ -253,6 +286,7 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
   BufferedWriter::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  allocator_ = std::move(that.allocator_);
   compressor_ = std::move(that.compressor_);
   return *this;
 }
@@ -260,16 +294,20 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
 inline void BrotliWriterBase::Reset() {
   BufferedWriter::Reset();
   compressor_.reset();
+  allocator_ = BrotliAllocator();
 }
 
-inline void BrotliWriterBase::Reset(size_t buffer_size, Position size_hint) {
+inline void BrotliWriterBase::Reset(BrotliAllocator&& allocator,
+                                    size_t buffer_size, Position size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
   compressor_.reset();
+  allocator_ = std::move(allocator);
 }
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
-    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
+    : BrotliWriterBase(std::move(options.allocator()), options.buffer_size(),
+                       options.size_hint()),
       dest_(dest) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());
@@ -277,7 +315,8 @@ inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(Dest&& dest, Options options)
-    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
+    : BrotliWriterBase(std::move(options.allocator()), options.buffer_size(),
+                       options.size_hint()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());
@@ -287,7 +326,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : BrotliWriterBase(options.buffer_size(), options.size_hint()),
+    : BrotliWriterBase(std::move(options.allocator()), options.buffer_size(),
+                       options.size_hint()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());
@@ -318,7 +358,8 @@ inline void BrotliWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
-  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
+  BrotliWriterBase::Reset(std::move(options.allocator()), options.buffer_size(),
+                          options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());
@@ -326,7 +367,8 @@ inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(Dest&& dest, Options options) {
-  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
+  BrotliWriterBase::Reset(std::move(options.allocator()), options.buffer_size(),
+                          options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());
@@ -336,7 +378,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void BrotliWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  BrotliWriterBase::Reset(options.buffer_size(), options.size_hint());
+  BrotliWriterBase::Reset(std::move(options.allocator()), options.buffer_size(),
+                          options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.size_hint());

@@ -27,6 +27,7 @@
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/brotli_allocator.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -52,7 +53,8 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(*dest);
     return;
   }
-  compressor_.reset(BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
+  compressor_.reset(BrotliEncoderCreateInstance(
+      allocator_.alloc_func(), allocator_.free_func(), allocator_.opaque()));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     Fail(absl::InternalError("BrotliEncoderCreateInstance() failed"));
     return;

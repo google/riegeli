@@ -623,6 +623,7 @@ cc_library(
     srcs = ["brotli_writer.cc"],
     hdrs = ["brotli_writer.h"],
     deps = [
+        ":brotli_allocator",
         ":buffered_writer",
         ":writer",
         "//riegeli/base",
@@ -639,6 +640,7 @@ cc_library(
     srcs = ["brotli_reader.cc"],
     hdrs = ["brotli_reader.h"],
     deps = [
+        ":brotli_allocator",
         ":pullable_reader",
         ":reader",
         "//riegeli/base",
@@ -648,6 +650,14 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@org_brotli//:brotlidec",
     ],
+)
+
+cc_library(
+    name = "brotli_allocator",
+    srcs = ["brotli_allocator.cc"],
+    hdrs = ["brotli_allocator.h"],
+    visibility = ["//visibility:private"],
+    deps = ["@org_brotli//:brotlicommon"],
 )
 
 cc_library(

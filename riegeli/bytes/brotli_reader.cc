@@ -26,6 +26,7 @@
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/brotli_allocator.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -38,7 +39,8 @@ void BrotliReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
-  decompressor_.reset(BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
+  decompressor_.reset(BrotliDecoderCreateInstance(
+      allocator_.alloc_func(), allocator_.free_func(), allocator_.opaque()));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail(absl::InternalError("BrotliDecoderCreateInstance() failed"));
     return;
