@@ -698,7 +698,10 @@ cc_library(
 
 cc_library(
     name = "zlib_writer",
-    srcs = ["zlib_writer.cc"],
+    srcs = [
+        "zlib_dictionary.h",
+        "zlib_writer.cc",
+    ],
     hdrs = ["zlib_writer.h"],
     deps = [
         ":buffered_writer",
@@ -715,7 +718,10 @@ cc_library(
 
 cc_library(
     name = "zlib_reader",
-    srcs = ["zlib_reader.cc"],
+    srcs = [
+        "zlib_dictionary.h",
+        "zlib_reader.cc",
+    ],
     hdrs = ["zlib_reader.h"],
     deps = [
         ":buffered_reader",

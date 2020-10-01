@@ -29,6 +29,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -197,6 +198,20 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         decompressor_.reset();
         break;
       case Z_NEED_DICT:
+        if (ABSL_PREDICT_TRUE(!dictionary_.empty())) {
+          const int zlib_code = inflateSetDictionary(
+              decompressor_.get(),
+              const_cast<z_const Bytef*>(
+                  reinterpret_cast<const Bytef*>(dictionary_.data().data())),
+              SaturatingIntCast<uInt>(dictionary_.data().size()));
+          if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+            FailOperation(absl::StatusCode::kDataLoss, "inflateSetDictionary()",
+                          zlib_code);
+            break;
+          }
+          continue;
+        }
+        ABSL_FALLTHROUGH_INTENDED;
       case Z_DATA_ERROR:
         FailOperation(absl::StatusCode::kDataLoss, "inflate()", result);
         break;

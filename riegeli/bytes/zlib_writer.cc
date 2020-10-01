@@ -29,6 +29,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/bytes/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -74,6 +75,16 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
               FailOperation("deflateReset()", zlib_code);
             }
           });
+  if (!dictionary_.empty()) {
+    const int zlib_code = deflateSetDictionary(
+        compressor_.get(),
+        const_cast<z_const Bytef*>(
+            reinterpret_cast<const Bytef*>(dictionary_.data().data())),
+        SaturatingIntCast<uInt>(dictionary_.data().size()));
+    if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
+      FailOperation("deflateSetDictionary()", zlib_code);
+    }
+  }
 }
 
 void ZlibWriterBase::Done() {

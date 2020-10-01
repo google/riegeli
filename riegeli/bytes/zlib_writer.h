@@ -31,6 +31,7 @@
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/bytes/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -113,6 +114,30 @@ class ZlibWriterBase : public BufferedWriter {
     }
     Header header() const { return header_; }
 
+    // Zlib dictionary. The same dictionary must be used for decompression.
+    //
+    // Default: `ZlibDictionary()`
+    Options& set_dictionary(const ZlibDictionary& dictionary) & {
+      dictionary_ = dictionary;
+      return *this;
+    }
+    Options& set_dictionary(ZlibDictionary&& dictionary) & {
+      dictionary_ = std::move(dictionary);
+      return *this;
+    }
+    Options&& set_dictionary(const ZlibDictionary& dictionary) && {
+      return std::move(set_dictionary(dictionary));
+    }
+    Options&& set_dictionary(ZlibDictionary&& dictionary) && {
+      return std::move(set_dictionary(std::move(dictionary)));
+    }
+    ZlibDictionary& dictionary() & { return dictionary_; }
+    const ZlibDictionary& dictionary() const& { return dictionary_; }
+    ZlibDictionary&& dictionary() && { return std::move(dictionary_); }
+    const ZlibDictionary&& dictionary() const&& {
+      return std::move(dictionary_);
+    }
+
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
     //
@@ -146,6 +171,7 @@ class ZlibWriterBase : public BufferedWriter {
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
+    ZlibDictionary dictionary_;
     Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -166,13 +192,15 @@ class ZlibWriterBase : public BufferedWriter {
  protected:
   ZlibWriterBase() noexcept {}
 
-  explicit ZlibWriterBase(size_t buffer_size, Position size_hint);
+  explicit ZlibWriterBase(ZlibDictionary&& dictionary, size_t buffer_size,
+                          Position size_hint);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint);
+  void Reset(ZlibDictionary&& dictionary, size_t buffer_size,
+             Position size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level, int window_bits);
 
@@ -211,6 +239,7 @@ class ZlibWriterBase : public BufferedWriter {
                                          int zlib_code);
   bool WriteInternal(absl::string_view src, Writer& dest, int flush);
 
+  ZlibDictionary dictionary_;
   RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::Handle compressor_;
 };
 
@@ -282,13 +311,16 @@ ZlibWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline ZlibWriterBase::ZlibWriterBase(size_t buffer_size, Position size_hint)
-    : BufferedWriter(buffer_size, size_hint) {}
+inline ZlibWriterBase::ZlibWriterBase(ZlibDictionary&& dictionary,
+                                      size_t buffer_size, Position size_hint)
+    : BufferedWriter(buffer_size, size_hint),
+      dictionary_(std::move(dictionary)) {}
 
 inline ZlibWriterBase::ZlibWriterBase(ZlibWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      dictionary_(std::move(that.dictionary_)),
       compressor_(std::move(that.compressor_)) {}
 
 inline ZlibWriterBase& ZlibWriterBase::operator=(
@@ -296,17 +328,21 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
   BufferedWriter::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  dictionary_ = std::move(that.dictionary_);
   compressor_ = std::move(that.compressor_);
   return *this;
 }
 
 inline void ZlibWriterBase::Reset() {
   BufferedWriter::Reset();
+  dictionary_.reset();
   compressor_.reset();
 }
 
-inline void ZlibWriterBase::Reset(size_t buffer_size, Position size_hint) {
+inline void ZlibWriterBase::Reset(ZlibDictionary&& dictionary,
+                                  size_t buffer_size, Position size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
+  dictionary_ = std::move(dictionary);
   compressor_.reset();
 }
 
@@ -318,13 +354,16 @@ inline int ZlibWriterBase::GetWindowBits(const Options& options) {
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(const Dest& dest, Options options)
-    : ZlibWriterBase(options.buffer_size(), options.size_hint()), dest_(dest) {
+    : ZlibWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.size_hint()),
+      dest_(dest) {
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 inline ZlibWriter<Dest>::ZlibWriter(Dest&& dest, Options options)
-    : ZlibWriterBase(options.buffer_size(), options.size_hint()),
+    : ZlibWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.size_hint()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
@@ -333,7 +372,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ZlibWriter<Dest>::ZlibWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : ZlibWriterBase(options.buffer_size(), options.size_hint()),
+    : ZlibWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.size_hint()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
@@ -363,14 +403,16 @@ inline void ZlibWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.size_hint());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
 
 template <typename Dest>
 inline void ZlibWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.size_hint());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }
@@ -379,7 +421,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ZlibWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  ZlibWriterBase::Reset(options.buffer_size(), options.size_hint());
+  ZlibWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.size_hint());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), GetWindowBits(options));
 }

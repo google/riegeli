@@ -32,6 +32,7 @@
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -96,6 +97,32 @@ class ZlibReaderBase : public BufferedReader {
     }
     Header header() const { return header_; }
 
+    // Zlib dictionary. The same dictionary must have been used for compression,
+    // except that it is allowed to supply a dictionary even if no dictionary
+    // was used for compression.
+    //
+    // Default: `ZlibDictionary()`
+    Options& set_dictionary(const ZlibDictionary& dictionary) & {
+      dictionary_ = dictionary;
+      return *this;
+    }
+    Options& set_dictionary(ZlibDictionary&& dictionary) & {
+      dictionary_ = std::move(dictionary);
+      return *this;
+    }
+    Options&& set_dictionary(const ZlibDictionary& dictionary) && {
+      return std::move(set_dictionary(dictionary));
+    }
+    Options&& set_dictionary(ZlibDictionary&& dictionary) && {
+      return std::move(set_dictionary(std::move(dictionary)));
+    }
+    ZlibDictionary& dictionary() & { return dictionary_; }
+    const ZlibDictionary& dictionary() const& { return dictionary_; }
+    ZlibDictionary&& dictionary() && { return std::move(dictionary_); }
+    const ZlibDictionary&& dictionary() const&& {
+      return std::move(dictionary_);
+    }
+
     // If `true`, concatenated compressed streams are decoded to concatenation
     // of their decompressed contents. An empty compressed stream is decoded to
     // empty decompressed contents.
@@ -144,6 +171,7 @@ class ZlibReaderBase : public BufferedReader {
    private:
     absl::optional<int> window_log_;
     Header header_ = kDefaultHeader;
+    ZlibDictionary dictionary_;
     bool concatenate_ = false;
     Position size_hint_ = 0;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -175,14 +203,15 @@ class ZlibReaderBase : public BufferedReader {
  protected:
   ZlibReaderBase() noexcept {}
 
-  explicit ZlibReaderBase(bool concatenate, size_t buffer_size,
-                          Position size_hint);
+  explicit ZlibReaderBase(ZlibDictionary&& dictionary, bool concatenate,
+                          size_t buffer_size, Position size_hint);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(bool concatenate, size_t buffer_size, Position size_hint);
+  void Reset(ZlibDictionary&& dictionary, bool concatenate, size_t buffer_size,
+             Position size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src, int window_bits);
 
@@ -203,6 +232,7 @@ class ZlibReaderBase : public BufferedReader {
                                          absl::string_view operation,
                                          int zlib_code);
 
+  ZlibDictionary dictionary_;
   bool concatenate_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
@@ -284,14 +314,18 @@ ZlibReader(std::tuple<SrcArgs...> src_args,
 
 // Implementation details follow.
 
-inline ZlibReaderBase::ZlibReaderBase(bool concatenate, size_t buffer_size,
+inline ZlibReaderBase::ZlibReaderBase(ZlibDictionary&& dictionary,
+                                      bool concatenate, size_t buffer_size,
                                       Position size_hint)
-    : BufferedReader(buffer_size, size_hint), concatenate_(concatenate) {}
+    : BufferedReader(buffer_size, size_hint),
+      dictionary_(std::move(dictionary)),
+      concatenate_(concatenate) {}
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      dictionary_(std::move(that.dictionary_)),
       concatenate_(that.concatenate_),
       truncated_(that.truncated_),
       stream_had_data_(that.stream_had_data_),
@@ -302,6 +336,7 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  dictionary_ = std::move(that.dictionary_);
   concatenate_ = that.concatenate_;
   truncated_ = that.truncated_;
   stream_had_data_ = that.stream_had_data_;
@@ -311,15 +346,17 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
 
 inline void ZlibReaderBase::Reset() {
   BufferedReader::Reset();
+  dictionary_.reset();
   concatenate_ = false;
   truncated_ = false;
   stream_had_data_ = false;
   decompressor_.reset();
 }
 
-inline void ZlibReaderBase::Reset(bool concatenate, size_t buffer_size,
-                                  Position size_hint) {
+inline void ZlibReaderBase::Reset(ZlibDictionary&& dictionary, bool concatenate,
+                                  size_t buffer_size, Position size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
+  dictionary_ = std::move(dictionary);
   concatenate_ = concatenate;
   truncated_ = false;
   stream_had_data_ = false;
@@ -338,16 +375,16 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(const Src& src, Options options)
-    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(std::move(options.dictionary()), options.concatenate(),
+                     options.buffer_size(), options.size_hint()),
       src_(src) {
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Src&& src, Options options)
-    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(std::move(options.dictionary()), options.concatenate(),
+                     options.buffer_size(), options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -356,8 +393,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZlibReader<Src>::ZlibReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZlibReaderBase(options.concatenate(), options.buffer_size(),
-                     options.size_hint()),
+    : ZlibReaderBase(std::move(options.dictionary()), options.concatenate(),
+                     options.buffer_size(), options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -386,16 +423,16 @@ inline void ZlibReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(const Src& src, Options options) {
-  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(std::move(options.dictionary()), options.concatenate(),
+                        options.buffer_size(), options.size_hint());
   src_.Reset(src);
   Initialize(src_.get(), GetWindowBits(options));
 }
 
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Src&& src, Options options) {
-  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(std::move(options.dictionary()), options.concatenate(),
+                        options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get(), GetWindowBits(options));
 }
@@ -404,8 +441,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZlibReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZlibReaderBase::Reset(options.concatenate(), options.buffer_size(),
-                        options.size_hint());
+  ZlibReaderBase::Reset(std::move(options.dictionary()), options.concatenate(),
+                        options.buffer_size(), options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), GetWindowBits(options));
 }
