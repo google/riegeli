@@ -1075,6 +1075,28 @@ Yields:
   A tuple of the canonical record position and the next record read as parsed
   message.
 )doc"},
+    {"set_field_projection",
+     reinterpret_cast<PyCFunction>(RecordReaderSetFieldProjection),
+     METH_VARARGS | METH_KEYWORDS, R"doc(
+set_field_projection(
+    self, field_projection: Optional[Iterable[Iterable[int]]]
+) -> None
+
+Like field_projection constructor argument, but can be done at any time.
+
+Args:
+  field_projection: If not None, the set of fields to be included in returned
+    records, allowing to exclude the remaining fields (but does not guarantee
+    that they will be excluded). Excluding data makes reading faster. Projection
+    is effective if the file has been written with "transpose" in RecordWriter
+    options. Additionally, "bucket_fraction" in RecordWriter options with a
+    lower value can make reading with projection faster. A field projection is
+    specified as an iterable of field paths. A field path is specified as an
+    iterable of proto field numbers descending from the root message. A special
+    field EXISTENCE_ONLY can be added to the end of the path; it preserves
+    field existence but ignores its value; warning: for a repeated field this
+    preserves the field count only if the field is not packed.
+)doc"},
     {"seek", reinterpret_cast<PyCFunction>(RecordReaderSeek),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 seek(self, pos: RecordPosition) -> None
@@ -1260,7 +1282,7 @@ PyTypeObject PyRecordReader_Type = {
     nullptr,                                       // tp_as_buffer
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,  // tp_flags
     R"doc(
-def RecordReader(
+RecordReader(
     src: BinaryIO,
     *,
     close: bool = True,
@@ -1411,7 +1433,7 @@ PyTypeObject PyRecordIter_Type = {
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,             // tp_flags
     nullptr,                                             // tp_doc
     reinterpret_cast<traverseproc>(RecordIterTraverse),  // tp_traverse
-    nullptr,                                             // tp_clear
+    reinterpret_cast<inquiry>(RecordIterClear),          // tp_clear
     nullptr,                                             // tp_richcompare
     0,                                                   // tp_weaklistoffset
     PyObject_SelfIter,                                   // tp_iter

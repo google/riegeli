@@ -211,8 +211,13 @@ def sample_message(i, size):
   return records_test_pb2.SimpleMessage(id=i, payload=sample_string(i, size))
 
 
-def record_writer_options(parallelism):
-  return 'uncompressed,chunk_size:35000,parallelism:{}'.format(parallelism)
+def sample_message_id_only(i):
+  return records_test_pb2.SimpleMessage(id=i)
+
+
+def record_writer_options(parallelism, transpose=False):
+  return '{}uncompressed,chunk_size:35000,parallelism:{}'.format(
+      'transpose,' if transpose else '', parallelism)
 
 
 # pyformat: disable
@@ -453,6 +458,64 @@ class RecordsTest(parameterized.TestCase):
         self.assertEqual(
             list(reader.read_messages(records_test_pb2.SimpleMessage)),
             [sample_message(i, 10000) for i in range(23)])
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_write_read_messages_with_field_projection(self, file_spec,
+                                                     random_access,
+                                                     parallelism):
+    with contextlib.closing(file_spec(self.create_tempfile,
+                                      random_access)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism, transpose=True)) as writer:
+        writer.write_messages(sample_message(i, 10000) for i in range(23))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos,
+          field_projection=[[
+              records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
+              .number
+          ]]) as reader:
+        self.assertEqual(
+            list(reader.read_messages(records_test_pb2.SimpleMessage)),
+            [sample_message_id_only(i) for i in range(23)])
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
+  def test_write_read_messages_with_field_projection_later(
+      self, file_spec, parallelism):
+    with contextlib.closing(
+        file_spec(self.create_tempfile, random_access=True)) as files:
+      with riegeli.RecordWriter(
+          files.writing_open(),
+          close=files.writing_should_close,
+          assumed_pos=files.writing_assumed_pos,
+          options=record_writer_options(parallelism, transpose=True)) as writer:
+        writer.write_messages(sample_message(i, 10000) for i in range(23))
+      with riegeli.RecordReader(
+          files.reading_open(),
+          close=files.reading_should_close,
+          assumed_pos=files.reading_assumed_pos) as reader:
+        for i in range(4):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000))
+        reader.set_field_projection([[
+            records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
+            .number
+        ]])
+        for i in range(4, 14):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message_id_only(i))
+        reader.set_field_projection(None)
+        for i in range(14, 23):
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000))
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_messages_with_keys(self, file_spec, random_access,
