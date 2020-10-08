@@ -41,6 +41,25 @@ class CordBackwardWriterBase : public BackwardWriter {
    public:
     Options() noexcept {}
 
+    // If `true`, prepends to existing contents of the destination.
+    //
+    // If `false`, the temporary behavior is to `CHECK` that the destination was
+    // empty. This allows to make sure that all uses are properly migrated,
+    // adding `set_prepend(true)` if prepending to existing contents of the
+    // destination is needed. Eventually the behavior will be: If `false`,
+    // replaces existing contents of the destination, clearing it first.
+    // And this will be the default.
+    //
+    // Default: `true` (temporarily).
+    Options& set_prepend(bool prepend) & {
+      prepend_ = prepend;
+      return *this;
+    }
+    Options&& set_prepend(bool prepend) && {
+      return std::move(set_prepend(prepend));
+    }
+    bool prepend() const { return prepend_; }
+
     // Expected final size, or 0 if unknown. This may improve performance and
     // memory usage.
     //
@@ -88,6 +107,7 @@ class CordBackwardWriterBase : public BackwardWriter {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
+    bool prepend_ = true;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
@@ -104,14 +124,14 @@ class CordBackwardWriterBase : public BackwardWriter {
  protected:
   CordBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit CordBackwardWriterBase(Options&& options);
+  explicit CordBackwardWriterBase(const Options& options);
 
   CordBackwardWriterBase(CordBackwardWriterBase&& that) noexcept;
   CordBackwardWriterBase& operator=(CordBackwardWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Options&& options);
-  void Initialize(absl::Cord* dest);
+  void Reset(const Options& options);
+  void Initialize(absl::Cord* dest, bool prepend);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -208,7 +228,7 @@ CordBackwardWriter(
 
 // Implementation details follow.
 
-inline CordBackwardWriterBase::CordBackwardWriterBase(Options&& options)
+inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
     : BackwardWriter(kInitiallyOpen),
       size_hint_(SaturatingIntCast<size_t>(options.size_hint())),
       min_block_size_(options.min_block_size()),
@@ -252,44 +272,55 @@ inline void CordBackwardWriterBase::Reset() {
   max_block_size_ = kMaxBufferSize;
 }
 
-inline void CordBackwardWriterBase::Reset(Options&& options) {
+inline void CordBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset(kInitiallyOpen);
   size_hint_ = SaturatingIntCast<size_t>(options.size_hint());
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
 }
 
-inline void CordBackwardWriterBase::Initialize(absl::Cord* dest) {
+inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CordBackwardWriter: null Cord pointer";
-  set_start_pos(dest->size());
-  const size_t buffer_length = UnsignedMin(
-      kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-  if (size_hint_ <= dest->size() + buffer_length) {
-    set_buffer(short_buffer_, buffer_length);
+  if (prepend) {
+    set_start_pos(dest->size());
+    const size_t buffer_length = UnsignedMin(
+        kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
+    if (size_hint_ <= dest->size() + buffer_length) {
+      set_buffer(short_buffer_, buffer_length);
+    }
+  } else {
+    RIEGELI_CHECK(dest->empty())
+        << "Protection against a breaking change in "
+           "riegeli::CordBackwardWriter: destination is not empty but "
+           "riegeli::CordBackwardWriterBase::Options().set_prepend(true) is "
+           "missing";
+    if (size_hint_ <= kShortBufferSize) {
+      set_buffer(short_buffer_, kShortBufferSize);
+    }
   }
 }
 
 template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(const Dest& dest,
                                                     Options options)
-    : CordBackwardWriterBase(std::move(options)), dest_(dest) {
-  Initialize(dest_.get());
+    : CordBackwardWriterBase(options), dest_(dest) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(Dest&& dest,
                                                     Options options)
-    : CordBackwardWriterBase(std::move(options)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+    : CordBackwardWriterBase(options), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : CordBackwardWriterBase(std::move(options)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+    : CordBackwardWriterBase(options), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
@@ -318,25 +349,25 @@ inline void CordBackwardWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void CordBackwardWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CordBackwardWriterBase::Reset(std::move(options));
+  CordBackwardWriterBase::Reset(options);
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 inline void CordBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  CordBackwardWriterBase::Reset(std::move(options));
+  CordBackwardWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void CordBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
-  CordBackwardWriterBase::Reset(std::move(options));
+  CordBackwardWriterBase::Reset(options);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>

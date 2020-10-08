@@ -40,6 +40,25 @@ class StringWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    // If `true`, appends to existing contents of the destination.
+    //
+    // If `false`, the temporary behavior is to `CHECK` that the destination was
+    // empty. This allows to make sure that all uses are properly migrated,
+    // adding `set_append(true)` if appending to existing contents of the
+    // destination is needed. Eventually the behavior will be: If `false`,
+    // replaces existing contents of the destination, clearing it first.
+    // And this will be the default.
+    //
+    // Default: `true` (temporarily).
+    Options& set_append(bool append) & {
+      append_ = append;
+      return *this;
+    }
+    Options&& set_append(bool append) && {
+      return std::move(set_append(append));
+    }
+    bool append() const { return append_; }
+
     // Expected final size, or 0 if unknown. This may improve performance and
     // memory usage.
     //
@@ -54,6 +73,7 @@ class StringWriterBase : public Writer {
     Position size_hint() const { return size_hint_; }
 
    private:
+    bool append_ = true;
     Position size_hint_ = 0;
   };
 
@@ -74,7 +94,7 @@ class StringWriterBase : public Writer {
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
-  void Initialize(std::string* dest, Position size_hint);
+  void Initialize(std::string* dest, bool append, Position size_hint);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -177,10 +197,16 @@ inline StringWriterBase& StringWriterBase::operator=(
   return *this;
 }
 
-inline void StringWriterBase::Initialize(std::string* dest,
+inline void StringWriterBase::Initialize(std::string* dest, bool append,
                                          Position size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
+  if (!append) {
+    RIEGELI_CHECK(dest->empty())
+        << "Protection against a breaking change in riegeli::StringWriter: "
+           "destination is not empty but "
+           "riegeli::StringWriterBase::Options().set_append(true) is missing";
+  }
   const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
   if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
   MakeBuffer(*dest);
@@ -195,13 +221,13 @@ inline void StringWriterBase::MakeBuffer(std::string& dest) {
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
     : StringWriterBase(kInitiallyOpen), dest_(dest) {
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
     : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
@@ -209,7 +235,7 @@ template <typename... DestArgs>
 inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
     : StringWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
@@ -240,14 +266,14 @@ template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
@@ -256,7 +282,7 @@ inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
   StringWriterBase::Reset(kInitiallyOpen);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.size_hint());
+  Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>

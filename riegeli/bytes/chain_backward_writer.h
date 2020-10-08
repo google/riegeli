@@ -38,6 +38,25 @@ class ChainBackwardWriterBase : public BackwardWriter {
    public:
     Options() noexcept {}
 
+    // If `true`, prepends to existing contents of the destination.
+    //
+    // If `false`, the temporary behavior is to `CHECK` that the destination was
+    // empty. This allows to make sure that all uses are properly migrated,
+    // adding `set_prepend(true)` if prepending to existing contents of the
+    // destination is needed. Eventually the behavior will be: If `false`,
+    // replaces existing contents of the destination, clearing it first.
+    // And this will be the default.
+    //
+    // Default: `true` (temporarily).
+    Options& set_prepend(bool prepend) & {
+      prepend_ = prepend;
+      return *this;
+    }
+    Options&& set_prepend(bool prepend) && {
+      return std::move(set_prepend(prepend));
+    }
+    bool prepend() const { return prepend_; }
+
     // Expected final size, or 0 if unknown. This may improve performance and
     // memory usage.
     //
@@ -85,6 +104,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
+    bool prepend_ = true;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
@@ -101,14 +121,14 @@ class ChainBackwardWriterBase : public BackwardWriter {
  protected:
   ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit ChainBackwardWriterBase(Options&& options);
+  explicit ChainBackwardWriterBase(const Options& options);
 
   ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
   ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Options&& options);
-  void Initialize(Chain* dest);
+  void Reset(const Options& options);
+  void Initialize(Chain* dest, bool prepend);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -204,7 +224,7 @@ ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline ChainBackwardWriterBase::ChainBackwardWriterBase(Options&& options)
+inline ChainBackwardWriterBase::ChainBackwardWriterBase(const Options& options)
     : BackwardWriter(kInitiallyOpen),
       options_(
           Chain::Options()
@@ -233,7 +253,7 @@ inline void ChainBackwardWriterBase::Reset() {
   options_ = Chain::Options();
 }
 
-inline void ChainBackwardWriterBase::Reset(Options&& options) {
+inline void ChainBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset(kInitiallyOpen);
   options_ = Chain::Options()
                  .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
@@ -241,10 +261,18 @@ inline void ChainBackwardWriterBase::Reset(Options&& options) {
                  .set_max_block_size(options.max_block_size());
 }
 
-inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
+inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ChainBackwardWriter: null Chain pointer";
-  set_start_pos(dest->size());
+  if (prepend) {
+    set_start_pos(dest->size());
+  } else {
+    RIEGELI_CHECK(dest->empty())
+        << "Protection against a breaking change in "
+           "riegeli::ChainBackwardWriter: destination is not empty but "
+           "riegeli::ChainBackwardWriterBase::Options().set_prepend(true) is "
+           "missing";
+  }
   const absl::Span<char> buffer =
       dest->PrependBuffer(0, 0, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
@@ -253,23 +281,23 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest) {
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(std::move(options)), dest_(dest) {
-  Initialize(dest_.get());
+    : ChainBackwardWriterBase(options), dest_(dest) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Dest&& dest,
                                                       Options options)
-    : ChainBackwardWriterBase(std::move(options)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+    : ChainBackwardWriterBase(options), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : ChainBackwardWriterBase(std::move(options)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+    : ChainBackwardWriterBase(options), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
@@ -300,25 +328,25 @@ inline void ChainBackwardWriter<Dest>::Reset() {
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(const Dest& dest,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(std::move(options));
+  ChainBackwardWriterBase::Reset(options);
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainBackwardWriterBase::Reset(std::move(options));
+  ChainBackwardWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void ChainBackwardWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                              Options options) {
-  ChainBackwardWriterBase::Reset(std::move(options));
+  ChainBackwardWriterBase::Reset(options);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.prepend());
 }
 
 template <typename Dest>

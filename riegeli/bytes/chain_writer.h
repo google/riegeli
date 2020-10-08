@@ -38,6 +38,25 @@ class ChainWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    // If `true`, appends to existing contents of the destination.
+    //
+    // If `false`, the temporary behavior is to `CHECK` that the destination was
+    // empty. This allows to make sure that all uses are properly migrated,
+    // adding `set_append(true)` if appending to existing contents of the
+    // destination is needed. Eventually the behavior will be: If `false`,
+    // replaces existing contents of the destination, clearing it first.
+    // And this will be the default.
+    //
+    // Default: `true` (temporarily).
+    Options& set_append(bool append) & {
+      append_ = append;
+      return *this;
+    }
+    Options&& set_append(bool append) && {
+      return std::move(set_append(append));
+    }
+    bool append() const { return append_; }
+
     // Expected final size, or 0 if unknown. This may improve performance and
     // memory usage.
     //
@@ -85,6 +104,7 @@ class ChainWriterBase : public Writer {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
+    bool append_ = true;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
@@ -101,14 +121,14 @@ class ChainWriterBase : public Writer {
  protected:
   ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit ChainWriterBase(Options&& options);
+  explicit ChainWriterBase(const Options& options);
 
   ChainWriterBase(ChainWriterBase&& that) noexcept;
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Options&& options);
-  void Initialize(Chain* dest);
+  void Reset(const Options& options);
+  void Initialize(Chain* dest, bool append);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -205,7 +225,7 @@ ChainWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline ChainWriterBase::ChainWriterBase(Options&& options)
+inline ChainWriterBase::ChainWriterBase(const Options& options)
     : Writer(kInitiallyOpen),
       options_(
           Chain::Options()
@@ -233,7 +253,7 @@ inline void ChainWriterBase::Reset() {
   options_ = Chain::Options();
 }
 
-inline void ChainWriterBase::Reset(Options&& options) {
+inline void ChainWriterBase::Reset(const Options& options) {
   Writer::Reset(kInitiallyOpen);
   options_ = Chain::Options()
                  .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
@@ -241,10 +261,17 @@ inline void ChainWriterBase::Reset(Options&& options) {
                  .set_max_block_size(options.max_block_size());
 }
 
-inline void ChainWriterBase::Initialize(Chain* dest) {
+inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ChainWriter: null Chain pointer";
-  set_start_pos(dest->size());
+  if (append) {
+    set_start_pos(dest->size());
+  } else {
+    RIEGELI_CHECK(dest->empty())
+        << "Protection against a breaking change in riegeli::ChainWriter: "
+           "destination is not empty but "
+           "riegeli::ChainWriterBase::Options().set_append(true) is missing";
+  }
   const absl::Span<char> buffer =
       dest->AppendBuffer(0, 0, Chain::kAnyLength, options_);
   set_buffer(buffer.data(), buffer.size());
@@ -252,22 +279,22 @@ inline void ChainWriterBase::Initialize(Chain* dest) {
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(const Dest& dest, Options options)
-    : ChainWriterBase(std::move(options)), dest_(dest) {
-  Initialize(dest_.get());
+    : ChainWriterBase(options), dest_(dest) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline ChainWriter<Dest>::ChainWriter(Dest&& dest, Options options)
-    : ChainWriterBase(std::move(options)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+    : ChainWriterBase(options), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline ChainWriter<Dest>::ChainWriter(std::tuple<DestArgs...> dest_args,
                                       Options options)
-    : ChainWriterBase(std::move(options)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+    : ChainWriterBase(options), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
@@ -296,25 +323,25 @@ inline void ChainWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ChainWriterBase::Reset(std::move(options));
+  ChainWriterBase::Reset(options);
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ChainWriterBase::Reset(std::move(options));
+  ChainWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void ChainWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                      Options options) {
-  ChainWriterBase::Reset(std::move(options));
+  ChainWriterBase::Reset(options);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>

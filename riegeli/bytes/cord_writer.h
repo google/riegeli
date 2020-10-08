@@ -41,6 +41,25 @@ class CordWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    // If `true`, appends to existing contents of the destination.
+    //
+    // If `false`, the temporary behavior is to `CHECK` that the destination was
+    // empty. This allows to make sure that all uses are properly migrated,
+    // adding `set_append(true)` if appending to existing contents of the
+    // destination is needed. Eventually the behavior will be: If `false`,
+    // replaces existing contents of the destination, clearing it first.
+    // And this will be the default.
+    //
+    // Default: `true` (temporarily).
+    Options& set_append(bool append) & {
+      append_ = append;
+      return *this;
+    }
+    Options&& set_append(bool append) && {
+      return std::move(set_append(append));
+    }
+    bool append() const { return append_; }
+
     // Expected final size, or 0 if unknown. This may improve performance and
     // memory usage.
     //
@@ -88,6 +107,7 @@ class CordWriterBase : public Writer {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
+    bool append_ = true;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
@@ -104,14 +124,14 @@ class CordWriterBase : public Writer {
  protected:
   CordWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit CordWriterBase(Options&& options);
+  explicit CordWriterBase(const Options& options);
 
   CordWriterBase(CordWriterBase&& that) noexcept;
   CordWriterBase& operator=(CordWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Options&& options);
-  void Initialize(absl::Cord* dest);
+  void Reset(const Options& options);
+  void Initialize(absl::Cord* dest, bool append);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -208,7 +228,7 @@ CordWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline CordWriterBase::CordWriterBase(Options&& options)
+inline CordWriterBase::CordWriterBase(const Options& options)
     : Writer(kInitiallyOpen),
       size_hint_(SaturatingIntCast<size_t>(options.size_hint())),
       min_block_size_(options.min_block_size()),
@@ -251,42 +271,52 @@ inline void CordWriterBase::Reset() {
   max_block_size_ = kMaxBufferSize;
 }
 
-inline void CordWriterBase::Reset(Options&& options) {
+inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset(kInitiallyOpen);
   size_hint_ = SaturatingIntCast<size_t>(options.size_hint());
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
 }
 
-inline void CordWriterBase::Initialize(absl::Cord* dest) {
+inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
-  set_start_pos(dest->size());
-  const size_t buffer_length = UnsignedMin(
-      kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
-  if (size_hint_ <= dest->size() + buffer_length) {
-    set_buffer(short_buffer_, buffer_length);
+  if (append) {
+    set_start_pos(dest->size());
+    const size_t buffer_length = UnsignedMin(
+        kShortBufferSize, std::numeric_limits<size_t>::max() - dest->size());
+    if (size_hint_ <= dest->size() + buffer_length) {
+      set_buffer(short_buffer_, buffer_length);
+    }
+  } else {
+    RIEGELI_CHECK(dest->empty())
+        << "Protection against a breaking change in riegeli::CordWriter: "
+           "destination is not empty but "
+           "riegeli::CordWriterBase::Options().set_append(true) is missing";
+    if (size_hint_ <= kShortBufferSize) {
+      set_buffer(short_buffer_, kShortBufferSize);
+    }
   }
 }
 
 template <typename Dest>
 inline CordWriter<Dest>::CordWriter(const Dest& dest, Options options)
-    : CordWriterBase(std::move(options)), dest_(dest) {
-  Initialize(dest_.get());
+    : CordWriterBase(options), dest_(dest) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline CordWriter<Dest>::CordWriter(Dest&& dest, Options options)
-    : CordWriterBase(std::move(options)), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+    : CordWriterBase(options), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline CordWriter<Dest>::CordWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : CordWriterBase(std::move(options)), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+    : CordWriterBase(options), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
@@ -314,25 +344,25 @@ inline void CordWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void CordWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CordWriterBase::Reset(std::move(options));
+  CordWriterBase::Reset(options);
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 inline void CordWriter<Dest>::Reset(Dest&& dest, Options options) {
-  CordWriterBase::Reset(std::move(options));
+  CordWriterBase::Reset(options);
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void CordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  CordWriterBase::Reset(std::move(options));
+  CordWriterBase::Reset(options);
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), options.append());
 }
 
 template <typename Dest>
