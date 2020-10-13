@@ -80,6 +80,12 @@ bool ChainWriterBase::WriteSlow(Chain&& src) {
          "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
+  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+      << "ChainWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
   SyncBuffer(dest);
   move_start_pos(src.size());
   dest.Append(std::move(src), options_);

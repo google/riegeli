@@ -125,6 +125,10 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
   SyncBuffer(dest);
   move_start_pos(src.size());
   std::move(src).AppendTo(dest);
