@@ -36,10 +36,7 @@ namespace riegeli {
 void HadoopSnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of HadoopSnappyReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
-    Fail(*src);
-    return;
-  }
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) Fail(*src);
 }
 
 void HadoopSnappyReaderBase::Done() {

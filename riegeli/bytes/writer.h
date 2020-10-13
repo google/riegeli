@@ -58,6 +58,9 @@ class Writer : public Object {
   // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`
   // and annotate the status with the current position. Derived classes which
   // override it further should include a call to `Writer::Fail()`.
+  //
+  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
+  // data have been lost.
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
@@ -378,9 +381,7 @@ inline void Writer::Reset(InitiallyOpen) {
 
 inline void Writer::Done() {
   start_pos_ = pos();
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
 }
 
 inline bool Writer::Push(size_t min_length, size_t recommended_length) {

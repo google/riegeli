@@ -403,9 +403,7 @@ inline void Reader::Reset(InitiallyOpen) {
 
 inline void Reader::Done() {
   limit_pos_ = pos();
-  start_ = nullptr;
-  cursor_ = nullptr;
-  limit_ = nullptr;
+  set_buffer();
 }
 
 inline bool Reader::VerifyEndAndClose() {

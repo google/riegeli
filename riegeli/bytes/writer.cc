@@ -36,7 +36,7 @@ bool Writer::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
   return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at byte ", pos())));
+      Annotate(status, absl::StrCat("at byte ", start_pos())));
 }
 
 bool Writer::FailWithoutAnnotation(absl::Status status) {
