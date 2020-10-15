@@ -47,9 +47,8 @@ class StringWriterBase : public Writer {
     // adding `set_append(true)` if appending to existing contents of the
     // destination is needed. Eventually the behavior will be: If `false`,
     // replaces existing contents of the destination, clearing it first.
-    // And this will be the default.
     //
-    // Default: `true` (temporarily).
+    // Default: `false`
     Options& set_append(bool append) & {
       append_ = append;
       return *this;
@@ -73,7 +72,7 @@ class StringWriterBase : public Writer {
     Position size_hint() const { return size_hint_; }
 
    private:
-    bool append_ = true;
+    bool append_ = false;
     Position size_hint_ = 0;
   };
 

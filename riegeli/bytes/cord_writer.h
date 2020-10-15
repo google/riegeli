@@ -48,9 +48,8 @@ class CordWriterBase : public Writer {
     // adding `set_append(true)` if appending to existing contents of the
     // destination is needed. Eventually the behavior will be: If `false`,
     // replaces existing contents of the destination, clearing it first.
-    // And this will be the default.
     //
-    // Default: `true` (temporarily).
+    // Default: `false`
     Options& set_append(bool append) & {
       append_ = append;
       return *this;
@@ -107,7 +106,7 @@ class CordWriterBase : public Writer {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
-    bool append_ = true;
+    bool append_ = false;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;

@@ -45,9 +45,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // adding `set_prepend(true)` if prepending to existing contents of the
     // destination is needed. Eventually the behavior will be: If `false`,
     // replaces existing contents of the destination, clearing it first.
-    // And this will be the default.
     //
-    // Default: `true` (temporarily).
+    // Default: `false`.
     Options& set_prepend(bool prepend) & {
       prepend_ = prepend;
       return *this;
@@ -104,7 +103,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     size_t max_block_size() const { return max_block_size_; }
 
    private:
-    bool prepend_ = true;
+    bool prepend_ = false;
     Position size_hint_ = 0;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
