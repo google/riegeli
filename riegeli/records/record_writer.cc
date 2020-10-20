@@ -299,7 +299,6 @@ inline bool RecordWriterBase::Worker::EncodeChunk(ChunkEncoder& chunk_encoder,
   ChunkType chunk_type;
   uint64_t num_records;
   uint64_t decoded_data_size;
-  chunk.data.Clear();
   ChainWriter<> data_writer(&chunk.data);
   if (ABSL_PREDICT_FALSE(!chunk_encoder.EncodeAndClose(
           data_writer, chunk_type, num_records, decoded_data_size))) {

@@ -52,7 +52,6 @@ void Compressor::Clear(TuningOptions tuning_options) {
 
 void Compressor::Clear() {
   Object::Reset(kInitiallyOpen);
-  compressed_.Clear();
   Initialize();
 }
 

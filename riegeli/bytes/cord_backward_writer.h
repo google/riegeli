@@ -43,11 +43,8 @@ class CordBackwardWriterBase : public BackwardWriter {
 
     // If `true`, prepends to existing contents of the destination.
     //
-    // If `false`, the temporary behavior is to `CHECK` that the destination was
-    // empty. This allows to make sure that all uses are properly migrated,
-    // adding `set_prepend(true)` if prepending to existing contents of the
-    // destination is needed. Eventually the behavior will be: If `false`,
-    // replaces existing contents of the destination, clearing it first.
+    // If `false`, replaces existing contents of the destination, clearing it
+    // first.
     //
     // Default: `false`.
     Options& set_prepend(bool prepend) & {
@@ -289,11 +286,7 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
       set_buffer(short_buffer_, buffer_length);
     }
   } else {
-    RIEGELI_CHECK(dest->empty())
-        << "Protection against a breaking change in "
-           "riegeli::CordBackwardWriter: destination is not empty but "
-           "riegeli::CordBackwardWriterBase::Options().set_prepend(true) is "
-           "missing";
+    dest->Clear();
     if (size_hint_ <= kShortBufferSize) {
       set_buffer(short_buffer_, kShortBufferSize);
     }

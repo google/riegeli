@@ -42,11 +42,8 @@ class StringWriterBase : public Writer {
 
     // If `true`, appends to existing contents of the destination.
     //
-    // If `false`, the temporary behavior is to `CHECK` that the destination was
-    // empty. This allows to make sure that all uses are properly migrated,
-    // adding `set_append(true)` if appending to existing contents of the
-    // destination is needed. Eventually the behavior will be: If `false`,
-    // replaces existing contents of the destination, clearing it first.
+    // If `false`, replaces existing contents of the destination, clearing it
+    // first.
     //
     // Default: `false`
     Options& set_append(bool append) & {
@@ -200,12 +197,7 @@ inline void StringWriterBase::Initialize(std::string* dest, bool append,
                                          Position size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
-  if (!append) {
-    RIEGELI_CHECK(dest->empty())
-        << "Protection against a breaking change in riegeli::StringWriter: "
-           "destination is not empty but "
-           "riegeli::StringWriterBase::Options().set_append(true) is missing";
-  }
+  if (!append) dest->clear();
   const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
   if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
   MakeBuffer(*dest);

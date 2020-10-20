@@ -40,11 +40,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
 
     // If `true`, prepends to existing contents of the destination.
     //
-    // If `false`, the temporary behavior is to `CHECK` that the destination was
-    // empty. This allows to make sure that all uses are properly migrated,
-    // adding `set_prepend(true)` if prepending to existing contents of the
-    // destination is needed. Eventually the behavior will be: If `false`,
-    // replaces existing contents of the destination, clearing it first.
+    // If `false`, replaces existing contents of the destination, clearing it
+    // first.
     //
     // Default: `false`.
     Options& set_prepend(bool prepend) & {
@@ -266,11 +263,7 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
   if (prepend) {
     set_start_pos(dest->size());
   } else {
-    RIEGELI_CHECK(dest->empty())
-        << "Protection against a breaking change in "
-           "riegeli::ChainBackwardWriter: destination is not empty but "
-           "riegeli::ChainBackwardWriterBase::Options().set_prepend(true) is "
-           "missing";
+    dest->Clear();
   }
   const absl::Span<char> buffer =
       dest->PrependBuffer(0, 0, Chain::kAnyLength, options_);

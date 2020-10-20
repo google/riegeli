@@ -130,7 +130,6 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
     }
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
-      dest.Clear();
       ChainBackwardWriter<> dest_writer(
           &dest,
           ChainBackwardWriterBase::Options().set_size_hint(

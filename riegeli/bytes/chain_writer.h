@@ -40,11 +40,8 @@ class ChainWriterBase : public Writer {
 
     // If `true`, appends to existing contents of the destination.
     //
-    // If `false`, the temporary behavior is to `CHECK` that the destination was
-    // empty. This allows to make sure that all uses are properly migrated,
-    // adding `set_append(true)` if appending to existing contents of the
-    // destination is needed. Eventually the behavior will be: If `false`,
-    // replaces existing contents of the destination, clearing it first.
+    // If `false`, replaces existing contents of the destination, clearing it
+    // first.
     //
     // Default: `false`
     Options& set_append(bool append) & {
@@ -266,10 +263,7 @@ inline void ChainWriterBase::Initialize(Chain* dest, bool append) {
   if (append) {
     set_start_pos(dest->size());
   } else {
-    RIEGELI_CHECK(dest->empty())
-        << "Protection against a breaking change in riegeli::ChainWriter: "
-           "destination is not empty but "
-           "riegeli::ChainWriterBase::Options().set_append(true) is missing";
+    dest->Clear();
   }
   const absl::Span<char> buffer =
       dest->AppendBuffer(0, 0, Chain::kAnyLength, options_);

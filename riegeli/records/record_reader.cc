@@ -257,7 +257,6 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   }
   ChainReader<> data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
-  metadata.Clear();
   ChainBackwardWriter<> serialized_metadata_writer(
       &metadata, ChainBackwardWriterBase::Options().set_size_hint(
                      chunk.header.decoded_data_size()));

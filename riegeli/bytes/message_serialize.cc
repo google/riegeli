@@ -72,7 +72,6 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest, SerializeOptions options) {
-  dest.clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<StringWriter<>>(
       src,
@@ -83,7 +82,6 @@ absl::Status SerializeToString(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
                               Chain& dest, SerializeOptions options) {
-  dest.Clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<ChainWriter<>>(
       src,
@@ -94,7 +92,6 @@ absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
                              absl::Cord& dest, SerializeOptions options) {
-  dest.Clear();
   const size_t size = options.GetByteSize(src);
   return SerializeToWriter<CordWriter<>>(
       src,
