@@ -85,8 +85,9 @@ class CordBackwardWriterBase : public BackwardWriter {
 
     // Maximal size of a block of allocated data.
     //
-    // This does not apply to attached external objects which can be arbitrarily
-    // long.
+    // This is for performance tuning, not a guarantee: does not apply to
+    // objects allocated separately and then written to this
+    // `CordBackwardWriter`.
     //
     // Default: `kMaxBufferSize` (64K)
     Options& set_max_block_size(size_t max_block_size) & {

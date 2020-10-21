@@ -81,8 +81,8 @@ class ChainOptions {
 
   // Maximal size of a block of allocated data.
   //
-  // This does not apply to attached external objects which can be arbitrarily
-  // long.
+  // This is for performance tuning, not a guarantee: does not apply to objects
+  // allocated separately and then appended to this `Chain`.
   //
   // Default: `kMaxBufferSize` (64K)
   ChainOptions& set_max_block_size(size_t max_block_size) & {
