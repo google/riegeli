@@ -57,6 +57,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
           RIEGELI_ASSERT(!ZSTD_isError(result))
               << "ZSTD_DCtx_reset() failed: " << ZSTD_getErrorName(result);
         }
+#if ZSTD_VERSION_NUMBER <= 10405
 #ifdef ZSTD_STATIC_LINKING_ONLY
         // Workaround for https://github.com/facebook/zstd/issues/2331
         {
@@ -66,6 +67,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
               << "ZSTD_DCtx_setParameter(ZSTD_d_stableOutBuffer) failed: "
               << ZSTD_getErrorName(result);
         }
+#endif
 #endif
       });
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
