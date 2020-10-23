@@ -323,7 +323,7 @@ class RecordReaderBase : public Object {
   //
   // The current position before calling `Search()` does not matter.
   //
-  // The `test` function takes `this` as a parameter, seeked to some record,
+  // The `test` function takes `*this` as a parameter, seeked to some record,
   // and returns `absl::partial_ordering`:
   //  * `less`       - the current record is before the desired position
   //  * `equivalent` - the current record is desired, searching can stop
@@ -366,7 +366,7 @@ class RecordReaderBase : public Object {
   // (`RecordReaderBase::Options::set_recovery()`) can be set, but `Recover()`
   // resumes only simple operations and is not applicable here.
   bool Search(
-      absl::FunctionRef<absl::partial_ordering(RecordReaderBase* reader)> test);
+      absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test);
 
   // A variant of `Search()` which reads a record before calling `test()`,
   // instead of letting `test()` read the record.
@@ -603,8 +603,8 @@ inline RecordPosition RecordReaderBase::pos() const {
 template <typename Record, typename Test>
 bool RecordReaderBase::Search(Test test) {
   Record record;
-  return Search([&](RecordReaderBase* self) {
-    if (ABSL_PREDICT_FALSE(!self->ReadRecord(record))) {
+  return Search([&](RecordReaderBase& self) {
+    if (ABSL_PREDICT_FALSE(!self.ReadRecord(record))) {
       return absl::partial_ordering::unordered;
     }
     return test(record);

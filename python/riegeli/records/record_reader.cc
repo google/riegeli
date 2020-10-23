@@ -774,7 +774,7 @@ static PyObject* RecordReaderSearch(PyRecordReaderObject* self, PyObject* args,
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::optional<Exception> test_exception;
   const bool ok = PythonUnlocked([&] {
-    return self->record_reader->Search([&](RecordReaderBase*) {
+    return self->record_reader->Search([&](RecordReaderBase&) {
       PythonLock lock;
       const PythonPtr test_result(
           PyObject_CallFunctionObjArgs(test_arg, self, nullptr));

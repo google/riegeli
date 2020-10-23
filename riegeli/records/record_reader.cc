@@ -522,7 +522,7 @@ class RecordReaderBase::ChunkSearchTraits {
 };
 
 bool RecordReaderBase::Search(
-    absl::FunctionRef<absl::partial_ordering(RecordReaderBase* reader)> test) {
+    absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
@@ -575,7 +575,7 @@ bool RecordReaderBase::Search(
             return SearchGuide<Position>{absl::partial_ordering::equivalent,
                                          chunk_begin};
           }
-          const absl::partial_ordering ordering = test(this);
+          const absl::partial_ordering ordering = test(*this);
           if (ordering < 0) {
             less_found =
                 ChunkSuffix{chunk_begin, record_index + 1, num_records};
@@ -610,7 +610,7 @@ bool RecordReaderBase::Search(
             // Cancel the search.
             return absl::partial_ordering::equivalent;
           }
-          return test(this);
+          return test(*this);
         });
     if (less_record_index < less_found->num_records) {
       position = RecordPosition(less_chunk_begin, less_record_index);
