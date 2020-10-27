@@ -17,6 +17,8 @@
 
 #include <stddef.h>
 
+#include <memory>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -24,6 +26,8 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -38,6 +42,158 @@ namespace riegeli {
 // Template parameter independent part of `ZstdReader`.
 class ZstdReaderBase : public BufferedReader {
  public:
+  // Interpretation of dictionary data.
+  enum class ContentType {
+    // If dictionary data begin with `ZSTD_MAGIC_DICTIONARY`, then like
+    // `kSerialized`, otherwise like `kRaw`.
+    kAuto = 0,
+    // Dictionary data should contain sequences that are commonly seen in the
+    // data being compressed.
+    kRaw = 1,
+    // Prepared with the dictBuilder library.
+    kSerialized = 2,
+  };
+
+  // Stores an optional Zstd dictionary for decompression.
+  //
+  // An empty dictionary is equivalent to no dictionary.
+  //
+  // A `Dictionary` object can own the dictionary data, or can hold a pointer
+  // to unowned dictionary data which must not be changed until the last
+  // `ZstdReader` using this dictionary is closed or no longer used.
+  // A `Dictionary` object also holds prepared structures derived from
+  // dictionary data. If the same dictionary is needed for multiple
+  // decompression sessions, the `Dictionary` object can be reused.
+  //
+  // Copying a `Dictionary` object is cheap, sharing the actual dictionary.
+  class Dictionary {
+   public:
+    Dictionary() noexcept {}
+
+    // Sets interpretation of dictionary data.
+    //
+    // Default: `ContentType::kAuto`
+    Dictionary& set_content_type(ContentType content_type) & {
+      content_type_ = content_type;
+      cache_.Invalidate();
+      return *this;
+    }
+    Dictionary&& set_content_type(ContentType content_type) && {
+      return std::move(set_content_type(content_type));
+    }
+    ContentType content_type() const { return content_type_; }
+
+    // Sets parameters to defaults.
+    Dictionary& reset() & {
+      content_type_ = ContentType::kAuto;
+      owned_data_.reset();
+      data_ = absl::string_view();
+      cache_.Invalidate();
+      return *this;
+    }
+    Dictionary&& reset() && { return std::move(reset()); }
+
+    // Sets a dictionary.
+    //
+    // `std::string&&` is accepted with a template to avoid implicit conversions
+    // to `std::string` which can be ambiguous against `absl::string_view`
+    // (e.g. `const char*`).
+    Dictionary& set_data(absl::string_view data) & {
+      // TODO: When `absl::string_view` becomes C++17
+      // `std::string_view`: std::make_shared<const std::string>(data).
+      owned_data_ =
+          std::make_shared<const std::string>(data.data(), data.size());
+      data_ = *owned_data_;
+      cache_.Invalidate();
+      return *this;
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionary& set_data(Src&& data) & {
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      owned_data_ = std::make_shared<const std::string>(std::move(data));
+      data_ = *owned_data_;
+      cache_.Invalidate();
+      return *this;
+    }
+    Dictionary&& set_data(absl::string_view data) && {
+      return std::move(set_data(data));
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionary&& set_data(Src&& data) && {
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      return std::move(set_data(std::move(data)));
+    }
+
+    // Like `set_data()`, but does not take ownership of `data`, which must not
+    // be changed until the last `ZstdReader` using this dictionary is closed or
+    // no longer used.
+    Dictionary& set_data_unowned(absl::string_view data) & {
+      owned_data_.reset();
+      data_ = data;
+      cache_.Invalidate();
+      return *this;
+    }
+    Dictionary&& set_data_unowned(absl::string_view data) && {
+      return std::move(set_data_unowned(data));
+    }
+
+    // Returns `true` if no dictionary is present.
+    bool empty() const { return data_.empty(); }
+
+    // Returns the dictionary data.
+    absl::string_view data() const { return data_; }
+
+   private:
+    // Caches dictionary in the prepared form, to avoid preparing the dictionary
+    // from the same data multiple times.
+    class Cache {
+     public:
+      Cache() noexcept {}
+
+      Cache(const Cache& that);
+      Cache& operator=(const Cache& that);
+
+      Cache(Cache&& that) noexcept;
+      Cache& operator=(Cache&& that) noexcept;
+
+      // Clears the cache.
+      void Invalidate();
+
+      // Returns the dictionary in the prepared form, or `nullptr` if
+      // `ZSTD_createDDict_advanced()` failed.
+      std::shared_ptr<const ZSTD_DDict> PrepareDictionary(
+          absl::string_view dictionary, ContentType content_type) const;
+
+     private:
+      struct Shared;
+
+      std::shared_ptr<Shared> EnsureShared() const;
+
+      mutable absl::Mutex mutex_;
+      // If multiple `Dictionary` objects are known to use the same dictionary,
+      // `shared_` is present and shared between them.
+      //
+      // `shared_` is guarded by `mutex_` for const access. It is not guarded
+      // for non-const access which is assumed to be exclusive.
+      mutable std::shared_ptr<Shared> shared_;
+    };
+
+    friend class ZstdReaderBase;
+
+    // Returns the dictionary in the prepared form, or `nullptr` if
+    // `ZSTD_createDDict_advanced()` failed.
+    std::shared_ptr<const ZSTD_DDict> PrepareDictionary() const;
+
+    ContentType content_type_ = ContentType::kAuto;
+    std::shared_ptr<const std::string> owned_data_;
+    absl::string_view data_;
+    Cache cache_;
+  };
+
   class Options {
    public:
     Options() noexcept {}
@@ -55,6 +211,28 @@ class ZstdReaderBase : public BufferedReader {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
+
+    // Zstd dictionary. The same dictionary must have been used for compression.
+    //
+    // Default: `Dictionary()`
+    Options& set_dictionary(const Dictionary& dictionary) & {
+      dictionary_ = dictionary;
+      return *this;
+    }
+    Options& set_dictionary(Dictionary&& dictionary) & {
+      dictionary_ = std::move(dictionary);
+      return *this;
+    }
+    Options&& set_dictionary(const Dictionary& dictionary) && {
+      return std::move(set_dictionary(dictionary));
+    }
+    Options&& set_dictionary(Dictionary&& dictionary) && {
+      return std::move(set_dictionary(std::move(dictionary)));
+    }
+    Dictionary& dictionary() & { return dictionary_; }
+    const Dictionary& dictionary() const& { return dictionary_; }
+    Dictionary&& dictionary() && { return std::move(dictionary_); }
+    const Dictionary&& dictionary() const&& { return std::move(dictionary_); }
 
     // Expected uncompressed size, or 0 if unknown. This may improve
     // performance.
@@ -88,6 +266,7 @@ class ZstdReaderBase : public BufferedReader {
 
    private:
     bool growing_source_ = false;
+    Dictionary dictionary_;
     Position size_hint_ = 0;
     size_t buffer_size_ = DefaultBufferSize();
   };
@@ -116,14 +295,15 @@ class ZstdReaderBase : public BufferedReader {
  protected:
   ZstdReaderBase() noexcept {}
 
-  explicit ZstdReaderBase(bool growing_source, size_t buffer_size,
-                          Position size_hint);
+  explicit ZstdReaderBase(bool growing_source, Dictionary&& dictionary,
+                          size_t buffer_size, Position size_hint);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(bool growing_source, size_t buffer_size, Position size_hint);
+  void Reset(bool growing_source, Dictionary&& dictionary, size_t buffer_size,
+             Position size_hint);
   void Initialize(Reader* src);
 
   void Done() override;
@@ -144,6 +324,8 @@ class ZstdReaderBase : public BufferedReader {
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
+  Dictionary dictionary_;
+  std::shared_ptr<const ZSTD_DDict> prepared_dictionary_;
   // If `healthy()` but `decompressor_ == nullptr` then all data have been
   // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
@@ -229,9 +411,32 @@ absl::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
-inline ZstdReaderBase::ZstdReaderBase(bool growing_source, size_t buffer_size,
-                                      Position size_hint)
-    : BufferedReader(buffer_size, size_hint), growing_source_(growing_source) {}
+inline ZstdReaderBase::Dictionary::Cache::Cache(const Cache& that)
+    : shared_(that.EnsureShared()) {}
+
+inline ZstdReaderBase::Dictionary::Cache&
+ZstdReaderBase::Dictionary::Cache::operator=(const Cache& that) {
+  shared_ = that.EnsureShared();
+  return *this;
+}
+
+inline ZstdReaderBase::Dictionary::Cache::Cache(Cache&& that) noexcept
+    : shared_(std::move(that.shared_)) {}
+
+inline ZstdReaderBase::Dictionary::Cache&
+ZstdReaderBase::Dictionary::Cache::operator=(Cache&& that) noexcept {
+  shared_ = std::move(that.shared_);
+  return *this;
+}
+
+inline void ZstdReaderBase::Dictionary::Cache::Invalidate() { shared_.reset(); }
+
+inline ZstdReaderBase::ZstdReaderBase(bool growing_source,
+                                      Dictionary&& dictionary,
+                                      size_t buffer_size, Position size_hint)
+    : BufferedReader(buffer_size, size_hint),
+      growing_source_(growing_source),
+      dictionary_(std::move(dictionary)) {}
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
@@ -240,6 +445,8 @@ inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
       growing_source_(that.growing_source_),
       just_initialized_(that.just_initialized_),
       truncated_(that.truncated_),
+      dictionary_(std::move(that.dictionary_)),
+      prepared_dictionary_(std::move(that.prepared_dictionary_)),
       decompressor_(std::move(that.decompressor_)),
       uncompressed_size_(that.uncompressed_size_) {}
 
@@ -251,6 +458,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   growing_source_ = that.growing_source_;
   just_initialized_ = that.just_initialized_;
   truncated_ = that.truncated_;
+  dictionary_ = std::move(that.dictionary_);
+  prepared_dictionary_ = std::move(that.prepared_dictionary_);
   decompressor_ = std::move(that.decompressor_);
   uncompressed_size_ = that.uncompressed_size_;
   return *this;
@@ -261,32 +470,36 @@ inline void ZstdReaderBase::Reset() {
   growing_source_ = false;
   just_initialized_ = false;
   truncated_ = false;
+  dictionary_.reset();
+  prepared_dictionary_.reset();
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
 }
 
-inline void ZstdReaderBase::Reset(bool growing_source, size_t buffer_size,
-                                  Position size_hint) {
+inline void ZstdReaderBase::Reset(bool growing_source, Dictionary&& dictionary,
+                                  size_t buffer_size, Position size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
   growing_source_ = growing_source;
   just_initialized_ = false;
   truncated_ = false;
+  dictionary_ = std::move(dictionary);
+  prepared_dictionary_.reset();
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(const Src& src, Options options)
-    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
-                     options.size_hint()),
+    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
+                     options.buffer_size(), options.size_hint()),
       src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Src&& src, Options options)
-    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
-                     options.size_hint()),
+    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
+                     options.buffer_size(), options.size_hint()),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -295,8 +508,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline ZstdReader<Src>::ZstdReader(std::tuple<SrcArgs...> src_args,
                                    Options options)
-    : ZstdReaderBase(options.growing_source(), options.buffer_size(),
-                     options.size_hint()),
+    : ZstdReaderBase(options.growing_source(), std::move(options.dictionary()),
+                     options.buffer_size(), options.size_hint()),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -325,7 +538,8 @@ inline void ZstdReader<Src>::Reset() {
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
-  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+  ZstdReaderBase::Reset(options.growing_source(),
+                        std::move(options.dictionary()), options.buffer_size(),
                         options.size_hint());
   src_.Reset(src);
   Initialize(src_.get());
@@ -333,7 +547,8 @@ inline void ZstdReader<Src>::Reset(const Src& src, Options options) {
 
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Src&& src, Options options) {
-  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+  ZstdReaderBase::Reset(options.growing_source(),
+                        std::move(options.dictionary()), options.buffer_size(),
                         options.size_hint());
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -343,7 +558,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ZstdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                    Options options) {
-  ZstdReaderBase::Reset(options.growing_source(), options.buffer_size(),
+  ZstdReaderBase::Reset(options.growing_source(),
+                        std::move(options.dictionary()), options.buffer_size(),
                         options.size_hint());
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

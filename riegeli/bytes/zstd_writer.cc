@@ -14,10 +14,9 @@
 
 // Enables the experimental zstd API:
 //  * `ZSTD_c_srcSizeHint`
-//
-// Using the experimental zstd API is optional. If this gets removed,
-// `size_hint` is ignored by zstd if `final_size` is not set (`size_hint`
-// remains used only for `BufferedWriter` tuning).
+//  * `ZSTD_createCDict_advanced()`
+//  * `ZSTD_dictLoadMethod_e`
+//  * `ZSTD_dictContentType_e`
 #define ZSTD_STATIC_LINKING_ONLY
 
 #include "riegeli/bytes/zstd_writer.h"
@@ -28,9 +27,11 @@
 #include <memory>
 
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
@@ -52,15 +53,71 @@ constexpr int ZstdWriterBase::Options::kMinWindowLog;
 constexpr int ZstdWriterBase::Options::kMaxWindowLog;
 #endif
 
+// Constants are defined as integer literals in zstd_writer.h and asserted here
+// to avoid depending on `ZSTD_STATIC_LINKING_ONLY` in zstd_writer.h.
+static_assert(
+    static_cast<ZSTD_dictContentType_e>(ZstdWriterBase::ContentType::kAuto) ==
+            ZSTD_dct_auto &&
+        static_cast<ZSTD_dictContentType_e>(
+            ZstdWriterBase::ContentType::kRaw) == ZSTD_dct_rawContent &&
+        static_cast<ZSTD_dictContentType_e>(
+            ZstdWriterBase::ContentType::kSerialized) == ZSTD_dct_fullDict,
+    "Enum values of ZstdWriterBase::ContentType disagree with ZSTD_dct "
+    "constants");
+
 namespace {
 
-#ifdef ZSTD_STATIC_LINKING_ONLY
-struct ZSTD_CCtxParamsDeleter {
-  void operator()(ZSTD_CCtx_params* ptr) const { ZSTD_freeCCtxParams(ptr); }
+struct ZSTD_CDictDeleter {
+  void operator()(ZSTD_CDict* ptr) const { ZSTD_freeCDict(ptr); }
 };
-#endif
 
 }  // namespace
+
+struct ZstdWriterBase::Dictionary::Cache::Shared {
+  absl::Mutex mutex;
+  int compression_level ABSL_GUARDED_BY(mutex) =
+      std::numeric_limits<int>::min();
+  std::shared_ptr<const ZSTD_CDict> prepared_dictionary ABSL_GUARDED_BY(mutex);
+};
+
+std::shared_ptr<ZstdWriterBase::Dictionary::Cache::Shared>
+ZstdWriterBase::Dictionary::Cache::EnsureShared() const {
+  absl::MutexLock lock(&mutex_);
+  if (shared_ == nullptr) shared_ = std::make_shared<Shared>();
+  return shared_;
+}
+
+inline std::shared_ptr<const ZSTD_CDict>
+ZstdWriterBase::Dictionary::Cache::PrepareDictionary(
+    absl::string_view dictionary, ContentType content_type,
+    int compression_level) const {
+  RIEGELI_ASSERT_NE(compression_level, std::numeric_limits<int>::min())
+      << "Failed precondition of "
+         "ZstdWriterBase::Dictionary::Cache::PrepareDictionary(): "
+         "compression level out of range";
+  const std::shared_ptr<Shared> shared = EnsureShared();
+  {
+    absl::MutexLock lock(&shared->mutex);
+    if (shared->compression_level == compression_level) {
+      return shared->prepared_dictionary;
+    }
+  }
+  std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> prepared_dictionary(
+      ZSTD_createCDict_advanced(
+          dictionary.data(), dictionary.size(), ZSTD_dlm_byRef,
+          static_cast<ZSTD_dictContentType_e>(content_type),
+          ZSTD_getCParams(compression_level, 0, dictionary.size()),
+          ZSTD_defaultCMem));
+  absl::MutexLock lock(&shared->mutex);
+  shared->compression_level = compression_level;
+  shared->prepared_dictionary = std::move(prepared_dictionary);
+  return shared->prepared_dictionary;
+}
+
+inline std::shared_ptr<const ZSTD_CDict>
+ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
+  return cache_.PrepareDictionary(data(), content_type(), compression_level);
+}
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
@@ -125,9 +182,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                        ZSTD_getErrorName(result))));
       return;
     }
-  }
-#ifdef ZSTD_STATIC_LINKING_ONLY
-  else if (size_hint > 0) {
+  } else if (size_hint > 0) {
     const size_t result =
         ZSTD_CCtx_setParameter(compressor_.get(), ZSTD_c_srcSizeHint,
                                SaturatingIntCast<int>(size_hint));
@@ -138,7 +193,20 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-#endif
+  if (!dictionary_.empty()) {
+    prepared_dictionary_ = dictionary_.PrepareDictionary(compression_level);
+    if (ABSL_PREDICT_FALSE(prepared_dictionary_ == nullptr)) {
+      Fail(absl::InternalError("ZSTD_createCDict_advanced() failed"));
+      return;
+    }
+    const size_t result =
+        ZSTD_CCtx_refCDict(compressor_.get(), prepared_dictionary_.get());
+    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
+      Fail(absl::InternalError(absl::StrCat("ZSTD_CCtx_refCDict() failed: ",
+                                            ZSTD_getErrorName(result))));
+      return;
+    }
+  }
 }
 
 void ZstdWriterBase::Done() {
