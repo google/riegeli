@@ -41,7 +41,20 @@ namespace riegeli {
 // Template parameter independent part of `ZlibReader`.
 class ZlibReaderBase : public BufferedReader {
  public:
-  enum class Header { kZlib = 0, kGzip = 16, kZlibOrGzip = 32, kRaw = -1 };
+  // Specifies what format of header to expect.
+  enum class Header {
+    // Zlib header.
+    kZlib = 0,
+    // Gzip header.
+    kGzip = 16,
+    // Zlib or Gzip header.
+    kZlibOrGzip = 32,
+    // No header; compressor must write no header too.
+    //
+    // Requires `Options::set_window_log()` with a value other than
+    // `absl::nullopt`.
+    kRaw = -1,
+  };
 
   class Options {
    public:
@@ -76,15 +89,7 @@ class ZlibReaderBase : public BufferedReader {
     }
     absl::optional<int> window_log() const { return window_log_; }
 
-    // What format of header to expect:
-    //
-    //  * `Header::kZlib`       - zlib header
-    //  * `Header::kGzip`       - gzip header
-    //  * `Header::kZlibOrGzip` - zlib or gzip header
-    //  * `Header::kRaw`        - no header
-    //                            (compressor must write no header too;
-    //                            requires `set_window_log()` with a value other
-    //                            than `absl::nullopt`)
+    // What format of header to expect.
     //
     // Default: `Header::kZlibOrGzip`.
     static constexpr Header kDefaultHeader = Header::kZlibOrGzip;

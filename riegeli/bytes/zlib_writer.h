@@ -40,7 +40,15 @@ namespace riegeli {
 // Template parameter independent part of `ZlibWriter`.
 class ZlibWriterBase : public BufferedWriter {
  public:
-  enum class Header { kZlib = 0, kGzip = 16, kRaw = -1 };
+  // Specifies what format of header to write.
+  enum class Header {
+    // Zlib header.
+    kZlib = 0,
+    // Gzip header.
+    kGzip = 16,
+    // No header; decompressor must expect no header too.
+    kRaw = -1,
+  };
 
   class Options {
    public:
@@ -97,11 +105,7 @@ class ZlibWriterBase : public BufferedWriter {
     }
     int window_log() const { return window_log_; }
 
-    // What format of header to write:
-    //
-    //  * `Header::kZlib` - zlib header
-    //  * `Header::kGzip` - gzip header
-    //  * `Header::kRaw`  - no header (decompressor must expect no header too)
+    // What format of header to write.
     //
     // Default: `Header::kZlib`.
     static constexpr Header kDefaultHeader = Header::kZlib;
