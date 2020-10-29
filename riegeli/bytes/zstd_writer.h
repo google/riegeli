@@ -289,7 +289,7 @@ class ZstdWriterBase : public BufferedWriter {
     // performance, and causes the size to be stored in the compressed stream
     // header.
     //
-    // If the size hint turns out to not match reality, compression fails.
+    // If the final size turns out to not match reality, compression fails.
     Options& set_final_size(absl::optional<Position> final_size) & {
       final_size_ = final_size;
       return *this;
