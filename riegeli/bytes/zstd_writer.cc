@@ -243,7 +243,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
 bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                    ZSTD_EndDirective end_op) {
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};

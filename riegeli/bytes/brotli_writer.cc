@@ -127,7 +127,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       << "Failed precondition of BrotliWriterBase::WriteInternal(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
+                         std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
   size_t available_in = src.size();
