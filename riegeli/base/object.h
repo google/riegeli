@@ -77,7 +77,15 @@ class Object {
   virtual ~Object();
 
   // Indicates that the `Object` is no longer needed, but in the case of a
-  // writer that its destination is needed.
+  // writer that its destination is needed. `Close()` may also report new
+  // failures.
+  //
+  // It is necessary to call `Close()` at the end of a successful writing
+  // session, and it is recommended to call `Close()` at the end of a successful
+  // reading session. It is not needed to call `Close()` on early returns,
+  // assuming that contents of the destination do not matter after all, e.g.
+  // because a failure is being reported instead; the destructor releases
+  // resources in any case.
   //
   // If `closed()`, does nothing. Otherwise:
   //
