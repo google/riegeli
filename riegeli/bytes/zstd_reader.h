@@ -404,7 +404,7 @@ ZstdReader(std::tuple<SrcArgs...> src_args,
 // Returns the claimed uncompressed size of Zstd-compressed data.
 //
 // Returns `absl::nullopt` if the size was not stored or on failure. The size is
-// stored if `ZstdWriterBase::Options().set_final_size()` is used.
+// stored if `ZstdWriterBase::Options().set_pledged_size()` is used.
 //
 // The current position of `src` is unchanged.
 absl::optional<Position> ZstdUncompressedSize(Reader& src);

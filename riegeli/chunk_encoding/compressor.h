@@ -43,22 +43,22 @@ class Compressor : public Object {
     // performance, and may cause the size to be stored in the compressed stream
     // header.
     //
-    // If the size hint turns out to not match reality, compression may fail.
-    TuningOptions& set_final_size(absl::optional<Position> final_size) & {
-      final_size_ = final_size;
+    // If the pledged size turns out to not match reality, compression may fail.
+    TuningOptions& set_pledged_size(absl::optional<Position> pledged_size) & {
+      pledged_size_ = pledged_size;
       return *this;
     }
-    TuningOptions&& set_final_size(absl::optional<Position> final_size) && {
-      return std::move(set_final_size(final_size));
+    TuningOptions&& set_pledged_size(absl::optional<Position> pledged_size) && {
+      return std::move(set_pledged_size(pledged_size));
     }
-    absl::optional<Position> final_size() const { return final_size_; }
+    absl::optional<Position> pledged_size() const { return pledged_size_; }
 
     // Expected uncompressed size, or 0 if unknown. This may improve compression
     // density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // `set_final_size()` overrides `set_size_hint()`.
+    // `set_pledged_size()` overrides `set_size_hint()`.
     TuningOptions& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -69,7 +69,7 @@ class Compressor : public Object {
     Position size_hint() const { return size_hint_; }
 
    private:
-    absl::optional<Position> final_size_;
+    absl::optional<Position> pledged_size_;
     Position size_hint_ = 0;
   };
 

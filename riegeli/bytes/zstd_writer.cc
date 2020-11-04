@@ -121,7 +121,7 @@ ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
-                                absl::optional<Position> final_size,
+                                absl::optional<Position> pledged_size,
                                 Position size_hint, bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
@@ -173,9 +173,9 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (final_size != absl::nullopt) {
+  if (pledged_size != absl::nullopt) {
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
-        compressor_.get(), IntCast<unsigned long long>(*final_size));
+        compressor_.get(), IntCast<unsigned long long>(*pledged_size));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",

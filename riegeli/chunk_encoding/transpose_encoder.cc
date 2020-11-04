@@ -470,7 +470,7 @@ inline bool TransposeEncoder::AddBuffer(
           IntCast<size_t>(data_writer.pos() - pos_before));
     }
     bucket_compressor.Clear(
-        internal::Compressor::TuningOptions().set_final_size(
+        internal::Compressor::TuningOptions().set_pledged_size(
             *new_uncompressed_bucket_size));
   }
   if (ABSL_PREDICT_FALSE(!bucket_compressor.writer().Write(buffer))) {
@@ -1332,8 +1332,9 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
 
   ChainWriter<Chain> compressed_header_writer(std::forward_as_tuple());
   internal::Compressor header_compressor(
-      compressor_options_, internal::Compressor::TuningOptions().set_final_size(
-                               header_writer.dest().size()));
+      compressor_options_,
+      internal::Compressor::TuningOptions().set_pledged_size(
+          header_writer.dest().size()));
   if (ABSL_PREDICT_FALSE(
           !header_compressor.writer().Write(std::move(header_writer.dest())))) {
     return Fail(header_compressor.writer());
