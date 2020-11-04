@@ -147,9 +147,19 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
 
 absl::Status DescribeTransposedChunk(
     const Chunk& chunk, summary::TransposedChunk& transposed_chunk) {
+  // Based on `TransposeDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
+
+  const absl::optional<uint8_t> compression_type_byte = ReadByte(chunk_reader);
+  if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
+    return absl::DataLossError("Reading compression type failed");
+  }
+  transposed_chunk.set_compression_type(
+      static_cast<summary::CompressionType>(*compression_type_byte));
+
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
     // Based on `ChunkDecoder::Parse()`.
+    chunk_reader.Seek(0);
     TransposeDecoder transpose_decoder;
     NullBackwardWriter dest_writer(NullBackwardWriter::kInitiallyOpen);
     std::vector<size_t> limits;
@@ -169,15 +179,6 @@ absl::Status DescribeTransposedChunk(
       transposed_chunk.add_record_sizes(next_limit - prev_limit);
       prev_limit = next_limit;
     }
-  } else {
-    // Based on `TransposeDecoder::Decode()`.
-    const absl::optional<uint8_t> compression_type_byte =
-        ReadByte(chunk_reader);
-    if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-      return absl::DataLossError("Reading compression type failed");
-    }
-    transposed_chunk.set_compression_type(
-        static_cast<summary::CompressionType>(*compression_type_byte));
   }
   return absl::OkStatus();
 }
