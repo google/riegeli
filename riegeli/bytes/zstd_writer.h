@@ -371,16 +371,17 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdWriterBase() noexcept {}
 
   explicit ZstdWriterBase(Dictionary&& dictionary, size_t buffer_size,
+                          absl::optional<Position> pledged_size,
                           Position size_hint);
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Dictionary&& dictionary, size_t buffer_size, Position size_hint);
+  void Reset(Dictionary&& dictionary, size_t buffer_size,
+             absl::optional<Position> pledged_size, Position size_hint);
   void Initialize(Writer* dest, int compression_level,
-                  absl::optional<int> window_log,
-                  absl::optional<Position> pledged_size, Position size_hint,
+                  absl::optional<int> window_log, Position size_hint,
                   bool store_checksum);
 
   void Done() override;
@@ -396,6 +397,9 @@ class ZstdWriterBase : public BufferedWriter {
 
   Dictionary dictionary_;
   std::shared_ptr<const ZSTD_CDict> prepared_dictionary_;
+  absl::optional<Position> pledged_size_;
+  // If `healthy()` but `compressor_ == nullptr` then `*pledged_size_` has been
+  // reached. In this case `ZSTD_compressStream()` must not be called again.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
 };
 
@@ -488,9 +492,12 @@ ZstdWriterBase::Dictionary::Cache::operator=(Cache&& that) noexcept {
 inline void ZstdWriterBase::Dictionary::Cache::Invalidate() { shared_.reset(); }
 
 inline ZstdWriterBase::ZstdWriterBase(Dictionary&& dictionary,
-                                      size_t buffer_size, Position size_hint)
+                                      size_t buffer_size,
+                                      absl::optional<Position> pledged_size,
+                                      Position size_hint)
     : BufferedWriter(buffer_size, size_hint),
-      dictionary_(std::move(dictionary)) {}
+      dictionary_(std::move(dictionary)),
+      pledged_size_(pledged_size) {}
 
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
@@ -498,6 +505,7 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       // part was moved.
       dictionary_(std::move(that.dictionary_)),
       prepared_dictionary_(std::move(that.prepared_dictionary_)),
+      pledged_size_(that.pledged_size_),
       compressor_(std::move(that.compressor_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
@@ -507,6 +515,7 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   // was moved.
   dictionary_ = std::move(that.dictionary_);
   prepared_dictionary_ = std::move(that.prepared_dictionary_);
+  pledged_size_ = std::move(that.pledged_size_);
   compressor_ = std::move(that.compressor_);
   return *this;
 }
@@ -519,20 +528,22 @@ inline void ZstdWriterBase::Reset() {
 }
 
 inline void ZstdWriterBase::Reset(Dictionary&& dictionary, size_t buffer_size,
+                                  absl::optional<Position> pledged_size,
                                   Position size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
   dictionary_ = std::move(dictionary);
   prepared_dictionary_.reset();
+  pledged_size_ = pledged_size;
   compressor_.reset();
 }
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
     : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.pledged_size(),
                      options.pledged_size().value_or(options.size_hint())),
       dest_(dest) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }
@@ -540,10 +551,10 @@ inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(Dest&& dest, Options options)
     : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.pledged_size(),
                      options.pledged_size().value_or(options.size_hint())),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }
@@ -553,10 +564,10 @@ template <typename... DestArgs>
 inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
     : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
+                     options.pledged_size(),
                      options.pledged_size().value_or(options.size_hint())),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }
@@ -587,10 +598,10 @@ inline void ZstdWriter<Dest>::Reset() {
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
   ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.pledged_size(),
                         options.pledged_size().value_or(options.size_hint()));
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }
@@ -598,10 +609,10 @@ inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(Dest&& dest, Options options) {
   ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.pledged_size(),
                         options.pledged_size().value_or(options.size_hint()));
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }
@@ -611,10 +622,10 @@ template <typename... DestArgs>
 inline void ZstdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
   ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
+                        options.pledged_size(),
                         options.pledged_size().value_or(options.size_hint()));
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
-             options.pledged_size(),
              options.pledged_size().value_or(options.size_hint()),
              options.store_checksum());
 }

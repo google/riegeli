@@ -121,7 +121,6 @@ ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
-                                absl::optional<Position> pledged_size,
                                 Position size_hint, bool store_checksum) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
@@ -173,9 +172,9 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (pledged_size != absl::nullopt) {
+  if (pledged_size_ != absl::nullopt) {
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
-        compressor_.get(), IntCast<unsigned long long>(*pledged_size));
+        compressor_.get(), IntCast<unsigned long long>(*pledged_size_));
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setPledgedSrcSize() failed: ",
@@ -246,8 +245,32 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
+  if (pledged_size_ != absl::nullopt) {
+    const Position next_pos = start_pos() + src.size();
+    if (compressor_ == nullptr) {
+      if (ABSL_PREDICT_FALSE(!src.empty())) {
+        return Fail(absl::FailedPreconditionError(
+            absl::StrCat("Actual size does not match pledged size: ", next_pos,
+                         " > ", *pledged_size_)));
+      }
+      return true;
+    }
+    if (next_pos >= *pledged_size_) {
+      // Notify `compressor_` that this is the last fragment. This enables
+      // optimizations (compressing directly to a long enough output).
+      end_op = ZSTD_e_end;
+    }
+    if (end_op == ZSTD_e_end) {
+      if (ABSL_PREDICT_FALSE(next_pos != *pledged_size_)) {
+        return Fail(absl::FailedPreconditionError(absl::StrCat(
+            "Actual size does not match pledged size: ", next_pos,
+            next_pos > *pledged_size_ ? " > " : " < ", *pledged_size_)));
+      }
+    }
+  }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
+    if (ABSL_PREDICT_FALSE(!dest.Push())) return Fail(dest);
     ZSTD_outBuffer output = {dest.cursor(), dest.available(), 0};
     const size_t result =
         ZSTD_compressStream2(compressor_.get(), &output, &input, end_op);
@@ -256,6 +279,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       RIEGELI_ASSERT_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned 0 but there are still input data";
       move_start_pos(input.pos);
+      if (end_op == ZSTD_e_end) compressor_.reset();
       return true;
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
@@ -271,7 +295,6 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       move_start_pos(input.pos);
       return true;
     }
-    if (ABSL_PREDICT_FALSE(!dest.Push())) return Fail(dest);
   }
 }
 
