@@ -73,50 +73,43 @@ struct ZSTD_CDictDeleter {
 
 }  // namespace
 
-struct ZstdWriterBase::Dictionary::Cache::Shared {
+struct ZstdWriterBase::Dictionary::Shared {
   absl::Mutex mutex;
   int compression_level ABSL_GUARDED_BY(mutex) =
       std::numeric_limits<int>::min();
-  std::shared_ptr<const ZSTD_CDict> prepared_dictionary ABSL_GUARDED_BY(mutex);
+  std::shared_ptr<const ZSTD_CDict> shared_dictionary ABSL_GUARDED_BY(mutex);
 };
 
-std::shared_ptr<ZstdWriterBase::Dictionary::Cache::Shared>
-ZstdWriterBase::Dictionary::Cache::EnsureShared() const {
+std::shared_ptr<ZstdWriterBase::Dictionary::Shared>
+ZstdWriterBase::Dictionary::EnsureShared() const {
   absl::MutexLock lock(&mutex_);
   if (shared_ == nullptr) shared_ = std::make_shared<Shared>();
   return shared_;
 }
 
 inline std::shared_ptr<const ZSTD_CDict>
-ZstdWriterBase::Dictionary::Cache::PrepareDictionary(
-    absl::string_view dictionary, ContentType content_type,
-    int compression_level) const {
+ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
   RIEGELI_ASSERT_NE(compression_level, std::numeric_limits<int>::min())
       << "Failed precondition of "
          "ZstdWriterBase::Dictionary::Cache::PrepareDictionary(): "
          "compression level out of range";
-  const std::shared_ptr<Shared> shared = EnsureShared();
+  const std::shared_ptr<Shared> prepared = EnsureShared();
   {
-    absl::MutexLock lock(&shared->mutex);
-    if (shared->compression_level == compression_level) {
-      return shared->prepared_dictionary;
+    absl::MutexLock lock(&prepared->mutex);
+    if (prepared->compression_level == compression_level) {
+      return prepared->shared_dictionary;
     }
   }
-  std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> prepared_dictionary(
+  std::unique_ptr<ZSTD_CDict, ZSTD_CDictDeleter> shared_dictionary(
       ZSTD_createCDict_advanced(
-          dictionary.data(), dictionary.size(), ZSTD_dlm_byRef,
-          static_cast<ZSTD_dictContentType_e>(content_type),
-          ZSTD_getCParams(compression_level, 0, dictionary.size()),
+          data().data(), data().size(), ZSTD_dlm_byRef,
+          static_cast<ZSTD_dictContentType_e>(content_type()),
+          ZSTD_getCParams(compression_level, 0, data().size()),
           ZSTD_defaultCMem));
-  absl::MutexLock lock(&shared->mutex);
-  shared->compression_level = compression_level;
-  shared->prepared_dictionary = std::move(prepared_dictionary);
-  return shared->prepared_dictionary;
-}
-
-inline std::shared_ptr<const ZSTD_CDict>
-ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
-  return cache_.PrepareDictionary(data(), content_type(), compression_level);
+  absl::MutexLock lock(&prepared->mutex);
+  prepared->compression_level = compression_level;
+  prepared->shared_dictionary = std::move(shared_dictionary);
+  return prepared->shared_dictionary;
 }
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,

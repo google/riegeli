@@ -70,12 +70,18 @@ class ZstdReaderBase : public BufferedReader {
    public:
     Dictionary() noexcept {}
 
+    Dictionary(const Dictionary& that);
+    Dictionary& operator=(const Dictionary& that);
+
+    Dictionary(Dictionary&& that) noexcept;
+    Dictionary& operator=(Dictionary&& that) noexcept;
+
     // Sets interpretation of dictionary data.
     //
     // Default: `ContentType::kAuto`
     Dictionary& set_content_type(ContentType content_type) & {
       content_type_ = content_type;
-      cache_.Invalidate();
+      InvalidateShared();
       return *this;
     }
     Dictionary&& set_content_type(ContentType content_type) && {
@@ -88,7 +94,7 @@ class ZstdReaderBase : public BufferedReader {
       content_type_ = ContentType::kAuto;
       owned_data_.reset();
       data_ = absl::string_view();
-      cache_.Invalidate();
+      InvalidateShared();
       return *this;
     }
     Dictionary&& reset() && { return std::move(reset()); }
@@ -104,7 +110,7 @@ class ZstdReaderBase : public BufferedReader {
       owned_data_ =
           std::make_shared<const std::string>(data.data(), data.size());
       data_ = *owned_data_;
-      cache_.Invalidate();
+      InvalidateShared();
       return *this;
     }
     template <typename Src,
@@ -114,7 +120,7 @@ class ZstdReaderBase : public BufferedReader {
       // necessary: `Src` is always `std::string`, never an lvalue reference.
       owned_data_ = std::make_shared<const std::string>(std::move(data));
       data_ = *owned_data_;
-      cache_.Invalidate();
+      InvalidateShared();
       return *this;
     }
     Dictionary&& set_data(absl::string_view data) && {
@@ -134,7 +140,7 @@ class ZstdReaderBase : public BufferedReader {
     Dictionary& set_data_unowned(absl::string_view data) & {
       owned_data_.reset();
       data_ = data;
-      cache_.Invalidate();
+      InvalidateShared();
       return *this;
     }
     Dictionary&& set_data_unowned(absl::string_view data) && {
@@ -148,41 +154,15 @@ class ZstdReaderBase : public BufferedReader {
     absl::string_view data() const { return data_; }
 
    private:
-    // Caches dictionary in the prepared form, to avoid preparing the dictionary
-    // from the same data multiple times.
-    class Cache {
-     public:
-      Cache() noexcept {}
-
-      Cache(const Cache& that);
-      Cache& operator=(const Cache& that);
-
-      Cache(Cache&& that) noexcept;
-      Cache& operator=(Cache&& that) noexcept;
-
-      // Clears the cache.
-      void Invalidate();
-
-      // Returns the dictionary in the prepared form, or `nullptr` if
-      // `ZSTD_createDDict_advanced()` failed.
-      std::shared_ptr<const ZSTD_DDict> PrepareDictionary(
-          absl::string_view dictionary, ContentType content_type) const;
-
-     private:
-      struct Shared;
-
-      std::shared_ptr<Shared> EnsureShared() const;
-
-      mutable absl::Mutex mutex_;
-      // If multiple `Dictionary` objects are known to use the same dictionary,
-      // `shared_` is present and shared between them.
-      //
-      // `shared_` is guarded by `mutex_` for const access. It is not guarded
-      // for non-const access which is assumed to be exclusive.
-      mutable std::shared_ptr<Shared> shared_;
-    };
-
     friend class ZstdReaderBase;
+
+    struct Shared;
+
+    // Ensures that `shared_` is present.
+    std::shared_ptr<Shared> EnsureShared() const;
+
+    // Clears `shared_`.
+    void InvalidateShared();
 
     // Returns the dictionary in the prepared form, or `nullptr` if
     // `ZSTD_createDDict_advanced()` failed.
@@ -191,7 +171,15 @@ class ZstdReaderBase : public BufferedReader {
     ContentType content_type_ = ContentType::kAuto;
     std::shared_ptr<const std::string> owned_data_;
     absl::string_view data_;
-    Cache cache_;
+
+    mutable absl::Mutex mutex_;
+    // If multiple `Dictionary` objects are known to use the same dictionary,
+    // `shared_` is present and shared between them, to avoid preparing the
+    // dictionary from the same data multiple times.
+    //
+    // `shared_` is guarded by `mutex_` for const access. It is not guarded
+    // for non-const access which is assumed to be exclusive.
+    mutable std::shared_ptr<Shared> shared_;
   };
 
   class Options {
@@ -411,25 +399,37 @@ absl::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
-inline ZstdReaderBase::Dictionary::Cache::Cache(const Cache& that)
-    : shared_(that.EnsureShared()) {}
+inline ZstdReaderBase::Dictionary::Dictionary(const Dictionary& that)
+    : content_type_(that.content_type_),
+      owned_data_(that.owned_data_),
+      data_(that.data_),
+      shared_(that.empty() ? nullptr : that.EnsureShared()) {}
 
-inline ZstdReaderBase::Dictionary::Cache&
-ZstdReaderBase::Dictionary::Cache::operator=(const Cache& that) {
-  shared_ = that.EnsureShared();
+inline ZstdReaderBase::Dictionary& ZstdReaderBase::Dictionary::operator=(
+    const Dictionary& that) {
+  content_type_ = that.content_type_;
+  owned_data_ = that.owned_data_;
+  data_ = that.data_;
+  shared_ = that.empty() ? nullptr : that.EnsureShared();
   return *this;
 }
 
-inline ZstdReaderBase::Dictionary::Cache::Cache(Cache&& that) noexcept
-    : shared_(std::move(that.shared_)) {}
+inline ZstdReaderBase::Dictionary::Dictionary(Dictionary&& that) noexcept
+    : content_type_(that.content_type_),
+      owned_data_(std::move(that.owned_data_)),
+      data_(std::exchange(that.data_, absl::string_view())),
+      shared_(std::move(that.shared_)) {}
 
-inline ZstdReaderBase::Dictionary::Cache&
-ZstdReaderBase::Dictionary::Cache::operator=(Cache&& that) noexcept {
+inline ZstdReaderBase::Dictionary& ZstdReaderBase::Dictionary::operator=(
+    Dictionary&& that) noexcept {
+  content_type_ = that.content_type_;
+  owned_data_ = std::move(that.owned_data_);
+  data_ = std::exchange(that.data_, absl::string_view());
   shared_ = std::move(that.shared_);
   return *this;
 }
 
-inline void ZstdReaderBase::Dictionary::Cache::Invalidate() { shared_.reset(); }
+inline void ZstdReaderBase::Dictionary::InvalidateShared() { shared_.reset(); }
 
 inline ZstdReaderBase::ZstdReaderBase(bool growing_source,
                                       Dictionary&& dictionary,

@@ -62,22 +62,21 @@ struct ZSTD_DDictDeleter {
 
 }  // namespace
 
-struct ZstdReaderBase::Dictionary::Cache::Shared {
+struct ZstdReaderBase::Dictionary::Shared {
   absl::Mutex mutex;
   bool present ABSL_GUARDED_BY(mutex) = false;
   std::shared_ptr<const ZSTD_DDict> prepared_dictionary ABSL_GUARDED_BY(mutex);
 };
 
-std::shared_ptr<ZstdReaderBase::Dictionary::Cache::Shared>
-ZstdReaderBase::Dictionary::Cache::EnsureShared() const {
+std::shared_ptr<ZstdReaderBase::Dictionary::Shared>
+ZstdReaderBase::Dictionary::EnsureShared() const {
   absl::MutexLock lock(&mutex_);
   if (shared_ == nullptr) shared_ = std::make_shared<Shared>();
   return shared_;
 }
 
 inline std::shared_ptr<const ZSTD_DDict>
-ZstdReaderBase::Dictionary::Cache::PrepareDictionary(
-    absl::string_view dictionary, ContentType content_type) const {
+ZstdReaderBase::Dictionary::PrepareDictionary() const {
   const std::shared_ptr<Shared> shared = EnsureShared();
   {
     absl::MutexLock lock(&shared->mutex);
@@ -85,17 +84,13 @@ ZstdReaderBase::Dictionary::Cache::PrepareDictionary(
   }
   std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter> prepared_dictionary(
       ZSTD_createDDict_advanced(
-          dictionary.data(), dictionary.size(), ZSTD_dlm_byRef,
-          static_cast<ZSTD_dictContentType_e>(content_type), ZSTD_defaultCMem));
+          data().data(), data().size(), ZSTD_dlm_byRef,
+          static_cast<ZSTD_dictContentType_e>(content_type()),
+          ZSTD_defaultCMem));
   absl::MutexLock lock(&shared->mutex);
   shared->present = true;
   shared->prepared_dictionary = std::move(prepared_dictionary);
   return shared->prepared_dictionary;
-}
-
-inline std::shared_ptr<const ZSTD_DDict>
-ZstdReaderBase::Dictionary::PrepareDictionary() const {
-  return cache_.PrepareDictionary(data(), content_type());
 }
 
 void ZstdReaderBase::Initialize(Reader* src) {
