@@ -440,7 +440,7 @@ template <typename A, typename B>
 constexpr std::common_type_t<A, B> SignedMin(A a, B b) {
   static_assert(std::is_signed<A>::value, "SignedMin() requires signed types");
   static_assert(std::is_signed<B>::value, "SignedMin() requires signed types");
-  return a < b ? b : a;
+  return a < b ? a : b;
 }
 
 template <typename A, typename B, typename... Rest>
@@ -455,7 +455,7 @@ template <typename A, typename B>
 constexpr std::common_type_t<A, B> SignedMax(A a, B b) {
   static_assert(std::is_signed<A>::value, "SignedMax() requires signed types");
   static_assert(std::is_signed<B>::value, "SignedMax() requires signed types");
-  return a < b ? b : a;
+  return a > b ? a : b;
 }
 
 template <typename A, typename B, typename... Rest>
@@ -530,7 +530,7 @@ constexpr std::common_type_t<A, B> UnsignedMax(A a, B b) {
                 "UnsignedMax() requires unsigned types");
   static_assert(std::is_unsigned<B>::value,
                 "UnsignedMax() requires unsigned types");
-  return a < b ? b : a;
+  return a > b ? a : b;
 }
 
 template <typename A, typename B, typename... Rest>
