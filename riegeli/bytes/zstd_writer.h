@@ -291,7 +291,7 @@ class ZstdWriterBase : public BufferedWriter {
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // `set_pledged_size()` overrides `set_size_hint()`.
+    // `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
     Options& set_size_hint(Position size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -300,6 +300,28 @@ class ZstdWriterBase : public BufferedWriter {
       return std::move(set_size_hint(size_hint));
     }
     Position size_hint() const { return size_hint_; }
+
+    // If `true`, tries to compress all data in one step:
+    //
+    //  * Flattens uncompressed data if `pledged_size()` is not `absl::nullopt`.
+    //
+    //  * Asks the destination for a flat buffer with the maximum possible
+    //    compressed size, as long as the uncompressed size is known before
+    //    compression begins, e.g. if `pledged_size()` is not`absl::nullopt`.
+    //
+    // This makes compression slightly faster, but increases memory usage.
+    //
+    // If `false`, lets the destination choose buffer sizes.
+    //
+    // Default: `false`
+    Options& set_reserve_max_size(bool reserve_max_size) & {
+      reserve_max_size_ = reserve_max_size;
+      return *this;
+    }
+    Options&& set_reserve_max_size(bool reserve_max_size) && {
+      return std::move(set_reserve_max_size(reserve_max_size));
+    }
+    bool reserve_max_size() const { return reserve_max_size_; }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
@@ -315,6 +337,9 @@ class ZstdWriterBase : public BufferedWriter {
     bool store_checksum() const { return store_checksum_; }
 
     // Tunes how much data is buffered before calling the compression engine.
+    //
+    // If `reserve_max_size()` is `true`, `pledged_size()`, if not
+    // `absl::nullopt`, overrides `buffer_size()`.
     //
     // Default: `ZSTD_CStreamInSize()`
     static size_t DefaultBufferSize() { return ZSTD_CStreamInSize(); }
@@ -337,6 +362,7 @@ class ZstdWriterBase : public BufferedWriter {
     Dictionary dictionary_;
     absl::optional<Position> pledged_size_;
     Position size_hint_ = 0;
+    bool reserve_max_size_ = false;
     bool store_checksum_ = false;
     size_t buffer_size_ = DefaultBufferSize();
   };
@@ -359,14 +385,15 @@ class ZstdWriterBase : public BufferedWriter {
 
   explicit ZstdWriterBase(Dictionary&& dictionary, size_t buffer_size,
                           absl::optional<Position> pledged_size,
-                          Position size_hint);
+                          Position size_hint, bool reserve_max_size);
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Reset();
   void Reset(Dictionary&& dictionary, size_t buffer_size,
-             absl::optional<Position> pledged_size, Position size_hint);
+             absl::optional<Position> pledged_size, Position size_hint,
+             bool reserve_max_size);
   void Initialize(Writer* dest, int compression_level,
                   absl::optional<int> window_log, Position size_hint,
                   bool store_checksum);
@@ -385,6 +412,7 @@ class ZstdWriterBase : public BufferedWriter {
   Dictionary dictionary_;
   std::shared_ptr<const ZSTD_CDict> prepared_dictionary_;
   absl::optional<Position> pledged_size_;
+  bool reserve_max_size_ = false;
   // If `healthy()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
@@ -493,10 +521,11 @@ inline void ZstdWriterBase::Dictionary::InvalidateShared() { shared_.reset(); }
 inline ZstdWriterBase::ZstdWriterBase(Dictionary&& dictionary,
                                       size_t buffer_size,
                                       absl::optional<Position> pledged_size,
-                                      Position size_hint)
+                                      Position size_hint, bool reserve_max_size)
     : BufferedWriter(buffer_size, size_hint),
       dictionary_(std::move(dictionary)),
-      pledged_size_(pledged_size) {}
+      pledged_size_(pledged_size),
+      reserve_max_size_(reserve_max_size) {}
 
 inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
@@ -505,6 +534,7 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       dictionary_(std::move(that.dictionary_)),
       prepared_dictionary_(std::move(that.prepared_dictionary_)),
       pledged_size_(that.pledged_size_),
+      reserve_max_size_(that.reserve_max_size_),
       compressor_(std::move(that.compressor_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
@@ -515,6 +545,7 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   dictionary_ = std::move(that.dictionary_);
   prepared_dictionary_ = std::move(that.prepared_dictionary_);
   pledged_size_ = std::move(that.pledged_size_);
+  reserve_max_size_ = that.reserve_max_size_;
   compressor_ = std::move(that.compressor_);
   return *this;
 }
@@ -523,24 +554,32 @@ inline void ZstdWriterBase::Reset() {
   BufferedWriter::Reset();
   dictionary_.reset();
   prepared_dictionary_.reset();
+  pledged_size_ = absl::nullopt;
+  reserve_max_size_ = false;
   compressor_.reset();
 }
 
 inline void ZstdWriterBase::Reset(Dictionary&& dictionary, size_t buffer_size,
                                   absl::optional<Position> pledged_size,
-                                  Position size_hint) {
+                                  Position size_hint, bool reserve_max_size) {
   BufferedWriter::Reset(buffer_size, size_hint);
   dictionary_ = std::move(dictionary);
   prepared_dictionary_.reset();
   pledged_size_ = pledged_size;
+  reserve_max_size_ = reserve_max_size;
   compressor_.reset();
 }
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
-    : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
-                     options.pledged_size(),
-                     options.pledged_size().value_or(options.size_hint())),
+    : ZstdWriterBase(
+          std::move(options.dictionary()),
+          options.reserve_max_size() && options.pledged_size() != absl::nullopt
+              ? SaturatingIntCast<size_t>(*options.pledged_size())
+              : options.buffer_size(),
+          options.pledged_size(),
+          options.pledged_size().value_or(options.size_hint()),
+          options.reserve_max_size()),
       dest_(dest) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),
@@ -549,9 +588,14 @@ inline ZstdWriter<Dest>::ZstdWriter(const Dest& dest, Options options)
 
 template <typename Dest>
 inline ZstdWriter<Dest>::ZstdWriter(Dest&& dest, Options options)
-    : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
-                     options.pledged_size(),
-                     options.pledged_size().value_or(options.size_hint())),
+    : ZstdWriterBase(
+          std::move(options.dictionary()),
+          options.reserve_max_size() && options.pledged_size() != absl::nullopt
+              ? SaturatingIntCast<size_t>(*options.pledged_size())
+              : options.buffer_size(),
+          options.pledged_size(),
+          options.pledged_size().value_or(options.size_hint()),
+          options.reserve_max_size()),
       dest_(std::move(dest)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),
@@ -562,9 +606,14 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ZstdWriter<Dest>::ZstdWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : ZstdWriterBase(std::move(options.dictionary()), options.buffer_size(),
-                     options.pledged_size(),
-                     options.pledged_size().value_or(options.size_hint())),
+    : ZstdWriterBase(
+          std::move(options.dictionary()),
+          options.reserve_max_size() && options.pledged_size() != absl::nullopt
+              ? SaturatingIntCast<size_t>(*options.pledged_size())
+              : options.buffer_size(),
+          options.pledged_size(),
+          options.pledged_size().value_or(options.size_hint()),
+          options.reserve_max_size()),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),
@@ -596,9 +645,14 @@ inline void ZstdWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
-                        options.pledged_size(),
-                        options.pledged_size().value_or(options.size_hint()));
+  ZstdWriterBase::Reset(
+      std::move(options.dictionary()),
+      options.reserve_max_size() && options.pledged_size() != absl::nullopt
+          ? SaturatingIntCast<size_t>(*options.pledged_size())
+          : options.buffer_size(),
+      options.pledged_size(),
+      options.pledged_size().value_or(options.size_hint()),
+      options.reserve_max_size());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),
@@ -607,9 +661,14 @@ inline void ZstdWriter<Dest>::Reset(const Dest& dest, Options options) {
 
 template <typename Dest>
 inline void ZstdWriter<Dest>::Reset(Dest&& dest, Options options) {
-  ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
-                        options.pledged_size(),
-                        options.pledged_size().value_or(options.size_hint()));
+  ZstdWriterBase::Reset(
+      std::move(options.dictionary()),
+      options.reserve_max_size() && options.pledged_size() != absl::nullopt
+          ? SaturatingIntCast<size_t>(*options.pledged_size())
+          : options.buffer_size(),
+      options.pledged_size(),
+      options.pledged_size().value_or(options.size_hint()),
+      options.reserve_max_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),
@@ -620,9 +679,14 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ZstdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  ZstdWriterBase::Reset(std::move(options.dictionary()), options.buffer_size(),
-                        options.pledged_size(),
-                        options.pledged_size().value_or(options.size_hint()));
+  ZstdWriterBase::Reset(
+      std::move(options.dictionary()),
+      options.reserve_max_size() && options.pledged_size() != absl::nullopt
+          ? SaturatingIntCast<size_t>(*options.pledged_size())
+          : options.buffer_size(),
+      options.pledged_size(),
+      options.pledged_size().value_or(options.size_hint()),
+      options.reserve_max_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.compression_level(), options.window_log(),
              options.pledged_size().value_or(options.size_hint()),

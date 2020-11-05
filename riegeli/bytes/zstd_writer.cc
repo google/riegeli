@@ -250,8 +250,12 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
     }
     if (next_pos >= *pledged_size_) {
       // Notify `compressor_` that this is the last fragment. This enables
-      // optimizations (compressing directly to a long enough output).
+      // optimizations (compressing directly to a long enough output buffer).
       end_op = ZSTD_e_end;
+      if (reserve_max_size_ && start_pos() == 0) {
+        // Ensure that the output buffer is actually long enough.
+        dest.Push(ZSTD_compressBound(*pledged_size_));
+      }
     }
     if (end_op == ZSTD_e_end) {
       if (ABSL_PREDICT_FALSE(next_pos != *pledged_size_)) {
