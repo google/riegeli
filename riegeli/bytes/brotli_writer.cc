@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/port.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/brotli_allocator.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -65,6 +66,22 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(absl::InternalError(
         "BrotliEncoderSetParameter(BROTLI_PARAM_QUALITY) failed"));
     return;
+  }
+  // Reduce `window_log` if `size_hint` indicates that data will be smaller.
+  // TODO(eustas): Do this automatically in the Brotli engine.
+  if (size_hint > 0) {
+#if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
+    RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
+    const int ceil_log2 =
+        __builtin_clzll(1) - __builtin_clzll((size_hint - 1) | 1) + 1;
+    window_log =
+        SignedMin(window_log, SignedMax(ceil_log2, Options::kMinWindowLog));
+#else
+    while (Position{1} << (window_log - 1) >= size_hint &&
+           window_log > Options::kMinWindowLog) {
+      --window_log;
+    }
+#endif
   }
   if (ABSL_PREDICT_FALSE(!BrotliEncoderSetParameter(
           compressor_.get(), BROTLI_PARAM_LARGE_WINDOW,

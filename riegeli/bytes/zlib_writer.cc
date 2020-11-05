@@ -56,6 +56,10 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(*dest);
     return;
   }
+  // Do not reduce `window_log` based on `size_hint`. An unexpected reduction
+  // of `window_log` would break concatenation of compressed streams, because
+  // Zlib decompressor rejects `window_log` in a subsequent header greater than
+  // in the first header.
   compressor_ =
       RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::global().Get(
           ZStreamKey{compression_level, window_bits},
