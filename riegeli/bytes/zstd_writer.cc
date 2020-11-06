@@ -114,8 +114,8 @@ ZstdWriterBase::Dictionary::PrepareDictionary(int compression_level) const {
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 absl::optional<int> window_log,
-                                absl::optional<Position> size_hint,
-                                bool store_checksum) {
+                                bool store_checksum,
+                                absl::optional<Position> size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
