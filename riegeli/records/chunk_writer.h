@@ -101,7 +101,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
     // This can be used to prepare a file fragment which can be appended to the
     // target file at the given position.
     //
-    // Default: `dest_writer()->pos()`
+    // Default: `dest_writer()->pos()`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
       assumed_pos_ = assumed_pos;
       return *this;

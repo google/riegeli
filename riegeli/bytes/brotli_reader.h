@@ -44,7 +44,7 @@ class BrotliReaderBase : public PullableReader {
 
     // Memory allocator used by the Brotli engine.
     //
-    // Default: `BrotliAllocator()`
+    // Default: `BrotliAllocator()`.
     Options& set_allocator(const BrotliAllocator& allocator) & {
       allocator_ = allocator;
       return *this;

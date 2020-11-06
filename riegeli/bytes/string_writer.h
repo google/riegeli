@@ -46,7 +46,7 @@ class StringWriterBase : public Writer {
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_append(bool append) & {
       append_ = append;
       return *this;
@@ -60,6 +60,8 @@ class StringWriterBase : public Writer {
     // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;

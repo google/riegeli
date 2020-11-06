@@ -45,7 +45,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
     //
     // If not `absl::nullopt`, overrides that size.
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_assumed_size(absl::optional<Position> assumed_size) & {
       assumed_size_ = assumed_size;
       return *this;
@@ -168,7 +168,7 @@ class SnappyDecompressOptions {
   //
   // If not `absl::nullopt`, overrides that size.
   //
-  // Default: `absl::nullopt`
+  // Default: `absl::nullopt`.
   SnappyDecompressOptions& set_assumed_size(
       absl::optional<Position> assumed_size) & {
     assumed_size_ = assumed_size;

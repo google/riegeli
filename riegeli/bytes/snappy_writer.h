@@ -48,6 +48,8 @@ class SnappyWriterBase : public Writer {
     // improve performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -199,7 +201,7 @@ class SnappyCompressOptions {
   //
   // If not `absl::nullopt`, overrides that size.
   //
-  // Default: `absl::nullopt`
+  // Default: `absl::nullopt`.
   SnappyCompressOptions& set_assumed_size(
       absl::optional<Position> assumed_size) & {
     assumed_size_ = assumed_size;

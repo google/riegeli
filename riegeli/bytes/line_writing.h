@@ -40,7 +40,7 @@ class WriteLineOptions {
 
   // Line terminator representation to write.
   //
-  // Default: `Newline::kLf`
+  // Default: `Newline::kLf`.
   WriteLineOptions& set_newline(Newline newline) & {
     newline_ = newline;
     return *this;

@@ -82,7 +82,7 @@ class FdWriterBase : public internal::FdWriterCommon {
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
     //
-    // Default: `0666`
+    // Default: `0666`.
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
@@ -111,7 +111,7 @@ class FdWriterBase : public internal::FdWriterCommon {
 
     // Tunes how much data is buffered before writing to the file.
     //
-    // Default: 64K
+    // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of FdWriterBase::Options::set_buffer_size(): "
@@ -169,7 +169,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
     //
-    // Default: `0666`
+    // Default: `0666`.
     Options& set_permissions(mode_t permissions) & {
       permissions_ = permissions;
       return *this;
@@ -202,7 +202,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 
     // Tunes how much data is buffered before writing to the file.
     //
-    // Default: 64K
+    // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "

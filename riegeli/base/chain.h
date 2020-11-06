@@ -69,7 +69,7 @@ class ChainOptions {
   //
   // This is used initially, while the destination is small.
   //
-  // Default: `kMinBufferSize` (256)
+  // Default: `kMinBufferSize` (256).
   ChainOptions& set_min_block_size(size_t min_block_size) & {
     min_block_size_ = min_block_size;
     return *this;
@@ -84,7 +84,7 @@ class ChainOptions {
   // This is for performance tuning, not a guarantee: does not apply to objects
   // allocated separately and then appended to this `Chain`.
   //
-  // Default: `kMaxBufferSize` (64K)
+  // Default: `kMaxBufferSize` (64K).
   ChainOptions& set_max_block_size(size_t max_block_size) & {
     RIEGELI_ASSERT_GT(max_block_size, 0u)
         << "Failed precondition of Chain::Options::set_max_block_size(): "
@@ -126,7 +126,7 @@ class ChainBlockOptions {
   //
   // This is used initially, while the destination is small.
   //
-  // Default: `kMinBufferSize` (256)
+  // Default: `kMinBufferSize` (256).
   ChainBlockOptions& set_min_block_size(size_t min_block_size) & {
     min_block_size_ = min_block_size;
     return *this;

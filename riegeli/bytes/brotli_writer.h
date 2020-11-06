@@ -97,7 +97,7 @@ class BrotliWriterBase : public BufferedWriter {
 
     // Memory allocator used by the Brotli engine.
     //
-    // Default: `BrotliAllocator()`
+    // Default: `BrotliAllocator()`.
     Options& set_allocator(const BrotliAllocator& allocator) & {
       allocator_ = allocator;
       return *this;
@@ -123,6 +123,8 @@ class BrotliWriterBase : public BufferedWriter {
     // improve compression density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -134,7 +136,7 @@ class BrotliWriterBase : public BufferedWriter {
 
     // Tunes how much data is buffered before calling the compression engine.
     //
-    // Default: 64K
+    // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "

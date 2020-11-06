@@ -85,7 +85,7 @@ class PythonReader : public BufferedReader {
 
     // Tunes how much data is buffered after reading from the file.
     //
-    // Default: 64K
+    // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of PythonReader::Options::set_buffer_size(): "

@@ -45,7 +45,7 @@ class SerializeOptions {
   // If `true`, missing required fields result in a partial serialized message,
   // not having these fields.
   //
-  // Default: `false`
+  // Default: `false`.
   SerializeOptions& set_partial(bool partial) & {
     partial_ = partial;
     return *this;
@@ -62,7 +62,7 @@ class SerializeOptions {
   // does not change in inappropriate ways and there are no unknown fields)
   // but serialization can be slower.
   //
-  // Default: `false`
+  // Default: `false`.
   SerializeOptions& set_deterministic(bool deterministic) & {
     deterministic_ = deterministic;
     return *this;
@@ -79,7 +79,7 @@ class SerializeOptions {
   // This makes serialization faster by allowing to use `GetCachedSize()`
   // instead of `ByteSizeLong()`.
   //
-  // Default: `false`
+  // Default: `false`.
   SerializeOptions& set_has_cached_size(bool has_cached_size) & {
     has_cached_size_ = has_cached_size;
     return *this;

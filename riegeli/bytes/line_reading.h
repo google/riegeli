@@ -41,7 +41,7 @@ class ReadLineOptions {
 
   // Line terminator representations to recognize.
   //
-  // Default: `Newline::kLf`
+  // Default: `Newline::kLf`.
   ReadLineOptions& set_newline(Newline newline) & {
     newline_ = newline;
     return *this;
@@ -56,7 +56,7 @@ class ReadLineOptions {
   // If `true`, each returned line will include its terminator if it was present
   // (it can be absent in the last line).
   //
-  // Default: `false`
+  // Default: `false`.
   ReadLineOptions& set_keep_newline(bool keep_newline) & {
     keep_newline_ = keep_newline;
     return *this;
@@ -71,7 +71,7 @@ class ReadLineOptions {
   // If this length is exceeded, reading fails with
   // `absl::ResourceExhaustedError()`.
   //
-  // Default: `std::numeric_limits<size_t>::max()`
+  // Default: `std::numeric_limits<size_t>::max()`.
   ReadLineOptions& set_max_length(size_t max_length) & {
     max_length_ = max_length;
     return *this;

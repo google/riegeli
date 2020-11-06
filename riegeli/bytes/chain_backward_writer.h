@@ -57,6 +57,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -70,7 +72,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     //
     // This is used initially, while the destination is small.
     //
-    // Default: `kMinBufferSize` (256)
+    // Default: `kMinBufferSize` (256).
     Options& set_min_block_size(size_t min_block_size) & {
       min_block_size_ = min_block_size;
       return *this;
@@ -86,7 +88,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // objects allocated separately and then written to this
     // `ChainBackwardWriter`.
     //
-    // Default: `kMaxBufferSize` (64K)
+    // Default: `kMaxBufferSize` (64K).
     Options& set_max_block_size(size_t max_block_size) & {
       RIEGELI_ASSERT_GT(max_block_size, 0u)
           << "Failed precondition of "

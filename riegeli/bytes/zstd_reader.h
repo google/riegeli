@@ -78,7 +78,7 @@ class ZstdReaderBase : public BufferedReader {
 
     // Sets interpretation of dictionary data.
     //
-    // Default: `ContentType::kAuto`
+    // Default: `ContentType::kAuto`.
     Dictionary& set_content_type(ContentType content_type) & {
       content_type_ = content_type;
       InvalidateShared();
@@ -190,7 +190,7 @@ class ZstdReaderBase : public BufferedReader {
     // source, then retrying when the source has grown. This has a small
     // performance penalty.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_growing_source(bool growing_source) & {
       growing_source_ = growing_source;
       return *this;
@@ -202,7 +202,7 @@ class ZstdReaderBase : public BufferedReader {
 
     // Zstd dictionary. The same dictionary must have been used for compression.
     //
-    // Default: `Dictionary()`
+    // Default: `Dictionary()`.
     Options& set_dictionary(const Dictionary& dictionary) & {
       dictionary_ = dictionary;
       return *this;
@@ -226,6 +226,8 @@ class ZstdReaderBase : public BufferedReader {
     // improve performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -237,7 +239,7 @@ class ZstdReaderBase : public BufferedReader {
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
-    // Default: `ZSTD_DStreamOutSize()`
+    // Default: `ZSTD_DStreamOutSize()`.
     static size_t DefaultBufferSize() { return ZSTD_DStreamOutSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)

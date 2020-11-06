@@ -226,7 +226,7 @@ class RecordWriterBase : public Object {
     // Special value `absl::nullopt` means to keep the default
     // (compressed: 1M, uncompressed: 4k).
     //
-    // Default: `absl::nullopt`
+    // Default: `absl::nullopt`.
     Options& set_chunk_size(absl::optional<uint64_t> chunk_size) & {
       if (chunk_size != absl::nullopt) {
         RIEGELI_ASSERT_GT(*chunk_size, 0u)
@@ -260,7 +260,7 @@ class RecordWriterBase : public Object {
     // reading with projection faster, allowing to skip decompression of values
     // of fields which are not included.
     //
-    // Default: 1.0
+    // Default: 1.0.
     Options& set_bucket_fraction(double bucket_fraction) & {
       RIEGELI_ASSERT_GE(bucket_fraction, 0.0)
           << "Failed precondition of "
@@ -286,7 +286,7 @@ class RecordWriterBase : public Object {
     //
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
-    // Default: no fields set
+    // Default: no fields set.
     Options& set_metadata(const absl::optional<RecordsMetadata>& metadata) & {
       metadata_ = metadata;
       serialized_metadata_ = absl::nullopt;
@@ -395,7 +395,7 @@ class RecordWriterBase : public Object {
     //
     //  * Up to 64KB is wasted when padding is written.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_pad_to_block_boundary(bool pad_to_block_boundary) & {
       pad_to_block_boundary_ = pad_to_block_boundary;
       return *this;
@@ -412,7 +412,7 @@ class RecordWriterBase : public Object {
     // If `parallelism > 0`, chunks are written to the byte `Writer` in
     // background and reporting writing errors is delayed.
     //
-    // Default: 0
+    // Default: 0.
     Options& set_parallelism(int parallelism) & {
       RIEGELI_ASSERT_GE(parallelism, 0)
           << "Failed precondition of "

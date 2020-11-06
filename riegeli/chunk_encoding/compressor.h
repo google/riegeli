@@ -44,6 +44,8 @@ class Compressor : public Object {
     // in the compressed stream header.
     //
     // If the pledged size turns out to not match reality, compression may fail.
+    //
+    // Default: `absl::nullopt`.
     TuningOptions& set_pledged_size(absl::optional<Position> pledged_size) & {
       pledged_size_ = pledged_size;
       return *this;
@@ -58,7 +60,9 @@ class Compressor : public Object {
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // `set_pledged_size()` overrides `set_size_hint()`.
+    // `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
+    //
+    // Default: `absl::nullopt`.
     TuningOptions& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;

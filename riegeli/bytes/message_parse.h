@@ -43,7 +43,7 @@ class ParseOptions {
   // If `true`, missing required fields result in a partial parsed message,
   // not having these fields.
   //
-  // Default: `false`
+  // Default: `false`.
   ParseOptions& set_partial(bool partial) & {
     partial_ = partial;
     return *this;

@@ -82,7 +82,7 @@ class ZstdWriterBase : public BufferedWriter {
 
     // Sets interpretation of dictionary data.
     //
-    // Default: `ContentType::kAuto`
+    // Default: `ContentType::kAuto`.
     Dictionary& set_content_type(ContentType content_type) & {
       content_type_ = content_type;
       InvalidateShared();
@@ -252,7 +252,7 @@ class ZstdWriterBase : public BufferedWriter {
 
     // Zstd dictionary. The same dictionary must be used for decompression.
     //
-    // Default: `Dictionary()`
+    // Default: `Dictionary()`.
     Options& set_dictionary(const Dictionary& dictionary) & {
       dictionary_ = dictionary;
       return *this;
@@ -277,6 +277,8 @@ class ZstdWriterBase : public BufferedWriter {
     // the compressed stream header.
     //
     // If the pledged size turns out to not match reality, compression fails.
+    //
+    // Default: `absl::nullopt`.
     Options& set_pledged_size(absl::optional<Position> pledged_size) & {
       pledged_size_ = pledged_size;
       return *this;
@@ -292,6 +294,8 @@ class ZstdWriterBase : public BufferedWriter {
     // If the size hint turns out to not match reality, nothing breaks.
     //
     // `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -326,7 +330,7 @@ class ZstdWriterBase : public BufferedWriter {
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_store_checksum(bool store_checksum) & {
       store_checksum_ = store_checksum;
       return *this;
@@ -341,7 +345,7 @@ class ZstdWriterBase : public BufferedWriter {
     // If `reserve_max_size()` is `true`, `pledged_size()`, if not
     // `absl::nullopt`, overrides `buffer_size()`.
     //
-    // Default: `ZSTD_CStreamInSize()`
+    // Default: `ZSTD_CStreamInSize()`.
     static size_t DefaultBufferSize() { return ZSTD_CStreamInSize(); }
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)

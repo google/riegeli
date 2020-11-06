@@ -44,6 +44,8 @@ class FramedSnappyWriterBase : public PushableWriter {
     // improve performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;

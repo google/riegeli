@@ -48,6 +48,8 @@ class ChunkDecoder : public Object {
     // Specifies the set of fields to be included in returned records, allowing
     // to exclude the remaining fields (but does not guarantee exclusion).
     // Excluding data makes reading faster.
+    //
+    // Default: `FieldProjection::All()`.
     Options& set_field_projection(const FieldProjection& field_projection) & {
       field_projection_ = field_projection;
       return *this;

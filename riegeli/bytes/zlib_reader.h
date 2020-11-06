@@ -106,7 +106,7 @@ class ZlibReaderBase : public BufferedReader {
     // except that it is allowed to supply a dictionary even if no dictionary
     // was used for compression.
     //
-    // Default: `ZlibDictionary()`
+    // Default: `ZlibDictionary()`.
     Options& set_dictionary(const ZlibDictionary& dictionary) & {
       dictionary_ = dictionary;
       return *this;
@@ -134,7 +134,7 @@ class ZlibReaderBase : public BufferedReader {
     //
     // If `false`, exactly one compressed stream is consumed.
     //
-    // Default: `false`
+    // Default: `false`.
     Options& set_concatenate(bool concatenate) & {
       concatenate_ = concatenate;
       return *this;
@@ -148,6 +148,8 @@ class ZlibReaderBase : public BufferedReader {
     // improve performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
+    //
+    // Default: `absl::nullopt`.
     Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
@@ -159,7 +161,7 @@ class ZlibReaderBase : public BufferedReader {
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
-    // Default: 64K
+    // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
       RIEGELI_ASSERT_GT(buffer_size, 0u)
           << "Failed precondition of "

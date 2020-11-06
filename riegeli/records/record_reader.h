@@ -141,7 +141,7 @@ class RecordReaderBase : public Object {
     //                     `false`
     //  * `Seek()` - returns the result of the recovery function
     //
-    // Default: `nullptr`
+    // Default: `nullptr`.
     Options& set_recovery(
         const std::function<bool(const SkippedRegion&)>& recovery) & {
       recovery_ = recovery;
