@@ -144,18 +144,18 @@ class ZlibReaderBase : public BufferedReader {
     }
     bool concatenate() const { return concatenate_; }
 
-    // Expected uncompressed size, or 0 if unknown. This may improve
-    // performance.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() { return size_hint_; }
+    absl::optional<Position> size_hint() { return size_hint_; }
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
@@ -178,7 +178,7 @@ class ZlibReaderBase : public BufferedReader {
     Header header_ = kDefaultHeader;
     ZlibDictionary dictionary_;
     bool concatenate_ = false;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -209,14 +209,15 @@ class ZlibReaderBase : public BufferedReader {
   ZlibReaderBase() noexcept {}
 
   explicit ZlibReaderBase(ZlibDictionary&& dictionary, bool concatenate,
-                          size_t buffer_size, Position size_hint);
+                          size_t buffer_size,
+                          absl::optional<Position> size_hint);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset();
   void Reset(ZlibDictionary&& dictionary, bool concatenate, size_t buffer_size,
-             Position size_hint);
+             absl::optional<Position> size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src, int window_bits);
 
@@ -321,7 +322,7 @@ ZlibReader(std::tuple<SrcArgs...> src_args,
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibDictionary&& dictionary,
                                       bool concatenate, size_t buffer_size,
-                                      Position size_hint)
+                                      absl::optional<Position> size_hint)
     : BufferedReader(buffer_size, size_hint),
       dictionary_(std::move(dictionary)),
       concatenate_(concatenate) {}
@@ -359,7 +360,8 @@ inline void ZlibReaderBase::Reset() {
 }
 
 inline void ZlibReaderBase::Reset(ZlibDictionary&& dictionary, bool concatenate,
-                                  size_t buffer_size, Position size_hint) {
+                                  size_t buffer_size,
+                                  absl::optional<Position> size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
   dictionary_ = std::move(dictionary);
   concatenate_ = concatenate;

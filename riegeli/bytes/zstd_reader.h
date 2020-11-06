@@ -222,18 +222,18 @@ class ZstdReaderBase : public BufferedReader {
     Dictionary&& dictionary() && { return std::move(dictionary_); }
     const Dictionary&& dictionary() const&& { return std::move(dictionary_); }
 
-    // Expected uncompressed size, or 0 if unknown. This may improve
-    // performance.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered after calling the decompression engine.
     //
@@ -255,7 +255,7 @@ class ZstdReaderBase : public BufferedReader {
    private:
     bool growing_source_ = false;
     Dictionary dictionary_;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t buffer_size_ = DefaultBufferSize();
   };
 
@@ -284,14 +284,15 @@ class ZstdReaderBase : public BufferedReader {
   ZstdReaderBase() noexcept {}
 
   explicit ZstdReaderBase(bool growing_source, Dictionary&& dictionary,
-                          size_t buffer_size, Position size_hint);
+                          size_t buffer_size,
+                          absl::optional<Position> size_hint);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
   void Reset();
   void Reset(bool growing_source, Dictionary&& dictionary, size_t buffer_size,
-             Position size_hint);
+             absl::optional<Position> size_hint);
   void Initialize(Reader* src);
 
   void Done() override;
@@ -433,7 +434,8 @@ inline void ZstdReaderBase::Dictionary::InvalidateShared() { shared_.reset(); }
 
 inline ZstdReaderBase::ZstdReaderBase(bool growing_source,
                                       Dictionary&& dictionary,
-                                      size_t buffer_size, Position size_hint)
+                                      size_t buffer_size,
+                                      absl::optional<Position> size_hint)
     : BufferedReader(buffer_size, size_hint),
       growing_source_(growing_source),
       dictionary_(std::move(dictionary)) {}
@@ -477,7 +479,8 @@ inline void ZstdReaderBase::Reset() {
 }
 
 inline void ZstdReaderBase::Reset(bool growing_source, Dictionary&& dictionary,
-                                  size_t buffer_size, Position size_hint) {
+                                  size_t buffer_size,
+                                  absl::optional<Position> size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
   growing_source_ = growing_source;
   just_initialized_ = false;

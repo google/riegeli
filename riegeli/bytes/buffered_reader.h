@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -45,11 +46,13 @@ class BufferedReader : public Reader {
 
   // Creates a `BufferedReader` with the given buffer size and size hint.
   //
-  // Size hint is the expected maximum position reached, or 0 if unknown.
-  // This avoids allocating a larger buffer than necessary.
+  // Size hint is the expected maximum position reached, or `absl::nullopt` if
+  // unknown. This avoids allocating a larger buffer than necessary.
   //
   // If the size hint turns out to not match reality, nothing breaks.
-  explicit BufferedReader(size_t buffer_size, Position size_hint = 0) noexcept;
+  explicit BufferedReader(
+      size_t buffer_size,
+      absl::optional<Position> size_hint = absl::nullopt) noexcept;
 
   BufferedReader(BufferedReader&& that) noexcept;
   BufferedReader& operator=(BufferedReader&& that) noexcept;
@@ -59,7 +62,8 @@ class BufferedReader : public Reader {
   // Derived classes which override `Reset()` should include a call to
   // `BufferedReader::Reset()`.
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint = 0);
+  void Reset(size_t buffer_size,
+             absl::optional<Position> size_hint = absl::nullopt);
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
@@ -90,7 +94,9 @@ class BufferedReader : public Reader {
   void ClearBuffer();
 
   // Changes the size hint after construction.
-  void set_size_hint(Position size_hint) { size_hint_ = size_hint; }
+  void set_size_hint(absl::optional<Position> size_hint) {
+    size_hint_ = size_hint.value_or(0);
+  }
 
  private:
   // Minimum length for which it is better to append current contents of
@@ -112,9 +118,11 @@ class BufferedReader : public Reader {
 
 // Implementation details follow.
 
-inline BufferedReader::BufferedReader(size_t buffer_size,
-                                      Position size_hint) noexcept
-    : Reader(kInitiallyOpen), buffer_size_(buffer_size), size_hint_(size_hint) {
+inline BufferedReader::BufferedReader(
+    size_t buffer_size, absl::optional<Position> size_hint) noexcept
+    : Reader(kInitiallyOpen),
+      buffer_size_(buffer_size),
+      size_hint_(size_hint.value_or(0)) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::BufferedReader(size_t): "
          "zero buffer size";
@@ -146,12 +154,13 @@ inline void BufferedReader::Reset() {
   buffer_.Clear();
 }
 
-inline void BufferedReader::Reset(size_t buffer_size, Position size_hint) {
+inline void BufferedReader::Reset(size_t buffer_size,
+                                  absl::optional<Position> size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::Reset(): zero buffer size";
   Reader::Reset(kInitiallyOpen);
   buffer_size_ = buffer_size;
-  size_hint_ = size_hint;
+  size_hint_ = size_hint.value_or(0);
   buffer_.Clear();
 }
 

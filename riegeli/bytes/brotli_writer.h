@@ -26,6 +26,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -118,18 +119,18 @@ class BrotliWriterBase : public BufferedWriter {
       return std::move(allocator_);
     }
 
-    // Expected uncompressed size, or 0 if unknown. This may improve compression
-    // density and performance.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve compression density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered before calling the compression engine.
     //
@@ -151,7 +152,7 @@ class BrotliWriterBase : public BufferedWriter {
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
     BrotliAllocator allocator_;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -172,16 +173,16 @@ class BrotliWriterBase : public BufferedWriter {
   BrotliWriterBase() noexcept {}
 
   explicit BrotliWriterBase(BrotliAllocator&& allocator, size_t buffer_size,
-                            Position size_hint);
+                            absl::optional<Position> size_hint);
 
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Reset();
   void Reset(BrotliAllocator&& allocator, size_t buffer_size,
-             Position size_hint);
+             absl::optional<Position> size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
-                  Position size_hint);
+                  absl::optional<Position> size_hint);
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
@@ -270,7 +271,7 @@ BrotliWriter(std::tuple<DestArgs...> dest_args,
 
 inline BrotliWriterBase::BrotliWriterBase(BrotliAllocator&& allocator,
                                           size_t buffer_size,
-                                          Position size_hint)
+                                          absl::optional<Position> size_hint)
     : BufferedWriter(buffer_size, size_hint),
       allocator_(std::move(allocator)) {}
 
@@ -298,7 +299,8 @@ inline void BrotliWriterBase::Reset() {
 }
 
 inline void BrotliWriterBase::Reset(BrotliAllocator&& allocator,
-                                    size_t buffer_size, Position size_hint) {
+                                    size_t buffer_size,
+                                    absl::optional<Position> size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
   compressor_.reset();
   allocator_ = std::move(allocator);

@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
@@ -142,18 +143,18 @@ class ZlibWriterBase : public BufferedWriter {
       return std::move(dictionary_);
     }
 
-    // Expected uncompressed size, or 0 if unknown. This may improve
-    // performance.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
     // Tunes how much data is buffered before calling the compression engine.
     //
@@ -176,7 +177,7 @@ class ZlibWriterBase : public BufferedWriter {
     int window_log_ = kDefaultWindowLog;
     Header header_ = kDefaultHeader;
     ZlibDictionary dictionary_;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -197,14 +198,14 @@ class ZlibWriterBase : public BufferedWriter {
   ZlibWriterBase() noexcept {}
 
   explicit ZlibWriterBase(ZlibDictionary&& dictionary, size_t buffer_size,
-                          Position size_hint);
+                          absl::optional<Position> size_hint);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
   void Reset();
   void Reset(ZlibDictionary&& dictionary, size_t buffer_size,
-             Position size_hint);
+             absl::optional<Position> size_hint);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level, int window_bits);
 
@@ -316,7 +317,8 @@ ZlibWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline ZlibWriterBase::ZlibWriterBase(ZlibDictionary&& dictionary,
-                                      size_t buffer_size, Position size_hint)
+                                      size_t buffer_size,
+                                      absl::optional<Position> size_hint)
     : BufferedWriter(buffer_size, size_hint),
       dictionary_(std::move(dictionary)) {}
 
@@ -344,7 +346,8 @@ inline void ZlibWriterBase::Reset() {
 }
 
 inline void ZlibWriterBase::Reset(ZlibDictionary&& dictionary,
-                                  size_t buffer_size, Position size_hint) {
+                                  size_t buffer_size,
+                                  absl::optional<Position> size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
   dictionary_ = std::move(dictionary);
   compressor_.reset();

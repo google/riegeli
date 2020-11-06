@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
@@ -39,21 +40,21 @@ class FramedSnappyWriterBase : public PushableWriter {
    public:
     Options() noexcept {}
 
-    // Expected uncompressed size, or 0 if unknown. This may improve performance
-    // and memory usage.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
    private:
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
@@ -72,13 +73,13 @@ class FramedSnappyWriterBase : public PushableWriter {
  protected:
   FramedSnappyWriterBase() noexcept : PushableWriter(kInitiallyClosed) {}
 
-  explicit FramedSnappyWriterBase(Position size_hint);
+  explicit FramedSnappyWriterBase(absl::optional<Position> size_hint);
 
   FramedSnappyWriterBase(FramedSnappyWriterBase&& that) noexcept;
   FramedSnappyWriterBase& operator=(FramedSnappyWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_hint);
+  void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
   void Done() override;
@@ -171,8 +172,9 @@ FramedSnappyWriter(
 
 // Implementation details follow.
 
-inline FramedSnappyWriterBase::FramedSnappyWriterBase(Position size_hint)
-    : PushableWriter(kInitiallyOpen), size_hint_(size_hint) {}
+inline FramedSnappyWriterBase::FramedSnappyWriterBase(
+    absl::optional<Position> size_hint)
+    : PushableWriter(kInitiallyOpen), size_hint_(size_hint.value_or(0)) {}
 
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     FramedSnappyWriterBase&& that) noexcept
@@ -197,9 +199,9 @@ inline void FramedSnappyWriterBase::Reset() {
   size_hint_ = 0;
 }
 
-inline void FramedSnappyWriterBase::Reset(Position size_hint) {
+inline void FramedSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
   PushableWriter::Reset(kInitiallyOpen);
-  size_hint_ = SaturatingIntCast<size_t>(size_hint);
+  size_hint_ = size_hint.value_or(0);
 }
 
 template <typename Dest>

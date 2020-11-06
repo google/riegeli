@@ -44,21 +44,21 @@ class SnappyWriterBase : public Writer {
    public:
     Options() noexcept {}
 
-    // Expected uncompressed size, or 0 if unknown. This may improve performance
-    // and memory usage.
+    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // improve performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
    private:
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
   };
 
   // Returns the compressed `Writer`. Unchanged by `Close()`.
@@ -77,13 +77,13 @@ class SnappyWriterBase : public Writer {
  protected:
   SnappyWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit SnappyWriterBase(Position size_hint);
+  explicit SnappyWriterBase(absl::optional<Position> size_hint);
 
   SnappyWriterBase(SnappyWriterBase&& that) noexcept;
   SnappyWriterBase& operator=(SnappyWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_hint);
+  void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
   void Done() override;
@@ -277,12 +277,13 @@ size_t SnappyMaxCompressedSize(size_t uncompressed_size);
 
 // Implementation details follow.
 
-inline SnappyWriterBase::SnappyWriterBase(Position size_hint)
+inline SnappyWriterBase::SnappyWriterBase(absl::optional<Position> size_hint)
     : Writer(kInitiallyOpen),
-      options_(Chain::Options()
-                   .set_size_hint(SaturatingIntCast<size_t>(size_hint))
-                   .set_min_block_size(kBlockSize)
-                   .set_max_block_size(kBlockSize)) {}
+      options_(
+          Chain::Options()
+              .set_size_hint(SaturatingIntCast<size_t>(size_hint.value_or(0)))
+              .set_min_block_size(kBlockSize)
+              .set_max_block_size(kBlockSize)) {}
 
 inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
     : Writer(std::move(that)),
@@ -308,12 +309,13 @@ inline void SnappyWriterBase::Reset() {
   uncompressed_.Clear();
 }
 
-inline void SnappyWriterBase::Reset(Position size_hint) {
+inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
   Writer::Reset(kInitiallyOpen);
-  options_ = Chain::Options()
-                 .set_size_hint(SaturatingIntCast<size_t>(size_hint))
-                 .set_min_block_size(kBlockSize)
-                 .set_max_block_size(kBlockSize);
+  options_ =
+      Chain::Options()
+          .set_size_hint(SaturatingIntCast<size_t>(size_hint.value_or(0)))
+          .set_min_block_size(kBlockSize)
+          .set_max_block_size(kBlockSize);
   uncompressed_.Clear();
 }
 

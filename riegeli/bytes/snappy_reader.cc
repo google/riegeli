@@ -47,9 +47,9 @@ void SnappyReaderBase::Initialize(Reader* src,
   {
     absl::Status status = SnappyDecompress<Reader&, ChainWriter<>>(
         *src,
-        std::forward_as_tuple(&decompressed,
-                              ChainWriterBase::Options().set_size_hint(
-                                  uncompressed_size.value_or(0))),
+        std::forward_as_tuple(
+            &decompressed,
+            ChainWriterBase::Options().set_size_hint(uncompressed_size)),
         SnappyDecompressOptions().set_assumed_size(assumed_size));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailWithoutAnnotation(std::move(status));

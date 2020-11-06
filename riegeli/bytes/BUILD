@@ -207,6 +207,7 @@ cc_library(
         "//riegeli/base:buffer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -224,6 +225,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -387,6 +389,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -417,6 +420,7 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -465,6 +469,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -480,6 +485,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -631,6 +637,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@org_brotli//:brotlienc",
     ],
 )
@@ -714,6 +721,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@zlib",
     ],
 )
@@ -812,6 +820,7 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@crc32c",
         "@snappy",
     ],
@@ -849,6 +858,7 @@ cc_library(
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "@snappy",
     ],
 )

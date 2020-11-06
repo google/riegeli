@@ -24,6 +24,7 @@
 
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -55,22 +56,22 @@ class StringWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    // Expected final size, or 0 if unknown. This may improve performance and
-    // memory usage.
+    // Expected final size, or `absl::nullopt` if unknown. This may improve
+    // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
    private:
     bool append_ = false;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
   };
 
   // Returns the `std::string` being written to. Unchanged by `Close()`.
@@ -90,7 +91,8 @@ class StringWriterBase : public Writer {
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
-  void Initialize(std::string* dest, bool append, Position size_hint);
+  void Initialize(std::string* dest, bool append,
+                  absl::optional<Position> size_hint);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -194,12 +196,16 @@ inline StringWriterBase& StringWriterBase::operator=(
 }
 
 inline void StringWriterBase::Initialize(std::string* dest, bool append,
-                                         Position size_hint) {
+                                         absl::optional<Position> size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
   if (!append) dest->clear();
-  const size_t adjusted_size_hint = UnsignedMin(size_hint, dest->max_size());
-  if (dest->capacity() < adjusted_size_hint) dest->reserve(adjusted_size_hint);
+  if (size_hint != absl::nullopt) {
+    const size_t adjusted_size_hint = UnsignedMin(*size_hint, dest->max_size());
+    if (dest->capacity() < adjusted_size_hint) {
+      dest->reserve(adjusted_size_hint);
+    }
+  }
   MakeBuffer(*dest);
 }
 

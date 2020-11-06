@@ -60,8 +60,9 @@ void Compressor::Initialize() {
     case CompressionType::kNone:
       writer_.emplace<ChainWriter<>>(
           &compressed_, ChainWriterBase::Options().set_size_hint(
-                            tuning_options_.pledged_size().value_or(
-                                tuning_options_.size_hint())));
+                            tuning_options_.pledged_size() != absl::nullopt
+                                ? tuning_options_.pledged_size()
+                                : tuning_options_.size_hint()));
       return;
     case CompressionType::kBrotli:
       writer_.emplace<BrotliWriter<ChainWriter<>>>(
@@ -69,8 +70,9 @@ void Compressor::Initialize() {
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
               .set_window_log(compressor_options_.brotli_window_log())
-              .set_size_hint(tuning_options_.pledged_size().value_or(
-                  tuning_options_.size_hint())));
+              .set_size_hint(tuning_options_.pledged_size() != absl::nullopt
+                                 ? tuning_options_.pledged_size()
+                                 : tuning_options_.size_hint()));
       return;
     case CompressionType::kZstd:
       writer_.emplace<ZstdWriter<ChainWriter<>>>(

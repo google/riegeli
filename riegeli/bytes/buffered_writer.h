@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
@@ -43,11 +44,13 @@ class BufferedWriter : public Writer {
 
   // Creates a `BufferedWriter` with the given buffer size and size hint.
   //
-  // Size hint is the expected maximum position reached, or 0 if unknown.
-  // This avoids allocating a larger buffer than necessary.
+  // Size hint is the expected maximum position reached, or `absl::nullopt` if
+  // unknown. This avoids allocating a larger buffer than necessary.
   //
   // If the size hint turns out to not match reality, nothing breaks.
-  explicit BufferedWriter(size_t buffer_size, Position size_hint = 0) noexcept;
+  explicit BufferedWriter(
+      size_t buffer_size,
+      absl::optional<Position> size_hint = absl::nullopt) noexcept;
 
   BufferedWriter(BufferedWriter&& that) noexcept;
   BufferedWriter& operator=(BufferedWriter&& that) noexcept;
@@ -57,7 +60,8 @@ class BufferedWriter : public Writer {
   // Derived classes which override `Reset()` should include a call to
   // `BufferedWriter::Reset()`.
   void Reset();
-  void Reset(size_t buffer_size, Position size_hint = 0);
+  void Reset(size_t buffer_size,
+             absl::optional<Position> size_hint = absl::nullopt);
 
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
@@ -97,11 +101,11 @@ class BufferedWriter : public Writer {
 
 // Implementation details follow.
 
-inline BufferedWriter::BufferedWriter(size_t buffer_size,
-                                      Position size_hint) noexcept
+inline BufferedWriter::BufferedWriter(
+    size_t buffer_size, absl::optional<Position> size_hint) noexcept
     : Writer(kInitiallyOpen),
       buffer_size_(buffer_size),
-      size_hint_(size_hint),
+      size_hint_(size_hint.value_or(0)),
       buffer_(buffer_size) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
@@ -133,12 +137,13 @@ inline void BufferedWriter::Reset() {
   size_hint_ = 0;
 }
 
-inline void BufferedWriter::Reset(size_t buffer_size, Position size_hint) {
+inline void BufferedWriter::Reset(size_t buffer_size,
+                                  absl::optional<Position> size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::Reset(): zero buffer size";
   Writer::Reset(kInitiallyOpen);
   buffer_size_ = buffer_size;
-  size_hint_ = size_hint;
+  size_hint_ = size_hint.value_or(0);
   buffer_.Resize(buffer_size);
 }
 

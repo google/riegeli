@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
@@ -47,7 +48,8 @@ constexpr int BrotliWriterBase::Options::kDefaultWindowLog;
 #endif
 
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
-                                  int window_log, Position size_hint) {
+                                  int window_log,
+                                  absl::optional<Position> size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
@@ -69,15 +71,16 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
   }
   // Reduce `window_log` if `size_hint` indicates that data will be smaller.
   // TODO(eustas): Do this automatically in the Brotli engine.
-  if (size_hint > 0) {
+  if (size_hint != absl::nullopt) {
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_clzll) || \
     RIEGELI_INTERNAL_IS_GCC_VERSION(3, 4)
     const int ceil_log2 =
-        __builtin_clzll(1) - __builtin_clzll((size_hint - 1) | 1) + 1;
+        __builtin_clzll(1) -
+        __builtin_clzll((SaturatingSub(*size_hint, Position{1})) | 1) + 1;
     window_log =
         SignedMin(window_log, SignedMax(ceil_log2, Options::kMinWindowLog));
 #else
-    while (Position{1} << (window_log - 1) >= size_hint &&
+    while (Position{1} << (window_log - 1) >= *size_hint &&
            window_log > Options::kMinWindowLog) {
       --window_log;
     }
@@ -97,10 +100,10 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
         "BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
     return;
   }
-  if (size_hint > 0) {
+  if (size_hint != absl::nullopt) {
     // Ignore errors from tuning.
     BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-                              SaturatingIntCast<uint32_t>(size_hint));
+                              SaturatingIntCast<uint32_t>(*size_hint));
   }
 }
 

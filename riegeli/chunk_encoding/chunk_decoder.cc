@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -131,10 +132,10 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
     case ChunkType::kTransposed: {
       TransposeDecoder transpose_decoder;
       ChainBackwardWriter<> dest_writer(
-          &dest,
-          ChainBackwardWriterBase::Options().set_size_hint(
-              field_projection_.includes_all() ? header.decoded_data_size()
-                                               : uint64_t{0}));
+          &dest, ChainBackwardWriterBase::Options().set_size_hint(
+                     field_projection_.includes_all()
+                         ? absl::make_optional(header.decoded_data_size())
+                         : absl::nullopt));
       const bool ok = transpose_decoder.Decode(
           header.num_records(), header.decoded_data_size(), field_projection_,
           src, dest_writer, limits_);

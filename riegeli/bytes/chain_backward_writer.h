@@ -53,18 +53,18 @@ class ChainBackwardWriterBase : public BackwardWriter {
     }
     bool prepend() const { return prepend_; }
 
-    // Expected final size, or 0 if unknown. This may improve performance and
-    // memory usage.
+    // Expected final size, or `absl::nullopt` if unknown. This may improve
+    // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
     // Minimal size of a block of allocated data.
     //
@@ -102,7 +102,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
 
    private:
     bool prepend_ = false;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
   };
@@ -223,11 +223,11 @@ ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(const Options& options)
     : BackwardWriter(kInitiallyOpen),
-      options_(
-          Chain::Options()
-              .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
-              .set_min_block_size(options.min_block_size())
-              .set_max_block_size(options.max_block_size())) {}
+      options_(Chain::Options()
+                   .set_size_hint(SaturatingIntCast<size_t>(
+                       options.size_hint().value_or(0)))
+                   .set_min_block_size(options.min_block_size())
+                   .set_max_block_size(options.max_block_size())) {}
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(
     ChainBackwardWriterBase&& that) noexcept
@@ -253,7 +253,8 @@ inline void ChainBackwardWriterBase::Reset() {
 inline void ChainBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset(kInitiallyOpen);
   options_ = Chain::Options()
-                 .set_size_hint(SaturatingIntCast<size_t>(options.size_hint()))
+                 .set_size_hint(
+                     SaturatingIntCast<size_t>(options.size_hint().value_or(0)))
                  .set_min_block_size(options.min_block_size())
                  .set_max_block_size(options.max_block_size());
 }

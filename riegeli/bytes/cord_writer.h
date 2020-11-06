@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -56,18 +57,18 @@ class CordWriterBase : public Writer {
     }
     bool append() const { return append_; }
 
-    // Expected final size, or 0 if unknown. This may improve performance and
-    // memory usage.
+    // Expected final size, or `absl::nullopt` if unknown. This may improve
+    // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(Position size_hint) & {
+    Options& set_size_hint(absl::optional<Position> size_hint) & {
       size_hint_ = size_hint;
       return *this;
     }
-    Options&& set_size_hint(Position size_hint) && {
+    Options&& set_size_hint(absl::optional<Position> size_hint) && {
       return std::move(set_size_hint(size_hint));
     }
-    Position size_hint() const { return size_hint_; }
+    absl::optional<Position> size_hint() const { return size_hint_; }
 
     // Minimal size of a block of allocated data.
     //
@@ -104,7 +105,7 @@ class CordWriterBase : public Writer {
 
    private:
     bool append_ = false;
-    Position size_hint_ = 0;
+    absl::optional<Position> size_hint_;
     size_t min_block_size_ = kMinBufferSize;
     size_t max_block_size_ = kMaxBufferSize;
   };
@@ -226,7 +227,7 @@ CordWriter(std::tuple<DestArgs...> dest_args,
 
 inline CordWriterBase::CordWriterBase(const Options& options)
     : Writer(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(options.size_hint())),
+      size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
       min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
@@ -269,7 +270,7 @@ inline void CordWriterBase::Reset() {
 
 inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset(kInitiallyOpen);
-  size_hint_ = SaturatingIntCast<size_t>(options.size_hint());
+  size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
 }
