@@ -29,32 +29,47 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
-constexpr Object::InitiallyClosed Object::kInitiallyClosed;
-constexpr Object::InitiallyOpen Object::kInitiallyOpen;
-constexpr uintptr_t Object::kHealthy;
-constexpr uintptr_t Object::kClosedSuccessfully;
+constexpr ObjectState::InitiallyClosed ObjectState::kInitiallyClosed;
+constexpr ObjectState::InitiallyOpen ObjectState::kInitiallyOpen;
+constexpr uintptr_t ObjectState::kHealthy;
+constexpr uintptr_t ObjectState::kClosedSuccessfully;
 #endif
 
-inline Object::FailedStatus::FailedStatus(absl::Status&& status)
+inline ObjectState::FailedStatus::FailedStatus(absl::Status&& status)
     : status(std::move(status)) {}
 
-bool Object::Fail(absl::Status status) {
+absl::Status ObjectState::status() const {
+  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
+  if (status_ptr == kHealthy) return absl::OkStatus();
+  if (status_ptr == kClosedSuccessfully) {
+    return absl::FailedPreconditionError("Object closed");
+  }
+  return reinterpret_cast<const FailedStatus*>(status_ptr)->status;
+}
+
+bool ObjectState::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
+      << "Failed precondition of ObjectState::Fail(): status not failed";
   const uintptr_t new_status_ptr =
       reinterpret_cast<uintptr_t>(new FailedStatus(std::move(status)));
-  uintptr_t old_status = kHealthy;
+  uintptr_t old_status_ptr = kHealthy;
   if (ABSL_PREDICT_FALSE(status_ptr_.load(std::memory_order_relaxed) ==
                          kClosedSuccessfully)) {
     reinterpret_cast<FailedStatus*>(new_status_ptr)->closed = true;
-    old_status = kClosedSuccessfully;
+    old_status_ptr = kClosedSuccessfully;
   }
   if (ABSL_PREDICT_FALSE(!status_ptr_.compare_exchange_strong(
-          old_status, new_status_ptr, std::memory_order_release))) {
+          old_status_ptr, new_status_ptr, std::memory_order_release))) {
     // A failure was already set in `status_ptr_`, `new_status_ptr` loses.
     DeleteStatus(new_status_ptr);
   }
   return false;
+}
+
+bool Object::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  return state_.Fail(std::move(status));
 }
 
 bool Object::Fail(const Object& dependency) {

@@ -21,10 +21,13 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -33,7 +36,10 @@ namespace internal {
 
 class ReaderStreambuf : public std::streambuf {
  public:
-  ReaderStreambuf() noexcept {}
+  explicit ReaderStreambuf(ObjectState::InitiallyClosed) noexcept
+      : state_(ObjectState::kInitiallyClosed) {}
+  explicit ReaderStreambuf(ObjectState::InitiallyOpen) noexcept
+      : state_(ObjectState::kInitiallyOpen) {}
 
   ReaderStreambuf(ReaderStreambuf&& that) noexcept;
   ReaderStreambuf& operator=(ReaderStreambuf&& that) noexcept;
@@ -41,9 +47,13 @@ class ReaderStreambuf : public std::streambuf {
   void Initialize(Reader* src);
   void MoveBegin();
   void MoveEnd(Reader* src);
-  void close();
-  bool is_open() const { return src_ != nullptr; }
-  absl::Status status() const;
+  void Done();
+
+  bool healthy() const { return state_.healthy(); }
+  bool closed() const { return state_.closed(); }
+  absl::Status status() const { return state_.status(); }
+  void MarkClosed() { state_.MarkClosed(); }
+  ABSL_ATTRIBUTE_COLD void Fail();
 
  protected:
   int sync() override;
@@ -58,11 +68,12 @@ class ReaderStreambuf : public std::streambuf {
  private:
   class BufferSync;
 
+  ObjectState state_;
   Reader* src_ = nullptr;
 
-  // Invariants if `is_open()`:
-  //   `eback() == src_->start()` else `eback() == nullptr`
-  //   `egptr() == src_->limit()` else `egptr() == nullptr`
+  // Invariants:
+  //   `eback() == (closed() ? nullptr : src_->start())`
+  //   `egptr() == (closed() ? nullptr : src_->limit())`
 };
 
 }  // namespace internal
@@ -74,9 +85,9 @@ class ReaderIstreamBase : public std::istream {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  // If `!is_open()`, does nothing. Otherwise synchronizes the `Reader` to
-  // account for data read from the `ReaderIstream`, and closes the `Reader`
-  // if it is owned.
+  // If `!is_open()`, does nothing. Otherwise:
+  //  * Synchronizes the current `ReaderIstream` position to the `Reader`.
+  //  * Closes the `Reader` if it is owned.
   //
   // Also, propagates `Reader` failures so that converting the `ReaderIstream`
   // to `bool` indicates whether `Reader` was healthy before closing (doing this
@@ -89,25 +100,34 @@ class ReaderIstreamBase : public std::istream {
   // failure details).
   virtual ReaderIstreamBase& close() = 0;
 
-  // Returns `true` if the `ReaderIstream` is open.
-  bool is_open() const { return streambuf_.is_open(); }
+  // Returns `true` if the `ReaderIstream` is healthy, i.e. not closed nor
+  // failed.
+  bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns an `absl::Status` describing the failure if the `ReaderIstream` is
-  // failed, or an `absl::FailedPreconditionError()` if the `ReaderIstream` is
-  // closed, or `absl::OkStatus()` if the `ReaderIstream` is healthy.
+  // Returns `true` if the `ReaderIstream` is not closed.
+  bool is_open() const { return !streambuf_.closed(); }
+
+  // Returns an `absl::Status` describing the failure if the `ReaderIstream`
+  // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIstream`
+  // is closed, or `absl::OkStatus()` if the `ReaderIstream` is healthy.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  ReaderIstreamBase() noexcept : std::istream(&streambuf_) {}
+  explicit ReaderIstreamBase(ObjectState::InitiallyClosed) noexcept
+      : std::istream(&streambuf_), streambuf_(ObjectState::kInitiallyClosed) {}
+  explicit ReaderIstreamBase(ObjectState::InitiallyOpen) noexcept
+      : std::istream(&streambuf_), streambuf_(ObjectState::kInitiallyOpen) {}
 
   ReaderIstreamBase(ReaderIstreamBase&& that) noexcept;
   ReaderIstreamBase& operator=(ReaderIstreamBase&& that) noexcept;
 
+  void Reset(ObjectState::InitiallyClosed);
+  void Reset(ObjectState::InitiallyOpen);
   void Initialize(Reader* src);
 
   internal::ReaderStreambuf streambuf_;
 
-  // Invariant: rdbuf() == &streambuf_
+  // Invariant: `rdbuf() == &streambuf_`
 };
 
 // Adapts a `Reader` to a `std::istream`.
@@ -123,7 +143,7 @@ template <typename Src = Reader*>
 class ReaderIstream : public ReaderIstreamBase {
  public:
   // Creates a closed `ReaderIstream`.
-  ReaderIstream() noexcept {}
+  ReaderIstream() noexcept : ReaderIstreamBase(ObjectState::kInitiallyClosed) {}
 
   // Will read from the `Reader` provided by `src`.
   explicit ReaderIstream(const Src& src);
@@ -138,7 +158,15 @@ class ReaderIstream : public ReaderIstreamBase {
   ReaderIstream(ReaderIstream&& that) noexcept;
   ReaderIstream& operator=(ReaderIstream&& that) noexcept;
 
-  ~ReaderIstream();
+  ~ReaderIstream() override { close(); }
+
+  // Makes `*this` equivalent to a newly constructed `ReaderIstream`. This
+  // avoids constructing a temporary `ReaderIstream` and moving from it.
+  void Reset();
+  void Reset(const Src& src);
+  void Reset(Src&& src);
+  template <typename... SrcArgs>
+  void Reset(std::tuple<SrcArgs...> src_args);
 
   // Returns the object providing and possibly owning the `Reader`. Unchanged by
   // `close()`.
@@ -170,7 +198,7 @@ ReaderIstream(std::tuple<SrcArgs...> src_args)
 namespace internal {
 
 inline ReaderStreambuf::ReaderStreambuf(ReaderStreambuf&& that) noexcept
-    : std::streambuf(that), src_(std::exchange(that.src_, nullptr)) {
+    : std::streambuf(that), state_(std::move(that.state_)), src_(that.src_) {
   that.setg(nullptr, nullptr, nullptr);
 }
 
@@ -178,7 +206,8 @@ inline ReaderStreambuf& ReaderStreambuf::operator=(
     ReaderStreambuf&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     std::streambuf::operator=(that);
-    src_ = std::exchange(that.src_, nullptr);
+    state_ = std::move(that.state_);
+    src_ = that.src_;
     that.setg(nullptr, nullptr, nullptr);
   }
   return *this;
@@ -190,6 +219,7 @@ inline void ReaderStreambuf::Initialize(Reader* src) {
   src_ = src;
   setg(const_cast<char*>(src_->start()), const_cast<char*>(src_->cursor()),
        const_cast<char*>(src_->limit()));
+  if (ABSL_PREDICT_FALSE(!src_->healthy()) && src_->available() == 0) Fail();
 }
 
 inline void ReaderStreambuf::MoveBegin() { src_->set_cursor(gptr()); }
@@ -200,18 +230,9 @@ inline void ReaderStreambuf::MoveEnd(Reader* src) {
        const_cast<char*>(src_->limit()));
 }
 
-inline void ReaderStreambuf::close() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return;
+inline void ReaderStreambuf::Done() {
   src_->set_cursor(gptr());
   setg(nullptr, nullptr, nullptr);
-  src_ = nullptr;
-}
-
-inline absl::Status ReaderStreambuf::status() const {
-  if (ABSL_PREDICT_FALSE(!is_open())) {
-    return absl::FailedPreconditionError("Object closed");
-  }
-  return src_->status();
 }
 
 }  // namespace internal
@@ -233,27 +254,40 @@ inline ReaderIstreamBase& ReaderIstreamBase::operator=(
   return *this;
 }
 
+inline void ReaderIstreamBase::Reset(ObjectState::InitiallyClosed) {
+  streambuf_ = internal::ReaderStreambuf(ObjectState::kInitiallyClosed);
+  init(&streambuf_);
+}
+
+inline void ReaderIstreamBase::Reset(ObjectState::InitiallyOpen) {
+  streambuf_ = internal::ReaderStreambuf(ObjectState::kInitiallyOpen);
+  init(&streambuf_);
+}
+
 inline void ReaderIstreamBase::Initialize(Reader* src) {
   streambuf_.Initialize(src);
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+  if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
     setstate(std::ios_base::badbit);
   }
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(const Src& src) : src_(src) {
+inline ReaderIstream<Src>::ReaderIstream(const Src& src)
+    : ReaderIstreamBase(ObjectState::kInitiallyOpen), src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(Src&& src) : src_(std::move(src)) {
+inline ReaderIstream<Src>::ReaderIstream(Src&& src)
+    : ReaderIstreamBase(ObjectState::kInitiallyOpen), src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline ReaderIstream<Src>::ReaderIstream(std::tuple<SrcArgs...> src_args)
-    : src_(std::move(src_args)) {
+    : ReaderIstreamBase(ObjectState::kInitiallyOpen),
+      src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -279,8 +313,35 @@ inline ReaderIstream<Src>& ReaderIstream<Src>::operator=(
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::~ReaderIstream() {
+inline void ReaderIstream<Src>::Reset() {
   close();
+  ReaderIstreamBase::Reset(ObjectState::kInitiallyClosed);
+  src_.Reset();
+}
+
+template <typename Src>
+inline void ReaderIstream<Src>::Reset(const Src& src) {
+  close();
+  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  src_.Reset(src);
+  Initialize(src_.get());
+}
+
+template <typename Src>
+inline void ReaderIstream<Src>::Reset(Src&& src) {
+  close();
+  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  src_.Reset(std::move(src));
+  Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename... SrcArgs>
+inline void ReaderIstream<Src>::Reset(std::tuple<SrcArgs...> src_args) {
+  close();
+  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  src_.Reset(std::move(src_args));
+  Initialize(src_.get());
 }
 
 template <typename Src>
@@ -297,14 +358,20 @@ inline void ReaderIstream<Src>::MoveSrc(ReaderIstream&& that) {
 template <typename Src>
 inline ReaderIstream<Src>& ReaderIstream<Src>::close() {
   if (ABSL_PREDICT_TRUE(is_open())) {
-    streambuf_.close();
-    if (ABSL_PREDICT_FALSE(src_.is_owning() ? !src_->Close()
-                                            : !src_->healthy())) {
+    streambuf_.Done();
+    if (src_.is_owning()) {
+      if (ABSL_PREDICT_FALSE(!src_->Close())) streambuf_.Fail();
+    }
+    if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
       setstate(std::ios_base::badbit);
     }
+    streambuf_.MarkClosed();
   }
   return *this;
 }
+
+template <typename Src>
+struct Resetter<ReaderIstream<Src>> : ResetterByReset<ReaderIstream<Src>> {};
 
 }  // namespace riegeli
 

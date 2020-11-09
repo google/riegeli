@@ -23,6 +23,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -43,17 +44,25 @@ class WriterStreambuf::BufferSync {
   WriterStreambuf* streambuf_;
 };
 
+void WriterStreambuf::Fail() { state_.Fail(dest_->status()); }
+
 int WriterStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return -1;
+  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Flush(FlushType::kFromObject))) return -1;
+  if (ABSL_PREDICT_FALSE(!dest_->Flush(FlushType::kFromObject))) {
+    Fail();
+    return -1;
+  }
   return 0;
 }
 
 int WriterStreambuf::overflow(int ch) {
-  if (ABSL_PREDICT_FALSE(!is_open())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Push())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!dest_->Push())) {
+    Fail();
+    return traits_type::eof();
+  }
   if (ch != traits_type::eof()) {
     *dest_->cursor() = traits_type::to_char_type(ch);
     dest_->move_cursor(1);
@@ -65,11 +74,12 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
                                         std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsputn(): negative length";
-  if (ABSL_PREDICT_FALSE(!is_open())) return 0;
+  if (ABSL_PREDICT_FALSE(!healthy())) return 0;
   BufferSync buffer_sync(this);
   const Position pos_before = dest_->pos();
   if (ABSL_PREDICT_FALSE(
           !dest_->Write(absl::string_view(src, IntCast<size_t>(length))))) {
+    Fail();
     RIEGELI_ASSERT_GE(dest_->pos(), pos_before)
         << "Writer::Write(absl::string_view) decreased pos()";
     const Position length_written = dest_->pos() - pos_before;
@@ -83,7 +93,7 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
 std::streampos WriterStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::seekdir dir,
                                         std::ios_base::openmode which) {
-  if (ABSL_PREDICT_FALSE(!is_open())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) {
     return std::streampos(std::streamoff{-1});
   }
   BufferSync buffer_sync(this);
@@ -119,8 +129,11 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       break;
     case std::ios_base::end: {
       const absl::optional<Position> size = dest_->Size();
-      if (ABSL_PREDICT_FALSE(size == absl::nullopt || off > 0 ||
-                             IntCast<Position>(-off) > *size)) {
+      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+        Fail();
+        return std::streampos(std::streamoff{-1});
+      }
+      if (ABSL_PREDICT_FALSE(off > 0 || IntCast<Position>(-off) > *size)) {
         return std::streampos(std::streamoff{-1});
       }
       pos = *size - IntCast<Position>(-off);
@@ -134,6 +147,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
   if (ABSL_PREDICT_FALSE(!dest_->Seek(pos))) {
+    if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail();
     return std::streampos(std::streamoff{-1});
   }
   return std::streampos(IntCast<std::streamoff>(pos));

@@ -21,10 +21,13 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
+#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -33,7 +36,10 @@ namespace internal {
 
 class WriterStreambuf : public std::streambuf {
  public:
-  WriterStreambuf() noexcept {}
+  explicit WriterStreambuf(ObjectState::InitiallyClosed) noexcept
+      : state_(ObjectState::kInitiallyClosed) {}
+  explicit WriterStreambuf(ObjectState::InitiallyOpen) noexcept
+      : state_(ObjectState::kInitiallyOpen) {}
 
   WriterStreambuf(WriterStreambuf&& that) noexcept;
   WriterStreambuf& operator=(WriterStreambuf&& that) noexcept;
@@ -41,9 +47,13 @@ class WriterStreambuf : public std::streambuf {
   void Initialize(Writer* dest);
   void MoveBegin();
   void MoveEnd(Writer* dest);
-  void close();
-  bool is_open() const { return dest_ != nullptr; }
-  absl::Status status() const;
+  void Done();
+
+  bool healthy() const { return state_.healthy(); }
+  bool closed() const { return state_.closed(); }
+  absl::Status status() const { return state_.status(); }
+  void MarkClosed() { state_.MarkClosed(); }
+  ABSL_ATTRIBUTE_COLD void Fail();
 
  protected:
   int sync() override;
@@ -57,11 +67,12 @@ class WriterStreambuf : public std::streambuf {
  private:
   class BufferSync;
 
+  ObjectState state_;
   Writer* dest_ = nullptr;
 
-  // Invariants if `is_open()`:
-  //   `pbase() >= dest_->start()` else `pbase() == nullptr`
-  //   `epptr() == dest_->limit()` else `epptr() == nullptr`
+  // Invariants:
+  //   `closed() ? pbase() == nullptr : pbase() >= dest_->start()`
+  //   `epptr() == (closed() ? nullptr : dest_->limit())`
 };
 
 }  // namespace internal
@@ -73,9 +84,9 @@ class WriterOstreamBase : public std::ostream {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  // If `!is_open()`, does nothing. Otherwise synchronizes the `Writer` to
-  // account for data written to the `WriterOstream`, and closes the `Writer`
-  // if it is owned.
+  // If `!is_open()`, does nothing. Otherwise:
+  //  * Synchronizes the current `WriterOstream` position to the `Writer`.
+  //  * Closes the `Writer` if it is owned.
   //
   // Returns `*this` for convenience of checking for failures.
   //
@@ -84,25 +95,34 @@ class WriterOstreamBase : public std::ostream {
   // failure details).
   virtual WriterOstreamBase& close() = 0;
 
-  // Returns `true` if the `WriterOstream` is open.
-  bool is_open() const { return streambuf_.is_open(); }
+  // Returns `true` if the `WriterOstream` is healthy, i.e. not closed nor
+  // failed.
+  bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns an `absl::Status` describing the failure if the `WriterOstream` is
-  // failed, or an `absl::FailedPreconditionError()` if the `WriterOstream` is
-  // closed, or `absl::OkStatus()` if the `WriterOstream` is healthy.
+  // Returns `true` if the `WriterOstream` is not closed.
+  bool is_open() const { return !streambuf_.closed(); }
+
+  // Returns an `absl::Status` describing the failure if the `WriterOstream`
+  // is failed, or an `absl::FailedPreconditionError()` if the `WriterOstream`
+  // is closed, or `absl::OkStatus()` if the `WriterOstream` is healthy.
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  WriterOstreamBase() noexcept : std::ostream(&streambuf_) {}
+  explicit WriterOstreamBase(ObjectState::InitiallyClosed) noexcept
+      : std::ostream(&streambuf_), streambuf_(ObjectState::kInitiallyClosed) {}
+  explicit WriterOstreamBase(ObjectState::InitiallyOpen) noexcept
+      : std::ostream(&streambuf_), streambuf_(ObjectState::kInitiallyOpen) {}
 
   WriterOstreamBase(WriterOstreamBase&& that) noexcept;
   WriterOstreamBase& operator=(WriterOstreamBase&& that) noexcept;
 
+  void Reset(ObjectState::InitiallyClosed);
+  void Reset(ObjectState::InitiallyOpen);
   void Initialize(Writer* dest);
 
   internal::WriterStreambuf streambuf_;
 
-  // Invariant: rdbuf() == &streambuf_
+  // Invariant: `rdbuf() == &streambuf_`
 };
 
 // Adapts a `Writer` to a `std::ostream`.
@@ -121,7 +141,7 @@ template <typename Dest = Writer*>
 class WriterOstream : public WriterOstreamBase {
  public:
   // Creates a closed `WriterOstream`.
-  WriterOstream() noexcept {}
+  WriterOstream() noexcept : WriterOstreamBase(ObjectState::kInitiallyClosed) {}
 
   // Will write to the `Writer` provided by `dest`.
   explicit WriterOstream(const Dest& dest);
@@ -136,7 +156,15 @@ class WriterOstream : public WriterOstreamBase {
   WriterOstream(WriterOstream&& that) noexcept;
   WriterOstream& operator=(WriterOstream&& that) noexcept;
 
-  ~WriterOstream();
+  ~WriterOstream() override { close(); }
+
+  // Makes `*this` equivalent to a newly constructed `WriterOstream`. This
+  // avoids constructing a temporary `WriterOstream` and moving from it.
+  void Reset();
+  void Reset(const Dest& dest);
+  void Reset(Dest&& dest);
+  template <typename... DestArgs>
+  void Reset(std::tuple<DestArgs...> dest_args);
 
   // Returns the object providing and possibly owning the `Writer`. Unchanged by
   // `close()`.
@@ -168,7 +196,7 @@ WriterOstream(std::tuple<DestArgs...> dest_args)
 namespace internal {
 
 inline WriterStreambuf::WriterStreambuf(WriterStreambuf&& that) noexcept
-    : std::streambuf(that), dest_(std::exchange(that.dest_, nullptr)) {
+    : std::streambuf(that), state_(std::move(that.state_)), dest_(that.dest_) {
   that.setp(nullptr, nullptr);
 }
 
@@ -176,7 +204,8 @@ inline WriterStreambuf& WriterStreambuf::operator=(
     WriterStreambuf&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     std::streambuf::operator=(that);
-    dest_ = std::exchange(that.dest_, nullptr);
+    state_ = std::move(that.state_);
+    dest_ = that.dest_;
     that.setp(nullptr, nullptr);
   }
   return *this;
@@ -187,6 +216,7 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
       << "Failed precondition of WriterStreambuf: null Writer pointer";
   dest_ = dest;
   setp(dest_->cursor(), dest_->limit());
+  if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail();
 }
 
 inline void WriterStreambuf::MoveBegin() { dest_->set_cursor(pptr()); }
@@ -196,18 +226,9 @@ inline void WriterStreambuf::MoveEnd(Writer* dest) {
   setp(dest_->cursor(), dest_->limit());
 }
 
-inline void WriterStreambuf::close() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return;
+inline void WriterStreambuf::Done() {
   dest_->set_cursor(pptr());
   setp(nullptr, nullptr);
-  dest_ = nullptr;
-}
-
-inline absl::Status WriterStreambuf::status() const {
-  if (ABSL_PREDICT_FALSE(!is_open())) {
-    return absl::FailedPreconditionError("Object closed");
-  }
-  return dest_->status();
 }
 
 }  // namespace internal
@@ -229,26 +250,40 @@ inline WriterOstreamBase& WriterOstreamBase::operator=(
   return *this;
 }
 
+inline void WriterOstreamBase::Reset(ObjectState::InitiallyClosed) {
+  streambuf_ = internal::WriterStreambuf(ObjectState::kInitiallyClosed);
+  init(&streambuf_);
+}
+
+inline void WriterOstreamBase::Reset(ObjectState::InitiallyOpen) {
+  streambuf_ = internal::WriterStreambuf(ObjectState::kInitiallyOpen);
+  init(&streambuf_);
+}
+
 inline void WriterOstreamBase::Initialize(Writer* dest) {
   streambuf_.Initialize(dest);
-  if (ABSL_PREDICT_FALSE(!dest->healthy())) setstate(std::ios_base::badbit);
+  if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
+    setstate(std::ios_base::badbit);
+  }
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::WriterOstream(const Dest& dest) : dest_(dest) {
+inline WriterOstream<Dest>::WriterOstream(const Dest& dest)
+    : WriterOstreamBase(ObjectState::kInitiallyOpen), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline WriterOstream<Dest>::WriterOstream(Dest&& dest)
-    : dest_(std::move(dest)) {
+    : WriterOstreamBase(ObjectState::kInitiallyOpen), dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline WriterOstream<Dest>::WriterOstream(std::tuple<DestArgs...> dest_args)
-    : dest_(std::move(dest_args)) {
+    : WriterOstreamBase(ObjectState::kInitiallyOpen),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -274,8 +309,35 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::operator=(
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::~WriterOstream() {
+inline void WriterOstream<Dest>::Reset() {
   close();
+  WriterOstreamBase::Reset(ObjectState::kInitiallyClosed);
+  dest_.Reset();
+}
+
+template <typename Dest>
+inline void WriterOstream<Dest>::Reset(const Dest& dest) {
+  close();
+  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  dest_.Reset(dest);
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+inline void WriterOstream<Dest>::Reset(Dest&& dest) {
+  close();
+  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  dest_.Reset(std::move(dest));
+  Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline void WriterOstream<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
+  close();
+  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  dest_.Reset(std::move(dest_args));
+  Initialize(dest_.get());
 }
 
 template <typename Dest>
@@ -292,14 +354,20 @@ inline void WriterOstream<Dest>::MoveDest(WriterOstream&& that) {
 template <typename Dest>
 inline WriterOstream<Dest>& WriterOstream<Dest>::close() {
   if (ABSL_PREDICT_TRUE(is_open())) {
-    streambuf_.close();
-    if (ABSL_PREDICT_FALSE(dest_.is_owning() ? !dest_->Close()
-                                             : !dest_->healthy())) {
+    streambuf_.Done();
+    if (dest_.is_owning()) {
+      if (ABSL_PREDICT_FALSE(!dest_->Close())) streambuf_.Fail();
+    }
+    if (ABSL_PREDICT_FALSE(!streambuf_.healthy())) {
       setstate(std::ios_base::badbit);
     }
+    streambuf_.MarkClosed();
   }
   return *this;
 }
+
+template <typename Dest>
+struct Resetter<WriterOstream<Dest>> : ResetterByReset<WriterOstream<Dest>> {};
 
 }  // namespace riegeli
 

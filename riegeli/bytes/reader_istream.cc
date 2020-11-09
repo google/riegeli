@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -44,35 +45,47 @@ class ReaderStreambuf::BufferSync {
   ReaderStreambuf* streambuf_;
 };
 
+void ReaderStreambuf::Fail() { state_.Fail(src_->status()); }
+
 int ReaderStreambuf::sync() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return -1;
+  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Sync())) return -1;
+  if (ABSL_PREDICT_FALSE(!src_->Sync())) {
+    Fail();
+    return -1;
+  }
   return 0;
 }
 
 std::streamsize ReaderStreambuf::showmanyc() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return -1;
+  if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Pull())) return -1;
+  if (ABSL_PREDICT_FALSE(!src_->Pull())) {
+    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
+    return -1;
+  }
   return IntCast<std::streamsize>(UnsignedMin(
       src_->available(), size_t{std::numeric_limits<std::streamsize>::max()}));
 }
 
 int ReaderStreambuf::underflow() {
-  if (ABSL_PREDICT_FALSE(!is_open())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!healthy())) return traits_type::eof();
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!src_->Pull())) return traits_type::eof();
+  if (ABSL_PREDICT_FALSE(!src_->Pull())) {
+    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
+    return traits_type::eof();
+  }
   return traits_type::to_int_type(*src_->cursor());
 }
 
 std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
-  if (ABSL_PREDICT_FALSE(!is_open())) return 0;
+  if (ABSL_PREDICT_FALSE(!healthy())) return 0;
   BufferSync buffer_sync(this);
   const Position pos_before = src_->pos();
   if (ABSL_PREDICT_FALSE(!src_->Read(IntCast<size_t>(length), dest))) {
+    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
     RIEGELI_ASSERT_GE(src_->pos(), pos_before)
         << "Reader::Read(char*) decreased pos()";
     const Position length_read = src_->pos() - pos_before;
@@ -86,7 +99,7 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
 std::streampos ReaderStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::seekdir dir,
                                         std::ios_base::openmode which) {
-  if (ABSL_PREDICT_FALSE(!is_open())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) {
     return std::streampos(std::streamoff{-1});
   }
   BufferSync buffer_sync(this);
@@ -122,8 +135,11 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       break;
     case std::ios_base::end: {
       const absl::optional<Position> size = src_->Size();
-      if (ABSL_PREDICT_FALSE(size == absl::nullopt || off > 0 ||
-                             IntCast<Position>(-off) > *size)) {
+      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+        Fail();
+        return std::streampos(std::streamoff{-1});
+      }
+      if (ABSL_PREDICT_FALSE(off > 0 || IntCast<Position>(-off) > *size)) {
         return std::streampos(std::streamoff{-1});
       }
       pos = *size - IntCast<Position>(-off);
@@ -137,6 +153,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
           << "Unknown seek direction: " << static_cast<int>(dir);
   }
   if (ABSL_PREDICT_FALSE(!src_->Seek(pos))) {
+    if (ABSL_PREDICT_FALSE(!src_->healthy())) Fail();
     return std::streampos(std::streamoff{-1});
   }
   return std::streampos(IntCast<std::streamoff>(pos));
