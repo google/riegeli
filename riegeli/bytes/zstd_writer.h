@@ -365,7 +365,8 @@ class ZstdWriterBase : public BufferedWriter {
     size_t buffer_size() const { return buffer_size_; }
     size_t effective_buffer_size() const {
       if (reserve_max_size() && pledged_size() != absl::nullopt) {
-        return SaturatingIntCast<size_t>(*pledged_size());
+        return UnsignedMax(SaturatingIntCast<size_t>(*pledged_size()),
+                           size_t{1});
       }
       return buffer_size();
     }
