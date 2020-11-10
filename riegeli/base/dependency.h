@@ -139,7 +139,7 @@ class DependencyBase {
     return *this;
   }
 
-  void Reset() { Resetter<Manager>::Reset(&manager_); }
+  void Reset() { Resetter<Manager>::Reset(manager_); }
 
   void Reset(const Manager& manager) { manager_ = manager; }
   void Reset(Manager&& manager) { manager_ = std::move(manager); }
@@ -162,9 +162,8 @@ class DependencyBase {
   template <typename... ManagerArgs, size_t... Indices>
   void Reset(std::tuple<ManagerArgs...>&& manager_args,
              std::index_sequence<Indices...>) {
-    Resetter<Manager>::Reset(
-        &manager_,
-        std::forward<ManagerArgs>(std::get<Indices>(manager_args))...);
+    Resetter<Manager>::Reset(manager_, std::forward<ManagerArgs>(
+                                           std::get<Indices>(manager_args))...);
   }
 
   Manager manager_;

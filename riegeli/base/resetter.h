@@ -25,29 +25,29 @@
 
 namespace riegeli {
 
-// `Resetter<T>::Reset(object, args...)` makes `*object` equivalent to a newly
-// constructed object with the given arguments, like `*object = T(args...)`.
+// `Resetter<T>::Reset(object, args...)` makes `object` equivalent to a newly
+// constructed object with the given arguments, like `object = T(args...)`.
 //
-// It uses `*object = arg` for a single argument of the same type.
+// It uses `object = arg` for a single argument of the same type.
 //
 // `Resetter` can be specialized to avoid constructing a temporary object and
 // moving from it.
 template <typename T>
 struct Resetter {
-  static void Reset(T* object, const T& src) { *object = src; }
+  static void Reset(T& object, const T& src) { object = src; }
 
-  static void Reset(T* object, T&& src) { *object = std::move(src); }
+  static void Reset(T& object, T&& src) { object = std::move(src); }
 
   template <typename... Args>
-  static void Reset(T* object, Args&&... args) {
-    *object = T(std::forward<Args>(args)...);
+  static void Reset(T& object, Args&&... args) {
+    object = T(std::forward<Args>(args)...);
   }
 };
 
 // `ResetterByReset<T>` can be used to provide a specialization of `Resetter<T>`
-// if `object->Reset(args...)` is a good replacement of `*object = T(args...)`.
+// if `object.Reset(args...)` is a good replacement of `object = T(args...)`.
 //
-// It uses `*object = arg` for a single argument of the same type.
+// It uses `object = arg` for a single argument of the same type.
 //
 // ```
 // template <>
@@ -56,71 +56,67 @@ struct Resetter {
 
 template <typename T>
 struct ResetterByReset {
-  static void Reset(T* object, const T& src) { *object = src; }
+  static void Reset(T& object, const T& src) { object = src; }
 
-  static void Reset(T* object, T&& src) { *object = std::move(src); }
+  static void Reset(T& object, T&& src) { object = std::move(src); }
 
   template <typename... Args>
-  static void Reset(T* object, Args&&... args) {
-    object->Reset(std::forward<Args>(args)...);
+  static void Reset(T& object, Args&&... args) {
+    object.Reset(std::forward<Args>(args)...);
   }
 };
 
 template <>
 struct Resetter<std::string> {
-  static void Reset(std::string* object) { object->clear(); }
+  static void Reset(std::string& object) { object.clear(); }
 
-  static void Reset(std::string* object, size_t length, char ch) {
-    object->assign(length, ch);
+  static void Reset(std::string& object, size_t length, char ch) {
+    object.assign(length, ch);
   }
 
-  static void Reset(std::string* object, absl::string_view src) {
+  static void Reset(std::string& object, absl::string_view src) {
     // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-    // object->assign(src);
-    object->assign(src.data(), src.size());
+    // object.assign(src);
+    object.assign(src.data(), src.size());
   }
 
-  static void Reset(std::string* object, const char* src) {
-    object->assign(src);
+  static void Reset(std::string& object, const char* src) {
+    object.assign(src);
   }
 
-  static void Reset(std::string* object, const char* src, size_t length) {
-    object->assign(src, length);
+  static void Reset(std::string& object, const char* src, size_t length) {
+    object.assign(src, length);
   }
 
-  static void Reset(std::string* object, const std::string& src) {
-    *object = src;
+  static void Reset(std::string& object, const std::string& src) {
+    object = src;
   }
 
-  static void Reset(std::string* object, std::string&& src) {
-    *object = std::move(src);
+  static void Reset(std::string& object, std::string&& src) {
+    object = std::move(src);
   }
 
   template <typename... Args>
-  static void Reset(std::string* object, Args&&... args) {
-    *object = T(std::forward<Args>(args)...);
+  static void Reset(std::string& object, Args&&... args) {
+    object = T(std::forward<Args>(args)...);
   }
 };
 
 template <>
 struct Resetter<absl::Cord> {
-  static void Reset(absl::Cord* object) { object->Clear(); }
+  static void Reset(absl::Cord& object) { object.Clear(); }
 
-  static void Reset(absl::Cord* object, absl::string_view src) {
-    *object = src;
-  }
+  static void Reset(absl::Cord& object, absl::string_view src) { object = src; }
 
-  static void Reset(absl::Cord* object, const absl::Cord& src) {
-    *object = src;
-  }
+  static void Reset(absl::Cord& object, const absl::Cord& src) { object = src; }
 
-  static void Reset(absl::Cord* object, absl::Cord&& src) {
-    *object = std::move(src);
+  static void Reset(absl::Cord& object, absl::Cord&& src) {
+    object = std::move(src);
   }
 
   template <typename... Args>
-  static void Reset(absl::Cord* object, Args&&... args) {
-    *object = T(std::forward<Args>(args)...);
+  static void Reset(absl::Cord& object, Args&&... args) {
+    object = T(std::forward<Args>(args)...);
   }
 };
 
