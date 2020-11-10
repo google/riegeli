@@ -275,7 +275,7 @@ class Object {
 
   // Makes `*this` equivalent to a newly constructed `Object`. This avoids
   // constructing a temporary `Object` and moving from it. Derived classes which
-  // override `Reset()` should include a call to `Object::Reset()`.
+  // redefine `Reset()` should include a call to `Object::Reset()`.
   //
   // If a derived class uses background threads, its methods which call
   // `Object::Reset()` should cause background threads to stop interacting with

@@ -57,7 +57,7 @@ class BufferedWriter : public Writer {
 
   // Makes `*this` equivalent to a newly constructed `BufferedWriter`. This
   // avoids constructing a temporary `BufferedWriter` and moving from it.
-  // Derived classes which override `Reset()` should include a call to
+  // Derived classes which redefine `Reset()` should include a call to
   // `BufferedWriter::Reset()`.
   void Reset();
   void Reset(size_t buffer_size,

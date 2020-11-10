@@ -239,7 +239,7 @@ class Writer : public Object {
 
   // Makes `*this` equivalent to a newly constructed `Writer`. This avoids
   // constructing a temporary `Writer` and moving from it. Derived classes which
-  // override `Reset()` should include a call to `Write::Reset()`.
+  // redefine `Reset()` should include a call to `Write::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 

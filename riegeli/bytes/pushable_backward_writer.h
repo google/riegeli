@@ -73,7 +73,7 @@ class PushableBackwardWriter : public BackwardWriter {
 
   // Makes `*this` equivalent to a newly constructed `PushableBackwardWriter`.
   // This avoids constructing a temporary `PushableBackwardWriter` and moving
-  // from it. Derived classes which override `Reset()` should include a call to
+  // from it. Derived classes which redefine `Reset()` should include a call to
   // `PushableBackwardWriter::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);

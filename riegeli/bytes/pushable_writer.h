@@ -71,7 +71,7 @@ class PushableWriter : public Writer {
 
   // Makes `*this` equivalent to a newly constructed `PushableWriter`. This
   // avoids constructing a temporary `PushableWriter` and moving from it.
-  // Derived classes which override `Reset()` should include a call to
+  // Derived classes which redefine `Reset()` should include a call to
   // `PushableWriter::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);

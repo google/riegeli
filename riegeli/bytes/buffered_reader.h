@@ -59,7 +59,7 @@ class BufferedReader : public Reader {
 
   // Makes `*this` equivalent to a newly constructed `BufferedReader`. This
   // avoids constructing a temporary `BufferedReader` and moving from it.
-  // Derived classes which override `Reset()` should include a call to
+  // Derived classes which redefine `Reset()` should include a call to
   // `BufferedReader::Reset()`.
   void Reset();
   void Reset(size_t buffer_size,

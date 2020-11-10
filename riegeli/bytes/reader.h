@@ -261,7 +261,7 @@ class Reader : public Object {
 
   // Makes `*this` equivalent to a newly constructed `Reader`. This avoids
   // constructing a temporary `Reader` and moving from it. Derived classes which
-  // override `Reset()` should include a call to `Reader::Reset()`.
+  // redefine `Reset()` should include a call to `Reader::Reset()`.
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
