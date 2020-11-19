@@ -122,7 +122,6 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
           src.size(), size_t{std::numeric_limits<Py_ssize_t>::max()});
       PythonPtr write_result;
       if (!use_bytes_) {
-#if PY_MAJOR_VERSION >= 3
         // Prefer passing a `memoryview` to avoid copying memory.
         const PythonPtr memoryview(PyMemoryView_FromMemory(
             const_cast<char*>(src.data()), IntCast<Py_ssize_t>(length_to_write),
@@ -165,27 +164,9 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
             return FailOperation("release()");
           }
         }
-#else
-        // Prefer passing a `buffer` to avoid copying memory.
-        const PythonPtr buffer(
-            PyBuffer_FromMemory(const_cast<char*>(src.data()),
-                                IntCast<Py_ssize_t>(length_to_write)));
-        if (ABSL_PREDICT_FALSE(buffer == nullptr)) {
-          return FailOperation("PyBuffer_FromMemory()");
-        }
-        write_result.reset(PyObject_CallFunctionObjArgs(write_function_.get(),
-                                                        buffer.get(), nullptr));
-        if (ABSL_PREDICT_FALSE(write_result == nullptr)) {
-          if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
-            return FailOperation("write()");
-          }
-          PyErr_Clear();
-          use_bytes_ = true;
-        }
-#endif
       }
       if (use_bytes_) {
-        // `write()` does not support `memoryview` / `buffer`. Use `bytes`.
+        // `write()` does not support `memoryview`. Use `bytes`.
         const PythonPtr bytes = BytesToPython(src.substr(0, length_to_write));
         if (ABSL_PREDICT_FALSE(bytes == nullptr)) {
           return FailOperation("BytesToPython()");

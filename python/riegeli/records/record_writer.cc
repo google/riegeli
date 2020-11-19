@@ -70,11 +70,7 @@ bool FlushTypeFromPython(PyObject* object, FlushType* value) {
   static constexpr Identifier id_value("value");
   const PythonPtr enum_value(PyObject_GetAttr(object, id_value.get()));
   if (ABSL_PREDICT_FALSE(enum_value == nullptr)) return false;
-#if PY_MAJOR_VERSION >= 3
   const long long_value = PyLong_AsLong(enum_value.get());
-#else
-  const long long_value = PyInt_AsLong(enum_value.get());
-#endif
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) return false;
   *value = static_cast<FlushType>(long_value);
   return true;
@@ -868,13 +864,9 @@ PyTypeObject PyRecordWriter_Type = {
 #else
     nullptr,  // tp_print
 #endif
-    nullptr,  // tp_getattr
-    nullptr,  // tp_setattr
-#if PY_MAJOR_VERSION >= 3
-    nullptr,  // tp_as_async
-#else
-    nullptr,  // tp_compare
-#endif
+    nullptr,                                       // tp_getattr
+    nullptr,                                       // tp_setattr
+    nullptr,                                       // tp_as_async
     reinterpret_cast<reprfunc>(RecordWriterRepr),  // tp_repr
     nullptr,                                       // tp_as_number
     nullptr,                                       // tp_as_sequence
@@ -983,7 +975,6 @@ Args:
     {nullptr, nullptr, 0, nullptr},
 };
 
-#if PY_MAJOR_VERSION >= 3
 PyModuleDef kModuleDef = {
     PyModuleDef_HEAD_INIT,
     kModuleName,                               // m_name
@@ -995,18 +986,12 @@ PyModuleDef kModuleDef = {
     nullptr,                                   // m_clear
     nullptr,                                   // m_free
 };
-#endif
 
 PyObject* InitModule() {
   if (ABSL_PREDICT_FALSE(PyType_Ready(&PyRecordWriter_Type) < 0)) {
     return nullptr;
   }
-#if PY_MAJOR_VERSION >= 3
   PythonPtr module(PyModule_Create(&kModuleDef));
-#else
-  PythonPtr module(Py_InitModule3(
-      kModuleName, const_cast<PyMethodDef*>(kModuleMethods), kModuleDoc));
-#endif
   if (ABSL_PREDICT_FALSE(module == nullptr)) return nullptr;
   PyFlushType_Type = DefineFlushType().release();
   if (ABSL_PREDICT_FALSE(PyFlushType_Type == nullptr)) return nullptr;
@@ -1025,11 +1010,7 @@ PyObject* InitModule() {
 
 }  // namespace
 
-#if PY_MAJOR_VERSION >= 3
 PyMODINIT_FUNC PyInit_record_writer() { return InitModule(); }
-#else
-PyMODINIT_FUNC initrecord_writer() { InitModule(); }
-#endif
 
 }  // namespace python
 }  // namespace riegeli

@@ -177,12 +177,6 @@ absl::optional<int> VerifyFieldNumber(long field_number_value) {
 }
 
 absl::optional<int> FieldNumberFromPython(PyObject* object) {
-#if PY_MAJOR_VERSION < 3
-  if (ABSL_PREDICT_TRUE(PyInt_Check(object))) {
-    const long field_number_value = PyInt_AS_LONG(object);
-    return VerifyFieldNumber(field_number_value);
-  }
-#endif
   if (ABSL_PREDICT_FALSE(!PyLong_Check(object))) {
     PyErr_Format(PyExc_TypeError, "Expected int, not %s",
                  Py_TYPE(object)->tp_name);
@@ -1263,13 +1257,9 @@ PyTypeObject PyRecordReader_Type = {
 #else
     nullptr,  // tp_print
 #endif
-    nullptr,  // tp_getattr
-    nullptr,  // tp_setattr
-#if PY_MAJOR_VERSION >= 3
-    nullptr,  // tp_as_async
-#else
-    nullptr,  // tp_compare
-#endif
+    nullptr,                                       // tp_getattr
+    nullptr,                                       // tp_setattr
+    nullptr,                                       // tp_as_async
     reinterpret_cast<reprfunc>(RecordReaderRepr),  // tp_repr
     nullptr,                                       // tp_as_number
     nullptr,                                       // tp_as_sequence
@@ -1413,13 +1403,9 @@ PyTypeObject PyRecordIter_Type = {
 #else
     nullptr,  // tp_print
 #endif
-    nullptr,  // tp_getattr
-    nullptr,  // tp_setattr
-#if PY_MAJOR_VERSION >= 3
-    nullptr,  // tp_as_async
-#else
-    nullptr,  // tp_compare
-#endif
+    nullptr,                                             // tp_getattr
+    nullptr,                                             // tp_setattr
+    nullptr,                                             // tp_as_async
     nullptr,                                             // tp_repr
     nullptr,                                             // tp_as_number
     nullptr,                                             // tp_as_sequence
@@ -1483,7 +1469,6 @@ Returns:
     {nullptr, nullptr, 0, nullptr},
 };
 
-#if PY_MAJOR_VERSION >= 3
 PyModuleDef kModuleDef = {
     PyModuleDef_HEAD_INIT,
     kModuleName,                               // m_name
@@ -1495,7 +1480,6 @@ PyModuleDef kModuleDef = {
     nullptr,                                   // m_clear
     nullptr,                                   // m_free
 };
-#endif
 
 PyObject* InitModule() {
   if (ABSL_PREDICT_FALSE(PyType_Ready(&PyRecordReader_Type) < 0)) {
@@ -1504,12 +1488,7 @@ PyObject* InitModule() {
   if (ABSL_PREDICT_FALSE(PyType_Ready(&PyRecordIter_Type) < 0)) {
     return nullptr;
   }
-#if PY_MAJOR_VERSION >= 3
   PythonPtr module(PyModule_Create(&kModuleDef));
-#else
-  PythonPtr module(Py_InitModule3(
-      kModuleName, const_cast<PyMethodDef*>(kModuleMethods), kModuleDoc));
-#endif
   if (ABSL_PREDICT_FALSE(module == nullptr)) return nullptr;
   PythonPtr existence_only = IntToPython(Field::kExistenceOnly);
   if (ABSL_PREDICT_FALSE(existence_only == nullptr)) return nullptr;
@@ -1528,11 +1507,7 @@ PyObject* InitModule() {
 
 }  // namespace
 
-#if PY_MAJOR_VERSION >= 3
 PyMODINIT_FUNC PyInit_record_reader() { return InitModule(); }
-#else
-PyMODINIT_FUNC initrecord_reader() { InitModule(); }
-#endif
 
 }  // namespace python
 }  // namespace riegeli

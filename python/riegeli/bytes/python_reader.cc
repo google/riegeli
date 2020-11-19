@@ -172,7 +172,6 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
       PythonPtr read_result;
       {
         // Prefer using `readinto1()` or `readinto()` to avoid copying memory.
-#if PY_MAJOR_VERSION >= 3
         const PythonPtr memoryview(PyMemoryView_FromMemory(
             dest, IntCast<Py_ssize_t>(length_to_read), PyBUF_WRITE));
         if (ABSL_PREDICT_FALSE(memoryview == nullptr)) {
@@ -211,18 +210,6 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
             return FailOperation("release()");
           }
         }
-#else
-        const PythonPtr buffer(PyBuffer_FromReadWriteMemory(
-            dest, IntCast<Py_ssize_t>(length_to_read)));
-        if (ABSL_PREDICT_FALSE(buffer == nullptr)) {
-          return FailOperation("PyBuffer_FromReadWriteMemory()");
-        }
-        read_result.reset(PyObject_CallFunctionObjArgs(read_function_.get(),
-                                                       buffer.get(), nullptr));
-        if (ABSL_PREDICT_FALSE(read_result == nullptr)) {
-          return FailOperation(read_function_name_);
-        }
-#endif
       }
       const absl::optional<size_t> length_read_opt =
           SizeFromPython(read_result.get());

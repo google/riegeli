@@ -202,11 +202,7 @@ bool ImportedCapsuleBase::ImportValue() const {
 bool Identifier::AllocateValue() const {
   value_ = StringToPython(name_).release();
   if (ABSL_PREDICT_FALSE(value_ == nullptr)) return false;
-#if PY_MAJOR_VERSION >= 3
   PyUnicode_InternInPlace(&value_);
-#else
-  PyString_InternInPlace(&value_);
-#endif
   RegisterThis();
   return true;
 }
@@ -284,12 +280,6 @@ absl::optional<Chain> ChainFromPython(PyObject* object) {
 }
 
 PythonPtr SizeToPython(size_t value) {
-#if PY_MAJOR_VERSION < 3
-  if (ABSL_PREDICT_TRUE(
-          value <= IntCast<unsigned long>(std::numeric_limits<long>::max()))) {
-    return PythonPtr(PyInt_FromLong(IntCast<long>(value)));
-  }
-#endif
   if (ABSL_PREDICT_FALSE(value >
                          std::numeric_limits<unsigned long long>::max())) {
     PyErr_Format(PyExc_OverflowError, "Size out of range: %zu", value);
@@ -302,21 +292,6 @@ PythonPtr SizeToPython(size_t value) {
 absl::optional<size_t> SizeFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
   if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
-#if PY_MAJOR_VERSION < 3
-  if (ABSL_PREDICT_TRUE(PyInt_Check(index.get()))) {
-    const long index_value = PyInt_AS_LONG(index.get());
-    if (ABSL_PREDICT_FALSE(index_value < 0)) {
-      PyErr_Format(PyExc_OverflowError, "Size out of range: %ld", index_value);
-      return absl::nullopt;
-    }
-    if (ABSL_PREDICT_FALSE(IntCast<unsigned long>(index_value) >
-                           std::numeric_limits<size_t>::max())) {
-      PyErr_Format(PyExc_OverflowError, "Size out of range: %ld", index_value);
-      return absl::nullopt;
-    }
-    return IntCast<size_t>(index_value);
-  }
-#endif
   RIEGELI_ASSERT(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
@@ -333,12 +308,6 @@ absl::optional<size_t> SizeFromPython(PyObject* object) {
 }
 
 PythonPtr PositionToPython(Position value) {
-#if PY_MAJOR_VERSION < 3
-  if (ABSL_PREDICT_TRUE(
-          value <= IntCast<unsigned long>(std::numeric_limits<long>::max()))) {
-    return PythonPtr(PyInt_FromLong(IntCast<long>(value)));
-  }
-#endif
   if (ABSL_PREDICT_FALSE(value >
                          std::numeric_limits<unsigned long long>::max())) {
     PyErr_Format(PyExc_OverflowError, "Position out of range: %ju",
@@ -352,23 +321,6 @@ PythonPtr PositionToPython(Position value) {
 absl::optional<Position> PositionFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
   if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
-#if PY_MAJOR_VERSION < 3
-  if (ABSL_PREDICT_TRUE(PyInt_Check(index.get()))) {
-    const long index_value = PyInt_AS_LONG(index.get());
-    if (ABSL_PREDICT_FALSE(index_value < 0)) {
-      PyErr_Format(PyExc_OverflowError, "Position out of range: %ld",
-                   index_value);
-      return absl::nullopt;
-    }
-    if (ABSL_PREDICT_FALSE(IntCast<unsigned long>(index_value) >
-                           std::numeric_limits<Position>::max())) {
-      PyErr_Format(PyExc_OverflowError, "Position out of range: %ld",
-                   index_value);
-      return absl::nullopt;
-    }
-    return IntCast<Position>(index_value);
-  }
-#endif
   RIEGELI_ASSERT(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
@@ -388,11 +340,7 @@ absl::optional<Position> PositionFromPython(PyObject* object) {
 absl::optional<absl::partial_ordering> PartialOrderingFromPython(
     PyObject* object) {
   if (object == Py_None) return absl::partial_ordering::unordered;
-#if PY_MAJOR_VERSION >= 3
   const long long_value = PyLong_AsLong(object);
-#else
-  const long long_value = PyInt_AsLong(object);
-#endif
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) {
     return absl::nullopt;
   }

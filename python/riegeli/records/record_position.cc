@@ -314,13 +314,9 @@ PyTypeObject PyRecordPosition_Type = {
 #else
     nullptr,  // tp_print
 #endif
-    nullptr,  // tp_getattr
-    nullptr,  // tp_setattr
-#if PY_MAJOR_VERSION >= 3
-    nullptr,  // tp_as_async
-#else
-    nullptr,  // tp_compare
-#endif
+    nullptr,                                          // tp_getattr
+    nullptr,                                          // tp_setattr
+    nullptr,                                          // tp_as_async
     reinterpret_cast<reprfunc>(RecordPositionRepr),   // tp_repr
     nullptr,                                          // tp_as_number
     nullptr,                                          // tp_as_sequence
@@ -405,7 +401,6 @@ const char* const kModuleName = "riegeli.records.record_position";
 const char kModuleDoc[] =
     R"doc(Represents a position in a Riegeli/records file.)doc";
 
-#if PY_MAJOR_VERSION >= 3
 PyModuleDef kModuleDef = {
     PyModuleDef_HEAD_INIT,
     kModuleName,  // m_name
@@ -417,17 +412,12 @@ PyModuleDef kModuleDef = {
     nullptr,      // m_clear
     nullptr,      // m_free
 };
-#endif
 
 PyObject* InitModule() {
   if (ABSL_PREDICT_FALSE(PyType_Ready(&PyRecordPosition_Type) < 0)) {
     return nullptr;
   }
-#if PY_MAJOR_VERSION >= 3
   PythonPtr module(PyModule_Create(&kModuleDef));
-#else
-  PythonPtr module(Py_InitModule3(kModuleName, nullptr, kModuleDoc));
-#endif
   if (ABSL_PREDICT_FALSE(module == nullptr)) return nullptr;
   Py_INCREF(&PyRecordPosition_Type);
   if (ABSL_PREDICT_FALSE(PyModule_AddObject(module.get(), "RecordPosition",
@@ -448,11 +438,7 @@ PyObject* InitModule() {
 
 }  // namespace
 
-#if PY_MAJOR_VERSION >= 3
 PyMODINIT_FUNC PyInit_record_position() { return InitModule(); }
-#else
-PyMODINIT_FUNC initrecord_position() { InitModule(); }
-#endif
 
 }  // namespace python
 }  // namespace riegeli

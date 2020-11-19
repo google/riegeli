@@ -392,11 +392,7 @@ class ImportedCapsule : public internal::ImportedCapsuleBase {
 //
 // Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr IntToPython(long value) {
-#if PY_MAJOR_VERSION >= 3
   return PythonPtr(PyLong_FromLong(value));
-#else
-  return PythonPtr(PyInt_FromLong(value));
-#endif
 }
 
 // Converts C++ `absl::string_view` to a Python `bytes` object.
@@ -443,13 +439,8 @@ class BytesLike {
 //
 // Returns `nullptr` on failure (with Python exception set).
 inline PythonPtr StringToPython(absl::string_view value) {
-#if PY_MAJOR_VERSION >= 3
   return PythonPtr(PyUnicode_FromStringAndSize(
       value.data(), IntCast<Py_ssize_t>(value.size())));
-#else
-  return PythonPtr(PyString_FromStringAndSize(
-      value.data(), IntCast<Py_ssize_t>(value.size())));
-#endif
 }
 
 // Refers to internals of a Python object representing text. Valid Python
