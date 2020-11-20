@@ -40,16 +40,16 @@
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_backward_writer.h"
-#include "riegeli/bytes/message_wire_format.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/string_reader.h"
-#include "riegeli/bytes/varint_reading.h"
-#include "riegeli/bytes/varint_writing.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
+#include "riegeli/messages/message_wire_format.h"
+#include "riegeli/varint/varint_reading.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 

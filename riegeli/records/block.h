@@ -22,10 +22,10 @@
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/endian_reading.h"
-#include "riegeli/bytes/endian_writing.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
+#include "riegeli/endian/endian_reading.h"
+#include "riegeli/endian/endian_writing.h"
 
 namespace riegeli {
 namespace internal {

@@ -32,9 +32,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/endian_reading.h"
-#include "riegeli/bytes/endian_writing.h"
 #include "riegeli/chunk_encoding/chunk.h"
+#include "riegeli/endian/endian_reading.h"
+#include "riegeli/endian/endian_writing.h"
 #include "riegeli/records/block.h"
 
 namespace riegeli {

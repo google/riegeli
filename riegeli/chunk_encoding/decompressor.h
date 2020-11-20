@@ -30,13 +30,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
-#include "riegeli/bytes/brotli_reader.h"
+#include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/snappy_reader.h"
-#include "riegeli/bytes/varint_reading.h"
 #include "riegeli/bytes/wrapped_reader.h"
-#include "riegeli/bytes/zstd_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/snappy/snappy_reader.h"
+#include "riegeli/varint/varint_reading.h"
+#include "riegeli/zstd/zstd_reader.h"
 
 namespace riegeli {
 

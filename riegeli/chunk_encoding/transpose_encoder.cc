@@ -42,11 +42,8 @@
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
-#include "riegeli/bytes/message_wire_format.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
-#include "riegeli/bytes/varint_reading.h"
-#include "riegeli/bytes/varint_writing.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
@@ -54,6 +51,9 @@
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
+#include "riegeli/messages/message_wire_format.h"
+#include "riegeli/varint/varint_reading.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 

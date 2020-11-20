@@ -23,9 +23,9 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/options_parser.h"
-#include "riegeli/bytes/brotli_writer.h"
-#include "riegeli/bytes/zstd_writer.h"
+#include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
 

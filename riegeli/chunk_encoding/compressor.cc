@@ -25,14 +25,14 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/brotli_writer.h"
+#include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/bytes/chain_writer.h"
-#include "riegeli/bytes/snappy_writer.h"
-#include "riegeli/bytes/varint_writing.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/zstd_writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/snappy/snappy_writer.h"
+#include "riegeli/varint/varint_writing.h"
+#include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
 namespace internal {

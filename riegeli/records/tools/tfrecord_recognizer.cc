@@ -19,9 +19,9 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/endian_reading.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/zlib_reader.h"
+#include "riegeli/endian/endian_reading.h"
+#include "riegeli/zlib/zlib_reader.h"
 #include "tensorflow/core/lib/hash/crc32c.h"
 #include "tensorflow/core/lib/io/record_reader.h"
 

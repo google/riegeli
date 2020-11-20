@@ -30,14 +30,14 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
-#include "riegeli/bytes/message_serialize.h"
-#include "riegeli/bytes/varint_writing.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
+#include "riegeli/messages/message_serialize.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
