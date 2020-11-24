@@ -34,7 +34,9 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer) {
          "substring not contained in the buffer";
 
   struct Releaser {
-    void operator()() const {
+    // TODO: Remove the `absl::string_view` parameter when the Abseil
+    // dependency is upgraded.
+    void operator()(absl::string_view) const {
       // Nothing to do: the destructor does the work.
     }
     Buffer buffer;

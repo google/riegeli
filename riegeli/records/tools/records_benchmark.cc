@@ -29,6 +29,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -50,8 +51,6 @@
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
-#include "riegeli/bytes/std_io.h"
-#include "riegeli/bytes/writer.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
@@ -163,7 +162,7 @@ class Benchmarks {
  public:
   static bool ReadFile(absl::string_view filename,
                        std::vector<std::string>* records,
-                       SizeLimiter* size_limiter, riegeli::Writer* report);
+                       SizeLimiter* size_limiter, std::ostream* report);
 
   explicit Benchmarks(std::vector<std::string> records, std::string output_dir,
                       int repetitions);
@@ -171,7 +170,7 @@ class Benchmarks {
   void RegisterTFRecord(absl::string_view tfrecord_options);
   void RegisterRiegeli(absl::string_view riegeli_options);
 
-  void RunAll(riegeli::Writer* report);
+  void RunAll(std::ostream* report);
 
  private:
   static void WriteTFRecord(
@@ -198,7 +197,7 @@ class Benchmarks {
           write_records,
       std::function<void(absl::string_view, std::vector<std::string>*)>
           read_records,
-      riegeli::Writer* report);
+      std::ostream* report);
 
   static std::string Filename(absl::string_view name);
 
@@ -214,10 +213,10 @@ class Benchmarks {
 
 bool Benchmarks::ReadFile(absl::string_view filename,
                           std::vector<std::string>* records,
-                          SizeLimiter* size_limiter, riegeli::Writer* report) {
+                          SizeLimiter* size_limiter, std::ostream* report) {
   riegeli::FdReader<> file_reader(filename, O_RDONLY);
   if (ABSL_PREDICT_FALSE(!file_reader.healthy())) {
-    absl::Format(riegeli::StdErr(), "Could not open file: %s\n",
+    absl::Format(&std::cerr, "Could not open file: %s\n",
                  file_reader.status().ToString());
     std::exit(1);
   }
@@ -229,7 +228,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
           << tfrecord_recognizer.status();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
       absl::Format(report, "Reading TFRecord: %s\n", filename);
-      report->Flush(riegeli::FlushType::kFromProcess);
+      report->flush();
       return ReadTFRecord(filename, record_reader_options, records,
                           size_limiter);
     }
@@ -241,12 +240,12 @@ bool Benchmarks::ReadFile(absl::string_view filename,
       RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.status();
       RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
       absl::Format(report, "Reading Riegeli/records: %s\n", filename);
-      report->Flush(riegeli::FlushType::kFromProcess);
+      report->flush();
       return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
                          records, size_limiter);
     }
   }
-  absl::Format(riegeli::StdErr(), "Unknown file format: %s\n", filename);
+  absl::Format(&std::cerr, "Unknown file format: %s\n", filename);
   std::exit(1);
 }
 
@@ -391,7 +390,7 @@ void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
   riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 
-void Benchmarks::RunAll(riegeli::Writer* report) {
+void Benchmarks::RunAll(std::ostream* report) {
   absl::Format(report, "Original uncompressed size: %.3f MB\n",
                static_cast<double>(original_size_) / 1000000.0);
   absl::Format(report, "Creating files %s/record_benchmark_*\n", output_dir_);
@@ -448,9 +447,9 @@ void Benchmarks::RunOne(
         write_records,
     std::function<void(absl::string_view, std::vector<std::string>*)>
         read_records,
-    riegeli::Writer* report) {
+    std::ostream* report) {
   absl::Format(report, "%-*s ", max_name_width_, name);
-  report->Flush(riegeli::FlushType::kFromProcess);
+  report->flush();
   const std::string filename =
       absl::StrCat(output_dir_, "/record_benchmark_", Filename(name));
 
@@ -533,14 +532,13 @@ int main(int argc, char** argv) {
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   std::vector<std::string> records;
   if (args.size() <= 1) {
-    absl::Format(riegeli::StdErr(), "%s\n", kUsage);
+    absl::Format(&std::cerr, "%s\n", kUsage);
     return 1;
   }
   SizeLimiter size_limiter(
       riegeli::IntCast<size_t>(absl::GetFlag(FLAGS_max_size)));
   for (size_t i = 1; i < args.size(); ++i) {
-    if (!Benchmarks::ReadFile(args[i], &records, &size_limiter,
-                              riegeli::StdOut())) {
+    if (!Benchmarks::ReadFile(args[i], &records, &size_limiter, &std::cout)) {
       break;
     }
   }
@@ -554,5 +552,5 @@ int main(int argc, char** argv) {
               [&](absl::string_view riegeli_options) {
                 benchmarks.RegisterRiegeli(riegeli_options);
               });
-  benchmarks.RunAll(riegeli::StdOut());
+  benchmarks.RunAll(&std::cout);
 }

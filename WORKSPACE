@@ -6,11 +6,11 @@ load("//tf_dependency:tf_configure.bzl", "tf_configure")
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "1d712e9d09996cc14238eddb4b0eb7fa91ff551d8c4c3c95be9b30288e9fc08c",
-    strip_prefix = "abseil-cpp-df60c82df43e33274550e758c7a93fa49f88e0fe",
+    sha256 = "6a6eee57ce3375e26d49c542d191ceb90822984d5b587f0ea8e0d0c77016b02b",
+    strip_prefix = "abseil-cpp-20200225.3",
     urls = [
-        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/df60c82df43e33274550e758c7a93fa49f88e0fe.zip",
-        "https://github.com/abseil/abseil-cpp/archive/df60c82df43e33274550e758c7a93fa49f88e0fe.zip",  # 2020-04-20
+        "https://mirror.bazel.build/github.com/abseil/abseil-cpp/archive/20200225.3.zip",
+        "https://github.com/abseil/abseil-cpp/archive/20200225.3.zip",  # 2020-10-09
     ],
 )
 
@@ -81,11 +81,11 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "1e622ce4b84b88b6d2cdf1db38d1a634fe2392d74f0b7b74ff98f3a51838ee53",
-    strip_prefix = "protobuf-3.8.0",
+    sha256 = "cfcba2df10feec52a84208693937c17a4b5df7775e1635c1e3baffc487b24c9b",
+    strip_prefix = "protobuf-3.9.2",
     urls = [
-        "http://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.8.0.zip",
-        "https://github.com/protocolbuffers/protobuf/archive/v3.8.0.zip",  # 2019-05-24
+        "http://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.9.2.zip",
+        "https://github.com/protocolbuffers/protobuf/archive/v3.9.2.zip",  # 2019-09-20
     ],
 )
 
@@ -125,11 +125,11 @@ http_archive(
 # Needed by @com_google_protobuf.
 http_archive(
     name = "bazel_skylib",
-    sha256 = "2e351c3b4861b0c5de8db86fdd100869b544c759161008cd93949dddcbfaba53",
-    strip_prefix = "bazel-skylib-0.8.0",
+    sha256 = "28f81e36692e1d87823623a99966b2daf85af3fdc1b40f98e37bd5294f3dd185",
+    strip_prefix = "bazel-skylib-1.0.3",
     urls = [
-        "http://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/archive/0.8.0.zip",
-        "https://github.com/bazelbuild/bazel-skylib/archive/0.8.0.zip",  # 2019-03-20
+        "http://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/archive/1.0.3.zip",
+        "https://github.com/bazelbuild/bazel-skylib/archive/1.0.3.zip",  # 2020-08-27
     ],
 )
 
@@ -140,7 +140,7 @@ bind(
 )
 
 # Needed by @com_google_protobuf.
-# TODO: @com_google_protobuf > 3.9.1 will not need this
+# TODO: @com_google_protobuf >= 3.10.0 will not need this
 # (it will use @six//:six instead of //external:six). Use this:
 # load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 # protobuf_deps()

@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <iostream>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -31,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -41,15 +43,12 @@
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/null_backward_writer.h"
 #include "riegeli/bytes/reader_utils.h"
-#include "riegeli/bytes/std_io.h"
-#include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
 #include "riegeli/messages/message_parse.h"
-#include "riegeli/messages/message_serialize.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/records_metadata.pb.h"
 #include "riegeli/records/skipped_region.h"
@@ -183,7 +182,7 @@ absl::Status DescribeTransposedChunk(
   return absl::OkStatus();
 }
 
-void DescribeFile(absl::string_view filename, Writer* report) {
+void DescribeFile(absl::string_view filename, std::ostream* report) {
   absl::Format(report,
                "file {\n"
                "  filename: \"%s\"\n",
@@ -199,13 +198,13 @@ void DescribeFile(absl::string_view filename, Writer* report) {
   printer.SetUseShortRepeatedPrimitives(true);
   printer.SetUseUtf8StringEscaping(true);
   for (;;) {
-    report->Flush(FlushType::kFromProcess);
+    report->flush();
     const Position chunk_begin = chunk_reader.pos();
     Chunk chunk;
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        absl::Format(StdErr(), "%s\n", skipped_region.message());
+        absl::Format(&std::cerr, "%s\n", skipped_region.message());
         continue;
       }
       break;
@@ -238,17 +237,17 @@ void DescribeFile(absl::string_view filename, Writer* report) {
           break;
       }
       if (ABSL_PREDICT_FALSE(!status.ok())) {
-        absl::Format(StdErr(), "%s\n", status.message());
+        absl::Format(&std::cerr, "%s\n", status.message());
       }
     }
     absl::Format(report, "  chunk {\n");
-    WriterOutputStream proto_out(report);
+    google::protobuf::io::OstreamOutputStream proto_out(report);
     printer.Print(chunk_summary, &proto_out);
     absl::Format(report, "  }\n");
   }
   absl::Format(report, "}\n");
   if (!chunk_reader.Close()) {
-    absl::Format(StdErr(), "%s\n", chunk_reader.status().message());
+    absl::Format(&std::cerr, "%s\n", chunk_reader.status().message());
   }
 }
 
@@ -265,6 +264,6 @@ int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   for (size_t i = 1; i < args.size(); ++i) {
-    riegeli::tools::DescribeFile(args[i], riegeli::StdOut());
+    riegeli::tools::DescribeFile(args[i], &std::cout);
   }
 }

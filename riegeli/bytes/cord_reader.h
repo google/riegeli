@@ -89,12 +89,6 @@ class CordReaderBase : public PullableReader {
   // Precondition: `iter_ != absl::nullopt`
   void MakeBuffer(const absl::Cord& src);
 
-  // Invariants if `iter_ == absl::nullopt` and not `closed()`:
-  //   scratch is not used
-  //   `start() == src_cord()->TryFlat()->data()`
-  //   `buffer_size() == src_cord()->TryFlat()->size()`
-  //   `start_pos() == 0`
-  //
   // Invariants if `iter_ != absl::nullopt` and scratch is not used:
   //   `start() == (*iter_ == src_cord()->char_end()
   //                    ? nullptr
@@ -189,13 +183,6 @@ inline void CordReaderBase::Reset(InitiallyOpen) {
 inline void CordReaderBase::Initialize(const absl::Cord* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CordReader: null Cord pointer";
-  if (const absl::optional<absl::string_view> flat = src->TryFlat()) {
-    if (flat->size() <= kMaxBytesToCopy) {
-      set_buffer(flat->data(), flat->size());
-      move_limit_pos(available());
-      return;
-    }
-  }
   iter_ = src->char_begin();
   MakeBuffer(*src);
 }

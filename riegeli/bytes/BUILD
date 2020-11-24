@@ -482,7 +482,6 @@ cc_library(
         ":reader",
         ":writer",
         "//riegeli/base",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

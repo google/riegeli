@@ -222,9 +222,6 @@ class Writer : public Object {
   //  * `false` (when `!healthy()`) - failure
   virtual bool Truncate(Position new_size);
 
-  // Support `absl::Format(&writer, format, args...)`.
-  friend void AbslFormatFlush(Writer* dest, absl::string_view src);
-
  protected:
   // Creates a `Writer` with the given initial state.
   explicit Writer(InitiallyClosed) noexcept : Object(kInitiallyClosed) {}
@@ -541,10 +538,6 @@ inline bool Writer::Seek(Position new_pos) {
     return true;
   }
   return SeekSlow(new_pos);
-}
-
-inline void AbslFormatFlush(Writer* dest, absl::string_view src) {
-  dest->Write(src);
 }
 
 }  // namespace riegeli

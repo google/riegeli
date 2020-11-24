@@ -18,7 +18,6 @@
 #include <memory>
 #include <utility>
 
-#include "absl/strings/str_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -40,11 +39,6 @@ class FlushingWriterPtr {
   Writer* operator->() const { return get(); }
 
   /*implicit*/ operator Writer*() const { return get(); }
-
-  // Support `absl::Format(flushing_writer_ptr, format, args...)`.
-  /*implicit*/ operator absl::FormatRawSink() const {
-    return absl::FormatRawSink(get());
-  }
 
  private:
   Writer* writer_ = nullptr;

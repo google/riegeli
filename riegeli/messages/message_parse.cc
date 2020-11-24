@@ -127,27 +127,9 @@ absl::Status ParseFromChain(const Chain& src,
 absl::Status ParseFromCord(const absl::Cord& src,
                            google::protobuf::MessageLite& dest,
                            ParseOptions options) {
-  if (src.size() <= kMaxBytesToCopy) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat()) {
-      // The data are flat. `ParsePartialFromArray()` is faster than
-      // `ParsePartialFromZeroCopyStream()`.
-      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
-              flat->data(), IntCast<int>(flat->size())))) {
-        return absl::DataLossError(absl::StrCat(
-            "Failed to parse message of type ", dest.GetTypeName()));
-      }
-      return CheckInitialized(dest, options);
-    }
-  }
   CordReader<> reader(&src);
-  // Do not bother with `reader.healthy()` or `reader.Close()`. A `CordReader`
-  // can never fail.
-  ReaderInputStream input_stream(&reader);
-  if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
-    return absl::DataLossError(
-        absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
-  }
-  return CheckInitialized(dest, options);
+  // Do not bother with `reader.Close()`. A `CordReader` can never fail.
+  return internal::ParseFromReaderImpl(reader, dest, options);
 }
 
 inline Position ReaderInputStream::relative_pos() const {
