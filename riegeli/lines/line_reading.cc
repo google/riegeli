@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -32,27 +33,31 @@ namespace riegeli {
 
 namespace {
 
-ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader& src, absl::string_view& dest,
-                                           size_t max_length) {
+ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src,
+                                               absl::string_view& dest,
+                                               size_t max_length) {
   dest = absl::string_view(src.cursor(), max_length);
   src.move_cursor(max_length);
-  src.Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
+  src.Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Maximum line length exceeded: ", max_length)));
   return true;
 }
 
-ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader& src, std::string& dest,
-                                           size_t max_length) {
+ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, std::string& dest,
+                                               size_t max_length) {
   dest.append(src.cursor(), max_length);
   src.move_cursor(max_length);
-  src.Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
+  src.Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Maximum length exceeded: ", max_length)));
   return true;
 }
 
 template <typename Dest>
-ABSL_ATTRIBUTE_COLD bool MaxLengthExceeded(Reader& src, Dest& dest,
-                                           size_t max_length) {
+ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, Dest& dest,
+                                               size_t max_length) {
   src.ReadAndAppend(max_length, dest);
-  src.Fail(absl::ResourceExhaustedError("Line length limit exceeded"));
+  src.Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Maximum length exceeded: ", max_length)));
   return true;
 }
 
@@ -64,7 +69,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
   const size_t length_with_newline = length + newline_length;
   if (options.keep_newline()) length = length_with_newline;
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLengthExceeded(src, dest, options.max_length());
+    return MaxLineLengthExceeded(src, dest, options.max_length());
   }
   dest = absl::string_view(src.cursor(), length);
   src.move_cursor(length_with_newline);
@@ -79,7 +84,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
   const size_t length_with_newline = length + newline_length;
   if (options.keep_newline()) length = length_with_newline;
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLengthExceeded(src, dest, options.max_length());
+    return MaxLineLengthExceeded(src, dest, options.max_length());
   }
   dest.append(src.cursor(), length);
   src.move_cursor(length_with_newline);
@@ -96,7 +101,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src, Dest& dest,
     newline_length = 0;
   }
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLengthExceeded(src, dest, options.max_length());
+    return MaxLineLengthExceeded(src, dest, options.max_length());
   }
   src.ReadAndAppend(length, dest);
   src.Skip(newline_length);
@@ -140,7 +145,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLineAndAppend(
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
     if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
-      return MaxLengthExceeded(src, dest, options.max_length());
+      return MaxLineLengthExceeded(src, dest, options.max_length());
     }
     options.set_max_length(options.max_length() - src.available());
     src.ReadAndAppend(src.available(), dest);
@@ -188,7 +193,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   continue_reading:
     length = src.available();
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-      return MaxLengthExceeded(src, dest, options.max_length());
+      return MaxLineLengthExceeded(src, dest, options.max_length());
     }
   } while (src.Pull(length + 1, SaturatingAdd(length, length)));
   dest = absl::string_view(src.cursor(), src.available());
@@ -233,7 +238,7 @@ bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
         << "Unknown newline: " << static_cast<int>(options.newline());
   continue_reading:
     if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
-      return MaxLengthExceeded(src, dest, options.max_length());
+      return MaxLineLengthExceeded(src, dest, options.max_length());
     }
     options.set_max_length(options.max_length() - src.available());
     dest.append(src.cursor(), src.available());

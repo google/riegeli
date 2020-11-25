@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -95,6 +96,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   Position size_limit_ = kNoSizeLimit;
 
  private:
+  ABSL_ATTRIBUTE_COLD bool SizeLimitExceeded();
+
   // This template is defined and used only in limiting_backward_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
@@ -235,7 +238,7 @@ inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
 }
 
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
+  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return SizeLimitExceeded();
   dest.set_cursor(cursor());
   return true;
 }

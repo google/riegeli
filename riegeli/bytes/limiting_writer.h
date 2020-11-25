@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -98,6 +99,8 @@ class LimitingWriterBase : public Writer {
   Position size_limit_ = kNoSizeLimit;
 
  private:
+  ABSL_ATTRIBUTE_COLD bool SizeLimitExceeded();
+
   // This template is defined and used only in limiting_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);
@@ -229,7 +232,7 @@ inline void LimitingWriterBase::set_size_limit(Position size_limit) {
 }
 
 inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return FailOverflow();
+  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return SizeLimitExceeded();
   dest.set_cursor(cursor());
   return true;
 }

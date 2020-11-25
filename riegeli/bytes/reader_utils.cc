@@ -20,9 +20,11 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -32,6 +34,15 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+namespace {
+
+ABSL_ATTRIBUTE_COLD bool MaxSizeExceeded(Reader& src, size_t max_size) {
+  return src.Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Maximum size exceeded: ", max_size)));
+}
+
+}  // namespace
 
 bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
   max_size = UnsignedMin(max_size, dest.max_size());
@@ -46,7 +57,7 @@ bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src.Read(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(!src.Read(IntCast<size_t>(remaining), dest))) {
       return src.healthy();
@@ -57,7 +68,7 @@ bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         dest = absl::string_view(src.cursor(), max_size);
         src.move_cursor(max_size);
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
     } while (src.Pull(src.available() + 1,
                       SaturatingAdd(src.available(), src.available())));
@@ -92,7 +103,7 @@ bool ReadAndAppendAll(Reader& src, std::string& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(
             !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
@@ -104,7 +115,7 @@ bool ReadAndAppendAll(Reader& src, std::string& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         dest.append(src.cursor(), max_size);
         src.move_cursor(max_size);
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
       max_size -= src.available();
       dest.append(src.cursor(), src.available());
@@ -125,7 +136,7 @@ bool ReadAndAppendAll(Reader& src, Chain& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(
             !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
@@ -136,7 +147,7 @@ bool ReadAndAppendAll(Reader& src, Chain& dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         src.ReadAndAppend(max_size, dest);
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
       max_size -= src.available();
       src.ReadAndAppend(src.available(), dest);
@@ -156,7 +167,7 @@ bool ReadAndAppendAll(Reader& src, absl::Cord& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_size, dest))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(
             !src.ReadAndAppend(IntCast<size_t>(remaining), dest))) {
@@ -167,7 +178,7 @@ bool ReadAndAppendAll(Reader& src, absl::Cord& dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         src.ReadAndAppend(max_size, dest);
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
       max_size -= src.available();
       src.ReadAndAppend(src.available(), dest);
@@ -185,7 +196,7 @@ bool CopyAll(Reader& src, Writer& dest, Position max_size) {
       if (ABSL_PREDICT_FALSE(!src.CopyTo(max_size, dest))) {
         return dest.healthy() && src.healthy();
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(!src.CopyTo(remaining, dest))) {
       return dest.healthy() && src.healthy();
@@ -197,7 +208,7 @@ bool CopyAll(Reader& src, Writer& dest, Position max_size) {
         if (ABSL_PREDICT_FALSE(!src.CopyTo(max_size, dest))) {
           if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
         }
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
       max_size -= src.available();
       if (ABSL_PREDICT_FALSE(!src.CopyTo(src.available(), dest))) {
@@ -217,7 +228,7 @@ bool CopyAll(Reader& src, BackwardWriter& dest, size_t max_size) {
       if (ABSL_PREDICT_FALSE(!src.Skip(max_size))) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return false;
       }
-      return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+      return MaxSizeExceeded(src, max_size);
     }
     if (ABSL_PREDICT_FALSE(!src.CopyTo(IntCast<size_t>(remaining), dest))) {
       return dest.healthy() && src.healthy();
@@ -228,7 +239,7 @@ bool CopyAll(Reader& src, BackwardWriter& dest, size_t max_size) {
     do {
       if (ABSL_PREDICT_FALSE(src.available() > max_size)) {
         src.move_cursor(max_size);
-        return src.Fail(absl::ResourceExhaustedError("Size limit exceeded"));
+        return MaxSizeExceeded(src, max_size);
       }
       max_size -= src.available();
       src.ReadAndAppend(src.available(), data);

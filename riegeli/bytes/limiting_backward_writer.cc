@@ -19,7 +19,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -40,6 +42,11 @@ void LimitingBackwardWriterBase::Done() {
     SyncBuffer(dest);
   }
   BackwardWriter::Done();
+}
+
+bool LimitingBackwardWriterBase::SizeLimitExceeded() {
+  return Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Size limit exceeded: ", size_limit_)));
 }
 
 bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
@@ -102,7 +109,7 @@ inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
-    return FailOverflow();
+    return SizeLimitExceeded();
   }
   const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -117,7 +124,7 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
   if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
-    return FailOverflow();
+    return SizeLimitExceeded();
   }
   const bool ok = dest.WriteZeros(length);
   MakeBuffer(dest);
