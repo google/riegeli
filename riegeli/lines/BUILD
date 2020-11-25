@@ -6,8 +6,10 @@ cc_library(
     name = "line_writing",
     hdrs = ["line_writing.h"],
     deps = [
+        "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/bytes:writer",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],

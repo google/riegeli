@@ -17,11 +17,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "crc32c/crc32c.h"
 #include "riegeli/base/base.h"

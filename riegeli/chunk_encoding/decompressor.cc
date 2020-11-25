@@ -14,6 +14,7 @@
 
 #include "riegeli/chunk_encoding/decompressor.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "absl/types/optional.h"

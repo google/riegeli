@@ -17,7 +17,6 @@
 
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
 

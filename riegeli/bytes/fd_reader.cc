@@ -47,6 +47,7 @@
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 
 namespace riegeli {

@@ -22,7 +22,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/base.h"
 
 namespace riegeli {
 

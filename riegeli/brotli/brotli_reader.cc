@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <memory>
+#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -26,7 +27,6 @@
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/status.h"
-#include "riegeli/brotli/brotli_allocator.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 

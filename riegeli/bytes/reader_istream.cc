@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <limits>
-#include <streambuf>
 
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"

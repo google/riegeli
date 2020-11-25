@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"

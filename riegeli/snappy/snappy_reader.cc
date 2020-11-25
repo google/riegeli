@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <string>
 #include <tuple>
 #include <utility>
 
@@ -29,6 +30,7 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/snappy/snappy_streams.h"
 #include "snappy.h"
 

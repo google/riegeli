@@ -15,6 +15,8 @@
 #ifndef RIEGELI_SNAPPY_SNAPPY_READER_H_
 #define RIEGELI_SNAPPY_SNAPPY_READER_H_
 
+#include <stddef.h>
+
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -23,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/function_dependency.h"

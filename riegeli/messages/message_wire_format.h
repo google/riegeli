@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
 #include "riegeli/varint/varint_writing.h"
 

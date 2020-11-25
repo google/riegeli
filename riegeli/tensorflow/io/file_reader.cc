@@ -37,9 +37,9 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/types.h"
 
 namespace riegeli {

@@ -15,6 +15,7 @@
 #ifndef RIEGELI_MESSAGES_MESSAGE_SERIALIZE_H_
 #define RIEGELI_MESSAGES_MESSAGE_SERIALIZE_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <limits>

@@ -16,12 +16,14 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <limits>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/base/memory.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

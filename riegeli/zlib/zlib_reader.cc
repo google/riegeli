@@ -19,7 +19,7 @@
 #include <memory>
 #include <string>
 
-#include "absl/base/macros.h"
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -29,7 +29,6 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/zlib/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 

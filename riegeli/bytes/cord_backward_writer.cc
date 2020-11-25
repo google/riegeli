@@ -26,6 +26,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/memory.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {

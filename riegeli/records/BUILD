@@ -49,7 +49,6 @@ cc_library(
     ],
     hdrs = ["record_reader.h"],
     deps = [
-        ":block",
         ":chunk_reader",
         ":record_position",
         ":records_metadata_cc_proto",

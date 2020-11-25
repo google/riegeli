@@ -30,6 +30,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
@@ -40,7 +41,6 @@
 namespace riegeli {
 
 class LimitingReaderBase;
-class Reader;
 
 // Format (values are varint encoded unless indicated otherwise):
 //  - Compression type

@@ -16,6 +16,7 @@ cc_binary(
         "//riegeli/bytes:fd_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:null_backward_writer",
+        "//riegeli/bytes:reader",
         "//riegeli/bytes:reader_utils",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:constants",

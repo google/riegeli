@@ -46,6 +46,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/bytes:backward_writer",
+        "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base",

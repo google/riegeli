@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <tuple>
 #include <utility>
 

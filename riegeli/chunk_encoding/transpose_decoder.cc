@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

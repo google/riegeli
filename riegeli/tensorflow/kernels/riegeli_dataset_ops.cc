@@ -23,6 +23,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -41,8 +42,9 @@
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/graph/graph.h"
 #include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/macros.h"
+#include "tensorflow/core/platform/status.h"
+#include "tensorflow/core/platform/tstring.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/public/version.h"
 

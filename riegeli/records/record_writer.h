@@ -37,6 +37,7 @@
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
+#include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/messages/message_serialize.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/chunk_writer_dependency.h"

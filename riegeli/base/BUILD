@@ -89,7 +89,6 @@ cc_library(
     name = "binary_search",
     hdrs = ["binary_search.h"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:optional",
     ],

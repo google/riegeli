@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"

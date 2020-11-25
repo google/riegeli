@@ -43,6 +43,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
 

@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"

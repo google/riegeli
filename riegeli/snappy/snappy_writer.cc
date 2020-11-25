@@ -18,6 +18,9 @@
 
 #include <cstring>
 #include <limits>
+#include <string>
+#include <tuple>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -29,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/snappy/snappy_streams.h"
 #include "snappy.h"

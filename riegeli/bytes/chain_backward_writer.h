@@ -22,6 +22,8 @@
 #include <utility>
 
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"

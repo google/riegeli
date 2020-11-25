@@ -20,11 +20,14 @@
 
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"

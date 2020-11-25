@@ -29,7 +29,6 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/zlib/zlib_dictionary.h"
 #include "zconf.h"
 #include "zlib.h"
 

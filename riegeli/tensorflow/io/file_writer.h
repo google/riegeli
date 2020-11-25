@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -34,9 +35,9 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
-#include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/core/platform/status.h"
 
 namespace riegeli {
 

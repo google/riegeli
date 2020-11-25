@@ -56,13 +56,14 @@
 #include "riegeli/records/record_writer.h"
 #include "riegeli/records/tools/tfrecord_recognizer.h"
 #include "riegeli/varint/varint_writing.h"
-#include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/io/compression.h"
 #include "tensorflow/core/lib/io/record_reader.h"
 #include "tensorflow/core/lib/io/record_writer.h"
 #include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/core/platform/status.h"
+#include "tensorflow/core/platform/tstring.h"
 
 ABSL_FLAG(std::string, tfrecord_benchmarks, "uncompressed gzip",
           "Whitespace-separated TFRecord RecordWriter/RecordReader options");

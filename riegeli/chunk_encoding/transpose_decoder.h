@@ -25,6 +25,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_internal.h"
+#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
