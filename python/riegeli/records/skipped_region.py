@@ -30,8 +30,7 @@ class SkippedRegion(object):
 
   def __init__(self, begin, end, message):
     if begin > end:
-      raise ValueError('Positions in the wrong order: {} > {}'.format(
-          begin, end))
+      raise ValueError(f'Positions in the wrong order: {begin} > {end}')
     self.begin = begin
     self.end = end
     self.message = message
@@ -41,8 +40,7 @@ class SkippedRegion(object):
     return self.end - self.begin
 
   def __str__(self):
-    return '[{}, {}): {}'.format(self.begin, self.end, self.message)
+    return f'[{self.begin}, {self.end}): {self.message}'
 
   def __repr__(self):
-    return 'SkippedRegion({}, {}, {!r})'.format(self.begin, self.end,
-                                                self.message)
+    return f'SkippedRegion({self.begin}, {self.end}, {self.message!r})'

@@ -21,7 +21,7 @@ from riegeli.records.tests import records_test_pb2
 
 
 def sample_string(i, size):
-  piece = '{} '.format(i).encode()
+  piece = f'{i} '.encode()
   result = piece * -(-size // len(piece))  # len(result) >= size
   return result[:size]
 

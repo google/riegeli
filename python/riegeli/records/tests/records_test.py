@@ -56,7 +56,7 @@ class FakeFile(object):
     raise NotImplementedError('tell()')
 
   def __getattr__(self, name):
-    raise NotImplementedError(name + '()')
+    raise NotImplementedError(f'{name}()')
 
 
 class UnseekableWrapper(object):
@@ -202,7 +202,7 @@ class TensorFlowGFileSpec(LocalFileSpecBase):
 
 
 def sample_string(i, size):
-  piece = '{} '.format(i).encode()
+  piece = f'{i} '.encode()
   result = piece * -(-size // len(piece))  # len(result) >= size
   return result[:size]
 
@@ -216,8 +216,8 @@ def sample_message_id_only(i):
 
 
 def record_writer_options(parallelism, transpose=False):
-  return '{}uncompressed,chunk_size:35000,parallelism:{}'.format(
-      'transpose,' if transpose else '', parallelism)
+  return (f'{"transpose," if transpose else ""}uncompressed,chunk_size:35000,'
+          f'parallelism:{parallelism}')
 
 
 # pyformat: disable
@@ -579,7 +579,7 @@ class RecordsTest(parameterized.TestCase):
           files.writing_open(),
           close=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism) + ',transpose') as writer:
+          options=f'{record_writer_options(parallelism)},transpose') as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(
@@ -605,7 +605,7 @@ class RecordsTest(parameterized.TestCase):
           files.writing_open(),
           close=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism) + ',transpose') as writer:
+          options=f'{record_writer_options(parallelism)},transpose') as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(

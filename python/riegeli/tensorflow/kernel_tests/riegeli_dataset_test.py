@@ -185,12 +185,12 @@ class RiegeliDatasetTest(DatasetTestBase):
     return repeat_dataset
 
   def _record(self, f, r):
-    return 'Record {} of file {}'.format(r, f).encode()
+    return f'Record {r} of file {f}'.encode()
 
   def _create_files(self):
     filenames = []
     for i in range(self._num_files):
-      filename = os.path.join(self.get_temp_dir(), 'riegeli.{}'.format(i))
+      filename = os.path.join(self.get_temp_dir(), f'riegeli.{i}')
       filenames.append(filename)
 
       # Note: if records were serialized proto messages, passing
