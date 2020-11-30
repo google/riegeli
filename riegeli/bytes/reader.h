@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_READER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -123,6 +124,15 @@ class Reader : public Object {
   // Returns the amount of data read from the buffer, between `start()` and
   // `cursor()`.
   size_t read_from_buffer() const { return PtrDistance(start_, cursor_); }
+
+  // Reads a single byte.
+  //
+  // Return values:
+  //  * not `absl::nullopt`                 - success
+  //  * `absl::nullopt` (when `healthy()`)  - source ends
+  //  * `absl::nullopt` (when `!healthy()`) - failure
+  absl::optional<char> ReadChar();
+  absl::optional<uint8_t> ReadByte();
 
   // Reads a fixed number of bytes from the buffer to `dest`, pulling data from
   // the source as needed, clearing any existing data in `dest`.
@@ -444,6 +454,19 @@ inline void Reader::set_buffer(const char* start, size_t buffer_size,
   start_ = start;
   cursor_ = start + read_from_buffer;
   limit_ = start + buffer_size;
+}
+
+inline absl::optional<char> Reader::ReadChar() {
+  if (ABSL_PREDICT_FALSE(!Pull())) return absl::nullopt;
+  const char data = *cursor();
+  move_cursor(1);
+  return data;
+}
+
+inline absl::optional<uint8_t> Reader::ReadByte() {
+  const absl::optional<char> data = ReadChar();
+  if (ABSL_PREDICT_FALSE(data == absl::nullopt)) return absl::nullopt;
+  return static_cast<uint8_t>(*data);
 }
 
 inline bool Reader::Read(size_t length, absl::string_view& dest) {

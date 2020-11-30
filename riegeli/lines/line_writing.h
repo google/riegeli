@@ -124,23 +124,11 @@ inline bool WriteLine(absl::Cord&& src, Writer& dest,
 inline bool WriteLine(Writer& dest, WriteLineOptions options) {
   switch (options.newline()) {
     case WriteLineOptions::Newline::kLf:
-      if (ABSL_PREDICT_FALSE(!dest.Push())) return false;
-      *dest.cursor() = '\n';
-      dest.move_cursor(1);
-      return true;
+      return dest.WriteChar('\n');
     case WriteLineOptions::Newline::kCr:
-      if (ABSL_PREDICT_FALSE(!dest.Push())) return false;
-      *dest.cursor() = '\r';
-      dest.move_cursor(1);
-      return true;
-    case WriteLineOptions::Newline::kCrLf: {
-      if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;
-      char* const cursor = dest.cursor();
-      cursor[0] = '\r';
-      cursor[1] = '\n';
-      dest.move_cursor(2);
-      return true;
-    }
+      return dest.WriteChar('\r');
+    case WriteLineOptions::Newline::kCrLf:
+      return dest.Write("\r\n");
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown newline: " << static_cast<int>(options.newline());

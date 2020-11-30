@@ -53,15 +53,6 @@ cc_library(
 )
 
 cc_library(
-    name = "writer_utils",
-    hdrs = ["writer_utils.h"],
-    deps = [
-        ":writer",
-        "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-cc_library(
     name = "reader_utils",
     srcs = ["reader_utils.cc"],
     hdrs = ["reader_utils.h"],

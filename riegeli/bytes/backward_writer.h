@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_BACKWARD_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -104,6 +105,14 @@ class BackwardWriter : public Object {
   //
   // Invariant: if `!healthy()` then `written_to_buffer() == 0`
   size_t written_to_buffer() const { return PtrDistance(cursor_, start_); }
+
+  // Writes a single byte.
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  bool WriteChar(char data);
+  bool WriteByte(uint8_t data);
 
   // Prepends a fixed number of bytes from `src` to the buffer, pushing data to
   // the destination as needed.
@@ -386,6 +395,17 @@ inline void BackwardWriter::set_buffer(char* limit, size_t buffer_size,
   start_ = limit + buffer_size;
   cursor_ = start_ - written_to_buffer;
   limit_ = limit;
+}
+
+inline bool BackwardWriter::WriteChar(char data) {
+  if (ABSL_PREDICT_FALSE(!Push())) return false;
+  move_cursor(1);
+  *cursor() = data;
+  return true;
+}
+
+inline bool BackwardWriter::WriteByte(uint8_t data) {
+  return WriteChar(static_cast<char>(data));
 }
 
 inline bool BackwardWriter::Write(absl::string_view src) {

@@ -40,7 +40,6 @@
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/limiting_backward_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
@@ -485,7 +484,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     }
   }
 
-  const absl::optional<uint8_t> compression_type_byte = ReadByte(src);
+  const absl::optional<uint8_t> compression_type_byte = src.ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     src.Fail(absl::DataLossError("Reading compression type failed"));
     return Fail(src);
@@ -1278,7 +1277,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
         node = node->next_node;
         if (num_iters == 0) {
           const absl::optional<uint8_t> transition_byte =
-              ReadByte(transitions_reader);
+              transitions_reader.ReadByte();
           if (ABSL_PREDICT_FALSE(transition_byte == absl::nullopt)) goto done;
           node += (*transition_byte >> 2);
           num_iters = *transition_byte & 3;

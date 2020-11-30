@@ -28,7 +28,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/varint/varint_reading.h"
@@ -53,7 +52,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
     return Fail(absl::ResourceExhaustedError("Records too large"));
   }
 
-  const absl::optional<uint8_t> compression_type_byte = ReadByte(*src);
+  const absl::optional<uint8_t> compression_type_byte = src->ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     src->Fail(absl::DataLossError("Reading compression type failed"));
     return Fail(*src);

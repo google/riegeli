@@ -16,16 +16,12 @@
 #define RIEGELI_BYTES_READER_UTILS_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <limits>
 #include <string>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
-#include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -86,20 +82,6 @@ bool CopyAll(Reader& src, Writer& dest,
              Position max_size = std::numeric_limits<Position>::max());
 bool CopyAll(Reader& src, BackwardWriter& dest,
              size_t max_size = std::numeric_limits<size_t>::max());
-
-// Reads a single byte.
-//
-// Returns `absl::nullopt` on failure, with the current position unchanged.
-absl::optional<uint8_t> ReadByte(Reader& src);
-
-// Implementation details follow.
-
-inline absl::optional<uint8_t> ReadByte(Reader& src) {
-  if (ABSL_PREDICT_FALSE(!src.Pull())) return absl::nullopt;
-  const uint8_t data = static_cast<uint8_t>(*src.cursor());
-  src.move_cursor(1);
-  return data;
-}
 
 }  // namespace riegeli
 

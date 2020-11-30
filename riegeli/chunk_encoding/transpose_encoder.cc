@@ -45,7 +45,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -833,7 +832,7 @@ inline bool TransposeEncoder::WriteTransitions(
             } else {
               if (last_transition != absl::nullopt) {
                 if (ABSL_PREDICT_FALSE(
-                        !WriteByte(*last_transition, transitions_writer))) {
+                        !transitions_writer.WriteByte(*last_transition))) {
                   return Fail(transitions_writer);
                 }
               }
@@ -875,7 +874,7 @@ inline bool TransposeEncoder::WriteTransitions(
         } else {
           if (last_transition != absl::nullopt) {
             if (ABSL_PREDICT_FALSE(
-                    !WriteByte(*last_transition, transitions_writer))) {
+                    !transitions_writer.WriteByte(*last_transition))) {
               return Fail(transitions_writer);
             }
           }
@@ -891,7 +890,7 @@ inline bool TransposeEncoder::WriteTransitions(
     current_base = tags_list_[prev_etag].base;
   }
   if (last_transition != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(!WriteByte(*last_transition, transitions_writer))) {
+    if (ABSL_PREDICT_FALSE(!transitions_writer.WriteByte(*last_transition))) {
       return Fail(transitions_writer);
     }
   }
@@ -1312,9 +1311,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
     return Fail(nonproto_lengths_writer_);
   }
 
-  if (ABSL_PREDICT_FALSE(!WriteByte(
-          static_cast<uint8_t>(compressor_options_.compression_type()),
-          dest))) {
+  if (ABSL_PREDICT_FALSE(!dest.WriteByte(
+          static_cast<uint8_t>(compressor_options_.compression_type())))) {
     return Fail(dest);
   }
 

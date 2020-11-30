@@ -16,6 +16,7 @@
 #define RIEGELI_BYTES_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <cstring>
 #include <limits>
@@ -115,6 +116,14 @@ class Writer : public Object {
   //
   // Invariant: if `!healthy()` then `written_to_buffer() == 0`
   size_t written_to_buffer() const { return PtrDistance(start_, cursor_); }
+
+  // Writes a single byte.
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  bool WriteChar(char data);
+  bool WriteByte(uint8_t data);
 
   // Writes a fixed number of bytes from `src` to the buffer, pushing data to
   // the destination as needed.
@@ -413,6 +422,17 @@ inline void Writer::set_buffer(char* start, size_t buffer_size,
   start_ = start;
   cursor_ = start + written_to_buffer;
   limit_ = start + buffer_size;
+}
+
+inline bool Writer::WriteChar(char data) {
+  if (ABSL_PREDICT_FALSE(!Push())) return false;
+  *cursor() = data;
+  move_cursor(1);
+  return true;
+}
+
+inline bool Writer::WriteByte(uint8_t data) {
+  return WriteChar(static_cast<char>(data));
 }
 
 inline bool Writer::Write(absl::string_view src) {

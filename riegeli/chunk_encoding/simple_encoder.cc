@@ -31,7 +31,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/bytes/writer_utils.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -168,7 +167,7 @@ bool SimpleEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
   decoded_data_size = decoded_data_size_;
 
   if (ABSL_PREDICT_FALSE(
-          !WriteByte(static_cast<uint8_t>(compression_type_), dest))) {
+          !dest.WriteByte(static_cast<uint8_t>(compression_type_)))) {
     return Fail(dest);
   }
 

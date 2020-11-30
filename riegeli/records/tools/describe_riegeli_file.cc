@@ -42,7 +42,6 @@
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/null_backward_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/reader_utils.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/chunk_encoding/decompressor.h"
@@ -101,7 +100,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
   // Based on `SimpleDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
 
-  const absl::optional<uint8_t> compression_type_byte = ReadByte(chunk_reader);
+  const absl::optional<uint8_t> compression_type_byte = chunk_reader.ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     return absl::DataLossError("Reading compression type failed");
   }
@@ -149,7 +148,7 @@ absl::Status DescribeTransposedChunk(
   // Based on `TransposeDecoder::Decode()`.
   ChainReader<> chunk_reader(&chunk.data);
 
-  const absl::optional<uint8_t> compression_type_byte = ReadByte(chunk_reader);
+  const absl::optional<uint8_t> compression_type_byte = chunk_reader.ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
     return absl::DataLossError("Reading compression type failed");
   }
