@@ -130,7 +130,7 @@ inline bool WriteLine(Writer& dest, WriteLineOptions options) {
       return true;
     case WriteLineOptions::Newline::kCr:
       if (ABSL_PREDICT_FALSE(!dest.Push())) return false;
-      *dest.cursor() = '\n';
+      *dest.cursor() = '\r';
       dest.move_cursor(1);
       return true;
     case WriteLineOptions::Newline::kCrLf: {
