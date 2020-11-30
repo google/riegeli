@@ -32,7 +32,7 @@ class Buffer {
  public:
   Buffer() noexcept {}
 
-  // Stores the minimal size to be allocated. Does not allocate the buffer yet.
+  // Stores the minimum size to be allocated. Does not allocate the buffer yet.
   explicit Buffer(size_t size) noexcept : size_(size) {}
 
   // The source `Buffer` is left deallocated but with size unchanged.

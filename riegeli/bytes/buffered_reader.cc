@@ -42,7 +42,7 @@ inline size_t BufferedReader::LengthToReadDirectly() const {
 }
 
 void BufferedReader::VerifyEnd() {
-  // No more data are expected, so allocate a minimal non-empty buffer for
+  // No more data are expected, so allocate a minimum non-empty buffer for
   // verifying that.
   set_size_hint(SaturatingAdd(pos(), Position{1}));
   Reader::VerifyEnd();

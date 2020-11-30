@@ -772,7 +772,7 @@ inline bool TransposeEncoder::WriteTransitions(
   uint32_t prev_etag = encoded_tags_.back();
   uint32_t current_base = tags_list_[prev_etag].base;
   // Assuming an approximately balanced tree of `kNoOp` nodes covering
-  // transitions from the given node in the state machine, the maximal number of
+  // transitions from the given node in the state machine, the maximum number of
   // bytes needed to encode one transition should be the depth of the tree, i.e.
   // `O(log_max_transition(state_machine_size))`. We allocate buffer of size
   // `kWriteBufSize` to store the entire encoded transition.

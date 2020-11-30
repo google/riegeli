@@ -66,7 +66,7 @@ class ReadLineOptions {
   }
   bool keep_newline() const { return keep_newline_; }
 
-  // Expected maximal line length.
+  // Expected maximum line length.
   //
   // If this length is exceeded, reading fails with
   // `absl::ResourceExhaustedError()`.

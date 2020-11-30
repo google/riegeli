@@ -85,7 +85,7 @@ class RecyclingPool {
   // The default value of the constructor argument.
   static constexpr size_t kDefaultMaxSize = 16;
 
-  // Creates a pool with the given maximal number of objects to keep.
+  // Creates a pool with the given maximum number of objects to keep.
   explicit RecyclingPool(size_t max_size = kDefaultMaxSize)
       : max_size_(max_size), cache_(by_key_.end()) {}
 

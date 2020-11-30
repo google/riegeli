@@ -112,7 +112,7 @@ ABSL_ATTRIBUTE_COLD const char* FormatCheckOpMessage(const char* message,
   return (new std::string(stream.str()))->c_str();
 }
 
-// These functions allow to use `a` and `b` multiple times without reevaluation.
+// These functions allow using `a` and `b` multiple times without reevaluation.
 // They are small enough to be inlined, with the slow path delegated to
 // `FormatCheckOpMessage()`.
 #define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                \

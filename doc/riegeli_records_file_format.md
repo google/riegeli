@@ -69,7 +69,7 @@ over corruption is desired, a valid chunk should be located using block headers.
 If `data_hash` does not match, `data` is corrupted; if skipping over corruption
 is desired, the chunk must be ignored.
 
-The size of `padding` is the minimal size which satisfies the following
+The size of `padding` is the minimum size which satisfies the following
 constraints:
 
 *   The chunk (including chunk header, `data`, `padding`, and intervening block
