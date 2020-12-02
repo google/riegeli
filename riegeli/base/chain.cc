@@ -22,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <new>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -82,6 +83,42 @@ class ZeroRef {
 void ZeroRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
 
 void ZeroRef::DumpStructure(std::ostream& out) const { out << "[zero] { }"; }
+
+absl::Cord FlatCord(absl::string_view src) {
+  char* const ptr = static_cast<char*>(operator new(src.size()));
+  std::memcpy(ptr, src.data(), src.size());
+  return absl::MakeCordFromExternal(
+      absl::string_view(ptr, src.size()), [](absl::string_view data) {
+#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
+        operator delete(const_cast<char*>(data.data()), data.size());
+#else
+        operator delete(const_cast<char*>(data.data()));
+#endif
+      });
+}
+
+// Like `dest.Append(src)`, but avoids splitting `src` into 4083-byte fragments.
+void AppendToCord(absl::string_view src, absl::Cord& dest) {
+  if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
+    // `absl::Cord::Append(absl::string_view)` can allocate a single node of
+    // that length.
+    dest.Append(src);
+    return;
+  }
+  dest.Append(FlatCord(src));
+}
+
+// Like `dest.Prepend(src)`, but avoids splitting `src` into 4083-byte
+// fragments.
+void PrependToCord(absl::string_view src, absl::Cord& dest) {
+  if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
+    // `absl::Cord::Prepend(absl::string_view)` can allocate a single node of
+    // that length.
+    dest.Prepend(src);
+    return;
+  }
+  dest.Prepend(FlatCord(src));
+}
 
 }  // namespace
 
@@ -515,7 +552,7 @@ inline void Chain::RawBlock::AppendTo(absl::Cord& dest) {
       << "Failed precondition of Chain::RawBlock::AppendTo(Cord&): "
          "Cord size overflow";
   if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    dest.Append(absl::string_view(*this));
+    AppendToCord(absl::string_view(*this), dest);
     Unref<ownership>();
     return;
   }
@@ -581,7 +618,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
       << "Failed precondition of Chain::RawBlock::AppendSubstrTo(Cord&): "
          "Cord size overflow";
   if (substr.size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    dest.Append(substr);
+    AppendToCord(substr, dest);
     return;
   }
   if (const FlatCordRef* const cord_ref =
@@ -602,7 +639,7 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
       << "Failed precondition of Chain::RawBlock::PrependTo(Cord&): "
          "Chain size overflow";
   if (size() <= MaxBytesToCopyToCord(dest) || wasteful()) {
-    dest.Prepend(absl::string_view(*this));
+    PrependToCord(absl::string_view(*this), dest);
     Unref<ownership>();
     return;
   }
