@@ -118,8 +118,8 @@ bool HadoopSnappyReaderBase::PullSlow(size_t min_length,
       set_buffer();
       return FailInvalidStream("uncompressed length too large");
     }
-    uncompressed_.Resize(uncompressed_length);
-    uncompressed_data = uncompressed_.GetData();
+    uncompressed_.Ensure(uncompressed_length);
+    uncompressed_data = uncompressed_.data();
     if (ABSL_PREDICT_FALSE(!snappy::RawUncompress(
             compressed_data, compressed_length, uncompressed_data))) {
       set_buffer();

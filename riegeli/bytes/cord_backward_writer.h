@@ -153,13 +153,11 @@ class CordBackwardWriterBase : public BackwardWriter {
   size_t max_block_size_ = kMaxBufferSize;
 
   // Buffered data to be prepended, in either `buffer_` or `short_buffer_`.
-  //
-  // Invariant: if `healthy()` then `buffer_.size() > 0`
   Buffer buffer_;
   char short_buffer_[kShortBufferSize];
 
   // Invariants:
-  //   `limit() == nullptr` or `limit() == buffer_.GetData()`
+  //   `limit() == nullptr` or `limit() == buffer_.data()`
   //       or `limit() == short_buffer_`
   //   if `healthy()` then `start_pos() == dest_cord()->size()`
 };

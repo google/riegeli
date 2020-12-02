@@ -27,106 +27,96 @@
 
 namespace riegeli {
 
-// Lazily allocated buffer of a fixed size.
+// Dynamically allocated byte buffer.
 class Buffer {
  public:
   Buffer() noexcept {}
 
-  // Stores the minimum size to be allocated. Does not allocate the buffer yet.
-  explicit Buffer(size_t size) noexcept : size_(size) {}
+  // Ensures at least `min_capacity` of space.
+  explicit Buffer(size_t min_capacity);
 
-  // The source `Buffer` is left deallocated but with size unchanged.
+  // The source `Buffer` is left deallocated.
   Buffer(Buffer&& that) noexcept;
   Buffer& operator=(Buffer&& that) noexcept;
 
-  ~Buffer() { DeleteBuffer(); }
+  ~Buffer() { DeleteInternal(); }
 
-  // If the buffer is not allocated, allocates it; this can increase the stored
-  // size to account for size rounding by the memory allocator. Returns the data
-  // pointer.
-  //
-  // This method is not thread-safe.
-  //
-  // Precondition: `size() > 0`
-  char* GetData();
+  // Ensures at least `min_capacity` of space. Existing contents are lost.
+  void Ensure(size_t min_capacity);
 
-  // Returns the data size, or the planned size if not allocated yet. The size
-  // can increase when `GetData()` is called.
-  size_t size() const { return size_; }
+  // Returns the data pointer.
+  char* data() const { return data_; }
 
-  // Returns `true` if the buffer is already allocated and `GetData()` is fast.
-  // Returns `false` if `GetData()` would allocate the buffer.
-  bool is_allocated() const { return data_ != nullptr; }
+  // Returns the usable data size. It can be greater than the requested size.
+  size_t capacity() const { return capacity_; }
 
-  // Ensure that the data size is at least the given value. Existing contents
-  // are lost.
-  void Resize(size_t size);
-
-  // Releases the ownership of the data pointer, which must be deleted using
+  // Releases the ownership of the data pointer. It must be deleted using
   // `DeleteReleased()` if not nullptr.
   char* Release();
 
   // Deletes the pointer obtained by `Release()`.
-  static void DeleteReleased(char* ptr);
+  static void DeleteReleased(void* ptr);
+
+  // Converts `*this` to `absl::Cord`. `substr` must be contained in `*this`.
+  // `*this` is left unchanged or deallocated.
+  absl::Cord ToCord(absl::string_view substr);
 
  private:
-  // If the buffer is allocated, deletes it.
-  void DeleteBuffer();
+  void AllocateInternal(size_t min_capacity);
+  void DeleteInternal();
 
   char* data_ = nullptr;
-  size_t size_ = 0;
+  size_t capacity_ = 0;
+  // Invariant: if `data_ == nullptr` then `capacity_ == 0`
 };
-
-// Converts `Buffer` to `absl::Cord`. `substr` must be contained in `buffer`.
-// `buffer` is left unchanged or deallocated; in any case its size is unchanged.
-absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer);
 
 // Implementation details follow.
 
+inline Buffer::Buffer(size_t min_capacity) { AllocateInternal(min_capacity); }
+
 inline Buffer::Buffer(Buffer&& that) noexcept
-    : data_(std::exchange(that.data_, nullptr)), size_(that.size_) {}
+    : data_(std::exchange(that.data_, nullptr)),
+      capacity_(std::exchange(that.capacity_, 0)) {}
 
 inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
   // Exchange `that.data_` early to support self-assignment.
   char* const data = std::exchange(that.data_, nullptr);
-  DeleteBuffer();
+  DeleteInternal();
   data_ = data;
-  size_ = that.size_;
+  capacity_ = std::exchange(that.capacity_, 0);
   return *this;
 }
 
-inline void Buffer::DeleteBuffer() {
+inline void Buffer::Ensure(size_t min_capacity) {
+  if (data_ != nullptr) {
+    if (capacity_ >= min_capacity) return;
+    min_capacity =
+        UnsignedMax(min_capacity, SaturatingAdd(capacity_, capacity_));
+    DeleteInternal();
+  }
+  AllocateInternal(min_capacity);
+}
+
+inline void Buffer::AllocateInternal(size_t min_capacity) {
+  const size_t capacity = EstimatedAllocatedSize(min_capacity);
+  data_ = static_cast<char*>(operator new(capacity));
+  capacity_ = capacity;
+}
+
+inline void Buffer::DeleteInternal() {
 #if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-  if (data_ != nullptr) operator delete(data_, size_);
+  if (data_ != nullptr) operator delete(data_, capacity_);
 #else
   if (data_ != nullptr) operator delete(data_);
 #endif
 }
 
-inline char* Buffer::GetData() {
-  if (ABSL_PREDICT_FALSE(data_ == nullptr)) {
-    RIEGELI_ASSERT_GT(size_, 0u)
-        << "Failed precondition of Buffer::GetData(): no buffer size specified";
-    const size_t capacity = EstimatedAllocatedSize(size_);
-    data_ = static_cast<char*>(operator new(capacity));
-    size_ = capacity;
-  }
-  return data_;
+inline char* Buffer::Release() {
+  capacity_ = 0;
+  return std::exchange(data_, nullptr);
 }
 
-inline void Buffer::Resize(size_t new_size) {
-  if (!is_allocated()) {
-    size_ = new_size;
-  } else if (new_size > size_) {
-    DeleteBuffer();
-    data_ = nullptr;
-    size_ = UnsignedMax(new_size, SaturatingAdd(size_, size_));
-  }
-}
-
-inline char* Buffer::Release() { return std::exchange(data_, nullptr); }
-
-inline void Buffer::DeleteReleased(char* ptr) { operator delete(ptr); }
+inline void Buffer::DeleteReleased(void* ptr) { operator delete(ptr); }
 
 }  // namespace riegeli
 

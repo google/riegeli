@@ -246,7 +246,7 @@ FileWriter(absl::string_view filename,
 // Implementation details follow.
 
 inline FileWriterBase::FileWriterBase(size_t buffer_size)
-    : Writer(kInitiallyOpen), buffer_size_(buffer_size), buffer_(buffer_size) {}
+    : Writer(kInitiallyOpen), buffer_size_(buffer_size) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
@@ -277,7 +277,6 @@ inline void FileWriterBase::Reset(size_t buffer_size) {
   Writer::Reset(kInitiallyOpen);
   filename_.clear();
   buffer_size_ = buffer_size;
-  buffer_.Resize(buffer_size);
 }
 
 inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {

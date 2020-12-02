@@ -104,11 +104,10 @@ inline bool NullWriter::MakeBuffer(size_t min_length) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  const size_t buffer_length =
-      UnsignedMin(UnsignedMax(kDefaultBufferSize, min_length),
-                  std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Resize(buffer_length);
-  set_buffer(buffer_.GetData(), buffer_length);
+  buffer_.Ensure(UnsignedMax(kDefaultBufferSize, min_length));
+  set_buffer(buffer_.data(),
+             UnsignedMin(buffer_.capacity(),
+                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 

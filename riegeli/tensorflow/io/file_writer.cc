@@ -139,8 +139,8 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   const size_t buffer_length =
       UnsignedMin(UnsignedMax(buffer_size_, min_length, recommended_length),
                   std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Resize(buffer_length);
-  set_buffer(buffer_.GetData(), buffer_length);
+  buffer_.Ensure(buffer_length);
+  set_buffer(buffer_.data(), buffer_length);
   return true;
 }
 
@@ -194,8 +194,8 @@ void FileWriterBase::WriteHintSlow(size_t length) {
   const size_t buffer_length =
       UnsignedMin(UnsignedMax(buffer_size_, length),
                   std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Resize(buffer_length);
-  set_buffer(buffer_.GetData(), buffer_length);
+  buffer_.Ensure(buffer_length);
+  set_buffer(buffer_.data(), buffer_length);
 }
 
 bool FileWriterBase::Flush(FlushType flush_type) {

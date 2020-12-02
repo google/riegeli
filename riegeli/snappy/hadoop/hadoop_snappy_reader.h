@@ -80,7 +80,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   Buffer uncompressed_;
 
   // Invariant if scratch is not used:
-  //   `start() == nullptr` or `start() == uncompressed_.GetData()`
+  //   `start() == nullptr` or `start() == uncompressed_.data()`
 };
 
 // A `Reader` which decompresses data with Hadoop Snappy format after getting

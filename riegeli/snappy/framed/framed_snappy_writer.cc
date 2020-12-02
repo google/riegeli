@@ -94,8 +94,8 @@ bool FramedSnappyWriterBase::PushSlow(size_t min_length,
   const size_t length =
       UnsignedMin(BufferLength(1, snappy::kBlockSize, size_hint_, start_pos()),
                   std::numeric_limits<Position>::max() - start_pos());
-  uncompressed_.Resize(length);
-  set_buffer(uncompressed_.GetData(), length);
+  uncompressed_.Ensure(length);
+  set_buffer(uncompressed_.data(), length);
   return true;
 }
 

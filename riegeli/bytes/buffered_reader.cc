@@ -182,19 +182,20 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     if (available() == 0 && length >= LengthToReadDirectly()) {
       ClearBuffer();
       Buffer flat_buffer(length);
-      char* const ptr = flat_buffer.GetData();
       const Position pos_before = limit_pos();
-      if (ABSL_PREDICT_FALSE(!ReadInternal(length, length, ptr))) {
+      if (ABSL_PREDICT_FALSE(
+              !ReadInternal(length, length, flat_buffer.data()))) {
         RIEGELI_ASSERT_GE(limit_pos(), pos_before)
             << "BufferedReader::ReadInternal() decreased limit_pos()";
         const Position length_read = limit_pos() - pos_before;
         RIEGELI_ASSERT_LE(length_read, length)
             << "BufferedReader::ReadInternal() read more than requested";
-        dest.Append(BufferToCord(
-            absl::string_view(ptr, IntCast<size_t>(length_read)), flat_buffer));
+        dest.Append(flat_buffer.ToCord(absl::string_view(
+            flat_buffer.data(), IntCast<size_t>(length_read))));
         return false;
       }
-      dest.Append(BufferToCord(absl::string_view(ptr, length), flat_buffer));
+      dest.Append(
+          flat_buffer.ToCord(absl::string_view(flat_buffer.data(), length)));
       return true;
     }
     size_t cursor_index = read_from_buffer();

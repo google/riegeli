@@ -65,15 +65,15 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Resize(BufferLength(
+    buffer_.Ensure(BufferLength(
         buffered_length + min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
                     start_pos(), min_block_size_)));
-    char* const buffer = buffer_.GetData();
-    const size_t size = UnsignedMin(
-        buffer_.size(), std::numeric_limits<size_t>::max() - dest.size());
-    std::memcpy(buffer + size - buffered_length, cursor(), buffered_length);
-    set_buffer(buffer, size, buffered_length);
+    const size_t length = UnsignedMin(
+        buffer_.capacity(), std::numeric_limits<size_t>::max() - dest.size());
+    std::memcpy(buffer_.data() + length - buffered_length, cursor(),
+                buffered_length);
+    set_buffer(buffer_.data(), length, buffered_length);
     return true;
   } else {
     SyncBuffer(dest);
@@ -81,12 +81,11 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                            std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Resize(BufferLength(
+    buffer_.Ensure(BufferLength(
         min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(recommended_length, start_pos(), min_block_size_)));
-    char* const buffer = buffer_.GetData();
-    set_buffer(buffer,
-               UnsignedMin(buffer_.size(),
+    set_buffer(buffer_.data(),
+               UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()));
     return true;
   }
@@ -233,7 +232,7 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
     dest.Prepend(data);
   } else {
     absl::Cord data =
-        BufferToCord(absl::string_view(cursor(), written_to_buffer()), buffer_);
+        buffer_.ToCord(absl::string_view(cursor(), written_to_buffer()));
     set_buffer();
     dest.Prepend(std::move(data));
   }

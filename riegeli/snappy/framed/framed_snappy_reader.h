@@ -77,7 +77,7 @@ class FramedSnappyReaderBase : public PullableReader {
   Buffer uncompressed_;
 
   // Invariant if scratch is not used:
-  //   `start() == nullptr` or `start() == uncompressed_.GetData()` or
+  //   `start() == nullptr` or `start() == uncompressed_.data()` or
   //   `limit() == src_reader()->cursor()`
 };
 

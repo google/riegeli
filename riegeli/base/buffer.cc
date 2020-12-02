@@ -24,13 +24,13 @@
 
 namespace riegeli {
 
-absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer) {
-  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), buffer.GetData()))
-      << "Failed precondition of BufferToCord(): "
+absl::Cord Buffer::ToCord(absl::string_view substr) {
+  RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), data()))
+      << "Failed precondition of Buffer::ToCord(): "
          "substring not contained in the buffer";
-  RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                     buffer.GetData() + buffer.size()))
-      << "Failed precondition of BufferToCord(): "
+  RIEGELI_ASSERT(
+      std::less_equal<>()(substr.data() + substr.size(), data() + capacity()))
+      << "Failed precondition of Buffer::ToCord(): "
          "substring not contained in the buffer";
 
   struct Releaser {
@@ -43,7 +43,7 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer) {
   };
 
   if (substr.size() <= 15 /* `absl::Cord::InlineRep::kMaxInline` */ ||
-      Wasteful(buffer.size(), substr.size())) {
+      Wasteful(capacity(), substr.size())) {
     if (substr.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
       // `absl::Cord(absl::string_view)` allocates a single node of that length.
       return absl::Cord(substr);
@@ -51,14 +51,13 @@ absl::Cord BufferToCord(absl::string_view substr, Buffer& buffer) {
     // `absl::Cord(absl::string_view)` would split that length, so rewrite the
     // buffer and use `absl::MakeCordFromExternal()`.
     Buffer new_buffer(substr.size());
-    char* const new_data = new_buffer.GetData();
-    std::memcpy(new_data, substr.data(), substr.size());
-    return absl::MakeCordFromExternal(
-        absl::string_view(new_data, substr.size()),
-        Releaser{std::move(new_buffer)});
+    std::memcpy(new_buffer.data(), substr.data(), substr.size());
+    const absl::string_view new_data(new_buffer.data(), substr.size());
+    return absl::MakeCordFromExternal(new_data,
+                                      Releaser{std::move(new_buffer)});
   }
 
-  return absl::MakeCordFromExternal(substr, Releaser{std::move(buffer)});
+  return absl::MakeCordFromExternal(substr, Releaser{std::move(*this)});
 }
 
 }  // namespace riegeli

@@ -152,13 +152,11 @@ class CordWriterBase : public Writer {
   size_t max_block_size_ = kMaxBufferSize;
 
   // Buffered data to be appended, in either `buffer_` or `short_buffer_`.
-  //
-  // Invariant: if `healthy()` then `buffer_.size() > 0`
   Buffer buffer_;
   char short_buffer_[kShortBufferSize];
 
   // Invariants:
-  //   `start() == nullptr` or `start() == buffer_.GetData()`
+  //   `start() == nullptr` or `start() == buffer_.data()`
   //       or `start() == short_buffer_`
   //   if `healthy()` then `start_pos() == dest_cord()->size()`
 };

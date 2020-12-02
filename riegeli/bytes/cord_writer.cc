@@ -64,15 +64,14 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Resize(BufferLength(
+    buffer_.Ensure(BufferLength(
         UnsignedMax(buffered_length + min_length, kShortBufferSize),
         max_block_size_, size_hint_, start_pos(),
         UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
                     start_pos(), min_block_size_)));
-    char* const buffer = buffer_.GetData();
-    std::memcpy(buffer, short_buffer_, kShortBufferSize);
-    set_buffer(buffer,
-               UnsignedMin(buffer_.size(),
+    std::memcpy(buffer_.data(), short_buffer_, kShortBufferSize);
+    set_buffer(buffer_.data(),
+               UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()),
                buffered_length);
     return true;
@@ -82,12 +81,11 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                            std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Resize(BufferLength(
+    buffer_.Ensure(BufferLength(
         min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(recommended_length, start_pos(), min_block_size_)));
-    char* const buffer = buffer_.GetData();
-    set_buffer(buffer,
-               UnsignedMin(buffer_.size(),
+    set_buffer(buffer_.data(),
+               UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()));
     return true;
   }
@@ -232,7 +230,7 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
     dest.Append(data);
   } else {
     absl::Cord data =
-        BufferToCord(absl::string_view(start(), written_to_buffer()), buffer_);
+        buffer_.ToCord(absl::string_view(start(), written_to_buffer()));
     set_buffer();
     dest.Append(std::move(data));
   }

@@ -119,16 +119,15 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
           set_buffer();
           return FailInvalidStream("uncompressed length too large");
         }
-        uncompressed_.Resize(uncompressed_length);
-        char* const uncompressed_data = uncompressed_.GetData();
+        uncompressed_.Ensure(uncompressed_length);
         if (ABSL_PREDICT_FALSE(!snappy::RawUncompress(
-                compressed_data, compressed_length, uncompressed_data))) {
+                compressed_data, compressed_length, uncompressed_.data()))) {
           set_buffer();
           return FailInvalidStream("invalid compressed data");
         }
-        if (ABSL_PREDICT_FALSE(MaskChecksum(crc32c::Crc32c(
-                                   uncompressed_data, uncompressed_length)) !=
-                               checksum)) {
+        if (ABSL_PREDICT_FALSE(
+                MaskChecksum(crc32c::Crc32c(
+                    uncompressed_.data(), uncompressed_length)) != checksum)) {
           set_buffer();
           return FailInvalidStream(
               "Invalid Snappy-compressed stream: wrong checksum");
@@ -138,10 +137,10 @@ bool FramedSnappyReaderBase::PullSlow(size_t min_length,
         if (ABSL_PREDICT_FALSE(uncompressed_length >
                                std::numeric_limits<Position>::max() -
                                    limit_pos())) {
-          set_buffer(uncompressed_data);
+          set_buffer(uncompressed_.data());
           return FailOverflow();
         }
-        set_buffer(uncompressed_data, uncompressed_length);
+        set_buffer(uncompressed_.data(), uncompressed_length);
         move_limit_pos(available());
         return true;
       }

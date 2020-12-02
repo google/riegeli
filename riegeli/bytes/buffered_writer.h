@@ -105,8 +105,7 @@ inline BufferedWriter::BufferedWriter(
     size_t buffer_size, absl::optional<Position> size_hint) noexcept
     : Writer(kInitiallyOpen),
       buffer_size_(buffer_size),
-      size_hint_(size_hint.value_or(0)),
-      buffer_(buffer_size) {
+      size_hint_(size_hint.value_or(0)) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
          "zero buffer size";
@@ -144,7 +143,6 @@ inline void BufferedWriter::Reset(size_t buffer_size,
   Writer::Reset(kInitiallyOpen);
   buffer_size_ = buffer_size;
   size_hint_ = size_hint.value_or(0);
-  buffer_.Resize(buffer_size);
 }
 
 }  // namespace riegeli
