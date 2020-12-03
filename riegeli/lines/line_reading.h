@@ -110,7 +110,7 @@ bool ReadLine(Reader& src, absl::Cord& dest,
 
 // Skips an initial UTF-8 BOM if it is present.
 //
-// Does nothing unless `src->pos() == 0`.
+// Does nothing unless `src.pos() == 0`.
 void SkipBOM(riegeli::Reader& src);
 
 }  // namespace riegeli
