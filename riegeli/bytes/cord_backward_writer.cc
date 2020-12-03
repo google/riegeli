@@ -65,7 +65,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Ensure(BufferLength(
+    buffer_.Reset(BufferLength(
         buffered_length + min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
                     start_pos(), min_block_size_)));
@@ -81,7 +81,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
                            std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Ensure(BufferLength(
+    buffer_.Reset(BufferLength(
         min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(recommended_length, start_pos(), min_block_size_)));
     set_buffer(buffer_.data(),

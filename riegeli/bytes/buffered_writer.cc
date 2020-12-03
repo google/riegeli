@@ -63,7 +63,7 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
       UnsignedMin(BufferLength(UnsignedMax(min_length, recommended_length),
                                buffer_size_, size_hint_, start_pos()),
                   std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Ensure(buffer_length);
+  buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
   return true;
 }
@@ -107,7 +107,7 @@ void BufferedWriter::WriteHintSlow(size_t length) {
   const size_t buffer_length =
       UnsignedMin(BufferLength(length, buffer_size_, size_hint_, start_pos()),
                   std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Ensure(buffer_length);
+  buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
 }
 

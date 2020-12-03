@@ -105,7 +105,7 @@ inline bool NullBackwardWriter::MakeBuffer(size_t min_length) {
                          std::numeric_limits<Position>::max() - pos())) {
     return FailOverflow();
   }
-  buffer_.Ensure(UnsignedMax(kDefaultBufferSize, min_length));
+  buffer_.Reset(UnsignedMax(kDefaultBufferSize, min_length));
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),
                          std::numeric_limits<Position>::max() - start_pos()));

@@ -64,7 +64,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                 std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Ensure(BufferLength(
+    buffer_.Reset(BufferLength(
         UnsignedMax(buffered_length + min_length, kShortBufferSize),
         max_block_size_, size_hint_, start_pos(),
         UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
@@ -81,7 +81,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
                            std::numeric_limits<size_t>::max() - dest.size())) {
       return FailOverflow();
     }
-    buffer_.Ensure(BufferLength(
+    buffer_.Reset(BufferLength(
         min_length, max_block_size_, size_hint_, start_pos(),
         UnsignedMax(recommended_length, start_pos(), min_block_size_)));
     set_buffer(buffer_.data(),

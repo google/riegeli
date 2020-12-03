@@ -42,7 +42,7 @@ class Buffer {
   ~Buffer() { DeleteInternal(); }
 
   // Ensures at least `min_capacity` of space. Existing contents are lost.
-  void Ensure(size_t min_capacity);
+  void Reset(size_t min_capacity);
 
   // Returns the data pointer.
   char* data() const { return data_; }
@@ -87,7 +87,7 @@ inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
   return *this;
 }
 
-inline void Buffer::Ensure(size_t min_capacity) {
+inline void Buffer::Reset(size_t min_capacity) {
   if (data_ != nullptr) {
     if (capacity_ >= min_capacity) return;
     min_capacity =
