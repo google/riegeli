@@ -14,11 +14,17 @@
 
 #include "riegeli/base/base.h"
 
+#include <cstring>
 #include <exception>
 #include <iostream>
+#include <new>
 #include <sstream>
 
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+
 namespace riegeli {
+
 namespace internal {
 
 CheckFailed::CheckFailed(const char* file, int line, const char* function,
@@ -33,4 +39,22 @@ CheckFailed::~CheckFailed() {
 }
 
 }  // namespace internal
+
+absl::Cord MakeFlatCord(absl::string_view src) {
+  if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
+    // `absl::Cord(absl::string_view)` allocates a single node of that length.
+    return absl::Cord(src);
+  }
+  char* const ptr = static_cast<char*>(operator new(src.size()));
+  std::memcpy(ptr, src.data(), src.size());
+  return absl::MakeCordFromExternal(
+      absl::string_view(ptr, src.size()), [](absl::string_view data) {
+#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
+        operator delete(const_cast<char*>(data.data()), data.size());
+#else
+        operator delete(const_cast<char*>(data.data()));
+#endif
+      });
+}
+
 }  // namespace riegeli

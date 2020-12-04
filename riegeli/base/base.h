@@ -29,6 +29,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/port.h"
 
 namespace riegeli {
@@ -656,6 +657,9 @@ inline size_t BufferLength(size_t min_length, size_t max_length,
 inline bool Wasteful(size_t total, size_t used) {
   return total - used > UnsignedMax(used, kMinBufferSize);
 }
+
+// Like `absl::Cord(src)`, but avoids splitting `src` into 4083-byte fragments.
+absl::Cord MakeFlatCord(absl::string_view src);
 
 }  // namespace riegeli
 

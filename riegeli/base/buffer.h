@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -51,7 +50,7 @@ class Buffer {
   size_t capacity() const { return capacity_; }
 
   // Releases the ownership of the data pointer. It must be deleted using
-  // `DeleteReleased()` if not nullptr.
+  // `DeleteReleased()` (or by doing nothing if `nullptr`).
   char* Release();
 
   // Deletes the pointer obtained by `Release()`.

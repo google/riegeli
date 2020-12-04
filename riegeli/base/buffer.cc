@@ -14,7 +14,6 @@
 
 #include "riegeli/base/buffer.h"
 
-#include <cstring>
 #include <functional>
 #include <utility>
 
@@ -32,6 +31,10 @@ absl::Cord Buffer::ToCord(absl::string_view substr) {
       std::less_equal<>()(substr.data() + substr.size(), data() + capacity()))
       << "Failed precondition of Buffer::ToCord(): "
          "substring not contained in the buffer";
+  if (substr.size() <= 15 /* `absl::Cord::InlineRep::kMaxInline` */ ||
+      Wasteful(capacity(), substr.size())) {
+    return MakeFlatCord(substr);
+  }
 
   struct Releaser {
     // TODO: Remove the `absl::string_view` parameter when the Abseil
@@ -41,22 +44,6 @@ absl::Cord Buffer::ToCord(absl::string_view substr) {
     }
     Buffer buffer;
   };
-
-  if (substr.size() <= 15 /* `absl::Cord::InlineRep::kMaxInline` */ ||
-      Wasteful(capacity(), substr.size())) {
-    if (substr.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
-      // `absl::Cord(absl::string_view)` allocates a single node of that length.
-      return absl::Cord(substr);
-    }
-    // `absl::Cord(absl::string_view)` would split that length, so rewrite the
-    // buffer and use `absl::MakeCordFromExternal()`.
-    Buffer new_buffer(substr.size());
-    std::memcpy(new_buffer.data(), substr.data(), substr.size());
-    const absl::string_view new_data(new_buffer.data(), substr.size());
-    return absl::MakeCordFromExternal(new_data,
-                                      Releaser{std::move(new_buffer)});
-  }
-
   return absl::MakeCordFromExternal(substr, Releaser{std::move(*this)});
 }
 

@@ -84,19 +84,6 @@ void ZeroRef::RegisterSubobjects(MemoryEstimator& memory_estimator) const {}
 
 void ZeroRef::DumpStructure(std::ostream& out) const { out << "[zero] { }"; }
 
-absl::Cord FlatCord(absl::string_view src) {
-  char* const ptr = static_cast<char*>(operator new(src.size()));
-  std::memcpy(ptr, src.data(), src.size());
-  return absl::MakeCordFromExternal(
-      absl::string_view(ptr, src.size()), [](absl::string_view data) {
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-        operator delete(const_cast<char*>(data.data()), data.size());
-#else
-        operator delete(const_cast<char*>(data.data()));
-#endif
-      });
-}
-
 // Like `dest.Append(src)`, but avoids splitting `src` into 4083-byte fragments.
 void AppendToCord(absl::string_view src, absl::Cord& dest) {
   if (src.size() <= 4096 - 13 /* `kMaxFlatSize` from cord.cc */) {
@@ -105,7 +92,7 @@ void AppendToCord(absl::string_view src, absl::Cord& dest) {
     dest.Append(src);
     return;
   }
-  dest.Append(FlatCord(src));
+  dest.Append(MakeFlatCord(src));
 }
 
 // Like `dest.Prepend(src)`, but avoids splitting `src` into 4083-byte
@@ -117,7 +104,7 @@ void PrependToCord(absl::string_view src, absl::Cord& dest) {
     dest.Prepend(src);
     return;
   }
-  dest.Prepend(FlatCord(src));
+  dest.Prepend(MakeFlatCord(src));
 }
 
 }  // namespace
