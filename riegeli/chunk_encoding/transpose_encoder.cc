@@ -928,7 +928,7 @@ inline void TransposeEncoder::ComputeBaseIndices(
   // destination and `min_pos` of the state that is used in any such transition.
 
   // Compute `base` indices for `kNoOp` states.
-  for (const std::pair<uint32_t, uint32_t> tag_index_and_state_index :
+  for (const std::pair<uint32_t, uint32_t>& tag_index_and_state_index :
        public_list_noops) {
     // Start of block that can reach all required destinations.
     uint32_t base = kInvalidPos;
