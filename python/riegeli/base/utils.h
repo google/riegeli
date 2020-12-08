@@ -29,7 +29,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <version>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
