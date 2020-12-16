@@ -241,6 +241,9 @@ bool ExportCapsule(PyObject* module, const char* capsule_name,
 }
 
 bool StrOrBytes::FromPython(PyObject* object) {
+  RIEGELI_ASSERT(data_.data() == nullptr)
+      << "Failed precondition of StrOrBytes::FromPython(): "
+         "called more than once";
   // TODO: Change this depending on how
   // https://bugs.python.org/issue35295 is resolved.
   if (PyUnicode_Check(object)) {

@@ -420,7 +420,12 @@ class BytesLike {
   // Converts from a Python object.
   //
   // Returns `false` on failure (with Python exception set).
+  //
+  // Must be called at most once for each `BytesLike` object.
   bool FromPython(PyObject* object) {
+    RIEGELI_ASSERT(buffer_.obj == nullptr)
+        << "Failed precondition of BytesLike::FromPython(): "
+           "called more than once";
     return PyObject_GetBuffer(object, &buffer_, PyBUF_CONTIG_RO) == 0;
   }
 
@@ -455,6 +460,8 @@ class StrOrBytes {
   // Converts from a Python object.
   //
   // Returns `false` on failure (with Python exception set).
+  //
+  // Must be called at most once for each `StrOrBytes` object.
   bool FromPython(PyObject* object);
 
   // Returns the text contents.
