@@ -517,7 +517,7 @@ static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  Chain record;
+  absl::string_view record;
   const bool ok =
       PythonUnlocked([&] { return self->record_reader->ReadRecord(record); });
   if (ABSL_PREDICT_FALSE(!ok)) {
@@ -527,12 +527,16 @@ static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
     }
     Py_RETURN_NONE;
   }
-  const PythonPtr record_object = ChainToPython(record);
+  MemoryView memory_view;
+  PyObject* const record_object = memory_view.ToPython(record);
   if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
   // return message_type.FromString(record)
   static constexpr Identifier id_FromString("FromString");
-  return PyObject_CallMethodObjArgs(message_type_arg, id_FromString.get(),
-                                    record_object.get(), nullptr);
+  PythonPtr message(PyObject_CallMethodObjArgs(
+      message_type_arg, id_FromString.get(), record_object, nullptr));
+  if (ABSL_PREDICT_FALSE(message == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
+  return message.release();
 }
 
 static PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
@@ -546,7 +550,7 @@ static PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  Chain record;
+  absl::string_view record;
   RecordPosition key;
   const bool ok = PythonUnlocked(
       [&] { return self->record_reader->ReadRecord(record, &key); });
@@ -561,13 +565,15 @@ static PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
   const PythonPtr key_object(
       kRecordPositionApi->RecordPositionToPython(FutureRecordPosition(key)));
   if (ABSL_PREDICT_FALSE(key_object == nullptr)) return nullptr;
-  const PythonPtr record_object = ChainToPython(record);
+  MemoryView memory_view;
+  PyObject* const record_object = memory_view.ToPython(record);
   if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
   // message = message_type.FromString(record)
   static constexpr Identifier id_FromString("FromString");
   const PythonPtr message(PyObject_CallMethodObjArgs(
-      message_type_arg, id_FromString.get(), record_object.get(), nullptr));
+      message_type_arg, id_FromString.get(), record_object, nullptr));
   if (ABSL_PREDICT_FALSE(message == nullptr)) return nullptr;
+  if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
   // return key, message
   return PyTuple_Pack(2, key_object.get(), message.get());
 }
@@ -855,35 +861,41 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::optional<Exception> test_exception;
   const bool ok = PythonUnlocked([&] {
-    return self->record_reader->Search<Chain>([&](const Chain& record) {
-      PythonLock lock;
-      const PythonPtr record_object = ChainToPython(record);
-      if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      // message = message_type.FromString(record)
-      static constexpr Identifier id_FromString("FromString");
-      const PythonPtr message_object(PyObject_CallMethodObjArgs(
-          message_type_arg, id_FromString.get(), record_object.get(), nullptr));
-      if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      const PythonPtr test_result(PyObject_CallFunctionObjArgs(
-          test_arg, message_object.get(), nullptr));
-      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      const absl::optional<absl::partial_ordering> ordering =
-          PartialOrderingFromPython(test_result.get());
-      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      return *ordering;
-    });
+    return self->record_reader->Search<absl::string_view>(
+        [&](absl::string_view record) {
+          PythonLock lock;
+          MemoryView memory_view;
+          PyObject* const record_object = memory_view.ToPython(record);
+          if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::partial_ordering::equivalent;
+          }
+          // message = message_type.FromString(record)
+          static constexpr Identifier id_FromString("FromString");
+          const PythonPtr message_object(PyObject_CallMethodObjArgs(
+              message_type_arg, id_FromString.get(), record_object, nullptr));
+          if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::partial_ordering::equivalent;
+          }
+          if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::partial_ordering::equivalent;
+          }
+          const PythonPtr test_result(PyObject_CallFunctionObjArgs(
+              test_arg, message_object.get(), nullptr));
+          if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::partial_ordering::equivalent;
+          }
+          const absl::optional<absl::partial_ordering> ordering =
+              PartialOrderingFromPython(test_result.get());
+          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::partial_ordering::equivalent;
+          }
+          return *ordering;
+        });
   });
   if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
     test_exception->Restore();
