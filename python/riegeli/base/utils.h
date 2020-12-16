@@ -35,6 +35,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 
@@ -402,6 +403,49 @@ inline PythonPtr BytesToPython(absl::string_view value) {
   return PythonPtr(PyBytes_FromStringAndSize(
       value.data(), IntCast<Py_ssize_t>(value.size())));
 }
+
+// Converts C++ array of bytes to a Python `memoryview` object.
+//
+// Memory is shared. The C++ memory must be valid as long as the Python object
+// is needed.
+class MemoryView {
+ public:
+  MemoryView() noexcept {}
+
+  MemoryView(const MemoryView&) = delete;
+  MemoryView& operator=(const MemoryView&) = delete;
+
+  // Calls `Release()`, ignoring its result, without disturbing the Python
+  // exception state.
+  ~MemoryView();
+
+  // Creates and returns a read-only `memoryview` object.
+  //
+  // Returns `nullptr` on failure (with Python exception set).
+  //
+  // `ToPython()` or `MutableToPython()` must be called at most once for each
+  // `MemoryView` object.
+  PyObject* ToPython(absl::string_view value);
+
+  // Creates and returns a mutable `memoryview` object.
+  //
+  // Returns `nullptr` on failure (with Python exception set).
+  //
+  // `ToPython()` or `MutableToPython()` must be called at most once for each
+  // `MemoryView` object.
+  PyObject* MutableToPython(absl::Span<char> value);
+
+  // If a reference to the `memoryview` has been stored elsewhere, calls
+  // `memoryview.release()` to mark the `memoryview` as invalid.
+  //
+  // Returns `false` on failure (with Python exception set).
+  bool Release();
+
+ private:
+  bool ReleaseInternal();
+
+  PythonPtr object_;
+};
 
 // Refers to internals of a Python `bytes`-like object, using the buffer
 // protocol.

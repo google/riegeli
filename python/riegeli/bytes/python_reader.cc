@@ -20,6 +20,7 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
+#include "absl/types/span.h"
 #include "python/riegeli/bytes/python_reader.h"
 // clang-format: do not reorder the above include.
 
@@ -173,43 +174,19 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
       PythonPtr read_result;
       {
         // Prefer using `readinto1()` or `readinto()` to avoid copying memory.
-        const PythonPtr memoryview(PyMemoryView_FromMemory(
-            dest, IntCast<Py_ssize_t>(length_to_read), PyBUF_WRITE));
-        if (ABSL_PREDICT_FALSE(memoryview == nullptr)) {
-          return FailOperation("PyMemoryView_FromMemory()");
+        MemoryView memory_view;
+        PyObject* const memory_view_object =
+            memory_view.MutableToPython(absl::MakeSpan(dest, length_to_read));
+        if (ABSL_PREDICT_FALSE(memory_view_object == nullptr)) {
+          return FailOperation("MemoryView::MutableToPython()");
         }
         read_result.reset(PyObject_CallFunctionObjArgs(
-            read_function_.get(), memoryview.get(), nullptr));
+            read_function_.get(), memory_view_object, nullptr));
         if (ABSL_PREDICT_FALSE(read_result == nullptr)) {
-          if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-            // The read function has stored a reference to the `memoryview`, but
-            // the `memoryview` contains C++ pointers which are going to be
-            // invalid. Call `memoryview.release()` to mark the `memoryview` as
-            // invalid.
-            PyObject* value;
-            PyObject* type;
-            PyObject* traceback;
-            PyErr_Fetch(&value, &type, &traceback);
-            static constexpr Identifier id_release("release");
-            const PythonPtr release_result(PyObject_CallMethodObjArgs(
-                memoryview.get(), id_release.get(), nullptr));
-            // Ignore errors from `release()` because the read function failed
-            // first.
-            PyErr_Restore(value, type, traceback);
-          }
           return FailOperation(read_function_name_);
         }
-        if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-          // The read function has stored a reference to the `memoryview`, but
-          // the `memoryview` contains C++ pointers which are going to be
-          // invalid. Call `memoryview.release()` to mark the `memoryview` as
-          // invalid.
-          static constexpr Identifier id_release("release");
-          const PythonPtr release_result(PyObject_CallMethodObjArgs(
-              memoryview.get(), id_release.get(), nullptr));
-          if (ABSL_PREDICT_FALSE(release_result == nullptr)) {
-            return FailOperation("release()");
-          }
+        if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
+          return FailOperation("MemoryView::Release()");
         }
       }
       const absl::optional<size_t> length_read_opt =

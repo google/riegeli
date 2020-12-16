@@ -20,6 +20,7 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
+#include "absl/types/span.h"
 #include "python/riegeli/base/utils.h"
 // clang-format: do not reorder the above include.
 
@@ -238,6 +239,52 @@ bool ExportCapsule(PyObject* module, const char* capsule_name,
     return false;
   }
   return true;
+}
+
+MemoryView::~MemoryView() {
+  if (object_ != nullptr && Py_REFCNT(object_.get()) > 1) {
+    PyObject* value;
+    PyObject* type;
+    PyObject* traceback;
+    PyErr_Fetch(&value, &type, &traceback);
+    ReleaseInternal();
+    PyErr_Restore(value, type, traceback);
+  }
+}
+
+PyObject* MemoryView::ToPython(absl::string_view value) {
+  RIEGELI_ASSERT(object_ == nullptr)
+      << "Failed precondition of MemoryView::ToPython(): "
+         "called more than once";
+  object_.reset(PyMemoryView_FromMemory(const_cast<char*>(value.data()),
+                                        IntCast<Py_ssize_t>(value.size()),
+                                        PyBUF_READ));
+  return object_.get();
+}
+
+PyObject* MemoryView::MutableToPython(absl::Span<char> value) {
+  RIEGELI_ASSERT(object_ == nullptr)
+      << "Failed precondition of MemoryView::MutableToPython(): "
+         "called more than once";
+  object_.reset(PyMemoryView_FromMemory(
+      value.data(), IntCast<Py_ssize_t>(value.size()), PyBUF_WRITE));
+  return object_.get();
+}
+
+bool MemoryView::Release() {
+  bool ok = true;
+  if (object_ != nullptr && Py_REFCNT(object_.get()) > 1) {
+    ok = ReleaseInternal();
+  }
+  object_.reset();
+  return ok;
+}
+
+inline bool MemoryView::ReleaseInternal() {
+  static constexpr Identifier id_release("release");
+  const PythonPtr release_result(
+      PyObject_CallMethodObjArgs(object_.get(), id_release.get(), nullptr));
+  return release_result != nullptr;
 }
 
 bool StrOrBytes::FromPython(PyObject* object) {

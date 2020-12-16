@@ -124,46 +124,23 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       PythonPtr write_result;
       if (!use_bytes_) {
         // Prefer passing a `memoryview` to avoid copying memory.
-        const PythonPtr memoryview(PyMemoryView_FromMemory(
-            const_cast<char*>(src.data()), IntCast<Py_ssize_t>(length_to_write),
-            PyBUF_READ));
-        if (ABSL_PREDICT_FALSE(memoryview == nullptr)) {
-          return FailOperation("PyMemoryView_FromMemory()");
+        MemoryView memory_view;
+        PyObject* const memory_view_object = memory_view.ToPython(
+            absl::string_view(src.data(), length_to_write));
+        if (ABSL_PREDICT_FALSE(memory_view_object == nullptr)) {
+          return FailOperation("MemoryView::ToPython()");
         }
         write_result.reset(PyObject_CallFunctionObjArgs(
-            write_function_.get(), memoryview.get(), nullptr));
+            write_function_.get(), memory_view_object, nullptr));
         if (ABSL_PREDICT_FALSE(write_result == nullptr)) {
           if (!PyErr_ExceptionMatches(PyExc_TypeError)) {
-            if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-              // `write()` has stored a reference to the `memoryview`, but the
-              // `memoryview` contains C++ pointers which are going to be
-              // invalid. Call `memoryview.release()` to mark the `memoryview`
-              // as invalid.
-              PyObject* value;
-              PyObject* type;
-              PyObject* traceback;
-              PyErr_Fetch(&value, &type, &traceback);
-              static constexpr Identifier id_release("release");
-              const PythonPtr release_result(PyObject_CallMethodObjArgs(
-                  memoryview.get(), id_release.get(), nullptr));
-              // Ignore errors from `release()` because `write()` failed first.
-              PyErr_Restore(value, type, traceback);
-            }
             return FailOperation("write()");
           }
           PyErr_Clear();
           use_bytes_ = true;
         }
-        if (ABSL_PREDICT_FALSE(Py_REFCNT(memoryview.get()) > 1)) {
-          // `write()` has stored a reference to the `memoryview`, but the
-          // `memoryview` contains C++ pointers which are going to be invalid.
-          // Call `memoryview.release()` to mark the `memoryview` as invalid.
-          static constexpr Identifier id_release("release");
-          const PythonPtr release_result(PyObject_CallMethodObjArgs(
-              memoryview.get(), id_release.get(), nullptr));
-          if (ABSL_PREDICT_FALSE(release_result == nullptr)) {
-            return FailOperation("release()");
-          }
+        if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
+          return FailOperation("MemoryView::Release()");
         }
       }
       if (use_bytes_) {
