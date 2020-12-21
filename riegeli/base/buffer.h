@@ -49,11 +49,16 @@ class Buffer {
   // Returns the usable data size. It can be greater than the requested size.
   size_t capacity() const { return capacity_; }
 
-  // Releases the ownership of the data pointer. It must be deleted using
-  // `DeleteReleased()` (or by doing nothing if `nullptr`).
+  // Returns the data pointer, releasing its ownership; the `Buffer` is left
+  // deallocated. The returned pointer must be deleted using `DeleteReleased()`.
+  //
+  // If the returned pointer is `nullptr`, it allowed but not required to call
+  // `DeleteReleased()`.
   char* Release();
 
   // Deletes the pointer obtained by `Release()`.
+  //
+  // Does nothing if `ptr == nullptr`.
   static void DeleteReleased(void* ptr);
 
   // Converts `*this` to `absl::Cord`. `substr` must be contained in `*this`.

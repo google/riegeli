@@ -1322,6 +1322,8 @@ inline Chain::RawBlock* Chain::RawBlock::Ref() {
 
 template <Chain::Ownership ownership>
 void Chain::RawBlock::Unref() {
+  // Optimization: avoid an expensive atomic read-modify-write operation if the
+  // reference count is 1.
   if (ownership == Ownership::kSteal &&
       (has_unique_owner() ||
        ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1)) {

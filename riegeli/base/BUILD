@@ -79,7 +79,17 @@ cc_library(
     hdrs = ["buffer.h"],
     deps = [
         ":base",
-        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
+    name = "shared_buffer",
+    srcs = ["shared_buffer.cc"],
+    hdrs = ["shared_buffer.h"],
+    deps = [
+        ":base",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
