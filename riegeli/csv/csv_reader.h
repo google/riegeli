@@ -28,6 +28,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -120,6 +121,12 @@ class CsvReaderBase : public Object {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  // `CsvReader` overrides `Object::Fail()` to annotate the status with the
+  // current line number. Derived classes which override it further should
+  // include a call to `CsvReader::Fail()`.
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
+
   // Reads the next record.
   //
   // Return values:
@@ -127,6 +134,18 @@ class CsvReaderBase : public Object {
   //  * `false` (when `healthy()`)  - source ends (`fields` are empty)
   //  * `false` (when `!healthy()`) - failure (`fields` are empty)
   bool ReadRecord(std::vector<std::string>& fields);
+
+  // The index of the next record, starting from 0.
+  uint64_t record_index() const { return record_index_; }
+
+  // The number of the first line of the most recently read record, starting
+  // from 1.
+  int64_t last_line_number() const { return last_line_number_; }
+
+  // The number of the next line, starting from 1.
+  //
+  // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
+  int64_t line_number() const { return line_number_; }
 
  protected:
   explicit CsvReaderBase(InitiallyClosed) noexcept;
@@ -138,6 +157,11 @@ class CsvReaderBase : public Object {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
   void Initialize(Reader* src, Options&& options);
+
+  // Exposes a `Fail()` override which does not annotate the status with the
+  // current position, unlike the public `CsvReader::Fail()`.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
   enum class CharClass : uint8_t {
@@ -158,6 +182,9 @@ class CsvReaderBase : public Object {
       char_classes_{};
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
+  uint64_t record_index_ = 0;
+  int64_t last_line_number_ = 0;
+  int64_t line_number_ = 0;
 };
 
 // `CsvReader` reads records of a CSV (comma-separated values) file.
@@ -262,7 +289,10 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       // part was moved.
       char_classes_(that.char_classes_),
       max_num_fields_(that.max_num_fields_),
-      max_field_length_(that.max_field_length_) {}
+      max_field_length_(that.max_field_length_),
+      record_index_(std::exchange(that.record_index_, 0)),
+      last_line_number_(std::exchange(that.last_line_number_, 0)),
+      line_number_(std::exchange(that.line_number_, 0)) {}
 
 inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
@@ -271,6 +301,9 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   char_classes_ = that.char_classes_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
+  record_index_ = std::exchange(that.record_index_, 0);
+  last_line_number_ = std::exchange(that.last_line_number_, 0);
+  line_number_ = std::exchange(that.line_number_, 0);
   return *this;
 }
 

@@ -25,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -52,6 +53,30 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                                 std::vector<std::string>().max_size());
   max_field_length_ =
       UnsignedMin(options.max_field_length(), std::string().max_size());
+  record_index_ = 0;
+  last_line_number_ = 0;
+  line_number_ = 1;
+}
+
+bool CsvReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at line ", line_number())));
+}
+
+bool CsvReaderBase::FailWithoutAnnotation(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of CsvReaderBase::FailWithoutAnnotation(): "
+         "status not failed";
+  return Object::Fail(std::move(status));
+}
+
+bool CsvReaderBase::FailWithoutAnnotation(const Object& dependency) {
+  RIEGELI_ASSERT(!dependency.healthy())
+      << "Failed precondition of CsvReaderBase::FailWithoutAnnotation(): "
+         "dependency healthy";
+  return FailWithoutAnnotation(dependency.status());
 }
 
 bool CsvReaderBase::MaxFieldLengthExceeded() {
@@ -82,10 +107,32 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
     }
     const CharClass char_class =
         char_classes_[static_cast<unsigned char>(*ptr++)];
-    if (ABSL_PREDICT_TRUE(char_class == CharClass::kOther) ||
-        char_class == CharClass::kLf || char_class == CharClass::kCr ||
-        char_class == CharClass::kFieldSeparator) {
-      continue;
+    if (ABSL_PREDICT_TRUE(char_class == CharClass::kOther)) continue;
+    switch (char_class) {
+      case CharClass::kLf:
+        ++line_number_;
+        continue;
+      case CharClass::kCr:
+        ++line_number_;
+        if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
+          if (ABSL_PREDICT_FALSE(src.available() >
+                                 max_field_length_ - field.size())) {
+            return MaxFieldLengthExceeded();
+          }
+          field.append(src.cursor(), src.available());
+          src.move_cursor(src.available());
+          if (ABSL_PREDICT_FALSE(!src.Pull())) {
+            if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+            return Fail(absl::DataLossError("Missing closing quote"));
+          }
+          ptr = src.cursor();
+        }
+        if (*ptr == '\n') ++ptr;
+        continue;
+      case CharClass::kFieldSeparator:
+        continue;
+      default:
+        break;
     }
     const size_t length = PtrDistance(src.cursor(), ptr - 1);
     if (ABSL_PREDICT_FALSE(length > max_field_length_ - field.size())) {
@@ -129,6 +176,7 @@ inline bool CsvReaderBase::ReadFields(Reader& src,
   RIEGELI_ASSERT_EQ(index, 0)
       << "Failed precondition of CsvReaderBase::ReadFields(): "
          "initial index must be 0";
+  last_line_number_ = line_number_;
   if (ABSL_PREDICT_FALSE(!src.Pull())) {
     // End of file at the beginning of a record.
     if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
@@ -180,8 +228,10 @@ next_field:
       case CharClass::kEscape:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
+        ++line_number_;
         return true;
       case CharClass::kCr:
+        ++line_number_;
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           return true;
@@ -209,8 +259,10 @@ next_field:
             ++index;
             goto next_field;
           case CharClass::kLf:
+            ++line_number_;
             return true;
           case CharClass::kCr:
+            ++line_number_;
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
               if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
               return true;
@@ -244,6 +296,7 @@ bool CsvReaderBase::ReadRecord(std::vector<std::string>& fields) {
     return false;
   }
   fields.erase(fields.begin() + index + 1, fields.end());
+  ++record_index_;
   return true;
 }
 

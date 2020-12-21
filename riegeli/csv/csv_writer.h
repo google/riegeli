@@ -24,7 +24,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -82,6 +84,12 @@ class CsvWriterBase : public Object {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  // `CsvWriter` overrides `Object::Fail()` to annotate the status with the
+  // current record index. Derived classes which override it further should
+  // include a call to `CsvWriter::Fail()`.
+  using Object::Fail;
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
+
   // Writes the next record.
   //
   // The type of the record must support iteration yielding `absl::string_view`:
@@ -97,6 +105,9 @@ class CsvWriterBase : public Object {
   bool WriteRecord(const Fields& fields);
   bool WriteRecord(std::initializer_list<absl::string_view> fields);
 
+  // The index of the next record, starting from 0.
+  uint64_t record_index() const { return record_index_; }
+
  protected:
   explicit CsvWriterBase(InitiallyClosed) noexcept;
   explicit CsvWriterBase(InitiallyOpen) noexcept;
@@ -107,6 +118,11 @@ class CsvWriterBase : public Object {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
   void Initialize(Writer* dest, Options&& options);
+
+  // Exposes a `Fail()` override which does not annotate the status with the
+  // current position, unlike the public `CsvWriter::Fail()`.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
   bool WriteQuoted(Writer& dest, absl::string_view field,
@@ -122,6 +138,7 @@ class CsvWriterBase : public Object {
       quotes_needed_{};
   Newline newline_ = Newline::kLf;
   char field_separator_ = '\0';
+  uint64_t record_index_ = 0;
 };
 
 // `CsvWriter` writes records to a CSV (comma-separated values) file.
@@ -221,7 +238,8 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
       // part was moved.
       quotes_needed_(that.quotes_needed_),
       newline_(that.newline_),
-      field_separator_(that.field_separator_) {}
+      field_separator_(that.field_separator_),
+      record_index_(std::exchange(that.record_index_, 0)) {}
 
 inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   Object::operator=(std::move(that));
@@ -230,6 +248,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   quotes_needed_ = that.quotes_needed_;
   newline_ = that.newline_;
   field_separator_ = that.field_separator_;
+  record_index_ = std::exchange(that.record_index_, 0);
   return *this;
 }
 
@@ -261,6 +280,7 @@ bool CsvWriterBase::WriteRecord(const Fields& fields) {
           !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
     return Fail(dest);
   }
+  ++record_index_;
   return true;
 }
 

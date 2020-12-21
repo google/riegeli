@@ -20,8 +20,10 @@
 #include <cstring>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -40,6 +42,28 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   quotes_needed_['"'] = true;
   newline_ = options.newline();
   field_separator_ = options.field_separator();
+  record_index_ = 0;
+}
+
+bool CsvWriterBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at record ", record_index())));
+}
+
+bool CsvWriterBase::FailWithoutAnnotation(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of CsvWriterBase::FailWithoutAnnotation(): "
+         "status not failed";
+  return Object::Fail(std::move(status));
+}
+
+bool CsvWriterBase::FailWithoutAnnotation(const Object& dependency) {
+  RIEGELI_ASSERT(!dependency.healthy())
+      << "Failed precondition of CsvWriterBase::FailWithoutAnnotation(): "
+         "dependency healthy";
+  return FailWithoutAnnotation(dependency.status());
 }
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,

@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["csv_reader.h"],
     deps = [
         "//riegeli/base",
+        "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -22,9 +23,11 @@ cc_library(
     hdrs = ["csv_writer.h"],
     deps = [
         "//riegeli/base",
+        "//riegeli/base:status",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
