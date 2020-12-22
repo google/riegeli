@@ -74,6 +74,26 @@ class CsvWriterBase : public Object {
     }
     Newline newline() const { return newline_; }
 
+    // Comment character.
+    //
+    // If not `absl::nullopt`, fields containing this character will be quoted.
+    //
+    // Often used: '#'
+    //
+    // Default: `absl::nullopt`
+    Options& set_comment(absl::optional<char> comment) & {
+      RIEGELI_ASSERT(comment != '\n' && comment != '\r')
+          << "Comment character conflicts with record separator";
+      RIEGELI_ASSERT(comment != '"')
+          << "Comment character conflicts with quote character";
+      comment_ = comment;
+      return *this;
+    }
+    Options&& set_comment(absl::optional<char> comment) && {
+      return std::move(set_comment(comment));
+    }
+    absl::optional<char> comment() const { return comment_; }
+
     // Field separator.
     //
     // Default: ','
@@ -93,6 +113,7 @@ class CsvWriterBase : public Object {
    private:
     bool standalone_record_ = false;
     Newline newline_ = Newline::kLf;
+    absl::optional<char> comment_;
     char field_separator_ = ',';
   };
 

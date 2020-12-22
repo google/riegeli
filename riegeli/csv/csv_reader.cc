@@ -33,8 +33,14 @@ namespace riegeli {
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of CsvReader: null Reader pointer";
-  RIEGELI_ASSERT(options.escape() != options.field_separator())
-      << "Escape character conflicts with field separator";
+  RIEGELI_ASSERT(options.field_separator() != options.comment())
+      << "Field separator conflicts with comment character";
+  if (options.escape() != absl::nullopt) {
+    RIEGELI_ASSERT(*options.escape() != options.comment())
+        << "Escape character conflicts with comment character";
+    RIEGELI_ASSERT(*options.escape() != options.field_separator())
+        << "Escape character conflicts with field separator";
+  }
   if (ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
     return;
@@ -42,6 +48,10 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 
   char_classes_['\n'] = CharClass::kLf;
   char_classes_['\r'] = CharClass::kCr;
+  if (options.comment() != absl::nullopt) {
+    char_classes_[static_cast<unsigned char>(*options.comment())] =
+        CharClass::kComment;
+  }
   char_classes_[static_cast<unsigned char>(options.field_separator())] =
       CharClass::kFieldSeparator;
   char_classes_['"'] = CharClass::kQuote;
@@ -83,6 +93,30 @@ bool CsvReaderBase::FailWithoutAnnotation(const Object& dependency) {
 bool CsvReaderBase::MaxFieldLengthExceeded() {
   return Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum field length exceeded: ", max_field_length_)));
+}
+
+inline void CsvReaderBase::SkipLine(Reader& src) {
+  const char* ptr = src.cursor();
+  for (;;) {
+    if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
+      src.move_cursor(src.available());
+      if (ABSL_PREDICT_FALSE(!src.Pull())) return;
+      ptr = src.cursor();
+    }
+    if (*ptr == '\n') {
+      ++line_number_;
+      src.set_cursor(ptr + 1);
+      return;
+    }
+    if (*ptr == '\r') {
+      ++line_number_;
+      src.set_cursor(ptr + 1);
+      if (ABSL_PREDICT_FALSE(!src.Pull())) return;
+      if (*src.cursor() == '\n') src.move_cursor(1);
+      return;
+    }
+    ++ptr;
+  }
 }
 
 inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
@@ -130,6 +164,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         }
         if (*ptr == '\n') ++ptr;
         continue;
+      case CharClass::kComment:
       case CharClass::kFieldSeparator:
         continue;
       default:
@@ -145,6 +180,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       case CharClass::kOther:
       case CharClass::kLf:
       case CharClass::kCr:
+      case CharClass::kComment:
       case CharClass::kFieldSeparator:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kQuote:
@@ -177,6 +213,7 @@ inline bool CsvReaderBase::ReadFields(Reader& src,
   RIEGELI_ASSERT_EQ(index, 0)
       << "Failed precondition of CsvReaderBase::ReadFields(): "
          "initial index must be 0";
+next_record:
   last_line_number_ = line_number_;
   if (standalone_record_) {
     if (record_index_ > 0) return false;
@@ -218,9 +255,19 @@ next_field:
     }
     const CharClass char_class =
         char_classes_[static_cast<unsigned char>(*ptr++)];
-    if (ABSL_PREDICT_TRUE(char_class == CharClass::kOther) ||
-        char_class == CharClass::kEscape) {
-      continue;
+    if (ABSL_PREDICT_TRUE(char_class == CharClass::kOther)) continue;
+    switch (char_class) {
+      case CharClass::kComment:
+        if (index == 0 && field.empty() && ptr - 1 == src.cursor()) {
+          src.set_cursor(ptr);
+          SkipLine(src);
+          goto next_record;
+        }
+        continue;
+      case CharClass::kEscape:
+        continue;
+      default:
+        break;
     }
     const size_t length = PtrDistance(src.cursor(), ptr - 1);
     if (ABSL_PREDICT_FALSE(length > max_field_length_ - field.size())) {
@@ -230,6 +277,7 @@ next_field:
     src.set_cursor(ptr);
     switch (char_class) {
       case CharClass::kOther:
+      case CharClass::kComment:
       case CharClass::kEscape:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
@@ -263,6 +311,7 @@ next_field:
         src.move_cursor(1);
         switch (char_class_after_quoted) {
           case CharClass::kOther:
+          case CharClass::kComment:
           case CharClass::kEscape:
             return Fail(
                 absl::DataLossError("Unquoted data after closing quote"));

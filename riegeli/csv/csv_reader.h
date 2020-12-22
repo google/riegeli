@@ -60,6 +60,26 @@ class CsvReaderBase : public Object {
     }
     bool standalone_record() const { return standalone_record_; }
 
+    // Comment character.
+    //
+    // If not `absl::nullopt`, a line beginning with this character is skipped.
+    //
+    // Often used: '#'
+    //
+    // Default: `absl::nullopt`
+    Options& set_comment(absl::optional<char> comment) & {
+      RIEGELI_ASSERT(comment != '\n' && comment != '\r')
+          << "Comment character conflicts with record separator";
+      RIEGELI_ASSERT(comment != '"')
+          << "Comment character conflicts with quote character";
+      comment_ = comment;
+      return *this;
+    }
+    Options&& set_comment(absl::optional<char> comment) && {
+      return std::move(set_comment(comment));
+    }
+    absl::optional<char> comment() const { return comment_; }
+
     // Field separator.
     //
     // Default: ','
@@ -127,6 +147,7 @@ class CsvReaderBase : public Object {
 
    private:
     bool standalone_record_ = false;
+    absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
@@ -184,12 +205,14 @@ class CsvReaderBase : public Object {
     kOther,
     kLf,
     kCr,
+    kComment,
     kFieldSeparator,
     kQuote,
     kEscape,
   };
 
   ABSL_ATTRIBUTE_COLD bool MaxFieldLengthExceeded();
+  void SkipLine(Reader& src);
   bool ReadQuoted(Reader& src, std::string& field);
   bool ReadFields(Reader& src, std::vector<std::string>& fields, size_t& index);
 

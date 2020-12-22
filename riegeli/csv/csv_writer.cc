@@ -31,6 +31,8 @@ namespace riegeli {
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of CsvWriter: null Writer pointer";
+  RIEGELI_ASSERT(options.field_separator() != options.comment())
+      << "Field separator conflicts with comment character";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -38,6 +40,9 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
 
   quotes_needed_['\n'] = true;
   quotes_needed_['\r'] = true;
+  if (options.comment() != absl::nullopt) {
+    quotes_needed_[static_cast<unsigned char>(*options.comment())] = true;
+  }
   quotes_needed_[static_cast<unsigned char>(options.field_separator())] = true;
   quotes_needed_['"'] = true;
   standalone_record_ = options.standalone_record();
