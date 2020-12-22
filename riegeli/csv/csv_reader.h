@@ -45,6 +45,21 @@ class CsvReaderBase : public Object {
    public:
     Options() noexcept {}
 
+    // If `true`, will read only a single record. A record terminator must not
+    // be present. An empty file yields a single record too.
+    //
+    // If `false`, will read any number of records.
+    //
+    // Default: `false`
+    Options& set_standalone_record(bool standalone_record) & {
+      standalone_record_ = standalone_record;
+      return *this;
+    }
+    Options&& set_standalone_record(bool standalone_record) && {
+      return std::move(set_standalone_record(standalone_record));
+    }
+    bool standalone_record() const { return standalone_record_; }
+
     // Field separator.
     //
     // Default: ','
@@ -111,6 +126,7 @@ class CsvReaderBase : public Object {
     size_t max_field_length() const { return max_field_length_; }
 
    private:
+    bool standalone_record_ = false;
     char field_separator_ = ',';
     absl::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
@@ -180,6 +196,7 @@ class CsvReaderBase : public Object {
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
       char_classes_{};
+  bool standalone_record_ = false;
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
   uint64_t record_index_ = 0;
@@ -288,6 +305,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       char_classes_(that.char_classes_),
+      standalone_record_(that.standalone_record_),
       max_num_fields_(that.max_num_fields_),
       max_field_length_(that.max_field_length_),
       record_index_(std::exchange(that.record_index_, 0)),
@@ -299,6 +317,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   char_classes_ = that.char_classes_;
+  standalone_record_ = that.standalone_record_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
   record_index_ = std::exchange(that.record_index_, 0);

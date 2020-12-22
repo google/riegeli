@@ -47,6 +47,21 @@ class CsvWriterBase : public Object {
    public:
     Options() noexcept {}
 
+    // If `true`, will write only a single record. A record terminator will not
+    // be written. `WriteRecord()` must be called at most once.
+    //
+    // If `false`, will write any number of records.
+    //
+    // Default: `false`
+    Options& set_standalone_record(bool standalone_record) & {
+      standalone_record_ = standalone_record;
+      return *this;
+    }
+    Options&& set_standalone_record(bool standalone_record) && {
+      return std::move(set_standalone_record(standalone_record));
+    }
+    bool standalone_record() const { return standalone_record_; }
+
     // Record terminator.
     //
     // Default: `Newline::kLf`.
@@ -76,6 +91,7 @@ class CsvWriterBase : public Object {
     char field_separator() const { return field_separator_; }
 
    private:
+    bool standalone_record_ = false;
     Newline newline_ = Newline::kLf;
     char field_separator_ = ',';
   };
@@ -136,6 +152,7 @@ class CsvWriterBase : public Object {
   // of a more complicated lookup code.
   std::array<bool, std::numeric_limits<unsigned char>::max() + 1>
       quotes_needed_{};
+  bool standalone_record_ = false;
   Newline newline_ = Newline::kLf;
   char field_separator_ = '\0';
   uint64_t record_index_ = 0;
@@ -237,6 +254,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       quotes_needed_(that.quotes_needed_),
+      standalone_record_(that.standalone_record_),
       newline_(that.newline_),
       field_separator_(that.field_separator_),
       record_index_(std::exchange(that.record_index_, 0)) {}
@@ -246,6 +264,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   quotes_needed_ = that.quotes_needed_;
+  standalone_record_ = that.standalone_record_;
   newline_ = that.newline_;
   field_separator_ = that.field_separator_;
   record_index_ = std::exchange(that.record_index_, 0);
@@ -264,6 +283,11 @@ inline void CsvWriterBase::Reset(InitiallyOpen) {
 template <typename Fields>
 bool CsvWriterBase::WriteRecord(const Fields& fields) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (standalone_record_) {
+    RIEGELI_ASSERT_EQ(record_index_, 0u)
+        << "Failed precondition of CsvWriterBase::WriteRecord(): "
+           "called more than once when Options::standalone_record() is true";
+  }
   Writer& dest = *dest_writer();
   bool first = true;
   for (const absl::string_view field : fields) {
@@ -276,9 +300,11 @@ bool CsvWriterBase::WriteRecord(const Fields& fields) {
     }
     if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
   }
-  if (ABSL_PREDICT_FALSE(
-          !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
-    return Fail(dest);
+  if (!standalone_record_) {
+    if (ABSL_PREDICT_FALSE(
+            !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
+      return Fail(dest);
+    }
   }
   ++record_index_;
   return true;

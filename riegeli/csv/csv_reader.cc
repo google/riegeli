@@ -49,6 +49,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     char_classes_[static_cast<unsigned char>(*options.escape())] =
         CharClass::kEscape;
   }
+  standalone_record_ = options.standalone_record();
   max_num_fields_ = UnsignedMin(options.max_num_fields(),
                                 std::vector<std::string>().max_size());
   max_field_length_ =
@@ -177,10 +178,14 @@ inline bool CsvReaderBase::ReadFields(Reader& src,
       << "Failed precondition of CsvReaderBase::ReadFields(): "
          "initial index must be 0";
   last_line_number_ = line_number_;
-  if (ABSL_PREDICT_FALSE(!src.Pull())) {
-    // End of file at the beginning of a record.
-    if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
-    return false;
+  if (standalone_record_) {
+    if (record_index_ > 0) return false;
+  } else {
+    if (ABSL_PREDICT_FALSE(!src.Pull())) {
+      // End of file at the beginning of a record.
+      if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+      return false;
+    }
   }
 
 next_field:
@@ -229,9 +234,15 @@ next_field:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
+        if (ABSL_PREDICT_FALSE(standalone_record_)) {
+          return Fail(absl::DataLossError("Unexpected newline"));
+        }
         return true;
       case CharClass::kCr:
         ++line_number_;
+        if (ABSL_PREDICT_FALSE(standalone_record_)) {
+          return Fail(absl::DataLossError("Unexpected newline"));
+        }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           return true;
@@ -260,9 +271,15 @@ next_field:
             goto next_field;
           case CharClass::kLf:
             ++line_number_;
+            if (ABSL_PREDICT_FALSE(standalone_record_)) {
+              return Fail(absl::DataLossError("Unexpected newline"));
+            }
             return true;
           case CharClass::kCr:
             ++line_number_;
+            if (ABSL_PREDICT_FALSE(standalone_record_)) {
+              return Fail(absl::DataLossError("Unexpected newline"));
+            }
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
               if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
               return true;
