@@ -64,9 +64,11 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                                 std::vector<std::string>().max_size());
   max_field_length_ =
       UnsignedMin(options.max_field_length(), std::string().max_size());
+  recovery_ = std::move(options.recovery());
   record_index_ = 0;
   last_line_number_ = 0;
   line_number_ = 1;
+  recoverable_ = false;
 }
 
 bool CsvReaderBase::Fail(absl::Status status) {
@@ -91,6 +93,7 @@ bool CsvReaderBase::FailWithoutAnnotation(const Object& dependency) {
 }
 
 bool CsvReaderBase::MaxFieldLengthExceeded() {
+  recoverable_ = true;
   return Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum field length exceeded: ", max_field_length_)));
 }
@@ -121,6 +124,7 @@ inline void CsvReaderBase::SkipLine(Reader& src) {
 
 inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
   if (ABSL_PREDICT_FALSE(!field.empty())) {
+    recoverable_ = true;
     return Fail(absl::DataLossError("Unquoted data before opening quote"));
   }
 
@@ -136,6 +140,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+        recoverable_ = true;
         return Fail(absl::DataLossError("Missing closing quote"));
       }
       ptr = src.cursor();
@@ -158,6 +163,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
           src.move_cursor(src.available());
           if (ABSL_PREDICT_FALSE(!src.Pull())) {
             if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+            recoverable_ = true;
             return Fail(absl::DataLossError("Missing closing quote"));
           }
           ptr = src.cursor();
@@ -197,6 +203,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          recoverable_ = true;
           return Fail(absl::DataLossError("Missing character after escape"));
         }
         ptr = src.cursor() + 1;
@@ -227,6 +234,7 @@ next_record:
 
 next_field:
   if (ABSL_PREDICT_FALSE(index == max_num_fields_)) {
+    recoverable_ = true;
     return Fail(absl::ResourceExhaustedError(
         absl::StrCat("Maximum number of fields exceeded: ", max_num_fields_)));
   }
@@ -313,6 +321,7 @@ next_field:
           case CharClass::kOther:
           case CharClass::kComment:
           case CharClass::kEscape:
+            recoverable_ = true;
             return Fail(
                 absl::DataLossError("Unquoted data after closing quote"));
           case CharClass::kFieldSeparator:
@@ -353,11 +362,19 @@ bool CsvReaderBase::ReadRecord(std::vector<std::string>& fields) {
     return false;
   }
   Reader& src = *src_reader();
+try_again:
   size_t index = 0;
   // Assign to existing elements of `fields` when possible and then `erase()`
   // excess elements, instead of calling `fields.clear()` upfront, to avoid
   // losing existing `std::string` allocations.
   if (ABSL_PREDICT_FALSE(!ReadFields(src, fields, index))) {
+    if (recovery_ != nullptr && recoverable_) {
+      recoverable_ = false;
+      absl::Status status = this->status();
+      MarkNotFailed();
+      SkipLine(src);
+      if (recovery_(std::move(status))) goto try_again;
+    }
     fields.clear();
     return false;
   }

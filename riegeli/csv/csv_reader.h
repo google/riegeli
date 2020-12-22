@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <functional>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -145,6 +146,47 @@ class CsvReaderBase : public Object {
     }
     size_t max_field_length() const { return max_field_length_; }
 
+    // Sets the recovery function to be called after skipping over an invalid
+    // line.
+    //
+    // If the recovery function is set to `nullptr`, then an invalid line causes
+    // `CsvReader` to fail.
+    //
+    // If the recovery function is set to a value other than `nullptr`, then
+    // an invalid line causes `CsvReader` to skip over the invalid line and call
+    // the recovery function. If the recovery function returns `true`, reading
+    // continues. If the recovery function returns `false`, reading ends.
+    //
+    // Calling `ReadRecord()` may cause the recovery function to be called (in
+    // the same thread).
+    //
+    // Default: `nullptr`.
+    Options& set_recovery(const std::function<bool(absl::Status)>& recovery) & {
+      recovery_ = recovery;
+      return *this;
+    }
+    Options& set_recovery(std::function<bool(absl::Status)>&& recovery) & {
+      recovery_ = std::move(recovery);
+      return *this;
+    }
+    Options&& set_recovery(
+        const std::function<bool(absl::Status)>& recovery) && {
+      return std::move(set_recovery(recovery));
+    }
+    Options&& set_recovery(std::function<bool(absl::Status)>&& recovery) && {
+      return std::move(set_recovery(std::move(recovery)));
+    }
+    std::function<bool(absl::Status)>& recovery() & { return recovery_; }
+    const std::function<bool(absl::Status)>& recovery() const& {
+      return recovery_;
+    }
+    std::function<bool(absl::Status)>&& recovery() && {
+      return std::move(recovery_);
+    }
+    const std::function<bool(absl::Status)>&& recovery() const&& {
+      return std::move(recovery_);
+    }
+
    private:
     bool standalone_record_ = false;
     absl::optional<char> comment_;
@@ -152,6 +194,7 @@ class CsvReaderBase : public Object {
     absl::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
     size_t max_field_length_ = std::numeric_limits<size_t>::max();
+    std::function<bool(absl::Status)> recovery_;
   };
 
   // Returns the byte `Reader` being read from. Unchanged by `Close()`.
@@ -222,9 +265,11 @@ class CsvReaderBase : public Object {
   bool standalone_record_ = false;
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
+  std::function<bool(absl::Status)> recovery_;
   uint64_t record_index_ = 0;
   int64_t last_line_number_ = 0;
   int64_t line_number_ = 0;
+  bool recoverable_ = false;
 };
 
 // `CsvReader` reads records of a CSV (comma-separated values) file.
@@ -331,9 +376,11 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       standalone_record_(that.standalone_record_),
       max_num_fields_(that.max_num_fields_),
       max_field_length_(that.max_field_length_),
+      recovery_(std::move(that.recovery_)),
       record_index_(std::exchange(that.record_index_, 0)),
       last_line_number_(std::exchange(that.last_line_number_, 0)),
-      line_number_(std::exchange(that.line_number_, 0)) {}
+      line_number_(std::exchange(that.line_number_, 0)),
+      recoverable_(std::exchange(that.recoverable_, false)) {}
 
 inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
@@ -343,9 +390,11 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   standalone_record_ = that.standalone_record_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
+  recovery_ = std::move(that.recovery_);
   record_index_ = std::exchange(that.record_index_, 0);
   last_line_number_ = std::exchange(that.last_line_number_, 0);
   line_number_ = std::exchange(that.line_number_, 0);
+  recoverable_ = std::exchange(that.recoverable_, false);
   return *this;
 }
 
