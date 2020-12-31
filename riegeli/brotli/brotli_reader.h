@@ -28,7 +28,6 @@
 #include "brotli/decode.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/brotli/brotli_allocator.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -307,9 +306,6 @@ void BrotliReader<Src>::VerifyEnd() {
   BrotliReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<BrotliReader<Src>> : ResetterByReset<BrotliReader<Src>> {};
 
 }  // namespace riegeli
 

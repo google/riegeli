@@ -40,7 +40,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
-#include "riegeli/base/resetter.h"
 
 namespace riegeli {
 
@@ -2236,9 +2235,6 @@ inline void* ChainBlock::Release() { return std::exchange(block_, nullptr); }
 inline void ChainBlock::DeleteReleased(void* ptr) {
   if (ptr != nullptr) static_cast<RawBlock*>(ptr)->Unref();
 }
-
-template <>
-struct Resetter<Chain> : ResetterByReset<Chain> {};
 
 }  // namespace riegeli
 

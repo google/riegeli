@@ -31,7 +31,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
@@ -998,13 +997,6 @@ void FdMMapReader<Src>::Done() {
     }
   }
 }
-
-template <typename Src>
-struct Resetter<FdReader<Src>> : ResetterByReset<FdReader<Src>> {};
-template <typename Src>
-struct Resetter<FdStreamReader<Src>> : ResetterByReset<FdStreamReader<Src>> {};
-template <typename Src>
-struct Resetter<FdMMapReader<Src>> : ResetterByReset<FdMMapReader<Src>> {};
 
 }  // namespace riegeli
 

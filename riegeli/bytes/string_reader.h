@@ -26,7 +26,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_view_dependency.h"
 
@@ -213,9 +212,6 @@ inline void StringReader<Src>::MoveSrc(StringReader&& that) {
     }
   }
 }
-
-template <typename Src>
-struct Resetter<StringReader<Src>> : ResetterByReset<StringReader<Src>> {};
 
 }  // namespace riegeli
 

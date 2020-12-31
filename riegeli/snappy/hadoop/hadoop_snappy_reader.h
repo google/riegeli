@@ -29,7 +29,6 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -268,10 +267,6 @@ void HadoopSnappyReader<Src>::VerifyEnd() {
   HadoopSnappyReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<HadoopSnappyReader<Src>>
-    : ResetterByReset<HadoopSnappyReader<Src>> {};
 
 }  // namespace riegeli
 

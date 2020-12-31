@@ -34,7 +34,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -43,7 +42,6 @@
 #include "tensorflow/core/platform/status.h"
 
 namespace riegeli {
-
 namespace tensorflow {
 
 // Template parameter independent part of `FileReader`.
@@ -425,11 +423,6 @@ void FileReader<Src>::Done() {
 }
 
 }  // namespace tensorflow
-
-template <typename Src>
-struct Resetter<tensorflow::FileReader<Src>>
-    : ResetterByReset<tensorflow::FileReader<Src>> {};
-
 }  // namespace riegeli
 
 #endif  // RIEGELI_TENSORFLOW_IO_FILE_READER_H_

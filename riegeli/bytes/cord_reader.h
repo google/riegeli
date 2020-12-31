@@ -28,7 +28,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/writer.h"
@@ -297,9 +296,6 @@ inline void CordReader<Src>::MoveSrc(CordReader&& that) {
     }
   }
 }
-
-template <typename Src>
-struct Resetter<CordReader<Src>> : ResetterByReset<CordReader<Src>> {};
 
 }  // namespace riegeli
 

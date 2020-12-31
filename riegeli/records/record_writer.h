@@ -33,7 +33,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -708,9 +707,6 @@ void RecordWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<RecordWriter<Dest>> : ResetterByReset<RecordWriter<Dest>> {};
 
 }  // namespace riegeli
 

@@ -29,7 +29,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/stream_dependency.h"
 
@@ -302,9 +301,6 @@ void OstreamWriter<Dest>::Done() {
     }
   }
 }
-
-template <typename Dest>
-struct Resetter<OstreamWriter<Dest>> : ResetterByReset<OstreamWriter<Dest>> {};
 
 }  // namespace riegeli
 

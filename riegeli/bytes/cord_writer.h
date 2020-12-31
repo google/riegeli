@@ -30,7 +30,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -358,9 +357,6 @@ inline void CordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append());
 }
-
-template <typename Dest>
-struct Resetter<CordWriter<Dest>> : ResetterByReset<CordWriter<Dest>> {};
 
 }  // namespace riegeli
 

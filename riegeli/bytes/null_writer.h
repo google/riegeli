@@ -24,7 +24,6 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -87,9 +86,6 @@ inline NullWriter& NullWriter::operator=(NullWriter&& that) noexcept {
   buffer_ = std::move(that.buffer_);
   return *this;
 }
-
-template <>
-struct Resetter<NullWriter> : ResetterByReset<NullWriter> {};
 
 }  // namespace riegeli
 

@@ -23,7 +23,7 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/resetter.h"
+#include "riegeli/base/reset.h"
 
 namespace riegeli {
 
@@ -38,11 +38,6 @@ namespace riegeli {
 // parametrized by `Manager`, with `Ptr` fixed. A user of the host class
 // specifies ownership of the dependent object, and sometimes narrows its type,
 // by choosing the `Manager` type.
-//
-// `Dependency<Ptr, Manager>` uses `Resetter<Manager>`. An appropriate
-// specialization of `Resetter` can be defined if a `Manager` can be made
-// equivalent to a newly constructed `Manager` while avoiding constructing a
-// temporary `Manager` and moving from it.
 //
 // The following operations are typically provided by specializations of
 // `Dependency<Ptr, Manager>` (operations may differ depending on `Ptr`;
@@ -139,7 +134,7 @@ class DependencyBase {
     return *this;
   }
 
-  void Reset() { Resetter<Manager>::Reset(manager_); }
+  void Reset() { riegeli::Reset(manager_); }
 
   void Reset(const Manager& manager) { manager_ = manager; }
   void Reset(Manager&& manager) { manager_ = std::move(manager); }
@@ -162,8 +157,8 @@ class DependencyBase {
   template <typename... ManagerArgs, size_t... Indices>
   void Reset(std::tuple<ManagerArgs...>&& manager_args,
              std::index_sequence<Indices...>) {
-    Resetter<Manager>::Reset(manager_, std::forward<ManagerArgs>(
-                                           std::get<Indices>(manager_args))...);
+    riegeli::Reset(manager_, std::forward<ManagerArgs>(
+                                 std::get<Indices>(manager_args))...);
   }
 
   Manager manager_;

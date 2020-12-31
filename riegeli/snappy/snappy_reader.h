@@ -30,7 +30,6 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/function_dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -353,9 +352,6 @@ void SnappyReader<Src>::VerifyEnd() {
   SnappyReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<SnappyReader<Src>> : ResetterByReset<SnappyReader<Src>> {};
 
 namespace internal {
 

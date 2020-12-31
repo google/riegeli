@@ -31,7 +31,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -283,9 +282,6 @@ inline void ChunkDecoder::SetIndex(uint64_t index) {
         << "Failed seeking values reader: " << values_reader_.status();
   }
 }
-
-template <>
-struct Resetter<ChunkDecoder> : ResetterByReset<ChunkDecoder> {};
 
 }  // namespace riegeli
 

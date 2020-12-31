@@ -28,7 +28,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
@@ -271,10 +270,6 @@ void WrappedBackwardWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) FailWithoutAnnotation(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<WrappedBackwardWriter<Dest>>
-    : ResetterByReset<WrappedBackwardWriter<Dest>> {};
 
 }  // namespace riegeli
 

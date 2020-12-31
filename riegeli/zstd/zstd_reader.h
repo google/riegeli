@@ -32,7 +32,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "zstd.h"
@@ -583,9 +582,6 @@ void ZstdReader<Src>::VerifyEnd() {
   ZstdReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<ZstdReader<Src>> : ResetterByReset<ZstdReader<Src>> {};
 
 }  // namespace riegeli
 

@@ -28,7 +28,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
@@ -360,10 +359,6 @@ inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
     }
   }
 }
-
-template <typename Dest>
-struct Resetter<ChainBackwardWriter<Dest>>
-    : ResetterByReset<ChainBackwardWriter<Dest>> {};
 
 }  // namespace riegeli
 

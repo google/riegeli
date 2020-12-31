@@ -31,7 +31,6 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/function_dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -413,9 +412,6 @@ void SnappyWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<SnappyWriter<Dest>> : ResetterByReset<SnappyWriter<Dest>> {};
 
 namespace internal {
 

@@ -29,7 +29,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zlib/zlib_dictionary.h"
@@ -443,9 +442,6 @@ void ZlibWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<ZlibWriter<Dest>> : ResetterByReset<ZlibWriter<Dest>> {};
 
 }  // namespace riegeli
 

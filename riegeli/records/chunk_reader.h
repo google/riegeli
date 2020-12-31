@@ -24,7 +24,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/records/block.h"
@@ -421,10 +420,6 @@ void DefaultChunkReader<Src>::Done() {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
-
-template <typename Src>
-struct Resetter<DefaultChunkReader<Src>>
-    : ResetterByReset<DefaultChunkReader<Src>> {};
 
 }  // namespace riegeli
 

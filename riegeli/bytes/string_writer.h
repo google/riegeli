@@ -29,7 +29,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -296,9 +295,6 @@ inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
     }
   }
 }
-
-template <typename Dest>
-struct Resetter<StringWriter<Dest>> : ResetterByReset<StringWriter<Dest>> {};
 
 }  // namespace riegeli
 

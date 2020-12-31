@@ -25,7 +25,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/span_dependency.h"
 
@@ -242,9 +241,6 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     }
   }
 }
-
-template <typename Dest>
-struct Resetter<ArrayWriter<Dest>> : ResetterByReset<ArrayWriter<Dest>> {};
 
 }  // namespace riegeli
 

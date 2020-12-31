@@ -29,7 +29,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/recycling_pool.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/zlib/zlib_dictionary.h"
@@ -469,9 +468,6 @@ void ZlibReader<Src>::VerifyEnd() {
   ZlibReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<ZlibReader<Src>> : ResetterByReset<ZlibReader<Src>> {};
 
 }  // namespace riegeli
 

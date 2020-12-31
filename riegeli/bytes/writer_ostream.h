@@ -27,7 +27,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -365,9 +364,6 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::close() {
   }
   return *this;
 }
-
-template <typename Dest>
-struct Resetter<WriterOstream<Dest>> : ResetterByReset<WriterOstream<Dest>> {};
 
 }  // namespace riegeli
 

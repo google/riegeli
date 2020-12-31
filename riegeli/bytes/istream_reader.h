@@ -29,7 +29,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/stream_dependency.h"
 
@@ -306,9 +305,6 @@ void IstreamReader<Src>::Done() {
     }
   }
 }
-
-template <typename Src>
-struct Resetter<IstreamReader<Src>> : ResetterByReset<IstreamReader<Src>> {};
 
 }  // namespace riegeli
 

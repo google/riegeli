@@ -27,7 +27,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -369,9 +368,6 @@ inline ReaderIstream<Src>& ReaderIstream<Src>::close() {
   }
   return *this;
 }
-
-template <typename Src>
-struct Resetter<ReaderIstream<Src>> : ResetterByReset<ReaderIstream<Src>> {};
 
 }  // namespace riegeli
 

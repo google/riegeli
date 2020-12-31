@@ -31,7 +31,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/line_writing.h"
 
@@ -408,9 +407,6 @@ void CsvWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<CsvWriter<Dest>> : ResetterByReset<CsvWriter<Dest>> {};
 
 }  // namespace riegeli
 

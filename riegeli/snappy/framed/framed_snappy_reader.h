@@ -28,7 +28,6 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -285,10 +284,6 @@ void FramedSnappyReader<Src>::VerifyEnd() {
   FramedSnappyReaderBase::VerifyEnd();
   if (src_.is_owning() && ABSL_PREDICT_TRUE(healthy())) src_->VerifyEnd();
 }
-
-template <typename Src>
-struct Resetter<FramedSnappyReader<Src>>
-    : ResetterByReset<FramedSnappyReader<Src>> {};
 
 }  // namespace riegeli
 

@@ -34,7 +34,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/chunk_decoder.h"
@@ -698,9 +697,6 @@ inline RecordPosition RecordReader<Src>::pos() const {
   }
   return RecordPosition(src_->pos(), 0);
 }
-
-template <typename Src>
-struct Resetter<RecordReader<Src>> : ResetterByReset<RecordReader<Src>> {};
 
 }  // namespace riegeli
 

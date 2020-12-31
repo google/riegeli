@@ -33,14 +33,12 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/platform/status.h"
 
 namespace riegeli {
-
 namespace tensorflow {
 
 // Template parameter independent part of `FileWriter`.
@@ -392,11 +390,6 @@ void FileWriter<Dest>::Done() {
 }
 
 }  // namespace tensorflow
-
-template <typename Dest>
-struct Resetter<tensorflow::FileWriter<Dest>>
-    : ResetterByReset<tensorflow::FileWriter<Dest>> {};
-
 }  // namespace riegeli
 
 #endif  // RIEGELI_TENSORFLOW_IO_FILE_WRITER_H_

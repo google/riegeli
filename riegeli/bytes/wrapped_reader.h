@@ -28,7 +28,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -273,9 +272,6 @@ void WrappedReader<Src>::VerifyEnd() {
     MakeBuffer(*src_);
   }
 }
-
-template <typename Src>
-struct Resetter<WrappedReader<Src>> : ResetterByReset<WrappedReader<Src>> {};
 
 }  // namespace riegeli
 

@@ -29,7 +29,6 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -284,10 +283,6 @@ void FramedSnappyWriter<Dest>::Done() {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
 }
-
-template <typename Dest>
-struct Resetter<FramedSnappyWriter<Dest>>
-    : ResetterByReset<FramedSnappyWriter<Dest>> {};
 
 }  // namespace riegeli
 

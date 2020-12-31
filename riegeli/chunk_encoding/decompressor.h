@@ -30,7 +30,6 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/wrapped_reader.h"
@@ -40,7 +39,6 @@
 #include "riegeli/zstd/zstd_reader.h"
 
 namespace riegeli {
-
 namespace internal {
 
 // Returns uncompressed size of `compressed_data`.
@@ -256,11 +254,6 @@ inline void Decompressor<Src>::VerifyEnd() {
 }
 
 }  // namespace internal
-
-template <typename Src>
-struct Resetter<internal::Decompressor<Src>>
-    : ResetterByReset<internal::Decompressor<Src>> {};
-
 }  // namespace riegeli
 
 #endif  // RIEGELI_CHUNK_ENCODING_DECOMPRESSOR_H_

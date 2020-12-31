@@ -31,7 +31,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
 
@@ -743,12 +742,6 @@ void FdStreamWriter<Dest>::Done() {
     }
   }
 }
-
-template <typename Dest>
-struct Resetter<FdWriter<Dest>> : ResetterByReset<FdWriter<Dest>> {};
-template <typename Dest>
-struct Resetter<FdStreamWriter<Dest>> : ResetterByReset<FdStreamWriter<Dest>> {
-};
 
 }  // namespace riegeli
 

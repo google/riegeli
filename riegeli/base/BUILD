@@ -33,7 +33,7 @@ cc_library(
         "memory.h",
         "object.h",
         "port.h",
-        "resetter.h",
+        "reset.h",
         "stable_dependency.h",
     ],
     deps = [

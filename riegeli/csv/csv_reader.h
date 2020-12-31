@@ -34,7 +34,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/resetter.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -479,9 +478,6 @@ void CsvReader<Src>::Done() {
     if (ABSL_PREDICT_FALSE(!src_->Close())) Fail(*src_);
   }
 }
-
-template <typename Src>
-struct Resetter<CsvReader<Src>> : ResetterByReset<CsvReader<Src>> {};
 
 }  // namespace riegeli
 
