@@ -50,7 +50,6 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   }
   quotes_needed_[static_cast<unsigned char>(options.field_separator())] = true;
   quotes_needed_['"'] = true;
-  standalone_record_ = options.standalone_record();
   newline_ = options.newline();
   field_separator_ = options.field_separator();
   record_index_ = 0;

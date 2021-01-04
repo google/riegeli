@@ -123,7 +123,7 @@ class RecordReaderBase : public Object {
     // invalid file contents cause `RecordReader` to skip over the invalid
     // region and call the recovery function. If the recovery function returns
     // `true`, reading continues. If the recovery function returns `false`,
-    // reading ends.
+    // reading ends as if the end of source was encountered.
     //
     // If `Close()` is called and file contents were truncated, the recovery
     // function is called if set. The `RecordReader` remains closed.

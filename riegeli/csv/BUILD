@@ -10,6 +10,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:status",
         "//riegeli/bytes:reader",
+        "//riegeli/bytes:string_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -24,6 +25,7 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:status",
+        "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
         "@com_google_absl//absl/base:core_headers",

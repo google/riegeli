@@ -19,17 +19,20 @@
 #include <array>
 #include <functional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/string_reader.h"
 
 namespace riegeli {
 
@@ -62,7 +65,6 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     char_classes_[static_cast<unsigned char>(*options.escape())] =
         CharClass::kEscape;
   }
-  standalone_record_ = options.standalone_record();
   max_num_fields_ = UnsignedMin(options.max_num_fields(),
                                 std::vector<std::string>().max_size());
   max_field_length_ =
@@ -217,6 +219,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
   }
 }
 
+template <bool standalone_record>
 inline bool CsvReaderBase::ReadFields(Reader& src,
                                       std::vector<std::string>& fields,
                                       size_t& field_index) {
@@ -225,7 +228,7 @@ inline bool CsvReaderBase::ReadFields(Reader& src,
          "initial index must be 0";
 next_record:
   last_line_number_ = line_number_;
-  if (standalone_record_) {
+  if (standalone_record) {
     if (ABSL_PREDICT_FALSE(record_index_ > 0)) return false;
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -293,13 +296,13 @@ next_field:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
-        if (ABSL_PREDICT_FALSE(standalone_record_)) {
+        if (standalone_record) {
           return Fail(absl::DataLossError("Unexpected newline"));
         }
         return true;
       case CharClass::kCr:
         ++line_number_;
-        if (ABSL_PREDICT_FALSE(standalone_record_)) {
+        if (standalone_record) {
           return Fail(absl::DataLossError("Unexpected newline"));
         }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -332,13 +335,13 @@ next_field:
             goto next_field;
           case CharClass::kLf:
             ++line_number_;
-            if (ABSL_PREDICT_FALSE(standalone_record_)) {
+            if (standalone_record) {
               return Fail(absl::DataLossError("Unexpected newline"));
             }
             return true;
           case CharClass::kCr:
             ++line_number_;
-            if (ABSL_PREDICT_FALSE(standalone_record_)) {
+            if (standalone_record) {
               return Fail(absl::DataLossError("Unexpected newline"));
             }
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -360,6 +363,21 @@ next_field:
 }
 
 bool CsvReaderBase::ReadRecord(std::vector<std::string>& fields) {
+  return ReadRecordInternal<false>(fields);
+}
+
+namespace internal {
+
+inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
+                                 std::vector<std::string>& fields) {
+  return csv_reader.ReadRecordInternal<true>(fields);
+}
+
+}  // namespace internal
+
+template <bool standalone_record>
+inline bool CsvReaderBase::ReadRecordInternal(
+    std::vector<std::string>& fields) {
   if (ABSL_PREDICT_FALSE(!healthy())) {
     fields.clear();
     return false;
@@ -370,13 +388,26 @@ try_again:
   // Assign to existing elements of `fields` when possible and then `erase()`
   // excess elements, instead of calling `fields.clear()` upfront, to avoid
   // losing existing `std::string` allocations.
-  if (ABSL_PREDICT_FALSE(!ReadFields(src, fields, field_index))) {
+  if (ABSL_PREDICT_FALSE(
+          !ReadFields<standalone_record>(src, fields, field_index))) {
     if (recovery_ != nullptr && recoverable_) {
       recoverable_ = false;
       absl::Status status = this->status();
       MarkNotFailed();
       SkipLine(src);
       if (recovery_(std::move(status))) goto try_again;
+      if (standalone_record) {
+        // Recovery was cancelled. Return the same result as for an empty input:
+        // one empty field.
+        if (fields.empty()) {
+          fields.emplace_back();
+        } else {
+          fields[0].clear();
+        }
+        fields.erase(fields.begin() + 1, fields.end());
+        ++record_index_;
+        return true;
+      }
     }
     fields.clear();
     return false;
@@ -384,6 +415,19 @@ try_again:
   fields.erase(fields.begin() + field_index + 1, fields.end());
   ++record_index_;
   return true;
+}
+
+absl::Status ReadCsvRecordFromString(absl::string_view src,
+                                     std::vector<std::string>& fields,
+                                     CsvReaderBase::Options options) {
+  CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
+                                       std::move(options));
+  if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, fields))) {
+    RIEGELI_ASSERT(!csv_reader.healthy())
+        << "ReadStandaloneRecord() returned false but healthy() is true";
+    return csv_reader.status();
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace riegeli

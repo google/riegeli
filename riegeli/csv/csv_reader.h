@@ -30,6 +30,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -38,27 +39,19 @@
 
 namespace riegeli {
 
+class CsvReaderBase;
+
+namespace internal {
+bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
+                          std::vector<std::string>& fields);
+}  // namespace internal
+
 // Template parameter independent part of `CsvReader`.
 class CsvReaderBase : public Object {
  public:
   class Options {
    public:
     Options() noexcept {}
-
-    // If `true`, will read only a single record. A record terminator must not
-    // be present. An empty file yields a single record too.
-    //
-    // If `false`, will read any number of records.
-    //
-    // Default: `false`
-    Options& set_standalone_record(bool standalone_record) & {
-      standalone_record_ = standalone_record;
-      return *this;
-    }
-    Options&& set_standalone_record(bool standalone_record) && {
-      return std::move(set_standalone_record(standalone_record));
-    }
-    bool standalone_record() const { return standalone_record_; }
 
     // Comment character.
     //
@@ -159,7 +152,8 @@ class CsvReaderBase : public Object {
     // If the recovery function is set to a value other than `nullptr`, then
     // an invalid line causes `CsvReader` to skip over the invalid line and call
     // the recovery function. If the recovery function returns `true`, reading
-    // continues. If the recovery function returns `false`, reading ends.
+    // continues. If the recovery function returns `false`, reading ends as if
+    // the end of source was encountered.
     //
     // Calling `ReadRecord()` may cause the recovery function to be called (in
     // the same thread).
@@ -192,7 +186,6 @@ class CsvReaderBase : public Object {
     }
 
    private:
-    bool standalone_record_ = false;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> escape_;
@@ -265,6 +258,9 @@ class CsvReaderBase : public Object {
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
+  friend bool internal::ReadStandaloneRecord(CsvReaderBase& csv_reader,
+                                             std::vector<std::string>& fields);
+
   enum class CharClass : uint8_t {
     kOther,
     kLf,
@@ -278,13 +274,15 @@ class CsvReaderBase : public Object {
   ABSL_ATTRIBUTE_COLD bool MaxFieldLengthExceeded();
   void SkipLine(Reader& src);
   bool ReadQuoted(Reader& src, std::string& field);
+  template <bool standalone_record>
   bool ReadFields(Reader& src, std::vector<std::string>& fields,
                   size_t& field_index);
+  template <bool standalone_record>
+  bool ReadRecordInternal(std::vector<std::string>& fields);
 
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
       char_classes_{};
-  bool standalone_record_ = false;
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
   std::function<bool(absl::Status)> recovery_;
@@ -382,6 +380,13 @@ CsvReader(std::tuple<SrcArgs...> src_args,
     -> CsvReader<void>;  // Delete.
 #endif
 
+// Reads a single record from a CSV string.
+//
+// A record terminator must not be present.
+absl::Status ReadCsvRecordFromString(
+    absl::string_view src, std::vector<std::string>& fields,
+    CsvReaderBase::Options options = CsvReaderBase::Options());
+
 // Implementation details follow.
 
 inline CsvReaderBase::CsvReaderBase(InitiallyClosed) noexcept
@@ -395,7 +400,6 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       char_classes_(that.char_classes_),
-      standalone_record_(that.standalone_record_),
       max_num_fields_(that.max_num_fields_),
       max_field_length_(that.max_field_length_),
       recovery_(std::move(that.recovery_)),
@@ -409,7 +413,6 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   char_classes_ = that.char_classes_;
-  standalone_record_ = that.standalone_record_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
   recovery_ = std::move(that.recovery_);
