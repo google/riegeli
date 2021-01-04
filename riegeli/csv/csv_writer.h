@@ -16,9 +16,11 @@
 #define RIEGELI_CSV_CSV_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <array>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <tuple>
 #include <type_traits>
@@ -28,6 +30,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
@@ -141,7 +144,16 @@ class CsvWriterBase : public Object {
   bool WriteRecord(const Fields& fields);
   bool WriteRecord(std::initializer_list<absl::string_view> fields);
 
+  // The index of the most recently written record, starting from 0.
+  //
+  // `last_record_index()` is unchanged by `Close()`.
+  //
+  // Precondition: some `WriteRecord()` call succeeded.
+  uint64_t last_record_index() const;
+
   // The index of the next record, starting from 0.
+  //
+  // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
 
  protected:
@@ -309,16 +321,20 @@ bool CsvWriterBase::WriteRecord(const Fields& fields) {
            "called more than once when Options::standalone_record() is true";
   }
   Writer& dest = *dest_writer();
-  bool first = true;
-  for (const absl::string_view field : fields) {
-    if (first) {
-      first = false;
-    } else {
+  using std::begin;
+  auto iter = begin(fields);
+  using std::end;
+  auto end_iter = end(fields);
+  if (iter != end_iter) {
+    for (;;) {
+      const absl::string_view field = *iter;
+      if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
+      ++iter;
+      if (iter == end_iter) break;
       if (ABSL_PREDICT_FALSE(!dest.WriteChar(field_separator_))) {
         return Fail(dest);
       }
     }
-    if (ABSL_PREDICT_FALSE(!WriteField(dest, field))) return false;
   }
   if (!standalone_record_) {
     if (ABSL_PREDICT_FALSE(
@@ -333,6 +349,13 @@ bool CsvWriterBase::WriteRecord(const Fields& fields) {
 inline bool CsvWriterBase::WriteRecord(
     std::initializer_list<absl::string_view> fields) {
   return WriteRecord<std::initializer_list<absl::string_view>>(fields);
+}
+
+inline uint64_t CsvWriterBase::last_record_index() const {
+  RIEGELI_ASSERT_NE(record_index_, 0u)
+      << "Failed precondition of CsvWriterBase::last_record_index(): "
+         "no record was written";
+  return record_index_ - 1;
 }
 
 template <typename Dest>

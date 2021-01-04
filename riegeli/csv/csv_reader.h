@@ -120,8 +120,13 @@ class CsvReaderBase : public Object {
     // If this number is exceeded, reading fails with
     // `absl::ResourceExhaustedError()`.
     //
+    // `max_num_fields` must be at least 1.
     // Default: `std::numeric_limits<size_t>::max()`.
     Options& set_max_num_fields(size_t max_num_fields) & {
+      RIEGELI_ASSERT_GE(max_num_fields, 1u)
+          << "Failed precondition of "
+             "CsvReaderBase::Options::set_max_num_fields(): "
+             "number of fields out of range";
       max_num_fields_ = max_num_fields;
       return *this;
     }
@@ -214,16 +219,33 @@ class CsvReaderBase : public Object {
   //  * `false` (when `!healthy()`) - failure (`fields` are empty)
   bool ReadRecord(std::vector<std::string>& fields);
 
+  // The index of the most recently read record, starting from 0.
+  //
+  // `last_record_index()` is unchanged by `Close()`.
+  //
+  // Precondition: some `ReadRecord()` call succeeded.
+  uint64_t last_record_index() const;
+
   // The index of the next record, starting from 0.
+  //
+  // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
 
-  // The number of the first line of the most recently read record, starting
-  // from 1.
-  int64_t last_line_number() const { return last_line_number_; }
+  // The number of the first line of the most recently read record (or attempted
+  // to be read), starting from 1.
+  //
+  // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
+  //
+  // `last_line_number()` is unchanged by `Close()`.
+  //
+  // Precondition: `ReadRecord()` was called.
+  int64_t last_line_number() const;
 
   // The number of the next line, starting from 1.
   //
   // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
+  //
+  // `line_number()` is unchanged by `Close()`.
   int64_t line_number() const { return line_number_; }
 
  protected:
@@ -256,7 +278,8 @@ class CsvReaderBase : public Object {
   ABSL_ATTRIBUTE_COLD bool MaxFieldLengthExceeded();
   void SkipLine(Reader& src);
   bool ReadQuoted(Reader& src, std::string& field);
-  bool ReadFields(Reader& src, std::vector<std::string>& fields, size_t& index);
+  bool ReadFields(Reader& src, std::vector<std::string>& fields,
+                  size_t& field_index);
 
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
@@ -404,6 +427,20 @@ inline void CsvReaderBase::Reset(InitiallyClosed) {
 inline void CsvReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   char_classes_ = {};
+}
+
+inline uint64_t CsvReaderBase::last_record_index() const {
+  RIEGELI_ASSERT_NE(record_index_, 0u)
+      << "Failed precondition of CsvReaderBase::last_record_index(): "
+         "no record was read";
+  return record_index_ - 1;
+}
+
+inline int64_t CsvReaderBase::last_line_number() const {
+  RIEGELI_ASSERT_NE(last_line_number_, 0)
+      << "Failed precondition of CsvReaderBase::last_line_number(): "
+         "no record was read or attempted to be read";
+  return last_line_number_;
 }
 
 template <typename Src>

@@ -17,7 +17,9 @@
 #include <stddef.h>
 
 #include <array>
+#include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
@@ -25,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 
@@ -216,14 +219,14 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
 
 inline bool CsvReaderBase::ReadFields(Reader& src,
                                       std::vector<std::string>& fields,
-                                      size_t& index) {
-  RIEGELI_ASSERT_EQ(index, 0)
+                                      size_t& field_index) {
+  RIEGELI_ASSERT_EQ(field_index, 0u)
       << "Failed precondition of CsvReaderBase::ReadFields(): "
          "initial index must be 0";
 next_record:
   last_line_number_ = line_number_;
   if (standalone_record_) {
-    if (record_index_ > 0) return false;
+    if (ABSL_PREDICT_FALSE(record_index_ > 0)) return false;
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
       // End of file at the beginning of a record.
@@ -233,17 +236,17 @@ next_record:
   }
 
 next_field:
-  if (ABSL_PREDICT_FALSE(index == max_num_fields_)) {
+  if (ABSL_PREDICT_FALSE(field_index == max_num_fields_)) {
     recoverable_ = true;
     return Fail(absl::ResourceExhaustedError(
         absl::StrCat("Maximum number of fields exceeded: ", max_num_fields_)));
   }
-  if (fields.size() == index) {
+  if (fields.size() == field_index) {
     fields.emplace_back();
   } else {
-    fields[index].clear();
+    fields[field_index].clear();
   }
-  std::string& field = fields[index];
+  std::string& field = fields[field_index];
 
   // Data from `src.cursor()` to where `ptr` stops will be appended to `field`.
   const char* ptr = src.cursor();
@@ -266,7 +269,7 @@ next_field:
     if (ABSL_PREDICT_TRUE(char_class == CharClass::kOther)) continue;
     switch (char_class) {
       case CharClass::kComment:
-        if (index == 0 && field.empty() && ptr - 1 == src.cursor()) {
+        if (field_index == 0 && field.empty() && ptr - 1 == src.cursor()) {
           src.set_cursor(ptr);
           SkipLine(src);
           goto next_record;
@@ -306,7 +309,7 @@ next_field:
         if (*src.cursor() == '\n') src.move_cursor(1);
         return true;
       case CharClass::kFieldSeparator:
-        ++index;
+        ++field_index;
         goto next_field;
       case CharClass::kQuote:
         if (ABSL_PREDICT_FALSE(!ReadQuoted(src, field))) return false;
@@ -325,7 +328,7 @@ next_field:
             return Fail(
                 absl::DataLossError("Unquoted data after closing quote"));
           case CharClass::kFieldSeparator:
-            ++index;
+            ++field_index;
             goto next_field;
           case CharClass::kLf:
             ++line_number_;
@@ -363,11 +366,11 @@ bool CsvReaderBase::ReadRecord(std::vector<std::string>& fields) {
   }
   Reader& src = *src_reader();
 try_again:
-  size_t index = 0;
+  size_t field_index = 0;
   // Assign to existing elements of `fields` when possible and then `erase()`
   // excess elements, instead of calling `fields.clear()` upfront, to avoid
   // losing existing `std::string` allocations.
-  if (ABSL_PREDICT_FALSE(!ReadFields(src, fields, index))) {
+  if (ABSL_PREDICT_FALSE(!ReadFields(src, fields, field_index))) {
     if (recovery_ != nullptr && recoverable_) {
       recoverable_ = false;
       absl::Status status = this->status();
@@ -378,7 +381,7 @@ try_again:
     fields.clear();
     return false;
   }
-  fields.erase(fields.begin() + index + 1, fields.end());
+  fields.erase(fields.begin() + field_index + 1, fields.end());
   ++record_index_;
   return true;
 }
