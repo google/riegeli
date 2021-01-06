@@ -43,7 +43,7 @@ class CsvReaderBase;
 
 namespace internal {
 bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
-                          std::vector<std::string>& fields);
+                          std::vector<std::string>& record);
 }  // namespace internal
 
 // Template parameter independent part of `CsvReader`.
@@ -207,10 +207,10 @@ class CsvReaderBase : public Object {
   // Reads the next record.
   //
   // Return values:
-  //  * `true`                      - success (`fields` are set)
-  //  * `false` (when `healthy()`)  - source ends (`fields` are empty)
-  //  * `false` (when `!healthy()`) - failure (`fields` are empty)
-  bool ReadRecord(std::vector<std::string>& fields);
+  //  * `true`                      - success (`record` is set)
+  //  * `false` (when `healthy()`)  - source ends (`record` is empty)
+  //  * `false` (when `!healthy()`) - failure (`record` is empty)
+  bool ReadRecord(std::vector<std::string>& record);
 
   // The index of the most recently read record, starting from 0.
   //
@@ -259,7 +259,7 @@ class CsvReaderBase : public Object {
 
  private:
   friend bool internal::ReadStandaloneRecord(CsvReaderBase& csv_reader,
-                                             std::vector<std::string>& fields);
+                                             std::vector<std::string>& record);
 
   enum class CharClass : uint8_t {
     kOther,
@@ -278,7 +278,7 @@ class CsvReaderBase : public Object {
   bool ReadFields(Reader& src, std::vector<std::string>& fields,
                   size_t& field_index);
   template <bool standalone_record>
-  bool ReadRecordInternal(std::vector<std::string>& fields);
+  bool ReadRecordInternal(std::vector<std::string>& record);
 
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
@@ -384,7 +384,7 @@ CsvReader(std::tuple<SrcArgs...> src_args,
 //
 // A record terminator must not be present.
 absl::Status ReadCsvRecordFromString(
-    absl::string_view src, std::vector<std::string>& fields,
+    absl::string_view src, std::vector<std::string>& record,
     CsvReaderBase::Options options = CsvReaderBase::Options());
 
 // Implementation details follow.

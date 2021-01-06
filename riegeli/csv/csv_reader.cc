@@ -362,34 +362,34 @@ next_field:
   }
 }
 
-bool CsvReaderBase::ReadRecord(std::vector<std::string>& fields) {
-  return ReadRecordInternal<false>(fields);
+bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
+  return ReadRecordInternal<false>(record);
 }
 
 namespace internal {
 
 inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
-                                 std::vector<std::string>& fields) {
-  return csv_reader.ReadRecordInternal<true>(fields);
+                                 std::vector<std::string>& record) {
+  return csv_reader.ReadRecordInternal<true>(record);
 }
 
 }  // namespace internal
 
 template <bool standalone_record>
 inline bool CsvReaderBase::ReadRecordInternal(
-    std::vector<std::string>& fields) {
+    std::vector<std::string>& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) {
-    fields.clear();
+    record.clear();
     return false;
   }
   Reader& src = *src_reader();
 try_again:
   size_t field_index = 0;
-  // Assign to existing elements of `fields` when possible and then `erase()`
-  // excess elements, instead of calling `fields.clear()` upfront, to avoid
+  // Assign to existing elements of `record` when possible and then `erase()`
+  // excess elements, instead of calling `record.clear()` upfront, to avoid
   // losing existing `std::string` allocations.
   if (ABSL_PREDICT_FALSE(
-          !ReadFields<standalone_record>(src, fields, field_index))) {
+          !ReadFields<standalone_record>(src, record, field_index))) {
     if (recovery_ != nullptr && recoverable_) {
       recoverable_ = false;
       absl::Status status = this->status();
@@ -399,30 +399,30 @@ try_again:
       if (standalone_record) {
         // Recovery was cancelled. Return the same result as for an empty input:
         // one empty field.
-        if (fields.empty()) {
-          fields.emplace_back();
+        if (record.empty()) {
+          record.emplace_back();
         } else {
-          fields[0].clear();
+          record[0].clear();
         }
-        fields.erase(fields.begin() + 1, fields.end());
+        record.erase(record.begin() + 1, record.end());
         ++record_index_;
         return true;
       }
     }
-    fields.clear();
+    record.clear();
     return false;
   }
-  fields.erase(fields.begin() + field_index + 1, fields.end());
+  record.erase(record.begin() + field_index + 1, record.end());
   ++record_index_;
   return true;
 }
 
 absl::Status ReadCsvRecordFromString(absl::string_view src,
-                                     std::vector<std::string>& fields,
+                                     std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
   CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
                                        std::move(options));
-  if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, fields))) {
+  if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, record))) {
     RIEGELI_ASSERT(!csv_reader.healthy())
         << "ReadStandaloneRecord() returned false but healthy() is true";
     return csv_reader.status();

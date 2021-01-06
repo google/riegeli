@@ -45,7 +45,7 @@ class CsvWriterBase;
 
 namespace internal {
 template <typename Fields>
-bool WriteStandaloneRecord(const Fields& fields, CsvWriterBase& csv_writer);
+bool WriteStandaloneRecord(const Fields& record, CsvWriterBase& csv_writer);
 }  // namespace internal
 
 // Template parameter independent part of `CsvWriter`.
@@ -125,7 +125,7 @@ class CsvWriterBase : public Object {
   // Writes the next record.
   //
   // The type of the record must support iteration yielding `absl::string_view`:
-  // `for (absl::string_view field : fields)`, e.g. `std::vector<std::string>`.
+  // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
   //
   // The CSV format does not support empty records: writing a record with no
   // fields has the same effect as writing a record containing one empty field.
@@ -133,9 +133,9 @@ class CsvWriterBase : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  template <typename Fields>
-  bool WriteRecord(const Fields& fields);
-  bool WriteRecord(std::initializer_list<absl::string_view> fields);
+  template <typename Record>
+  bool WriteRecord(const Record& record);
+  bool WriteRecord(std::initializer_list<absl::string_view> record);
 
   // The index of the most recently written record, starting from 0.
   //
@@ -166,15 +166,15 @@ class CsvWriterBase : public Object {
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
-  template <typename Fields>
-  friend bool internal::WriteStandaloneRecord(const Fields& fields,
+  template <typename Record>
+  friend bool internal::WriteStandaloneRecord(const Record& record,
                                               CsvWriterBase& csv_writer);
 
   bool WriteQuoted(Writer& dest, absl::string_view field,
                    size_t already_scanned);
   bool WriteField(Writer& dest, absl::string_view field);
-  template <bool standalone_record, typename Fields>
-  bool WriteRecordInternal(const Fields& fields);
+  template <bool standalone_record, typename Record>
+  bool WriteRecordInternal(const Record& record);
 
   // Lookup table for checking whether quotes are needed if the given character
   // is present in a field.
@@ -276,13 +276,13 @@ CsvWriter(std::tuple<DestArgs...> dest_args,
 // A record terminator will not be included.
 //
 // The type of the record must support iteration yielding `absl::string_view`:
-// `for (absl::string_view field : fields)`, e.g. `std::vector<std::string>`.
-template <typename Fields>
+// `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
+template <typename Record>
 std::string WriteCsvRecordToString(
-    const Fields& fields,
+    const Record& record,
     CsvWriterBase::Options options = CsvWriterBase::Options());
 std::string WriteCsvRecordToString(
-    std::initializer_list<absl::string_view> fields,
+    std::initializer_list<absl::string_view> record,
     CsvWriterBase::Options options = CsvWriterBase::Options());
 
 // Implementation details follow.
@@ -322,23 +322,23 @@ inline void CsvWriterBase::Reset(InitiallyOpen) {
   quotes_needed_ = {};
 }
 
-template <typename Fields>
-bool CsvWriterBase::WriteRecord(const Fields& fields) {
-  return WriteRecordInternal<false>(fields);
+template <typename Record>
+bool CsvWriterBase::WriteRecord(const Record& record) {
+  return WriteRecordInternal<false>(record);
 }
 
 namespace internal {
 
-template <typename Fields>
-inline bool WriteStandaloneRecord(const Fields& fields,
+template <typename Record>
+inline bool WriteStandaloneRecord(const Record& record,
                                   CsvWriterBase& csv_writer) {
-  return csv_writer.WriteRecordInternal<true>(fields);
+  return csv_writer.WriteRecordInternal<true>(record);
 }
 
 }  // namespace internal
 
-template <bool standalone_record, typename Fields>
-inline bool CsvWriterBase::WriteRecordInternal(const Fields& fields) {
+template <bool standalone_record, typename Record>
+inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (standalone_record) {
     RIEGELI_ASSERT_EQ(record_index_, 0u)
@@ -347,9 +347,9 @@ inline bool CsvWriterBase::WriteRecordInternal(const Fields& fields) {
   }
   Writer& dest = *dest_writer();
   using std::begin;
-  auto iter = begin(fields);
+  auto iter = begin(record);
   using std::end;
-  auto end_iter = end(fields);
+  auto end_iter = end(record);
   if (iter != end_iter) {
     for (;;) {
       const absl::string_view field = *iter;
@@ -372,8 +372,8 @@ inline bool CsvWriterBase::WriteRecordInternal(const Fields& fields) {
 }
 
 inline bool CsvWriterBase::WriteRecord(
-    std::initializer_list<absl::string_view> fields) {
-  return WriteRecord<std::initializer_list<absl::string_view>>(fields);
+    std::initializer_list<absl::string_view> record) {
+  return WriteRecord<std::initializer_list<absl::string_view>>(record);
 }
 
 inline uint64_t CsvWriterBase::last_record_index() const {
@@ -456,23 +456,23 @@ void CsvWriter<Dest>::Done() {
   }
 }
 
-template <typename Fields>
-std::string WriteCsvRecordToString(const Fields& fields,
+template <typename Record>
+std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
   std::string dest;
   CsvWriter<StringWriter<>> csv_writer(std::forward_as_tuple(&dest),
                                        std::move(options));
-  internal::WriteStandaloneRecord(fields, csv_writer);
+  internal::WriteStandaloneRecord(record, csv_writer);
   // This can fail only if `std::string` overflows.
   RIEGELI_CHECK(csv_writer.Close()) << csv_writer.status();
   return dest;
 }
 
 inline std::string WriteCsvRecordToString(
-    std::initializer_list<absl::string_view> fields,
+    std::initializer_list<absl::string_view> record,
     CsvWriterBase::Options options) {
   return WriteCsvRecordToString<std::initializer_list<absl::string_view>>(
-      fields, std::move(options));
+      record, std::move(options));
 }
 
 }  // namespace riegeli
