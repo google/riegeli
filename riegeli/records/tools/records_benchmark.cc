@@ -28,7 +28,6 @@
 #include <array>
 #include <cerrno>
 #include <cstdlib>
-#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -41,6 +40,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -194,9 +194,10 @@ class Benchmarks {
 
   void RunOne(
       absl::string_view name,
-      std::function<void(absl::string_view, const std::vector<std::string>&)>
+      absl::FunctionRef<void(absl::string_view,
+                             const std::vector<std::string>&)>
           write_records,
-      std::function<void(absl::string_view, std::vector<std::string>*)>
+      absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
           read_records,
       std::ostream* report);
 
@@ -444,9 +445,9 @@ void Benchmarks::RunAll(std::ostream* report) {
 
 void Benchmarks::RunOne(
     absl::string_view name,
-    std::function<void(absl::string_view, const std::vector<std::string>&)>
+    absl::FunctionRef<void(absl::string_view, const std::vector<std::string>&)>
         write_records,
-    std::function<void(absl::string_view, std::vector<std::string>*)>
+    absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
         read_records,
     std::ostream* report) {
   absl::Format(report, "%-*s ", max_name_width_, name);
