@@ -75,7 +75,7 @@ class NotFoundError(RiegeliError):
   """Some requested entity (e.g., file or directory) was not found.
 
   Note to server developers: if a request is denied for an entire class of
-  users, such as gradual feature rollout or undocumented whitelist,
+  users, such as gradual feature rollout or undocumented allowlist,
   `NotFoundError` may be used. If a request is denied for some users within a
   class of users, such as user-based access control, `PermissionDeniedError`
   must be used.
