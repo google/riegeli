@@ -23,6 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -38,6 +39,12 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
       << "Failed precondition of CsvWriter: null Writer pointer";
   RIEGELI_ASSERT(options.field_separator() != options.comment())
       << "Field separator conflicts with comment character";
+  if (options.quote() != absl::nullopt) {
+    RIEGELI_ASSERT(*options.quote() != options.comment())
+        << "Quote character conflicts with comment character";
+    RIEGELI_ASSERT(*options.quote() != options.field_separator())
+        << "Quote character conflicts with field separator";
+  }
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -49,9 +56,12 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
     quotes_needed_[static_cast<unsigned char>(*options.comment())] = true;
   }
   quotes_needed_[static_cast<unsigned char>(options.field_separator())] = true;
-  quotes_needed_['"'] = true;
+  if (options.quote() != absl::nullopt) {
+    quotes_needed_[static_cast<unsigned char>(*options.quote())] = true;
+  }
   newline_ = options.newline();
   field_separator_ = options.field_separator();
+  quote_ = options.quote();
   record_index_ = 0;
 }
 
@@ -78,14 +88,20 @@ bool CsvWriterBase::FailWithoutAnnotation(const Object& dependency) {
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
                                        size_t already_scanned) {
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar('"'))) return Fail(dest);
+  if (ABSL_PREDICT_FALSE(quote_ == absl::nullopt)) {
+    return Fail(absl::InvalidArgumentError(absl::StrCat(
+        "If quoting is turned off, special characters inside fields are not "
+        "expressible: '",
+        absl::CHexEscape(absl::string_view(&field[already_scanned], 1)), "'")));
+  }
+  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) return Fail(dest);
   const char* start = field.data();
   const char* next_to_check = field.data() + already_scanned;
   const char* const limit = field.data() + field.size();
   // Write characters [start, limit), except that if quotes are found in
   // [next_to_check, limit), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
-             next_to_check, '"', PtrDistance(next_to_check, limit)))) {
+             next_to_check, *quote_, PtrDistance(next_to_check, limit)))) {
     if (ABSL_PREDICT_FALSE(!dest.Write(
             absl::string_view(start, PtrDistance(start, next_quote + 1))))) {
       return Fail(dest);
@@ -97,7 +113,7 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
           !dest.Write(absl::string_view(start, PtrDistance(start, limit))))) {
     return Fail(dest);
   }
-  if (ABSL_PREDICT_FALSE(!dest.WriteChar('"'))) return Fail(dest);
+  if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) return Fail(dest);
   return true;
 }
 

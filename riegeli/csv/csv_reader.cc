@@ -41,11 +41,19 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       << "Failed precondition of CsvReader: null Reader pointer";
   RIEGELI_ASSERT(options.field_separator() != options.comment())
       << "Field separator conflicts with comment character";
+  if (options.quote() != absl::nullopt) {
+    RIEGELI_ASSERT(*options.quote() != options.comment())
+        << "Quote character conflicts with comment character";
+    RIEGELI_ASSERT(*options.quote() != options.field_separator())
+        << "Quote character conflicts with field separator";
+  }
   if (options.escape() != absl::nullopt) {
     RIEGELI_ASSERT(*options.escape() != options.comment())
         << "Escape character conflicts with comment character";
     RIEGELI_ASSERT(*options.escape() != options.field_separator())
         << "Escape character conflicts with field separator";
+    RIEGELI_ASSERT(*options.escape() != options.quote())
+        << "Escape character conflicts with quote character";
   }
   if (ABSL_PREDICT_FALSE(!src->healthy())) {
     Fail(*src);
@@ -60,11 +68,15 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   }
   char_classes_[static_cast<unsigned char>(options.field_separator())] =
       CharClass::kFieldSeparator;
-  char_classes_['"'] = CharClass::kQuote;
+  if (options.quote() != absl::nullopt) {
+    char_classes_[static_cast<unsigned char>(*options.quote())] =
+        CharClass::kQuote;
+  }
   if (options.escape() != absl::nullopt) {
     char_classes_[static_cast<unsigned char>(*options.escape())] =
         CharClass::kEscape;
   }
+  quote_ = options.quote().value_or('\0');
   max_num_fields_ = UnsignedMin(options.max_num_fields(),
                                 std::vector<std::string>().max_size());
   max_field_length_ =
@@ -199,7 +211,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           return true;
         }
-        if (*src.cursor() == '"') {
+        if (*src.cursor() == quote_) {
           // Quote written twice.
           ptr = src.cursor() + 1;
           continue;

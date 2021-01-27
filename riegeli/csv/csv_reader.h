@@ -63,8 +63,6 @@ class CsvReaderBase : public Object {
     Options& set_comment(absl::optional<char> comment) & {
       RIEGELI_ASSERT(comment != '\n' && comment != '\r')
           << "Comment character conflicts with record separator";
-      RIEGELI_ASSERT(comment != '"')
-          << "Comment character conflicts with quote character";
       comment_ = comment;
       return *this;
     }
@@ -79,8 +77,6 @@ class CsvReaderBase : public Object {
     Options& set_field_separator(char field_separator) & {
       RIEGELI_ASSERT(field_separator != '\n' && field_separator != '\r')
           << "Field separator conflicts with record separator";
-      RIEGELI_ASSERT(field_separator != '"')
-          << "Field separator conflicts with quote character";
       field_separator_ = field_separator;
       return *this;
     }
@@ -88,6 +84,29 @@ class CsvReaderBase : public Object {
       return std::move(set_field_separator(field_separator));
     }
     char field_separator() const { return field_separator_; }
+
+    // Quote character.
+    //
+    // Quotes around a field allow expressing special characters inside the
+    // field: LF, CR, comment character, field separator, or quote character
+    // itself.
+    //
+    // To express a quote inside a quoted field, it must be written twice or
+    // preceded by an escape character.
+    //
+    // If `absl::nullopt`, special characters inside fields are not expressible.
+    //
+    // Default: `"`
+    Options& set_quote(absl::optional<char> quote) & {
+      RIEGELI_ASSERT(quote != '\n' && quote != '\r')
+          << "Quote character conflicts with record separator";
+      quote_ = quote;
+      return *this;
+    }
+    Options&& set_quote(absl::optional<char> quote) && {
+      return std::move(set_quote(quote));
+    }
+    absl::optional<char> quote() const { return quote_; }
 
     // Escape character.
     //
@@ -98,8 +117,6 @@ class CsvReaderBase : public Object {
     Options& set_escape(absl::optional<char> escape) & {
       RIEGELI_ASSERT(escape != '\n' && escape != '\r')
           << "Escape character conflicts with record separator";
-      RIEGELI_ASSERT(escape != '"')
-          << "Escape character conflicts with quote character";
       escape_ = escape;
       return *this;
     }
@@ -188,6 +205,7 @@ class CsvReaderBase : public Object {
    private:
     absl::optional<char> comment_;
     char field_separator_ = ',';
+    absl::optional<char> quote_ = '"';
     absl::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
     size_t max_field_length_ = std::numeric_limits<size_t>::max();
@@ -283,6 +301,8 @@ class CsvReaderBase : public Object {
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
       char_classes_{};
+  // Meaningful if `char_classes_` contains `CharClass::kQuote`.
+  char quote_ = '\0';
   size_t max_num_fields_ = 0;
   size_t max_field_length_ = 0;
   std::function<bool(absl::Status)> recovery_;
@@ -301,6 +321,9 @@ class CsvReaderBase : public Object {
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
 //
+// If a comment character is used (usually it is not), a line beginning with the
+// comment character is skipped.
+//
 // A record consists of a sequence of fields separated by a field separator
 // (usually ',' or '\t'). Each record contains at least one field. In particular
 // an empty line is interpreted as one empty field, except that an empty line
@@ -310,11 +333,15 @@ class CsvReaderBase : public Object {
 // be handled by the application; `CsvReader` does not treat the first record
 // specially.
 //
-// Quotes ('"') around a field allow expressing special characters inside the
-// field: field separator, LF, CR, or quote itself.
+// Quotes (usually '"') around a field allow expressing special characters
+// inside the field: LF, CR, comment character, field separator, or quote
+// character itself
 //
 // To express a quote inside a quoted field, it must be written twice or
 // preceded by an escape character.
+//
+// If a quote character is not used, special characters inside fields are not
+// expressible.
 //
 // If an escape character is used (usually it is not), a character inside quotes
 // preceded by escape is treated literally instead of possibly having a special
@@ -400,6 +427,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       char_classes_(that.char_classes_),
+      quote_(that.quote_),
       max_num_fields_(that.max_num_fields_),
       max_field_length_(that.max_field_length_),
       recovery_(std::move(that.recovery_)),
@@ -413,6 +441,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   char_classes_ = that.char_classes_;
+  quote_ = that.quote_;
   max_num_fields_ = that.max_num_fields_;
   max_field_length_ = that.max_field_length_;
   recovery_ = std::move(that.recovery_);

@@ -80,8 +80,6 @@ class CsvWriterBase : public Object {
     Options& set_comment(absl::optional<char> comment) & {
       RIEGELI_ASSERT(comment != '\n' && comment != '\r')
           << "Comment character conflicts with record separator";
-      RIEGELI_ASSERT(comment != '"')
-          << "Comment character conflicts with quote character";
       comment_ = comment;
       return *this;
     }
@@ -96,8 +94,6 @@ class CsvWriterBase : public Object {
     Options& set_field_separator(char field_separator) & {
       RIEGELI_ASSERT(field_separator != '\n' && field_separator != '\r')
           << "Field separator conflicts with record separator";
-      RIEGELI_ASSERT(field_separator != '"')
-          << "Field separator conflicts with quote character";
       field_separator_ = field_separator;
       return *this;
     }
@@ -106,10 +102,35 @@ class CsvWriterBase : public Object {
     }
     char field_separator() const { return field_separator_; }
 
+    // Quote character.
+    //
+    // Quotes around a field allow expressing special characters inside the
+    // field: LF, CR, comment character, field separator, or quote character
+    // itself.
+    //
+    // To express a quote inside a quoted field, it must be written twice or
+    // preceded by an escape character.
+    //
+    // If `absl::nullopt`, special characters inside fields are not expressible,
+    // and `CsvWriter` fails if they are encountered.
+    //
+    // Default: `"`
+    Options& set_quote(absl::optional<char> quote) & {
+      RIEGELI_ASSERT(quote != '\n' && quote != '\r')
+          << "Quote character conflicts with record separator";
+      quote_ = quote;
+      return *this;
+    }
+    Options&& set_quote(absl::optional<char> quote) && {
+      return std::move(set_quote(quote));
+    }
+    absl::optional<char> quote() const { return quote_; }
+
    private:
     Newline newline_ = Newline::kLf;
     absl::optional<char> comment_;
     char field_separator_ = ',';
+    absl::optional<char> quote_ = '"';
   };
 
   // Returns the byte `Writer` being written to. Unchanged by `Close()`.
@@ -185,6 +206,7 @@ class CsvWriterBase : public Object {
       quotes_needed_{};
   Newline newline_ = Newline::kLf;
   char field_separator_ = '\0';
+  absl::optional<char> quote_;
   uint64_t record_index_ = 0;
 };
 
@@ -205,10 +227,14 @@ class CsvWriterBase : public Object {
 // be handled by the application; `CsvWriter` does not treat the first record
 // specially.
 //
-// Quotes ('"') around a field allow expressing special characters inside the
-// field: field separator, LF, CR, or quote itself.
+// Quotes (usually '"') around a field allow expressing special characters
+// inside the field: LF, CR, comment character, field separator, or quote
+// character itself.
 //
 // To express a quote inside a quoted field, it must be written twice.
+//
+// If quoting is turned off, special characters inside fields are not
+// expressible, and `CsvWriter` fails if they are encountered.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the byte `Writer`. `Dest` must support
@@ -277,6 +303,9 @@ CsvWriter(std::tuple<DestArgs...> dest_args,
 //
 // The type of the record must support iteration yielding `absl::string_view`:
 // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
+//
+// Precondition: if `options.quote() == absl::nullopt`, fields do not include
+// inexpressible characters: LF, CR, comment character, field separator.
 template <typename Record>
 std::string WriteCsvRecordToString(
     const Record& record,
@@ -300,6 +329,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
       quotes_needed_(that.quotes_needed_),
       newline_(that.newline_),
       field_separator_(that.field_separator_),
+      quote_(that.quote_),
       record_index_(std::exchange(that.record_index_, 0)) {}
 
 inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
@@ -309,6 +339,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   quotes_needed_ = that.quotes_needed_;
   newline_ = that.newline_;
   field_separator_ = that.field_separator_;
+  quote_ = that.quote_;
   record_index_ = std::exchange(that.record_index_, 0);
   return *this;
 }
@@ -463,7 +494,8 @@ std::string WriteCsvRecordToString(const Record& record,
   CsvWriter<StringWriter<>> csv_writer(std::forward_as_tuple(&dest),
                                        std::move(options));
   internal::WriteStandaloneRecord(record, csv_writer);
-  // This can fail only if `std::string` overflows.
+  // This can fail if `std::string` overflows, or if quoting is turned off and
+  // fields include inexpressible characters.
   RIEGELI_CHECK(csv_writer.Close()) << csv_writer.status();
   return dest;
 }
