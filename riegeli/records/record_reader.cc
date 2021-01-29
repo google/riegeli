@@ -552,6 +552,12 @@ bool RecordReaderBase::Search(
         }
         if (ABSL_PREDICT_FALSE(!ReadChunk())) {
           if (!TryRecovery()) {
+            if (healthy()) {
+              // The chunk is truncated. Continue the search before the chunk.
+              greater_record_index = 0;
+              return SearchGuide<Position>{absl::partial_ordering::greater,
+                                           chunk_begin};
+            }
             // Cancel the search.
             less_found = absl::nullopt;
             greater_record_index = 0;
@@ -577,6 +583,21 @@ bool RecordReaderBase::Search(
                                          chunk_begin};
           }
           const absl::partial_ordering ordering = test(*this);
+          if (ABSL_PREDICT_FALSE(!healthy())) {
+            // Reading the record made the `RecordReader` unhealthy, probably
+            // because a message could not be parsed (or `test()` did something
+            // unusual).
+            if (!TryRecovery()) {
+              // Cancel the search.
+              less_found = absl::nullopt;
+              greater_record_index = record_index;
+              return SearchGuide<Position>{absl::partial_ordering::equivalent,
+                                           chunk_begin};
+            }
+            // Declare the skipped record unordered.
+            return SearchGuide<Position>{absl::partial_ordering::unordered,
+                                         src.pos()};
+          }
           if (ordering < 0) {
             less_found =
                 ChunkSuffix{chunk_begin, record_index + 1, num_records};
@@ -611,7 +632,19 @@ bool RecordReaderBase::Search(
             // Cancel the search.
             return absl::partial_ordering::equivalent;
           }
-          return test(*this);
+          const absl::partial_ordering ordering = test(*this);
+          if (ABSL_PREDICT_FALSE(!healthy())) {
+            // Reading the record made the `RecordReader` unhealthy, probably
+            // because a message could not be parsed (or `test()` did something
+            // unusual).
+            if (!TryRecovery()) {
+              // Cancel the search.
+              return absl::partial_ordering::equivalent;
+            }
+            // Declare the skipped record unordered.
+            return absl::partial_ordering::unordered;
+          }
+          return ordering;
         });
     if (less_record_index < less_found->num_records) {
       position = RecordPosition(less_chunk_begin, less_record_index);
