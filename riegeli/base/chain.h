@@ -978,12 +978,12 @@ class Chain::RawBlock {
   const char* data_begin() const { return data_.data(); }
   const char* data_end() const { return data_begin() + size(); }
 
-  // Returns a pointer to the external object, assuming that this is an external
-  // block holding an object of type `T`.
+  // Returns a reference to the external object, assuming that this is an
+  // external block holding an object of type `T`.
   template <typename T>
-  T* unchecked_external_object();
+  T& unchecked_external_object();
   template <typename T>
-  const T* unchecked_external_object() const;
+  const T& unchecked_external_object() const;
 
   // Returns a pointer to the external object if this is an external block
   // holding an object of type `T`, otherwise returns `nullptr`.
@@ -1104,23 +1104,23 @@ struct HasCallOperatorWithoutData<T,
 
 template <typename T,
           absl::enable_if_t<HasCallOperatorWithData<T>::value, int> = 0>
-inline void CallOperator(T* object, absl::string_view data) {
-  (*object)(data);
+inline void CallOperator(T& object, absl::string_view data) {
+  object(data);
 }
 
 template <typename T,
           absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
                                 HasCallOperatorWithoutData<T>::value,
                             int> = 0>
-inline void CallOperator(T* object, absl::string_view data) {
-  (*object)();
+inline void CallOperator(T& object, absl::string_view data) {
+  object();
 }
 
 template <typename T,
           absl::enable_if_t<!HasCallOperatorWithData<T>::value &&
                                 !HasCallOperatorWithoutData<T>::value,
                             int> = 0>
-inline void CallOperator(T* object, absl::string_view data) {}
+inline void CallOperator(T& object, absl::string_view data) {}
 
 template <typename T, typename Enable = void>
 struct HasRegisterSubobjectsWithData : public std::false_type {};
@@ -1142,25 +1142,25 @@ struct HasRegisterSubobjectsWithoutData<
 
 template <typename T,
           absl::enable_if_t<HasRegisterSubobjectsWithData<T>::value, int> = 0>
-inline void RegisterSubobjects(T* object, absl::string_view data,
+inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
-  object->RegisterSubobjects(data, memory_estimator);
+  object.RegisterSubobjects(data, memory_estimator);
 }
 
 template <typename T,
           absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
                                 HasRegisterSubobjectsWithoutData<T>::value,
                             int> = 0>
-inline void RegisterSubobjects(T* object, absl::string_view data,
+inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
-  object->RegisterSubobjects(memory_estimator);
+  object.RegisterSubobjects(memory_estimator);
 }
 
 template <typename T,
           absl::enable_if_t<!HasRegisterSubobjectsWithData<T>::value &&
                                 !HasRegisterSubobjectsWithoutData<T>::value,
                             int> = 0>
-inline void RegisterSubobjects(T* object, absl::string_view data,
+inline void RegisterSubobjects(T& object, absl::string_view data,
                                MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(data.data())) {
     memory_estimator.RegisterDynamicMemory(data.size());
@@ -1168,7 +1168,7 @@ inline void RegisterSubobjects(T* object, absl::string_view data,
 }
 
 template <>
-inline void RegisterSubobjects(absl::string_view* object,
+inline void RegisterSubobjects(absl::string_view& object,
                                absl::string_view data,
                                MemoryEstimator& memory_estimator) {}
 
@@ -1191,25 +1191,25 @@ struct HasDumpStructureWithoutData<
 
 template <typename T,
           std::enable_if_t<HasDumpStructureWithData<T>::value, int> = 0>
-inline void DumpStructure(T* object, absl::string_view data,
+inline void DumpStructure(T& object, absl::string_view data,
                           std::ostream& out) {
-  object->DumpStructure(data, out);
+  object.DumpStructure(data, out);
 }
 
 template <typename T,
           std::enable_if_t<!HasDumpStructureWithData<T>::value &&
                                HasDumpStructureWithoutData<T>::value,
                            int> = 0>
-inline void DumpStructure(T* object, absl::string_view data,
+inline void DumpStructure(T& object, absl::string_view data,
                           std::ostream& out) {
-  object->DumpStructure(out);
+  object.DumpStructure(out);
 }
 
 template <typename T,
           std::enable_if_t<!HasDumpStructureWithData<T>::value &&
                                !HasDumpStructureWithoutData<T>::value,
                            int> = 0>
-inline void DumpStructure(T* object, absl::string_view data,
+inline void DumpStructure(T& object, absl::string_view data,
                           std::ostream& out) {
   out << "[external] { }";
 }
@@ -1263,7 +1263,7 @@ template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
   internal::CallOperator(block->unchecked_external_object<T>(),
                          absl::string_view(*block));
-  block->unchecked_external_object<T>()->~T();
+  block->unchecked_external_object<T>().~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
       block, RawBlock::kExternalObjectOffset<T>() + sizeof(T));
 }
@@ -1287,7 +1287,7 @@ void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock* block,
 template <typename T, typename... Args>
 inline Chain::RawBlock::RawBlock(ExternalType<T>, std::tuple<Args...> args) {
   ConstructExternal<T>(std::move(args), std::index_sequence_for<Args...>());
-  data_ = absl::string_view(*unchecked_external_object<T>());
+  data_ = absl::string_view(unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -1339,7 +1339,7 @@ inline void Chain::RawBlock::ConstructExternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Args...>&& args,
     std::index_sequence<Indices...>) {
   external_.methods = &ExternalMethodsFor<T>::methods;
-  new (unchecked_external_object<T>())
+  new (&unchecked_external_object<T>())
       T(std::forward<Args>(std::get<Indices>(args))...);
 }
 
@@ -1355,27 +1355,27 @@ inline size_t Chain::RawBlock::capacity() const {
 }
 
 template <typename T>
-inline T* Chain::RawBlock::unchecked_external_object() {
+inline T& Chain::RawBlock::unchecked_external_object() {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
-                              kExternalObjectOffset<T>());
+  return *reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
+                               kExternalObjectOffset<T>());
 }
 
 template <typename T>
-inline const T* Chain::RawBlock::unchecked_external_object() const {
+inline const T& Chain::RawBlock::unchecked_external_object() const {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
-                                    kExternalObjectOffset<T>());
+  return *reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
+                                     kExternalObjectOffset<T>());
 }
 
 template <typename T>
 inline const T* Chain::RawBlock::checked_external_object() const {
   return is_external() && external_.methods == &ExternalMethodsFor<T>::methods
-             ? unchecked_external_object<T>()
+             ? &unchecked_external_object<T>()
              : nullptr;
 }
 
@@ -1384,7 +1384,7 @@ inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
   return is_external() &&
                  external_.methods == &ExternalMethodsFor<T>::methods &&
                  has_unique_owner()
-             ? unchecked_external_object<T>()
+             ? &unchecked_external_object<T>()
              : nullptr;
 }
 
