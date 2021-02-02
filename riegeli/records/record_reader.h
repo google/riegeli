@@ -461,8 +461,8 @@ class RecordReaderBase : public Object {
 //
 // For reading records while skipping errors, pass options like these:
 // ```
-//       RecordReaderBase::Options().set_recovery(
-//           [&skipped_bytes](const SkippedRegion& skipped_region) {
+//       riegeli::RecordReaderBase::Options().set_recovery(
+//           [&skipped_bytes](const riegeli::SkippedRegion& skipped_region) {
 //             skipped_bytes += skipped_region.length();
 //             return true;
 //           })
@@ -470,11 +470,11 @@ class RecordReaderBase : public Object {
 //
 // An equivalent lower level implementation, without callbacks:
 // ```
-//   Position skipped_bytes = 0;
+//   riegeli::Position skipped_bytes = 0;
 //   SomeProto record;
 //   for (;;) {
 //     if (!record_reader_.ReadRecord(record)) {
-//       SkippedRegion skipped_region;
+//       riegeli::SkippedRegion skipped_region;
 //       if (record_reader_.Recover(&skipped_region)) {
 //         skipped_bytes += skipped_region.length();
 //         continue;
@@ -484,7 +484,7 @@ class RecordReaderBase : public Object {
 //     ... Process record.
 //   }
 //   if (!record_reader_.Close()) {
-//     SkippedRegion skipped_region;
+//     riegeli::SkippedRegion skipped_region;
 //     if (record_reader_.Recover(&skipped_region)) {
 //       skipped_bytes += skipped_region.length();
 //     } else {

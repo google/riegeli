@@ -195,9 +195,10 @@ class Chain {
   //   // If only this function is needed, `T` can be a lambda.
   //   void operator()(absl::string_view data) const {}
   //
-  //   // Registers this object with MemoryEstimator.
-  //   void RegisterSubobjects(absl::string_view data,
-  //                           MemoryEstimator& memory_estimator) const {
+  //   // Registers this object with `MemoryEstimator`.
+  //   void RegisterSubobjects(
+  //       absl::string_view data,
+  //       riegeli::MemoryEstimator& memory_estimator) const {
   //     if (std::is_same<T, absl::string_view>::value) return;
   //     if (memory_estimator.RegisterNode(data.data())) {
   //       memory_estimator.RegisterDynamicMemory(data.size());

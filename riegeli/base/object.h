@@ -233,12 +233,14 @@ class Object {
   // By default returns `TypeId()`. In order for a class to participate in class
   // detection at runtime, it must override `GetTypeId()`:
   // ```
-  //   TypeId A::GetTypeId() const override { return TypeId::For<A>(); }
+  //   riegeli::TypeId A::GetTypeId() const override {
+  //     return riegeli::TypeId::For<A>();
+  //   }
   // ```
   //
   // Then, to actually cast:
   // ```
-  //   if (object->GetTypeId() == TypeId::For<A>()) {
+  //   if (object->GetTypeId() == riegeli::TypeId::For<A>()) {
   //     A* a = static_cast<A*>(object);
   //     ...
   //   }

@@ -41,7 +41,7 @@ namespace riegeli {
 //   //
 //   // This is applicable to objects held by value and thus with their exact
 //   // type known statically.
-//   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
+//   void RegisterSubobjects(riegeli::MemoryEstimator& memory_estimator) const;
 //
 //   // Registers this object (sizeof(*this)) and its subobjects with
 //   // MemoryEstimator.
@@ -49,7 +49,7 @@ namespace riegeli {
 //   // This is applicable to objects held by pointer, possibly with only their
 //   // base class known statically (it makes sense for RegisterUnique() to be
 //   // virtual).
-//   void RegisterUnique(MemoryEstimator& memory_estimator) const {
+//   void RegisterUnique(riegeli::MemoryEstimator& memory_estimator) const {
 //     memory_estimator.RegisterDynamicMemory(sizeof(*this));
 //     RegisterSubobjects(memory_estimator);
 //   }
@@ -59,7 +59,7 @@ namespace riegeli {
 //   //
 //   // This is applicable to objects held by pointer if object ownership can be
 //   // shared between multiple pointers.
-//   void RegisterShared(MemoryEstimator& memory_estimator) const {
+//   void RegisterShared(riegeli::MemoryEstimator& memory_estimator) const {
 //     if (memory_estimator.RegisterNode(this)) {
 //       RegisterUnique(memory_estimator);
 //     }
