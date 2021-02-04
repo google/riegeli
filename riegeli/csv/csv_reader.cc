@@ -318,7 +318,9 @@ next_field:
           return Fail(absl::DataLossError("Unexpected newline"));
         }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          // If `src` failed after a CR, do not propagate the failure yet. The
+          // last record was correctly terminated, no matter whether a LF would
+          // follow.
           return true;
         }
         if (*src.cursor() == '\n') src.move_cursor(1);
@@ -357,7 +359,9 @@ next_field:
               return Fail(absl::DataLossError("Unexpected newline"));
             }
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
-              if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+              // If `src` failed after a CR, do not propagate the failure yet.
+              // The last record was correctly terminated, no matter whether a
+              // LF would follow.
               return true;
             }
             if (*src.cursor() == '\n') src.move_cursor(1);
