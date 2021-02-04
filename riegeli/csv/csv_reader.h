@@ -222,6 +222,17 @@ class CsvReaderBase : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
+  // Changes the recovery function to be called after skipping over an invalid
+  // line.
+  //
+  // See `Options::set_recovery()` for details.
+  void set_recovery(const std::function<bool(absl::Status)>& recovery) {
+    recovery_ = recovery;
+  }
+  void set_recovery(std::function<bool(absl::Status)>&& recovery) {
+    recovery_ = std::move(recovery);
+  }
+
   // Reads the next record.
   //
   // Return values:
