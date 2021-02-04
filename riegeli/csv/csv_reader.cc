@@ -290,8 +290,6 @@ next_field:
           goto next_record;
         }
         continue;
-      case CharClass::kEscape:
-        continue;
       default:
         break;
     }
@@ -304,7 +302,6 @@ next_field:
     switch (char_class) {
       case CharClass::kOther:
       case CharClass::kComment:
-      case CharClass::kEscape:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
@@ -328,7 +325,7 @@ next_field:
       case CharClass::kFieldSeparator:
         ++field_index;
         goto next_field;
-      case CharClass::kQuote:
+      case CharClass::kQuote: {
         if (ABSL_PREDICT_FALSE(!ReadQuoted(src, field))) return false;
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
@@ -372,6 +369,15 @@ next_field:
         RIEGELI_ASSERT_UNREACHABLE()
             << "Unknown character class: "
             << static_cast<int>(char_class_after_quoted);
+      }
+      case CharClass::kEscape:
+        if (ABSL_PREDICT_FALSE(!src.Pull())) {
+          if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          recoverable_ = true;
+          return Fail(absl::DataLossError("Missing character after escape"));
+        }
+        ptr = src.cursor() + 1;
+        continue;
     }
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown character class: " << static_cast<int>(char_class);

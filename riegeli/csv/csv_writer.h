@@ -212,7 +212,10 @@ class CsvWriterBase : public Object {
 
 // `CsvWriter` writes records to a CSV (comma-separated values) file.
 //
-// A basic variant of CSV is specified in https://tools.ietf.org/html/rfc4180.
+// A basic variant of CSV is specified in https://tools.ietf.org/html/rfc4180,
+// and some common extensions are described in
+// https://specs.frictionlessdata.io/csv-dialect/.
+//
 // `CsvWriter` writes RFC4180-compliant CSV files with
 // `CsvWriterBase::Options().set_newline(CsvWriterBase::Newline::kCrLf)`,
 // and also supports some extensions.

@@ -91,10 +91,11 @@ class CsvReaderBase : public Object {
     // field: LF, CR, comment character, field separator, or quote character
     // itself.
     //
-    // To express a quote inside a quoted field, it must be written twice or
-    // preceded by an escape character.
+    // To express a quote itself inside a field, it must be written twice when
+    // the field is quoted, or preceded by an escape character.
     //
-    // If `absl::nullopt`, special characters inside fields are not expressible.
+    // If `quote()` and `escape()` are both `absl::nullopt`, special characters
+    // inside fields are not expressible.
     //
     // Default: `"`
     Options& set_quote(absl::optional<char> quote) & {
@@ -110,8 +111,13 @@ class CsvReaderBase : public Object {
 
     // Escape character.
     //
-    // If not `absl::nullopt`, a character inside quotes preceded by escape is
-    // treated literally instead of possibly having a special meaning.
+    // If not `absl::nullopt`, a character preceded by escape is treated
+    // literally instead of possibly having a special meaning. This allows
+    // expressing special characters inside a field: LF, CR, comment character,
+    // field separator, or escape character itself.
+    //
+    // If `quote()` and `escape()` are both `absl::nullopt`, special characters
+    // inside fields are not expressible.
     //
     // Default: `absl::nullopt`
     Options& set_escape(absl::optional<char> escape) & {
@@ -325,14 +331,17 @@ class CsvReaderBase : public Object {
 
 // `CsvReader` reads records of a CSV (comma-separated values) file.
 //
-// A basic variant of CSV is specified in https://tools.ietf.org/html/rfc4180.
+// A basic variant of CSV is specified in https://tools.ietf.org/html/rfc4180,
+// and some common extensions are described in
+// https://specs.frictionlessdata.io/csv-dialect/.
+//
 // `CsvReader` reads RFC4180-compliant CSV files, and also supports some
 // extensions.
 //
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
 //
-// If a comment character is used (usually it is not), a line beginning with the
+// If a comment character is set (usually it is not), a line beginning with the
 // comment character is skipped.
 //
 // A record consists of a sequence of fields separated by a field separator
@@ -346,17 +355,17 @@ class CsvReaderBase : public Object {
 //
 // Quotes (usually '"') around a field allow expressing special characters
 // inside the field: LF, CR, comment character, field separator, or quote
-// character itself
+// character itself.
 //
-// To express a quote inside a quoted field, it must be written twice or
-// preceded by an escape character.
+// If an escape character is set (usually it is not), a character preceded by
+// escape is treated literally instead of possibly having a special meaning.
+// This is an alternative way of expressing special characters inside a field.
 //
-// If a quote character is not used, special characters inside fields are not
-// expressible.
+// To express a quote itself inside a field, it must be written twice when the
+// field is quoted, or preceded by an escape character.
 //
-// If an escape character is used (usually it is not), a character inside quotes
-// preceded by escape is treated literally instead of possibly having a special
-// meaning.
+// If neither a quote character nor an escape character is set, special
+// characters inside fields are not expressible.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the byte `Reader`. `Src` must support
