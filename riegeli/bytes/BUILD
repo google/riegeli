@@ -193,6 +193,43 @@ cc_library(
 )
 
 cc_library(
+    name = "digesting_writer",
+    srcs = [
+        "digesting_common.h",
+        "digesting_writer.cc",
+    ],
+    hdrs = ["digesting_writer.h"],
+    deps = [
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
+    name = "digesting_reader",
+    srcs = [
+        "digesting_common.h",
+        "digesting_reader.cc",
+    ],
+    hdrs = ["digesting_reader.h"],
+    deps = [
+        ":reader",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "limiting_writer",
     srcs = ["limiting_writer.cc"],
     hdrs = ["limiting_writer.h"],
