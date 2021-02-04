@@ -38,27 +38,24 @@ ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src,
                                                size_t max_length) {
   dest = absl::string_view(src.cursor(), max_length);
   src.move_cursor(max_length);
-  src.Fail(absl::ResourceExhaustedError(
+  return src.Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum line length exceeded: ", max_length)));
-  return true;
 }
 
 ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, std::string& dest,
                                                size_t max_length) {
   dest.append(src.cursor(), max_length);
   src.move_cursor(max_length);
-  src.Fail(absl::ResourceExhaustedError(
+  return src.Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum length exceeded: ", max_length)));
-  return true;
 }
 
 template <typename Dest>
 ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, Dest& dest,
                                                size_t max_length) {
   src.ReadAndAppend(max_length, dest);
-  src.Fail(absl::ResourceExhaustedError(
+  return src.Fail(absl::ResourceExhaustedError(
       absl::StrCat("Maximum length exceeded: ", max_length)));
-  return true;
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
@@ -150,7 +147,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLineAndAppend(
     options.set_max_length(options.max_length() - src.available());
     src.ReadAndAppend(src.available(), dest);
   } while (src.Pull());
-  return true;
+  return src.healthy();
 }
 
 }  // namespace
@@ -158,7 +155,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLineAndAppend(
 bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
   size_t length = 0;
-  if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
+  if (ABSL_PREDICT_FALSE(!src.Pull())) {
+    dest = absl::string_view();
+    return false;
+  }
   do {
     switch (options.newline()) {
       case ReadLineOptions::Newline::kLf: {
@@ -198,7 +198,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
   } while (src.Pull(length + 1, SaturatingAdd(length, length)));
   dest = absl::string_view(src.cursor(), src.available());
   src.move_cursor(src.available());
-  return true;
+  return src.healthy();
 }
 
 bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
@@ -244,7 +244,7 @@ bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
     dest.append(src.cursor(), src.available());
     src.move_cursor(src.available());
   } while (src.Pull());
-  return true;
+  return src.healthy();
 }
 
 bool ReadLine(Reader& src, Chain& dest, ReadLineOptions options) {

@@ -89,16 +89,19 @@ class ReadLineOptions {
 
 // Reads a line.
 //
+// Line terminator after the last line is optional.
+//
 // Warning: if `options.newline()` is `Newline::kAny`, for lines terminated with
-// CR `ReadLine()` reads ahead one character after the CR. If reading ahead only
-// as much as needed is required, e.g. when communicating with another process,
-// another implementation would be required (which would keep state between
-// calls).
+// CR, `ReadLine()` reads ahead one character after the CR. If reading ahead
+// only as much as needed is required, e.g. when communicating with another
+// process, another implementation would be required (which would keep state
+// between calls).
 //
 // Return values:
 //  * `true`                          - success (`dest` is set)
-//  * `false` (when `src.healthy()`)  - source ends (`dest.empty()`)
-//  * `false` (when `!src.healthy()`) - failure (`dest.empty()`)
+//  * `false` (when `src.healthy()`)  - source ends (`dest` is empty)
+//  * `false` (when `!src.healthy()`) - failure (`dest` is set to the partial
+//                                               line read before the failure)
 bool ReadLine(Reader& src, absl::string_view& dest,
               ReadLineOptions options = ReadLineOptions());
 bool ReadLine(Reader& src, std::string& dest,
