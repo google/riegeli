@@ -291,8 +291,6 @@ bool StrOrBytes::FromPython(PyObject* object) {
   RIEGELI_ASSERT(data_.data() == nullptr)
       << "Failed precondition of StrOrBytes::FromPython(): "
          "called more than once";
-  // TODO: Change this depending on how
-  // https://bugs.python.org/issue35295 is resolved.
   if (PyUnicode_Check(object)) {
     Py_ssize_t length;
     const char* data = PyUnicode_AsUTF8AndSize(object, &length);
