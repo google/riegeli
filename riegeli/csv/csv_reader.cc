@@ -120,7 +120,11 @@ inline void CsvReaderBase::SkipLine(Reader& src) {
   for (;;) {
     if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
       src.move_cursor(src.available());
-      if (ABSL_PREDICT_FALSE(!src.Pull())) return;
+      if (ABSL_PREDICT_FALSE(!src.Pull())) {
+        // Set `line_number_` as if the last line was terminated by a newline.
+        ++line_number_;
+        return;
+      }
       ptr = src.cursor();
     }
     if (*ptr == '\n') {
@@ -275,6 +279,8 @@ next_field:
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+        // Set `line_number_` as if the last line was terminated by a newline.
+        ++line_number_;
         return true;
       }
       ptr = src.cursor();
@@ -329,6 +335,8 @@ next_field:
         if (ABSL_PREDICT_FALSE(!ReadQuoted(src, field))) return false;
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
+          // Set `line_number_` as if the last line was terminated by a newline.
+          ++line_number_;
           return true;
         }
         const CharClass char_class_after_quoted =
