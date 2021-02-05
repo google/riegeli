@@ -83,7 +83,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       UnsignedMin(options.max_field_length(), std::string().max_size());
   recovery_ = std::move(options.recovery());
   record_index_ = 0;
-  last_line_number_ = 0;
+  last_line_number_ = 1;
   line_number_ = 1;
   recoverable_ = false;
 }

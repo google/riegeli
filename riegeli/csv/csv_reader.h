@@ -262,12 +262,12 @@ class CsvReaderBase : public Object {
   // The number of the first line of the most recently read record (or attempted
   // to be read), starting from 1.
   //
+  // This is 1 if no record was attempted to be read.
+  //
   // A line is terminated by LF, CR, or CR LF  ("\n", "\r", or "\r\n").
   //
   // `last_line_number()` is unchanged by `Close()`.
-  //
-  // Precondition: `ReadRecord()` was called.
-  int64_t last_line_number() const;
+  int64_t last_line_number() const { return last_line_number_; }
 
   // The number of the next line, starting from 1.
   //
@@ -324,8 +324,8 @@ class CsvReaderBase : public Object {
   size_t max_field_length_ = 0;
   std::function<bool(absl::Status)> recovery_;
   uint64_t record_index_ = 0;
-  int64_t last_line_number_ = 0;
-  int64_t line_number_ = 0;
+  int64_t last_line_number_ = 1;
+  int64_t line_number_ = 1;
   bool recoverable_ = false;
 };
 
@@ -452,8 +452,8 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       max_field_length_(that.max_field_length_),
       recovery_(std::move(that.recovery_)),
       record_index_(std::exchange(that.record_index_, 0)),
-      last_line_number_(std::exchange(that.last_line_number_, 0)),
-      line_number_(std::exchange(that.line_number_, 0)),
+      last_line_number_(std::exchange(that.last_line_number_, 1)),
+      line_number_(std::exchange(that.line_number_, 1)),
       recoverable_(std::exchange(that.recoverable_, false)) {}
 
 inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
@@ -466,8 +466,8 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   max_field_length_ = that.max_field_length_;
   recovery_ = std::move(that.recovery_);
   record_index_ = std::exchange(that.record_index_, 0);
-  last_line_number_ = std::exchange(that.last_line_number_, 0);
-  line_number_ = std::exchange(that.line_number_, 0);
+  last_line_number_ = std::exchange(that.last_line_number_, 1);
+  line_number_ = std::exchange(that.line_number_, 1);
   recoverable_ = std::exchange(that.recoverable_, false);
   return *this;
 }
@@ -486,13 +486,6 @@ inline uint64_t CsvReaderBase::last_record_index() const {
       << "Failed precondition of CsvReaderBase::last_record_index(): "
          "no record was read";
   return record_index_ - 1;
-}
-
-inline int64_t CsvReaderBase::last_line_number() const {
-  RIEGELI_ASSERT_NE(last_line_number_, 0)
-      << "Failed precondition of CsvReaderBase::last_line_number(): "
-         "no record was read or attempted to be read";
-  return last_line_number_;
 }
 
 template <typename Src>
