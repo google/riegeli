@@ -45,6 +45,8 @@ namespace riegeli {
 // objects, which should be assigned the same key. The `Key` type must be
 // equality comparable, hashable (by `absl::Hash`), default constructible, and
 // copyable. If `Key` is `void`, all objects are considered compatible.
+//
+// `RecyclingPool` is thread-safe.
 template <typename T, typename Deleter = std::default_delete<T>,
           typename Key = void>
 class RecyclingPool {
