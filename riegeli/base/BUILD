@@ -74,6 +74,11 @@ cc_library(
 )
 
 cc_library(
+    name = "intrusive_ref_count",
+    hdrs = ["intrusive_ref_count.h"],
+)
+
+cc_library(
     name = "buffer",
     srcs = ["buffer.cc"],
     hdrs = ["buffer.h"],
@@ -90,6 +95,7 @@ cc_library(
     hdrs = ["shared_buffer.h"],
     deps = [
         ":base",
+        ":intrusive_ref_count",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],

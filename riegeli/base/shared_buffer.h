@@ -23,6 +23,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory.h"
 
 namespace riegeli {
@@ -44,13 +45,11 @@ class SharedBuffer {
   SharedBuffer(SharedBuffer&& that) noexcept;
   SharedBuffer& operator=(SharedBuffer&& that) noexcept;
 
-  ~SharedBuffer();
-
   // Ensures at least `min_capacity` of space and unique ownership of the data.
   // Existing contents are lost.
   void Reset(size_t min_capacity);
 
-  // Returns true if this `SharedBuffer` is the only owner of the data.
+  // Returns `true` if this `SharedBuffer` is the only owner of the data.
   bool has_unique_owner() const;
 
   // Returns the mutable data pointer.
@@ -82,9 +81,12 @@ class SharedBuffer {
   absl::Cord ToCord(absl::string_view substr) const;
 
  private:
+  // `RefCountedBase` is not used because `offsetof()` requires all data members
+  // to be defined in the same class.
   struct Payload {
     void Ref();
     void Unref();
+    bool has_unique_owner() const;
 
     std::atomic<size_t> ref_count{1};
     // Usable size of the data starting at `allocated_begin`, i.e. excluding the
@@ -96,8 +98,7 @@ class SharedBuffer {
 
   void AllocateInternal(size_t min_capacity);
 
-  Payload* payload_ = nullptr;
-  // Invariant: if `data_ == nullptr` then `capacity_ == 0`
+  RefCountedPtr<Payload> payload_;
 };
 
 // Implementation details follow.
@@ -115,37 +116,29 @@ inline void SharedBuffer::Payload::Unref() {
   }
 }
 
+inline bool SharedBuffer::Payload::has_unique_owner() const {
+  return ref_count.load(std::memory_order_acquire) == 1;
+}
+
 inline SharedBuffer::SharedBuffer(size_t min_capacity) {
   AllocateInternal(min_capacity);
 }
 
 inline SharedBuffer::SharedBuffer(const SharedBuffer& that) noexcept
-    : payload_(that.payload_) {
-  if (payload_ != nullptr) payload_->Ref();
-}
+    : payload_(that.payload_) {}
 
 inline SharedBuffer& SharedBuffer::operator=(
     const SharedBuffer& that) noexcept {
-  Payload* const payload = that.payload_;
-  if (payload != nullptr) payload->Ref();
-  if (payload_ != nullptr) payload_->Unref();
-  payload_ = payload;
+  payload_ = that.payload_;
   return *this;
 }
 
 inline SharedBuffer::SharedBuffer(SharedBuffer&& that) noexcept
-    : payload_(std::exchange(that.payload_, nullptr)) {}
+    : payload_(std::move(that.payload_)) {}
 
 inline SharedBuffer& SharedBuffer::operator=(SharedBuffer&& that) noexcept {
-  // Exchange `that.data_` early to support self-assignment.
-  Payload* const payload = std::exchange(that.payload_, nullptr);
-  if (payload_ != nullptr) payload_->Unref();
-  payload_ = payload;
+  payload_ = std::move(that.payload_);
   return *this;
-}
-
-inline SharedBuffer::~SharedBuffer() {
-  if (payload_ != nullptr) payload_->Unref();
 }
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
@@ -153,14 +146,12 @@ inline void SharedBuffer::Reset(size_t min_capacity) {
     if (has_unique_owner() && payload_->capacity >= min_capacity) return;
     min_capacity = UnsignedMax(
         min_capacity, SaturatingAdd(payload_->capacity, payload_->capacity));
-    payload_->Unref();
   }
   AllocateInternal(min_capacity);
 }
 
 inline bool SharedBuffer::has_unique_owner() const {
-  if (payload_ == nullptr) return true;
-  return payload_->ref_count.load(std::memory_order_acquire) == 1;
+  return payload_ == nullptr || payload_->has_unique_owner();
 }
 
 inline char* SharedBuffer::mutable_data() const {
@@ -183,15 +174,15 @@ inline size_t SharedBuffer::capacity() const {
 
 inline void SharedBuffer::AllocateInternal(size_t min_capacity) {
   size_t raw_capacity;
-  payload_ = SizeReturningNewAligned<Payload>(
-      offsetof(Payload, allocated_begin) + min_capacity, &raw_capacity);
+  payload_.reset(SizeReturningNewAligned<Payload>(
+      offsetof(Payload, allocated_begin) + min_capacity, &raw_capacity));
   payload_->capacity = raw_capacity - offsetof(Payload, allocated_begin);
 }
 
 inline void* SharedBuffer::Share() const {
   if (payload_ == nullptr) return nullptr;
   payload_->Ref();
-  return payload_;
+  return payload_.get();
 }
 
 inline void SharedBuffer::DeleteShared(void* ptr) {
