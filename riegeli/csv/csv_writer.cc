@@ -20,6 +20,7 @@
 #include <cstring>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -31,6 +32,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/csv/csv_record.h"
 
 namespace riegeli {
 
@@ -62,7 +64,13 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   newline_ = options.newline();
   field_separator_ = options.field_separator();
   quote_ = options.quote();
-  record_index_ = 0;
+
+  if (!options.header().empty()) {
+    header_ = std::move(options.header());
+    if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) {
+      --record_index_;
+    }
+  }
 }
 
 bool CsvWriterBase::Fail(absl::Status status) {
@@ -125,6 +133,18 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(field))) return Fail(dest);
   return true;
+}
+
+bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
+  if (healthy()) {
+    RIEGELI_ASSERT(!header_.empty())
+        << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
+           "CsvWriterBase::Options::set_header() is required";
+    RIEGELI_ASSERT_EQ(record.header(), header_)
+        << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
+        << "mismatched CSV header and record";
+  }
+  return WriteRecord(record.fields());
 }
 
 }  // namespace riegeli

@@ -33,6 +33,7 @@
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_reader.h"
+#include "riegeli/csv/csv_record.h"
 
 namespace riegeli {
 
@@ -81,11 +82,25 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                                 std::vector<std::string>().max_size());
   max_field_length_ =
       UnsignedMin(options.max_field_length(), std::string().max_size());
+
+  // Recovery is not applicable to reading the header. Hence `recovery_` is set
+  // after reading the header.
+  if (options.read_header()) {
+    std::vector<std::string> header;
+    if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
+      Fail(absl::DataLossError("Empty CSV file"));
+    } else {
+      --record_index_;
+      {
+        const absl::Status status = header_.TryReset(std::move(header));
+        if (!status.ok()) {
+          FailAtPreviousRecord(absl::DataLossError(status.message()));
+        }
+      }
+    }
+  }
+
   recovery_ = std::move(options.recovery());
-  record_index_ = 0;
-  last_line_number_ = 1;
-  line_number_ = 1;
-  recoverable_ = false;
 }
 
 bool CsvReaderBase::Fail(absl::Status status) {
@@ -93,6 +108,14 @@ bool CsvReaderBase::Fail(absl::Status status) {
       << "Failed precondition of Object::Fail(): status not failed";
   return FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at line ", line_number())));
+}
+
+bool CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
+         "status not failed";
+  return FailWithoutAnnotation(
+      Annotate(status, absl::StrCat("at line ", last_line_number())));
 }
 
 bool CsvReaderBase::FailWithoutAnnotation(absl::Status status) {
@@ -390,6 +413,39 @@ next_field:
     RIEGELI_ASSERT_UNREACHABLE()
         << "Unknown character class: " << static_cast<int>(char_class);
   }
+}
+
+bool CsvReaderBase::ReadRecord(CsvRecord& record) {
+  if (ABSL_PREDICT_FALSE(!healthy())) {
+    record.Reset();
+    return false;
+  }
+  RIEGELI_ASSERT(!header_.empty())
+      << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
+         "CsvReaderBase::Options::set_read_header() is required";
+try_again:
+  record.Reset(header_);
+  // Reading directly into `record.fields_` must be careful to maintain the
+  // invariant that `record.header_.size() == record.fields_.size()`.
+  if (ABSL_PREDICT_FALSE(!ReadRecord(record.fields_))) {
+    record.Reset();
+    return false;
+  }
+  if (ABSL_PREDICT_FALSE(record.fields_.size() != header_.size())) {
+    --record_index_;
+    const size_t record_size = record.fields_.size();
+    record.Reset();
+    FailAtPreviousRecord(absl::DataLossError(
+        absl::StrCat("Mismatched number of CSV fields: header has ",
+                     header_.size(), ", record has ", record_size)));
+    if (recovery_ != nullptr) {
+      absl::Status status = this->status();
+      MarkNotFailed();
+      if (recovery_(std::move(status))) goto try_again;
+    }
+    return false;
+  }
+  return true;
 }
 
 bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {

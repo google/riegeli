@@ -37,6 +37,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/csv/csv_record.h"
 #include "riegeli/lines/line_writing.h"
 
 namespace riegeli {
@@ -57,6 +58,22 @@ class CsvWriterBase : public Object {
   class Options {
    public:
     Options() noexcept {}
+
+    // If `!header.empty()`, sets field names, and automatically writes them as
+    // the first record.
+    //
+    // Default: `CsvHeader()`
+    Options& set_header(CsvHeader header) & {
+      header_ = std::move(header);
+      return *this;
+    }
+    Options&& set_header(CsvHeader header) && {
+      return std::move(set_header(std::move(header)));
+    }
+    CsvHeader& header() & { return header_; }
+    const CsvHeader& header() const& { return header_; }
+    CsvHeader&& header() && { return std::move(header_); }
+    const CsvHeader&& header() const&& { return std::move(header_); }
 
     // Record terminator.
     //
@@ -127,6 +144,7 @@ class CsvWriterBase : public Object {
     absl::optional<char> quote() const { return quote_; }
 
    private:
+    CsvHeader header_;
     Newline newline_ = Newline::kLf;
     absl::optional<char> comment_;
     char field_separator_ = ',';
@@ -143,9 +161,31 @@ class CsvWriterBase : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  // Writes the next record.
+  // Returns field names, as set by `Options::set_header()`.
   //
-  // The type of the record must support iteration yielding `absl::string_view`:
+  // If `header().empty()`, no particular field names are assumed, and
+  // `WriteRecord(CsvRecord)` is not supported; only `WriteRecord()` from a
+  // sequence of fields is supported.
+  const CsvHeader& header() const { return header_; }
+
+  // Writes the next record expressed as `CsvRecord`, with named fields.
+  //
+  // Preconditions:
+  //  * `!header().empty()`, i.e. `Options::set_header(header)` was used with a
+  //    non-empty header
+  //  * `record.header() == header()`
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  bool WriteRecord(const CsvRecord& record);
+
+  // Writes the next record expressed as a sequence of fields.
+  //
+  // By a common convention each record should consist of the same number of
+  // fields, but this is not enforced.
+  //
+  // The type of `record` must support iteration yielding `absl::string_view`:
   // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
   //
   // The CSV format does not support empty records: writing a record with no
@@ -154,18 +194,27 @@ class CsvWriterBase : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  template <typename Record>
+  template <
+      typename Record,
+      std::enable_if_t<internal::IsIterableOf<Record, absl::string_view>::value,
+                       int> = 0>
   bool WriteRecord(const Record& record);
   bool WriteRecord(std::initializer_list<absl::string_view> record);
 
   // The index of the most recently written record, starting from 0.
   //
+  // The record count does not include any header written with
+  // `Options::set_header()`.
+  //
   // `last_record_index()` is unchanged by `Close()`.
   //
-  // Precondition: some `WriteRecord()` call succeeded.
+  // Precondition: some record was successfully written (`record_index() > 0`).
   uint64_t last_record_index() const;
 
   // The index of the next record, starting from 0.
+  //
+  // The record count does not include any header written with
+  // `Options::set_header()`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -197,6 +246,7 @@ class CsvWriterBase : public Object {
   template <bool standalone_record, typename Record>
   bool WriteRecordInternal(const Record& record);
 
+  CsvHeader header_;
   // Lookup table for checking whether quotes are needed if the given character
   // is present in a field.
   //
@@ -217,18 +267,17 @@ class CsvWriterBase : public Object {
 // https://specs.frictionlessdata.io/csv-dialect/.
 //
 // `CsvWriter` writes RFC4180-compliant CSV files with
-// `CsvWriterBase::Options().set_newline(CsvWriterBase::Newline::kCrLf)`,
-// and also supports some extensions.
+// `Options::set_newline(CsvWriterBase::Newline::kCrLf)`, and also supports some
+// extensions.
+//
+// By a common convention the first record consists of field names. This is
+// supported by `Options::set_header()` and `WriteRecord(CsvRecord)`.
 //
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n").
 //
 // A record consists of a sequence of fields separated by a field separator
 // (usually ',' or '\t'). Each record contains at least one field.
-//
-// By a common convention the first record consists of field names. This should
-// be handled by the application; `CsvWriter` does not treat the first record
-// specially.
 //
 // Quotes (usually '"') around a field allow expressing special characters
 // inside the field: LF, CR, comment character, field separator, or quote
@@ -304,12 +353,15 @@ CsvWriter(std::tuple<DestArgs...> dest_args,
 //
 // A record terminator will not be included.
 //
-// The type of the record must support iteration yielding `absl::string_view`:
+// The type of `record` must support iteration yielding `absl::string_view`:
 // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
 //
 // Precondition: if `options.quote() == absl::nullopt`, fields do not include
 // inexpressible characters: LF, CR, comment character, field separator.
-template <typename Record>
+template <
+    typename Record,
+    std::enable_if_t<internal::IsIterableOf<Record, absl::string_view>::value,
+                     int> = 0>
 std::string WriteCsvRecordToString(
     const Record& record,
     CsvWriterBase::Options options = CsvWriterBase::Options());
@@ -329,6 +381,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      header_(std::move(that.header_)),
       quotes_needed_(that.quotes_needed_),
       newline_(that.newline_),
       field_separator_(that.field_separator_),
@@ -339,6 +392,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   Object::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  header_ = std::move(that.header_);
   quotes_needed_ = that.quotes_needed_;
   newline_ = that.newline_;
   field_separator_ = that.field_separator_;
@@ -349,14 +403,20 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
 
 inline void CsvWriterBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
+  header_.Reset();
+  record_index_ = 0;
 }
 
 inline void CsvWriterBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
+  header_.Reset();
   quotes_needed_ = {};
+  record_index_ = 0;
 }
 
-template <typename Record>
+template <typename Record,
+          std::enable_if_t<
+              internal::IsIterableOf<Record, absl::string_view>::value, int>>
 bool CsvWriterBase::WriteRecord(const Record& record) {
   return WriteRecordInternal<false>(record);
 }
@@ -411,7 +471,7 @@ inline bool CsvWriterBase::WriteRecord(
 }
 
 inline uint64_t CsvWriterBase::last_record_index() const {
-  RIEGELI_ASSERT_NE(record_index_, 0u)
+  RIEGELI_ASSERT_GT(record_index_, 0u)
       << "Failed precondition of CsvWriterBase::last_record_index(): "
          "no record was written";
   return record_index_ - 1;
@@ -490,7 +550,9 @@ void CsvWriter<Dest>::Done() {
   }
 }
 
-template <typename Record>
+template <typename Record,
+          std::enable_if_t<
+              internal::IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
   std::string dest;

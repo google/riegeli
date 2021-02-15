@@ -36,6 +36,7 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/csv/csv_record.h"
 
 namespace riegeli {
 
@@ -52,6 +53,20 @@ class CsvReaderBase : public Object {
   class Options {
    public:
     Options() noexcept {}
+
+    // If `true`, automatically reads field names from the first record.
+    //
+    // If the file is empty, or if field names have duplicates, reading fails.
+    //
+    // Default: `false`.
+    Options& set_read_header(bool read_header) & {
+      read_header_ = read_header;
+      return *this;
+    }
+    Options&& set_read_header(bool read_header) && {
+      return std::move(set_read_header(read_header));
+    }
+    bool read_header() const { return read_header_; }
 
     // Comment character.
     //
@@ -178,6 +193,9 @@ class CsvReaderBase : public Object {
     // continues. If the recovery function returns `false`, reading ends as if
     // the end of source was encountered.
     //
+    // Recovery is not applicable to reading the header with
+    // `Options::set_read_header(true)`.
+    //
     // Calling `ReadRecord()` may cause the recovery function to be called (in
     // the same thread).
     //
@@ -209,6 +227,7 @@ class CsvReaderBase : public Object {
     }
 
    private:
+    bool read_header_ = false;
     absl::optional<char> comment_;
     char field_separator_ = ',';
     absl::optional<char> quote_ = '"';
@@ -239,7 +258,39 @@ class CsvReaderBase : public Object {
     recovery_ = std::move(recovery);
   }
 
-  // Reads the next record.
+  // If `!header().empty()`, returns field names, as requested by
+  // `Options::set_read_header(true)` and read from the first record.
+  //
+  // If `healthy()` and `header().empty()`, field names were not requested.
+  // No particular field names are assumed, and `ReadRecord(CsvRecord&)` is not
+  // supported; only `ReadRecord()` to a vector of fields is supported.
+  const CsvHeader& header() const { return header_; }
+
+  // Reads the next record expressed as `CsvRecord`, with named fields.
+  //
+  // The old value of `record`, including `record.header()`, is overwritten.
+  //
+  // If the number of fields read is not the same as expected by the header,
+  // `CsvReader` fails.
+  //
+  // If `ReadRecord()` returns `true`, `record` will contain all fields present
+  // in the `header()`, and thus it is safe to access fields whose presence has
+  // been verified in the `header()`.
+  //
+  // Precondition:
+  //   if `healthy()` then `!header().empty()`,
+  //   i.e. `Options::set_read_header(true)` was used
+  //
+  // Return values:
+  //  * `true`                      - success (`record` is set)
+  //  * `false` (when `healthy()`)  - source ends (`record` is empty)
+  //  * `false` (when `!healthy()`) - failure (`record` is empty)
+  bool ReadRecord(CsvRecord& record);
+
+  // Reads the next record expressed as a vector of fields.
+  //
+  // By a common convention each record should consist of the same number of
+  // fields, but this is not enforced.
   //
   // Return values:
   //  * `true`                      - success (`record` is set)
@@ -249,12 +300,18 @@ class CsvReaderBase : public Object {
 
   // The index of the most recently read record, starting from 0.
   //
+  // The record count does not include any header read with
+  // `Options::set_read_header()`.
+  //
   // `last_record_index()` is unchanged by `Close()`.
   //
-  // Precondition: some `ReadRecord()` call succeeded.
+  // Precondition: some record was successfully read (`record_index() > 0`).
   uint64_t last_record_index() const;
 
   // The index of the next record, starting from 0.
+  //
+  // The record count does not include any header read with
+  // `Options::set_read_header()`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -287,6 +344,9 @@ class CsvReaderBase : public Object {
   void Reset(InitiallyOpen);
   void Initialize(Reader* src, Options&& options);
 
+  // Fails, attributing it to `last_line_number()`.
+  ABSL_ATTRIBUTE_COLD bool FailAtPreviousRecord(absl::Status status);
+
   // Exposes a `Fail()` override which does not annotate the status with the
   // current position, unlike the public `CsvReader::Fail()`.
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
@@ -315,6 +375,7 @@ class CsvReaderBase : public Object {
   template <bool standalone_record>
   bool ReadRecordInternal(std::vector<std::string>& record);
 
+  CsvHeader header_;
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
       char_classes_{};
@@ -338,6 +399,9 @@ class CsvReaderBase : public Object {
 // `CsvReader` reads RFC4180-compliant CSV files, and also supports some
 // extensions.
 //
+// By a common convention the first record consists of field names. This is
+// supported by `Options::set_read_header(true)` and `ReadRecord(CsvRecord&)`.
+//
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.
 //
@@ -348,10 +412,6 @@ class CsvReaderBase : public Object {
 // (usually ',' or '\t'). Each record contains at least one field. In particular
 // an empty line is interpreted as one empty field, except that an empty line
 // after the last line terminator is not considered a record.
-//
-// By a common convention the first record consists of field names. This should
-// be handled by the application; `CsvReader` does not treat the first record
-// specially.
 //
 // Quotes (usually '"') around a field allow expressing special characters
 // inside the field: LF, CR, comment character, field separator, or quote
@@ -446,6 +506,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      header_(std::move(that.header_)),
       char_classes_(that.char_classes_),
       quote_(that.quote_),
       max_num_fields_(that.max_num_fields_),
@@ -460,6 +521,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  header_ = std::move(that.header_);
   char_classes_ = that.char_classes_;
   quote_ = that.quote_;
   max_num_fields_ = that.max_num_fields_;
@@ -474,15 +536,27 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
 
 inline void CsvReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
+  header_.Reset();
+  recovery_ = nullptr;
+  record_index_ = 0;
+  last_line_number_ = 1;
+  line_number_ = 1;
+  recoverable_ = false;
 }
 
 inline void CsvReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
+  header_.Reset();
   char_classes_ = {};
+  recovery_ = nullptr;
+  record_index_ = 0;
+  last_line_number_ = 1;
+  line_number_ = 1;
+  recoverable_ = false;
 }
 
 inline uint64_t CsvReaderBase::last_record_index() const {
-  RIEGELI_ASSERT_NE(record_index_, 0u)
+  RIEGELI_ASSERT_GT(record_index_, 0u)
       << "Failed precondition of CsvReaderBase::last_record_index(): "
          "no record was read";
   return record_index_ - 1;
