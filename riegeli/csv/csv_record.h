@@ -68,7 +68,7 @@ class CsvHeader {
  public:
   class iterator {
    public:
-    using iterator_category = std::bidirectional_iterator_tag;
+    using iterator_category = std::random_access_iterator_tag;
     using value_type = std::string;
     using reference = const std::string&;
     using pointer = const std::string*;
@@ -82,9 +82,9 @@ class CsvHeader {
     reference operator*() const;
     pointer operator->() const;
     iterator& operator++();
-    iterator operator++(int);
+    const iterator operator++(int);
     iterator& operator--();
-    iterator operator--(int);
+    const iterator operator--(int);
     iterator& operator+=(difference_type n);
     iterator operator+(difference_type n) const;
     iterator& operator-=(difference_type n);
@@ -318,7 +318,7 @@ class CsvRecord {
      private:
       template <typename>
       friend class IteratorImpl;
-      explicit pointer(reference value) : ref_(value) {}
+      explicit pointer(reference ref) : ref_(ref) {}
       reference ref_;
     };
 
@@ -339,9 +339,9 @@ class CsvRecord {
     reference operator*() const;
     pointer operator->() const;
     IteratorImpl& operator++();
-    IteratorImpl operator++(int);
+    const IteratorImpl operator++(int);
     IteratorImpl& operator--();
-    IteratorImpl operator--(int);
+    const IteratorImpl operator--(int);
     IteratorImpl& operator+=(difference_type n);
     IteratorImpl operator+(difference_type n) const;
     IteratorImpl& operator-=(difference_type n);
@@ -547,7 +547,7 @@ inline CsvHeader::iterator& CsvHeader::iterator::operator++() {
   return *this;
 }
 
-inline CsvHeader::iterator CsvHeader::iterator::operator++(int) {
+inline const CsvHeader::iterator CsvHeader::iterator::operator++(int) {
   const iterator tmp = *this;
   ++*this;
   return tmp;
@@ -558,7 +558,7 @@ inline CsvHeader::iterator& CsvHeader::iterator::operator--() {
   return *this;
 }
 
-inline CsvHeader::iterator CsvHeader::iterator::operator--(int) {
+inline const CsvHeader::iterator CsvHeader::iterator::operator--(int) {
   const iterator tmp = *this;
   --*this;
   return tmp;
@@ -717,9 +717,9 @@ CsvRecord::IteratorImpl<FieldIterator>::operator++() {
 }
 
 template <typename FieldIterator>
-inline CsvRecord::IteratorImpl<FieldIterator>
+inline const CsvRecord::IteratorImpl<FieldIterator>
 CsvRecord::IteratorImpl<FieldIterator>::operator++(int) {
-  IteratorImpl<FieldIterator> tmp = *this;
+  const IteratorImpl<FieldIterator> tmp = *this;
   ++*this;
   return tmp;
 }
@@ -733,9 +733,9 @@ CsvRecord::IteratorImpl<FieldIterator>::operator--() {
 }
 
 template <typename FieldIterator>
-inline CsvRecord::IteratorImpl<FieldIterator>
+inline const CsvRecord::IteratorImpl<FieldIterator>
 CsvRecord::IteratorImpl<FieldIterator>::operator--(int) {
-  IteratorImpl<FieldIterator> tmp = *this;
+  const IteratorImpl<FieldIterator> tmp = *this;
   --*this;
   return tmp;
 }

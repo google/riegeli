@@ -627,14 +627,12 @@ class Chain::BlockIterator {
 
   class pointer {
    public:
-    const value_type* operator->() const { return &value_; }
+    const reference* operator->() const { return &ref_; }
 
    private:
     friend class BlockIterator;
-
-    explicit pointer(value_type value) : value_(value) {}
-
-    value_type value_;
+    explicit pointer(reference ref) : ref_(ref) {}
+    reference ref_;
   };
 
   BlockIterator() noexcept {}
@@ -650,9 +648,9 @@ class Chain::BlockIterator {
   reference operator*() const;
   pointer operator->() const;
   BlockIterator& operator++();
-  BlockIterator operator++(int);
+  const BlockIterator operator++(int);
   BlockIterator& operator--();
-  BlockIterator operator--(int);
+  const BlockIterator operator--(int);
   BlockIterator& operator+=(difference_type n);
   BlockIterator operator+(difference_type n) const;
   BlockIterator& operator-=(difference_type n);
@@ -728,14 +726,12 @@ class Chain::BlockIterator {
 class Chain::Blocks {
  public:
   using value_type = absl::string_view;
-  using const_reference = value_type;
-  using reference = const_reference;
-  using const_pointer = BlockIterator::pointer;
-  using pointer = const_pointer;
-  using const_iterator = BlockIterator;
-  using iterator = const_iterator;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-  using reverse_iterator = const_reverse_iterator;
+  using reference = value_type;
+  using const_reference = reference;
+  using iterator = BlockIterator;
+  using const_iterator = iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = reverse_iterator;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
 
@@ -744,21 +740,23 @@ class Chain::Blocks {
   Blocks(const Blocks& that) noexcept = default;
   Blocks& operator=(const Blocks& that) noexcept = default;
 
-  const_iterator begin() const;
-  const_iterator end() const;
-  const_iterator cbegin() const;
-  const_iterator cend() const;
-  const_reverse_iterator rbegin() const;
-  const_reverse_iterator rend() const;
-  const_reverse_iterator crbegin() const;
-  const_reverse_iterator crend() const;
+  iterator begin() const;
+  iterator cbegin() const { return begin(); }
+  iterator end() const;
+  iterator cend() const { return end(); }
+
+  reverse_iterator rbegin() const { return reverse_iterator(end()); }
+  reverse_iterator crbegin() const { return rbegin(); }
+  reverse_iterator rend() const { return reverse_iterator(begin()); }
+  reverse_iterator crend() const { return rend(); }
 
   size_type size() const;
   bool empty() const;
-  const_reference operator[](size_type n) const;
-  const_reference at(size_type n) const;
-  const_reference front() const;
-  const_reference back() const;
+
+  reference operator[](size_type n) const;
+  reference at(size_type n) const;
+  reference front() const;
+  reference back() const;
 
  private:
   friend class Chain;
@@ -1559,8 +1557,8 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator++() {
   return *this;
 }
 
-inline Chain::BlockIterator Chain::BlockIterator::operator++(int) {
-  BlockIterator tmp = *this;
+inline const Chain::BlockIterator Chain::BlockIterator::operator++(int) {
+  const BlockIterator tmp = *this;
   ++*this;
   return tmp;
 }
@@ -1570,8 +1568,8 @@ inline Chain::BlockIterator& Chain::BlockIterator::operator--() {
   return *this;
 }
 
-inline Chain::BlockIterator Chain::BlockIterator::operator--(int) {
-  BlockIterator tmp = *this;
+inline const Chain::BlockIterator Chain::BlockIterator::operator--(int) {
+  const BlockIterator tmp = *this;
   --*this;
   return tmp;
 }
@@ -1672,41 +1670,17 @@ inline const T* Chain::BlockIterator::external_object() const {
 
 inline ChainBlock Chain::BlockIterator::Pin() { return ChainBlock(PinImpl()); }
 
-inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
+inline Chain::Blocks::iterator Chain::Blocks::begin() const {
   return BlockIterator(
       chain_, chain_->begin_ == chain_->end_
                   ? BlockIterator::kBeginShortData + (chain_->empty() ? 1 : 0)
                   : BlockPtrPtr::from_ptr(chain_->begin_));
 }
 
-inline Chain::Blocks::const_iterator Chain::Blocks::end() const {
+inline Chain::Blocks::iterator Chain::Blocks::end() const {
   return BlockIterator(chain_, chain_->begin_ == chain_->end_
                                    ? BlockIterator::kEndShortData
                                    : BlockPtrPtr::from_ptr(chain_->end_));
-}
-
-inline Chain::Blocks::const_iterator Chain::Blocks::cbegin() const {
-  return begin();
-}
-
-inline Chain::Blocks::const_iterator Chain::Blocks::cend() const {
-  return end();
-}
-
-inline Chain::Blocks::const_reverse_iterator Chain::Blocks::rbegin() const {
-  return const_reverse_iterator(end());
-}
-
-inline Chain::Blocks::const_reverse_iterator Chain::Blocks::rend() const {
-  return const_reverse_iterator(begin());
-}
-
-inline Chain::Blocks::const_reverse_iterator Chain::Blocks::crbegin() const {
-  return rbegin();
-}
-
-inline Chain::Blocks::const_reverse_iterator Chain::Blocks::crend() const {
-  return rend();
 }
 
 inline Chain::Blocks::size_type Chain::Blocks::size() const {
@@ -1721,8 +1695,7 @@ inline bool Chain::Blocks::empty() const {
   return chain_->begin_ == chain_->end_ && chain_->empty();
 }
 
-inline Chain::Blocks::const_reference Chain::Blocks::operator[](
-    size_type n) const {
+inline Chain::Blocks::reference Chain::Blocks::operator[](size_type n) const {
   RIEGELI_ASSERT_LT(n, size())
       << "Failed precondition of Chain::Blocks::operator[](): "
          "block index out of range";
@@ -1733,7 +1706,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::operator[](
   }
 }
 
-inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
+inline Chain::Blocks::reference Chain::Blocks::at(size_type n) const {
   RIEGELI_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
                                  "block index out of range";
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
@@ -1743,7 +1716,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::at(size_type n) const {
   }
 }
 
-inline Chain::Blocks::const_reference Chain::Blocks::front() const {
+inline Chain::Blocks::reference Chain::Blocks::front() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::front(): no blocks";
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
@@ -1753,7 +1726,7 @@ inline Chain::Blocks::const_reference Chain::Blocks::front() const {
   }
 }
 
-inline Chain::Blocks::const_reference Chain::Blocks::back() const {
+inline Chain::Blocks::reference Chain::Blocks::back() const {
   RIEGELI_ASSERT(!empty())
       << "Failed precondition of Chain::Blocks::back(): no blocks";
   if (ABSL_PREDICT_FALSE(chain_->begin_ == chain_->end_)) {
