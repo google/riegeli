@@ -21,6 +21,7 @@
 #include <functional>
 #include <iterator>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -75,14 +76,16 @@ class ValueParser : public Object {
   // The parsers must not include `FailIfSeen()` nor `FailIfAnySeen()`.
   // Conflicts with other options should be checked outside the `Or()`.
   static Function Or(Function function1, Function function2);
-  template <typename... Functions>
+  template <typename... Functions,
+            std::enable_if_t<(sizeof...(Functions) > 0), int> = 0>
   static Function Or(Function function1, Function function2,
                      Functions&&... functions);
 
   // Value parser which runs multiple parsers and expects all of them to
   // succeed.
   static Function And(Function function1, Function function2);
-  template <typename... Functions>
+  template <typename... Functions,
+            std::enable_if_t<(sizeof...(Functions) > 0), int> = 0>
   static Function And(Function function1, Function function2,
                       Functions&&... functions);
 
@@ -97,7 +100,7 @@ class ValueParser : public Object {
   // Multiple occurrences of the same option are always invalid and do not have
   // to be explicitly checked with `FailIfSeen()`.
   static Function FailIfSeen(absl::string_view key);
-  template <typename... Keys>
+  template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int> = 0>
   static Function FailIfSeen(absl::string_view key, Keys&&... keys);
 
   // Value parser which reports a conflict if an any option was seen before this
@@ -214,19 +217,21 @@ ValueParser::Function ValueParser::Enum(
   };
 }
 
-template <typename... Functions>
+template <typename... Functions,
+          std::enable_if_t<(sizeof...(Functions) > 0), int>>
 ValueParser::Function ValueParser::Or(Function function1, Function function2,
                                       Functions&&... functions) {
   return Or(function1, Or(function2, std::forward<Functions>(functions)...));
 }
 
-template <typename... Functions>
+template <typename... Functions,
+          std::enable_if_t<(sizeof...(Functions) > 0), int>>
 ValueParser::Function ValueParser::And(Function function1, Function function2,
                                        Functions&&... functions) {
   return And(function1, And(function2, std::forward<Functions>(functions)...));
 }
 
-template <typename... Keys>
+template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int>>
 ValueParser::Function ValueParser::FailIfSeen(absl::string_view key,
                                               Keys&&... keys) {
   return And(FailIfSeen(key), FailIfSeen(std::forward<Keys>(keys)...));

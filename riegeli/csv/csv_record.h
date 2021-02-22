@@ -202,10 +202,13 @@ class CsvHeader {
   // Equivalent to calling `Add()` for each name in order.
   //
   // Precondition: like for `Add()`
-  template <typename... Names>
+  template <typename... Names,
+            std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
   void Add(absl::string_view name, Names&&... names);
   template <typename Name, typename... Names,
-            std::enable_if_t<std::is_same<Name, std::string>::value, int> = 0>
+            std::enable_if_t<std::is_same<Name, std::string>::value &&
+                                 (sizeof...(Names) > 0),
+                             int> = 0>
   void Add(Name&& name, Names&&... names);
 
   // Adds the given field `name`, ordered at the end, reporting whether this was
@@ -227,10 +230,13 @@ class CsvHeader {
   // Equivalent to calling `TryAdd()` for each name in order.
   //
   // Returns early in case of a failure.
-  template <typename... Names>
+  template <typename... Names,
+            std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
   absl::Status TryAdd(absl::string_view name, Names&&... names);
   template <typename Name, typename... Names,
-            std::enable_if_t<std::is_same<Name, std::string>::value, int> = 0>
+            std::enable_if_t<std::is_same<Name, std::string>::value &&
+                                 (sizeof...(Names) > 0),
+                             int> = 0>
   absl::Status TryAdd(Name&& name, Names&&... names);
 
   // Returns a vector of field names, in the order in which they have been
@@ -618,14 +624,18 @@ absl::Status CsvHeader::TryReset(const Names& names) {
   return TryReset(std::move(names_strings));
 }
 
-template <typename... Names>
+extern template void CsvHeader::Add(std::string&& name);
+
+template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline void CsvHeader::Add(absl::string_view name, Names&&... names) {
   Add(name);
   Add(std::forward<Names>(names)...);
 }
 
-template <typename Name, typename... Names,
-          std::enable_if_t<std::is_same<Name, std::string>::value, int>>
+template <
+    typename Name, typename... Names,
+    std::enable_if_t<
+        std::is_same<Name, std::string>::value && (sizeof...(Names) > 0), int>>
 inline void CsvHeader::Add(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
@@ -633,7 +643,9 @@ inline void CsvHeader::Add(Name&& name, Names&&... names) {
   Add(std::forward<Names>(names)...);
 }
 
-template <typename... Names>
+extern template absl::Status CsvHeader::TryAdd(std::string&& name);
+
+template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(absl::string_view name,
                                       Names&&... names) {
   {
@@ -645,8 +657,10 @@ inline absl::Status CsvHeader::TryAdd(absl::string_view name,
   return TryAdd(std::forward<Names>(names)...);
 }
 
-template <typename Name, typename... Names,
-          std::enable_if_t<std::is_same<Name, std::string>::value, int>>
+template <
+    typename Name, typename... Names,
+    std::enable_if_t<
+        std::is_same<Name, std::string>::value && (sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
