@@ -167,14 +167,14 @@ inline void CsvHeader::EnsureUniqueOwner() {
 std::string CsvHeader::DebugString() const {
   std::string result;
   riegeli::StringWriter<> writer(&result);
-  writer.WriteChar('[');
+  writer.WriteChar('{');
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.Write(", ");
     writer.WriteChar('"');
     writer.Write(absl::Utf8SafeCEscape(*iter));
     writer.WriteChar('"');
   }
-  writer.WriteChar(']');
+  writer.WriteChar('}');
   writer.Close();
   return result;
 }
@@ -289,15 +289,16 @@ std::string CsvRecord::DebugString() const {
          "mismatched length of CSV header and fields";
   std::string result;
   riegeli::StringWriter<> writer(&result);
-  writer.WriteChar('[');
+  writer.WriteChar('{');
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.Write(", ");
+    writer.WriteChar('"');
     writer.Write(absl::Utf8SafeCEscape(iter->first));
-    writer.Write("=\"");
+    writer.Write("\": \"");
     writer.Write(absl::Utf8SafeCEscape(iter->second));
     writer.WriteChar('"');
   }
-  writer.WriteChar(']');
+  writer.WriteChar('}');
   writer.Close();
   return result;
 }
