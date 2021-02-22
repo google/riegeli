@@ -616,13 +616,9 @@ template <typename Names,
           std::enable_if_t<
               internal::IsIterableOf<Names, absl::string_view>::value, int>>
 absl::Status CsvHeader::TryReset(const Names& names) {
-  std::vector<std::string> names_strings;
-  for (const absl::string_view name : names) {
-    // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-    // `names_strings.emplace_back(name)`
-    names_strings.emplace_back(name.data(), name.size());
-  }
-  return TryReset(std::move(names_strings));
+  using std::begin;
+  using std::end;
+  return TryReset(std::vector<std::string>(begin(names), end(names)));
 }
 
 extern template void CsvHeader::Add(std::string&& name);

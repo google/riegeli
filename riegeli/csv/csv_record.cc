@@ -80,11 +80,7 @@ absl::Status CsvHeader::TryReset(std::vector<std::string> names) {
   return absl::OkStatus();
 }
 
-void CsvHeader::Add(absl::string_view name) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `Add(std::string(name))`
-  Add(std::string(name.data(), name.size()));
-}
+void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }
 
 template <typename Name,
           std::enable_if_t<std::is_same<Name, std::string>::value, int>>
@@ -99,9 +95,7 @@ void CsvHeader::Add(Name&& name) {
 template void CsvHeader::Add(std::string&& name);
 
 absl::Status CsvHeader::TryAdd(absl::string_view name) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `TryAdd(std::string(name))`
-  return TryAdd(std::string(name.data(), name.size()));
+  return TryAdd(std::string(name));
 }
 
 template <typename Name,

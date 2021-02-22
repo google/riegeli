@@ -336,9 +336,7 @@ bool Benchmarks::ReadRiegeli(
 }
 
 std::string Benchmarks::Filename(absl::string_view name) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // std::string filename(name);
-  std::string filename(name.data(), name.size());
+  std::string filename(name);
   for (char& ch : filename) {
     if (!(ch == '-' || ch == '.' || (ch >= '0' && ch <= '9') ||
           (ch >= 'A' && ch <= 'Z') || ch == '_' || (ch >= 'a' && ch <= 'z'))) {

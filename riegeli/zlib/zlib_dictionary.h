@@ -54,9 +54,7 @@ class ZlibDictionary {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   ZlibDictionary& set_data(absl::string_view data) & {
-    // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-    // std::make_shared<const std::string>(data).
-    owned_data_ = std::make_shared<const std::string>(data.data(), data.size());
+    owned_data_ = std::make_shared<const std::string>(data);
     data_ = *owned_data_;
     return *this;
   }
