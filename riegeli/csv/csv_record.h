@@ -423,6 +423,7 @@ class CsvRecord {
   CsvRecord(const CsvRecord& that);
   CsvRecord& operator=(const CsvRecord& that);
 
+  // The source `CsvRecord` is left empty.
   CsvRecord(CsvRecord&& that) noexcept;
   CsvRecord& operator=(CsvRecord&& that) noexcept;
 
@@ -649,7 +650,7 @@ template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(absl::string_view name,
                                       Names&&... names) {
   {
-    const absl::Status status = TryAdd(name);
+    absl::Status status = TryAdd(name);
     if (!status.ok()) {
       return status;
     }
@@ -665,7 +666,7 @@ inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
   {
-    const absl::Status status = TryAdd(std::move(name));
+    absl::Status status = TryAdd(std::move(name));
     if (!status.ok()) {
       return status;
     }
@@ -799,7 +800,7 @@ inline CsvRecord::CsvRecord(CsvHeader header)
 
 inline CsvRecord::CsvRecord(CsvHeader header, std::vector<std::string> fields)
     : header_(std::move(header)), fields_(std::move(fields)) {
-  RIEGELI_ASSERT_EQ(header_.size(), fields_.size())
+  RIEGELI_CHECK_EQ(header_.size(), fields_.size())
       << "Failed precondition of CsvRecord::CsvRecord(): "
          "mismatched length of CSV header and fields";
 }
@@ -814,11 +815,13 @@ inline CsvRecord& CsvRecord::operator=(const CsvRecord& that) {
 }
 
 inline CsvRecord::CsvRecord(CsvRecord&& that) noexcept
-    : header_(std::move(that.header_)), fields_(std::move(that.fields_)) {}
+    : header_(std::move(that.header_)),  // Leaves `that.header_` empty.
+      fields_(std::move(that.fields_))   // Leaves `that.fields_` empty.
+{}
 
 inline CsvRecord& CsvRecord::operator=(CsvRecord&& that) noexcept {
-  header_ = std::move(that.header_);
-  fields_ = std::move(that.fields_);
+  header_ = std::move(that.header_);  // Leaves `that.header_` empty.
+  fields_ = std::move(that.fields_);  // Leaves `that.fields_` empty.
   return *this;
 }
 

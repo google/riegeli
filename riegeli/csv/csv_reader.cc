@@ -420,7 +420,7 @@ bool CsvReaderBase::ReadRecord(CsvRecord& record) {
     record.Reset();
     return false;
   }
-  RIEGELI_ASSERT(!header_.empty())
+  RIEGELI_CHECK(!header_.empty())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
          "CsvReaderBase::Options::set_read_header() is required";
 try_again:

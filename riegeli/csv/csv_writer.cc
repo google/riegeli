@@ -137,10 +137,10 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
 
 bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
   if (healthy()) {
-    RIEGELI_ASSERT(!header_.empty())
+    RIEGELI_CHECK(!header_.empty())
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
            "CsvWriterBase::Options::set_header() is required";
-    RIEGELI_ASSERT_EQ(record.header(), header_)
+    RIEGELI_CHECK_EQ(record.header(), header_)
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
         << "mismatched CSV header and record";
   }
