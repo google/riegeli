@@ -641,8 +641,8 @@ class Chain::BlockIterator {
 
   explicit BlockIterator(const Chain* chain, size_t block_index);
 
-  BlockIterator(const BlockIterator& that) noexcept;
-  BlockIterator& operator=(const BlockIterator& that) noexcept;
+  BlockIterator(const BlockIterator& that) noexcept = default;
+  BlockIterator& operator=(const BlockIterator& that) noexcept = default;
 
   const Chain* chain() const { return chain_; }
   size_t block_index() const;
@@ -741,8 +741,8 @@ class Chain::Blocks {
 
   Blocks() noexcept {}
 
-  Blocks(const Blocks& that) noexcept;
-  Blocks& operator=(const Blocks& that) noexcept;
+  Blocks(const Blocks& that) noexcept = default;
+  Blocks& operator=(const Blocks& that) noexcept = default;
 
   const_iterator begin() const;
   const_iterator end() const;
@@ -1531,16 +1531,6 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
                                            BlockPtrPtr ptr) noexcept
     : chain_(chain), ptr_(ptr) {}
 
-inline Chain::BlockIterator::BlockIterator(const BlockIterator& that) noexcept
-    : chain_(that.chain_), ptr_(that.ptr_) {}
-
-inline Chain::BlockIterator& Chain::BlockIterator::operator=(
-    const BlockIterator& that) noexcept {
-  chain_ = that.chain_;
-  ptr_ = that.ptr_;
-  return *this;
-}
-
 inline size_t Chain::BlockIterator::block_index() const {
   return IntCast<size_t>(
       ptr_ - (ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
@@ -1681,14 +1671,6 @@ inline const T* Chain::BlockIterator::external_object() const {
 }
 
 inline ChainBlock Chain::BlockIterator::Pin() { return ChainBlock(PinImpl()); }
-
-inline Chain::Blocks::Blocks(const Blocks& that) noexcept
-    : chain_(that.chain_) {}
-
-inline Chain::Blocks& Chain::Blocks::operator=(const Blocks& that) noexcept {
-  chain_ = that.chain_;
-  return *this;
-}
 
 inline Chain::Blocks::const_iterator Chain::Blocks::begin() const {
   return BlockIterator(

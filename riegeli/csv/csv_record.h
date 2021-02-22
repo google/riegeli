@@ -76,8 +76,8 @@ class CsvHeader {
 
     iterator() noexcept {}
 
-    iterator(const iterator& that) noexcept;
-    iterator& operator=(const iterator& that) noexcept;
+    iterator(const iterator& that) noexcept = default;
+    iterator& operator=(const iterator& that) noexcept = default;
 
     reference operator*() const;
     pointer operator->() const;
@@ -153,12 +153,12 @@ class CsvHeader {
   /*implicit*/ CsvHeader(std::vector<std::string> names);
   /*implicit*/ CsvHeader(std::initializer_list<absl::string_view> names);
 
-  CsvHeader(const CsvHeader& that) noexcept;
-  CsvHeader& operator=(const CsvHeader& that) noexcept;
+  CsvHeader(const CsvHeader& that) noexcept = default;
+  CsvHeader& operator=(const CsvHeader& that) noexcept = default;
 
   // The source `CsvHeader` is left empty.
-  CsvHeader(CsvHeader&& that) noexcept;
-  CsvHeader& operator=(CsvHeader&& that) noexcept;
+  CsvHeader(CsvHeader&& that) noexcept = default;
+  CsvHeader& operator=(CsvHeader&& that) noexcept = default;
 
   // Makes `*this` equivalent to a newly constructed `CsvHeader`.
   //
@@ -333,8 +333,8 @@ class CsvRecord {
             int> = 0>
     /*implicit*/ IteratorImpl(IteratorImpl<ThatFieldIterator> that) noexcept;
 
-    IteratorImpl(const IteratorImpl& that) noexcept;
-    IteratorImpl& operator=(const IteratorImpl& that) noexcept;
+    IteratorImpl(const IteratorImpl& that) noexcept = default;
+    IteratorImpl& operator=(const IteratorImpl& that) noexcept = default;
 
     reference operator*() const;
     pointer operator->() const;
@@ -532,15 +532,6 @@ class CsvRecord {
 
 // Implementation details follow.
 
-inline CsvHeader::iterator::iterator(const iterator& that) noexcept
-    : iter_(that.iter_) {}
-
-inline CsvHeader::iterator& CsvHeader::iterator::operator=(
-    const iterator& that) noexcept {
-  iter_ = that.iter_;
-  return *this;
-}
-
 inline typename CsvHeader::iterator::reference CsvHeader::iterator::operator*()
     const {
   return *iter_;
@@ -603,22 +594,6 @@ template <typename Names,
               internal::IsIterableOf<Names, absl::string_view>::value, int>>
 CsvHeader::CsvHeader(const Names& names) {
   Reset(names);
-}
-
-inline CsvHeader::CsvHeader(const CsvHeader& that) noexcept
-    : payload_(that.payload_) {}
-
-inline CsvHeader& CsvHeader::operator=(const CsvHeader& that) noexcept {
-  payload_ = that.payload_;
-  return *this;
-}
-
-inline CsvHeader::CsvHeader(CsvHeader&& that) noexcept
-    : payload_(std::move(that.payload_)) {}
-
-inline CsvHeader& CsvHeader::operator=(CsvHeader&& that) noexcept {
-  payload_ = std::move(that.payload_);
-  return *this;
 }
 
 template <typename Names,
@@ -720,20 +695,6 @@ template <typename ThatFieldIterator,
 inline CsvRecord::IteratorImpl<FieldIterator>::IteratorImpl(
     IteratorImpl<ThatFieldIterator> that) noexcept
     : name_iter_(that.name_iter_), field_iter_(that.field_iter_) {}
-
-template <typename FieldIterator>
-inline CsvRecord::IteratorImpl<FieldIterator>::IteratorImpl(
-    const IteratorImpl& that) noexcept
-    : name_iter_(that.name_iter_), field_iter_(that.field_iter_) {}
-
-template <typename FieldIterator>
-inline CsvRecord::IteratorImpl<FieldIterator>&
-CsvRecord::IteratorImpl<FieldIterator>::operator=(
-    const IteratorImpl& that) noexcept {
-  name_iter_ = that.name_iter_;
-  field_iter_ = that.field_iter_;
-  return *this;
-}
 
 template <typename FieldIterator>
 inline typename CsvRecord::IteratorImpl<FieldIterator>::reference

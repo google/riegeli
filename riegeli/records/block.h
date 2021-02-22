@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
-
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/chunk_encoding/chunk.h"
@@ -40,14 +38,8 @@ class BlockHeader {
     set_header_hash(computed_header_hash());
   }
 
-  BlockHeader(const BlockHeader& that) noexcept {
-    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
-  }
-
-  BlockHeader& operator=(const BlockHeader& that) noexcept {
-    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
-    return *this;
-  }
+  BlockHeader(const BlockHeader& that) noexcept = default;
+  BlockHeader& operator=(const BlockHeader& that) noexcept = default;
 
   char* bytes() { return bytes_; }
   const char* bytes() const { return bytes_; }

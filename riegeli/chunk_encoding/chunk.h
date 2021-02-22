@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
-
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
@@ -37,14 +35,8 @@ class ChunkHeader {
   explicit ChunkHeader(const Chain& data, ChunkType chunk_type,
                        uint64_t num_records, uint64_t decoded_data_size);
 
-  ChunkHeader(const ChunkHeader& that) noexcept {
-    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
-  }
-
-  ChunkHeader& operator=(const ChunkHeader& that) noexcept {
-    std::memcpy(bytes_, that.bytes_, sizeof(bytes_));
-    return *this;
-  }
+  ChunkHeader(const ChunkHeader& that) noexcept = default;
+  ChunkHeader& operator=(const ChunkHeader& that) noexcept = default;
 
   char* bytes() { return bytes_; }
   const char* bytes() const { return bytes_; }

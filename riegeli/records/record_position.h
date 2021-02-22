@@ -55,8 +55,8 @@ class RecordPosition {
   // beginning at the given file position.
   explicit RecordPosition(uint64_t chunk_begin, uint64_t record_index);
 
-  RecordPosition(const RecordPosition& that) noexcept;
-  RecordPosition& operator=(const RecordPosition& that) noexcept;
+  RecordPosition(const RecordPosition& that) noexcept = default;
+  RecordPosition& operator=(const RecordPosition& that) noexcept = default;
 
   // File position of the beginning of the chunk containing the given record.
   uint64_t chunk_begin() const { return chunk_begin_; }
@@ -148,16 +148,6 @@ inline RecordPosition::RecordPosition(uint64_t chunk_begin,
   RIEGELI_ASSERT_LE(record_index,
                     std::numeric_limits<uint64_t>::max() - chunk_begin)
       << "RecordPosition overflow";
-}
-
-inline RecordPosition::RecordPosition(const RecordPosition& that) noexcept
-    : chunk_begin_(that.chunk_begin_), record_index_(that.record_index_) {}
-
-inline RecordPosition& RecordPosition::operator=(
-    const RecordPosition& that) noexcept {
-  chunk_begin_ = that.chunk_begin_;
-  record_index_ = that.record_index_;
-  return *this;
 }
 
 inline bool operator==(RecordPosition a, RecordPosition b) {

@@ -38,12 +38,12 @@ class SharedBuffer {
   // Ensures at least `min_capacity` of space.
   explicit SharedBuffer(size_t min_capacity);
 
-  SharedBuffer(const SharedBuffer& that) noexcept;
-  SharedBuffer& operator=(const SharedBuffer& that) noexcept;
+  SharedBuffer(const SharedBuffer& that) noexcept = default;
+  SharedBuffer& operator=(const SharedBuffer& that) noexcept = default;
 
   // The source `SharedBuffer` is left deallocated.
-  SharedBuffer(SharedBuffer&& that) noexcept;
-  SharedBuffer& operator=(SharedBuffer&& that) noexcept;
+  SharedBuffer(SharedBuffer&& that) noexcept = default;
+  SharedBuffer& operator=(SharedBuffer&& that) noexcept = default;
 
   // Ensures at least `min_capacity` of space and unique ownership of the data.
   // Existing contents are lost.
@@ -122,23 +122,6 @@ inline bool SharedBuffer::Payload::has_unique_owner() const {
 
 inline SharedBuffer::SharedBuffer(size_t min_capacity) {
   AllocateInternal(min_capacity);
-}
-
-inline SharedBuffer::SharedBuffer(const SharedBuffer& that) noexcept
-    : payload_(that.payload_) {}
-
-inline SharedBuffer& SharedBuffer::operator=(
-    const SharedBuffer& that) noexcept {
-  payload_ = that.payload_;
-  return *this;
-}
-
-inline SharedBuffer::SharedBuffer(SharedBuffer&& that) noexcept
-    : payload_(std::move(that.payload_)) {}
-
-inline SharedBuffer& SharedBuffer::operator=(SharedBuffer&& that) noexcept {
-  payload_ = std::move(that.payload_);
-  return *this;
 }
 
 inline void SharedBuffer::Reset(size_t min_capacity) {
