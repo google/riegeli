@@ -636,8 +636,11 @@ inline void CsvHeader::Add(Name&& name, Names&&... names) {
 template <typename... Names>
 inline absl::Status CsvHeader::TryAdd(absl::string_view name,
                                       Names&&... names) {
-  if (const absl::Status status = TryAdd(name); !status.ok()) {
-    return status;
+  {
+    const absl::Status status = TryAdd(name);
+    if (!status.ok()) {
+      return status;
+    }
   }
   return TryAdd(std::forward<Names>(names)...);
 }
@@ -647,8 +650,11 @@ template <typename Name, typename... Names,
 inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
   // `std::move(name)` is correct and `std::forward<Name>(name)` is not
   // necessary: `Name` is always `std::string`, never an lvalue reference.
-  if (const absl::Status status = TryAdd(std::move(name)); !status.ok()) {
-    return status;
+  {
+    const absl::Status status = TryAdd(std::move(name));
+    if (!status.ok()) {
+      return status;
+    }
   }
   return TryAdd(std::forward<Names>(names)...);
 }
