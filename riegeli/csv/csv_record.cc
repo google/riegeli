@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
@@ -62,14 +63,18 @@ void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
 absl::Status CsvHeader::TryReset(std::vector<std::string> names) {
   EnsureUniqueOwner();
   payload_->name_to_index.clear();
+  std::vector<absl::string_view> duplicate_names;
   for (size_t index = 0; index < names.size(); ++index) {
     const std::pair<absl::flat_hash_map<std::string, size_t>::iterator, bool>
         insert_result = payload_->name_to_index.emplace(names[index], index);
     if (ABSL_PREDICT_FALSE(!insert_result.second)) {
-      payload_.reset();
-      return absl::FailedPreconditionError(
-          absl::StrCat("Duplicate field name: ", names[index]));
+      duplicate_names.push_back(names[index]);
     }
+  }
+  if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
+    payload_.reset();
+    return absl::FailedPreconditionError(absl::StrCat(
+        "Duplicate field name(s): ", absl::StrJoin(duplicate_names, ", ")));
   }
   payload_->index_to_name = std::move(names);
   return absl::OkStatus();
