@@ -38,6 +38,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
 
@@ -815,16 +816,14 @@ class ChainBlock {
 
   constexpr ChainBlock() noexcept {}
 
-  ChainBlock(const ChainBlock& that) noexcept;
-  ChainBlock& operator=(const ChainBlock& that) noexcept;
+  ChainBlock(const ChainBlock& that) noexcept = default;
+  ChainBlock& operator=(const ChainBlock& that) noexcept = default;
 
   // The source `ChainBlock` is left cleared.
   //
   // Moving a `ChainBlock` keeps its data pointers unchanged.
-  ChainBlock(ChainBlock&& that) noexcept;
-  ChainBlock& operator=(ChainBlock&& that) noexcept;
-
-  ~ChainBlock();
+  ChainBlock(ChainBlock&& that) noexcept = default;
+  ChainBlock& operator=(ChainBlock&& that) noexcept = default;
 
   void Clear();
 
@@ -906,7 +905,7 @@ class ChainBlock {
   void RemoveSuffixSlow(size_t length, const Options& options);
   void RemovePrefixSlow(size_t length, const Options& options);
 
-  RawBlock* block_ = nullptr;
+  RefCountedPtr<RawBlock> block_;
 };
 
 // Returns the given number of zero bytes.
@@ -1784,7 +1783,7 @@ inline Chain::Chain(const ChainBlock& src) {
 
 inline Chain::Chain(ChainBlock&& src) {
   if (src.block_ != nullptr) {
-    RawBlock* const block = std::exchange(src.block_, nullptr);
+    RawBlock* const block = src.block_.release();
     (end_++)->block_ptr = block;
     size_ = block->size();
   }
@@ -1977,26 +1976,25 @@ extern template void Chain::Prepend(std::string&& src, const Options& options);
 
 inline void Chain::Append(const ChainBlock& src, const Options& options) {
   if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kShare>(src.block_, options);
+    AppendBlock<Ownership::kShare>(src.block_.get(), options);
   }
 }
 
 inline void Chain::Prepend(const ChainBlock& src, const Options& options) {
   if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kShare>(src.block_, options);
+    PrependBlock<Ownership::kShare>(src.block_.get(), options);
   }
 }
 
 inline void Chain::Append(ChainBlock&& src, const Options& options) {
   if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr), options);
+    AppendBlock<Ownership::kSteal>(src.block_.release(), options);
   }
 }
 
 inline void Chain::Prepend(ChainBlock&& src, const Options& options) {
   if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kSteal>(std::exchange(src.block_, nullptr),
-                                    options);
+    PrependBlock<Ownership::kSteal>(src.block_.release(), options);
   }
 }
 
@@ -2103,39 +2101,8 @@ inline ChainBlock ChainBlock::FromExternal(std::tuple<Args...> args,
       Chain::ExternalMethodsFor<T>::NewBlock(std::move(args), data));
 }
 
-inline ChainBlock::ChainBlock(ChainBlock&& that) noexcept
-    : block_(std::exchange(that.block_, nullptr)) {}
-
-inline ChainBlock& ChainBlock::operator=(ChainBlock&& that) noexcept {
-  // Exchange `that.block_` early to support self-assignment.
-  RawBlock* const block = std::exchange(that.block_, nullptr);
-  if (block_ != nullptr) block_->Unref();
-  block_ = block;
-  return *this;
-}
-
-inline ChainBlock::ChainBlock(const ChainBlock& that) noexcept
-    : block_(that.block_) {
-  if (block_ != nullptr) block_->Ref();
-}
-
-inline ChainBlock& ChainBlock::operator=(const ChainBlock& that) noexcept {
-  RawBlock* const block = that.block_;
-  if (block != nullptr) block->Ref();
-  if (block_ != nullptr) block_->Unref();
-  block_ = block;
-  return *this;
-}
-
-inline ChainBlock::~ChainBlock() {
-  if (block_ != nullptr) block_->Unref();
-}
-
 inline void ChainBlock::Clear() {
-  if (block_ != nullptr && !block_->TryClear()) {
-    block_->Unref();
-    block_ = nullptr;
-  }
+  if (block_ != nullptr && !block_->TryClear()) block_.reset();
 }
 
 inline ChainBlock::operator absl::string_view() const {
@@ -2186,7 +2153,7 @@ inline void ChainBlock::RemovePrefix(size_t length, const Options& options) {
   RemovePrefixSlow(length, options);
 }
 
-inline void* ChainBlock::Release() { return std::exchange(block_, nullptr); }
+inline void* ChainBlock::Release() { return block_.release(); }
 
 inline void ChainBlock::DeleteReleased(void* ptr) {
   if (ptr != nullptr) static_cast<RawBlock*>(ptr)->Unref();

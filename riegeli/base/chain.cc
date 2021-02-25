@@ -36,6 +36,7 @@
 #include "absl/types/compare.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/memory_estimator.h"
 
@@ -118,13 +119,11 @@ class Chain::BlockRef {
   BlockRef(const BlockRef&) = delete;
   BlockRef& operator=(const BlockRef&) = delete;
 
-  ~BlockRef();
-
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
   void DumpStructure(absl::string_view data, std::ostream& out) const;
 
  private:
-  RawBlock* block_;
+  RefCountedPtr<RawBlock> block_;
 };
 
 template <Chain::Ownership ownership>
@@ -133,7 +132,7 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
   if (const BlockRef* const block_ref =
           block->checked_external_object<BlockRef>()) {
     // `block` is already a `BlockRef`. Refer to its target instead.
-    RawBlock* const target = block_ref->block_;
+    RawBlock* const target = block_ref->block_.get();
     if (ownership == Ownership::kSteal) {
       target->Ref();
       block->Unref();
@@ -141,11 +140,7 @@ inline Chain::BlockRef::BlockRef(RawBlock* block,
     block = target;
   }
   if (ownership == Ownership::kShare) block->Ref();
-  block_ = block;
-}
-
-inline Chain::BlockRef::~BlockRef() {
-  if (block_ != nullptr) block_->Unref();
+  block_.reset(block);
 }
 
 inline void Chain::BlockRef::RegisterSubobjects(
@@ -2520,8 +2515,8 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
          "ChainBlock size overflow";
   if (block_ == nullptr) {
     if (min_length == 0) return absl::Span<char>();
-    block_ = RawBlock::NewInternal(
-        NewBlockCapacity(size(), min_length, recommended_length, options));
+    block_.reset(RawBlock::NewInternal(
+        NewBlockCapacity(size(), min_length, recommended_length, options)));
   } else {
     size_t space_before;
     if (!block_->CanAppendMovingData(min_length, &space_before)) {
@@ -2530,8 +2525,7 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
       RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
           space_before + size(), min_length, recommended_length, options));
       block->Append(absl::string_view(*block_), space_before);
-      block_->Unref();
-      block_ = block;
+      block_.reset(block);
     }
   }
   const absl::Span<char> buffer = block_->AppendBuffer(max_length);
@@ -2552,8 +2546,8 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
          "ChainBlock size overflow";
   if (block_ == nullptr) {
     if (min_length == 0) return absl::Span<char>();
-    block_ = RawBlock::NewInternal(
-        NewBlockCapacity(size(), min_length, recommended_length, options));
+    block_.reset(RawBlock::NewInternal(
+        NewBlockCapacity(size(), min_length, recommended_length, options)));
   } else {
     size_t space_after;
     if (!block_->CanPrependMovingData(min_length, &space_after)) {
@@ -2562,8 +2556,7 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
       RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
           space_after + size(), min_length, recommended_length, options));
       block->Prepend(absl::string_view(*block_), space_after);
-      block_->Unref();
-      block_ = block;
+      block_.reset(block);
     }
   }
   const absl::Span<char> buffer = block_->PrependBuffer(max_length);
@@ -2577,8 +2570,7 @@ void ChainBlock::RemoveSuffixSlow(size_t length, const Options& options) {
       << "Failed precondition of ChainBlock::RemoveSuffixSlow(): "
          "nothing to do, use RemoveSuffix() instead";
   if (length == block_->size()) {
-    block_->Unref();
-    block_ = nullptr;
+    block_.reset();
     return;
   }
   absl::string_view data(*block_);
@@ -2588,8 +2580,7 @@ void ChainBlock::RemoveSuffixSlow(size_t length, const Options& options) {
                                    ? options.size_hint()
                                    : options.min_block_size()));
   block->Append(data);
-  block_->Unref();
-  block_ = block;
+  block_.reset(block);
 }
 
 void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
@@ -2597,8 +2588,7 @@ void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
       << "Failed precondition of ChainBlock::RemovePrefixSlow(): "
          "nothing to do, use RemovePrefix() instead";
   if (length == block_->size()) {
-    block_->Unref();
-    block_ = nullptr;
+    block_.reset();
     return;
   }
   absl::string_view data(*block_);
@@ -2608,8 +2598,7 @@ void ChainBlock::RemovePrefixSlow(size_t length, const Options& options) {
                                    ? options.size_hint()
                                    : options.min_block_size()));
   block->Prepend(data);
-  block_->Unref();
-  block_ = block;
+  block_.reset(block);
 }
 
 void ChainBlock::AppendTo(Chain& dest, const Chain::Options& options) const {

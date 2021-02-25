@@ -61,6 +61,7 @@ cc_library(
     hdrs = ["chain.h"],
     deps = [
         ":base",
+        ":intrusive_ref_count",
         ":memory_estimator",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
