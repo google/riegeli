@@ -40,27 +40,28 @@ namespace riegeli {
 inline CsvHeader::Payload::Payload(const Payload& that)
     : index_to_name(that.index_to_name), name_to_index(that.name_to_index) {}
 
-CsvHeader::CsvHeader(std::vector<std::string> names) {
-  Reset(std::move(names));
+CsvHeader::CsvHeader(std::vector<std::string>&& names) {
+  const absl::Status status = TryReset(std::move(names));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::CsvHeader(): " << status.message();
 }
 
-CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names) {
-  Reset(names);
-}
+CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names)
+    : CsvHeader(internal::ToVectorOfStrings(names)) {}
 
 void CsvHeader::Reset() { payload_.reset(); }
 
-void CsvHeader::Reset(std::vector<std::string> names) {
+void CsvHeader::Reset(std::vector<std::string>&& names) {
   const absl::Status status = TryReset(std::move(names));
   RIEGELI_CHECK(status.ok())
       << "Failed precondition of CsvHeader::Reset(): " << status.message();
 }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
-  Reset<std::initializer_list<absl::string_view>>(names);
+  Reset(internal::ToVectorOfStrings(names));
 }
 
-absl::Status CsvHeader::TryReset(std::vector<std::string> names) {
+absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
   EnsureUniqueOwner();
   payload_->name_to_index.clear();
   std::vector<absl::string_view> duplicate_names;
@@ -78,6 +79,11 @@ absl::Status CsvHeader::TryReset(std::vector<std::string> names) {
   }
   payload_->index_to_name = std::move(names);
   return absl::OkStatus();
+}
+
+absl::Status CsvHeader::TryReset(
+    std::initializer_list<absl::string_view> names) {
+  return TryReset(internal::ToVectorOfStrings(names));
 }
 
 void CsvHeader::Add(absl::string_view name) { Add(std::string(name)); }
@@ -120,11 +126,6 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
 }
 
 template absl::Status CsvHeader::TryAdd(std::string&& name);
-
-absl::Status CsvHeader::TryReset(
-    std::initializer_list<absl::string_view> names) {
-  return TryReset<std::initializer_list<absl::string_view>>(names);
-}
 
 CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
@@ -179,6 +180,16 @@ std::ostream& operator<<(std::ostream& out, const CsvHeader& header) {
   return out << header.DebugString();
 }
 
+CsvRecord::CsvRecord(CsvHeader header, std::vector<std::string>&& fields) {
+  const absl::Status status = TryReset(std::move(header), std::move(fields));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvRecord::CsvRecord(): " << status.message();
+}
+
+CsvRecord::CsvRecord(CsvHeader header,
+                     std::initializer_list<absl::string_view> fields)
+    : CsvRecord(std::move(header), internal::ToVectorOfStrings(fields)) {}
+
 void CsvRecord::Reset() {
   header_.Reset();
   fields_.clear();
@@ -190,14 +201,19 @@ void CsvRecord::Reset(CsvHeader header) {
   Clear();
 }
 
-void CsvRecord::Reset(CsvHeader header, std::vector<std::string> fields) {
+void CsvRecord::Reset(CsvHeader header, std::vector<std::string>&& fields) {
   const absl::Status status = TryReset(std::move(header), std::move(fields));
   RIEGELI_CHECK(status.ok())
       << "Failed precondition of CsvRecord::Reset(): " << status.message();
 }
 
+void CsvRecord::Reset(CsvHeader header,
+                      std::initializer_list<absl::string_view> fields) {
+  Reset(std::move(header), internal::ToVectorOfStrings(fields));
+}
+
 absl::Status CsvRecord::TryReset(CsvHeader header,
-                                 std::vector<std::string> fields) {
+                                 std::vector<std::string>&& fields) {
   if (ABSL_PREDICT_FALSE(header.size() != fields.size())) {
     header_.Reset();
     fields_.clear();
@@ -208,6 +224,11 @@ absl::Status CsvRecord::TryReset(CsvHeader header,
   header_ = std::move(header);
   fields_ = std::move(fields);
   return absl::OkStatus();
+}
+
+absl::Status CsvRecord::TryReset(
+    CsvHeader header, std::initializer_list<absl::string_view> fields) {
+  return TryReset(std::move(header), internal::ToVectorOfStrings(fields));
 }
 
 void CsvRecord::Clear() {
