@@ -25,10 +25,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
 
@@ -239,9 +242,9 @@ class CsvHeader {
                              int> = 0>
   absl::Status TryAdd(Name&& name, Names&&... names);
 
-  // Returns a vector of field names, in the order in which they have been
+  // Returns a sequence of field names, in the order in which they have been
   // added.
-  const std::vector<std::string>& names() const;
+  absl::Span<const std::string> names() const;
 
   // Iterates over field names, in the order in which they have been added.
   iterator begin() const;
@@ -270,6 +273,13 @@ class CsvHeader {
 
   // Returns `true` if `name` is present.
   bool contains(absl::string_view name) const;
+
+  // Returns the position of `name` in the sequence of field names, or
+  // `absl::nullopt` if `name` is not present.
+  //
+  // This can be used together with `CsvRecord::fields()` to look up the same
+  // field in multiple `CsvRecord`s sharing a `CsvHeader`.
+  absl::optional<size_t> IndexOf(absl::string_view name) const;
 
   friend bool operator==(const CsvHeader& a, const CsvHeader& b);
   friend bool operator!=(const CsvHeader& a, const CsvHeader& b);
@@ -450,9 +460,10 @@ class CsvRecord {
   // Makes all field values empty. The number of fields is unchanged.
   void Clear();
 
-  // Returns a vector of field values, in the order corresponding to the order
+  // Returns a sequence of field values, in the order corresponding to the order
   // of field names in the header.
-  const std::vector<std::string>& fields() const { return fields_; }
+  absl::Span<std::string> fields() { return absl::MakeSpan(fields_); }
+  absl::Span<const std::string> fields() const { return fields_; }
 
   // Iterates over pairs of field names and field values, in the order
   // corresponding to the order of field names in the header.
@@ -501,7 +512,9 @@ class CsvRecord {
   // Preconditions:
   //  * `iter` belongs to `header()`
   //  * `iter != header().end()`
+  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
   std::string& operator[](CsvHeader::iterator name_iter);
+  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
   const std::string& operator[](CsvHeader::iterator name_iter) const;
 
   // Returns an iterator positioned at the pair of the given field `name` and
@@ -517,7 +530,9 @@ class CsvRecord {
   //
   // Preconditions:
   //  * `iter` belongs to `header()`
+  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
   iterator find(CsvHeader::iterator name_iter);
+  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
   const_iterator find(CsvHeader::iterator name_iter) const;
 
   // Returns `true` if `name` is present.
@@ -668,6 +683,11 @@ inline absl::Status CsvHeader::TryAdd(Name&& name, Names&&... names) {
     }
   }
   return TryAdd(std::forward<Names>(names)...);
+}
+
+inline absl::Span<const std::string> CsvHeader::names() const {
+  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return {};
+  return payload_->index_to_name;
 }
 
 inline CsvHeader::iterator CsvHeader::begin() const {

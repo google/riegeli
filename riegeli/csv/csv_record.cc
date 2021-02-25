@@ -30,9 +30,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/bytes/string_writer.h"
 
 namespace riegeli {
@@ -126,14 +126,6 @@ absl::Status CsvHeader::TryReset(
   return TryReset<std::initializer_list<absl::string_view>>(names);
 }
 
-const std::vector<std::string>& CsvHeader::names() const {
-  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) {
-    static const NoDestructor<std::vector<std::string>> kEmptyHeader;
-    return *kEmptyHeader;
-  }
-  return payload_->index_to_name;
-}
-
 CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return iterator();
   const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
@@ -148,6 +140,16 @@ CsvHeader::iterator CsvHeader::find(absl::string_view name) const {
 bool CsvHeader::contains(absl::string_view name) const {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return false;
   return payload_->name_to_index.find(name) != payload_->name_to_index.cend();
+}
+
+absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
+  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return absl::nullopt;
+  const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
+      payload_->name_to_index.find(name);
+  if (ABSL_PREDICT_FALSE(iter == payload_->name_to_index.cend())) {
+    return absl::nullopt;
+  }
+  return iter->second;
 }
 
 inline void CsvHeader::EnsureUniqueOwner() {

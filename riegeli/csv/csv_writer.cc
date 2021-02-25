@@ -20,7 +20,6 @@
 #include <cstring>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -28,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
