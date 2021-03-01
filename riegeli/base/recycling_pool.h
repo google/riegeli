@@ -281,8 +281,8 @@ void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
   absl::MutexLock lock(&mutex_);
   // Add a newest entry.
   by_freshness_.push_back(std::move(object));
-  if (ABSL_PREDICT_FALSE(by_freshness_.size() >
-                         max_size_.load(std::memory_order_relaxed))) {
+  while (ABSL_PREDICT_FALSE(by_freshness_.size() >
+                            max_size_.load(std::memory_order_relaxed))) {
     // Evict the oldest entry.
     evicted.push_back(std::move(by_freshness_.front()));
     by_freshness_.pop_front();
