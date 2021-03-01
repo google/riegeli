@@ -60,7 +60,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
   // Zlib decompressor rejects `window_log` in a subsequent header greater than
   // in the first header.
   compressor_ =
-      RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::global().Get(
+      KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global().Get(
           ZStreamKey{compression_level, window_bits},
           [&] {
             std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());

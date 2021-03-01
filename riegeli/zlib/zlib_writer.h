@@ -246,7 +246,7 @@ class ZlibWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src, Writer& dest, int flush);
 
   ZlibDictionary dictionary_;
-  RecyclingPool<z_stream, ZStreamDeleter, ZStreamKey>::Handle compressor_;
+  KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::Handle compressor_;
 };
 
 // A `Writer` which compresses data with Zlib before passing it to another
