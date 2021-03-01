@@ -254,42 +254,16 @@ const std::string& CsvRecord::operator[](absl::string_view name) const {
   return fields_[name_iter - header_.begin()];
 }
 
-std::string& CsvRecord::operator[](CsvHeader::iterator name_iter) {
-  RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "field name iterator does not belong to the same header";
-  RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "unknown field name";
-  return fields_[name_iter - header_.begin()];
-}
-
-const std::string& CsvRecord::operator[](CsvHeader::iterator name_iter) const {
-  RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "field name iterator does not belong to the same header";
-  RIEGELI_CHECK(name_iter != header_.end())
-      << "Failed precondition of CsvRecord::operator[](): "
-         "unknown field name";
-  return fields_[name_iter - header_.begin()];
-}
-
 CsvRecord::iterator CsvRecord::find(absl::string_view name) {
-  return find(header_.find(name));
-}
-
-CsvRecord::const_iterator CsvRecord::find(absl::string_view name) const {
-  return find(header_.find(name));
-}
-
-CsvRecord::iterator CsvRecord::find(CsvHeader::iterator name_iter) {
+  const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "
          "field name iterator does not belong to the same header";
   return iterator(name_iter, fields_.begin() + (name_iter - header_.begin()));
 }
 
-CsvRecord::const_iterator CsvRecord::find(CsvHeader::iterator name_iter) const {
+CsvRecord::const_iterator CsvRecord::find(absl::string_view name) const {
+  const CsvHeader::iterator name_iter = header_.find(name);
   RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "
          "field name iterator does not belong to the same header";

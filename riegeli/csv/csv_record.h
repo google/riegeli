@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -502,37 +501,10 @@ class CsvRecord {
   std::string& operator[](absl::string_view name);
   const std::string& operator[](absl::string_view name) const;
 
-  // Returns a reference to the field value corresponding to the given field
-  // name iterator.
-  //
-  // Storing the iterator across lookups in multiple `CsvRecord`s with the same
-  // `CsvHeader` avoids performing a string lookup for each record.
-  //
-  // Preconditions:
-  //  * `iter` belongs to `header()`
-  //  * `iter != header().end()`
-  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
-  std::string& operator[](CsvHeader::iterator name_iter);
-  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
-  const std::string& operator[](CsvHeader::iterator name_iter) const;
-
   // Returns an iterator positioned at the pair of the given field `name` and
   // the corresponding field value, or `end()` if `name` is not present.
   iterator find(absl::string_view name);
   const_iterator find(absl::string_view name) const;
-
-  // Returns an iterator positioned at the pair of the given field name iterator
-  // and the corresponding field value, or `end()` if `name` is not present.
-  //
-  // Storing the iterator across lookups in multiple `CsvRecord`s with the same
-  // `CsvHeader` avoids performing a string lookup for each record.
-  //
-  // Preconditions:
-  //  * `iter` belongs to `header()`
-  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
-  iterator find(CsvHeader::iterator name_iter);
-  ABSL_DEPRECATED("Use CsvHeader::IndexOf() and CsvRecord::fields()")
-  const_iterator find(CsvHeader::iterator name_iter) const;
 
   // Returns `true` if `name` is present.
   bool contains(absl::string_view name) const;
