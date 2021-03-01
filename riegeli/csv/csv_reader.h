@@ -369,12 +369,11 @@ class CsvReaderBase : public Object {
   ABSL_ATTRIBUTE_COLD bool MaxFieldLengthExceeded();
   void SkipLine(Reader& src);
   bool ReadQuoted(Reader& src, std::string& field);
-  template <bool standalone_record>
   bool ReadFields(Reader& src, std::vector<std::string>& fields,
                   size_t& field_index);
-  template <bool standalone_record>
   bool ReadRecordInternal(std::vector<std::string>& record);
 
+  bool standalone_record_ = false;
   CsvHeader header_;
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
@@ -489,7 +488,9 @@ CsvReader(std::tuple<SrcArgs...> src_args,
 
 // Reads a single record from a CSV string.
 //
-// A record terminator must not be present.
+// A record terminator must not be present in the string.
+//
+// Precondition: `!options.read_header()`
 absl::Status ReadCsvRecordFromString(
     absl::string_view src, std::vector<std::string>& record,
     CsvReaderBase::Options options = CsvReaderBase::Options());
@@ -506,6 +507,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      standalone_record_(that.standalone_record_),
       header_(std::move(that.header_)),
       char_classes_(that.char_classes_),
       quote_(that.quote_),
@@ -521,6 +523,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   Object::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  standalone_record_ = that.standalone_record_;
   header_ = std::move(that.header_);
   char_classes_ = that.char_classes_;
   quote_ = that.quote_;
@@ -536,6 +539,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
 
 inline void CsvReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
+  standalone_record_ = false;
   header_.Reset();
   recovery_ = nullptr;
   record_index_ = 0;
@@ -546,6 +550,7 @@ inline void CsvReaderBase::Reset(InitiallyClosed) {
 
 inline void CsvReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
+  standalone_record_ = false;
   header_.Reset();
   char_classes_ = {};
   recovery_ = nullptr;

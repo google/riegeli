@@ -244,9 +244,10 @@ class CsvWriterBase : public Object {
   bool WriteQuoted(Writer& dest, absl::string_view field,
                    size_t already_scanned);
   bool WriteField(Writer& dest, absl::string_view field);
-  template <bool standalone_record, typename Record>
+  template <typename Record>
   bool WriteRecordInternal(const Record& record);
 
+  bool standalone_record_ = false;
   CsvHeader header_;
   // Lookup table for checking whether quotes are needed if the given character
   // is present in a field.
@@ -357,8 +358,10 @@ CsvWriter(std::tuple<DestArgs...> dest_args,
 // The type of `record` must support iteration yielding `absl::string_view`:
 // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
 //
-// Precondition: if `options.quote() == absl::nullopt`, fields do not include
-// inexpressible characters: LF, CR, comment character, field separator.
+// Preconditions:
+//  * `options.header().empty()`
+//  * if `options.quote() == absl::nullopt`, fields do not include inexpressible
+//    characters: LF, CR, comment character, field separator.
 template <
     typename Record,
     std::enable_if_t<internal::IsIterableOf<Record, absl::string_view>::value,
@@ -382,6 +385,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      standalone_record_(that.standalone_record_),
       header_(std::move(that.header_)),
       quotes_needed_(that.quotes_needed_),
       newline_(that.newline_),
@@ -393,6 +397,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   Object::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  standalone_record_ = that.standalone_record_;
   header_ = std::move(that.header_);
   quotes_needed_ = that.quotes_needed_;
   newline_ = that.newline_;
@@ -404,12 +409,14 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
 
 inline void CsvWriterBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
+  standalone_record_ = false;
   header_.Reset();
   record_index_ = 0;
 }
 
 inline void CsvWriterBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
+  standalone_record_ = false;
   header_.Reset();
   quotes_needed_ = {};
   record_index_ = 0;
@@ -419,7 +426,7 @@ template <typename Record,
           std::enable_if_t<
               internal::IsIterableOf<Record, absl::string_view>::value, int>>
 bool CsvWriterBase::WriteRecord(const Record& record) {
-  return WriteRecordInternal<false>(record);
+  return WriteRecordInternal(record);
 }
 
 namespace internal {
@@ -427,18 +434,19 @@ namespace internal {
 template <typename Record>
 inline bool WriteStandaloneRecord(const Record& record,
                                   CsvWriterBase& csv_writer) {
-  return csv_writer.WriteRecordInternal<true>(record);
+  csv_writer.standalone_record_ = true;
+  return csv_writer.WriteRecordInternal(record);
 }
 
 }  // namespace internal
 
-template <bool standalone_record, typename Record>
+template <typename Record>
 inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (standalone_record) {
+  if (standalone_record_) {
     RIEGELI_ASSERT_EQ(record_index_, 0u)
         << "Failed precondition of CsvWriterBase::WriteRecordInternal(): "
-           "called more than once when standalone_record is true";
+           "called more than once by WriteCsvRecordToString()";
   }
   Writer& dest = *dest_writer();
   using std::begin;
@@ -456,7 +464,7 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
       }
     }
   }
-  if (!standalone_record) {
+  if (!standalone_record_) {
     if (ABSL_PREDICT_FALSE(
             !WriteLine(dest, WriteLineOptions().set_newline(newline_)))) {
       return Fail(dest);
@@ -556,6 +564,9 @@ template <typename Record,
               internal::IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
+  RIEGELI_ASSERT(options.header().empty())
+      << "Failed precondition of WriteCsvRecordToString(): "
+         "options.header() is not applicable";
   std::string dest;
   CsvWriter<StringWriter<>> csv_writer(std::forward_as_tuple(&dest),
                                        std::move(options));

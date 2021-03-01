@@ -106,14 +106,21 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 bool CsvReaderBase::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at line ", line_number())));
+  if (standalone_record_) {
+    return FailWithoutAnnotation(std::move(status));
+  } else {
+    return FailWithoutAnnotation(
+        Annotate(status, absl::StrCat("at line ", line_number())));
+  }
 }
 
 bool CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "status not failed";
+  RIEGELI_ASSERT(!standalone_record_)
+      << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
+         "should never happen in ReadCsvRecordFromString()";
   return FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at line ", last_line_number())));
 }
@@ -258,7 +265,6 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
   }
 }
 
-template <bool standalone_record>
 inline bool CsvReaderBase::ReadFields(Reader& src,
                                       std::vector<std::string>& fields,
                                       size_t& field_index) {
@@ -267,7 +273,7 @@ inline bool CsvReaderBase::ReadFields(Reader& src,
          "initial index must be 0";
 next_record:
   last_line_number_ = line_number_;
-  if (standalone_record) {
+  if (standalone_record_) {
     if (ABSL_PREDICT_FALSE(record_index_ > 0)) return false;
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -334,13 +340,13 @@ next_field:
         RIEGELI_ASSERT_UNREACHABLE() << "Handled before switch";
       case CharClass::kLf:
         ++line_number_;
-        if (standalone_record) {
+        if (ABSL_PREDICT_FALSE(standalone_record_)) {
           return Fail(absl::DataLossError("Unexpected newline"));
         }
         return true;
       case CharClass::kCr:
         ++line_number_;
-        if (standalone_record) {
+        if (ABSL_PREDICT_FALSE(standalone_record_)) {
           return Fail(absl::DataLossError("Unexpected newline"));
         }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -377,13 +383,13 @@ next_field:
             goto next_field;
           case CharClass::kLf:
             ++line_number_;
-            if (standalone_record) {
+            if (ABSL_PREDICT_FALSE(standalone_record_)) {
               return Fail(absl::DataLossError("Unexpected newline"));
             }
             return true;
           case CharClass::kCr:
             ++line_number_;
-            if (standalone_record) {
+            if (ABSL_PREDICT_FALSE(standalone_record_)) {
               return Fail(absl::DataLossError("Unexpected newline"));
             }
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -449,24 +455,29 @@ try_again:
 }
 
 bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
-  return ReadRecordInternal<false>(record);
+  return ReadRecordInternal(record);
 }
 
 namespace internal {
 
 inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
                                  std::vector<std::string>& record) {
-  return csv_reader.ReadRecordInternal<true>(record);
+  csv_reader.standalone_record_ = true;
+  return csv_reader.ReadRecordInternal(record);
 }
 
 }  // namespace internal
 
-template <bool standalone_record>
 inline bool CsvReaderBase::ReadRecordInternal(
     std::vector<std::string>& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) {
     record.clear();
     return false;
+  }
+  if (standalone_record_) {
+    RIEGELI_ASSERT_EQ(record_index_, 0u)
+        << "Failed precondition of CsvReaderBase::ReadRecordInternal(): "
+           "called more than once by ReadCsvRecordFromString()";
   }
   Reader& src = *src_reader();
 try_again:
@@ -474,15 +485,14 @@ try_again:
   // Assign to existing elements of `record` when possible and then `erase()`
   // excess elements, instead of calling `record.clear()` upfront, to avoid
   // losing existing `std::string` allocations.
-  if (ABSL_PREDICT_FALSE(
-          !ReadFields<standalone_record>(src, record, field_index))) {
+  if (ABSL_PREDICT_FALSE(!ReadFields(src, record, field_index))) {
     if (recovery_ != nullptr && recoverable_) {
       recoverable_ = false;
       absl::Status status = this->status();
       MarkNotFailed();
       SkipLine(src);
       if (recovery_(std::move(status))) goto try_again;
-      if (standalone_record) {
+      if (standalone_record_) {
         // Recovery was cancelled. Return the same result as for an empty input:
         // one empty field.
         if (record.empty()) {
@@ -506,6 +516,9 @@ try_again:
 absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
+  RIEGELI_ASSERT(!options.read_header())
+      << "Failed precondition of ReadCsvRecordFromString(): "
+         "read_header() is not applicable";
   CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
                                        std::move(options));
   if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, record))) {

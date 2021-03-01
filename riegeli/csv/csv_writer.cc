@@ -76,8 +76,12 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
 bool CsvWriterBase::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at record ", record_index())));
+  if (standalone_record_) {
+    return FailWithoutAnnotation(std::move(status));
+  } else {
+    return FailWithoutAnnotation(
+        Annotate(status, absl::StrCat("at record ", record_index())));
+  }
 }
 
 bool CsvWriterBase::FailWithoutAnnotation(absl::Status status) {
