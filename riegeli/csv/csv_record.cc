@@ -34,6 +34,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/bytes/string_writer.h"
+#include "riegeli/csv/containers.h"
 
 namespace riegeli {
 

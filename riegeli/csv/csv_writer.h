@@ -37,6 +37,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/csv/containers.h"
 #include "riegeli/csv/csv_record.h"
 #include "riegeli/lines/line_writing.h"
 
