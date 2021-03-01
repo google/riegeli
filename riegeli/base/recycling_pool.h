@@ -42,7 +42,7 @@ namespace riegeli {
 // `std::unique_ptr<T, Deleter>`.
 //
 // `RecyclingPool` is thread-safe.
-template <typename T, typename Deleter>
+template <typename T, typename Deleter = std::default_delete<T>>
 class RecyclingPool {
  public:
   // A deleter which puts the object back into the pool.
