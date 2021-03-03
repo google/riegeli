@@ -50,17 +50,18 @@ class RecyclingPool {
    public:
     Recycler() {}
 
+    explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
+        : Deleter(std::move(deleter)), pool_(pool) {
+      RIEGELI_ASSERT(pool_ != nullptr)
+          << "Failed precondition of Recycler: null RecyclingPool pointer";
+    }
+
     void operator()(T* ptr) const;
 
     Deleter& original_deleter() { return *this; }
     const Deleter& original_deleter() const { return *this; }
 
    private:
-    friend class RecyclingPool;
-
-    explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
-        : Deleter(std::move(deleter)), pool_(pool) {}
-
     RecyclingPool* pool_ = nullptr;
     // TODO: Use `[[no_unique_address]]` when available instead of
     // relying on empty base optimization.
@@ -137,17 +138,18 @@ class KeyedRecyclingPool {
    public:
     Recycler() {}
 
+    explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
+        : Deleter(std::move(deleter)), pool_(pool), key_(std::move(key)) {
+      RIEGELI_ASSERT(pool_ != nullptr)
+          << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
+    }
+
     void operator()(T* ptr) const;
 
     Deleter& original_deleter() { return *this; }
     const Deleter& original_deleter() const { return *this; }
 
    private:
-    friend class KeyedRecyclingPool;
-
-    explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
-        : Deleter(std::move(deleter)), pool_(pool), key_(std::move(key)) {}
-
     KeyedRecyclingPool* pool_ = nullptr;
     Key key_;
     // TODO: Use `[[no_unique_address]]` when available instead of
