@@ -120,12 +120,8 @@ class ZlibReaderBase : public BufferedReader {
     Options&& set_dictionary(ZlibDictionary&& dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    ZlibDictionary& dictionary() & { return dictionary_; }
-    const ZlibDictionary& dictionary() const& { return dictionary_; }
-    ZlibDictionary&& dictionary() && { return std::move(dictionary_); }
-    const ZlibDictionary&& dictionary() const&& {
-      return std::move(dictionary_);
-    }
+    ZlibDictionary& dictionary() { return dictionary_; }
+    const ZlibDictionary& dictionary() const { return dictionary_; }
 
     // If `true`, concatenated compressed streams are decoded to concatenation
     // of their decompressed contents. An empty compressed stream is decoded to

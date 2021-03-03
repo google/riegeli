@@ -263,10 +263,8 @@ class ZstdWriterBase : public BufferedWriter {
     Options&& set_dictionary(Dictionary&& dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    Dictionary& dictionary() & { return dictionary_; }
-    const Dictionary& dictionary() const& { return dictionary_; }
-    Dictionary&& dictionary() && { return std::move(dictionary_); }
-    const Dictionary&& dictionary() const&& { return std::move(dictionary_); }
+    Dictionary& dictionary() { return dictionary_; }
+    const Dictionary& dictionary() const { return dictionary_; }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.

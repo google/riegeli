@@ -58,12 +58,8 @@ class BrotliReaderBase : public PullableReader {
     Options&& set_allocator(BrotliAllocator&& allocator) && {
       return std::move(set_allocator(std::move(allocator)));
     }
-    BrotliAllocator& allocator() & { return allocator_; }
-    const BrotliAllocator& allocator() const& { return allocator_; }
-    BrotliAllocator&& allocator() && { return std::move(allocator_); }
-    const BrotliAllocator&& allocator() const&& {
-      return std::move(allocator_);
-    }
+    BrotliAllocator& allocator() { return allocator_; }
+    const BrotliAllocator& allocator() const { return allocator_; }
 
    private:
     BrotliAllocator allocator_;

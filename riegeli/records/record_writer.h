@@ -205,15 +205,9 @@ class RecordWriterBase : public Object {
     }
 
     // Returns grouped compression options.
-    CompressorOptions& compressor_options() & { return compressor_options_; }
-    const CompressorOptions& compressor_options() const& {
+    CompressorOptions& compressor_options() { return compressor_options_; }
+    const CompressorOptions& compressor_options() const {
       return compressor_options_;
-    }
-    CompressorOptions&& compressor_options() && {
-      return std::move(compressor_options_);
-    }
-    const CompressorOptions&& compressor_options() const&& {
-      return std::move(compressor_options_);
     }
 
     // Sets the desired uncompressed size of a chunk which groups messages to be
@@ -319,15 +313,9 @@ class RecordWriterBase : public Object {
     Options&& set_metadata(RecordsMetadata&& metadata) && {
       return std::move(set_metadata(std::move(metadata)));
     }
-    absl::optional<RecordsMetadata>& metadata() & { return metadata_; }
-    const absl::optional<RecordsMetadata>& metadata() const& {
+    absl::optional<RecordsMetadata>& metadata() { return metadata_; }
+    const absl::optional<RecordsMetadata>& metadata() const {
       return metadata_;
-    }
-    absl::optional<RecordsMetadata>&& metadata() && {
-      return std::move(metadata_);
-    }
-    const absl::optional<RecordsMetadata>&& metadata() const&& {
-      return std::move(metadata_);
     }
 
     // Like `set_metadata()`, but metadata are passed in the serialized form.
@@ -369,17 +357,11 @@ class RecordWriterBase : public Object {
     Options&& set_serialized_metadata(Chain&& serialized_metadata) && {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
-    absl::optional<Chain>& serialized_metadata() & {
+    absl::optional<Chain>& serialized_metadata() {
       return serialized_metadata_;
     }
-    const absl::optional<Chain>& serialized_metadata() const& {
+    const absl::optional<Chain>& serialized_metadata() const {
       return serialized_metadata_;
-    }
-    absl::optional<Chain>&& serialized_metadata() && {
-      return std::move(serialized_metadata_);
-    }
-    const absl::optional<Chain>&& serialized_metadata() const&& {
-      return std::move(serialized_metadata_);
     }
 
     // If `true`, padding is written to reach a 64KB block boundary when the

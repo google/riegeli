@@ -213,10 +213,8 @@ class ZstdReaderBase : public BufferedReader {
     Options&& set_dictionary(Dictionary&& dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    Dictionary& dictionary() & { return dictionary_; }
-    const Dictionary& dictionary() const& { return dictionary_; }
-    Dictionary&& dictionary() && { return std::move(dictionary_); }
-    const Dictionary&& dictionary() const&& { return std::move(dictionary_); }
+    Dictionary& dictionary() { return dictionary_; }
+    const Dictionary& dictionary() const { return dictionary_; }
 
     // Expected uncompressed size, or `absl::nullopt` if unknown. This may
     // improve performance.

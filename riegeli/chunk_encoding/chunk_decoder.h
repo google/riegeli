@@ -63,15 +63,9 @@ class ChunkDecoder : public Object {
     Options&& set_field_projection(FieldProjection&& field_projection) && {
       return std::move(set_field_projection(std::move(field_projection)));
     }
-    FieldProjection& field_projection() & { return field_projection_; }
-    const FieldProjection& field_projection() const& {
+    FieldProjection& field_projection() { return field_projection_; }
+    const FieldProjection& field_projection() const {
       return field_projection_;
-    }
-    FieldProjection&& field_projection() && {
-      return std::move(field_projection_);
-    }
-    const FieldProjection&& field_projection() const&& {
-      return std::move(field_projection_);
     }
 
    private:

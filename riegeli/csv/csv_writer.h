@@ -85,12 +85,8 @@ class CsvWriterBase : public Object {
     Options&& set_header(std::initializer_list<absl::string_view> names) && {
       return std::move(set_header(names));
     }
-    absl::optional<CsvHeader>& header() & { return header_; }
-    const absl::optional<CsvHeader>& header() const& { return header_; }
-    absl::optional<CsvHeader>&& header() && { return std::move(header_); }
-    const absl::optional<CsvHeader>&& header() const&& {
-      return std::move(header_);
-    }
+    absl::optional<CsvHeader>& header() { return header_; }
+    const absl::optional<CsvHeader>& header() const { return header_; }
 
     // Record terminator.
     //
