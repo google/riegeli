@@ -86,6 +86,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   // Recovery is not applicable to reading the header. Hence `recovery_` is set
   // after reading the header.
   if (options.read_header()) {
+    has_header_ = true;
     std::vector<std::string> header;
     if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
       Fail(absl::DataLossError("Empty CSV file"));
@@ -422,13 +423,13 @@ next_field:
 }
 
 bool CsvReaderBase::ReadRecord(CsvRecord& record) {
+  RIEGELI_CHECK(has_header())
+      << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
+         "CsvReaderBase::Options::set_read_header() is required";
   if (ABSL_PREDICT_FALSE(!healthy())) {
     record.Reset();
     return false;
   }
-  RIEGELI_CHECK(!header_.empty())
-      << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
-         "CsvReaderBase::Options::set_read_header() is required";
 try_again:
   record.Reset(header_);
   // Reading directly into `record.fields_` must be careful to maintain the
@@ -518,7 +519,7 @@ absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      CsvReaderBase::Options options) {
   RIEGELI_ASSERT(!options.read_header())
       << "Failed precondition of ReadCsvRecordFromString(): "
-         "read_header() is not applicable";
+         "options.read_header() not applicable";
   CsvReader<StringReader<>> csv_reader(std::forward_as_tuple(src),
                                        std::move(options));
   if (ABSL_PREDICT_FALSE(!internal::ReadStandaloneRecord(csv_reader, record))) {

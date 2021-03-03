@@ -60,21 +60,37 @@ class CsvWriterBase : public Object {
    public:
     Options() noexcept {}
 
-    // If `!header.empty()`, sets field names, and automatically writes them as
-    // the first record.
+    // If not `absl::nullopt`, sets field names, and automatically writes them
+    // as the first record.
     //
-    // Default: `CsvHeader()`
-    Options& set_header(CsvHeader header) & {
+    // In this case `WriteRecord(CsvRecord)` is supported. Otherwise no
+    // particular header is assumed, and only `WriteRecord()` from a sequence of
+    // fields is supported.
+    //
+    // The CSV format does not support empty records: writing a header with no
+    // fields has the same effect as writing a header containing one empty
+    // field.
+    //
+    // Default: `absl::nullopt`
+    Options& set_header(absl::optional<CsvHeader> header) & {
       header_ = std::move(header);
       return *this;
     }
-    Options&& set_header(CsvHeader header) && {
+    Options&& set_header(absl::optional<CsvHeader> header) && {
       return std::move(set_header(std::move(header)));
     }
-    CsvHeader& header() & { return header_; }
-    const CsvHeader& header() const& { return header_; }
-    CsvHeader&& header() && { return std::move(header_); }
-    const CsvHeader&& header() const&& { return std::move(header_); }
+    Options& set_header(std::initializer_list<absl::string_view> names) & {
+      return set_header(CsvHeader(names));
+    }
+    Options&& set_header(std::initializer_list<absl::string_view> names) && {
+      return std::move(set_header(names));
+    }
+    absl::optional<CsvHeader>& header() & { return header_; }
+    const absl::optional<CsvHeader>& header() const& { return header_; }
+    absl::optional<CsvHeader>&& header() && { return std::move(header_); }
+    const absl::optional<CsvHeader>&& header() const&& {
+      return std::move(header_);
+    }
 
     // Record terminator.
     //
@@ -145,7 +161,7 @@ class CsvWriterBase : public Object {
     absl::optional<char> quote() const { return quote_; }
 
    private:
-    CsvHeader header_;
+    absl::optional<CsvHeader> header_;
     Newline newline_ = Newline::kLf;
     absl::optional<char> comment_;
     char field_separator_ = ',';
@@ -162,18 +178,28 @@ class CsvWriterBase : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  // Returns field names, as set by `Options::set_header()`.
+  // Returns `true` if writing the header was requested by
+  // `Options::set_header(header)` with `header != absl::nullopt`.
   //
-  // If `header().empty()`, no particular field names are assumed, and
-  // `WriteRecord(CsvRecord)` is not supported; only `WriteRecord()` from a
-  // sequence of fields is supported.
+  // In this case `WriteRecord(CsvRecord)` is supported. Otherwise no particular
+  // header is assumed, and only `WriteRecord()` from a sequence of fields is
+  // supported.
+  bool has_header() const { return has_header_; }
+
+  // If `has_header()`, returns field names set by `Options::set_header()` and
+  // written to the first record.
+  //
+  // If `!has_header()`, returns an empty header.
   const CsvHeader& header() const { return header_; }
 
   // Writes the next record expressed as `CsvRecord`, with named fields.
   //
+  // The CSV format does not support empty records: writing a record with no
+  // fields has the same effect as writing a record containing one empty field.
+  //
   // Preconditions:
-  //  * `!header().empty()`, i.e. `Options::set_header(header)` was used with a
-  //    non-empty header
+  //  * `has_header()`, i.e. `Options::set_header(header)` was used with
+  //    `header != absl::nullopt`
   //  * `record.header() == header()`
   //
   // Return values:
@@ -183,11 +209,11 @@ class CsvWriterBase : public Object {
 
   // Writes the next record expressed as a sequence of fields.
   //
-  // By a common convention each record should consist of the same number of
-  // fields, but this is not enforced.
-  //
   // The type of `record` must support iteration yielding `absl::string_view`:
   // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
+  //
+  // By a common convention each record should consist of the same number of
+  // fields, but this is not enforced.
   //
   // The CSV format does not support empty records: writing a record with no
   // fields has the same effect as writing a record containing one empty field.
@@ -248,6 +274,7 @@ class CsvWriterBase : public Object {
   bool WriteRecordInternal(const Record& record);
 
   bool standalone_record_ = false;
+  bool has_header_ = false;
   CsvHeader header_;
   // Lookup table for checking whether quotes are needed if the given character
   // is present in a field.
@@ -359,7 +386,7 @@ CsvWriter(std::tuple<DestArgs...> dest_args,
 // `for (absl::string_view field : record)`, e.g. `std::vector<std::string>`.
 //
 // Preconditions:
-//  * `options.header().empty()`
+//  * `options.header() == absl::nullopt`
 //  * if `options.quote() == absl::nullopt`, fields do not include inexpressible
 //    characters: LF, CR, comment character, field separator.
 template <
@@ -386,6 +413,7 @@ inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       standalone_record_(that.standalone_record_),
+      has_header_(that.has_header_),
       header_(std::move(that.header_)),
       quotes_needed_(that.quotes_needed_),
       newline_(that.newline_),
@@ -398,6 +426,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   standalone_record_ = that.standalone_record_;
+  has_header_ = that.has_header_;
   header_ = std::move(that.header_);
   quotes_needed_ = that.quotes_needed_;
   newline_ = that.newline_;
@@ -410,6 +439,7 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
 inline void CsvWriterBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   standalone_record_ = false;
+  has_header_ = false;
   header_.Reset();
   record_index_ = 0;
 }
@@ -417,6 +447,7 @@ inline void CsvWriterBase::Reset(InitiallyClosed) {
 inline void CsvWriterBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   standalone_record_ = false;
+  has_header_ = false;
   header_.Reset();
   quotes_needed_ = {};
   record_index_ = 0;
@@ -564,9 +595,9 @@ template <typename Record,
               internal::IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
-  RIEGELI_ASSERT(options.header().empty())
+  RIEGELI_ASSERT(options.header() == absl::nullopt)
       << "Failed precondition of WriteCsvRecordToString(): "
-         "options.header() is not applicable";
+         "options.header() != absl::nullopt not applicable";
   std::string dest;
   CsvWriter<StringWriter<>> csv_writer(std::forward_as_tuple(&dest),
                                        std::move(options));

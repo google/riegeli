@@ -56,7 +56,12 @@ class CsvReaderBase : public Object {
 
     // If `true`, automatically reads field names from the first record.
     //
-    // If the file is empty, or if field names have duplicates, reading fails.
+    // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no
+    // particular header is assumed, and only `ReadRecord()` to a vector of
+    // fields is supported.
+    //
+    // If the file is empty, or if field names have duplicates, reading the
+    // header fails.
     //
     // Default: `false`.
     Options& set_read_header(bool read_header) & {
@@ -258,12 +263,18 @@ class CsvReaderBase : public Object {
     recovery_ = std::move(recovery);
   }
 
-  // If `!header().empty()`, returns field names, as requested by
-  // `Options::set_read_header(true)` and read from the first record.
+  // Returns `true` if reading the header was requested by
+  // `Options::set_read_header(true)`.
   //
-  // If `healthy()` and `header().empty()`, field names were not requested.
-  // No particular field names are assumed, and `ReadRecord(CsvRecord&)` is not
-  // supported; only `ReadRecord()` to a vector of fields is supported.
+  // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no particular
+  // header is assumed, and only `ReadRecord()` to a vector of fields is
+  // supported.
+  bool has_header() const { return has_header_; }
+
+  // If `has_header()`, returns field names read from the first record. Returns
+  // an empty header if reading the header failed.
+  //
+  // If `!has_header()`, returns an empty header.
   const CsvHeader& header() const { return header_; }
 
   // Reads the next record expressed as `CsvRecord`, with named fields.
@@ -278,8 +289,7 @@ class CsvReaderBase : public Object {
   // been verified in the `header()`.
   //
   // Precondition:
-  //   if `healthy()` then `!header().empty()`,
-  //   i.e. `Options::set_read_header(true)` was used
+  //   `has_header()`, i.e. `Options::set_read_header(true)` was used
   //
   // Return values:
   //  * `true`                      - success (`record` is set)
@@ -374,6 +384,7 @@ class CsvReaderBase : public Object {
   bool ReadRecordInternal(std::vector<std::string>& record);
 
   bool standalone_record_ = false;
+  bool has_header_ = false;
   CsvHeader header_;
   // Lookup table for interpreting source characters.
   std::array<CharClass, std::numeric_limits<unsigned char>::max() + 1>
@@ -508,6 +519,7 @@ inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       standalone_record_(that.standalone_record_),
+      has_header_(that.has_header_),
       header_(std::move(that.header_)),
       char_classes_(that.char_classes_),
       quote_(that.quote_),
@@ -524,6 +536,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   standalone_record_ = that.standalone_record_;
+  has_header_ = that.has_header_;
   header_ = std::move(that.header_);
   char_classes_ = that.char_classes_;
   quote_ = that.quote_;
@@ -540,6 +553,7 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
 inline void CsvReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   standalone_record_ = false;
+  has_header_ = false;
   header_.Reset();
   recovery_ = nullptr;
   record_index_ = 0;
@@ -551,6 +565,7 @@ inline void CsvReaderBase::Reset(InitiallyClosed) {
 inline void CsvReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   standalone_record_ = false;
+  has_header_ = false;
   header_.Reset();
   char_classes_ = {};
   recovery_ = nullptr;

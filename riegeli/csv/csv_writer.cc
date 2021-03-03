@@ -65,8 +65,9 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   field_separator_ = options.field_separator();
   quote_ = options.quote();
 
-  if (!options.header().empty()) {
-    header_ = std::move(options.header());
+  if (options.header() != absl::nullopt) {
+    has_header_ = true;
+    header_ = *std::move(options.header());
     if (ABSL_PREDICT_TRUE(WriteRecord(header_.names()))) {
       --record_index_;
     }
@@ -140,10 +141,10 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
 }
 
 bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
+  RIEGELI_CHECK(has_header_)
+      << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
+         "CsvWriterBase::Options::set_header() is required";
   if (healthy()) {
-    RIEGELI_CHECK(!header_.empty())
-        << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
-           "CsvWriterBase::Options::set_header() is required";
     RIEGELI_CHECK_EQ(record.header(), header_)
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
         << "mismatched CSV header and record";

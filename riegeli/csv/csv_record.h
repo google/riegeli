@@ -112,9 +112,6 @@ class CsvHeader {
   using difference_type = ptrdiff_t;
 
   // Creates a `CsvHeader` with no field names.
-  //
-  // The CSV format does not support empty records. An empty `CsvHeader` is only
-  // used during its construction, or as a marker that no header is present.
   CsvHeader() noexcept {}
 
   // Creates a set consisting of the given sequence of field names.
@@ -220,7 +217,7 @@ class CsvHeader {
                              int> = 0>
   absl::Status TryAdd(Name&& name, Names&&... names);
 
-  // Returns a sequence of field names, in the order in which they have been
+  // Returns the sequence of field names, in the order in which they have been
   // added.
   absl::Span<const std::string> names() const;
 
@@ -237,9 +234,6 @@ class CsvHeader {
   reverse_iterator crend() const { return rend(); }
 
   // Returns `true` if there are no field names.
-  //
-  // The CSV format does not support empty records. An empty `CsvHeader` is only
-  // used during its construction, or as a marker that no header is present.
   bool empty() const;
 
   // Returns the number of field names.
@@ -393,9 +387,6 @@ class CsvRecord {
   using difference_type = ptrdiff_t;
 
   // Creates a `CsvRecord` with no fields.
-  //
-  // The CSV format does not support empty records. An empty `CsvRecord` is only
-  // used during its construction, or as a marker that no record is present.
   CsvRecord() noexcept {}
 
   // Creates a `CsvRecord` with the given field names, and with all field values
@@ -458,8 +449,8 @@ class CsvRecord {
   // Makes all field values empty. The number of fields is unchanged.
   void Clear();
 
-  // Returns a sequence of field values, in the order corresponding to the order
-  // of field names in the header.
+  // Returns the sequence of field values, in the order corresponding to the
+  // order of field names in the header.
   absl::Span<std::string> fields() { return absl::MakeSpan(fields_); }
   absl::Span<const std::string> fields() const { return fields_; }
 
@@ -485,9 +476,6 @@ class CsvRecord {
   const_reverse_iterator crend() const { return rend(); }
 
   // Returns `true` if there are no fields.
-  //
-  // The CSV format does not support empty records. An empty `CsvRecord` is only
-  // used during its construction, or as a marker that no record is present.
   bool empty() const { return fields_.empty(); }
 
   // Returns the number of field names, which is the same as the number of field
