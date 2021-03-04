@@ -909,7 +909,8 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (this_iter == this->end() || this_iter->first != src_iter->first) {
       break;
     }
-    this_iter->second = internal::MaybeMoveElement<Src>(src_iter->second);
+    this_iter->second =
+        std::string(internal::MaybeMoveElement<Src>(src_iter->second));
     ++this_iter;
     ++src_iter;
   }
@@ -924,7 +925,8 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       unknown_fields.emplace_back(src_iter->first);
     } else {
-      this_iter->second = internal::MaybeMoveElement<Src>(src_iter->second);
+      this_iter->second =
+          std::string(internal::MaybeMoveElement<Src>(src_iter->second));
     }
     ++src_iter;
   } while (src_iter != src_end_iter);
