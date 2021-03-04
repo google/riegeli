@@ -31,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/csv/containers.h"
 
@@ -497,6 +498,49 @@ class CsvRecord {
   // Returns `true` if `name` is present.
   bool contains(absl::string_view name) const;
 
+  // Sets all fields resulting from iteration over another iterable of pairs of
+  // field names and field values, which can be an associative container or
+  // another `CsvRecord`.
+  //
+  // This can be used to convert a `CsvRecord` to a superset of fields, as long
+  // as fields to be preserved have the same names.
+  //
+  // Preconditions:
+  //  * all fields from `src` are present in `*this`
+  template <
+      typename Src,
+      std::enable_if_t<
+          internal::IsIterableOf<
+              Src, std::pair<absl::string_view, absl::string_view>>::value,
+          int> = 0>
+  void Merge(Src&& src);
+  void Merge(
+      std::initializer_list<std::pair<absl::string_view, absl::string_view>>
+          src);
+
+  // Sets all fields resulting from iteration over another iterable of pairs of
+  // field names and field values, which can be an associative container or
+  // another `CsvRecord`. Reports whether that was successful.
+  //
+  // This can be used to convert a `CsvRecord` to a different set of fields, as
+  // long as fields to be preserved have the same names.
+  //
+  // Return values:
+  //  * `absl::OkStatus()`                 - all fields from `src` have been set
+  //  * `absl::FailedPreconditionError(_)` - some fields were absent in `*this`,
+  //                                         only the intersection of fields
+  //                                         has been set
+  template <
+      typename Src,
+      std::enable_if_t<
+          internal::IsIterableOf<
+              Src, std::pair<absl::string_view, absl::string_view>>::value,
+          int> = 0>
+  absl::Status TryMerge(Src&& src);
+  absl::Status TryMerge(
+      std::initializer_list<std::pair<absl::string_view, absl::string_view>>
+          src);
+
   // Renders contents in a human-readable way.
   std::string DebugString() const;
 
@@ -505,6 +549,8 @@ class CsvRecord {
 
  private:
   friend class CsvReaderBase;
+
+  static absl::Status FailMerge(const std::vector<std::string>& unknown_fields);
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;
@@ -831,6 +877,61 @@ inline CsvRecord::iterator CsvRecord::end() {
 
 inline CsvRecord::const_iterator CsvRecord::end() const {
   return const_iterator(header_.end(), fields_.end());
+}
+
+template <typename Src,
+          std::enable_if_t<
+              internal::IsIterableOf<
+                  Src, std::pair<absl::string_view, absl::string_view>>::value,
+              int>>
+void CsvRecord::Merge(Src&& src) {
+  const absl::Status status = TryMerge(std::forward<Src>(src));
+  RIEGELI_CHECK(status.ok())
+      << "Failed precondition of CsvHeader::Merge(): " << status.message();
+}
+
+template <typename Src,
+          std::enable_if_t<
+              internal::IsIterableOf<
+                  Src, std::pair<absl::string_view, absl::string_view>>::value,
+              int>>
+absl::Status CsvRecord::TryMerge(Src&& src) {
+  using std::begin;
+  auto src_iter = begin(src);
+  using std::end;
+  auto src_end_iter = end(src);
+  iterator this_iter = this->begin();
+  // If fields of `src` match a prefix of fields of `*this` (like when extending
+  // a `CsvRecord` with fields added at the end), avoid string lookups and just
+  // verify the assumption.
+  for (;;) {
+    if (src_iter == src_end_iter) return absl::OkStatus();
+    if (this_iter == this->end() || this_iter->first != src_iter->first) {
+      break;
+    }
+    this_iter->second = internal::MaybeMoveElement<Src>(src_iter->second);
+    ++this_iter;
+    ++src_iter;
+  }
+  RIEGELI_ASSERT(src_iter != src_end_iter)
+      << "The code below assumes that the code above "
+         "did not leave the source iterator at the end";
+  // The assumption about matching fields no longer holds. Switch to string
+  // lookups for the remaining fields.
+  std::vector<std::string> unknown_fields;
+  do {
+    this_iter = find(src_iter->first);
+    if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
+      unknown_fields.emplace_back(src_iter->first);
+    } else {
+      this_iter->second = internal::MaybeMoveElement<Src>(src_iter->second);
+    }
+    ++src_iter;
+  } while (src_iter != src_end_iter);
+  if (ABSL_PREDICT_FALSE(!unknown_fields.empty())) {
+    return FailMerge(unknown_fields);
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace riegeli

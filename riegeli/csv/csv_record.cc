@@ -275,6 +275,28 @@ bool CsvRecord::contains(absl::string_view name) const {
   return header_.contains(name);
 }
 
+void CsvRecord::Merge(
+    std::initializer_list<std::pair<absl::string_view, absl::string_view>>
+        src) {
+  Merge<
+      std::initializer_list<std::pair<absl::string_view, absl::string_view>>&>(
+      src);
+}
+
+absl::Status CsvRecord::TryMerge(
+    std::initializer_list<std::pair<absl::string_view, absl::string_view>>
+        src) {
+  return TryMerge<
+      std::initializer_list<std::pair<absl::string_view, absl::string_view>>&>(
+      src);
+}
+
+absl::Status CsvRecord::FailMerge(
+    const std::vector<std::string>& unknown_fields) {
+  return absl::FailedPreconditionError(absl::StrCat(
+      "Unknown field name(s): ", absl::StrJoin(unknown_fields, ", ")));
+}
+
 std::string CsvRecord::DebugString() const {
   RIEGELI_ASSERT_EQ(header_.size(), fields_.size())
       << "Failed invariant of CsvRecord: "

@@ -18,6 +18,7 @@
 #include <iterator>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -65,6 +66,21 @@ struct HasMovableElements<
                                      adl_begin_sandbox::DereferenceIterableT<
                                          const std::decay_t<Iterable>>>>>
     : public std::true_type {};
+
+// `MaybeMoveElement<Src>(element)` is `std::move(element)` or `element`,
+// depending on whether moving out of elements of `Src` is safe.
+
+template <typename Src, typename Element,
+          std::enable_if_t<!HasMovableElements<Src>::value, int> = 0>
+inline Element&& MaybeMoveElement(Element&& element) {
+  return std::forward<Element>(element);
+}
+
+template <typename Src, typename Element,
+          std::enable_if_t<HasMovableElements<Src>::value, int> = 0>
+inline std::remove_reference_t<Element>&& MaybeMoveElement(Element&& element) {
+  return static_cast<std::remove_reference_t<Element>&&>(element);
+}
 
 // `MaybeMakeMoveIterator<Src>(iterator)` is `std::make_move_iterator(iterator)`
 // or `iterator`, depending on whether moving out of elements of `Src` is safe.
