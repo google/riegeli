@@ -78,6 +78,8 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
     return FailOverflow();
   }
   SyncBuffer(dest);
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // `dest.append(src)`
   dest.append(src.data(), src.size());
   MakeBuffer(dest);
   return true;
@@ -130,6 +132,8 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
   }
   SyncBuffer(dest);
   for (absl::string_view fragment : src.Chunks()) {
+    // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+    // `dest.append(fragment)`
     dest.append(fragment.data(), fragment.size());
   }
   MakeBuffer(dest);

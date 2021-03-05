@@ -53,14 +53,14 @@ void FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
     }
   }
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // filename_ = filename;
+  // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
 }
 
 std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
     ::tensorflow::Env* env, absl::string_view filename, bool append) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // filename_ = filename;
+  // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
   std::unique_ptr<::tensorflow::WritableFile> dest;

@@ -63,7 +63,7 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
 bool FileReaderBase::InitializeFilename(absl::string_view filename,
                                         ::tensorflow::Env* env) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // filename_ = filename;
+  // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
   if (env == nullptr) env = ::tensorflow::Env::Default();
   {

@@ -68,7 +68,7 @@ inline void ResetInternal(std::string& object, size_t length, char ch) {
 
 inline void ResetInternal(std::string& object, absl::string_view src) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // object.assign(src);
+  // `object.assign(src)`
   object.assign(src.data(), src.size());
 }
 

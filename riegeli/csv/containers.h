@@ -97,8 +97,32 @@ inline std::move_iterator<Iterator> MaybeMakeMoveIterator(Iterator iterator) {
   return std::move_iterator<Iterator>(iterator);
 }
 
+// `AssignToString()` assigns a value convertible to `absl::string_view` to a
+// `std::string`.
+//
+// `AssignToString(src, dest)` is equivalent to `dest = src`, except that it
+// compiles also if `absl::string_view` is not C++17 `std::string_view`.
+//
+// `std::string&&` is accepted with a template to avoid implicit conversions
+// to `std::string` which can be ambiguous against `absl::string_view`
+// (e.g. `const char*`).
+
+inline void AssignToString(absl::string_view src, std::string& dest) {
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // remove `AssignToString()`, use `dest = src` directly.
+  dest.assign(src.data(), src.size());
+}
+
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+inline void AssignToString(Src&& src, std::string& dest) {
+  // `std::move(src)` is correct and `std::forward<Src>(src)` is not
+  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  dest = std::move(src);
+}
+
 // `ToVectorOfStrings()` converts an iterable of elements convertible to
-// `absl::string_view` to `std::vector<std::string>`.
+// `absl::string_view` to a `std::vector<std::string>`.
 
 template <
     typename Values,
