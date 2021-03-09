@@ -64,6 +64,11 @@ class StringReaderBase : public Reader {
 // `absl::string_view` (not owned, default), `const std::string*` (not owned),
 // `std::string` (owned).
 //
+// CTAD for `StringReader<std::string>` is disabled to prevent accidental string
+// copying. Use `StringReader(&str)` or `StringReader<>(str)` to read from
+// unowned `str`, or `StringReader<std::string>(str)` if owning the string is
+// intended.
+//
 // It might be better to use `ChainReader<Chain>` instead of
 // `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
 // reference counted, `std::string` data have a single owner).
@@ -115,6 +120,8 @@ class StringReader : public StringReaderBase {
 #if __cpp_deduction_guides
 template <typename Src>
 StringReader(Src&& src) -> StringReader<std::decay_t<Src>>;
+StringReader(const std::string& src)->StringReader<void>;  // Delete.
+StringReader(std::string&& src)->StringReader<void>;       // Delete.
 template <typename... SrcArgs>
 StringReader(std::tuple<SrcArgs...> src_args) -> StringReader<void>;  // Delete.
 #endif
