@@ -50,22 +50,27 @@ class FlushingWriterPtr {
 // access, and the initial position is assumed to be 0.
 //
 // Calling `StdIn()` automatically flushes `StdOut()` first.
+//
+// Warning: when `StdIn()` is used, `std::cin` will have an unpredictable amount
+// of extra data consumed because of buffering.
 Reader* StdIn();
 
 // A singleton `Writer` writing to standard output.
 //
-// The default `StdOut()` (unless `SetStdOut()` was used)  does not support
+// The default `StdOut()` (unless `SetStdOut()` was used) does not support
 // random access, and the initial position is assumed to be 0.
-//
-// `StdOut()` is automatically flushed at process exit.
 //
 // In contrast to `std::cout`, `StdOut()` is fully buffered (not line buffered)
 // even if it refers to an interactive device.
+//
+// `StdOut()` is automatically flushed at process exit. Before switching from
+// `StdOut()` to `std::cout`, `StdOut()` should be flushed explicitly with
+// `StdOut()->Flush(FlushType::kFromObject)`.
 Writer* StdOut();
 
 // A singleton `Writer` writing to standard error.
 //
-// The default `StdErr()` (unless `SetStdErr()` was used)  does not support
+// The default `StdErr()` (unless `SetStdErr()` was used) does not support
 // random access, and the initial position is assumed to be 0.
 //
 // Calling `StdErr()` automatically flushes `StdOut()` first.
@@ -80,6 +85,9 @@ Reader* JustStdIn();
 // Like `StdErr()`, but without automatically flushing `StdOut()` first, and
 // without automatically flushing `JustStdErr()` at the end of the full
 // expression which calls `JustStdErr()`.
+//
+// Before switching from `JustStdErr()` to `std::cerr`, `JustStdErr()` should be
+// flushed explicitly with `JustStdErr()->Flush(FlushType::kFromObject)`.
 Writer* JustStdErr();
 
 // Replaces `StdIn()` with a new `Reader`. Returns the previous `Reader`.
