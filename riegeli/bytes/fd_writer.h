@@ -254,7 +254,8 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
-// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
+// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `UnownedFd`
+// (not owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value
@@ -350,7 +351,8 @@ FdWriter(absl::string_view filename, int flags,
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
-// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
+// `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default),
+// `UnownedFd` (not owned).
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as the value

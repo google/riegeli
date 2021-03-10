@@ -63,6 +63,10 @@ class OwnedFd {
   int fd_ = -1;
 };
 
+// An unowned file descriptor is represented simply by `int`, but it is clearer
+// to write `FdReader<UnownedFd>` or `FdWriter<UnownedFd>`.
+using UnownedFd = int;
+
 // Specializations of `Dependency<int, Manager>`.
 
 template <>
@@ -78,7 +82,7 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
 };
 
 template <>
-class Dependency<int, int> {
+class Dependency<int, UnownedFd> {
  public:
   // `DependencyBase` is not used because the default value is -1, not `int()`.
 
@@ -110,8 +114,9 @@ class Dependency<int, int> {
 
   int get() const { return fd_; }
   int Release() {
-    RIEGELI_ASSERT_UNREACHABLE() << "Dependency<int, int>::Release() called "
-                                    "but is_owning() is false";
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "Dependency<int, UnownedFd>::Release() called "
+           "but is_owning() is false";
   }
 
   bool is_owning() const { return false; }
