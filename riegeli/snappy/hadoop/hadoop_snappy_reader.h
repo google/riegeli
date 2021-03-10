@@ -91,6 +91,9 @@ class HadoopSnappyReaderBase : public PullableReader {
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The compressed `Reader` must not be accessed until the `HadoopSnappyReader`
 // is closed or no longer used.
 template <typename Src = Reader*>

@@ -170,6 +170,9 @@ class FileWriterBase : public Writer {
 // `std::unique_ptr<::tensorflow::WritableFile>` (owned, default),
 // `::tensorflow::WritableFile*` (not owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `::tensorflow::WritableFile` must not be closed until the `FileWriter` is
 // closed or no longer used. Until then the `::tensorflow::WritableFile` may be
 // accessed, but not concurrently, `Flush()` is needed before switching to

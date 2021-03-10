@@ -118,6 +118,9 @@ class LimitingWriterBase : public Writer {
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The original `Writer` must not be accessed until the `LimitingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
 // of the original `Writer` immediately after `Flush()`.

@@ -256,6 +256,10 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 // possibly owning the fd being written to. `Dest` must support
 // `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
+// By relying on CTAD the template argument can be deduced as `OwnedFd` if the
+// first constructor argument is a filename or an `int`, otherwise as the value
+// type of the first constructor argument. This requires C++17.
+//
 // The fd must not be closed until the `FdWriter` is closed or no longer used.
 template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
@@ -347,6 +351,10 @@ FdWriter(absl::string_view filename, int flags,
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
 // `Dependency<int, Dest>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
+//
+// By relying on CTAD the template argument can be deduced as `OwnedFd` if the
+// first constructor argument is a filename or an `int`, otherwise as the value
+// type of the first constructor argument. This requires C++17.
 //
 // The fd must not be closed until the `FdStreamWriter` is closed or no longer
 // used. Until then the fd may be accessed, but not concurrently, `Flush()` is

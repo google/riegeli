@@ -77,6 +77,9 @@ class ArrayWriterBase : public PushableWriter {
 // `absl::Span<char>` (not owned, default), `std::string*` (not owned),
 // `std::string` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The array must not be destroyed until the `ArrayWriter` is closed or no
 // longer used.
 template <typename Dest = absl::Span<char>>

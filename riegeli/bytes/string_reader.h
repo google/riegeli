@@ -64,6 +64,9 @@ class StringReaderBase : public Reader {
 // `absl::string_view` (not owned, default), `const std::string*` (not owned),
 // `std::string` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // CTAD for `StringReader<std::string>` is disabled to prevent accidental string
 // copying. Use `StringReader(&str)` or `StringReader<>(str)` to read from
 // unowned `str`, or `StringReader<std::string>(str)` if owning the string is

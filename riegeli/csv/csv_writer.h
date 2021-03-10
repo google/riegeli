@@ -318,6 +318,9 @@ class CsvWriterBase : public Object {
 // `Dependency<Writer*, Dest>`, e.g. `Writer*` (not owned, default),
 // `std::unique_ptr<Writer>` (owned), `ChainWriter<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The current position is synchronized with the byte `Writer` between records.
 template <typename Dest = Writer*>
 class CsvWriter : public CsvWriterBase {

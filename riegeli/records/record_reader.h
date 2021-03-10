@@ -489,6 +489,9 @@ class RecordReaderBase : public Object {
 // `ChunkReader*` (not owned), `std::unique_ptr<ChunkReader>` (owned),
 // `DefaultChunkReader<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The byte `Reader` or `ChunkReader` must not be accessed until the
 // `RecordReader` is closed or no longer used.
 template <typename Src = Reader*>

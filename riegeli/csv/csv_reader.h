@@ -436,6 +436,9 @@ class CsvReaderBase : public Object {
 // `Dependency<Reader*, Src>`, e.g. `Reader*` (not owned, default),
 // `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The current position is synchronized with the byte `Reader` between records.
 template <typename Src = Reader*>
 class CsvReader : public CsvReaderBase {

@@ -162,6 +162,9 @@ class ChainWriterBase : public Writer {
 // `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
 // `Chain` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `Chain` must not be accessed until the `ChainWriter` is closed or no
 // longer used, except that it is allowed to read the `Chain` immediately after
 // `Flush()`.

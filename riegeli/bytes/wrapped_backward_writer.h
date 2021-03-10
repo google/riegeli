@@ -93,6 +93,9 @@ class WrappedBackwardWriterBase : public BackwardWriter {
 // `BackwardWriter*` (not owned, default),
 // `std::unique_ptr<BackwardWriter>` (owned), `ChainBackwardWriter<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The original `BackwardWriter` must not be accessed until the
 // `WrappedBackwardWriter` is closed or no longer used, except that it is
 // allowed to read the destination of the original `BackwardWriter` immediately

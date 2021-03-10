@@ -279,6 +279,10 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // possibly owning the fd being read from. `Src` must support
 // `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
 //
+// By relying on CTAD the template argument can be deduced as `OwnedFd` if the
+// first constructor argument is a filename or an `int`, otherwise as the value
+// type of the first constructor argument. This requires C++17.
+//
 // The fd must not be closed until the `FdReader` is closed or no longer used.
 template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
@@ -363,6 +367,10 @@ FdReader(absl::string_view filename, int flags,
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
 // `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
+//
+// By relying on CTAD the template argument can be deduced as `OwnedFd` if the
+// first constructor argument is a filename or an `int`, otherwise as the value
+// type of the first constructor argument. This requires C++17.
 //
 // Warning: if the fd is not owned, it will have an unpredictable amount of
 // extra data consumed because of buffering.
@@ -456,6 +464,10 @@ FdStreamReader(
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
 // `Dependency<int, Src>`, e.g. `OwnedFd` (owned, default), `int` (not owned).
+//
+// By relying on CTAD the template argument can be deduced as `OwnedFd` if the
+// first constructor argument is a filename or an `int`, otherwise as the value
+// type of the first constructor argument. This requires C++17.
 //
 // The fd must not be closed until the `FdMMapReader` is closed or no longer
 // used. `File` contents must not be changed while data read from the file is

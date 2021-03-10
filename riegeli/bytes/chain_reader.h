@@ -84,6 +84,9 @@ class ChainReaderBase : public PullableReader {
 // `Dependency<const Chain*, Src>`, e.g. `const Chain*` (not owned, default),
 // `Chain` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `Chain` must not be changed until the `ChainReader` is closed or no
 // longer used.
 template <typename Src = const Chain*>

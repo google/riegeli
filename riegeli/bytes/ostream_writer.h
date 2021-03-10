@@ -118,6 +118,9 @@ class OstreamWriterBase : public BufferedWriter {
 // `Dependency<std::ostream*, Dest>`, e.g. `std::ostream*` (not owned, default),
 // `std::unique_ptr<std::ostream>` (owned), `std::ofstream` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `std::ostream` must not be accessed until the `OstreamWriter` is closed
 // or no longer used, except that it is allowed to read the destination of the
 // `std::ostream` immediately after `Flush()`.

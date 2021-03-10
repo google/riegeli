@@ -162,6 +162,9 @@ class ChainBackwardWriterBase : public BackwardWriter {
 // `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
 // `Chain` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `Chain` must not be accessed until the `ChainBackwardWriter` is closed or
 // no longer used.
 template <typename Dest = Chain*>

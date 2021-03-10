@@ -200,6 +200,9 @@ class FileReaderBase : public Reader {
 // `std::unique_ptr<::tensorflow::RandomAccessFile>` (owned, default),
 // `::tensorflow::RandomAccessFile*` (not owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `::tensorflow::RandomAccessFile` must not be closed until the
 // `FileReader` is closed or no longer used.
 template <typename Src = std::unique_ptr<::tensorflow::RandomAccessFile>>

@@ -121,6 +121,9 @@ class IstreamReaderBase : public BufferedReader {
 // `Dependency<std::istream*, Src>`, e.g. `std::istream*` (not owned, default),
 // `std::unique_ptr<std::istream>` (owned), `std::ifstream` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // Warning: if the stream is not owned and `Options::set_assumed_pos(pos)` was
 // used, the stream will have an unpredictable amount of extra data consumed
 // because of buffering.

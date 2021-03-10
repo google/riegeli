@@ -126,6 +126,9 @@ class StringWriterBase : public Writer {
 // `Dependency<std::string*, Dest>`, e.g. `std::string*` (not owned, default),
 // `std::string` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `std::string` must not be accessed until the `StringWriter` is closed or
 // no longer used, except that it is allowed to read the `std::string`
 // immediately after `Flush()`.

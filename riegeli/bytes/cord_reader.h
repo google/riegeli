@@ -104,6 +104,9 @@ class CordReaderBase : public PullableReader {
 // `Dependency<const absl::Cord*, Src>`, e.g.
 // `const absl::Cord*` (not owned, default), `absl::Cord` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The `absl::Cord` must not be changed until the `CordReader` is closed or no
 // longer used.
 template <typename Src = const absl::Cord*>

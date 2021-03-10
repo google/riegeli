@@ -544,6 +544,9 @@ class RecordWriterBase : public Object {
 // `ChunkWriter*` (not owned), `std::unique_ptr<ChunkWriter>` (owned),
 // `DefaultChunkWriter<>` (owned).
 //
+// By relying on CTAD the template argument can be deduced as the value type of
+// the first constructor argument. This requires C++17.
+//
 // The byte `Writer` or `ChunkWriter` must not be accessed until the
 // `RecordWriter` is closed or (when parallelism in options is 0) no longer
 // used.
