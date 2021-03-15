@@ -251,7 +251,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     RIEGELI_ASSERT_EQ(input.pos, input.size)
         << "ZSTD_decompressStream() returned but there are still input data "
            "and output space";
-    if (ABSL_PREDICT_FALSE(!src.Pull())) {
+    if (ABSL_PREDICT_FALSE(!src.Pull(1, result))) {
       move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src.healthy())) {
         Fail(src);

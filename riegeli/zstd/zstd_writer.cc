@@ -270,7 +270,6 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
   }
   ZSTD_inBuffer input = {src.data(), src.size(), 0};
   for (;;) {
-    if (ABSL_PREDICT_FALSE(!dest.Push())) return Fail(dest);
     ZSTD_outBuffer output = {dest.cursor(), dest.available(), 0};
     const size_t result =
         ZSTD_compressStream2(compressor_.get(), &output, &input, end_op);
@@ -295,6 +294,7 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       move_start_pos(input.pos);
       return true;
     }
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, result))) return Fail(dest);
   }
 }
 
