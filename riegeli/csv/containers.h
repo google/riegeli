@@ -61,10 +61,10 @@ template <typename Iterable>
 struct HasMovableElements<
     Iterable,
     std::enable_if_t<!std::is_lvalue_reference<Iterable>::value &&
-                     !std::is_same_v<adl_begin_sandbox::DereferenceIterableT<
-                                         std::decay_t<Iterable>>,
-                                     adl_begin_sandbox::DereferenceIterableT<
-                                         const std::decay_t<Iterable>>>>>
+                     !std::is_same<adl_begin_sandbox::DereferenceIterableT<
+                                       std::decay_t<Iterable>>,
+                                   adl_begin_sandbox::DereferenceIterableT<
+                                       const std::decay_t<Iterable>>>::value>>
     : public std::true_type {};
 
 // `MaybeMoveElement<Src>(element)` is `std::move(element)` or `element`,
