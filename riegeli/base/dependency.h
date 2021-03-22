@@ -60,8 +60,8 @@ namespace riegeli {
 //   explicit Dependency(std::tuple<ManagerArgs...> manager_args);
 //
 //   // Moves the dependency.
-//   Dependency(Dependency&& that);
-//   Dependency& operator=(Dependency&& that);
+//   Dependency(Dependency&& that) noexcept;
+//   Dependency& operator=(Dependency&& that) noexcept;
 //
 //   // Makes *this equivalent to a newly constructed Dependency. This avoids
 //   // constructing a temporary Dependency and moving from it.
@@ -88,14 +88,31 @@ namespace riegeli {
 //   P* operator->() { return get(); }
 //   const P* operator->() const { return get(); }
 //
-//   // If true, a Dependency owns the dependent object, i.e. the destructor of
-//   // Dependency destroys that object.
+//   // If true, the Dependency owns the dependent object, i.e. closing the host
+//   // object should close the dependent object.
 //   bool is_owning() const;
 //
 //   // If true, get() stays unchanged when a Dependency is moved.
 //   static constexpr bool kIsStable();
 // ```
+
+// `Manager` can also be an lvalue reference or rvalue reference. This case
+// is meant to be used only when the dependency is constructed locally in a
+// function, rather than stored in a host object, because such a dependency
+// stores the pointer to the dependent object, and by convention a reference
+// argument is expected to be valid only for the duration of the function call.
+// Typically the `Manager` type is deduced from a function argument.
 //
+// This case allows to pass an unowned dependency by lvalue reference instead of
+// by pointer, which allows for a more idiomatic API for passing an object which
+// does not need to be valid after the function returns. And this allows to pass
+// an owned dependency by rvalue reference instead of by value, which avoids
+// moving it.
+//
+// Only a subset of operations is provided in this case: the dependency must be
+// initialized during construction, and initialization from a tuple of
+// constructor arguments is not supported.
+
 // This template is specialized but does not have a primary definition.
 template <typename Ptr, typename Manager, typename Enable = void>
 class Dependency;
@@ -164,7 +181,54 @@ class DependencyBase {
   Manager manager_;
 };
 
-// Specialization of `Dependency<P*, M*>` when `M*` is convertible to `P*`.
+// Specialization of `DependencyBase` for lvalue references.
+//
+// Only a subset of operations are provided: the dependency must be initialized,
+// and initialization from a tuple of constructor arguments is not supported.
+template <typename Manager>
+class DependencyBase<Manager&> {
+ public:
+  explicit DependencyBase(Manager& manager) noexcept : manager_(&manager) {}
+
+  DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
+  DependencyBase& operator=(DependencyBase&& that) noexcept {
+    manager_ = that.manager_;
+    return *this;
+  }
+
+  void Reset(Manager& manager) { manager_ = &manager; }
+
+  Manager& manager() const { return *manager_; }
+
+ private:
+  Manager* manager_;
+};
+
+// Specialization of `DependencyBase` for rvalue references.
+//
+// Only a subset of operations are provided: the dependency must be initialized,
+// and initialization from a tuple of constructor arguments is not supported.
+template <typename Manager>
+class DependencyBase<Manager&&> {
+ public:
+  explicit DependencyBase(Manager&& manager) noexcept : manager_(&manager) {}
+
+  DependencyBase(DependencyBase&& that) noexcept : manager_(that.manager_) {}
+  DependencyBase& operator=(DependencyBase&& that) noexcept {
+    manager_ = that.manager_;
+    return *this;
+  }
+
+  void Reset(Manager&& manager) { manager_ = &manager; }
+
+  Manager& manager() const { return *manager_; }
+
+ private:
+  Manager* manager_;
+};
+
+// Specialization of `Dependency<P*, M*>` when `M*` is convertible to `P*`:
+// an unowned dependency passed by pointer.
 template <typename P, typename M>
 class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M*> {
@@ -179,7 +243,8 @@ class Dependency<P*, M*, std::enable_if_t<std::is_convertible<M*, P*>::value>>
   static constexpr bool kIsStable() { return true; }
 };
 
-// Specialization of `Dependency<P*, M>` when `M*` is convertible to `P*`.
+// Specialization of `Dependency<P*, M>` when `M*` is convertible to `P*`:
+// an owned dependency stored by value.
 template <typename P, typename M>
 class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
     : public DependencyBase<M> {
@@ -198,7 +263,7 @@ class Dependency<P*, M, std::enable_if_t<std::is_convertible<M*, P*>::value>>
 };
 
 // Specialization of `Dependency<P*, std::unique_ptr<M>>` when `M*` is
-// convertible to `P*`.
+// convertible to `P*`: an owned dependency stored by `std::unique_ptr`.
 template <typename P, typename M, typename Deleter>
 class Dependency<P*, std::unique_ptr<M, Deleter>,
                  std::enable_if_t<std::is_convertible<M*, P*>::value>>
@@ -212,6 +277,56 @@ class Dependency<P*, std::unique_ptr<M, Deleter>,
 
   bool is_owning() const { return this->manager() != nullptr; }
   static constexpr bool kIsStable() { return true; }
+};
+
+// Specialization of `Dependency<P*, M&>` when `M*` is convertible to `P*`:
+// an unowned dependency passed by lvalue reference.
+template <typename P, typename M>
+class Dependency<P*, M&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+    : public DependencyBase<M&> {
+ public:
+  using DependencyBase<M&>::DependencyBase;
+
+  M* get() const { return &this->manager(); }
+  M& operator*() const { return *get(); }
+  M* operator->() const { return get(); }
+
+  bool is_owning() const { return false; }
+  static constexpr bool kIsStable() { return true; }
+};
+
+// Specialization of `Dependency<P*, M&>` when `M*` is not convertible to `P*`:
+// decay to `Dependency<P*, M>`.
+template <typename P, typename M>
+class Dependency<P*, M&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
+    : public Dependency<P*, M> {
+ public:
+  using Dependency<P*, M>::Dependency;
+};
+
+// Specialization of `Dependency<P*, M&&>` when `M*` is convertible to `P*`:
+// an owned dependency passed by rvalue reference.
+template <typename P, typename M>
+class Dependency<P*, M&&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
+    : public DependencyBase<M&&> {
+ public:
+  using DependencyBase<M&&>::DependencyBase;
+
+  M* get() const { return &this->manager(); }
+  M& operator*() const { return *get(); }
+  M* operator->() const { return get(); }
+
+  bool is_owning() const { return true; }
+  static constexpr bool kIsStable() { return true; }
+};
+
+// Specialization of `Dependency<P*, M&&>` when `M*` is not convertible to `P*`:
+// decay to `Dependency<P*, M>`.
+template <typename P, typename M>
+class Dependency<P*, M&&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
+    : public Dependency<P*, M> {
+ public:
+  using Dependency<P*, M>::Dependency;
 };
 
 }  // namespace riegeli

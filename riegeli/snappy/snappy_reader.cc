@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -47,11 +46,10 @@ void SnappyReaderBase::Initialize(Reader* src,
   const absl::optional<size_t> uncompressed_size = SnappyUncompressedSize(*src);
   Chain decompressed;
   {
-    absl::Status status = SnappyDecompress<Reader&, ChainWriter<>>(
+    absl::Status status = SnappyDecompress(
         *src,
-        std::forward_as_tuple(
-            &decompressed,
-            ChainWriterBase::Options().set_size_hint(uncompressed_size)),
+        ChainWriter<>(&decompressed, ChainWriterBase::Options().set_size_hint(
+                                         uncompressed_size)),
         SnappyDecompressOptions().set_assumed_size(assumed_size));
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       FailWithoutAnnotation(std::move(status));

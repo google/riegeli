@@ -29,7 +29,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/function_dependency.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -61,10 +60,9 @@ class ParseOptions {
 // entire input will be consumed.
 //
 // The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `Reader`. `Src` must support
-// `FunctionDependency<Reader*, Src>`, e.g. `Reader&` (not owned),
-// `Reader*` (not owned), `std::unique_ptr<Reader>` (owned),
-// `ChainReader<>` (owned).
+// possibly owning the `Reader`. `Src` must support `Dependency<Reader*, Src>`,
+// e.g. `Reader&` (not owned), `Reader*` (not owned),
+// `std::unique_ptr<Reader>` (owned), `ChainReader<>` (owned).
 //
 // With a `src_args` parameter, reads from a `Src` constructed from elements of
 // `src_args`. This avoids constructing a temporary `Src` and moving from it.
@@ -160,8 +158,8 @@ template <typename Src>
 inline absl::Status ParseFromReader(const Src& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderImpl(FunctionDependency<Reader*, Src>(src),
-                                       dest, options);
+  return internal::ParseFromReaderImpl(Dependency<Reader*, Src>(src), dest,
+                                       options);
 }
 
 template <typename Src>
@@ -169,7 +167,7 @@ inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
   return internal::ParseFromReaderImpl(
-      FunctionDependency<Reader*, Src>(std::forward<Src>(src)), dest, options);
+      Dependency<Reader*, Src&&>(std::forward<Src>(src)), dest, options);
 }
 
 template <typename Src, typename... SrcArgs>
@@ -177,7 +175,7 @@ inline absl::Status ParseFromReader(std::tuple<SrcArgs...> src_args,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
   return internal::ParseFromReaderImpl(
-      FunctionDependency<Reader*, Src>(std::move(src_args)), dest, options);
+      Dependency<Reader*, Src>(std::move(src_args)), dest, options);
 }
 
 }  // namespace riegeli

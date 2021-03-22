@@ -19,7 +19,6 @@
 #include <cstring>
 #include <limits>
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -52,8 +51,7 @@ void SnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer& dest = *dest_writer();
     {
-      absl::Status status = SnappyCompress<ChainReader<>>(
-          std::forward_as_tuple(&uncompressed_), dest);
+      absl::Status status = SnappyCompress(ChainReader<>(&uncompressed_), dest);
       if (ABSL_PREDICT_FALSE(!status.ok())) {
         Fail(std::move(status));
       }

@@ -31,7 +31,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/function_dependency.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -108,7 +107,7 @@ class SerializeOptions {
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Writer`. `Dest` must support
-// `FunctionDependency<Writer*, Dest>`, e.g. `Writer&` (not owned),
+// `Dependency<Writer*, Dest>`, e.g. `Writer&` (not owned),
 // `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
 // `ChainWriter<>` (owned).
 //
@@ -214,16 +213,15 @@ template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       const Dest& dest,
                                       SerializeOptions options) {
-  return internal::SerializeToWriterImpl(
-      src, FunctionDependency<Writer*, Dest>(dest), options);
+  return internal::SerializeToWriterImpl(src, Dependency<Writer*, Dest>(dest),
+                                         options);
 }
 
 template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       Dest&& dest, SerializeOptions options) {
   return internal::SerializeToWriterImpl(
-      src, FunctionDependency<Writer*, Dest>(std::forward<Dest>(dest)),
-      options);
+      src, Dependency<Writer*, Dest&&>(std::forward<Dest>(dest)), options);
 }
 
 template <typename Dest, typename... DestArgs>
@@ -231,7 +229,7 @@ inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       std::tuple<DestArgs...> dest_args,
                                       SerializeOptions options) {
   return internal::SerializeToWriterImpl(
-      src, FunctionDependency<Writer*, Dest>(std::move(dest_args)), options);
+      src, Dependency<Writer*, Dest>(std::move(dest_args)), options);
 }
 
 }  // namespace riegeli

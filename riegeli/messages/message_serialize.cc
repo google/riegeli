@@ -19,7 +19,6 @@
 
 #include <limits>
 #include <string>
-#include <tuple>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -73,30 +72,25 @@ absl::Status SerializeToWriterImpl(const google::protobuf::MessageLite& src,
 absl::Status SerializeToString(const google::protobuf::MessageLite& src,
                                std::string& dest, SerializeOptions options) {
   const size_t size = options.GetByteSize(src);
-  return SerializeToWriter<StringWriter<>>(
+  return SerializeToWriter(
       src,
-      std::forward_as_tuple(&dest,
-                            StringWriterBase::Options().set_size_hint(size)),
+      StringWriter<>(&dest, StringWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToChain(const google::protobuf::MessageLite& src,
                               Chain& dest, SerializeOptions options) {
   const size_t size = options.GetByteSize(src);
-  return SerializeToWriter<ChainWriter<>>(
-      src,
-      std::forward_as_tuple(&dest,
-                            ChainWriterBase::Options().set_size_hint(size)),
+  return SerializeToWriter(
+      src, ChainWriter<>(&dest, ChainWriterBase::Options().set_size_hint(size)),
       options);
 }
 
 absl::Status SerializeToCord(const google::protobuf::MessageLite& src,
                              absl::Cord& dest, SerializeOptions options) {
   const size_t size = options.GetByteSize(src);
-  return SerializeToWriter<CordWriter<>>(
-      src,
-      std::forward_as_tuple(&dest,
-                            CordWriterBase::Options().set_size_hint(size)),
+  return SerializeToWriter(
+      src, CordWriter<>(&dest, CordWriterBase::Options().set_size_hint(size)),
       options);
 }
 

@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -161,8 +160,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   {
-    absl::Status status = ParseFromReader<LimitingReader<>>(
-        std::forward_as_tuple(&values_reader_, limit), record);
+    absl::Status status =
+        ParseFromReader(LimitingReader<>(&values_reader_, limit), record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!values_reader_.Seek(limit)) {
         RIEGELI_ASSERT_UNREACHABLE()
