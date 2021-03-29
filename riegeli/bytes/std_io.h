@@ -30,7 +30,7 @@ namespace riegeli {
 //
 // Warning: when `StdIn()` is used, `std::cin` will have an unpredictable amount
 // of extra data consumed because of buffering.
-Reader* StdIn();
+Reader& StdIn();
 
 // A singleton `Writer` writing to standard output (`std::cout`).
 //
@@ -40,13 +40,13 @@ Reader* StdIn();
 // refers to an interactive device.
 //
 // `StdOut()` is automatically flushed at process exit. Flushing it explicitly
-// with `StdOut()->Flush(FlushType::kFromObject)` might be needed:
+// with `StdOut().Flush(FlushType::kFromObject)` might be needed:
 // * Before reading from `std::cin` or `StdIn()`, so that output written so far
 //   appears before waiting for input.
 // * Before writing to `std::cout`, `std::cerr`, or `StdErr()`, so that output
 //   written to different streams ultimately leading to the same destination
 //   appears in the correct order.
-Writer* StdOut();
+Writer& StdOut();
 
 // A singleton `Writer` writing to standard error (`std::cerr`).
 //
@@ -55,9 +55,9 @@ Writer* StdOut();
 // `std::cerr`, `StdErr()` is fully buffered (not unbuffered).
 //
 // `StdErr()` is automatically flushed at process exit. Flushing it explicitly
-// with `StdErr()->Flush(FlushType::kFromObject)` might be needed after writing
+// with `StdErr().Flush(FlushType::kFromObject)` might be needed after writing
 // a complete message, so that it appears promptly.
-Writer* StdErr();
+Writer& StdErr();
 
 // Replaces `StdIn()` with a new `Reader`. Returns the previous `Reader`.
 std::unique_ptr<Reader> SetStdIn(std::unique_ptr<Reader> value);

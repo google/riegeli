@@ -181,8 +181,8 @@ absl::Status DescribeTransposedChunk(
   return absl::OkStatus();
 }
 
-void DescribeFile(absl::string_view filename, std::ostream* report) {
-  absl::Format(report,
+void DescribeFile(absl::string_view filename, std::ostream& report) {
+  absl::Format(&report,
                "file {\n"
                "  filename: \"%s\"\n",
                absl::Utf8SafeCEscape(filename));
@@ -190,14 +190,14 @@ void DescribeFile(absl::string_view filename, std::ostream* report) {
       std::forward_as_tuple(filename, O_RDONLY));
   const absl::optional<Position> size = chunk_reader.Size();
   if (size != absl::nullopt) {
-    absl::Format(report, "  file_size: %u\n", *size);
+    absl::Format(&report, "  file_size: %u\n", *size);
   }
   google::protobuf::TextFormat::Printer printer;
   printer.SetInitialIndentLevel(2);
   printer.SetUseShortRepeatedPrimitives(true);
   printer.SetUseUtf8StringEscaping(true);
   for (;;) {
-    report->flush();
+    report.flush();
     const Position chunk_begin = chunk_reader.pos();
     Chunk chunk;
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
@@ -239,12 +239,12 @@ void DescribeFile(absl::string_view filename, std::ostream* report) {
         absl::Format(&std::cerr, "%s\n", status.message());
       }
     }
-    absl::Format(report, "  chunk {\n");
-    google::protobuf::io::OstreamOutputStream proto_out(report);
+    absl::Format(&report, "  chunk {\n");
+    google::protobuf::io::OstreamOutputStream proto_out(&report);
     printer.Print(chunk_summary, &proto_out);
-    absl::Format(report, "  }\n");
+    absl::Format(&report, "  }\n");
   }
-  absl::Format(report, "}\n");
+  absl::Format(&report, "}\n");
   if (!chunk_reader.Close()) {
     absl::Format(&std::cerr, "%s\n", chunk_reader.status().message());
   }
@@ -263,6 +263,6 @@ int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   for (size_t i = 1; i < args.size(); ++i) {
-    riegeli::tools::DescribeFile(args[i], &std::cout);
+    riegeli::tools::DescribeFile(args[i], std::cout);
   }
 }

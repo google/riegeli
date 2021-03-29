@@ -39,9 +39,9 @@ class StandardStreams {
 
   ~StandardStreams() = delete;
 
-  Reader* StdIn() { return std_in_.get(); }
-  Writer* StdOut() { return std_out_.get(); }
-  Writer* StdErr() { return std_err_.get(); }
+  Reader& StdIn() { return *std_in_; }
+  Writer& StdOut() { return *std_out_; }
+  Writer& StdErr() { return *std_err_; }
   std::unique_ptr<Reader> SetStdIn(std::unique_ptr<Reader> value) {
     return std::exchange(std_in_, std::move(value));
   }
@@ -75,24 +75,24 @@ StandardStreams::StandardStreams()
   std::atexit(+[] { singleton->FlushAll(); });
 }
 
-inline StandardStreams* GetStandardStreams() {
+inline StandardStreams& GetStandardStreams() {
   static NoDestructor<StandardStreams> kStandardStreams;
-  return kStandardStreams.get();
+  return *kStandardStreams;
 }
 
 }  // namespace
 
-Reader* StdIn() { return GetStandardStreams()->StdIn(); }
-Writer* StdOut() { return GetStandardStreams()->StdOut(); }
-Writer* StdErr() { return GetStandardStreams()->StdErr(); }
+Reader& StdIn() { return GetStandardStreams().StdIn(); }
+Writer& StdOut() { return GetStandardStreams().StdOut(); }
+Writer& StdErr() { return GetStandardStreams().StdErr(); }
 std::unique_ptr<Reader> SetStdIn(std::unique_ptr<Reader> value) {
-  return GetStandardStreams()->SetStdIn(std::move(value));
+  return GetStandardStreams().SetStdIn(std::move(value));
 }
 std::unique_ptr<Writer> SetStdOut(std::unique_ptr<Writer> value) {
-  return GetStandardStreams()->SetStdOut(std::move(value));
+  return GetStandardStreams().SetStdOut(std::move(value));
 }
 std::unique_ptr<Writer> SetStdErr(std::unique_ptr<Writer> value) {
-  return GetStandardStreams()->SetStdErr(std::move(value));
+  return GetStandardStreams().SetStdErr(std::move(value));
 }
 
 }  // namespace riegeli
