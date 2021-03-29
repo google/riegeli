@@ -48,6 +48,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:intrusive_ref_count",
         "//riegeli/bytes:string_writer",
+        "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

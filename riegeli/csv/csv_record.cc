@@ -16,9 +16,11 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <initializer_list>
 #include <ostream>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -26,17 +28,65 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/intrusive_ref_count.h"
 #include "riegeli/bytes/string_writer.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/csv/containers.h"
 
 namespace riegeli {
+
+namespace {
+
+inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
+                             size_t already_scanned) {
+  writer.WriteChar('"');
+  const char* start = src.data();
+  const char* next_to_check = src.data() + already_scanned;
+  const char* const limit = src.data() + src.size();
+  // Write characters [start, limit), except that if quotes are found in
+  // [next_to_check, limit), write them twice.
+  while (const char* const next_quote = static_cast<const char*>(std::memchr(
+             next_to_check, '"', PtrDistance(next_to_check, limit)))) {
+    writer.Write(absl::string_view(start, PtrDistance(start, next_quote + 1)));
+    start = next_quote;
+    next_to_check = next_quote + 1;
+  }
+  writer.Write(absl::string_view(start, PtrDistance(start, limit)));
+  writer.WriteChar('"');
+}
+
+inline void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
+  for (size_t i = 0; i < src.size(); ++i) {
+    switch (src[i]) {
+      // For correct CSV syntax.
+      case '\n':
+      case '\r':
+      case ',':
+      case '"':
+      // For unambiguous `CsvRecord::DebugString()`.
+      case ':':
+      // For unambiguous appending of the rest of an error message.
+      case ';':
+        WriteDebugQuoted(src, writer, i);
+        return;
+    }
+  }
+  writer.Write(src);
+}
+
+inline std::string DebugQuotedIfNeeded(absl::string_view src) {
+  std::string dest;
+  riegeli::StringWriter<> writer(&dest);
+  WriteDebugQuotedIfNeeded(src, writer);
+  writer.Close();
+  return dest;
+}
+
+}  // namespace
 
 inline CsvHeader::Payload::Payload(const Payload& that)
     : index_to_name(that.index_to_name), name_to_index(that.name_to_index) {}
@@ -75,8 +125,16 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
   }
   if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
     payload_.reset();
-    return absl::FailedPreconditionError(absl::StrCat(
-        "Duplicate field name(s): ", absl::StrJoin(duplicate_names, ", ")));
+    riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+    message.Write("Duplicate field name(s): ");
+    for (std::vector<absl::string_view>::const_iterator iter =
+             duplicate_names.cbegin();
+         iter != duplicate_names.cend(); ++iter) {
+      if (iter != duplicate_names.cbegin()) message.WriteChar(',');
+      WriteDebugQuotedIfNeeded(*iter, message);
+    }
+    message.Close();
+    return absl::FailedPreconditionError(message.dest());
   }
   payload_->index_to_name = std::move(names);
   return absl::OkStatus();
@@ -119,8 +177,11 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
         << "It should not have been needed to ensure that an empty CsvHeader "
            "has payload_ == nullptr because a duplicate field name is possible "
            "only if some fields were already present";
-    return absl::FailedPreconditionError(
-        absl::StrCat("Duplicate field name: ", name));
+    riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+    message.Write("Duplicate field name: ");
+    WriteDebugQuotedIfNeeded(name, message);
+    message.Close();
+    return absl::FailedPreconditionError(message.dest());
   }
   payload_->index_to_name.push_back(std::move(name));
   return absl::OkStatus();
@@ -165,14 +226,10 @@ inline void CsvHeader::EnsureUniqueOwner() {
 std::string CsvHeader::DebugString() const {
   std::string result;
   riegeli::StringWriter<> writer(&result);
-  writer.WriteChar('{');
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.Write(", ");
-    writer.WriteChar('"');
-    writer.Write(absl::Utf8SafeCEscape(*iter));
-    writer.WriteChar('"');
+    if (iter != cbegin()) writer.WriteChar(',');
+    WriteDebugQuotedIfNeeded(*iter, writer);
   }
-  writer.WriteChar('}');
   writer.Close();
   return result;
 }
@@ -241,7 +298,7 @@ std::string& CsvRecord::operator[](absl::string_view name) {
   RIEGELI_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[](): "
          "unknown field name: "
-      << name;
+      << DebugQuotedIfNeeded(name) << "; existing fields: " << header_;
   return fields_[name_iter - header_.begin()];
 }
 
@@ -250,7 +307,7 @@ const std::string& CsvRecord::operator[](absl::string_view name) const {
   RIEGELI_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[](): "
          "unknown field name: "
-      << name;
+      << DebugQuotedIfNeeded(name) << "; existing fields: " << header_;
   return fields_[name_iter - header_.begin()];
 }
 
@@ -292,9 +349,18 @@ absl::Status CsvRecord::TryMerge(
 }
 
 absl::Status CsvRecord::FailMerge(
-    const std::vector<std::string>& unknown_fields) {
-  return absl::FailedPreconditionError(absl::StrCat(
-      "Unknown field name(s): ", absl::StrJoin(unknown_fields, ", ")));
+    const std::vector<std::string>& unknown_fields) const {
+  riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+  message.Write("Unknown field name(s): ");
+  for (std::vector<std::string>::const_iterator iter = unknown_fields.cbegin();
+       iter != unknown_fields.cend(); ++iter) {
+    if (iter != unknown_fields.cbegin()) message.WriteChar(',');
+    WriteDebugQuotedIfNeeded(*iter, message);
+  }
+  message.Write("; existing fields: ");
+  message.Write(header_.DebugString());
+  message.Close();
+  return absl::FailedPreconditionError(message.dest());
 }
 
 std::string CsvRecord::DebugString() const {
@@ -303,16 +369,12 @@ std::string CsvRecord::DebugString() const {
          "mismatched length of CSV header and fields";
   std::string result;
   riegeli::StringWriter<> writer(&result);
-  writer.WriteChar('{');
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
-    if (iter != cbegin()) writer.Write(", ");
-    writer.WriteChar('"');
-    writer.Write(absl::Utf8SafeCEscape(iter->first));
-    writer.Write("\": \"");
-    writer.Write(absl::Utf8SafeCEscape(iter->second));
-    writer.WriteChar('"');
+    if (iter != cbegin()) writer.WriteChar(',');
+    WriteDebugQuotedIfNeeded(iter->first, writer);
+    writer.WriteChar(':');
+    WriteDebugQuotedIfNeeded(iter->second, writer);
   }
-  writer.WriteChar('}');
   writer.Close();
   return result;
 }

@@ -550,7 +550,7 @@ class CsvRecord {
  private:
   friend class CsvReaderBase;
 
-  static absl::Status FailMerge(const std::vector<std::string>& unknown_fields);
+  absl::Status FailMerge(const std::vector<std::string>& unknown_fields) const;
 
   // Invariant: `header_.size() == fields_.size()`
   CsvHeader header_;
