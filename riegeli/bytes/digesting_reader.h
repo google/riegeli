@@ -90,7 +90,7 @@ class DigestingReaderBase : public Reader {
 // The `Digester` template parameter specifies how data are being digested.
 // `DigestingReader` forwards basic operations to `Digester`: constructor
 // with forwarded parameters after `src`, move constructor, move assignment,
-// destructor, and optionally `Reset(). Apart from that, `Digester` should
+// destructor, and optionally `Reset()`. Apart from that, `Digester` should
 // support:
 //
 // ```

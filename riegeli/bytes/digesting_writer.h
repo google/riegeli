@@ -97,7 +97,7 @@ class DigestingWriterBase : public Writer {
 // The `Digester` template parameter specifies how data are being digested.
 // `DigestingWriter` forwards basic operations to `Digester`: constructor with
 // forwarded parameters after `dest`, move constructor, move assignment,
-// destructor, and optionally `Reset(). Apart from that, `Digester` should
+// destructor, and optionally `Reset()`. Apart from that, `Digester` should
 // support:
 //
 // ```
