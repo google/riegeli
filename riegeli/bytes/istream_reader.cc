@@ -116,7 +116,7 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                          min_length,
                          size_t{std::numeric_limits<std::streamsize>::max()})));
       length_read = src.gcount();
-      RIEGELI_ASSERT_GE(length_read, 0) << "negataive istream::gcount()";
+      RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::gcount()";
       RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), min_length)
           << "istream::read() read more than requested";
     } else {
