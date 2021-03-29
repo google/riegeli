@@ -39,17 +39,9 @@ class StandardStreams {
 
   ~StandardStreams() = delete;
 
-  Reader* StdIn() {
-    std_out_->Flush(FlushType::kFromProcess);
-    return std_in_.get();
-  }
+  Reader* StdIn() { return std_in_.get(); }
   Writer* StdOut() { return std_out_.get(); }
-  FlushingWriterPtr StdErr() {
-    std_out_->Flush(FlushType::kFromProcess);
-    return FlushingWriterPtr(std_err_.get());
-  }
-  Reader* JustStdIn() { return std_in_.get(); }
-  Writer* JustStdErr() { return std_err_.get(); }
+  Writer* StdErr() { return std_err_.get(); }
   std::unique_ptr<Reader> SetStdIn(std::unique_ptr<Reader> value) {
     return std::exchange(std_in_, std::move(value));
   }
@@ -92,9 +84,7 @@ inline StandardStreams* GetStandardStreams() {
 
 Reader* StdIn() { return GetStandardStreams()->StdIn(); }
 Writer* StdOut() { return GetStandardStreams()->StdOut(); }
-FlushingWriterPtr StdErr() { return GetStandardStreams()->StdErr(); }
-Reader* JustStdIn() { return GetStandardStreams()->JustStdIn(); }
-Writer* JustStdErr() { return GetStandardStreams()->JustStdErr(); }
+Writer* StdErr() { return GetStandardStreams()->StdErr(); }
 std::unique_ptr<Reader> SetStdIn(std::unique_ptr<Reader> value) {
   return GetStandardStreams()->SetStdIn(std::move(value));
 }
