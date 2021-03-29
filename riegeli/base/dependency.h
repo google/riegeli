@@ -296,12 +296,12 @@ class Dependency<P*, M&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
 };
 
 // Specialization of `Dependency<P*, M&>` when `M*` is not convertible to `P*`:
-// decay to `Dependency<P*, M>`.
+// decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
 class Dependency<P*, M&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
-    : public Dependency<P*, M> {
+    : public Dependency<P*, std::decay_t<M>> {
  public:
-  using Dependency<P*, M>::Dependency;
+  using Dependency<P*, std::decay_t<M>>::Dependency;
 };
 
 // Specialization of `Dependency<P*, M&&>` when `M*` is convertible to `P*`:
@@ -321,12 +321,12 @@ class Dependency<P*, M&&, std::enable_if_t<std::is_convertible<M*, P*>::value>>
 };
 
 // Specialization of `Dependency<P*, M&&>` when `M*` is not convertible to `P*`:
-// decay to `Dependency<P*, M>`.
+// decay to `Dependency<P*, std::decay_t<M>>`.
 template <typename P, typename M>
 class Dependency<P*, M&&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
-    : public Dependency<P*, M> {
+    : public Dependency<P*, std::decay_t<M>> {
  public:
-  using Dependency<P*, M>::Dependency;
+  using Dependency<P*, std::decay_t<M>>::Dependency;
 };
 
 }  // namespace riegeli

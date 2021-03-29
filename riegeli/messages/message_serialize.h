@@ -213,8 +213,8 @@ template <typename Dest>
 inline absl::Status SerializeToWriter(const google::protobuf::MessageLite& src,
                                       const Dest& dest,
                                       SerializeOptions options) {
-  return internal::SerializeToWriterImpl(src, Dependency<Writer*, Dest>(dest),
-                                         options);
+  return internal::SerializeToWriterImpl(
+      src, Dependency<Writer*, const Dest&>(dest), options);
 }
 
 template <typename Dest>

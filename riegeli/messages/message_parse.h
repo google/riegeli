@@ -158,8 +158,8 @@ template <typename Src>
 inline absl::Status ParseFromReader(const Src& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderImpl(Dependency<Reader*, Src>(src), dest,
-                                       options);
+  return internal::ParseFromReaderImpl(Dependency<Reader*, const Src&>(src),
+                                       dest, options);
 }
 
 template <typename Src>
