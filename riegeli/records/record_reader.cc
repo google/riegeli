@@ -351,7 +351,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   const Recoverable recoverable = recoverable_;
   recoverable_ = Recoverable::kNo;
   if (recoverable != Recoverable::kRecoverChunkReader) {
-    RIEGELI_ASSERT(!closed()) << "Failed invariant of RecordReader: "
+    RIEGELI_ASSERT(is_open()) << "Failed invariant of RecordReader: "
                                  "recovery does not apply to chunk reader "
                                  "but RecordReader is closed";
   }

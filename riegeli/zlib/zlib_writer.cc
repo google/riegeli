@@ -103,7 +103,7 @@ void ZlibWriterBase::Done() {
 
 inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
                                           int zlib_code) {
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
   Writer& dest = *dest_writer();

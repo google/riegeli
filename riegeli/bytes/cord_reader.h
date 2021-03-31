@@ -68,7 +68,7 @@ class CordReaderBase : public PullableReader {
   bool SeekSlow(Position new_pos) override;
 
   // Invariant:
-  //   if `closed()` or
+  //   if `!is_open()` or
   //      `*src_cord()` is flat with size at most `kMaxBytesToCopy`
   //       then `iter_ == absl::nullopt`
   //       else `iter_ != absl::nullopt` and

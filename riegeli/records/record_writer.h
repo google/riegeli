@@ -512,7 +512,7 @@ class RecordWriterBase : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
-  // Invariant: if `!closed()` then `worker_ != nullptr`.
+  // Invariant: if `is_open()` then `worker_ != nullptr`.
   std::unique_ptr<Worker> worker_;
 };
 

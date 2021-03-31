@@ -85,7 +85,7 @@ inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,
   RIEGELI_ASSERT_NE(code, absl::StatusCode::kOk)
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "status code not failed";
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "Object closed";
   Reader& src = *src_reader();

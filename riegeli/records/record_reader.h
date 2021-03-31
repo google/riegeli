@@ -404,8 +404,8 @@ class RecordReaderBase : public Object {
   //
   // Invariants:
   //   if `healthy()` then `recoverable_ == Recoverable::kNo`
-  //   if `closed()` then `recoverable_ == Recoverable::kNo ||
-  //                       recoverable_ == Recoverable::kRecoverChunkReader`
+  //   if `!is_open()` then `recoverable_ == Recoverable::kNo ||
+  //                         recoverable_ == Recoverable::kRecoverChunkReader`
   Recoverable recoverable_ = Recoverable::kNo;
 
   std::function<bool(const SkippedRegion&)> recovery_;

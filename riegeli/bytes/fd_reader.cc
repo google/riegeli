@@ -106,7 +106,7 @@ bool FdReaderCommon::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdReaderCommon::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of FdReaderCommon::FailOperation(): "
          "Object closed";
   return Fail(
@@ -303,7 +303,7 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "Object closed";
   return Fail(

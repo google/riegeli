@@ -91,7 +91,7 @@ class Reader : public Object {
   //
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
-  //   if `closed()` then `start() == cursor() == limit() == nullptr`
+  //   if `!is_open()` then `start() == cursor() == limit() == nullptr`
   const char* start() const { return start_; }
   const char* cursor() const { return cursor_; }
   const char* limit() const { return limit_; }
@@ -115,7 +115,7 @@ class Reader : public Object {
   // `!healthy() && available() > 0`. This means that the source failed but some
   // data are already buffered and can be read before experiencing the failure.
   //
-  // Invariant: if `closed()` then `available() == 0`
+  // Invariant: if `!is_open()` then `available() == 0`
   size_t available() const { return PtrDistance(cursor_, limit_); }
 
   // Returns the buffer size, between `start()` and `limit()`.

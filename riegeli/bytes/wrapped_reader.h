@@ -80,7 +80,7 @@ class WrappedReaderBase : public Reader {
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
 
-  // Invariants if `!closed()`:
+  // Invariants if `is_open()`:
   //   `start() == src_reader()->start()`
   //   `limit() == src_reader()->limit()`
   //   `limit_pos() == src_reader()->limit_pos()`

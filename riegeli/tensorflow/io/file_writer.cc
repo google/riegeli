@@ -95,7 +95,7 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileWriterBase::FailOperation(): "
          "status not failed";
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of FileWriterBase::FailOperation(): "
          "Object closed";
   return Fail(

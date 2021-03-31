@@ -78,7 +78,7 @@ class DigestingReaderBase : public Reader {
   void MakeBuffer(Reader& src);
 
  private:
-  // Invariants if `!closed()`:
+  // Invariants if `is_open()`:
   //   `start() == src_reader()->cursor()`
   //   `limit() == src_reader()->limit()`
   //   `limit_pos() == src_reader()->limit_pos()`

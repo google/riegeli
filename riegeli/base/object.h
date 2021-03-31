@@ -26,8 +26,8 @@
 namespace riegeli {
 
 // Internal representation of the basic state of class `Object` and similar
-// classes: whether the object is closed, and whether it is failed (with an
-// associated `absl::Status` for failure details).
+// classes: whether the object is open or closed, and whether it is not failed
+// or failed (with an associated `absl::Status` for failure details).
 class ObjectState {
  public:
   // By a common convention default-constructed objects are closed, and objects
@@ -60,34 +60,35 @@ class ObjectState {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Returns `true` if the `ObjectState` is healthy, i.e. not closed nor failed.
+  // Returns `true` if the `ObjectState` is healthy, i.e. open and not failed.
   bool healthy() const;
 
-  // Returns `true` if the `ObjectState` is closed.
-  bool closed() const;
+  // Returns `true` if the `ObjectState` is open, i.e. not closed.
+  bool is_open() const;
 
-  // Returns `true` if the `ObjectState` is failed.
-  bool failed() const;
+  // Returns `true` if the `ObjectState` is not failed.
+  bool not_failed() const;
 
   // Returns an `absl::Status` describing the failure if the `ObjectState` is
   // failed, or an `absl::FailedPreconditionError()` if the `ObjectState` is
   // closed, or `absl::OkStatus()` if the `ObjectState` is healthy.
   absl::Status status() const;
 
-  // Marks the `ObjectState` as closed, keeping its `failed()` state unchanged.
+  // Marks the `ObjectState` as closed, keeping its `not_failed()` state
+  // unchanged.
   //
-  // Returns `!failed()`.
+  // Returns `not_failed()`.
   bool MarkClosed();
 
   // Marks the `ObjectState` as failed with the given `absl::Status`, keeping
-  // its `closed()` state unchanged.
+  // its `is_open()` state unchanged.
   //
   // Always returns `false`.
   //
   // Precondition: `!status.ok()`
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
 
-  // Marks the `Object` as not failed, keeping its `closed()` state unchanged.
+  // Marks the `Object` as not failed, keeping its `is_open()` state unchanged.
   void MarkNotFailed();
 
  private:
@@ -132,9 +133,9 @@ class TypeId {
 };
 
 // `Object` is an abstract base class for data readers and writers, managing
-// their state: whether they are closed, and whether they are failed (with an
-// associated `absl::Status` for failure details). An `Object` is healthy when
-// it is not closed nor failed.
+// their state: whether they are open or closed, and whether they are not failed
+// or failed (with an associated `absl::Status` for failure details). An
+// `Object` is healthy when it is open and not failed.
 //
 // An `Object` becomes closed when `Close()` finishes, when constructed as
 // closed (usually with no parameters), or when moved from.
@@ -166,7 +167,7 @@ class Object {
   // writer that its destination is needed. `Close()` may also report new
   // failures.
   //
-  // If `closed()`, does nothing. Otherwise:
+  // If `!is_open()`, does nothing. Otherwise:
   //  * In the case of a writer, pushes buffered data to the destination.
   //  * In the case of a reader, verifies that the source is not truncated at
   //    the current position, i.e. that it either has more data or ends cleanly
@@ -186,11 +187,14 @@ class Object {
   // resources in any case.
   bool Close();
 
-  // Returns `true` if the `Object` is healthy, i.e. not closed nor failed.
+  // Returns `true` if the `Object` is healthy, i.e. open and not failed.
   bool healthy() const { return state_.healthy(); }
 
-  // Returns `true` if the `Object` is closed.
-  bool closed() const { return state_.closed(); }
+  // Returns `true` if the `Object` is open, i.e. not closed.
+  bool is_open() const { return state_.is_open(); }
+
+  ABSL_DEPRECATED("Use !is_open() instead")
+  bool closed() const { return !is_open(); }
 
   // Returns an `absl::Status` describing the failure if the `Object` is failed,
   // or an `absl::FailedPreconditionError()` if the `Object` is closed, or
@@ -198,7 +202,7 @@ class Object {
   absl::Status status() const { return state_.status(); }
 
   // Marks the `Object` as failed with the given `absl::Status`, keeping its
-  // `closed()` state unchanged.
+  // `is_open()` state unchanged.
   //
   // Derived classes may override `Fail()` to annotate the `absl::Status` with
   // some context or update other state.
@@ -284,7 +288,7 @@ class Object {
   void Reset(InitiallyClosed) { state_.Reset(kInitiallyClosed); }
   void Reset(InitiallyOpen) { state_.Reset(kInitiallyOpen); }
 
-  // Marks the `Object` as not failed, keeping its `closed()` state unchanged.
+  // Marks the `Object` as not failed, keeping its `is_open()` state unchanged.
   // This can be used if the `Object` supports recovery after some failures.
   //
   // If a derived class uses background threads, its methods which call
@@ -294,14 +298,14 @@ class Object {
 
   // Implementation of `Close()`, called if the `Object` is not closed yet.
   //
-  // `Close()` returns early if `closed()`, otherwise calls `Done()` and marks
+  // `Close()` returns early if `!is_open()`, otherwise calls `Done()` and marks
   // the `Object` as closed. See `Close()` for details of the responsibility of
   // `Done()`.
   //
   // If a derived class uses background threads, `Done()` should cause
   // background threads to stop interacting with the `Object`.
   //
-  // Precondition: `!closed()`
+  // Precondition: `is_open()`
   virtual void Done() {}
 
  private:
@@ -351,16 +355,16 @@ inline bool ObjectState::healthy() const {
   return status_ptr_.load(std::memory_order_acquire) == kHealthy;
 }
 
-inline bool ObjectState::closed() const {
+inline bool ObjectState::is_open() const {
   const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  if (ABSL_PREDICT_TRUE(status_ptr == kHealthy)) return false;
-  if (ABSL_PREDICT_TRUE(status_ptr == kClosedSuccessfully)) return true;
-  return reinterpret_cast<const FailedStatus*>(status_ptr)->closed;
+  if (ABSL_PREDICT_TRUE(status_ptr == kHealthy)) return true;
+  if (ABSL_PREDICT_TRUE(status_ptr == kClosedSuccessfully)) return false;
+  return !reinterpret_cast<const FailedStatus*>(status_ptr)->closed;
 }
 
-inline bool ObjectState::failed() const {
+inline bool ObjectState::not_failed() const {
   const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  return status_ptr != kHealthy && status_ptr != kClosedSuccessfully;
+  return status_ptr == kHealthy || status_ptr == kClosedSuccessfully;
 }
 
 inline bool ObjectState::MarkClosed() {
@@ -375,12 +379,12 @@ inline bool ObjectState::MarkClosed() {
 }
 
 inline void ObjectState::MarkNotFailed() {
-  DeleteStatus(status_ptr_.exchange(closed() ? kClosedSuccessfully : kHealthy,
+  DeleteStatus(status_ptr_.exchange(is_open() ? kHealthy : kClosedSuccessfully,
                                     std::memory_order_relaxed));
 }
 
 inline bool Object::Close() {
-  if (ABSL_PREDICT_FALSE(state_.closed())) return !state_.failed();
+  if (ABSL_PREDICT_FALSE(!state_.is_open())) return state_.not_failed();
   Done();
   return state_.MarkClosed();
 }

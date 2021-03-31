@@ -49,7 +49,7 @@ class ReaderStreambuf : public std::streambuf {
   void Done();
 
   bool healthy() const { return state_.healthy(); }
-  bool closed() const { return state_.closed(); }
+  bool is_open() const { return state_.is_open(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
   ABSL_ATTRIBUTE_COLD void Fail();
@@ -71,8 +71,8 @@ class ReaderStreambuf : public std::streambuf {
   Reader* src_ = nullptr;
 
   // Invariants:
-  //   `eback() == (closed() ? nullptr : src_->start())`
-  //   `egptr() == (closed() ? nullptr : src_->limit())`
+  //   `eback() == (is_open() ? src_->start() : nullptr)`
+  //   `egptr() == (is_open() ? src_->limit() : nullptr)`
 };
 
 }  // namespace internal
@@ -99,12 +99,11 @@ class ReaderIstreamBase : public std::istream {
   // failure details).
   virtual ReaderIstreamBase& close() = 0;
 
-  // Returns `true` if the `ReaderIstream` is healthy, i.e. not closed nor
-  // failed.
+  // Returns `true` if the `ReaderIstream` is healthy, i.e. open and not failed.
   bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns `true` if the `ReaderIstream` is not closed.
-  bool is_open() const { return !streambuf_.closed(); }
+  // Returns `true` if the `ReaderIstream` is open, i.e. not closed.
+  bool is_open() const { return streambuf_.is_open(); }
 
   // Returns an `absl::Status` describing the failure if the `ReaderIstream`
   // is failed, or an `absl::FailedPreconditionError()` if the `ReaderIstream`

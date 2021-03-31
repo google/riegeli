@@ -49,7 +49,7 @@ class WriterStreambuf : public std::streambuf {
   void Done();
 
   bool healthy() const { return state_.healthy(); }
-  bool closed() const { return state_.closed(); }
+  bool is_open() const { return state_.is_open(); }
   absl::Status status() const { return state_.status(); }
   void MarkClosed() { state_.MarkClosed(); }
   ABSL_ATTRIBUTE_COLD void Fail();
@@ -70,8 +70,8 @@ class WriterStreambuf : public std::streambuf {
   Writer* dest_ = nullptr;
 
   // Invariants:
-  //   `closed() ? pbase() == nullptr : pbase() >= dest_->start()`
-  //   `epptr() == (closed() ? nullptr : dest_->limit())`
+  //   `is_open() ? pbase() >= dest_->start() : pbase() == nullptr`
+  //   `epptr() == (is_open() ? dest_->limit() : nullptr)`
 };
 
 }  // namespace internal
@@ -94,12 +94,11 @@ class WriterOstreamBase : public std::ostream {
   // failure details).
   virtual WriterOstreamBase& close() = 0;
 
-  // Returns `true` if the `WriterOstream` is healthy, i.e. not closed nor
-  // failed.
+  // Returns `true` if the `WriterOstream` is healthy, i.e. open and not failed.
   bool healthy() const { return streambuf_.healthy(); }
 
-  // Returns `true` if the `WriterOstream` is not closed.
-  bool is_open() const { return !streambuf_.closed(); }
+  // Returns `true` if the `WriterOstream` is open, i.e. not closed.
+  bool is_open() const { return streambuf_.is_open(); }
 
   // Returns an `absl::Status` describing the failure if the `WriterOstream`
   // is failed, or an `absl::FailedPreconditionError()` if the `WriterOstream`

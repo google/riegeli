@@ -104,7 +104,7 @@ class BufferedReader : public Reader {
   // through `buffer_`.
   size_t LengthToReadDirectly() const;
 
-  // Invariant: if `!closed()` then `buffer_size_ > 0`
+  // Invariant: if `is_open()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
   // Buffered data, read directly before the physical source position which is

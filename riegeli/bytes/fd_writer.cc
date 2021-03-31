@@ -79,7 +79,7 @@ bool FdWriterCommon::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdWriterCommon::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(!closed())
+  RIEGELI_ASSERT(is_open())
       << "Failed precondition of FdWriterCommon::FailOperation(): "
          "Object closed";
   return Fail(

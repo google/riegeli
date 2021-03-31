@@ -106,7 +106,7 @@ class LimitingReaderBase : public Reader {
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);
 
-  // Invariants if `!closed()`:
+  // Invariants if `is_open()`:
   //   `start() == src_reader()->start()`
   //   `limit() <= src_reader()->limit()`
   //   `start_pos() == src_reader()->start_pos()`

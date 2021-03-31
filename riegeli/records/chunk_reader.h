@@ -216,8 +216,8 @@ class DefaultChunkReaderBase : public Object {
   //
   // Invariants:
   //   if `healthy()` then `recoverable_ == Recoverable::kNo`
-  //   if `closed()` then `recoverable_ == Recoverable::kNo ||
-  //                       recoverable_ == Recoverable::kHaveChunk`
+  //   if `!is_open()` then `recoverable_ == Recoverable::kNo ||
+  //                         recoverable_ == Recoverable::kHaveChunk`
   Recoverable recoverable_ = Recoverable::kNo;
 
   // If `recoverable_ != Recoverable::kNo`, the position to start recovery from.
