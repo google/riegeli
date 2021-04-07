@@ -425,7 +425,7 @@ next_field:
 bool CsvReaderBase::ReadRecord(CsvRecord& record) {
   RIEGELI_CHECK(has_header())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
-         "CsvReaderBase::Options::set_read_header() is required";
+         "CsvReaderBase::Options::read_header() is required";
   if (ABSL_PREDICT_FALSE(!healthy())) {
     record.Reset();
     return false;

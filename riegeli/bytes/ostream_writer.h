@@ -110,8 +110,8 @@ class OstreamWriterBase : public BufferedWriter {
 };
 
 // A `Writer` which writes to a `std::ostream`. It supports random access and
-// requires the stream to support random access unless
-// `Options::set_assumed_pos(pos)`.
+// requires the stream to support random access if
+// `Options::assumed_pos() == absl::nullopt`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the stream being written to. `Dest` must support

@@ -50,8 +50,7 @@ class ZlibReaderBase : public BufferedReader {
     kZlibOrGzip = 32,
     // No header; compressor must write no header too.
     //
-    // Requires `Options::set_window_log()` with a value other than
-    // `absl::nullopt`.
+    // Requires `Options::window_log() != absl::nullopt`.
     kRaw = -1,
   };
 

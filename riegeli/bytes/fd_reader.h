@@ -269,10 +269,10 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
 // A `Reader` which reads from a file descriptor. It supports random access.
 //
-// The fd should support:
+// The fd must support:
 //  * `close()` - if the fd is owned
 //  * `pread()`
-//  * `lseek()` - unless `Options::set_initial_pos(pos)`
+//  * `lseek()` - if `Options::initial_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
 //
 // The `Src` template parameter specifies the type of the object providing and
@@ -365,11 +365,11 @@ explicit FdReader(absl::string_view filename, int flags,
 // A `Reader` which reads from a file descriptor which does not have to support
 // random access.
 //
-// The fd should support:
+// The fd must support:
 //  * `close()` - if the fd is owned
 //  * `read()`
 //  * `lseek()` - for the constructor from fd,
-//                unless `Options::set_assumed_pos(pos)`
+//                if `Options::assumed_pos() == absl::nullopt`
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -468,11 +468,11 @@ explicit FdStreamReader(
 // A `Reader` which reads from a file descriptor by mapping the whole file to
 // memory. It supports random access.
 //
-// The fd should support:
+// The fd must support:
 //  * `close()` - if the fd is owned
 //  * `fstat()`
 //  * `mmap()`
-//  * `lseek()` - unless `Options::set_initial_pos(pos)`
+//  * `lseek()` - if `Options::initial_pos() == absl::nullopt`
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support

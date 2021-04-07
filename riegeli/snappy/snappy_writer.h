@@ -240,8 +240,8 @@ class SnappyCompressOptions {
 // `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
 // `ChainWriter<>` (owned).
 //
-// The uncompressed `Reader` must support `Size()` unless
-// `SnappyCompressOptions::set_assumed_size()` is used.
+// The uncompressed `Reader` must support `Size()` if
+// `SnappyCompressOptions::assumed_size() == absl::nullopt`.
 template <typename Src, typename Dest>
 absl::Status SnappyCompress(
     const Src& src, const Dest& dest,

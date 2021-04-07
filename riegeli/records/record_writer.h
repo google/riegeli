@@ -457,8 +457,7 @@ class RecordWriterBase : public Object {
   bool WriteRecord(absl::Cord&& record, FutureRecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the `Writer`.
-  // If `Options::set_parallelism()` was used, waits for any background writing
-  // to complete.
+  // If `Options::parallelism()`, waits for any background writing to complete.
   //
   // This degrades compression density if used too often.
   //

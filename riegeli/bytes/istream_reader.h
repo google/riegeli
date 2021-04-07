@@ -113,8 +113,8 @@ class IstreamReaderBase : public BufferedReader {
 };
 
 // A `Reader` which reads from a `std::istream`. It supports random access
-// and requires the stream to support random access unless
-// `Options::set_assumed_pos(pos)`.
+// and requires the stream to support random access if
+// `Options::assumed_pos() == absl::nullopt`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the stream being read from. `Src` must support
@@ -124,9 +124,9 @@ class IstreamReaderBase : public BufferedReader {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// Warning: if the stream is not owned and `Options::set_assumed_pos(pos)` was
-// used, the stream will have an unpredictable amount of extra data consumed
-// because of buffering.
+// Warning: if random access is not supported and the stream is not owned,
+// it will have an unpredictable amount of extra data consumed because of
+// buffering.
 //
 // The stream must not be accessed until the `IstreamReader` is closed or no
 // longer used.

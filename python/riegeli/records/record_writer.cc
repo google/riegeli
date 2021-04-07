@@ -913,8 +913,8 @@ The dest argument should be a binary IO stream which supports:
  * close()          - for close() or __exit__() unless close is False
  * write(bytes)
  * flush()          - for flush(FlushType.FROM_{PROCESS,MACHINE})
- * seek(int[, int]) - unless assumed_pos is not None
- * tell()           - unless assumed_pos is not None
+ * seek(int[, int]) - if assumed_pos is None
+ * tell()           - if assumed_pos is None
 
 Example values for dest (possibly with 'ab' instead of 'wb' for appending):
  * io.FileIO(filename, 'wb')

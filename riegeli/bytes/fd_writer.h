@@ -242,12 +242,12 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 
 // A `Writer` which writes to a file descriptor. It supports random access.
 //
-// The fd should support:
+// The fd must support:
 //  * `fcntl()`     - for the constructor from fd,
-//                    unless `Options::set_initial_pos(pos)`
+//                    if `Options::initial_pos() == absl::nullopt`
 //  * `close()`     - if the fd is owned
 //  * `pwrite()`
-//  * `lseek()`     - unless `Options::set_initial_pos(pos)`
+//  * `lseek()`     - if `Options::initial_pos() == absl::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
 //  * `ftruncate()` - for `Truncate()`
@@ -344,15 +344,15 @@ explicit FdWriter(absl::string_view filename, int flags,
 
 // A `Writer` which writes to a fd which does not have to support random access.
 //
-// The fd should support:
+// The fd must support:
 //  * `fcntl()` - for the constructor from fd,
-//                unless `Options::set_initial_pos(pos)`
+//                if `Options::initial_pos() == absl::nullopt`
 //  * `close()` - if the fd is owned
 //  * `write()`
 //  * `lseek()` - for the constructor from fd,
-//                unless `Options::set_assumed_pos(pos)`
+//                if `Options::assumed_pos() == absl::nullopt`
 //  * `fstat()` - when opening for appending,
-//                unless `Options::set_assumed_pos(pos)`
+//                if `Options::assumed_pos() == absl::nullopt`
 //  * `fsync()` - for Flush(FlushType::kFromMachine)`
 //
 // The `Dest` template parameter specifies the type of the object providing and

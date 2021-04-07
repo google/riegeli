@@ -174,15 +174,15 @@ class CsvWriterBase : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  // Returns `true` if writing the header was requested by
-  // `Options::set_header(header)` with `header != absl::nullopt`.
+  // Returns `true` if writing the header was requested, i.e. if
+  // `Options::header() != absl::nullopt`.
   //
   // In this case `WriteRecord(CsvRecord)` is supported. Otherwise no particular
   // header is assumed, and only `WriteRecord()` from a sequence of fields is
   // supported.
   bool has_header() const { return has_header_; }
 
-  // If `has_header()`, returns field names set by `Options::set_header()` and
+  // If `has_header()`, returns field names set by `Options::header()` and
   // written to the first record.
   //
   // If `!has_header()`, returns an empty header.
@@ -194,8 +194,7 @@ class CsvWriterBase : public Object {
   // fields has the same effect as writing a record containing one empty field.
   //
   // Preconditions:
-  //  * `has_header()`, i.e. `Options::set_header(header)` was used with
-  //    `header != absl::nullopt`
+  //  * `has_header()`, i.e. `Options::header() != absl::nullopt`
   //  * `record.header() == header()`
   //
   // Return values:
@@ -227,7 +226,7 @@ class CsvWriterBase : public Object {
   // The index of the most recently written record, starting from 0.
   //
   // The record count does not include any header written with
-  // `Options::set_header()`.
+  // `Options::header()`.
   //
   // `last_record_index()` is unchanged by `Close()`.
   //
@@ -237,7 +236,7 @@ class CsvWriterBase : public Object {
   // The index of the next record, starting from 0.
   //
   // The record count does not include any header written with
-  // `Options::set_header()`.
+  // `Options::header()`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -291,12 +290,12 @@ class CsvWriterBase : public Object {
 // and some common extensions are described in
 // https://specs.frictionlessdata.io/csv-dialect/.
 //
-// `CsvWriter` writes RFC4180-compliant CSV files with
-// `Options::set_newline(CsvWriterBase::Newline::kCrLf)`, and also supports some
+// `CsvWriter` writes RFC4180-compliant CSV files if
+// `Options::newline() == CsvWriterBase::Newline::kCrLf`, and also supports some
 // extensions.
 //
 // By a common convention the first record consists of field names. This is
-// supported by `Options::set_header()` and `WriteRecord(CsvRecord)`.
+// supported by `Options::header()` and `WriteRecord(CsvRecord)`.
 //
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n").

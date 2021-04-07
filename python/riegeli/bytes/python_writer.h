@@ -37,15 +37,15 @@ namespace riegeli {
 namespace python {
 
 // A `Writer` which writes to a Python binary I/O stream. It supports random
-// access unless `Options::set_assumed_pos(pos)`.
+// access if `Options::assumed_pos() == absl::nullopt`.
 //
-// The file should support:
-//  * `close()`          - for `Close()` unless `Options::set_close(false)`
+// The file must support:
+//  * `close()`          - for `Close()` if `Options::close()`
 //  * `write(bytes)`
 //  * `flush()`          - for `Flush(FlushType::kFrom{Process,Machine})`
-//  * `seek(int[, int])` - unless `Options::set_assumed_pos(pos)`,
+//  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()`, `Size()`, or `Truncate()`
-//  * `tell()`           - unless `Options::set_assumed_pos(pos)`,
+//  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()`, `Size()`, or `Truncate()`
 //  * `truncate()`       - for `Truncate()`
 class PythonWriter : public BufferedWriter {

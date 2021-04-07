@@ -1325,9 +1325,9 @@ Args:
 The src argument should be a binary IO stream which supports:
  * close()          - for close() or __exit__() unless close is False
  * readinto1(memoryview) or readinto(memoryview) or read1(int) or read(int)
- * seek(int[, int]) - unless assumed_pos is not None,
+ * seek(int[, int]) - if assumed_pos is None,
                       or for seek(), seek_numeric(), or size()
- * tell()           - unless assumed_pos is not None,
+ * tell()           - if assumed_pos is None,
                       or for seek(), seek_numeric(), or size()
 
 Example values for src:

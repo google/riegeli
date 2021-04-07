@@ -37,20 +37,20 @@ namespace riegeli {
 namespace python {
 
 // A `Reader` which reads from a Python binary I/O stream. It supports random
-// access unless `Options::set_assumed_pos(pos)`.
+// access if `Options::assumed_pos() == absl::nullopt`.
 //
-// The file should support:
-//  * `close()`          - for `Close()` unless `Options::set_close(false)`
+// The file must support:
+//  * `close()`          - for `Close()` if `Options::close()`
 //  * `readinto1(memoryview)` or `readinto(memoryview)` or `read1(int)` or
 //    `read(int)`
-//  * `seek(int[, int])` - unless `Options::set_assumed_pos(pos)`,
+//  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()` or `Size()`
-//  * `tell()`           - unless `Options::set_assumed_pos(pos)`,
+//  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()` or `Size()`
 //
-// Warning: with `Options::set_close(false)` and
-// `Options::set_assumed_pos(pos)`, the stream will have an unpredictable amount
-// of extra data consumed because of buffering.
+// Warning: with `!Options::close()` and
+// `Options::assumed_pos() == absl::nullopt`, the stream will have an
+// unpredictable amount of extra data consumed because of buffering.
 class PythonReader : public BufferedReader {
  public:
   class Options {

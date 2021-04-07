@@ -243,8 +243,8 @@ class RecordReaderBase : public Object {
   // If `skipped_region != nullptr`, `*skipped_region` is set to the position of
   // the skipped region on success.
   //
-  // If a recovery function (`RecordReaderBase::Options::set_recovery()`) is
-  // set, then `Recover()` is called automatically. Otherwise `Recover()` can be
+  // If a recovery function (`RecordReaderBase::Options::recovery()`) is set,
+  // then `Recover()` is called automatically. Otherwise `Recover()` can be
   // called after one of the following functions returned `false`, and the
   // function can be assumed to have returned `true` if `Recover()` returns
   // `true`:
@@ -348,7 +348,7 @@ class RecordReaderBase : public Object {
   // or `greater` result by a side effect of `test()`.
   //
   // For skipping invalid file regions during `Search()`, a recovery function
-  // (`RecordReaderBase::Options::set_recovery()`) can be set, but `Recover()`
+  // (`RecordReaderBase::Options::recovery()`) can be set, but `Recover()`
   // resumes only simple operations and is not applicable here.
   bool Search(
       absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test);

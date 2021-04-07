@@ -199,7 +199,7 @@ class CsvReaderBase : public Object {
     // the end of source was encountered.
     //
     // Recovery is not applicable to reading the header with
-    // `Options::set_read_header(true)`.
+    // `Options::read_header()`.
     //
     // Calling `ReadRecord()` may cause the recovery function to be called (in
     // the same thread).
@@ -257,8 +257,8 @@ class CsvReaderBase : public Object {
     recovery_ = std::move(recovery);
   }
 
-  // Returns `true` if reading the header was requested by
-  // `Options::set_read_header(true)`.
+  // Returns `true` if reading the header was requested, i.e.
+  // `Options::read_header()`.
   //
   // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no particular
   // header is assumed, and only `ReadRecord()` to a vector of fields is
@@ -283,7 +283,7 @@ class CsvReaderBase : public Object {
   // been verified in the `header()`.
   //
   // Precondition:
-  //   `has_header()`, i.e. `Options::set_read_header(true)` was used
+  //   `has_header()`, i.e. `Options::read_header()`
   //
   // Return values:
   //  * `true`                      - success (`record` is set)
@@ -305,7 +305,7 @@ class CsvReaderBase : public Object {
   // The index of the most recently read record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::set_read_header()`.
+  // `Options::read_header()`.
   //
   // `last_record_index()` is unchanged by `Close()`.
   //
@@ -315,7 +315,7 @@ class CsvReaderBase : public Object {
   // The index of the next record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::set_read_header()`.
+  // `Options::read_header()`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -404,7 +404,7 @@ class CsvReaderBase : public Object {
 // extensions.
 //
 // By a common convention the first record consists of field names. This is
-// supported by `Options::set_read_header(true)` and `ReadRecord(CsvRecord&)`.
+// supported by `Options::read_header()` and `ReadRecord(CsvRecord&)`.
 //
 // A record is terminated by a newline: LF, CR, or CR LF ("\n", "\r", or
 // "\r\n"). Line terminator after the last record is optional.

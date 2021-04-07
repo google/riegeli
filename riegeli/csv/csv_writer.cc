@@ -143,7 +143,7 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
 bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
   RIEGELI_CHECK(has_header_)
       << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
-         "CsvWriterBase::Options::set_header() is required";
+         "CsvWriterBase::Options::header() is required";
   if (healthy()) {
     RIEGELI_CHECK_EQ(record.header(), header_)
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "

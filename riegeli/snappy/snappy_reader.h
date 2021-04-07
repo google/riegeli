@@ -95,8 +95,8 @@ class SnappyReaderBase : public ChainReader<Chain> {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The compressed `Reader` must support `Size()` unless
-// `Options::set_assumed_size()` is used.
+// The compressed `Reader` must support `Size()` if
+// `Options::assumed_size() == absl::nullopt`.
 //
 // The compressed `Reader` must not be accessed until the `SnappyReader` is
 // closed or no longer used.
@@ -210,8 +210,8 @@ class SnappyDecompressOptions {
 // `Writer*` (not owned), `std::unique_ptr<Writer>` (owned),
 // `ChainWriter<>` (owned).
 //
-// The compressed `Reader` must support `Size()`  unless
-// `SnappyDecompressOptions::set_assumed_size()` is used.
+// The compressed `Reader` must support `Size()` if
+// `SnappyDecompressOptions::assumed_size() == absl::nullopt`.
 template <typename Src, typename Dest>
 absl::Status SnappyDecompress(
     const Src& src, const Dest& dest,
