@@ -64,13 +64,11 @@ class StringReaderBase : public Reader {
 // `absl::string_view` (not owned, default), `const std::string*` (not owned),
 // `std::string` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
-//
-// CTAD for `StringReader<std::string>` is disabled to prevent accidental string
-// copying. Use `StringReader(&str)` or `StringReader<>(str)` to read from
-// unowned `str`, or `StringReader<std::string>(str)` if owning the string is
-// intended.
+// By relying on CTAD the template argument can be deduced as
+// `absl::string_view` if the first constructor argument is a `std::string&` or
+// `const std::string&` (to avoid unintended string copying), or `const char*`
+// (to compute `std::strlen()` early), otherwise as the value type of the first
+// constructor argument. This requires C++17.
 //
 // It might be better to use `ChainReader<Chain>` instead of
 // `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
@@ -122,9 +120,17 @@ class StringReader : public StringReaderBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 template <typename Src>
-StringReader(Src&& src) -> StringReader<std::decay_t<Src>>;
-StringReader(const std::string& src)->StringReader<void>;  // Delete.
-StringReader(std::string&& src)->StringReader<void>;       // Delete.
+StringReader(const Src& src) -> StringReader<std::conditional_t<
+    std::is_convertible<const Src*, const std::string*>::value ||
+        std::is_convertible<const Src&, const char*>::value,
+    absl::string_view, std::decay_t<Src>>>;
+template <typename Src>
+StringReader(Src&& src) -> StringReader<
+    std::conditional_t<(std::is_lvalue_reference<Src>::value &&
+                        std::is_convertible<std::remove_reference_t<Src>*,
+                                            const std::string*>::value) ||
+                           std::is_convertible<Src&&, const char*>::value,
+                       absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 StringReader(std::tuple<SrcArgs...> src_args) -> StringReader<void>;  // Delete.
 #endif

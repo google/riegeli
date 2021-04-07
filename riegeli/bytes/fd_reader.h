@@ -342,11 +342,15 @@ class FdReader : public FdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdReader(int src, FdReaderBase::Options options = FdReaderBase::Options())
-    ->FdReader<>;
+template <typename Src>
+FdReader(const Src& src,
+         FdReaderBase::Options options = FdReaderBase::Options())
+    -> FdReader<std::conditional_t<std::is_convertible<const Src&, int>::value,
+                                   OwnedFd, std::decay_t<Src>>>;
 template <typename Src>
 FdReader(Src&& src, FdReaderBase::Options options = FdReaderBase::Options())
-    -> FdReader<std::decay_t<Src>>;
+    -> FdReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
+                                   OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 FdReader(std::tuple<SrcArgs...> src_args,
          FdReaderBase::Options options = FdReaderBase::Options())
@@ -436,13 +440,17 @@ class FdStreamReader : public FdStreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdStreamReader(int src, FdStreamReaderBase::Options options =
-                            FdStreamReaderBase::Options())
-    ->FdStreamReader<>;
+template <typename Src>
+FdStreamReader(const Src& src, FdStreamReaderBase::Options options =
+                                   FdStreamReaderBase::Options())
+    -> FdStreamReader<
+        std::conditional_t<std::is_convertible<const Src&, int>::value, OwnedFd,
+                           std::decay_t<Src>>>;
 template <typename Src>
 FdStreamReader(Src&& src, FdStreamReaderBase::Options options =
                               FdStreamReaderBase::Options())
-    -> FdStreamReader<std::decay_t<Src>>;
+    -> FdStreamReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
+                                         OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 FdStreamReader(
     std::tuple<SrcArgs...> src_args,
@@ -532,13 +540,17 @@ class FdMMapReader : public FdMMapReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdMMapReader(int src,
+template <typename Src>
+FdMMapReader(const Src& src,
              FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
-    ->FdMMapReader<>;
+    -> FdMMapReader<
+        std::conditional_t<std::is_convertible<const Src&, int>::value, OwnedFd,
+                           std::decay_t<Src>>>;
 template <typename Src>
 FdMMapReader(Src&& src,
              FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
-    -> FdMMapReader<std::decay_t<Src>>;
+    -> FdMMapReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
+                                       OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
 FdMMapReader(std::tuple<SrcArgs...> src_args,
              FdMMapReaderBase::Options options = FdMMapReaderBase::Options())

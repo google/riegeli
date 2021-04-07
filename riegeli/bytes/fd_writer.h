@@ -322,11 +322,15 @@ class FdWriter : public FdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdWriter(int dest, FdWriterBase::Options options = FdWriterBase::Options())
-    ->FdWriter<>;
+template <typename Dest>
+FdWriter(const Dest& dest,
+         FdWriterBase::Options options = FdWriterBase::Options())
+    -> FdWriter<std::conditional_t<std::is_convertible<const Dest&, int>::value,
+                                   OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
 FdWriter(Dest&& dest, FdWriterBase::Options options = FdWriterBase::Options())
-    -> FdWriter<std::decay_t<Dest>>;
+    -> FdWriter<std::conditional_t<std::is_convertible<Dest&&, int>::value,
+                                   OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 FdWriter(std::tuple<DestArgs...> dest_args,
          FdWriterBase::Options options = FdWriterBase::Options())
@@ -422,13 +426,17 @@ class FdStreamWriter : public FdStreamWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdStreamWriter(int dest, FdStreamWriterBase::Options options =
-                             FdStreamWriterBase::Options())
-    ->FdStreamWriter<>;
+template <typename Dest>
+FdStreamWriter(const Dest& dest, FdStreamWriterBase::Options options =
+                                     FdStreamWriterBase::Options())
+    -> FdStreamWriter<
+        std::conditional_t<std::is_convertible<const Dest&, int>::value,
+                           OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
 FdStreamWriter(Dest&& dest, FdStreamWriterBase::Options options =
                                 FdStreamWriterBase::Options())
-    -> FdStreamWriter<std::decay_t<Dest>>;
+    -> FdStreamWriter<std::conditional_t<
+        std::is_convertible<Dest&&, int>::value, OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
 FdStreamWriter(
     std::tuple<DestArgs...> dest_args,
