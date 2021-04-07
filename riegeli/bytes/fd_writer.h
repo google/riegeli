@@ -151,6 +151,7 @@ class FdWriterBase : public internal::FdWriterCommon {
   void InitializePos(int dest, int flags, absl::optional<Position> initial_pos);
   bool SyncPos(int dest);
 
+  void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -237,6 +238,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   void InitializePos(int dest, absl::optional<Position> assumed_pos);
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos);
 
+  void Done() override;
   bool WriteInternal(absl::string_view src) override;
 };
 
@@ -645,7 +647,6 @@ inline void FdWriter<Dest>::Initialize(absl::string_view filename, int flags,
 
 template <typename Dest>
 void FdWriter<Dest>::Done() {
-  if (ABSL_PREDICT_TRUE(PushInternal())) SyncPos(dest_.get());
   FdWriterBase::Done();
   if (dest_.is_owning()) {
     const int dest = dest_.Release();
@@ -753,7 +754,6 @@ inline void FdStreamWriter<Dest>::Initialize(
 
 template <typename Dest>
 void FdStreamWriter<Dest>::Done() {
-  PushInternal();
   FdStreamWriterBase::Done();
   if (dest_.is_owning()) {
     const int dest = dest_.Release();

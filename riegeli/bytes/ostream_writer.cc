@@ -76,6 +76,11 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
   }
 }
 
+void OstreamWriterBase::Done() {
+  PushInternal();
+  BufferedWriter::Done();
+}
+
 bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "

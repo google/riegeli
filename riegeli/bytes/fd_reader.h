@@ -135,6 +135,7 @@ class FdReaderBase : public internal::FdReaderCommon {
   void InitializePos(int src, absl::optional<Position> initial_pos);
   bool SyncPos(int src);
 
+  void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -262,6 +263,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void InitializePos(int src, absl::optional<Position> initial_pos);
   bool SyncPos(int src);
+
+  void Done() override;
 
   std::string filename_;
   bool sync_pos_ = false;
@@ -802,7 +805,6 @@ inline void FdReader<Src>::Initialize(absl::string_view filename, int flags,
 
 template <typename Src>
 void FdReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdReaderBase::Done();
   if (src_.is_owning()) {
     const int src = src_.Release();
@@ -1019,9 +1021,7 @@ inline void FdMMapReader<Src>::Initialize(
 
 template <typename Src>
 void FdMMapReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) SyncPos(src_.get());
   FdMMapReaderBase::Done();
-  ChainReader::src().Clear();
   if (src_.is_owning()) {
     const int src = src_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(src) < 0) &&

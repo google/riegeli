@@ -101,6 +101,7 @@ class OstreamWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
 
+  void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -300,7 +301,6 @@ inline void OstreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 void OstreamWriter<Dest>::Done() {
-  PushInternal();
   OstreamWriterBase::Done();
   if (dest_.is_owning()) {
     errno = 0;

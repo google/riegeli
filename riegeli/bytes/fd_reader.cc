@@ -141,13 +141,21 @@ void FdReaderBase::InitializePos(int src,
   }
 }
 
-bool FdReaderBase::SyncPos(int src) {
+inline bool FdReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
   }
   return true;
+}
+
+void FdReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    const int src = src_fd();
+    SyncPos(src);
+  }
+  FdReaderCommon::Done();
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -349,13 +357,22 @@ void FdMMapReaderBase::InitializePos(int src,
   }
 }
 
-bool FdMMapReaderBase::SyncPos(int src) {
+inline bool FdMMapReaderBase::SyncPos(int src) {
   if (sync_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
   }
   return true;
+}
+
+void FdMMapReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy())) {
+    const int src = src_fd();
+    SyncPos(src);
+  }
+  ChainReader::Done();
+  ChainReader::src().Clear();
 }
 
 bool FdMMapReaderBase::Fail(absl::Status status) {

@@ -80,7 +80,7 @@ void IstreamReaderBase::Initialize(std::istream* src,
   }
 }
 
-bool IstreamReaderBase::SyncPos(std::istream& src) {
+inline bool IstreamReaderBase::SyncPos(std::istream& src) {
   if (available() > 0) {
     errno = 0;
     src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
@@ -89,6 +89,14 @@ bool IstreamReaderBase::SyncPos(std::istream& src) {
     }
   }
   return true;
+}
+
+void IstreamReaderBase::Done() {
+  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) {
+    std::istream& src = *src_stream();
+    SyncPos(src);
+  }
+  BufferedReader::Done();
 }
 
 bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,

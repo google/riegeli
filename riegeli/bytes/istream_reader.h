@@ -104,6 +104,7 @@ class IstreamReaderBase : public BufferedReader {
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   bool SyncPos(std::istream& src);
 
+  void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -304,7 +305,6 @@ inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 void IstreamReader<Src>::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) SyncPos(*src_);
   IstreamReaderBase::Done();
   if (src_.is_owning()) {
     errno = 0;

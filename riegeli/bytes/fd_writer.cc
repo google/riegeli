@@ -130,7 +130,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
   }
 }
 
-bool FdWriterBase::SyncPos(int dest) {
+inline bool FdWriterBase::SyncPos(int dest) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
   if (sync_pos_) {
@@ -140,6 +140,14 @@ bool FdWriterBase::SyncPos(int dest) {
     }
   }
   return true;
+}
+
+void FdWriterBase::Done() {
+  if (ABSL_PREDICT_TRUE(PushInternal())) {
+    const int dest = dest_fd();
+    SyncPos(dest);
+  }
+  FdWriterCommon::Done();
 }
 
 bool FdWriterBase::WriteInternal(absl::string_view src) {
@@ -287,6 +295,11 @@ void FdStreamWriterBase::InitializePos(int dest, int flags,
     }
     set_start_pos(IntCast<Position>(stat_info.st_size));
   }
+}
+
+void FdStreamWriterBase::Done() {
+  PushInternal();
+  FdWriterCommon::Done();
 }
 
 bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
