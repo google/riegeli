@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -111,9 +111,7 @@ class Decompressor : public Object {
   template <typename SrcInit>
   void Initialize(SrcInit&& src_init, CompressionType compression_type);
 
-  absl::variant<WrappedReader<Src>, BrotliReader<Src>, ZstdReader<Src>,
-                SnappyReader<Src>>
-      reader_;
+  std::unique_ptr<Reader> reader_;
 };
 
 // Implementation details follow.
@@ -160,7 +158,7 @@ inline Decompressor<Src>& Decompressor<Src>::operator=(
 template <typename Src>
 inline void Decompressor<Src>::Reset() {
   Object::Reset(kInitiallyClosed);
-  reader_.template emplace<WrappedReader<Src>>();
+  reader_.reset();
 }
 
 template <typename Src>
@@ -190,8 +188,8 @@ template <typename SrcInit>
 void Decompressor<Src>::Initialize(SrcInit&& src_init,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
-    reader_.template emplace<WrappedReader<Src>>(
-        std::forward<SrcInit>(src_init));
+    reader_ =
+        absl::make_unique<WrappedReader<Src>>(std::forward<SrcInit>(src_init));
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
@@ -207,16 +205,16 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      reader_.template emplace<BrotliReader<Src>>(
+      reader_ = absl::make_unique<BrotliReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
     case CompressionType::kZstd:
-      reader_.template emplace<ZstdReader<Src>>(
+      reader_ = absl::make_unique<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
           ZstdReaderBase::Options().set_size_hint(*uncompressed_size));
       return;
     case CompressionType::kSnappy:
-      reader_.template emplace<SnappyReader<Src>>(
+      reader_ = absl::make_unique<SnappyReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
   }
@@ -228,16 +226,12 @@ template <typename Src>
 inline Reader& Decompressor<Src>::reader() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Decompressor::reader(): " << status();
-  return absl::visit([](Reader& reader) -> Reader& { return reader; }, reader_);
+  return *reader_;
 }
 
 template <typename Src>
 void Decompressor<Src>::Done() {
-  absl::visit(
-      [this](Reader& reader) {
-        if (ABSL_PREDICT_FALSE(!reader.Close())) Fail(reader);
-      },
-      reader_);
+  if (ABSL_PREDICT_FALSE(!reader_->Close())) Fail(*reader_);
 }
 
 template <typename Src>
@@ -248,9 +242,7 @@ inline bool Decompressor<Src>::VerifyEndAndClose() {
 
 template <typename Src>
 inline void Decompressor<Src>::VerifyEnd() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    absl::visit([](Reader& reader) { reader.VerifyEnd(); }, reader_);
-  }
+  if (ABSL_PREDICT_TRUE(healthy())) reader_->VerifyEnd();
 }
 
 }  // namespace internal

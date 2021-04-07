@@ -118,9 +118,9 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "//riegeli/zstd:zstd_writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -143,7 +143,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 

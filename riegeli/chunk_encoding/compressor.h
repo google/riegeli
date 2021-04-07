@@ -15,20 +15,16 @@
 #ifndef RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 
+#include <memory>
 #include <utility>
 
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/brotli/brotli_writer.h"
-#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
-#include "riegeli/snappy/snappy_writer.h"
-#include "riegeli/zstd/zstd_writer.h"
 
 namespace riegeli {
 namespace internal {
@@ -116,12 +112,7 @@ class Compressor : public Object {
   CompressorOptions compressor_options_;
   TuningOptions tuning_options_;
   Chain compressed_;
-  // Invariant:
-  //   `options_.compression_type()` is consistent with
-  //       the active member of `writer_`
-  absl::variant<ChainWriter<>, BrotliWriter<ChainWriter<>>,
-                ZstdWriter<ChainWriter<>>, SnappyWriter<ChainWriter<>>>
-      writer_;
+  std::unique_ptr<Writer> writer_;
 };
 
 // Implementation details follow.
@@ -129,7 +120,7 @@ class Compressor : public Object {
 inline Writer& Compressor::writer() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of Compressor::writer(): " << status();
-  return absl::visit([](Writer& writer) -> Writer& { return writer; }, writer_);
+  return *writer_;
 }
 
 }  // namespace internal
