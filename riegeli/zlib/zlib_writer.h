@@ -304,14 +304,19 @@ class ZlibWriter : public ZlibWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ZlibWriter()->ZlibWriter<DeleteCtad<>>;
 template <typename Dest>
-ZlibWriter(Dest&& dest,
-           ZlibWriterBase::Options options = ZlibWriterBase::Options())
+explicit ZlibWriter(const Dest& dest,
+                    ZlibWriterBase::Options options = ZlibWriterBase::Options())
+    -> ZlibWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit ZlibWriter(Dest&& dest,
+                    ZlibWriterBase::Options options = ZlibWriterBase::Options())
     -> ZlibWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-ZlibWriter(std::tuple<DestArgs...> dest_args,
-           ZlibWriterBase::Options options = ZlibWriterBase::Options())
-    -> ZlibWriter<void>;  // Delete.
+explicit ZlibWriter(std::tuple<DestArgs...> dest_args,
+                    ZlibWriterBase::Options options = ZlibWriterBase::Options())
+    -> ZlibWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -119,6 +119,7 @@ class StringReader : public StringReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+StringReader()->StringReader<DeleteCtad<>>;
 template <typename Src>
 StringReader(const Src& src) -> StringReader<std::conditional_t<
     std::is_convertible<const Src*, const std::string*>::value ||
@@ -132,7 +133,8 @@ StringReader(Src&& src) -> StringReader<
                            std::is_convertible<Src&&, const char*>::value,
                        absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
-StringReader(std::tuple<SrcArgs...> src_args) -> StringReader<void>;  // Delete.
+StringReader(std::tuple<SrcArgs...> src_args)
+    -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

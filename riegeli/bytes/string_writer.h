@@ -127,7 +127,10 @@ class StringWriterBase : public Writer {
 // `std::string` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is a `std::string&` or `const std::string&` (to avoid
+// writing to an unintentionally separate copy of an existing object). This
+// requires C++17.
 //
 // The `std::string` must not be accessed until the `StringWriter` is closed or
 // no longer used, except that it is allowed to read the `std::string`
@@ -178,14 +181,26 @@ class StringWriter : public StringWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+StringWriter()->StringWriter<DeleteCtad<>>;
 template <typename Dest>
-StringWriter(Dest&& dest,
-             StringWriterBase::Options options = StringWriterBase::Options())
-    -> StringWriter<std::decay_t<Dest>>;
+explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
+                                            StringWriterBase::Options())
+    -> StringWriter<std::conditional_t<
+        std::is_convertible<const Dest*, const std::string*>::value,
+        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit StringWriter(Dest&& dest, StringWriterBase::Options options =
+                                       StringWriterBase::Options())
+    -> StringWriter<std::conditional_t<
+        std::is_lvalue_reference<Dest>::value &&
+            std::is_convertible<std::remove_reference_t<Dest>*,
+                                const std::string*>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-StringWriter(std::tuple<DestArgs...> dest_args,
-             StringWriterBase::Options options = StringWriterBase::Options())
-    -> StringWriter<void>;  // Delete.
+explicit StringWriter(
+    std::tuple<DestArgs...> dest_args,
+    StringWriterBase::Options options = StringWriterBase::Options())
+    -> StringWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

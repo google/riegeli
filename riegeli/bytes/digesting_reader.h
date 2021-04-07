@@ -187,12 +187,16 @@ class DigestingReader : public DigestingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-template <typename Src, typename Digester>
-DigestingReader(Src&& src, Digester&& digester)
+DigestingReader()->DigestingReader<void, DeleteCtad<>>;
+template <typename Digester, typename Src>
+explicit DigestingReader(const Src& src, Digester&& digester)
     -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
-template <typename... SrcArgs, typename Digester>
-DigestingReader(std::tuple<SrcArgs...> src_args, Digester&& digester)
-    -> DigestingReader<void, void>;  // Delete.
+template <typename Digester, typename Src>
+explicit DigestingReader(Src&& src, Digester&& digester)
+    -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
+template <typename Digester, typename... SrcArgs>
+explicit DigestingReader(std::tuple<SrcArgs...> src_args, Digester&& digester)
+    -> DigestingReader<void, DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

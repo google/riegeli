@@ -163,7 +163,9 @@ class ChainBackwardWriterBase : public BackwardWriter {
 // `Chain` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is a `Chain&` or `const Chain&` (to avoid writing to an
+// unintentionally separate copy of an existing object). This requires C++17.
 //
 // The `Chain` must not be accessed until the `ChainBackwardWriter` is closed or
 // no longer used.
@@ -214,15 +216,28 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ChainBackwardWriter()->ChainBackwardWriter<DeleteCtad<>>;
 template <typename Dest>
-ChainBackwardWriter(Dest&& dest, ChainBackwardWriterBase::Options options =
-                                     ChainBackwardWriterBase::Options())
-    -> ChainBackwardWriter<std::decay_t<Dest>>;
+explicit ChainBackwardWriter(const Dest& dest,
+                             ChainBackwardWriterBase::Options options =
+                                 ChainBackwardWriterBase::Options())
+    -> ChainBackwardWriter<std::conditional_t<
+        std::is_convertible<const Dest*, const Chain*>::value,
+        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit ChainBackwardWriter(Dest&& dest,
+                             ChainBackwardWriterBase::Options options =
+                                 ChainBackwardWriterBase::Options())
+    -> ChainBackwardWriter<std::conditional_t<
+        std::is_lvalue_reference<Dest>::value &&
+            std::is_convertible<std::remove_reference_t<Dest>*,
+                                const Chain*>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
-                    ChainBackwardWriterBase::Options options =
-                        ChainBackwardWriterBase::Options())
-    -> ChainBackwardWriter<void>;  // Delete.
+explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
+                             ChainBackwardWriterBase::Options options =
+                                 ChainBackwardWriterBase::Options())
+    -> ChainBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

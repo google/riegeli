@@ -169,14 +169,20 @@ class OstreamWriter : public OstreamWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+OstreamWriter()->OstreamWriter<DeleteCtad<>>;
 template <typename Dest>
-OstreamWriter(Dest&& dest,
-              OstreamWriterBase::Options options = OstreamWriterBase::Options())
+explicit OstreamWriter(const Dest& dest, OstreamWriterBase::Options options =
+                                             OstreamWriterBase::Options())
+    -> OstreamWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit OstreamWriter(Dest&& dest, OstreamWriterBase::Options options =
+                                        OstreamWriterBase::Options())
     -> OstreamWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-OstreamWriter(std::tuple<DestArgs...> dest_args,
-              OstreamWriterBase::Options options = OstreamWriterBase::Options())
-    -> OstreamWriter<void>;  // Delete.
+explicit OstreamWriter(
+    std::tuple<DestArgs...> dest_args,
+    OstreamWriterBase::Options options = OstreamWriterBase::Options())
+    -> OstreamWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -543,14 +543,20 @@ class RecordReader : public RecordReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+RecordReader()->RecordReader<DeleteCtad<>>;
 template <typename Src>
-RecordReader(Src&& src,
-             RecordReaderBase::Options options = RecordReaderBase::Options())
+explicit RecordReader(const Src& src, RecordReaderBase::Options options =
+                                          RecordReaderBase::Options())
+    -> RecordReader<std::decay_t<Src>>;
+template <typename Src>
+explicit RecordReader(
+    Src&& src, RecordReaderBase::Options options = RecordReaderBase::Options())
     -> RecordReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-RecordReader(std::tuple<SrcArgs...> src_args,
-             RecordReaderBase::Options options = RecordReaderBase::Options())
-    -> RecordReader<void>;  // Delete.
+explicit RecordReader(
+    std::tuple<SrcArgs...> src_args,
+    RecordReaderBase::Options options = RecordReaderBase::Options())
+    -> RecordReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

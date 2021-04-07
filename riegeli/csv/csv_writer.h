@@ -367,14 +367,19 @@ class CsvWriter : public CsvWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+CsvWriter()->CsvWriter<DeleteCtad<>>;
 template <typename Dest>
-CsvWriter(Dest&& dest,
-          CsvWriterBase::Options options = CsvWriterBase::Options())
+explicit CsvWriter(const Dest& dest,
+                   CsvWriterBase::Options options = CsvWriterBase::Options())
+    -> CsvWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit CsvWriter(Dest&& dest,
+                   CsvWriterBase::Options options = CsvWriterBase::Options())
     -> CsvWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-CsvWriter(std::tuple<DestArgs...> dest_args,
-          CsvWriterBase::Options options = CsvWriterBase::Options())
-    -> CsvWriter<void>;  // Delete.
+explicit CsvWriter(std::tuple<DestArgs...> dest_args,
+                   CsvWriterBase::Options options = CsvWriterBase::Options())
+    -> CsvWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Writes a single record to a CSV string.

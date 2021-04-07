@@ -173,14 +173,20 @@ class IstreamReader : public IstreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+IstreamReader()->IstreamReader<DeleteCtad<>>;
 template <typename Src>
-IstreamReader(Src&& src,
-              IstreamReaderBase::Options options = IstreamReaderBase::Options())
+explicit IstreamReader(const Src& src, IstreamReaderBase::Options options =
+                                           IstreamReaderBase::Options())
+    -> IstreamReader<std::decay_t<Src>>;
+template <typename Src>
+explicit IstreamReader(Src&& src, IstreamReaderBase::Options options =
+                                      IstreamReaderBase::Options())
     -> IstreamReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-IstreamReader(std::tuple<SrcArgs...> src_args,
-              IstreamReaderBase::Options options = IstreamReaderBase::Options())
-    -> IstreamReader<void>;  // Delete.
+explicit IstreamReader(
+    std::tuple<SrcArgs...> src_args,
+    IstreamReaderBase::Options options = IstreamReaderBase::Options())
+    -> IstreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

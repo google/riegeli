@@ -168,7 +168,10 @@ class CordWriterBase : public Writer {
 // `absl::Cord` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is an `absl::Cord&` or `const absl::Cord&` (to avoid
+// writing to an unintentionally separate copy of an existing object). This
+// requires C++17.
 //
 // The `absl::Cord` must not be accessed until the `CordWriter` is closed or no
 // longer used, except that it is allowed to read the `absl::Cord` immediately
@@ -215,14 +218,25 @@ class CordWriter : public CordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+CordWriter()->CordWriter<DeleteCtad<>>;
 template <typename Dest>
-CordWriter(Dest&& dest,
-           CordWriterBase::Options options = CordWriterBase::Options())
-    -> CordWriter<std::decay_t<Dest>>;
+explicit CordWriter(const Dest& dest,
+                    CordWriterBase::Options options = CordWriterBase::Options())
+    -> CordWriter<std::conditional_t<
+        std::is_convertible<const Dest*, const absl::Cord*>::value,
+        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit CordWriter(Dest&& dest,
+                    CordWriterBase::Options options = CordWriterBase::Options())
+    -> CordWriter<std::conditional_t<
+        std::is_lvalue_reference<Dest>::value &&
+            std::is_convertible<std::remove_reference_t<Dest>*,
+                                const absl::Cord*>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-CordWriter(std::tuple<DestArgs...> dest_args,
-           CordWriterBase::Options options = CordWriterBase::Options())
-    -> CordWriter<void>;  // Delete.
+explicit CordWriter(std::tuple<DestArgs...> dest_args,
+                    CordWriterBase::Options options = CordWriterBase::Options())
+    -> CordWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -485,13 +485,19 @@ class CsvReader : public CsvReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+CsvReader()->CsvReader<DeleteCtad<>>;
 template <typename Src>
-CsvReader(Src&& src, CsvReaderBase::Options options = CsvReaderBase::Options())
+explicit CsvReader(const Src& src,
+                   CsvReaderBase::Options options = CsvReaderBase::Options())
+    -> CsvReader<std::decay_t<Src>>;
+template <typename Src>
+explicit CsvReader(Src&& src,
+                   CsvReaderBase::Options options = CsvReaderBase::Options())
     -> CsvReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-CsvReader(std::tuple<SrcArgs...> src_args,
-          CsvReaderBase::Options options = CsvReaderBase::Options())
-    -> CsvReader<void>;  // Delete.
+explicit CsvReader(std::tuple<SrcArgs...> src_args,
+                   CsvReaderBase::Options options = CsvReaderBase::Options())
+    -> CsvReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Reads a single record from a CSV string.

@@ -143,15 +143,21 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FramedSnappyReader()->FramedSnappyReader<DeleteCtad<>>;
 template <typename Src>
-FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
-                                  FramedSnappyReaderBase::Options())
+explicit FramedSnappyReader(
+    const Src& src,
+    FramedSnappyReaderBase::Options options = FramedSnappyReaderBase::Options())
+    -> FramedSnappyReader<std::decay_t<Src>>;
+template <typename Src>
+explicit FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
+                                           FramedSnappyReaderBase::Options())
     -> FramedSnappyReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-FramedSnappyReader(
+explicit FramedSnappyReader(
     std::tuple<SrcArgs...> src_args,
     FramedSnappyReaderBase::Options options = FramedSnappyReaderBase::Options())
-    -> FramedSnappyReader<void>;  // Delete.
+    -> FramedSnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

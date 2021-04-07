@@ -261,14 +261,20 @@ class BrotliWriter : public BrotliWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+BrotliWriter()->BrotliWriter<DeleteCtad<>>;
 template <typename Dest>
-BrotliWriter(Dest&& dest,
-             BrotliWriterBase::Options options = BrotliWriterBase::Options())
+explicit BrotliWriter(const Dest& dest, BrotliWriterBase::Options options =
+                                            BrotliWriterBase::Options())
+    -> BrotliWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit BrotliWriter(Dest&& dest, BrotliWriterBase::Options options =
+                                       BrotliWriterBase::Options())
     -> BrotliWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-BrotliWriter(std::tuple<DestArgs...> dest_args,
-             BrotliWriterBase::Options options = BrotliWriterBase::Options())
-    -> BrotliWriter<void>;  // Delete.
+explicit BrotliWriter(
+    std::tuple<DestArgs...> dest_args,
+    BrotliWriterBase::Options options = BrotliWriterBase::Options())
+    -> BrotliWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -342,21 +342,23 @@ class FdReader : public FdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FdReader()->FdReader<DeleteCtad<>>;
 template <typename Src>
-FdReader(const Src& src,
-         FdReaderBase::Options options = FdReaderBase::Options())
+explicit FdReader(const Src& src,
+                  FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<std::conditional_t<std::is_convertible<const Src&, int>::value,
                                    OwnedFd, std::decay_t<Src>>>;
 template <typename Src>
-FdReader(Src&& src, FdReaderBase::Options options = FdReaderBase::Options())
+explicit FdReader(Src&& src,
+                  FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
                                    OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
-FdReader(std::tuple<SrcArgs...> src_args,
-         FdReaderBase::Options options = FdReaderBase::Options())
-    -> FdReader<void>;  // Delete.
-FdReader(absl::string_view filename, int flags,
-         FdReaderBase::Options options = FdReaderBase::Options())
+explicit FdReader(std::tuple<SrcArgs...> src_args,
+                  FdReaderBase::Options options = FdReaderBase::Options())
+    -> FdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit FdReader(absl::string_view filename, int flags,
+                  FdReaderBase::Options options = FdReaderBase::Options())
     ->FdReader<>;
 #endif
 
@@ -440,23 +442,24 @@ class FdStreamReader : public FdStreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FdStreamReader()->FdStreamReader<DeleteCtad<>>;
 template <typename Src>
-FdStreamReader(const Src& src, FdStreamReaderBase::Options options =
-                                   FdStreamReaderBase::Options())
+explicit FdStreamReader(const Src& src, FdStreamReaderBase::Options options =
+                                            FdStreamReaderBase::Options())
     -> FdStreamReader<
         std::conditional_t<std::is_convertible<const Src&, int>::value, OwnedFd,
                            std::decay_t<Src>>>;
 template <typename Src>
-FdStreamReader(Src&& src, FdStreamReaderBase::Options options =
-                              FdStreamReaderBase::Options())
+explicit FdStreamReader(Src&& src, FdStreamReaderBase::Options options =
+                                       FdStreamReaderBase::Options())
     -> FdStreamReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
                                          OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
-FdStreamReader(
+explicit FdStreamReader(
     std::tuple<SrcArgs...> src_args,
     FdStreamReaderBase::Options options = FdStreamReaderBase::Options())
-    -> FdStreamReader<void>;  // Delete.
-FdStreamReader(
+    -> FdStreamReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit FdStreamReader(
     absl::string_view filename, int flags,
     FdStreamReaderBase::Options options = FdStreamReaderBase::Options())
     ->FdStreamReader<>;
@@ -540,23 +543,26 @@ class FdMMapReader : public FdMMapReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FdMMapReader()->FdMMapReader<DeleteCtad<>>;
 template <typename Src>
-FdMMapReader(const Src& src,
-             FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+explicit FdMMapReader(const Src& src, FdMMapReaderBase::Options options =
+                                          FdMMapReaderBase::Options())
     -> FdMMapReader<
         std::conditional_t<std::is_convertible<const Src&, int>::value, OwnedFd,
                            std::decay_t<Src>>>;
 template <typename Src>
-FdMMapReader(Src&& src,
-             FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+explicit FdMMapReader(
+    Src&& src, FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
     -> FdMMapReader<std::conditional_t<std::is_convertible<Src&&, int>::value,
                                        OwnedFd, std::decay_t<Src>>>;
 template <typename... SrcArgs>
-FdMMapReader(std::tuple<SrcArgs...> src_args,
-             FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
-    -> FdMMapReader<void>;  // Delete.
-FdMMapReader(absl::string_view filename, int flags,
-             FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+explicit FdMMapReader(
+    std::tuple<SrcArgs...> src_args,
+    FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+    -> FdMMapReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit FdMMapReader(
+    absl::string_view filename, int flags,
+    FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
     ->FdMMapReader<>;
 #endif
 

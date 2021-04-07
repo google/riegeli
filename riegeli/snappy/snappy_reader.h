@@ -153,14 +153,20 @@ class SnappyReader : public SnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+SnappyReader()->SnappyReader<DeleteCtad<>>;
 template <typename Src>
-SnappyReader(Src&& src,
-             SnappyReaderBase::Options options = SnappyReaderBase::Options())
+explicit SnappyReader(const Src& src, SnappyReaderBase::Options options =
+                                          SnappyReaderBase::Options())
+    -> SnappyReader<std::decay_t<Src>>;
+template <typename Src>
+explicit SnappyReader(
+    Src&& src, SnappyReaderBase::Options options = SnappyReaderBase::Options())
     -> SnappyReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-SnappyReader(std::tuple<SrcArgs...> src_args,
-             SnappyReaderBase::Options options = SnappyReaderBase::Options())
-    -> SnappyReader<void>;  // Delete.
+explicit SnappyReader(
+    std::tuple<SrcArgs...> src_args,
+    SnappyReaderBase::Options options = SnappyReaderBase::Options())
+    -> SnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Options for `SnappyDecompress()`.

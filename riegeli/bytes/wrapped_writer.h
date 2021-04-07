@@ -146,11 +146,14 @@ class WrappedWriter : public WrappedWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+WrappedWriter()->WrappedWriter<DeleteCtad<>>;
 template <typename Dest>
-WrappedWriter(Dest&& dest) -> WrappedWriter<std::decay_t<Dest>>;
+explicit WrappedWriter(const Dest& dest) -> WrappedWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit WrappedWriter(Dest&& dest) -> WrappedWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-WrappedWriter(std::tuple<DestArgs...> dest_args)
-    -> WrappedWriter<void>;  // Delete.
+explicit WrappedWriter(std::tuple<DestArgs...> dest_args)
+    -> WrappedWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

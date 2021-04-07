@@ -487,14 +487,19 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ZstdWriter()->ZstdWriter<DeleteCtad<>>;
 template <typename Dest>
-ZstdWriter(Dest&& dest,
-           ZstdWriterBase::Options options = ZstdWriterBase::Options())
+explicit ZstdWriter(const Dest& dest,
+                    ZstdWriterBase::Options options = ZstdWriterBase::Options())
+    -> ZstdWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit ZstdWriter(Dest&& dest,
+                    ZstdWriterBase::Options options = ZstdWriterBase::Options())
     -> ZstdWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-ZstdWriter(std::tuple<DestArgs...> dest_args,
-           ZstdWriterBase::Options options = ZstdWriterBase::Options())
-    -> ZstdWriter<void>;  // Delete.
+explicit ZstdWriter(std::tuple<DestArgs...> dest_args,
+                    ZstdWriterBase::Options options = ZstdWriterBase::Options())
+    -> ZstdWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

@@ -130,10 +130,14 @@ class ChainReader : public ChainReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ChainReader()->ChainReader<DeleteCtad<>>;
 template <typename Src>
-ChainReader(Src&& src) -> ChainReader<std::decay_t<Src>>;
+explicit ChainReader(const Src& src) -> ChainReader<std::decay_t<Src>>;
+template <typename Src>
+explicit ChainReader(Src&& src) -> ChainReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-ChainReader(std::tuple<SrcArgs...> src_args) -> ChainReader<void>;  // Delete.
+explicit ChainReader(std::tuple<SrcArgs...> src_args)
+    -> ChainReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

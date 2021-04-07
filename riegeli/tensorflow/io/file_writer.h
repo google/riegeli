@@ -231,16 +231,21 @@ class FileWriter : public FileWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FileWriter()->FileWriter<DeleteCtad<>>;
 template <typename Dest>
-FileWriter(Dest&& dest,
-           FileWriterBase::Options options = FileWriterBase::Options())
+explicit FileWriter(const Dest& dest,
+                    FileWriterBase::Options options = FileWriterBase::Options())
+    -> FileWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit FileWriter(Dest&& dest,
+                    FileWriterBase::Options options = FileWriterBase::Options())
     -> FileWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-FileWriter(std::tuple<DestArgs...> dest_args,
-           FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<void>;  // Delete.
-FileWriter(absl::string_view filename,
-           FileWriterBase::Options options = FileWriterBase::Options())
+explicit FileWriter(std::tuple<DestArgs...> dest_args,
+                    FileWriterBase::Options options = FileWriterBase::Options())
+    -> FileWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit FileWriter(absl::string_view filename,
+                    FileWriterBase::Options options = FileWriterBase::Options())
     ->FileWriter<>;
 #endif
 

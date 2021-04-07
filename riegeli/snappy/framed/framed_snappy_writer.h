@@ -165,15 +165,22 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FramedSnappyWriter()->FramedSnappyWriter<DeleteCtad<>>;
 template <typename Dest>
-FramedSnappyWriter(Dest&& dest, FramedSnappyWriterBase::Options options =
-                                    FramedSnappyWriterBase::Options())
+explicit FramedSnappyWriter(
+    const Dest& dest,
+    FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
+    -> FramedSnappyWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit FramedSnappyWriter(
+    Dest&& dest,
+    FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
     -> FramedSnappyWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-FramedSnappyWriter(
+explicit FramedSnappyWriter(
     std::tuple<DestArgs...> dest_args,
     FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
-    -> FramedSnappyWriter<void>;  // Delete.
+    -> FramedSnappyWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

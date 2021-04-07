@@ -308,14 +308,19 @@ class ZlibReader : public ZlibReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ZlibReader()->ZlibReader<DeleteCtad<>>;
 template <typename Src>
-ZlibReader(Src&& src,
-           ZlibReaderBase::Options options = ZlibReaderBase::Options())
+explicit ZlibReader(const Src& src,
+                    ZlibReaderBase::Options options = ZlibReaderBase::Options())
+    -> ZlibReader<std::decay_t<Src>>;
+template <typename Src>
+explicit ZlibReader(Src&& src,
+                    ZlibReaderBase::Options options = ZlibReaderBase::Options())
     -> ZlibReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-ZlibReader(std::tuple<SrcArgs...> src_args,
-           ZlibReaderBase::Options options = ZlibReaderBase::Options())
-    -> ZlibReader<void>;  // Delete.
+explicit ZlibReader(std::tuple<SrcArgs...> src_args,
+                    ZlibReaderBase::Options options = ZlibReaderBase::Options())
+    -> ZlibReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

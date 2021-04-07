@@ -329,6 +329,34 @@ class Dependency<P*, M&&, std::enable_if_t<!std::is_convertible<M*, P*>::value>>
   using Dependency<P*, std::decay_t<M>>::Dependency;
 };
 
+namespace internal {
+
+// `AlwaysFalse<T...>::value` is `false`, but formally depends on `T...`.
+// This is useful for `static_assert()`.
+
+template <typename... T>
+struct AlwaysFalse : public std::false_type {};
+
+}  // namespace internal
+
+// A placeholder `Dependency` manager to be deduced by CTAD, used to delete CTAD
+// for particular constructor argument types.
+//
+// It takes `ConstructorArgTypes` so that an error message from the
+// `static_assert()` can show them.
+
+template <typename... ConstructorArgTypes>
+struct DeleteCtad {
+  DeleteCtad() = delete;
+};
+
+template <typename Ptr, typename... ConstructorArgTypes>
+class Dependency<Ptr, DeleteCtad<ConstructorArgTypes...>> {
+  static_assert(internal::AlwaysFalse<ConstructorArgTypes...>::value,
+                "Template arguments must be written explicitly "
+                "with these constructor argument types");
+};
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_BASE_DEPENDENCY_H_

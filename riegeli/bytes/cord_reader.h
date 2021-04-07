@@ -151,10 +151,14 @@ class CordReader : public CordReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+CordReader()->CordReader<DeleteCtad<>>;
 template <typename Src>
-CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
+explicit CordReader(const Src& src) -> CordReader<std::decay_t<Src>>;
+template <typename Src>
+explicit CordReader(Src&& src) -> CordReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-CordReader(std::tuple<SrcArgs...> src_args) -> CordReader<void>;  // Delete.
+explicit CordReader(std::tuple<SrcArgs...> src_args)
+    -> CordReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

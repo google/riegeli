@@ -179,15 +179,21 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+LimitingBackwardWriter()->LimitingBackwardWriter<DeleteCtad<>>;
 template <typename Dest>
-LimitingBackwardWriter(
+explicit LimitingBackwardWriter(
+    const Dest& dest,
+    Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+    -> LimitingBackwardWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit LimitingBackwardWriter(
     Dest&& dest, Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
     -> LimitingBackwardWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-LimitingBackwardWriter(
+explicit LimitingBackwardWriter(
     std::tuple<DestArgs...> dest_args,
     Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
-    -> LimitingBackwardWriter<void>;  // Delete.
+    -> LimitingBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

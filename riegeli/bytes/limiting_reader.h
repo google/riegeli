@@ -180,14 +180,19 @@ class LimitingReader : public LimitingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+LimitingReader()->LimitingReader<DeleteCtad<>>;
 template <typename Src>
-LimitingReader(Src&& src,
-               Position size_limit = LimitingReaderBase::kNoSizeLimit)
+explicit LimitingReader(const Src& src,
+                        Position size_limit = LimitingReaderBase::kNoSizeLimit)
+    -> LimitingReader<std::decay_t<Src>>;
+template <typename Src>
+explicit LimitingReader(Src&& src,
+                        Position size_limit = LimitingReaderBase::kNoSizeLimit)
     -> LimitingReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-LimitingReader(std::tuple<SrcArgs...> src_args,
-               Position size_limit = LimitingReaderBase::kNoSizeLimit)
-    -> LimitingReader<void>;  // Delete.
+explicit LimitingReader(std::tuple<SrcArgs...> src_args,
+                        Position size_limit = LimitingReaderBase::kNoSizeLimit)
+    -> LimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Sets the size limit of a `LimitingReader` in the constructor and restores it

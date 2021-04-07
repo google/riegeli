@@ -165,15 +165,22 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+HadoopSnappyWriter()->HadoopSnappyWriter<DeleteCtad<>>;
 template <typename Dest>
-HadoopSnappyWriter(Dest&& dest, HadoopSnappyWriterBase::Options options =
-                                    HadoopSnappyWriterBase::Options())
+explicit HadoopSnappyWriter(
+    const Dest& dest,
+    HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
+    -> HadoopSnappyWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit HadoopSnappyWriter(
+    Dest&& dest,
+    HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
     -> HadoopSnappyWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-HadoopSnappyWriter(
+explicit HadoopSnappyWriter(
     std::tuple<DestArgs...> dest_args,
     HadoopSnappyWriterBase::Options options = HadoopSnappyWriterBase::Options())
-    -> HadoopSnappyWriter<void>;  // Delete.
+    -> HadoopSnappyWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

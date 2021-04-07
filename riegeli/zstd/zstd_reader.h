@@ -379,14 +379,19 @@ class ZstdReader : public ZstdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ZstdReader()->ZstdReader<DeleteCtad<>>;
 template <typename Src>
-ZstdReader(Src&& src,
-           ZstdReaderBase::Options options = ZstdReaderBase::Options())
+explicit ZstdReader(const Src& src,
+                    ZstdReaderBase::Options options = ZstdReaderBase::Options())
+    -> ZstdReader<std::decay_t<Src>>;
+template <typename Src>
+explicit ZstdReader(Src&& src,
+                    ZstdReaderBase::Options options = ZstdReaderBase::Options())
     -> ZstdReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-ZstdReader(std::tuple<SrcArgs...> src_args,
-           ZstdReaderBase::Options options = ZstdReaderBase::Options())
-    -> ZstdReader<void>;  // Delete.
+explicit ZstdReader(std::tuple<SrcArgs...> src_args,
+                    ZstdReaderBase::Options options = ZstdReaderBase::Options())
+    -> ZstdReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Returns the claimed uncompressed size of Zstd-compressed data.

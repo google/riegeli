@@ -322,21 +322,23 @@ class FdWriter : public FdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FdWriter()->FdWriter<DeleteCtad<>>;
 template <typename Dest>
-FdWriter(const Dest& dest,
-         FdWriterBase::Options options = FdWriterBase::Options())
+explicit FdWriter(const Dest& dest,
+                  FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<std::is_convertible<const Dest&, int>::value,
                                    OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
-FdWriter(Dest&& dest, FdWriterBase::Options options = FdWriterBase::Options())
+explicit FdWriter(Dest&& dest,
+                  FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<std::is_convertible<Dest&&, int>::value,
                                    OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-FdWriter(std::tuple<DestArgs...> dest_args,
-         FdWriterBase::Options options = FdWriterBase::Options())
-    -> FdWriter<void>;  // Delete.
-FdWriter(absl::string_view filename, int flags,
-         FdWriterBase::Options options = FdWriterBase::Options())
+explicit FdWriter(std::tuple<DestArgs...> dest_args,
+                  FdWriterBase::Options options = FdWriterBase::Options())
+    -> FdWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit FdWriter(absl::string_view filename, int flags,
+                  FdWriterBase::Options options = FdWriterBase::Options())
     ->FdWriter<>;
 #endif
 
@@ -426,23 +428,24 @@ class FdStreamWriter : public FdStreamWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+FdStreamWriter()->FdStreamWriter<DeleteCtad<>>;
 template <typename Dest>
-FdStreamWriter(const Dest& dest, FdStreamWriterBase::Options options =
-                                     FdStreamWriterBase::Options())
+explicit FdStreamWriter(const Dest& dest, FdStreamWriterBase::Options options =
+                                              FdStreamWriterBase::Options())
     -> FdStreamWriter<
         std::conditional_t<std::is_convertible<const Dest&, int>::value,
                            OwnedFd, std::decay_t<Dest>>>;
 template <typename Dest>
-FdStreamWriter(Dest&& dest, FdStreamWriterBase::Options options =
-                                FdStreamWriterBase::Options())
+explicit FdStreamWriter(Dest&& dest, FdStreamWriterBase::Options options =
+                                         FdStreamWriterBase::Options())
     -> FdStreamWriter<std::conditional_t<
         std::is_convertible<Dest&&, int>::value, OwnedFd, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-FdStreamWriter(
+explicit FdStreamWriter(
     std::tuple<DestArgs...> dest_args,
     FdStreamWriterBase::Options options = FdStreamWriterBase::Options())
-    -> FdStreamWriter<void>;  // Delete.
-FdStreamWriter(
+    -> FdStreamWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit FdStreamWriter(
     absl::string_view filename, int flags,
     FdStreamWriterBase::Options options = FdStreamWriterBase::Options())
     ->FdStreamWriter<>;

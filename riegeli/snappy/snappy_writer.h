@@ -183,14 +183,20 @@ class SnappyWriter : public SnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+SnappyWriter()->SnappyWriter<DeleteCtad<>>;
 template <typename Dest>
-SnappyWriter(Dest&& dest,
-             SnappyWriterBase::Options options = SnappyWriterBase::Options())
+explicit SnappyWriter(const Dest& dest, SnappyWriterBase::Options options =
+                                            SnappyWriterBase::Options())
+    -> SnappyWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit SnappyWriter(Dest&& dest, SnappyWriterBase::Options options =
+                                       SnappyWriterBase::Options())
     -> SnappyWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-SnappyWriter(std::tuple<DestArgs...> dest_args,
-             SnappyWriterBase::Options options = SnappyWriterBase::Options())
-    -> SnappyWriter<void>;  // Delete.
+explicit SnappyWriter(
+    std::tuple<DestArgs...> dest_args,
+    SnappyWriterBase::Options options = SnappyWriterBase::Options())
+    -> SnappyWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Options for `SnappyCompress()`.

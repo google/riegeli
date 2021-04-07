@@ -198,12 +198,16 @@ class DigestingWriter : public DigestingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-template <typename Dest, typename Digester>
-DigestingWriter(Dest&& dest, Digester&& digester)
+DigestingWriter()->DigestingWriter<void, DeleteCtad<>>;
+template <typename Digester, typename Dest>
+explicit DigestingWriter(const Dest& dest, Digester&& digester)
     -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;
-template <typename... DestArgs, typename Digester>
-DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
-    -> DigestingWriter<void, void>;  // Delete.
+template <typename Digester, typename Dest>
+explicit DigestingWriter(Dest&& dest, Digester&& digester)
+    -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;
+template <typename Digester, typename... DestArgs>
+explicit DigestingWriter(std::tuple<DestArgs...> dest_args, Digester&& digester)
+    -> DigestingWriter<void, DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

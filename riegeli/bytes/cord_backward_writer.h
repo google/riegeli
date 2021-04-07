@@ -169,7 +169,10 @@ class CordBackwardWriterBase : public BackwardWriter {
 // `absl::Cord` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is an `absl::Cord&` or `const absl::Cord&` (to avoid
+// writing to an unintentionally separate copy of an existing object). This
+// requires C++17.
 //
 // The `absl::Cord` must not be accessed until the `CordBackwardWriter` is
 // closed or no longer used.
@@ -215,15 +218,28 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+CordBackwardWriter()->CordBackwardWriter<DeleteCtad<>>;
 template <typename Dest>
-CordBackwardWriter(Dest&& dest, CordBackwardWriterBase::Options options =
-                                    CordBackwardWriterBase::Options())
-    -> CordBackwardWriter<std::decay_t<Dest>>;
+explicit CordBackwardWriter(
+    const Dest& dest,
+    CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
+    -> CordBackwardWriter<std::conditional_t<
+        std::is_convertible<const Dest*, const absl::Cord*>::value,
+        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit CordBackwardWriter(
+    Dest&& dest,
+    CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
+    -> CordBackwardWriter<std::conditional_t<
+        std::is_lvalue_reference<Dest>::value &&
+            std::is_convertible<std::remove_reference_t<Dest>*,
+                                const absl::Cord*>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-CordBackwardWriter(
+explicit CordBackwardWriter(
     std::tuple<DestArgs...> dest_args,
     CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
-    -> CordBackwardWriter<void>;  // Delete.
+    -> CordBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

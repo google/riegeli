@@ -177,14 +177,20 @@ class BrotliReader : public BrotliReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+BrotliReader()->BrotliReader<DeleteCtad<>>;
 template <typename Src>
-BrotliReader(Src&& src,
-             BrotliReaderBase::Options options = BrotliReaderBase::Options())
+explicit BrotliReader(const Src& src, BrotliReaderBase::Options options =
+                                          BrotliReaderBase::Options())
+    -> BrotliReader<std::decay_t<Src>>;
+template <typename Src>
+explicit BrotliReader(
+    Src&& src, BrotliReaderBase::Options options = BrotliReaderBase::Options())
     -> BrotliReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-BrotliReader(std::tuple<SrcArgs...> src_args,
-             BrotliReaderBase::Options options = BrotliReaderBase::Options())
-    -> BrotliReader<void>;  // Delete.
+explicit BrotliReader(
+    std::tuple<SrcArgs...> src_args,
+    BrotliReaderBase::Options options = BrotliReaderBase::Options())
+    -> BrotliReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

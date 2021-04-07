@@ -163,7 +163,9 @@ class ChainWriterBase : public Writer {
 // `Chain` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is a `Chain&` or `const Chain&` (to avoid writing to an
+// unintentionally separate copy of an existing object). This requires C++17.
 //
 // The `Chain` must not be accessed until the `ChainWriter` is closed or no
 // longer used, except that it is allowed to read the `Chain` immediately after
@@ -215,14 +217,26 @@ class ChainWriter : public ChainWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ChainWriter()->ChainWriter<DeleteCtad<>>;
 template <typename Dest>
-ChainWriter(Dest&& dest,
-            ChainWriterBase::Options options = ChainWriterBase::Options())
-    -> ChainWriter<std::decay_t<Dest>>;
+explicit ChainWriter(const Dest& dest, ChainWriterBase::Options options =
+                                           ChainWriterBase::Options())
+    -> ChainWriter<std::conditional_t<
+        std::is_convertible<const Dest*, const Chain*>::value,
+        DeleteCtad<const Dest&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit ChainWriter(
+    Dest&& dest, ChainWriterBase::Options options = ChainWriterBase::Options())
+    -> ChainWriter<std::conditional_t<
+        std::is_lvalue_reference<Dest>::value &&
+            std::is_convertible<std::remove_reference_t<Dest>*,
+                                const Chain*>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-ChainWriter(std::tuple<DestArgs...> dest_args,
-            ChainWriterBase::Options options = ChainWriterBase::Options())
-    -> ChainWriter<void>;  // Delete.
+explicit ChainWriter(
+    std::tuple<DestArgs...> dest_args,
+    ChainWriterBase::Options options = ChainWriterBase::Options())
+    -> ChainWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

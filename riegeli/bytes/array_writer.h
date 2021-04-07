@@ -78,7 +78,11 @@ class ArrayWriterBase : public PushableWriter {
 // `std::string` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is a reference to a type that `absl::Span<char>` would
+// be constructible from, other than `absl::Span<char>` itself (to avoid writing
+// to an unintentionally separate copy of an existing object). This requires
+// C++17.
 //
 // The array must not be destroyed until the `ArrayWriter` is closed or no
 // longer used.
@@ -125,10 +129,23 @@ class ArrayWriter : public ArrayWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ArrayWriter()->ArrayWriter<DeleteCtad<>>;
 template <typename Dest>
-ArrayWriter(Dest&& dest) -> ArrayWriter<std::decay_t<Dest>>;
+explicit ArrayWriter(const Dest& dest) -> ArrayWriter<std::conditional_t<
+    !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
+        std::is_constructible<absl::Span<char>, const Dest&>::value &&
+        !std::is_pointer<Dest>::value,
+    DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
+    !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
+        std::is_lvalue_reference<Dest>::value &&
+        std::is_constructible<absl::Span<char>, Dest>::value &&
+        !std::is_pointer<std::remove_reference_t<Dest>>::value,
+    DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-ArrayWriter(std::tuple<DestArgs...> dest_args) -> ArrayWriter<void>;  // Delete.
+explicit ArrayWriter(std::tuple<DestArgs...> dest_args)
+    -> ArrayWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

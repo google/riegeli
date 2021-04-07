@@ -199,15 +199,22 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+DefaultChunkWriter()->DefaultChunkWriter<DeleteCtad<>>;
 template <typename Dest>
-DefaultChunkWriter(Dest&& dest, DefaultChunkWriterBase::Options options =
-                                    DefaultChunkWriterBase::Options())
+explicit DefaultChunkWriter(
+    const Dest& dest,
+    DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
+    -> DefaultChunkWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit DefaultChunkWriter(
+    Dest&& dest,
+    DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
     -> DefaultChunkWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-DefaultChunkWriter(
+explicit DefaultChunkWriter(
     std::tuple<DestArgs...> dest_args,
     DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
-    -> DefaultChunkWriter<void>;  // Delete.
+    -> DefaultChunkWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

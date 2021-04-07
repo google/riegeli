@@ -176,14 +176,19 @@ class LimitingWriter : public LimitingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+LimitingWriter()->LimitingWriter<DeleteCtad<>>;
 template <typename Dest>
-LimitingWriter(Dest&& dest,
-               Position size_limit = LimitingWriterBase::kNoSizeLimit)
+explicit LimitingWriter(const Dest& dest,
+                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
+    -> LimitingWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit LimitingWriter(Dest&& dest,
+                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
     -> LimitingWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-LimitingWriter(std::tuple<DestArgs...> dest_args,
-               Position size_limit = LimitingWriterBase::kNoSizeLimit)
-    -> LimitingWriter<void>;  // Delete.
+explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
+                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
+    -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

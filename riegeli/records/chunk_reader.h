@@ -297,11 +297,15 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+DefaultChunkReader()->DefaultChunkReader<DeleteCtad<>>;
 template <typename Src>
-DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
+explicit DefaultChunkReader(const Src& src)
+    -> DefaultChunkReader<std::decay_t<Src>>;
+template <typename Src>
+explicit DefaultChunkReader(Src&& src) -> DefaultChunkReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-DefaultChunkReader(std::tuple<SrcArgs...> src_args)
-    -> DefaultChunkReader<void>;  // Delete.
+explicit DefaultChunkReader(std::tuple<SrcArgs...> src_args)
+    -> DefaultChunkReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.

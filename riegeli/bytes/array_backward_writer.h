@@ -79,7 +79,11 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
 // `std::string` (owned).
 //
 // By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument. This requires C++17.
+// the first constructor argument, except that CTAD is deleted if the first
+// constructor argument is a reference to a type that `absl::Span<char>` would
+// be constructible from, other than `absl::Span<char>` itself (to avoid writing
+// to an unintentionally separate copy of an existing object). This requires
+// C++17.
 //
 // The array must not be destroyed until the `ArrayBackwardWriter` is closed or
 // no longer used.
@@ -126,11 +130,25 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+ArrayBackwardWriter()->ArrayBackwardWriter<DeleteCtad<>>;
 template <typename Dest>
-ArrayBackwardWriter(Dest&& dest) -> ArrayBackwardWriter<std::decay_t<Dest>>;
+explicit ArrayBackwardWriter(const Dest& dest)
+    -> ArrayBackwardWriter<std::conditional_t<
+        !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
+            std::is_constructible<absl::Span<char>, const Dest&>::value &&
+            !std::is_pointer<Dest>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
+template <typename Dest>
+explicit ArrayBackwardWriter(Dest&& dest)
+    -> ArrayBackwardWriter<std::conditional_t<
+        !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
+            std::is_lvalue_reference<Dest>::value &&
+            std::is_constructible<absl::Span<char>, Dest>::value &&
+            !std::is_pointer<std::remove_reference_t<Dest>>::value,
+        DeleteCtad<Dest&&>, std::decay_t<Dest>>>;
 template <typename... DestArgs>
-ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)
-    -> ArrayBackwardWriter<void>;  // Delete.
+explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)
+    -> ArrayBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

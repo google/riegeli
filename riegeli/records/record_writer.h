@@ -598,14 +598,20 @@ class RecordWriter : public RecordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+RecordWriter()->RecordWriter<DeleteCtad<>>;
 template <typename Dest>
-RecordWriter(Dest&& dest,
-             RecordWriterBase::Options options = RecordWriterBase::Options())
+explicit RecordWriter(const Dest& dest, RecordWriterBase::Options options =
+                                            RecordWriterBase::Options())
+    -> RecordWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
+                                       RecordWriterBase::Options())
     -> RecordWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-RecordWriter(std::tuple<DestArgs...> dest_args,
-             RecordWriterBase::Options options = RecordWriterBase::Options())
-    -> RecordWriter<void>;  // Delete.
+explicit RecordWriter(
+    std::tuple<DestArgs...> dest_args,
+    RecordWriterBase::Options options = RecordWriterBase::Options())
+    -> RecordWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.

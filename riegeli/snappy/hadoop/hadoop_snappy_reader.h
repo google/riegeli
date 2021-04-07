@@ -143,15 +143,21 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
+HadoopSnappyReader()->HadoopSnappyReader<DeleteCtad<>>;
 template <typename Src>
-HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
-                                  HadoopSnappyReaderBase::Options())
+explicit HadoopSnappyReader(
+    const Src& src,
+    HadoopSnappyReaderBase::Options options = HadoopSnappyReaderBase::Options())
+    -> HadoopSnappyReader<std::decay_t<Src>>;
+template <typename Src>
+explicit HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
+                                           HadoopSnappyReaderBase::Options())
     -> HadoopSnappyReader<std::decay_t<Src>>;
 template <typename... SrcArgs>
-HadoopSnappyReader(
+explicit HadoopSnappyReader(
     std::tuple<SrcArgs...> src_args,
     HadoopSnappyReaderBase::Options options = HadoopSnappyReaderBase::Options())
-    -> HadoopSnappyReader<void>;  // Delete.
+    -> HadoopSnappyReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
 // Implementation details follow.
