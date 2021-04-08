@@ -116,8 +116,8 @@ void WrappedWriterBase::WriteHintSlow(size_t length) {
   MakeBuffer(dest);
 }
 
-bool WrappedWriterBase::SupportsRandomAccess() const {
-  const Writer* const dest = dest_writer();
+bool WrappedWriterBase::SupportsRandomAccess() {
+  Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
@@ -156,8 +156,8 @@ absl::optional<Position> WrappedWriterBase::Size() {
   return size;
 }
 
-bool WrappedWriterBase::SupportsTruncate() const {
-  const Writer* const dest = dest_writer();
+bool WrappedWriterBase::SupportsTruncate() {
+  Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();
 }
 

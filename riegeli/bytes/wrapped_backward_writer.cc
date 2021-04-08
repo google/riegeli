@@ -130,8 +130,8 @@ bool WrappedBackwardWriterBase::Flush(FlushType flush_type) {
   return ok;
 }
 
-bool WrappedBackwardWriterBase::SupportsTruncate() const {
-  const BackwardWriter* const dest = dest_writer();
+bool WrappedBackwardWriterBase::SupportsTruncate() {
+  BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();
 }
 

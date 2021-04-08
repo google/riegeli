@@ -144,8 +144,8 @@ void LimitingWriterBase::WriteHintSlow(size_t length) {
   MakeBuffer(dest);
 }
 
-bool LimitingWriterBase::SupportsRandomAccess() const {
-  const Writer* const dest = dest_writer();
+bool LimitingWriterBase::SupportsRandomAccess() {
+  Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
@@ -186,8 +186,8 @@ absl::optional<Position> LimitingWriterBase::Size() {
   return UnsignedMin(*size, size_limit_);
 }
 
-bool LimitingWriterBase::SupportsTruncate() const {
-  const Writer* const dest = dest_writer();
+bool LimitingWriterBase::SupportsTruncate() {
+  Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();
 }
 

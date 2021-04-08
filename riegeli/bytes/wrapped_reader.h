@@ -42,7 +42,7 @@ class WrappedReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
   bool Sync() override;
-  bool SupportsRandomAccess() const override;
+  bool SupportsRandomAccess() override;
   bool SupportsSize() const override;
   absl::optional<Position> Size() override;
 

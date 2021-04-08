@@ -119,7 +119,7 @@ class PythonReader : public BufferedReader {
   const Exception& exception() const { return exception_; }
 
   bool Sync() override;
-  bool SupportsRandomAccess() const override { return random_access_; }
+  bool SupportsRandomAccess() override { return random_access_; }
   bool SupportsSize() const override { return random_access_; }
   absl::optional<Position> Size() override;
 

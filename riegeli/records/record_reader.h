@@ -272,7 +272,7 @@ class RecordReaderBase : public Object {
 
   // Returns `true` if this `RecordReader` supports `Seek()`, `SeekBack()`,
   // `Size()`, and `Search()`.
-  bool SupportsRandomAccess() const;
+  bool SupportsRandomAccess();
 
   // Seeks to a position.
   //

@@ -379,8 +379,8 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       << "Unknown recoverable method: " << static_cast<int>(recoverable);
 }
 
-bool RecordReaderBase::SupportsRandomAccess() const {
-  const ChunkReader* const src = src_chunk_reader();
+bool RecordReaderBase::SupportsRandomAccess() {
+  ChunkReader* const src = src_chunk_reader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 

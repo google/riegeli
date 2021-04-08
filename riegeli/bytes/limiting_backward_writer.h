@@ -54,7 +54,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   bool PrefersCopying() const override;
   bool Flush(FlushType flush_type) override;
-  bool SupportsTruncate() const override;
+  bool SupportsTruncate() override;
   bool Truncate(Position new_size) override;
 
  protected:

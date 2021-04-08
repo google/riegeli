@@ -55,9 +55,9 @@ class LimitingWriterBase : public Writer {
 
   bool PrefersCopying() const override;
   bool Flush(FlushType flush_type) override;
-  bool SupportsRandomAccess() const override;
+  bool SupportsRandomAccess() override;
   absl::optional<Position> Size() override;
-  bool SupportsTruncate() const override;
+  bool SupportsTruncate() override;
   bool Truncate(Position new_size) override;
 
  protected:

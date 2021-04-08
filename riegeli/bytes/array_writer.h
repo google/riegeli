@@ -44,7 +44,7 @@ class ArrayWriterBase : public PushableWriter {
 
   bool PrefersCopying() const override { return true; }
   bool Flush(FlushType flush_type) override;
-  bool SupportsTruncate() const override { return true; }
+  bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:

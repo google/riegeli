@@ -85,7 +85,7 @@ class OstreamWriterBase : public BufferedWriter {
   virtual const std::ostream* dest_stream() const = 0;
 
   bool Flush(FlushType flush_type) override;
-  bool SupportsRandomAccess() const override { return random_access_; }
+  bool SupportsRandomAccess() override { return random_access_; }
   absl::optional<Position> Size() override;
 
  protected:

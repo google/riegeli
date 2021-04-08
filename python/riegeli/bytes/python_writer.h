@@ -116,9 +116,9 @@ class PythonWriter : public BufferedWriter {
   const Exception& exception() const { return exception_; }
 
   bool Flush(FlushType flush_type) override;
-  bool SupportsRandomAccess() const override { return random_access_; }
+  bool SupportsRandomAccess() override { return random_access_; }
   absl::optional<Position> Size() override;
-  bool SupportsTruncate() const override { return random_access_; }
+  bool SupportsTruncate() override { return random_access_; }
   bool Truncate(Position new_size) override;
 
   // For implementing `tp_traverse` of objects containing `PythonWriter`.

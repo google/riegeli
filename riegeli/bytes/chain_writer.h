@@ -114,7 +114,7 @@ class ChainWriterBase : public Writer {
   virtual const Chain* dest_chain() const = 0;
 
   bool Flush(FlushType flush_type) override;
-  bool SupportsTruncate() const override { return true; }
+  bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 
  protected:

@@ -189,7 +189,7 @@ class BackwardWriter : public Object {
   Position pos() const;
 
   // Returns `true` if this `BackwardWriter` supports `Truncate()`.
-  virtual bool SupportsTruncate() const { return false; }
+  virtual bool SupportsTruncate() { return false; }
 
   // Discards the part of the destination after the given position. Sets the
   // current position to the new end.

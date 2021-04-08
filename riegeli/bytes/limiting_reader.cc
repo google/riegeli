@@ -165,8 +165,8 @@ bool LimitingReaderBase::Sync() {
   return ok;
 }
 
-bool LimitingReaderBase::SupportsRandomAccess() const {
-  const Reader* const src = src_reader();
+bool LimitingReaderBase::SupportsRandomAccess() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 

@@ -99,7 +99,7 @@ class DefaultChunkReaderBase : public Object {
 
   // Returns `true` if this `ChunkReader` supports `Seek()`,
   // `SeekToChunkContaining()`, `SeekToChunkAfter()`, and `Size()`.
-  bool SupportsRandomAccess() const;
+  bool SupportsRandomAccess();
 
   // Seeks to `new_pos`, which should be a chunk boundary.
   //

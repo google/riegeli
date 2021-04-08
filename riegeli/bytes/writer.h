@@ -200,7 +200,7 @@ class Writer : public Object {
   // Returns true if this Writer supports `Seek()`, `Size()`, and `Truncate()`.
   //
   // Invariant: if `SupportsRandomAccess()` then `SupportsTruncate()`
-  virtual bool SupportsRandomAccess() const { return false; }
+  virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
   //
@@ -218,7 +218,7 @@ class Writer : public Object {
   virtual absl::optional<Position> Size();
 
   // Returns `true` if this `Writer` supports `Truncate()`.
-  virtual bool SupportsTruncate() const { return false; }
+  virtual bool SupportsTruncate() { return false; }
 
   // Discards the part of the destination after the given position. Sets the
   // current position to the new end.

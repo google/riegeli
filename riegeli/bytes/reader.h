@@ -224,7 +224,7 @@ class Reader : public Object {
   // forwards is always supported) and `Size()`.
   //
   // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`
-  virtual bool SupportsRandomAccess() const { return false; }
+  virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
   //
@@ -251,7 +251,12 @@ class Reader : public Object {
   bool Skip(Position length);
 
   // Returns `true` if this `Reader` supports `Size()`.
+  //
+  // During migration please override the `const` version or (preferably) both.
   virtual bool SupportsSize() const { return false; }
+  virtual bool SupportsSize() {
+    return static_cast<const Reader*>(this)->SupportsSize();
+  }
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //

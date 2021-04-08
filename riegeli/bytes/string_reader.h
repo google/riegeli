@@ -37,7 +37,7 @@ class StringReaderBase : public Reader {
   // Returns the `std::string` or array being read from. Unchanged by `Close()`.
   virtual absl::string_view src_string_view() const = 0;
 
-  bool SupportsRandomAccess() const override { return true; }
+  bool SupportsRandomAccess() override { return true; }
   bool SupportsSize() const override { return true; }
   absl::optional<Position> Size() override;
 

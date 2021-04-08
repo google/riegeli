@@ -135,8 +135,8 @@ bool WrappedReaderBase::Sync() {
   return ok;
 }
 
-bool WrappedReaderBase::SupportsRandomAccess() const {
-  const Reader* const src = src_reader();
+bool WrappedReaderBase::SupportsRandomAccess() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 

@@ -394,8 +394,8 @@ find_chunk:
   return true;
 }
 
-bool DefaultChunkReaderBase::SupportsRandomAccess() const {
-  const Reader* const src = src_reader();
+bool DefaultChunkReaderBase::SupportsRandomAccess() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();
 }
 

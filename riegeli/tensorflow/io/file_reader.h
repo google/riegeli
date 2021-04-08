@@ -110,7 +110,7 @@ class FileReaderBase : public Reader {
 
   using Reader::Fail;
   bool Fail(absl::Status status) override;
-  bool SupportsRandomAccess() const override { return !filename_.empty(); }
+  bool SupportsRandomAccess() override { return !filename_.empty(); }
   bool SupportsSize() const override { return !filename_.empty(); }
   absl::optional<Position> Size() override;
 

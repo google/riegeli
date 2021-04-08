@@ -160,8 +160,8 @@ bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
   return ok;
 }
 
-bool LimitingBackwardWriterBase::SupportsTruncate() const {
-  const BackwardWriter* const dest = dest_writer();
+bool LimitingBackwardWriterBase::SupportsTruncate() {
+  BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();
 }
 
