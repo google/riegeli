@@ -98,10 +98,15 @@ std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
 std::streampos ReaderStreambuf::seekoff(std::streamoff off,
                                         std::ios_base::seekdir dir,
                                         std::ios_base::openmode which) {
-  if (ABSL_PREDICT_FALSE(!healthy())) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return std::streampos(std::streamoff{-1});
+  BufferSync buffer_sync(this);
+  if (off == 0 && dir == std::ios_base::cur) {
+    // Getting the current position is supported even if random access is not.
+    return std::streampos(IntCast<std::streamoff>(src_->pos()));
+  }
+  if (!src_->SupportsRandomAccess()) {
     return std::streampos(std::streamoff{-1});
   }
-  BufferSync buffer_sync(this);
   Position pos;
   switch (dir) {
     case std::ios_base::beg:
