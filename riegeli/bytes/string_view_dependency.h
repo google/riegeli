@@ -43,9 +43,9 @@ inline absl::string_view ToStringView(const T& value) {
 
 }  // namespace internal
 
-// Specializations for `absl::string_view`, `absl::Span<const char>`, and
-// `absl::Span<char>` themselves are defined separately for `kIsStable()` to be
-// `true`.
+// Specializations for `absl::string_view`, `absl::Span<const char>`,
+// `absl::Span<char>`, `const char*`, and `char*` are defined separately for
+// `kIsStable()` to be `true`.
 
 template <>
 class Dependency<absl::string_view, absl::string_view>
@@ -76,6 +76,31 @@ class Dependency<absl::string_view, absl::Span<char>>
     : public DependencyBase<absl::Span<char>> {
  public:
   using DependencyBase<absl::Span<char>>::DependencyBase;
+
+  absl::string_view get() const {
+    return internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable() { return true; }
+};
+
+template <>
+class Dependency<absl::string_view, const char*>
+    : public DependencyBase<const char*> {
+ public:
+  using DependencyBase<const char*>::DependencyBase;
+
+  absl::string_view get() const {
+    return internal::ToStringView(this->manager());
+  }
+
+  static constexpr bool kIsStable() { return true; }
+};
+
+template <>
+class Dependency<absl::string_view, char*> : public DependencyBase<char*> {
+ public:
+  using DependencyBase<char*>::DependencyBase;
 
   absl::string_view get() const {
     return internal::ToStringView(this->manager());

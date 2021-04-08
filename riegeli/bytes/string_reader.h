@@ -226,7 +226,8 @@ inline void StringReader<Src>::MoveSrc(StringReader&& that) {
     const size_t cursor_index = read_from_buffer();
     src_ = std::move(that.src_);
     if (start() != nullptr) {
-      set_buffer(src_.get().data(), src_.get().size(), cursor_index);
+      const absl::string_view src = src_.get();
+      set_buffer(src.data(), src.size(), cursor_index);
     }
   }
 }
