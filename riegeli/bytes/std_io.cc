@@ -64,12 +64,9 @@ class StandardStreams {
 };
 
 StandardStreams::StandardStreams()
-    : std_in_(std::make_unique<IstreamReader<>>(
-          &std::cin, IstreamReaderBase::Options().set_assumed_pos(0))),
-      std_out_(std::make_unique<OstreamWriter<>>(
-          &std::cout, OstreamWriterBase::Options().set_assumed_pos(0))),
-      std_err_(std::make_unique<OstreamWriter<>>(
-          &std::cerr, OstreamWriterBase::Options().set_assumed_pos(0))) {
+    : std_in_(std::make_unique<IstreamReader<>>(&std::cin)),
+      std_out_(std::make_unique<OstreamWriter<>>(&std::cout)),
+      std_err_(std::make_unique<OstreamWriter<>>(&std::cerr)) {
   static StandardStreams* singleton;
   singleton = this;
   std::atexit(+[] { singleton->FlushAll(); });

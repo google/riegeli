@@ -43,15 +43,26 @@ namespace riegeli {
 namespace python {
 
 PythonWriter::PythonWriter(PyObject* dest, Options options)
-    : BufferedWriter(options.buffer_size()),
-      owns_dest_(options.owns_dest()),
-      random_access_(options.assumed_pos() == absl::nullopt) {
+    : BufferedWriter(options.buffer_size()), owns_dest_(options.owns_dest()) {
   PythonLock::AssertHeld();
   Py_INCREF(dest);
   dest_.reset(dest);
-  if (!random_access_) {
+  if (options.assumed_pos() != absl::nullopt) {
     set_start_pos(*options.assumed_pos());
   } else {
+    static constexpr Identifier id_seekable("seekable");
+    const PythonPtr seekable_result(
+        PyObject_CallMethodObjArgs(dest_.get(), id_seekable.get(), nullptr));
+    if (ABSL_PREDICT_FALSE(seekable_result == nullptr)) {
+      FailOperation("seekable()");
+      return;
+    }
+    const int seekable_is_true = PyObject_IsTrue(seekable_result.get());
+    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) return;
+    if (seekable_is_true == 0) {
+      // Random access is not supported. Assume 0 as the initial position.
+      return;
+    }
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(
         PyObject_CallMethodObjArgs(dest_.get(), id_tell.get(), nullptr));
@@ -66,6 +77,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
       return;
     }
     set_start_pos(*file_pos);
+    supports_random_access_ = true;
   }
 }
 
@@ -204,7 +216,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
   }
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
@@ -237,7 +249,7 @@ bool PythonWriter::SeekSlow(Position new_pos) {
 
 absl::optional<Position> PythonWriter::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
     return absl::nullopt;
   }
@@ -262,7 +274,7 @@ absl::optional<Position> PythonWriter::Size() {
 inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of PythonWriter::SizeInternal(): " << status();
-  RIEGELI_ASSERT(random_access_)
+  RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
   PythonLock::AssertHeld();
@@ -304,7 +316,7 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
 
 bool PythonWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(
         absl::UnimplementedError("PythonWriter::Truncate() not supported"));
   }

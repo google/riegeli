@@ -41,14 +41,14 @@ class IstreamReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, `IstreamReader` will initially get the current stream
-    // position, and will set the stream position on `Close()`. The stream
-    // must support random access and the `IstreamReader` will support random
-    // access.
+    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // to the current stream position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the stream supports
+    // random access.
     //
-    // If not `absl::nullopt`, this stream position will be assumed initially.
-    // The stream does not have to support random access and the `IstreamReader`
-    // will not support random access.
+    // If not `absl::nullopt`, this position is assumed initially, to be
+    // reported by `pos()`. It does not need to correspond to the current stream
+    // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
@@ -86,36 +86,51 @@ class IstreamReaderBase : public BufferedReader {
   virtual const std::istream* src_stream() const = 0;
 
   bool Sync() override;
-  bool SupportsRandomAccess() override { return random_access_; }
-  bool SupportsSize() override { return random_access_; }
+  bool SupportsRandomAccess() override { return supports_random_access(); }
+  bool SupportsSize() override { return supports_random_access(); }
   absl::optional<Position> Size() override;
 
  protected:
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+
   IstreamReaderBase() noexcept {}
 
-  explicit IstreamReaderBase(size_t buffer_size, bool random_access);
+  explicit IstreamReaderBase(size_t buffer_size);
 
   IstreamReaderBase(IstreamReaderBase&& that) noexcept;
   IstreamReaderBase& operator=(IstreamReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, bool random_access);
+  void Reset(size_t buffer_size);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
+  bool supports_random_access();
   bool SyncPos(std::istream& src);
 
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
-  bool random_access_ = false;
+  // Whether random access is supported, as detected by calling
+  // `std::istream::tellg()` and `std::istream::seekg()` to the end and back.
+  //
+  // `std::istream::tellg()` is called during initialization;
+  // `std::istream::seekg()` is called lazily.
+  //
+  // Invariant:
+  //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
 
-// A `Reader` which reads from a `std::istream`. It supports random access
-// and requires the stream to support random access if
-// `Options::assumed_pos() == absl::nullopt`.
+// A `Reader` which reads from a `std::istream`.
+//
+// `IstreamReader` supports random access if
+// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// access (this is checked by calling `std::istream::tellg()` and
+// `std::istream::seekg()` to the end and back).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the stream being read from. `Src` must support
@@ -192,9 +207,8 @@ explicit IstreamReader(
 
 // Implementation details follow.
 
-inline IstreamReaderBase::IstreamReaderBase(size_t buffer_size,
-                                            bool random_access)
-    : BufferedReader(buffer_size), random_access_(random_access) {
+inline IstreamReaderBase::IstreamReaderBase(size_t buffer_size)
+    : BufferedReader(buffer_size) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -204,25 +218,25 @@ inline IstreamReaderBase::IstreamReaderBase(IstreamReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      random_access_(that.random_access_) {}
-
-inline void IstreamReaderBase::Reset() {
-  BufferedReader::Reset();
-  random_access_ = false;
-}
+      supports_random_access_(that.supports_random_access_) {}
 
 inline IstreamReaderBase& IstreamReaderBase::operator=(
     IstreamReaderBase&& that) noexcept {
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  random_access_ = that.random_access_;
+  supports_random_access_ = that.supports_random_access_;
   return *this;
 }
 
-inline void IstreamReaderBase::Reset(size_t buffer_size, bool random_access) {
+inline void IstreamReaderBase::Reset() {
+  BufferedReader::Reset();
+  supports_random_access_ = LazyBoolState::kFalse;
+}
+
+inline void IstreamReaderBase::Reset(size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
-  random_access_ = random_access;
+  supports_random_access_ = LazyBoolState::kFalse;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -230,17 +244,13 @@ inline void IstreamReaderBase::Reset(size_t buffer_size, bool random_access) {
 
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(const Src& src, Options options)
-    : IstreamReaderBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      src_(src) {
+    : IstreamReaderBase(options.buffer_size()), src_(src) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline IstreamReader<Src>::IstreamReader(Src&& src, Options options)
-    : IstreamReaderBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      src_(std::move(src)) {
+    : IstreamReaderBase(options.buffer_size()), src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
@@ -248,9 +258,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline IstreamReader<Src>::IstreamReader(std::tuple<SrcArgs...> src_args,
                                          Options options)
-    : IstreamReaderBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      src_(std::move(src_args)) {
+    : IstreamReaderBase(options.buffer_size()), src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_pos());
 }
 
@@ -279,16 +287,14 @@ inline void IstreamReader<Src>::Reset() {
 
 template <typename Src>
 inline void IstreamReader<Src>::Reset(const Src& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  IstreamReaderBase::Reset(options.buffer_size());
   src_.Reset(src);
   Initialize(src_.get(), options.assumed_pos());
 }
 
 template <typename Src>
 inline void IstreamReader<Src>::Reset(Src&& src, Options options) {
-  IstreamReaderBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  IstreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.assumed_pos());
 }
@@ -297,8 +303,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void IstreamReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                       Options options) {
-  IstreamReaderBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  IstreamReaderBase::Reset(options.buffer_size());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_pos());
 }

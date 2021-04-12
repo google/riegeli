@@ -53,6 +53,9 @@ void IstreamReaderBase::Initialize(std::istream* src,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of IstreamReader: null stream pointer";
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+      << "Failed precondition of IstreamReaderBase::Initialize(): "
+         "supports_random_access_ not reset";
   if (ABSL_PREDICT_FALSE(src->fail())) {
     // Either constructing the stream failed or the stream was already in a
     // failed state. In any case `IstreamReaderBase` should fail.
@@ -72,27 +75,63 @@ void IstreamReaderBase::Initialize(std::istream* src,
     set_limit_pos(*assumed_pos);
   } else {
     const std::streamoff stream_pos = src->tellg();
-    if (ABSL_PREDICT_FALSE(stream_pos < 0)) {
-      FailOperation("istream::tellg()");
+    if (stream_pos < 0) {
+      // Random access is not supported. Assume 0 as the initial position.
       return;
     }
     set_limit_pos(IntCast<Position>(stream_pos));
+    // `std::istream::tellg()` succeeded, and `std::istream::seekg()` will be
+    // checked later.
+    supports_random_access_ = LazyBoolState::kUnknown;
   }
 }
 
-inline bool IstreamReaderBase::SyncPos(std::istream& src) {
-  if (available() > 0) {
+bool IstreamReaderBase::supports_random_access() {
+  switch (supports_random_access_) {
+    case LazyBoolState::kFalse:
+      return false;
+    case LazyBoolState::kTrue:
+      return true;
+    case LazyBoolState::kUnknown:
+      break;
+  }
+  RIEGELI_ASSERT(is_open())
+      << "Failed invariant of IstreamReaderBase: "
+         "unresolved supports_random_access_ but object closed";
+  std::istream& src = *src_stream();
+  bool supported = false;
+  src.seekg(0, std::ios_base::end);
+  if (src.fail()) {
+    src.clear(src.rdstate() & ~std::ios_base::failbit);
+  } else {
     errno = 0;
-    src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
+    src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
     if (ABSL_PREDICT_FALSE(src.fail())) {
-      return FailOperation("istream::seekg()");
+      FailOperation("istream::seekg()");
+    } else {
+      supported = true;
     }
+  }
+  supports_random_access_ =
+      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
+  return supported;
+}
+
+inline bool IstreamReaderBase::SyncPos(std::istream& src) {
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kTrue)
+      << "Failed precondition of IstreamReaderBase::SyncPos(): "
+         "random access not certain to be supported";
+  errno = 0;
+  src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
+  if (ABSL_PREDICT_FALSE(src.fail())) {
+    return FailOperation("istream::seekg()");
   }
   return true;
 }
 
 void IstreamReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) {
+  if (ABSL_PREDICT_TRUE(healthy()) && available() > 0 &&
+      supports_random_access()) {
     std::istream& src = *src_stream();
     SyncPos(src);
   }
@@ -176,12 +215,14 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
 
 bool IstreamReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (!random_access_) return true;
+  if (!supports_random_access()) return true;
   std::istream& src = *src_stream();
-  const bool ok = SyncPos(src);
-  set_limit_pos(pos());
-  ClearBuffer();
-  if (ABSL_PREDICT_FALSE(!ok)) return false;
+  if (available() > 0) {
+    const bool ok = SyncPos(src);
+    set_limit_pos(pos());
+    ClearBuffer();
+    if (ABSL_PREDICT_FALSE(!ok)) return false;
+  }
   if (ABSL_PREDICT_FALSE(src.sync() != 0)) {
     return FailOperation("istream::sync()");
   }
@@ -193,7 +234,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return BufferedReader::SeekSlow(new_pos);
   }
   ClearBuffer();
@@ -225,7 +266,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
 
 absl::optional<Position> IstreamReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     Fail(absl::UnimplementedError("IstreamReaderBase::Size() not supported"));
     return absl::nullopt;
   }

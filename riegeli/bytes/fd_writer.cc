@@ -140,14 +140,18 @@ void FdWriterBase::InitializePos(int dest, int flags,
     }
     set_start_pos(*independent_pos);
   } else {
-    supports_random_access_ = true;
     const off_t file_pos =
         lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
-    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-      FailOperation("lseek()");
+    if (file_pos < 0) {
+      if (errno == ESPIPE) {
+        // Random access is not supported. Assume the current position as 0.
+      } else {
+        FailOperation("lseek()");
+      }
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
+    supports_random_access_ = true;
   }
 }
 

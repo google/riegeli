@@ -25,19 +25,14 @@ namespace riegeli {
 
 // A singleton `Reader` reading from standard input (`std::cin`).
 //
-// The default `StdIn()` (unless `SetStdIn()` was used) does not support random
-// access, and the initial position is assumed to be 0.
-//
 // Warning: when `StdIn()` is used, `std::cin` will have an unpredictable amount
 // of extra data consumed because of buffering.
 Reader& StdIn();
 
 // A singleton `Writer` writing to standard output (`std::cout`).
 //
-// The default `StdOut()` (unless `SetStdOut()` was used) does not support
-// random access, and the initial position is assumed to be 0. In contrast to
-// `std::cout`, `StdOut()` is fully buffered (not line buffered) even if it
-// refers to an interactive device.
+// In contrast to `std::cout`, `StdOut()` is fully buffered (not line buffered)
+// even if it refers to an interactive device.
 //
 // `StdOut()` is automatically flushed at process exit. Flushing it explicitly
 // with `StdOut().Flush(FlushType::kFromProcess)` might be needed:
@@ -50,9 +45,7 @@ Writer& StdOut();
 
 // A singleton `Writer` writing to standard error (`std::cerr`).
 //
-// The default `StdErr()` (unless `SetStdErr()` was used) does not support
-// random access, and the initial position is assumed to be 0. In contrast to
-// `std::cerr`, `StdErr()` is fully buffered (not unbuffered).
+// In contrast to `std::cerr`, `StdErr()` is fully buffered (not unbuffered).
 //
 // `StdErr()` is automatically flushed at process exit. Flushing it explicitly
 // with `StdErr().Flush(FlushType::kFromProcess)` might be needed after writing

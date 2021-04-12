@@ -44,15 +44,26 @@ namespace riegeli {
 namespace python {
 
 PythonReader::PythonReader(PyObject* src, Options options)
-    : BufferedReader(options.buffer_size()),
-      owns_src_(options.owns_src()),
-      random_access_(options.assumed_pos() == absl::nullopt) {
+    : BufferedReader(options.buffer_size()), owns_src_(options.owns_src()) {
   PythonLock::AssertHeld();
   Py_INCREF(src);
   src_.reset(src);
-  if (!random_access_) {
+  if (options.assumed_pos() != absl::nullopt) {
     set_limit_pos(*options.assumed_pos());
   } else {
+    static constexpr Identifier id_seekable("seekable");
+    const PythonPtr seekable_result(
+        PyObject_CallMethodObjArgs(src_.get(), id_seekable.get(), nullptr));
+    if (ABSL_PREDICT_FALSE(seekable_result == nullptr)) {
+      FailOperation("seekable()");
+      return;
+    }
+    const int seekable_is_true = PyObject_IsTrue(seekable_result.get());
+    if (ABSL_PREDICT_FALSE(seekable_is_true < 0)) return;
+    if (seekable_is_true == 0) {
+      // Random access is not supported. Assume 0 as the initial position.
+      return;
+    }
     static constexpr Identifier id_tell("tell");
     const PythonPtr tell_result(
         PyObject_CallMethodObjArgs(src_.get(), id_tell.get(), nullptr));
@@ -67,6 +78,7 @@ PythonReader::PythonReader(PyObject* src, Options options)
       return;
     }
     set_limit_pos(*file_pos);
+    supports_random_access_ = true;
   }
 }
 
@@ -85,7 +97,7 @@ bool PythonReader::FailOperation(absl::string_view operation) {
       absl::StrCat(operation, " failed: ", exception_.message())));
 }
 
-bool PythonReader::SyncPos() {
+inline bool PythonReader::SyncPos() {
   PythonLock lock;
   const PythonPtr file_pos = PositionToPython(pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
@@ -101,7 +113,10 @@ bool PythonReader::SyncPos() {
 }
 
 void PythonReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && random_access_) SyncPos();
+  if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
+      available() > 0) {
+    SyncPos();
+  }
   BufferedReader::Done();
   if (owns_src_ && src_ != nullptr) {
     PythonLock lock;
@@ -240,7 +255,7 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
 
 bool PythonReader::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (!random_access_) return true;
+  if (!supports_random_access_ || available() == 0) return true;
   const bool ok = SyncPos();
   set_limit_pos(pos());
   ClearBuffer();
@@ -252,7 +267,7 @@ bool PythonReader::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return BufferedReader::SeekSlow(new_pos);
   }
   ClearBuffer();
@@ -283,7 +298,7 @@ bool PythonReader::SeekSlow(Position new_pos) {
 
 absl::optional<Position> PythonReader::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
     return absl::nullopt;
   }
@@ -308,7 +323,7 @@ absl::optional<Position> PythonReader::Size() {
 inline absl::optional<Position> PythonReader::SizeInternal() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of PythonReader::SizeInternal(): " << status();
-  RIEGELI_ASSERT(random_access_)
+  RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonReader::SizeInternal(): "
          "random access not supported";
   PythonLock::AssertHeld();

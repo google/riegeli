@@ -151,13 +151,17 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
     }
     set_limit_pos(*independent_pos);
   } else {
-    supports_random_access_ = true;
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
-    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-      FailOperation("lseek()");
+    if (file_pos < 0) {
+      if (errno == ESPIPE) {
+        // Random access is not supported. Assume 0 as the initial position.
+      } else {
+        FailOperation("lseek()");
+      }
       return;
     }
     set_limit_pos(IntCast<Position>(file_pos));
+    supports_random_access_ = true;
   }
 }
 

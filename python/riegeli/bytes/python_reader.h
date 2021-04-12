@@ -36,21 +36,25 @@
 namespace riegeli {
 namespace python {
 
-// A `Reader` which reads from a Python binary I/O stream. It supports random
-// access if `Options::assumed_pos() == absl::nullopt`.
+// A `Reader` which reads from a Python binary I/O stream.
 //
 // The stream must support:
 //  * `close()`          - for `Close()` if `Options::owns_src()`
-//  * `readinto1(memoryview)` or `readinto(memoryview)` or `read1(int)` or
+//  * `readinto1(memoryview)` or
+//    `readinto(memoryview)` or
+//    `read1(int)` or
 //    `read(int)`
-//  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
-//                         or for `Seek()` or `Size()`
-//  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
-//                         or for `Seek()` or `Size()`
+//  * `seekable()`
+//  * `seek(int[, int])` - for `Seek()` or `Size()`
+//  * `tell()`           - for `Seek()` or `Size()`
 //
-// Warning: if `!Options::owns_src()` and
-// `Options::assumed_pos() == absl::nullopt`, the stream will have an
-// unpredictable amount of extra data consumed because of buffering.
+// `PythonReader` supports random access if
+// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// access (this is checked by calling `seekable()`).
+//
+// Warning: if random access is not supported and the stream is not owned,
+// it will have an unpredictable amount of extra data consumed because of
+// buffering.
 class PythonReader : public BufferedReader {
  public:
   class Options {
@@ -69,11 +73,14 @@ class PythonReader : public BufferedReader {
     }
     bool owns_src() const { return owns_src_; }
 
-    // If `absl::nullopt`, `PythonReader` will initially get the current file
-    // position. The file must be seekable.
+    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // to the current stream position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the stream supports
+    // random access.
     //
-    // If not `absl::nullopt`, this file position will be assumed initially. The
-    // file does not have to be seekable.
+    // If not `absl::nullopt`, this position is assumed initially, to be
+    // reported by `pos()`. It does not need to correspond to the current stream
+    // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
@@ -85,7 +92,7 @@ class PythonReader : public BufferedReader {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered after reading from the file.
+    // Tunes how much data is buffered after reading from the stream.
     //
     // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
@@ -115,14 +122,14 @@ class PythonReader : public BufferedReader {
   PythonReader(PythonReader&& that) noexcept;
   PythonReader& operator=(PythonReader&& that) noexcept;
 
-  // Returns a borrowed reference to the file being read from.
+  // Returns a borrowed reference to the stream being read from.
   PyObject* src() const { return src_.get(); }
 
   const Exception& exception() const { return exception_; }
 
   bool Sync() override;
-  bool SupportsRandomAccess() override { return random_access_; }
-  bool SupportsSize() override { return random_access_; }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
+  bool SupportsSize() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
 
   // For implementing `tp_traverse` of objects containing `PythonReader`.
@@ -140,7 +147,7 @@ class PythonReader : public BufferedReader {
 
   PythonPtrLocking src_;
   bool owns_src_ = false;
-  bool random_access_ = false;
+  bool supports_random_access_ = false;
   Exception exception_;
   PythonPtrLocking read_function_;
   absl::string_view read_function_name_;
@@ -153,7 +160,7 @@ inline PythonReader::PythonReader(PythonReader&& that) noexcept
       // part was moved.
       src_(std::move(that.src_)),
       owns_src_(that.owns_src_),
-      random_access_(that.random_access_),
+      supports_random_access_(that.supports_random_access_),
       exception_(std::move(that.exception_)),
       read_function_(std::move(that.read_function_)),
       read_function_name_(that.read_function_name_),
@@ -165,7 +172,7 @@ inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
   // was moved.
   src_ = std::move(that.src_);
   owns_src_ = that.owns_src_;
-  random_access_ = that.random_access_;
+  supports_random_access_ = that.supports_random_access_;
   exception_ = std::move(that.exception_);
   read_function_ = std::move(that.read_function_);
   read_function_name_ = that.read_function_name_;

@@ -80,7 +80,9 @@ class FdReaderBase : public internal::FdReaderCommon {
     Options() noexcept {}
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
-    // to the current fd position. Random access is supported.
+    // to the current fd position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the fd supports random
+    // access.
     //
     // If not `absl::nullopt`, this position is assumed initially, to be
     // reported by `pos()`. It does not need to correspond to the current fd
@@ -315,12 +317,14 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 //  * `close()` - if the fd is owned
 //  * `read()`  - if `Options::independent_pos() == absl::nullopt`
 //  * `pread()` - if `Options::independent_pos() != absl::nullopt`
-//  * `lseek()` - if `Options::assumed_pos() == absl::nullopt`
-//                and `Options::independent_pos() == absl::nullopt`
+//  * `lseek()` - for `Seek()` or `Size()`
+//                if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
 //
 // `FdReader` supports random access if
-// `Options::assumed_pos() == absl::nullopt`.
+// `Options::assumed_pos() == absl::nullopt` and the fd supports random access
+// (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
+// this is checked by calling `lseek()`).
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -439,6 +443,7 @@ explicit FdReader(absl::string_view filename, int flags,
 // The fd must not be closed nor have its position changed until the
 // `FdStreamReader` is closed or no longer used.
 template <typename Src = OwnedFd>
+ABSL_DEPRECATED("Use FdReader instead")
 class FdStreamReader : public FdStreamReaderBase {
  public:
   // Creates a closed `FdStreamReader`.

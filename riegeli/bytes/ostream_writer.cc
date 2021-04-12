@@ -52,6 +52,9 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of OstreamWriter: null stream pointer";
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kFalse)
+      << "Failed precondition of OstreamWriterBase::Initialize(): "
+         "supports_random_access_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
     // Either constructing the stream failed or the stream was already in a
     // failed state. In any case `OstreamWriterBase` should fail.
@@ -68,12 +71,46 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
     set_start_pos(*assumed_pos);
   } else {
     const std::streamoff stream_pos = dest->tellp();
-    if (ABSL_PREDICT_FALSE(stream_pos < 0)) {
-      FailOperation("ostream::tellp()");
+    if (stream_pos < 0) {
+      // Random access is not supported. Assume 0 as the initial position.
       return;
     }
     set_start_pos(IntCast<Position>(stream_pos));
+    // `std::ostream::tellp()` succeeded, and `std::ostream::seekp()` will be
+    // checked later.
+    supports_random_access_ = LazyBoolState::kUnknown;
   }
+}
+
+bool OstreamWriterBase::supports_random_access() {
+  switch (supports_random_access_) {
+    case LazyBoolState::kFalse:
+      return false;
+    case LazyBoolState::kTrue:
+      return true;
+    case LazyBoolState::kUnknown:
+      break;
+  }
+  RIEGELI_ASSERT(is_open())
+      << "Failed invariant of OstreamWriterBase: "
+         "unresolved supports_random_access_ but object closed";
+  std::ostream& dest = *dest_stream();
+  bool supported = false;
+  dest.seekp(0, std::ios_base::end);
+  if (dest.fail()) {
+    dest.clear(dest.rdstate() & ~std::ios_base::failbit);
+  } else {
+    errno = 0;
+    dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+    if (ABSL_PREDICT_FALSE(dest.fail())) {
+      FailOperation("ostream::seekp()");
+    } else {
+      supported = true;
+    }
+  }
+  supports_random_access_ =
+      supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
+  return supported;
 }
 
 void OstreamWriterBase::Done() {
@@ -125,7 +162,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return Fail(
         absl::UnimplementedError("OstreamWriterBase::Seek() not supported"));
   }
@@ -160,7 +197,7 @@ bool OstreamWriterBase::SeekSlow(Position new_pos) {
 
 absl::optional<Position> OstreamWriterBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!random_access_)) {
+  if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     Fail(absl::UnimplementedError("OstreamWriterBase::Size() not supported"));
     return absl::nullopt;
   }

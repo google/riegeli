@@ -41,13 +41,14 @@ class OstreamWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, `OstreamWriter` will initially get the current stream
-    // position. The stream must support random access and the `OstreamWriter`
-    // will support random access.
+    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // to the current stream position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the stream supports
+    // random access.
     //
-    // If not `absl::nullopt`, this stream position will be assumed initially.
-    // The stream does not have to support random access and the `OstreamWriter`
-    // will not support random access.
+    // If not `absl::nullopt`, this position is assumed initially, to be
+    // reported by `pos()`. It does not need to correspond to the current stream
+    // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
@@ -84,35 +85,50 @@ class OstreamWriterBase : public BufferedWriter {
   virtual std::ostream* dest_stream() = 0;
   virtual const std::ostream* dest_stream() const = 0;
 
-  bool SupportsRandomAccess() override { return random_access_; }
+  bool SupportsRandomAccess() override { return supports_random_access(); }
   absl::optional<Position> Size() override;
 
  protected:
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+
   OstreamWriterBase() noexcept {}
 
-  explicit OstreamWriterBase(size_t buffer_size, bool random_access);
+  explicit OstreamWriterBase(size_t buffer_size);
 
   OstreamWriterBase(OstreamWriterBase&& that) noexcept;
   OstreamWriterBase& operator=(OstreamWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, bool random_access);
+  void Reset(size_t buffer_size);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
+  bool supports_random_access();
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
   bool FlushInternal();
 
-  bool random_access_ = false;
+  // Whether random access is supported, as detected by calling
+  // `std::ostream::tellp()` and `std::ostream::seekp()` to the end and back.
+  //
+  // `std::ostream::tellp()` is called during initialization;
+  // `std::ostream::seekp()` is called lazily.
+  //
+  // Invariant:
+  //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`
+  LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   // Invariant: `start_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
 
-// A `Writer` which writes to a `std::ostream`. It supports random access and
-// requires the stream to support random access if
-// `Options::assumed_pos() == absl::nullopt`.
+// A `Writer` which writes to a `std::ostream`.
+//
+// `OstreamWriter` supports random access if
+// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// access (this is checked by calling `std::ostream::tellp()` and
+// `std::ostream::seekp()` to the end and back).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the stream being written to. `Dest` must support
@@ -192,9 +208,8 @@ explicit OstreamWriter(
 
 // Implementation details follow.
 
-inline OstreamWriterBase::OstreamWriterBase(size_t buffer_size,
-                                            bool random_access)
-    : BufferedWriter(buffer_size), random_access_(random_access) {
+inline OstreamWriterBase::OstreamWriterBase(size_t buffer_size)
+    : BufferedWriter(buffer_size) {
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -204,25 +219,25 @@ inline OstreamWriterBase::OstreamWriterBase(OstreamWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      random_access_(that.random_access_) {}
+      supports_random_access_(that.supports_random_access_) {}
 
 inline OstreamWriterBase& OstreamWriterBase::operator=(
     OstreamWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  random_access_ = that.random_access_;
+  supports_random_access_ = that.supports_random_access_;
   return *this;
 }
 
 inline void OstreamWriterBase::Reset() {
   BufferedWriter::Reset();
-  random_access_ = false;
+  supports_random_access_ = LazyBoolState::kFalse;
 }
 
-inline void OstreamWriterBase::Reset(size_t buffer_size, bool random_access) {
+inline void OstreamWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
-  random_access_ = random_access;
+  supports_random_access_ = LazyBoolState::kFalse;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -230,17 +245,13 @@ inline void OstreamWriterBase::Reset(size_t buffer_size, bool random_access) {
 
 template <typename Dest>
 inline OstreamWriter<Dest>::OstreamWriter(const Dest& dest, Options options)
-    : OstreamWriterBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      dest_(dest) {
+    : OstreamWriterBase(options.buffer_size()), dest_(dest) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline OstreamWriter<Dest>::OstreamWriter(Dest&& dest, Options options)
-    : OstreamWriterBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      dest_(std::move(dest)) {
+    : OstreamWriterBase(options.buffer_size()), dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
@@ -248,9 +259,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline OstreamWriter<Dest>::OstreamWriter(std::tuple<DestArgs...> dest_args,
                                           Options options)
-    : OstreamWriterBase(options.buffer_size(),
-                        options.assumed_pos() == absl::nullopt),
-      dest_(std::move(dest_args)) {
+    : OstreamWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.assumed_pos());
 }
 
@@ -279,16 +288,14 @@ inline void OstreamWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void OstreamWriter<Dest>::Reset(const Dest& dest, Options options) {
-  OstreamWriterBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  OstreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
   Initialize(dest_.get(), options.assumed_pos());
 }
 
 template <typename Dest>
 inline void OstreamWriter<Dest>::Reset(Dest&& dest, Options options) {
-  OstreamWriterBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  OstreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.assumed_pos());
 }
@@ -297,8 +304,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void OstreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                        Options options) {
-  OstreamWriterBase::Reset(options.buffer_size(),
-                           options.assumed_pos() == absl::nullopt);
+  OstreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.assumed_pos());
 }

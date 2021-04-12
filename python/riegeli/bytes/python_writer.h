@@ -36,18 +36,20 @@
 namespace riegeli {
 namespace python {
 
-// A `Writer` which writes to a Python binary I/O stream. It supports random
-// access if `Options::assumed_pos() == absl::nullopt`.
+// A `Writer` which writes to a Python binary I/O stream.
 //
 // The stream must support:
 //  * `close()`          - for `Close()` if `Options::owns_dest()`
 //  * `write(bytes)`
 //  * `flush()`          - for `Flush()`
-//  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
-//                         or for `Seek()`, `Size()`, or `Truncate()`
-//  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
-//                         or for `Seek()`, `Size()`, or `Truncate()`
+//  * `seekable()`
+//  * `seek(int[, int])` - for `Seek()`, `Size()`, or `Truncate()`
+//  * `tell()`           - for `Seek()`, `Size()`, or `Truncate()`
 //  * `truncate()`       - for `Truncate()`
+//
+// `PythonWriter` supports random access if
+// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// access (this is checked by calling `seekable()`).
 class PythonWriter : public BufferedWriter {
  public:
   class Options {
@@ -68,11 +70,14 @@ class PythonWriter : public BufferedWriter {
     }
     bool owns_dest() const { return owns_dest_; }
 
-    // If `absl::nullopt`, `PythonWriter` will initially get the current file
-    // position. The file must be seekable.
+    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // to the current stream position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the stream supports
+    // random access.
     //
-    // If not `absl::nullopt`, this file position will be assumed initially. The
-    // file does not have to be seekable.
+    // If not `absl::nullopt`, this position is assumed initially, to be
+    // reported by `pos()`. It does not need to correspond to the current stream
+    // position. Random access is not supported.
     //
     // Default: `absl::nullopt`.
     Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
@@ -84,7 +89,7 @@ class PythonWriter : public BufferedWriter {
     }
     absl::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // Tunes how much data is buffered before writing to the file.
+    // Tunes how much data is buffered before writing to the stream.
     //
     // Default: `kDefaultBufferSize` (64K).
     Options& set_buffer_size(size_t buffer_size) & {
@@ -114,15 +119,15 @@ class PythonWriter : public BufferedWriter {
   PythonWriter(PythonWriter&& that) noexcept;
   PythonWriter& operator=(PythonWriter&& that) noexcept;
 
-  // Returns a borrowed reference to the file being written to.
+  // Returns a borrowed reference to the stream being written to.
   PyObject* dest() const { return dest_.get(); }
 
   const Exception& exception() const { return exception_; }
 
   bool Flush(FlushType flush_type) override;
-  bool SupportsRandomAccess() override { return random_access_; }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
-  bool SupportsTruncate() override { return random_access_; }
+  bool SupportsTruncate() override { return supports_random_access_; }
   bool Truncate(Position new_size) override;
 
   // For implementing `tp_traverse` of objects containing `PythonWriter`.
@@ -139,7 +144,7 @@ class PythonWriter : public BufferedWriter {
 
   PythonPtrLocking dest_;
   bool owns_dest_ = false;
-  bool random_access_ = false;
+  bool supports_random_access_ = false;
   Exception exception_;
   PythonPtrLocking write_function_;
   bool use_bytes_ = false;
@@ -151,7 +156,7 @@ inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
       // part was moved.
       dest_(std::move(that.dest_)),
       owns_dest_(that.owns_dest_),
-      random_access_(that.random_access_),
+      supports_random_access_(that.supports_random_access_),
       exception_(std::move(that.exception_)),
       write_function_(std::move(that.write_function_)),
       use_bytes_(that.use_bytes_) {}
@@ -162,7 +167,7 @@ inline PythonWriter& PythonWriter::operator=(PythonWriter&& that) noexcept {
   // was moved.
   dest_ = std::move(that.dest_);
   owns_dest_ = that.owns_dest_;
-  random_access_ = that.random_access_;
+  supports_random_access_ = that.supports_random_access_;
   exception_ = std::move(that.exception_);
   write_function_ = std::move(that.write_function_);
   use_bytes_ = that.use_bytes_;

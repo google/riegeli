@@ -14,6 +14,7 @@
 
 import abc
 import contextlib
+from enum import Enum
 import io
 import itertools
 
@@ -43,12 +44,21 @@ def combine_named_parameters(*testcase_sets):
     yield tuple([key] + values)
 
 
+class RandomAccess(Enum):
+  RANDOM_ACCESS = 1
+  SEQUENTIAL_ACCESS_DETECTED = 2
+  SEQUENTIAL_ACCESS_EXPLICIT = 3
+
+
 class FakeFile(object):
 
   __slots__ = ('_random_access',)
 
   def __init__(self, random_access):
     self._random_access = random_access
+
+  def seekable(self):
+    return self._random_access
 
   def tell(self):
     if self._random_access:
@@ -65,6 +75,9 @@ class UnseekableWrapper(object):
 
   def __init__(self, wrapped):
     self._wrapped = wrapped
+
+  def seekable(self):
+    return False
 
   def tell(self, *args):
     raise NotImplementedError('tell()')
@@ -91,7 +104,7 @@ class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
   def writing_open(self):
     self._open_for_writing()
     logging.debug('Opened %r for writing', self._file)
-    if self._random_access:
+    if self._random_access is RandomAccess.RANDOM_ACCESS:
       return self._file
     else:
       return UnseekableWrapper(self._file)
@@ -102,9 +115,9 @@ class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
 
   @property
   def writing_assumed_pos(self):
-    if self._random_access:
-      return None
-    return 0
+    if self._random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT:
+      return 0
+    return None
 
   @abc.abstractmethod
   def _open_for_reading(self):
@@ -113,7 +126,7 @@ class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
   def reading_open(self):
     self._open_for_reading()
     logging.debug('Opened %r for reading', self._file)
-    if self._random_access:
+    if self._random_access is RandomAccess.RANDOM_ACCESS:
       return self._file
     else:
       return UnseekableWrapper(self._file)
@@ -124,9 +137,9 @@ class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
 
   @property
   def reading_assumed_pos(self):
-    if self._random_access:
-      return None
-    return 0
+    if self._random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT:
+      return 0
+    return None
 
   def close(self):
     pass
@@ -227,8 +240,10 @@ _FILE_SPEC_VALUES = (('BytesIO', BytesIOSpec),
                      ('BuiltinFile', BuiltinFileSpec),
                      ('TensorFlowGFile', TensorFlowGFileSpec))
 
-_RANDOM_ACCESS_VALUES = (('randomAccess', True),
-                         ('streamAccess', False))
+_RANDOM_ACCESS_VALUES = (
+    ('randomAccess', RandomAccess.RANDOM_ACCESS),
+    ('sequentialAccessDetected', RandomAccess.SEQUENTIAL_ACCESS_DETECTED),
+    ('sequentialAccessExplicit', RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT))
 
 _PARALLELISM_VALUES = (('serial', 0),
                        ('parallel', 10))
@@ -276,21 +291,26 @@ class RecordsTest(parameterized.TestCase):
 
   @_PARAMETERIZE_BY_RANDOM_ACCESS_AND_PARALLELISM
   def test_record_writer_exception_from_file(self, random_access, parallelism):
-    byte_writer = FakeFile(random_access)
+    byte_writer = FakeFile(random_access is RandomAccess.RANDOM_ACCESS)
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordWriter(
           byte_writer,
-          assumed_pos=None if random_access else 0,
+          assumed_pos=(0 if
+                       random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
+                       else None),
           options=record_writer_options(parallelism)) as writer:
         writer.write_record(sample_string(0, 10000))
 
   @_PARAMETERIZE_BY_RANDOM_ACCESS
   def test_record_reader_exception_from_file(self, random_access):
-    byte_reader = FakeFile(random_access)
+    byte_reader = FakeFile(random_access is RandomAccess.RANDOM_ACCESS)
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordReader(
-          byte_reader, owns_src=False,
-          assumed_pos=None if random_access else 0) as reader:
+          byte_reader,
+          owns_src=False,
+          assumed_pos=(0 if
+                       random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
+                       else None)) as reader:
         reader.read_record()
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
@@ -487,7 +507,9 @@ class RecordsTest(parameterized.TestCase):
   def test_write_read_messages_with_field_projection_later(
       self, file_spec, parallelism):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -632,7 +654,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
   def test_seek(self, file_spec, parallelism):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
@@ -690,7 +714,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
   def test_seek_numeric(self, file_spec, parallelism):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
@@ -748,7 +774,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_seek_back(self, file_spec):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -770,7 +798,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_search(self, file_spec):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -805,7 +835,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_search_for_record(self, file_spec):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -840,7 +872,9 @@ class RecordsTest(parameterized.TestCase):
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_search_for_message(self, file_spec):
     with contextlib.closing(
-        file_spec(self.create_tempfile, random_access=True)) as files:
+        file_spec(
+            self.create_tempfile,
+            random_access=RandomAccess.RANDOM_ACCESS)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,

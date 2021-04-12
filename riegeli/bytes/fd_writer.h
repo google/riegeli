@@ -93,7 +93,9 @@ class FdWriterBase : public internal::FdWriterCommon {
     mode_t permissions() const { return permissions_; }
 
     // If `absl::nullopt`, the current position reported by `pos()` corresponds
-    // to the current fd position. Random access is supported.
+    // to the current fd position if possible, otherwise 0 is assumed as the
+    // initial position. Random access is supported if the fd supports random
+    // access.
     //
     // If not `absl::nullopt`, this position is assumed initially, to be
     // reported by `pos()`. It does not need to correspond to the current fd
@@ -288,14 +290,16 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 //  * `close()`     - if the fd is owned
 //  * `write()`     - if `Options::independent_pos() == absl::nullopt`
 //  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
-//  * `lseek()`     - if `Options::assumed_pos() == absl::nullopt`
-//                    and `Options::independent_pos() == absl::nullopt`
+//  * `lseek()`     - for `Seek()`, `Size()`, or `Truncate()`
+//                    if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
 //  * `ftruncate()` - for `Truncate()`
 //
 // `FdWriter` supports random access if
-// `Options::assumed_pos() == absl::nullopt`.
+// `Options::assumed_pos() == absl::nullopt` and the fd supports random access
+// (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
+// this is checked by calling `lseek()`).
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
@@ -420,6 +424,7 @@ explicit FdWriter(absl::string_view filename, int flags,
 // needed before switching to another writer to the same fd, and `pos()` does
 // not take other writers into account.
 template <typename Dest = OwnedFd>
+ABSL_DEPRECATED("Use FdWriter instead")
 class FdStreamWriter : public FdStreamWriterBase {
  public:
   // Creates a closed `FdStreamWriter`.
