@@ -598,13 +598,17 @@ constexpr T RoundUp(T value) {
 using Position =
     std::common_type_t<size_t, std::make_unsigned_t<std::streamoff>, uint64_t>;
 
-// Specifies how durable data should be.
+// Specifies the scope of flushing data from a writer object, and how durable
+// the data should be (without a guarantee though).
 enum class FlushType {
-  // Just write the data to the corresponding destination, e.g. file.
+  // Flush buffers of the given writer to its destination, and flush the
+  // destination too if it is owned by the writer.
   kFromObject = 0,
-  // Attempt to ensure that data survives process crash.
+  // Flush in-process buffers of the writer and its chain of destinations.
+  // Data survives process crash.
   kFromProcess = 1,
-  // Attempt to ensure that data survives operating system crash.
+  // Flush in-process buffers of the writer and its chain of destinations and
+  // make data durable. Data survives operating system crash.
   kFromMachine = 2,
 };
 

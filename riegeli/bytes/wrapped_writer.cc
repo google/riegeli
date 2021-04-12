@@ -138,15 +138,6 @@ bool WrappedWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool WrappedWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  SyncBuffer(dest);
-  const bool ok = dest.Flush(flush_type);
-  MakeBuffer(dest);
-  return ok;
-}
-
 absl::optional<Position> WrappedWriterBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer& dest = *dest_writer();

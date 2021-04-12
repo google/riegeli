@@ -167,15 +167,6 @@ bool LimitingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool LimitingWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Flush(flush_type);
-  MakeBuffer(dest);
-  return ok;
-}
-
 absl::optional<Position> LimitingWriterBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer& dest = *dest_writer();

@@ -43,7 +43,6 @@ class DigestingWriterBase : public Writer {
   virtual const Writer* dest_writer() const = 0;
 
   bool PrefersCopying() const override;
-  bool Flush(FlushType flush_type) override;
 
  protected:
   explicit DigestingWriterBase(InitiallyClosed) noexcept
@@ -180,6 +179,8 @@ class DigestingWriter : public DigestingWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -363,6 +364,18 @@ DigestingWriter<Digester, Dest>::Digest() {
     set_buffer(cursor(), available());
   }
   return internal::DigesterDigest(digester_);
+}
+
+template <typename Digester, typename Dest>
+bool DigestingWriter<Digester, Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  SyncBuffer(*dest_);
+  bool ok = true;
+  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+    ok = dest_->Flush(flush_type);
+  }
+  MakeBuffer(*dest_);
+  return ok;
 }
 
 template <typename Digester, typename Dest>

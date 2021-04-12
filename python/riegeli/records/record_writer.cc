@@ -236,10 +236,10 @@ static int RecordWriterClear(PyRecordWriterObject* self) {
 static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
                             PyObject* kwargs) {
   static constexpr const char* keywords[] = {
-      "dest",    "close",    "assumed_pos",         "buffer_size",
-      "options", "metadata", "serialized_metadata", nullptr};
+      "dest",    "owns_dest", "assumed_pos",         "buffer_size",
+      "options", "metadata",  "serialized_metadata", nullptr};
   PyObject* dest_arg;
-  PyObject* close_arg = nullptr;
+  PyObject* owns_dest_arg = nullptr;
   PyObject* assumed_pos_arg = nullptr;
   PyObject* buffer_size_arg = nullptr;
   PyObject* options_arg = nullptr;
@@ -247,16 +247,16 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   PyObject* serialized_metadata_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
           args, kwargs, "O|$OOOOOO:RecordWriter", const_cast<char**>(keywords),
-          &dest_arg, &close_arg, &assumed_pos_arg, &buffer_size_arg,
+          &dest_arg, &owns_dest_arg, &assumed_pos_arg, &buffer_size_arg,
           &options_arg, &metadata_arg, &serialized_metadata_arg))) {
     return -1;
   }
 
   PythonWriter::Options python_writer_options;
-  if (close_arg != nullptr) {
-    const int close_is_true = PyObject_IsTrue(close_arg);
-    if (ABSL_PREDICT_FALSE(close_is_true < 0)) return -1;
-    python_writer_options.set_close(close_is_true != 0);
+  if (owns_dest_arg != nullptr) {
+    const int owns_dest_is_true = PyObject_IsTrue(owns_dest_arg);
+    if (ABSL_PREDICT_FALSE(owns_dest_is_true < 0)) return -1;
+    python_writer_options.set_owns_dest(owns_dest_is_true != 0);
   }
   if (assumed_pos_arg != nullptr && assumed_pos_arg != Py_None) {
     const absl::optional<Position> assumed_pos =
@@ -817,7 +817,7 @@ This degrades compression density if used too often.
 
 Args:
   flush_type: What more to attempt to ensure:
-   * FlushType.FROM_OBJECT: Data is written to the file object.
+   * FlushType.FROM_OBJECT: Flushes the file object too if it is owned.
    * FlushType.FROM_PROCESS: Data survives process crash.
    * FlushType.FROM_MACHINE: Data survives operating system crash.
 )doc"},
@@ -882,7 +882,7 @@ PyTypeObject PyRecordWriter_Type = {
 RecordWriter(
     dest: BinaryIO,
     *,
-    close: bool = True,
+    owns_dest: bool = True,
     assumed_pos: Optional[int] = None,
     buffer_size: int = 64 << 10,
     options: Union[str, bytes] = '',
@@ -894,8 +894,9 @@ Will write to the given file.
 
 Args:
   dest: Binary IO stream to write to.
-  close: If True, dest is owned, and close() or __exit__() will call
-    dest.close().
+  owns_dest: If True, dest is owned, close() or __exit__() calls dest.close(),
+    and flush(flush_type) calls dest.flush() even if flush_type is
+    FlushType.FROM_OBJECT.
   assumed_pos: If None, dest must support random access. If an int, it is enough
     that dest supports sequential access, and this position will be assumed
     initially.
@@ -910,17 +911,18 @@ Args:
     already serialized. This conflicts with metadata.
 
 The dest argument should be a binary IO stream which supports:
- * close()          - for close() or __exit__() unless close is False
+ * close()          - for close() or __exit__() if owns_dest
  * write(bytes)
- * flush()          - for flush(FlushType.FROM_{PROCESS,MACHINE})
+ * flush()          - for flush()
  * seek(int[, int]) - if assumed_pos is None
  * tell()           - if assumed_pos is None
 
 Example values for dest (possibly with 'ab' instead of 'wb' for appending):
  * io.FileIO(filename, 'wb')
- * io.open(filename, 'wb') - better with buffering=0 or use io.FileIO()
- * open(filename, 'wb') - better with buffering=0 or use io.FileIO()
- * io.BytesIO() - use close=False to access dest after closing the RecordWriter
+ * io.open(filename, 'wb') - better with buffering=0, or use io.FileIO() instead
+ * open(filename, 'wb')    - better with buffering=0, or use io.FileIO() instead
+ * io.BytesIO()            - use owns_dest=False to access dest after closing
+                             the RecordWriter
  * tf.io.gfile.GFile(filename, 'wb')
 
 Options are documented at

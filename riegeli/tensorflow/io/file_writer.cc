@@ -198,30 +198,5 @@ void FileWriterBase::WriteHintSlow(size_t length) {
   set_buffer(buffer_.data(), buffer_length);
 }
 
-bool FileWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  ::tensorflow::WritableFile* const dest = dest_file();
-  switch (flush_type) {
-    case FlushType::kFromObject:
-      return true;
-    case FlushType::kFromProcess: {
-      const ::tensorflow::Status status = dest->Flush();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation(status, "WritableFile::Flush()");
-      }
-    }
-      return true;
-    case FlushType::kFromMachine: {
-      const ::tensorflow::Status status = dest->Sync();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return FailOperation(status, "WritableFile::Sync()");
-      }
-    }
-      return true;
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
-}
-
 }  // namespace tensorflow
 }  // namespace riegeli

@@ -111,7 +111,6 @@ class FileWriterBase : public Writer {
 
   using Writer::Fail;
   bool Fail(absl::Status status) override;
-  bool Flush(FlushType flush_type) override;
 
  protected:
   FileWriterBase() noexcept : Writer(kInitiallyClosed) {}
@@ -215,6 +214,8 @@ class FileWriter : public FileWriterBase {
   Dest& dest() { return dest_.manager(); }
   const Dest& dest() const { return dest_.manager(); }
   ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -395,6 +396,32 @@ void FileWriter<Dest>::Done() {
       }
     }
   }
+}
+
+template <typename Dest>
+bool FileWriter<Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  switch (flush_type) {
+    case FlushType::kFromObject:
+      if (!dest_.is_owning()) return true;
+      ABSL_FALLTHROUGH_INTENDED;
+    case FlushType::kFromProcess: {
+      const ::tensorflow::Status status = dest_->Flush();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "WritableFile::Flush()");
+      }
+    }
+      return true;
+    case FlushType::kFromMachine: {
+      const ::tensorflow::Status status = dest_->Sync();
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "WritableFile::Sync()");
+      }
+    }
+      return true;
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
 }  // namespace tensorflow

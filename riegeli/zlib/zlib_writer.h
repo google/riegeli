@@ -189,8 +189,6 @@ class ZlibWriterBase : public BufferedWriter {
   using BufferedWriter::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  bool Flush(FlushType flush_type) override;
-
  protected:
   ZlibWriterBase() noexcept {}
 
@@ -208,6 +206,7 @@ class ZlibWriterBase : public BufferedWriter {
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
+  bool FlushInternal();
 
  private:
   struct ZStreamDeleter {
@@ -293,6 +292,8 @@ class ZlibWriter : public ZlibWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -445,6 +446,15 @@ void ZlibWriter<Dest>::Done() {
   if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
+}
+
+template <typename Dest>
+bool ZlibWriter<Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
+  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+  }
+  return true;
 }
 
 }  // namespace riegeli

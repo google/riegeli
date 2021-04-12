@@ -110,24 +110,15 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool OstreamWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  switch (flush_type) {
-    case FlushType::kFromObject:
-      return true;
-    case FlushType::kFromProcess:
-    case FlushType::kFromMachine: {
-      std::ostream& dest = *dest_stream();
-      errno = 0;
-      dest.flush();
-      if (ABSL_PREDICT_FALSE(dest.fail())) {
-        return FailOperation("ostream::flush()");
-      }
-      return true;
-    }
-  }
-  RIEGELI_ASSERT_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
+bool OstreamWriterBase::FlushInternal() {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of OstreamWriterBase::FlushInternal(): "
+      << status();
+  std::ostream& dest = *dest_stream();
+  errno = 0;
+  dest.flush();
+  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::flush()");
+  return true;
 }
 
 bool OstreamWriterBase::SeekSlow(Position new_pos) {

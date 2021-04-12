@@ -39,10 +39,10 @@ namespace python {
 // A `Writer` which writes to a Python binary I/O stream. It supports random
 // access if `Options::assumed_pos() == absl::nullopt`.
 //
-// The file must support:
-//  * `close()`          - for `Close()` if `Options::close()`
+// The stream must support:
+//  * `close()`          - for `Close()` if `Options::owns_dest()`
 //  * `write(bytes)`
-//  * `flush()`          - for `Flush(FlushType::kFrom{Process,Machine})`
+//  * `flush()`          - for `Flush()`
 //  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()`, `Size()`, or `Truncate()`
 //  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
@@ -54,15 +54,19 @@ class PythonWriter : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `true`, the file will be closed when the `PythonWriter` is closed.
+    // If `true`, `PythonWriter::Close()` closes the stream, and
+    // `PythonWriter::Flush(flush_type)` flushes the stream even if `flush_type`
+    // is `FlushType::kFromObject`.
     //
     // Default: `true`.
-    Options& set_close(bool close) & {
-      close_ = close;
+    Options& set_owns_dest(bool owns_dest) & {
+      owns_dest_ = owns_dest;
       return *this;
     }
-    Options&& set_close(bool close) && { return std::move(set_close(close)); }
-    bool close() const { return close_; }
+    Options&& set_owns_dest(bool owns_dest) && {
+      return std::move(set_owns_dest(owns_dest));
+    }
+    bool owns_dest() const { return owns_dest_; }
 
     // If `absl::nullopt`, `PythonWriter` will initially get the current file
     // position. The file must be seekable.
@@ -96,7 +100,7 @@ class PythonWriter : public BufferedWriter {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
-    bool close_ = true;
+    bool owns_dest_ = true;
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -134,7 +138,7 @@ class PythonWriter : public BufferedWriter {
   absl::optional<Position> SizeInternal();
 
   PythonPtrLocking dest_;
-  bool close_ = false;
+  bool owns_dest_ = false;
   bool random_access_ = false;
   Exception exception_;
   PythonPtrLocking write_function_;
@@ -146,7 +150,7 @@ inline PythonWriter::PythonWriter(PythonWriter&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       dest_(std::move(that.dest_)),
-      close_(that.close_),
+      owns_dest_(that.owns_dest_),
       random_access_(that.random_access_),
       exception_(std::move(that.exception_)),
       write_function_(std::move(that.write_function_)),
@@ -157,7 +161,7 @@ inline PythonWriter& PythonWriter::operator=(PythonWriter&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   dest_ = std::move(that.dest_);
-  close_ = that.close_;
+  owns_dest_ = that.owns_dest_;
   random_access_ = that.random_access_;
   exception_ = std::move(that.exception_);
   write_function_ = std::move(that.write_function_);

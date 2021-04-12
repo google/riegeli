@@ -29,6 +29,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -43,7 +44,7 @@ namespace python {
 
 PythonWriter::PythonWriter(PyObject* dest, Options options)
     : BufferedWriter(options.buffer_size()),
-      close_(options.close()),
+      owns_dest_(options.owns_dest()),
       random_access_(options.assumed_pos() == absl::nullopt) {
   PythonLock::AssertHeld();
   Py_INCREF(dest);
@@ -86,7 +87,7 @@ bool PythonWriter::FailOperation(absl::string_view operation) {
 void PythonWriter::Done() {
   PushInternal();
   BufferedWriter::Done();
-  if (close_ && dest_ != nullptr) {
+  if (owns_dest_ && dest_ != nullptr) {
     PythonLock lock;
     static constexpr Identifier id_close("close");
     const PythonPtr close_result(
@@ -182,7 +183,8 @@ bool PythonWriter::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
-      return true;
+      if (!owns_dest_) return true;
+      ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
       PythonLock lock;

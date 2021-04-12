@@ -121,15 +121,6 @@ bool WrappedBackwardWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool WrappedBackwardWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter& dest = *dest_writer();
-  SyncBuffer(dest);
-  const bool ok = dest.Flush(flush_type);
-  MakeBuffer(dest);
-  return ok;
-}
-
 bool WrappedBackwardWriterBase::SupportsTruncate() {
   BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();

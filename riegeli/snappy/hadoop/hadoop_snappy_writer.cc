@@ -103,13 +103,11 @@ inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
   return true;
 }
 
-bool HadoopSnappyWriterBase::Flush(FlushType flush_type) {
+bool HadoopSnappyWriterBase::FlushInternal() {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
-  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
-  return true;
+  return PushInternal(dest);
 }
 
 }  // namespace riegeli

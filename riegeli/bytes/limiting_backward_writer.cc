@@ -151,15 +151,6 @@ bool LimitingBackwardWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool LimitingBackwardWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  BackwardWriter& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const bool ok = dest.Flush(flush_type);
-  MakeBuffer(dest);
-  return ok;
-}
-
 bool LimitingBackwardWriterBase::SupportsTruncate() {
   BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->SupportsTruncate();

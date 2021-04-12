@@ -456,14 +456,13 @@ class RecordWriterBase : public Object {
                    FutureRecordPosition* key = nullptr);
   bool WriteRecord(absl::Cord&& record, FutureRecordPosition* key = nullptr);
 
-  // Finalizes any open chunk and pushes buffered data to the `Writer`.
+  // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism()`, waits for any background writing to complete.
   //
   // This degrades compression density if used too often.
   //
   // Additionally, attempts to ensure the following, depending on `flush_type`:
-  //  * `FlushType::kFromObject`  - data is written to the destination of the
-  //                                `Writer`
+  //  * `FlushType::kFromObject`  - flushes the destination too if it is owned
   //  * `FlushType::kFromProcess` - data survives process crash
   //  * `FlushType::kFromMachine` - data survives operating system crash
   //
@@ -495,10 +494,11 @@ class RecordWriterBase : public Object {
 
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
+
+  virtual bool is_owning() const = 0;
+
   void Initialize(ChunkWriter* dest, Options&& options);
-
   void Done() override;
-
   void DoneBackground();
 
  private:
@@ -588,6 +588,8 @@ class RecordWriter : public RecordWriterBase {
 
  protected:
   void Done() override;
+
+  bool is_owning() const override { return dest_.is_owning(); }
 
  private:
   // The object providing and possibly owning the byte `Writer` or

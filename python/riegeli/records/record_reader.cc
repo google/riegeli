@@ -250,26 +250,26 @@ static int RecordReaderClear(PyRecordReaderObject* self) {
 static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
                             PyObject* kwargs) {
   static constexpr const char* keywords[] = {
-      "src",      "close", "assumed_pos", "buffer_size", "field_projection",
+      "src",      "owns_src", "assumed_pos", "buffer_size", "field_projection",
       "recovery", nullptr};
   PyObject* src_arg;
-  PyObject* close_arg = nullptr;
+  PyObject* owns_src_arg = nullptr;
   PyObject* assumed_pos_arg = nullptr;
   PyObject* buffer_size_arg = nullptr;
   PyObject* field_projection_arg = nullptr;
   PyObject* recovery_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
           args, kwargs, "O|$OOOOO:RecordReader", const_cast<char**>(keywords),
-          &src_arg, &close_arg, &assumed_pos_arg, &buffer_size_arg,
+          &src_arg, &owns_src_arg, &assumed_pos_arg, &buffer_size_arg,
           &field_projection_arg, &recovery_arg))) {
     return -1;
   }
 
   PythonReader::Options python_reader_options;
-  if (close_arg != nullptr) {
-    const int close_is_true = PyObject_IsTrue(close_arg);
-    if (ABSL_PREDICT_FALSE(close_is_true < 0)) return -1;
-    python_reader_options.set_close(close_is_true != 0);
+  if (owns_src_arg != nullptr) {
+    const int owns_src_is_true = PyObject_IsTrue(owns_src_arg);
+    if (ABSL_PREDICT_FALSE(owns_src_is_true < 0)) return -1;
+    python_reader_options.set_owns_src(owns_src_is_true != 0);
   }
   if (assumed_pos_arg != nullptr && assumed_pos_arg != Py_None) {
     const absl::optional<Position> assumed_pos =
@@ -1287,7 +1287,7 @@ PyTypeObject PyRecordReader_Type = {
 RecordReader(
     src: BinaryIO,
     *,
-    close: bool = True,
+    owns_src: bool = True,
     assumed_pos: Optional[int] = None,
     buffer_size: int = 64 << 10,
     field_projection: Optional[Iterable[Iterable[int]]] = None,
@@ -1297,7 +1297,7 @@ Will read from the given file.
 
 Args:
   src: Binary IO stream to read from.
-  close: If True, src is owned, and close() or __exit__() will call src.close().
+  owns_src: If True, src is owned, and close() or __exit__() calls src.close().
   assumed_pos: If None, src must support random access, RecordReader will
     support random access, and RecordReader will set the position of src on
     close(). If an int, it is enough that src supports sequential access, and
@@ -1323,7 +1323,7 @@ Args:
     function is called if set; the RecordReader remains closed.
 
 The src argument should be a binary IO stream which supports:
- * close()          - for close() or __exit__() unless close is False
+ * close()          - for close() or __exit__() if owns_src
  * readinto1(memoryview) or readinto(memoryview) or read1(int) or read(int)
  * seek(int[, int]) - if assumed_pos is None,
                       or for seek(), seek_numeric(), or size()
@@ -1332,12 +1332,12 @@ The src argument should be a binary IO stream which supports:
 
 Example values for src:
  * io.FileIO(filename, 'rb')
- * io.open(filename, 'rb') - better with buffering=0 or use io.FileIO()
- * open(filename, 'rb') - better with buffering=0 or use io.FileIO()
+ * io.open(filename, 'rb') - better with buffering=0, or use io.FileIO() instead
+ * open(filename, 'rb')    - better with buffering=0, or use io.FileIO() instead
  * io.BytesIO(contents)
  * tf.io.gfile.GFile(filename, 'rb')
 
-Warning: if close is False and assumed_pos is not None, src will have an
+Warning: if owns_src is False and assumed_pos is not None, src will have an
 unpredictable amount of extra data consumed because of buffering.
 )doc",                                                              // tp_doc
     reinterpret_cast<traverseproc>(RecordReaderTraverse),  // tp_traverse

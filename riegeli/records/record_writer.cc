@@ -808,7 +808,9 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
     return Fail(*worker_);
   }
-  if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) return Fail(*worker_);
+  if (flush_type != FlushType::kFromObject || is_owning()) {
+    if (ABSL_PREDICT_FALSE(!worker_->Flush(flush_type))) return Fail(*worker_);
+  }
   if (chunk_size_so_far_ != 0) {
     worker_->OpenChunk();
     chunk_size_so_far_ = 0;

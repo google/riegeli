@@ -123,15 +123,6 @@ bool DigestingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-bool DigestingWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  SyncBuffer(dest);
-  const bool ok = dest.Flush(flush_type);
-  MakeBuffer(dest);
-  return ok;
-}
-
 inline void DigestingWriterBase::DigesterWrite(const Chain& src) {
   for (const absl::string_view fragment : src.blocks()) {
     DigesterWrite(fragment);

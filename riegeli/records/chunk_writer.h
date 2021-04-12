@@ -64,7 +64,7 @@ class ChunkWriter : public Object {
   //
   // Additionally, attempts to ensure the following, depending on `flush_type`
   // (without a guarantee though):
-  //  * `FlushType::kFromObject`  - nothing
+  //  * `FlushType::kFromObject`  - flushes the destination too if it is owned
   //  * `FlushType::kFromProcess` - data survives process crash
   //  * `FlushType::kFromMachine` - data survives operating system crash
   //
@@ -120,7 +120,6 @@ class DefaultChunkWriterBase : public ChunkWriter {
 
   bool WriteChunk(const Chunk& chunk) override;
   bool PadToBlockBoundary() override;
-  bool Flush(FlushType flush_type) override;
 
  protected:
   explicit DefaultChunkWriterBase(InitiallyClosed)
@@ -187,6 +186,8 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -328,6 +329,15 @@ void DefaultChunkWriter<Dest>::Done() {
   if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
+}
+
+template <typename Dest>
+bool DefaultChunkWriter<Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+  }
+  return true;
 }
 
 }  // namespace riegeli

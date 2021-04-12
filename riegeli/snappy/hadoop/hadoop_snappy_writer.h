@@ -71,8 +71,6 @@ class HadoopSnappyWriterBase : public PushableWriter {
   using PushableWriter::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  bool Flush(FlushType flush_type) override;
-
  protected:
   HadoopSnappyWriterBase() noexcept : PushableWriter(kInitiallyClosed) {}
 
@@ -87,6 +85,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
+  bool FlushInternal();
 
  private:
   // Compresses buffered data, but unlike `PushSlow()`, does not ensure that a
@@ -154,6 +153,8 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -292,6 +293,15 @@ void HadoopSnappyWriter<Dest>::Done() {
   if (dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Close())) Fail(*dest_);
   }
+}
+
+template <typename Dest>
+bool HadoopSnappyWriter<Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
+  if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
+    if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
+  }
+  return true;
 }
 
 }  // namespace riegeli

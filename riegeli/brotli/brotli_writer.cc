@@ -175,16 +175,12 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
   }
 }
 
-bool BrotliWriterBase::Flush(FlushType flush_type) {
+bool BrotliWriterBase::FlushInternal() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
-  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, BROTLI_OPERATION_FLUSH))) {
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
-  return true;
+  return WriteInternal(data, dest, BROTLI_OPERATION_FLUSH);
 }
 
 }  // namespace riegeli

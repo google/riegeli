@@ -151,11 +151,4 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
   return WriteChunk(chunk);
 }
 
-bool DefaultChunkWriterBase::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
-  return true;
-}
-
 }  // namespace riegeli

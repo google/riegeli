@@ -289,8 +289,8 @@ class RecordsTest(parameterized.TestCase):
     byte_reader = FakeFile(random_access)
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordReader(
-          byte_reader, assumed_pos=None if random_access else 0,
-          close=False) as reader:
+          byte_reader, owns_src=False,
+          assumed_pos=None if random_access else 0) as reader:
         reader.read_record()
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
@@ -299,14 +299,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(23):
           self.assertEqual(reader.read_record(), sample_string(i, 10000))
@@ -320,7 +320,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -334,7 +334,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(23):
           pos = reader.pos
@@ -352,14 +352,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(23):
           self.assertEqual(
@@ -375,7 +375,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -389,7 +389,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(23):
           pos = reader.pos
@@ -409,13 +409,13 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         writer.write_records(sample_string(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         self.assertEqual(
             list(reader.read_records()),
@@ -428,14 +428,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         keys = writer.write_records_with_keys(
             sample_string(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         self.assertEqual(
             list(reader.read_records_with_keys()),
@@ -447,13 +447,13 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         writer.write_messages(sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         self.assertEqual(
             list(reader.read_messages(records_test_pb2.SimpleMessage)),
@@ -467,13 +467,13 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism, transpose=True)) as writer:
         writer.write_messages(sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           field_projection=[[
               records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
@@ -490,13 +490,13 @@ class RecordsTest(parameterized.TestCase):
         file_spec(self.create_tempfile, random_access=True)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism, transpose=True)) as writer:
         writer.write_messages(sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(4):
           self.assertEqual(
@@ -524,14 +524,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         keys = writer.write_messages_with_keys(
             sample_message(i, 10000) for i in range(23))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         self.assertEqual(
             list(
@@ -548,14 +548,14 @@ class RecordsTest(parameterized.TestCase):
       message_written = sample_message(7, 10)
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism),
           metadata=metadata_written) as writer:
         writer.write_message(message_written)
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         metadata_read = reader.read_metadata()
         self.assertEqual(metadata_read, metadata_written)
@@ -577,14 +577,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=f'{record_writer_options(parallelism)},transpose') as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           field_projection=[[
               records_test_pb2.SimpleMessage.DESCRIPTOR.fields_by_name['id']
@@ -603,14 +603,14 @@ class RecordsTest(parameterized.TestCase):
                                       random_access)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=f'{record_writer_options(parallelism)},transpose') as writer:
         for i in range(23):
           writer.write_message(sample_message(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           field_projection=[
               [
@@ -636,7 +636,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -650,7 +650,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         reader.seek(keys[9])
         self.assertGreater(reader.pos, keys[8])
@@ -694,7 +694,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -708,7 +708,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         reader.seek_numeric(keys[9].numeric)
         self.assertGreater(reader.pos, keys[8])
@@ -751,14 +751,14 @@ class RecordsTest(parameterized.TestCase):
         file_spec(self.create_tempfile, random_access=True)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
         reader.seek_numeric(reader.size())
         for i in reversed(range(23)):
@@ -773,7 +773,7 @@ class RecordsTest(parameterized.TestCase):
         file_spec(self.create_tempfile, random_access=True)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
         keys = writer.write_messages_with_keys(
@@ -782,7 +782,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
 
         def test_function(search_target):
@@ -808,7 +808,7 @@ class RecordsTest(parameterized.TestCase):
         file_spec(self.create_tempfile, random_access=True)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
         keys = writer.write_messages_with_keys(
@@ -817,7 +817,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
 
         def test_function(search_target):
@@ -843,7 +843,7 @@ class RecordsTest(parameterized.TestCase):
         file_spec(self.create_tempfile, random_access=True)) as files:
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
         keys = writer.write_messages_with_keys(
@@ -852,7 +852,7 @@ class RecordsTest(parameterized.TestCase):
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
 
         def test_function(search_target):
@@ -882,7 +882,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -892,7 +892,7 @@ class RecordsTest(parameterized.TestCase):
       # Read records [0, 9) successfully (all before the corrupted chunk).
       reader = riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos)
       for i in range(9):
         self.assertEqual(reader.read_record(), sample_string(i, 10000))
@@ -908,7 +908,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -920,7 +920,7 @@ class RecordsTest(parameterized.TestCase):
       skipped_regions = []
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           recovery=skipped_regions.append) as reader:
         for i in range(9):
@@ -941,7 +941,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -957,7 +957,7 @@ class RecordsTest(parameterized.TestCase):
 
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           recovery=recovery) as reader:
         for i in range(9):
@@ -976,7 +976,7 @@ class RecordsTest(parameterized.TestCase):
       keys = []
       with riegeli.RecordWriter(
           files.writing_open(),
-          close=files.writing_should_close,
+          owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
@@ -990,7 +990,7 @@ class RecordsTest(parameterized.TestCase):
 
       with riegeli.RecordReader(
           files.reading_open(),
-          close=files.reading_should_close,
+          owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos,
           recovery=recovery) as reader:
         for i in range(9):

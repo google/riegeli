@@ -84,7 +84,6 @@ class OstreamWriterBase : public BufferedWriter {
   virtual std::ostream* dest_stream() = 0;
   virtual const std::ostream* dest_stream() const = 0;
 
-  bool Flush(FlushType flush_type) override;
   bool SupportsRandomAccess() override { return random_access_; }
   absl::optional<Position> Size() override;
 
@@ -104,6 +103,7 @@ class OstreamWriterBase : public BufferedWriter {
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
+  bool FlushInternal();
 
   bool random_access_ = false;
 
@@ -159,6 +159,8 @@ class OstreamWriter : public OstreamWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   std::ostream* dest_stream() override { return dest_.get(); }
   const std::ostream* dest_stream() const override { return dest_.get(); }
+
+  bool Flush(FlushType flush_type) override;
 
  protected:
   void Done() override;
@@ -309,6 +311,21 @@ void OstreamWriter<Dest>::Done() {
       FailOperation("ostream::close()");
     }
   }
+}
+
+template <typename Dest>
+bool OstreamWriter<Dest>::Flush(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  switch (flush_type) {
+    case FlushType::kFromObject:
+      if (!dest_.is_owning()) return true;
+      ABSL_FALLTHROUGH_INTENDED;
+    case FlushType::kFromProcess:
+    case FlushType::kFromMachine:
+      return FlushInternal();
+  }
+  RIEGELI_ASSERT_UNREACHABLE()
+      << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
 }  // namespace riegeli

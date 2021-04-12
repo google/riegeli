@@ -217,16 +217,12 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
   }
 }
 
-bool ZlibWriterBase::Flush(FlushType flush_type) {
+bool ZlibWriterBase::FlushInternal() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
-  if (ABSL_PREDICT_FALSE(!WriteInternal(data, dest, Z_SYNC_FLUSH))) {
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(!dest.Flush(flush_type))) return Fail(dest);
-  return true;
+  return WriteInternal(data, dest, Z_SYNC_FLUSH);
 }
 
 }  // namespace riegeli

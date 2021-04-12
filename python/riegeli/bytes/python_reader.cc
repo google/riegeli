@@ -20,7 +20,6 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
-#include "absl/types/span.h"
 #include "python/riegeli/bytes/python_reader.h"
 // clang-format: do not reorder the above include.
 
@@ -36,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -45,7 +45,7 @@ namespace python {
 
 PythonReader::PythonReader(PyObject* src, Options options)
     : BufferedReader(options.buffer_size()),
-      close_(options.close()),
+      owns_src_(options.owns_src()),
       random_access_(options.assumed_pos() == absl::nullopt) {
   PythonLock::AssertHeld();
   Py_INCREF(src);
@@ -103,7 +103,7 @@ bool PythonReader::SyncPos() {
 void PythonReader::Done() {
   if (ABSL_PREDICT_TRUE(healthy()) && random_access_) SyncPos();
   BufferedReader::Done();
-  if (close_ && src_ != nullptr) {
+  if (owns_src_ && src_ != nullptr) {
     PythonLock lock;
     static constexpr Identifier id_close("close");
     const PythonPtr close_result(

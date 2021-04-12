@@ -20,7 +20,6 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
-#include "absl/types/span.h"
 #include "python/riegeli/base/utils.h"
 // clang-format: do not reorder the above include.
 
@@ -38,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 

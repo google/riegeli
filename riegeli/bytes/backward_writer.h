@@ -162,7 +162,7 @@ class BackwardWriter : public Object {
   //
   // Additionally, attempts to ensure the following, depending on `flush_type`
   // (without a guarantee though):
-  //  * `FlushType::kFromObject`  - nothing
+  //  * `FlushType::kFromObject`  - flushes the destination too if it is owned
   //  * `FlushType::kFromProcess` - data survives process crash
   //  * `FlushType::kFromMachine` - data survives operating system crash
   //

@@ -39,8 +39,8 @@ namespace python {
 // A `Reader` which reads from a Python binary I/O stream. It supports random
 // access if `Options::assumed_pos() == absl::nullopt`.
 //
-// The file must support:
-//  * `close()`          - for `Close()` if `Options::close()`
+// The stream must support:
+//  * `close()`          - for `Close()` if `Options::owns_src()`
 //  * `readinto1(memoryview)` or `readinto(memoryview)` or `read1(int)` or
 //    `read(int)`
 //  * `seek(int[, int])` - if `Options::assumed_pos() == absl::nullopt`,
@@ -48,7 +48,7 @@ namespace python {
 //  * `tell()`           - if `Options::assumed_pos() == absl::nullopt`,
 //                         or for `Seek()` or `Size()`
 //
-// Warning: with `!Options::close()` and
+// Warning: if `!Options::owns_src()` and
 // `Options::assumed_pos() == absl::nullopt`, the stream will have an
 // unpredictable amount of extra data consumed because of buffering.
 class PythonReader : public BufferedReader {
@@ -57,15 +57,17 @@ class PythonReader : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `true`, the file will be closed when the `PythonReader` is closed.
+    // If `true`, `PythonReader::Close()` closes the stream.
     //
     // Default: `true`.
-    Options& set_close(bool close) & {
-      close_ = close;
+    Options& set_owns_src(bool owns_src) & {
+      owns_src_ = owns_src;
       return *this;
     }
-    Options&& set_close(bool close) && { return std::move(set_close(close)); }
-    bool close() const { return close_; }
+    Options&& set_owns_src(bool owns_src) && {
+      return std::move(set_owns_src(owns_src));
+    }
+    bool owns_src() const { return owns_src_; }
 
     // If `absl::nullopt`, `PythonReader` will initially get the current file
     // position. The file must be seekable.
@@ -99,7 +101,7 @@ class PythonReader : public BufferedReader {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
-    bool close_ = true;
+    bool owns_src_ = true;
     absl::optional<Position> assumed_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
@@ -137,7 +139,7 @@ class PythonReader : public BufferedReader {
   absl::optional<Position> SizeInternal();
 
   PythonPtrLocking src_;
-  bool close_ = false;
+  bool owns_src_ = false;
   bool random_access_ = false;
   Exception exception_;
   PythonPtrLocking read_function_;
@@ -150,7 +152,7 @@ inline PythonReader::PythonReader(PythonReader&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       src_(std::move(that.src_)),
-      close_(that.close_),
+      owns_src_(that.owns_src_),
       random_access_(that.random_access_),
       exception_(std::move(that.exception_)),
       read_function_(std::move(that.read_function_)),
@@ -162,7 +164,7 @@ inline PythonReader& PythonReader::operator=(PythonReader&& that) noexcept {
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   src_ = std::move(that.src_);
-  close_ = that.close_;
+  owns_src_ = that.owns_src_;
   random_access_ = that.random_access_;
   exception_ = std::move(that.exception_);
   read_function_ = std::move(that.read_function_);
