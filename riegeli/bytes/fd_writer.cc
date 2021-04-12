@@ -96,29 +96,29 @@ bool FdWriterCommon::Fail(absl::Status status) {
 }  // namespace internal
 
 void FdWriterBase::InitializePos(int dest,
-                                 absl::optional<Position> initial_pos) {
+                                 absl::optional<Position> independent_pos) {
   int flags = 0;
-  if (initial_pos == absl::nullopt) {
-    // If `initial_pos != absl::nullopt` then `flags` are not needed, so avoid
-    // `fcntl()`.
+  if (independent_pos == absl::nullopt) {
+    // If `independent_pos != absl::nullopt` then `flags` are not needed, so
+    // avoid `fcntl()`.
     flags = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(flags < 0)) {
       FailOperation("fcntl()");
       return;
     }
   }
-  return InitializePos(dest, flags, initial_pos);
+  return InitializePos(dest, flags, independent_pos);
 }
 
 void FdWriterBase::InitializePos(int dest, int flags,
-                                 absl::optional<Position> initial_pos) {
-  if (initial_pos != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(*initial_pos >
+                                 absl::optional<Position> independent_pos) {
+  if (independent_pos != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
       return;
     }
-    set_start_pos(*initial_pos);
+    set_start_pos(*independent_pos);
   } else {
     const off_t file_pos =
         lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
@@ -133,7 +133,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
 inline bool FdWriterBase::SyncPos(int dest) {
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
-  if (sync_pos_) {
+  if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
                            0)) {
       return FailOperation("lseek()");

@@ -123,14 +123,14 @@ bool FdReaderCommon::Fail(absl::Status status) {
 }  // namespace internal
 
 void FdReaderBase::InitializePos(int src,
-                                 absl::optional<Position> initial_pos) {
-  if (initial_pos != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(*initial_pos >
+                                 absl::optional<Position> independent_pos) {
+  if (independent_pos != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*initial_pos);
+    set_limit_pos(*independent_pos);
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
@@ -142,7 +142,7 @@ void FdReaderBase::InitializePos(int src,
 }
 
 inline bool FdReaderBase::SyncPos(int src) {
-  if (sync_pos_) {
+  if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
@@ -319,7 +319,7 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
 }
 
 void FdMMapReaderBase::InitializePos(int src,
-                                     absl::optional<Position> initial_pos) {
+                                     absl::optional<Position> independent_pos) {
   struct stat stat_info;
   if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
     FailOperation("fstat()");
@@ -345,8 +345,8 @@ void FdMMapReaderBase::InitializePos(int src,
       std::forward_as_tuple(),
       absl::string_view(static_cast<const char*>(data),
                         IntCast<size_t>(stat_info.st_size)))));
-  if (initial_pos != absl::nullopt) {
-    move_cursor(UnsignedMin(*initial_pos, available()));
+  if (independent_pos != absl::nullopt) {
+    move_cursor(UnsignedMin(*independent_pos, available()));
   } else {
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
@@ -358,7 +358,7 @@ void FdMMapReaderBase::InitializePos(int src,
 }
 
 inline bool FdMMapReaderBase::SyncPos(int src) {
-  if (sync_pos_) {
+  if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }

@@ -87,14 +87,25 @@ class FdReaderBase : public internal::FdReaderCommon {
     // multiple `FdReader`s concurrently reading from the same fd.
     //
     // Default: `absl::nullopt`.
-    Options& set_initial_pos(absl::optional<Position> initial_pos) & {
-      initial_pos_ = initial_pos;
+    Options& set_independent_pos(absl::optional<Position> independent_pos) & {
+      independent_pos_ = independent_pos;
       return *this;
     }
+    Options&& set_independent_pos(absl::optional<Position> independent_pos) && {
+      return std::move(set_independent_pos(independent_pos));
+    }
+    absl::optional<Position> independent_pos() const {
+      return independent_pos_;
+    }
+
+    ABSL_DEPRECATED("Use set_independent_pos() instead")
+    Options& set_initial_pos(absl::optional<Position> initial_pos) & {
+      return set_independent_pos(initial_pos);
+    }
+    ABSL_DEPRECATED("Use set_independent_pos() instead")
     Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
       return std::move(set_initial_pos(initial_pos));
     }
-    absl::optional<Position> initial_pos() const { return initial_pos_; }
 
     // Tunes how much data is buffered after reading from the file.
     //
@@ -112,7 +123,7 @@ class FdReaderBase : public internal::FdReaderCommon {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
-    absl::optional<Position> initial_pos_;
+    absl::optional<Position> independent_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
@@ -124,22 +135,22 @@ class FdReaderBase : public internal::FdReaderCommon {
  protected:
   FdReaderBase() noexcept {}
 
-  explicit FdReaderBase(size_t buffer_size, bool sync_pos);
+  explicit FdReaderBase(size_t buffer_size, bool has_independent_pos);
 
   FdReaderBase(FdReaderBase&& that) noexcept;
   FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, bool sync_pos);
-  void Initialize(int src, absl::optional<Position> initial_pos);
-  void InitializePos(int src, absl::optional<Position> initial_pos);
+  void Reset(size_t buffer_size, bool has_independent_pos);
+  void Initialize(int src, absl::optional<Position> independent_pos);
+  void InitializePos(int src, absl::optional<Position> independent_pos);
   bool SyncPos(int src);
 
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
-  bool sync_pos_ = false;
+  bool has_independent_pos_ = false;
 
   // Invariant: `limit_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -222,17 +233,19 @@ class FdMMapReaderBase : public ChainReader<Chain> {
     // multiple `FdMMapReader`s concurrently reading from the same fd.
     //
     // Default: `absl::nullopt`.
-    Options& set_initial_pos(absl::optional<Position> initial_pos) & {
-      initial_pos_ = initial_pos;
+    Options& set_independent_pos(absl::optional<Position> independent_pos) & {
+      independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
-      return std::move(set_initial_pos(initial_pos));
+    Options&& set_independent_pos(absl::optional<Position> independent_pos) && {
+      return std::move(set_independent_pos(independent_pos));
     }
-    absl::optional<Position> initial_pos() const { return initial_pos_; }
+    absl::optional<Position> independent_pos() const {
+      return independent_pos_;
+    }
 
    private:
-    absl::optional<Position> initial_pos_;
+    absl::optional<Position> independent_pos_;
   };
 
   // Returns the fd being read from. If the fd is owned then changed to -1 by
@@ -250,24 +263,24 @@ class FdMMapReaderBase : public ChainReader<Chain> {
  protected:
   FdMMapReaderBase() noexcept {}
 
-  explicit FdMMapReaderBase(bool sync_pos);
+  explicit FdMMapReaderBase(bool has_independent_pos);
 
   FdMMapReaderBase(FdMMapReaderBase&& that) noexcept;
   FdMMapReaderBase& operator=(FdMMapReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(bool sync_pos);
-  void Initialize(int src, absl::optional<Position> initial_pos);
+  void Reset(bool has_independent_pos);
+  void Initialize(int src, absl::optional<Position> independent_pos);
   void SetFilename(int src);
   int OpenFd(absl::string_view filename, int flags);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  void InitializePos(int src, absl::optional<Position> initial_pos);
+  void InitializePos(int src, absl::optional<Position> independent_pos);
   bool SyncPos(int src);
 
   void Done() override;
 
   std::string filename_;
-  bool sync_pos_ = false;
+  bool has_independent_pos_ = false;
 };
 
 // A `Reader` which reads from a file descriptor. It supports random access.
@@ -275,7 +288,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // The fd must support:
 //  * `close()` - if the fd is owned
 //  * `pread()`
-//  * `lseek()` - if `Options::initial_pos() == absl::nullopt`
+//  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
 //
 // The `Src` template parameter specifies the type of the object providing and
@@ -337,7 +350,7 @@ class FdReader : public FdReaderBase {
  private:
   using FdReaderBase::Initialize;
   void Initialize(absl::string_view filename, int flags,
-                  absl::optional<Position> initial_pos);
+                  absl::optional<Position> independent_pos);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -475,7 +488,7 @@ explicit FdStreamReader(
 //  * `close()` - if the fd is owned
 //  * `fstat()`
 //  * `mmap()`
-//  * `lseek()` - if `Options::initial_pos() == absl::nullopt`
+//  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -538,7 +551,7 @@ class FdMMapReader : public FdMMapReaderBase {
  private:
   using FdMMapReaderBase::Initialize;
   void Initialize(absl::string_view filename, int flags,
-                  absl::optional<Position> initial_pos);
+                  absl::optional<Position> independent_pos);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -603,39 +616,39 @@ inline void FdReaderCommon::Reset(size_t buffer_size) {
 
 }  // namespace internal
 
-inline FdReaderBase::FdReaderBase(size_t buffer_size, bool sync_pos)
-    : FdReaderCommon(buffer_size), sync_pos_(sync_pos) {}
+inline FdReaderBase::FdReaderBase(size_t buffer_size, bool has_independent_pos)
+    : FdReaderCommon(buffer_size), has_independent_pos_(has_independent_pos) {}
 
 inline FdReaderBase::FdReaderBase(FdReaderBase&& that) noexcept
     : FdReaderCommon(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      sync_pos_(that.sync_pos_) {}
+      has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   FdReaderCommon::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  sync_pos_ = that.sync_pos_;
+  has_independent_pos_ = that.has_independent_pos_;
   return *this;
 }
 
 inline void FdReaderBase::Reset() {
   FdReaderCommon::Reset();
-  sync_pos_ = false;
+  has_independent_pos_ = false;
 }
 
-inline void FdReaderBase::Reset(size_t buffer_size, bool sync_pos) {
+inline void FdReaderBase::Reset(size_t buffer_size, bool has_independent_pos) {
   FdReaderCommon::Reset(buffer_size);
-  sync_pos_ = sync_pos;
+  has_independent_pos_ = has_independent_pos;
 }
 
 inline void FdReaderBase::Initialize(int src,
-                                     absl::optional<Position> initial_pos) {
+                                     absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
   SetFilename(src);
-  InitializePos(src, initial_pos);
+  InitializePos(src, independent_pos);
 }
 
 inline FdStreamReaderBase::FdStreamReaderBase(
@@ -656,17 +669,18 @@ inline void FdStreamReaderBase::Initialize(
   InitializePos(src, assumed_pos);
 }
 
-inline FdMMapReaderBase::FdMMapReaderBase(bool sync_pos)
+inline FdMMapReaderBase::FdMMapReaderBase(bool has_independent_pos)
     // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
     // set by `Initialize()`.
-    : ChainReader(std::forward_as_tuple()), sync_pos_(sync_pos) {}
+    : ChainReader(std::forward_as_tuple()),
+      has_independent_pos_(has_independent_pos) {}
 
 inline FdMMapReaderBase::FdMMapReaderBase(FdMMapReaderBase&& that) noexcept
     : ChainReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       filename_(std::move(that.filename_)),
-      sync_pos_(that.sync_pos_) {}
+      has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdMMapReaderBase& FdMMapReaderBase::operator=(
     FdMMapReaderBase&& that) noexcept {
@@ -674,63 +688,63 @@ inline FdMMapReaderBase& FdMMapReaderBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   filename_ = std::move(that.filename_);
-  sync_pos_ = that.sync_pos_;
+  has_independent_pos_ = that.has_independent_pos_;
   return *this;
 }
 
 inline void FdMMapReaderBase::Reset() {
   ChainReader::Reset();
   filename_.clear();
-  sync_pos_ = false;
+  has_independent_pos_ = false;
 }
 
-inline void FdMMapReaderBase::Reset(bool sync_pos) {
+inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
   // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
   // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
   // `filename_` will be set by `Initialize()`.
-  sync_pos_ = sync_pos;
+  has_independent_pos_ = has_independent_pos;
 }
 
-inline void FdMMapReaderBase::Initialize(int src,
-                                         absl::optional<Position> initial_pos) {
+inline void FdMMapReaderBase::Initialize(
+    int src, absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
   SetFilename(src);
-  InitializePos(src, initial_pos);
+  InitializePos(src, independent_pos);
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(const Src& src, Options options)
     : FdReaderBase(options.buffer_size(),
-                   options.initial_pos() == absl::nullopt),
+                   options.independent_pos() != absl::nullopt),
       src_(src) {
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(Src&& src, Options options)
     : FdReaderBase(options.buffer_size(),
-                   options.initial_pos() == absl::nullopt),
+                   options.independent_pos() != absl::nullopt),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
     : FdReaderBase(options.buffer_size(),
-                   options.initial_pos() == absl::nullopt),
+                   options.independent_pos() != absl::nullopt),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
                                Options options)
     : FdReaderBase(options.buffer_size(),
-                   options.initial_pos() == absl::nullopt) {
-  Initialize(filename, flags, options.initial_pos());
+                   options.independent_pos() != absl::nullopt) {
+  Initialize(filename, flags, options.independent_pos());
 }
 
 template <typename Src>
@@ -758,17 +772,17 @@ inline void FdReader<Src>::Reset() {
 template <typename Src>
 inline void FdReader<Src>::Reset(const Src& src, Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      options.initial_pos() == absl::nullopt);
+                      options.independent_pos() != absl::nullopt);
   src_.Reset(src);
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(Src&& src, Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      options.initial_pos() == absl::nullopt);
+                      options.independent_pos() != absl::nullopt);
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
@@ -776,23 +790,24 @@ template <typename... SrcArgs>
 inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      options.initial_pos() == absl::nullopt);
+                      options.independent_pos() != absl::nullopt);
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
   FdReaderBase::Reset(options.buffer_size(),
-                      options.initial_pos() == absl::nullopt);
+                      options.independent_pos() != absl::nullopt);
   src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.initial_pos());
+  Initialize(filename, flags, options.independent_pos());
 }
 
 template <typename Src>
-inline void FdReader<Src>::Initialize(absl::string_view filename, int flags,
-                                      absl::optional<Position> initial_pos) {
+inline void FdReader<Src>::Initialize(
+    absl::string_view filename, int flags,
+    absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdReader: "
@@ -800,7 +815,7 @@ inline void FdReader<Src>::Initialize(absl::string_view filename, int flags,
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), initial_pos);
+  InitializePos(src_.get(), independent_pos);
 }
 
 template <typename Src>
@@ -924,31 +939,31 @@ void FdStreamReader<Src>::Done() {
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(const Src& src, Options options)
-    : FdMMapReaderBase(options.initial_pos() == absl::nullopt), src_(src) {
-  Initialize(src_.get(), options.initial_pos());
+    : FdMMapReaderBase(options.independent_pos() != absl::nullopt), src_(src) {
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(Src&& src, Options options)
-    : FdMMapReaderBase(options.initial_pos() == absl::nullopt),
+    : FdMMapReaderBase(options.independent_pos() != absl::nullopt),
       src_(std::move(src)) {
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : FdMMapReaderBase(options.initial_pos() == absl::nullopt),
+    : FdMMapReaderBase(options.independent_pos() != absl::nullopt),
       src_(std::move(src_args)) {
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
                                        Options options)
-    : FdMMapReaderBase(options.initial_pos() == absl::nullopt) {
-  Initialize(filename, flags, options.initial_pos());
+    : FdMMapReaderBase(options.independent_pos() != absl::nullopt) {
+  Initialize(filename, flags, options.independent_pos());
 }
 
 template <typename Src>
@@ -976,39 +991,39 @@ inline void FdMMapReader<Src>::Reset() {
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(const Src& src, Options options) {
-  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(src);
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(Src&& src, Options options) {
-  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(std::move(src));
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(std::move(src_args));
-  Initialize(src_.get(), options.initial_pos());
+  Initialize(src_.get(), options.independent_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
-  FdMMapReaderBase::Reset(options.initial_pos() == absl::nullopt);
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.initial_pos());
+  Initialize(filename, flags, options.independent_pos());
 }
 
 template <typename Src>
 inline void FdMMapReader<Src>::Initialize(
     absl::string_view filename, int flags,
-    absl::optional<Position> initial_pos) {
+    absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
       << "Failed precondition of FdMMapReader: "
@@ -1016,7 +1031,7 @@ inline void FdMMapReader<Src>::Initialize(
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), initial_pos);
+  InitializePos(src_.get(), independent_pos);
 }
 
 template <typename Src>
