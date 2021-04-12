@@ -79,12 +79,12 @@ class FdReaderBase : public internal::FdReaderCommon {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, `FdReader` will initially get the current fd
-    // position, and will set the fd position on `Close()`.
+    // If `absl::nullopt`, `FdReader` reads at the current fd position.
     //
-    // If not `absl::nullopt`, reading will start from this position. The
-    // current fd position will not be gotten or set. This is useful for
-    // multiple `FdReader`s concurrently reading from the same fd.
+    // If not `absl::nullopt`, `FdReader` reads starting from this position,
+    // without disturbing the current fd position. This is useful for multiple
+    // readers concurrently reading from the same fd. The fd must support
+    // `pread()`.
     //
     // Default: `absl::nullopt`.
     Options& set_independent_pos(absl::optional<Position> independent_pos) & {
@@ -225,12 +225,13 @@ class FdMMapReaderBase : public ChainReader<Chain> {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, `FdMMapReader` will initially get the current fd
-    // position, and will set the fd position on `Close()`.
+    // If `absl::nullopt`, `FdMMapReader` reads starting from the current fd
+    // position. The `FdMMapReader` position is synchronized back to the fd by
+    // `Close()` and `Sync()`.
     //
-    // If not `absl::nullopt`, reading will start from this position. The
-    // current fd position will not be gotten or set. This is useful for
-    // multiple `FdMMapReader`s concurrently reading from the same fd.
+    // If not `absl::nullopt`, `FdMMapReader` reads starting from this position,
+    // without disturbing the current fd position. This is useful for multiple
+    // readers concurrently reading from the same fd.
     //
     // Default: `absl::nullopt`.
     Options& set_independent_pos(absl::optional<Position> independent_pos) & {
@@ -287,7 +288,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 //
 // The fd must support:
 //  * `close()` - if the fd is owned
-//  * `pread()`
+//  * `read()`  - if `Options::independent_pos() == absl::nullopt`
+//  * `pread()` - if `Options::independent_pos() != absl::nullopt`
 //  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
 //
@@ -300,7 +302,9 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // first constructor argument is a filename or an `int`, otherwise as the value
 // type of the first constructor argument. This requires C++17.
 //
-// The fd must not be closed until the `FdReader` is closed or no longer used.
+// Until the `FdReader` is closed or no longer used, the fd must not be closed;
+// additionally, if `Options::independent_pos() == absl::nullopt`, the fd must
+// not have its position changed.
 template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
  public:

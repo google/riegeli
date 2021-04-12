@@ -92,12 +92,12 @@ class FdWriterBase : public internal::FdWriterCommon {
     }
     mode_t permissions() const { return permissions_; }
 
-    // If `absl::nullopt`, `FdWriter` will initially get the current fd
-    // position, and will set the fd position on `Close()` and `Flush()`.
+    // If `absl::nullopt`, `FdWriter` writes at the current fd position.
     //
-    // If not `absl::nullopt`, writing will start from this position. The
-    // current fd position will not be gotten or set. This is useful for
-    // multiple `FdWriter`s concurrently writing to the same fd.
+    // If not `absl::nullopt`, `FdWriter` writes starting from this position,
+    // without disturbing the current fd position. This is useful for multiple
+    // writers concurrently writing to disjoint regions of the same file. The fd
+    // must support `pwrite()`.
     //
     // Default: `absl::nullopt`.
     Options& set_independent_pos(absl::optional<Position> independent_pos) & {
@@ -260,7 +260,8 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 //  * `fcntl()`     - for the constructor from fd,
 //                    if `Options::independent_pos() == absl::nullopt`
 //  * `close()`     - if the fd is owned
-//  * `pwrite()`
+//  * `write()`     - if `Options::independent_pos() == absl::nullopt`
+//  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
 //  * `lseek()`     - if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
@@ -275,7 +276,11 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 // first constructor argument is a filename or an `int`, otherwise as the value
 // type of the first constructor argument. This requires C++17.
 //
-// The fd must not be closed until the `FdWriter` is closed or no longer used.
+// Until the `FdWriter` is closed or no longer used, the fd must not be closed;
+// additionally, if `Options::independent_pos() == absl::nullopt`, the fd should
+// not have its position changed, except that careful interleaving of multiple
+// writers is possible: `Flush()` is needed before switching to another writer,
+// and `pos()` does not take other writers into account.
 template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
  public:

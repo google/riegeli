@@ -151,7 +151,7 @@ inline bool FdReaderBase::SyncPos(int src) {
 }
 
 void FdReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
+  if (ABSL_PREDICT_TRUE(healthy()) && available() > 0) {
     const int src = src_fd();
     SyncPos(src);
   }
@@ -176,17 +176,23 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
   for (;;) {
   again:
-    const ssize_t length_read = pread(
-        src, dest,
-        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}),
-        IntCast<off_t>(limit_pos()));
+    const ssize_t length_read =
+        has_independent_pos_
+            ? pread(src, dest,
+                    UnsignedMin(max_length,
+                                size_t{std::numeric_limits<ssize_t>::max()}),
+                    IntCast<off_t>(limit_pos()))
+            : read(src, dest,
+                   UnsignedMin(max_length,
+                               size_t{std::numeric_limits<ssize_t>::max()}));
     if (ABSL_PREDICT_FALSE(length_read < 0)) {
       if (errno == EINTR) goto again;
-      return FailOperation("pread()");
+      return FailOperation(has_independent_pos_ ? "pread()" : "read()");
     }
     if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
-        << "pread() read more than requested";
+        << (has_independent_pos_ ? "pread()" : "read()")
+        << " read more than requested";
     move_limit_pos(IntCast<size_t>(length_read));
     if (IntCast<size_t>(length_read) >= min_length) return true;
     dest += length_read;
@@ -197,8 +203,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
 
 bool FdReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const int src = src_fd();
-  return SyncPos(src);
+  if (available() > 0) {
+    const int src = src_fd();
+    return SyncPos(src);
+  }
+  return true;
 }
 
 bool FdReaderBase::SeekSlow(Position new_pos) {
@@ -206,10 +215,10 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int src = src_fd();
   ClearBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    const int src = src_fd();
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(src, &stat_info) < 0)) {
       return FailOperation("fstat()");
@@ -217,11 +226,12 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
       set_limit_pos(IntCast<Position>(stat_info.st_size));
+      SyncPos(src);
       return false;
     }
   }
   set_limit_pos(new_pos);
-  return true;
+  return SyncPos(src);
 }
 
 absl::optional<Position> FdReaderBase::Size() {
