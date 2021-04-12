@@ -506,8 +506,8 @@ cc_library(
     srcs = ["std_io.cc"],
     hdrs = ["std_io.h"],
     deps = [
-        ":istream_reader",
-        ":ostream_writer",
+        ":fd_reader",
+        ":fd_writer",
         ":reader",
         ":writer",
         "//riegeli/base",

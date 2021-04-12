@@ -14,15 +14,16 @@
 
 #include "riegeli/bytes/std_io.h"
 
+#include <unistd.h>
+
 #include <cstdlib>
-#include <iostream>
 #include <memory>
 #include <utility>
 
 #include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
-#include "riegeli/bytes/istream_reader.h"
-#include "riegeli/bytes/ostream_writer.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -64,9 +65,9 @@ class StandardStreams {
 };
 
 StandardStreams::StandardStreams()
-    : std_in_(std::make_unique<IstreamReader<>>(&std::cin)),
-      std_out_(std::make_unique<OstreamWriter<>>(&std::cout)),
-      std_err_(std::make_unique<OstreamWriter<>>(&std::cerr)) {
+    : std_in_(std::make_unique<FdReader<riegeli::UnownedFd>>(STDIN_FILENO)),
+      std_out_(std::make_unique<FdWriter<riegeli::UnownedFd>>(STDOUT_FILENO)),
+      std_err_(std::make_unique<FdWriter<riegeli::UnownedFd>>(STDERR_FILENO)) {
   static StandardStreams* singleton;
   singleton = this;
   std::atexit(+[] { singleton->FlushAll(); });

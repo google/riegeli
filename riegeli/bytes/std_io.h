@@ -17,39 +17,61 @@
 
 #include <memory>
 
-#include "riegeli/base/base.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// A singleton `Reader` reading from standard input (`std::cin`).
+// A singleton `Reader` reading from standard input (by default from the same
+// source as `std::cin` and `stdin`).
 //
-// Warning: when `StdIn()` is used, `std::cin` will have an unpredictable amount
-// of extra data consumed because of buffering.
+// Warning: if `StdIn()` is used, standard input will have an unpredictable
+// amount of extra data consumed because of buffering.
+//
+// `StdIn()` should not be combined with changing the position of standard input
+// accessed by other means, such as file descriptor 0, `std::cin`, or `stdin`.
 Reader& StdIn();
 
-// A singleton `Writer` writing to standard output (`std::cout`).
+// A singleton `Writer` writing to standard output (by default to the same
+// destination as `std::cout` and `stdout`).
 //
-// In contrast to `std::cout`, `StdOut()` is fully buffered (not line buffered)
-// even if it refers to an interactive device.
+// In contrast to `std::cout` and `stdout`, `StdOut()` is fully buffered (not
+// line buffered) even if it refers to an interactive device.
 //
 // `StdOut()` is automatically flushed at process exit. Flushing it explicitly
 // with `StdOut().Flush(FlushType::kFromProcess)` might be needed:
-// * Before reading from `std::cin` or `StdIn()`, so that output written so far
-//   appears before waiting for input.
-// * Before writing to `std::cout`, `std::cerr`, or `StdErr()`, so that output
-//   written to different streams ultimately leading to the same destination
-//   appears in the correct order.
+// * Before reading from standard input, so that output written so far appears
+//   before waiting for input.
+// * Before writing to standard error, so that output written to different
+//   streams ultimately leading to the same destination appears in the correct
+//   order.
+//
+// `StdOut()` should not be combined with changing the position of standard
+// output accessed by other means, such as fd 1, `std::cout`, or `stdout`,
+// except that if random access is not used, careful interleaving of multiple
+// writers is possible: flushing is needed before switching to another writer
+// (`StdOut().Flush(FlushType::kFromProcess)`, `std::cout.flush()`,
+// `std::fflush(stdout)`, nothing needed for fd 1), and `pos()` does not take
+// other writers into account.
 Writer& StdOut();
 
-// A singleton `Writer` writing to standard error (`std::cerr`).
+// A singleton `Writer` writing to standard error (by default to the same
+// destination as `std::cerr`, `std::clog`, and `stderr`).
 //
-// In contrast to `std::cerr`, `StdErr()` is fully buffered (not unbuffered).
+// In contrast to `std::cerr` and `stderr`, `StdErr()` is fully buffered (not
+// unbuffered).
 //
 // `StdErr()` is automatically flushed at process exit. Flushing it explicitly
 // with `StdErr().Flush(FlushType::kFromProcess)` might be needed after writing
 // a complete message, so that it appears promptly.
+//
+// `StdErr()` should not be combined with changing the position of standard
+// error accessed by other means, such as fd 2, `std::cerr`, `std::clog`, or
+// `stderr`, except that if random access is not used, careful interleaving of
+// multiple writers is possible: flushing is needed before switching to another
+// writer (`StdErr().Flush(FlushType::kFromProcess)`, `std::clog.flush()`,
+// nothing needed for fd 2, `std::cerr`, or `stderr`), and `pos()` does not take
+// other writers into account.
 Writer& StdErr();
 
 // Replaces `StdIn()` with a new `Reader`. Returns the previous `Reader`.
