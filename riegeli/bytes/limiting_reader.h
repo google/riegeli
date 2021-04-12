@@ -58,7 +58,7 @@ class LimitingReaderBase : public Reader {
 
   bool Sync() override;
   bool SupportsRandomAccess() override;
-  bool SupportsSize() const override;
+  bool SupportsSize() override;
   absl::optional<Position> Size() override;
 
  protected:

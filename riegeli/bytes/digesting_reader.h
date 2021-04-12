@@ -43,7 +43,7 @@ class DigestingReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
   bool Sync() override;
-  bool SupportsSize() const override;
+  bool SupportsSize() override;
   absl::optional<Position> Size() override;
 
  protected:

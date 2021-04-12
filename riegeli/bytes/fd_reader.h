@@ -118,7 +118,7 @@ class FdReaderBase : public internal::FdReaderCommon {
 
   bool Sync() override;
   bool SupportsRandomAccess() override { return true; }
-  bool SupportsSize() const override { return true; }
+  bool SupportsSize() override { return true; }
   absl::optional<Position> Size() override;
 
  protected:

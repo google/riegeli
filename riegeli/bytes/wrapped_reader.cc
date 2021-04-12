@@ -152,8 +152,8 @@ bool WrappedReaderBase::SeekSlow(Position new_pos) {
   return ok;
 }
 
-bool WrappedReaderBase::SupportsSize() const {
-  const Reader* const src = src_reader();
+bool WrappedReaderBase::SupportsSize() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsSize();
 }
 

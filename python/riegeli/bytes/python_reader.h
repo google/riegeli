@@ -120,7 +120,7 @@ class PythonReader : public BufferedReader {
 
   bool Sync() override;
   bool SupportsRandomAccess() override { return random_access_; }
-  bool SupportsSize() const override { return random_access_; }
+  bool SupportsSize() override { return random_access_; }
   absl::optional<Position> Size() override;
 
   // For implementing `tp_traverse` of objects containing `PythonReader`.

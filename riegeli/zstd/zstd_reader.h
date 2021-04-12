@@ -271,9 +271,7 @@ class ZstdReaderBase : public BufferedReader {
   // does not grow, `Close()` will fail.
   bool truncated() const { return truncated_; }
 
-  bool SupportsSize() const override {
-    return uncompressed_size_ != absl::nullopt;
-  }
+  bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
   absl::optional<Position> Size() override;
 
  protected:

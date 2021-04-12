@@ -128,8 +128,8 @@ bool DigestingReaderBase::Sync() {
   return ok;
 }
 
-bool DigestingReaderBase::SupportsSize() const {
-  const Reader* const src = src_reader();
+bool DigestingReaderBase::SupportsSize() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsSize();
 }
 

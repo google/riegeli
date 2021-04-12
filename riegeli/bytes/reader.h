@@ -252,10 +252,11 @@ class Reader : public Object {
 
   // Returns `true` if this `Reader` supports `Size()`.
   //
-  // During migration please override the `const` version or (preferably) both.
-  virtual bool SupportsSize() const { return false; }
-  virtual bool SupportsSize() {
-    return static_cast<const Reader*>(this)->SupportsSize();
+  // During migration please override both versions or (preferably)
+  // the non-`const` version.
+  virtual bool SupportsSize() { return false; }
+  virtual bool SupportsSize() const {
+    return const_cast<Reader*>(this)->SupportsSize();
   }
 
   // Returns the size of the source, i.e. the position corresponding to its end.

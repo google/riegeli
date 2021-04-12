@@ -183,8 +183,8 @@ bool LimitingReaderBase::SeekSlow(Position new_pos) {
   return ok && pos_to_seek == new_pos;
 }
 
-bool LimitingReaderBase::SupportsSize() const {
-  const Reader* const src = src_reader();
+bool LimitingReaderBase::SupportsSize() {
+  Reader* const src = src_reader();
   return src != nullptr && src->SupportsSize();
 }
 

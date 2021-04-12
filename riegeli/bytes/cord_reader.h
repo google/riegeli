@@ -41,7 +41,7 @@ class CordReaderBase : public PullableReader {
   virtual const absl::Cord* src_cord() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
-  bool SupportsSize() const override { return true; }
+  bool SupportsSize() override { return true; }
   absl::optional<Position> Size() override;
 
  protected:
