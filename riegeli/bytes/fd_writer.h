@@ -92,12 +92,33 @@ class FdWriterBase : public internal::FdWriterCommon {
     }
     mode_t permissions() const { return permissions_; }
 
+    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // to the current fd position. Random access is supported.
+    //
+    // If not `absl::nullopt`, this position is assumed initially, to be
+    // reported by `pos()`. It does not need to correspond to the current fd
+    // position. Random access is not supported.
+    //
+    // `assumed_pos()` and `independent_pos()` must not be both set.
+    //
+    // Default: `absl::nullopt`.
+    Options& set_assumed_pos(absl::optional<Position> assumed_pos) & {
+      assumed_pos_ = assumed_pos;
+      return *this;
+    }
+    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) && {
+      return std::move(set_assumed_pos(assumed_pos));
+    }
+    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+
     // If `absl::nullopt`, `FdWriter` writes at the current fd position.
     //
     // If not `absl::nullopt`, `FdWriter` writes starting from this position,
     // without disturbing the current fd position. This is useful for multiple
     // writers concurrently writing to disjoint regions of the same file. The fd
     // must support `pwrite()`.
+    //
+    // `assumed_pos()` and `independent_pos()` must not be both set.
     //
     // Default: `absl::nullopt`.
     Options& set_independent_pos(absl::optional<Position> independent_pos) & {
@@ -137,29 +158,32 @@ class FdWriterBase : public internal::FdWriterCommon {
 
    private:
     mode_t permissions_ = 0666;
+    absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
   bool Flush(FlushType flush_type) override;
-  bool SupportsRandomAccess() override { return true; }
+  bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
-  bool SupportsTruncate() override { return true; }
+  bool SupportsTruncate() override { return supports_random_access_; }
   bool Truncate(Position new_size) override;
 
  protected:
   FdWriterBase() noexcept {}
 
-  explicit FdWriterBase(size_t buffer_size, bool has_independent_pos);
+  explicit FdWriterBase(size_t buffer_size);
 
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size, bool has_independent_pos);
-  void Initialize(int dest, absl::optional<Position> independent_pos);
-  void InitializePos(int dest, absl::optional<Position> independent_pos);
-  void InitializePos(int dest, int flags,
+  void Reset(size_t buffer_size);
+  void Initialize(int dest, absl::optional<Position> assumed_pos,
+                  absl::optional<Position> independent_pos);
+  void InitializePos(int dest, absl::optional<Position> assumed_pos,
+                     absl::optional<Position> independent_pos);
+  void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   bool SyncPos(int dest);
 
@@ -167,6 +191,7 @@ class FdWriterBase : public internal::FdWriterCommon {
   bool WriteInternal(absl::string_view src) override;
   bool SeekSlow(Position new_pos) override;
 
+  bool supports_random_access_ = false;
   bool has_independent_pos_ = false;
 
   // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
@@ -254,18 +279,23 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
   bool WriteInternal(absl::string_view src) override;
 };
 
-// A `Writer` which writes to a file descriptor. It supports random access.
+// A `Writer` which writes to a file descriptor.
 //
 // The fd must support:
 //  * `fcntl()`     - for the constructor from fd,
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::assumed_pos() == absl::nullopt`
+//                    and `Options::independent_pos() == absl::nullopt`
 //  * `close()`     - if the fd is owned
 //  * `write()`     - if `Options::independent_pos() == absl::nullopt`
 //  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
-//  * `lseek()`     - if `Options::independent_pos() == absl::nullopt`
+//  * `lseek()`     - if `Options::assumed_pos() == absl::nullopt`
+//                    and `Options::independent_pos() == absl::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
 //  * `ftruncate()` - for `Truncate()`
+//
+// `FdWriter` supports random access if
+// `Options::assumed_pos() == absl::nullopt`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
@@ -278,9 +308,10 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 //
 // Until the `FdWriter` is closed or no longer used, the fd must not be closed;
 // additionally, if `Options::independent_pos() == absl::nullopt`, the fd should
-// not have its position changed, except that careful interleaving of multiple
-// writers is possible: `Flush()` is needed before switching to another writer,
-// and `pos()` does not take other writers into account.
+// not have its position changed, except that if random access is not used,
+// careful interleaving of multiple writers is possible: `Flush()` is needed
+// before switching to another writer, and `pos()` does not take other writers
+// into account.
 template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
  public:
@@ -333,6 +364,7 @@ class FdWriter : public FdWriterBase {
  private:
   using FdWriterBase::Initialize;
   void Initialize(absl::string_view filename, int flags, mode_t permissions,
+                  absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
 
   // The object providing and possibly owning the fd being written to.
@@ -504,39 +536,44 @@ inline void FdWriterCommon::Reset(size_t buffer_size) {
 
 }  // namespace internal
 
-inline FdWriterBase::FdWriterBase(size_t buffer_size, bool has_independent_pos)
-    : FdWriterCommon(buffer_size), has_independent_pos_(has_independent_pos) {}
+inline FdWriterBase::FdWriterBase(size_t buffer_size)
+    : FdWriterCommon(buffer_size) {}
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : FdWriterCommon(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   FdWriterCommon::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
   return *this;
 }
 
 inline void FdWriterBase::Reset() {
   FdWriterCommon::Reset();
+  supports_random_access_ = false;
   has_independent_pos_ = false;
 }
 
-inline void FdWriterBase::Reset(size_t buffer_size, bool has_independent_pos) {
+inline void FdWriterBase::Reset(size_t buffer_size) {
   FdWriterCommon::Reset(buffer_size);
-  has_independent_pos_ = has_independent_pos;
+  supports_random_access_ = false;
+  has_independent_pos_ = false;
 }
 
 inline void FdWriterBase::Initialize(int dest,
+                                     absl::optional<Position> assumed_pos,
                                      absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
   SetFilename(dest);
-  InitializePos(dest, independent_pos);
+  InitializePos(dest, assumed_pos, independent_pos);
 }
 
 inline FdStreamWriterBase::FdStreamWriterBase(
@@ -559,36 +596,30 @@ inline void FdStreamWriterBase::Initialize(
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
-    : FdWriterBase(options.buffer_size(),
-                   options.independent_pos() != absl::nullopt),
-      dest_(dest) {
-  Initialize(dest_.get(), options.independent_pos());
+    : FdWriterBase(options.buffer_size()), dest_(dest) {
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
-    : FdWriterBase(options.buffer_size(),
-                   options.independent_pos() != absl::nullopt),
-      dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.independent_pos());
+    : FdWriterBase(options.buffer_size()), dest_(std::move(dest)) {
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
-    : FdWriterBase(options.buffer_size(),
-                   options.independent_pos() != absl::nullopt),
-      dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.independent_pos());
+    : FdWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
                                 Options options)
-    : FdWriterBase(options.buffer_size(),
-                   options.independent_pos() != absl::nullopt) {
-  Initialize(filename, flags, options.permissions(), options.independent_pos());
+    : FdWriterBase(options.buffer_size()) {
+  Initialize(filename, flags, options.permissions(), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Dest>
@@ -615,42 +646,40 @@ inline void FdWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size(),
-                      options.independent_pos() != absl::nullopt);
+  FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FdWriterBase::Reset(options.buffer_size(),
-                      options.independent_pos() != absl::nullopt);
+  FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size(),
-                      options.independent_pos() != absl::nullopt);
+  FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size(),
-                      options.independent_pos() != absl::nullopt);
+  FdWriterBase::Reset(options.buffer_size());
   dest_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.permissions(), options.independent_pos());
+  Initialize(filename, flags, options.permissions(), options.assumed_pos(),
+             options.independent_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Initialize(
     absl::string_view filename, int flags, mode_t permissions,
+    absl::optional<Position> assumed_pos,
     absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
                  (flags & O_ACCMODE) == O_RDWR)
@@ -659,7 +688,7 @@ inline void FdWriter<Dest>::Initialize(
   const int dest = OpenFd(filename, flags, permissions);
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), flags, independent_pos);
+  InitializePos(dest_.get(), flags, assumed_pos, independent_pos);
 }
 
 template <typename Dest>

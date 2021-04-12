@@ -122,9 +122,11 @@ class OstreamWriterBase : public BufferedWriter {
 // By relying on CTAD the template argument can be deduced as the value type of
 // the first constructor argument. This requires C++17.
 //
-// The `std::ostream` must not be accessed until the `OstreamWriter` is closed
-// or no longer used, except that it is allowed to read the destination of the
-// `std::ostream` immediately after `Flush()`.
+// Until the `OstreamWriter` is closed or no longer used, the `std::ostream`
+// must not be closed nor have its position changed, except that if random
+// access is not used, careful interleaving of multiple writers is possible:
+// `Flush()` is needed before switching to another writer, and `pos()` does not
+// take other writers into account.
 template <typename Dest = std::ostream*>
 class OstreamWriter : public OstreamWriterBase {
  public:

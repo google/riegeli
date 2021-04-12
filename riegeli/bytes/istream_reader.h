@@ -129,8 +129,8 @@ class IstreamReaderBase : public BufferedReader {
 // it will have an unpredictable amount of extra data consumed because of
 // buffering.
 //
-// The stream must not be accessed until the `IstreamReader` is closed or no
-// longer used.
+// Until the `IstreamReader` is closed or no longer used, the stream must not be
+// closed nor have its position changed.
 template <typename Src = std::istream*>
 class IstreamReader : public IstreamReaderBase {
  public:

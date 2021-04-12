@@ -122,9 +122,28 @@ bool FdReaderCommon::Fail(absl::Status status) {
 
 }  // namespace internal
 
-void FdReaderBase::InitializePos(int src,
+void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
                                  absl::optional<Position> independent_pos) {
-  if (independent_pos != absl::nullopt) {
+  RIEGELI_ASSERT(assumed_pos == absl::nullopt ||
+                 independent_pos == absl::nullopt)
+      << "Failed precondition of FdReaderBase: "
+         "Options::assumed_pos() and Options::independent_pos() are both set";
+  RIEGELI_ASSERT(!supports_random_access_)
+      << "Failed precondition of FdReaderBase::InitializePos(): "
+         "supports_random_access_ not reset";
+  RIEGELI_ASSERT(!has_independent_pos_)
+      << "Failed precondition of FdReaderBase::InitializePos(): "
+         "has_independent_pos_ not reset";
+  if (assumed_pos != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos >
+                           Position{std::numeric_limits<off_t>::max()})) {
+      FailOverflow();
+      return;
+    }
+    set_limit_pos(*assumed_pos);
+  } else if (independent_pos != absl::nullopt) {
+    supports_random_access_ = true;
+    has_independent_pos_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -132,6 +151,7 @@ void FdReaderBase::InitializePos(int src,
     }
     set_limit_pos(*independent_pos);
   } else {
+    supports_random_access_ = true;
     const off_t file_pos = lseek(src, 0, SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
       FailOperation("lseek()");
@@ -142,6 +162,9 @@ void FdReaderBase::InitializePos(int src,
 }
 
 inline bool FdReaderBase::SyncPos(int src) {
+  RIEGELI_ASSERT(supports_random_access_)
+      << "Failed precondition of FdReaderBase::SyncPos(): "
+         "random access not supported";
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
@@ -151,7 +174,8 @@ inline bool FdReaderBase::SyncPos(int src) {
 }
 
 void FdReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && available() > 0) {
+  if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
+      available() > 0) {
     const int src = src_fd();
     SyncPos(src);
   }
@@ -203,7 +227,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
 
 bool FdReaderBase::Sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (available() > 0) {
+  if (supports_random_access_ && available() > 0) {
     const int src = src_fd();
     return SyncPos(src);
   }
@@ -215,6 +239,9 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+    return BufferedReader::SeekSlow(new_pos);
+  }
   const int src = src_fd();
   ClearBuffer();
   if (new_pos > limit_pos()) {

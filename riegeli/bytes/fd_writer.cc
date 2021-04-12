@@ -95,24 +95,44 @@ bool FdWriterCommon::Fail(absl::Status status) {
 
 }  // namespace internal
 
-void FdWriterBase::InitializePos(int dest,
+void FdWriterBase::InitializePos(int dest, absl::optional<Position> assumed_pos,
                                  absl::optional<Position> independent_pos) {
   int flags = 0;
-  if (independent_pos == absl::nullopt) {
-    // If `independent_pos != absl::nullopt` then `flags` are not needed, so
-    // avoid `fcntl()`.
+  if (assumed_pos == absl::nullopt && independent_pos == absl::nullopt) {
+    // Flags are needed only if `assumed_pos == absl::nullopt` and
+    // `independent_pos == absl::nullopt`. Avoid `fcntl()` otherwise.
     flags = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(flags < 0)) {
       FailOperation("fcntl()");
       return;
     }
   }
-  return InitializePos(dest, flags, independent_pos);
+  return InitializePos(dest, flags, assumed_pos, independent_pos);
 }
 
 void FdWriterBase::InitializePos(int dest, int flags,
+                                 absl::optional<Position> assumed_pos,
                                  absl::optional<Position> independent_pos) {
-  if (independent_pos != absl::nullopt) {
+  RIEGELI_ASSERT(assumed_pos == absl::nullopt ||
+                 independent_pos == absl::nullopt)
+      << "Failed precondition of FdWriterBase: "
+         "Options::assumed_pos() and Options::independent_pos() are both set";
+  RIEGELI_ASSERT(!supports_random_access_)
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "supports_random_access_ not reset";
+  RIEGELI_ASSERT(!has_independent_pos_)
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "has_independent_pos_ not reset";
+  if (assumed_pos != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos >
+                           Position{std::numeric_limits<off_t>::max()})) {
+      FailOverflow();
+      return;
+    }
+    set_start_pos(*assumed_pos);
+  } else if (independent_pos != absl::nullopt) {
+    supports_random_access_ = true;
+    has_independent_pos_ = true;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -120,6 +140,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
     }
     set_start_pos(*independent_pos);
   } else {
+    supports_random_access_ = true;
     const off_t file_pos =
         lseek(dest, 0, (flags & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
     if (ABSL_PREDICT_FALSE(file_pos < 0)) {
