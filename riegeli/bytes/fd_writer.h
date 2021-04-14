@@ -134,15 +134,6 @@ class FdWriterBase : public internal::FdWriterCommon {
       return independent_pos_;
     }
 
-    ABSL_DEPRECATED("Use set_independent_pos() instead")
-    Options& set_initial_pos(absl::optional<Position> initial_pos) & {
-      return set_independent_pos(initial_pos);
-    }
-    ABSL_DEPRECATED("Use set_independent_pos() instead")
-    Options&& set_initial_pos(absl::optional<Position> initial_pos) && {
-      return std::move(set_initial_pos(initial_pos));
-    }
-
     // Tunes how much data is buffered before writing to the file.
     //
     // Default: `kDefaultBufferSize` (64K).
