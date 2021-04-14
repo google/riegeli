@@ -527,7 +527,7 @@ bool RecordReaderBase::Search(
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return Fail(src);
   struct ChunkSuffix {
     Position chunk_begin;
     uint64_t record_index;
