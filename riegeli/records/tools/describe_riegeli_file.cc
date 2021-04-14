@@ -245,6 +245,7 @@ void DescribeFile(absl::string_view filename, std::ostream& report) {
     absl::Format(&report, "  }\n");
   }
   absl::Format(&report, "}\n");
+  report.flush();
   if (!chunk_reader.Close()) {
     absl::Format(&std::cerr, "%s\n", chunk_reader.status().message());
   }
