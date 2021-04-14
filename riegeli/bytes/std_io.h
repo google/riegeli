@@ -39,7 +39,7 @@ Reader& StdIn();
 // line buffered) even if it refers to an interactive device.
 //
 // `StdOut()` is automatically flushed at process exit. Flushing it explicitly
-// with `StdOut().Flush(FlushType::kFromProcess)` might be needed:
+// with `StdOut().Flush()` might be needed:
 // * Before reading from standard input, so that output written so far appears
 //   before waiting for input.
 // * Before writing to standard error, so that output written to different
@@ -62,8 +62,8 @@ Writer& StdOut();
 // unbuffered).
 //
 // `StdErr()` is automatically flushed at process exit. Flushing it explicitly
-// with `StdErr().Flush(FlushType::kFromProcess)` might be needed after writing
-// a complete message, so that it appears promptly.
+// with `StdErr().Flush()` might be needed after writing a complete message,
+// so that it appears promptly.
 //
 // `StdErr()` should not be combined with changing the position of standard
 // error accessed by other means, such as fd 2, `std::cerr`, `std::clog`, or

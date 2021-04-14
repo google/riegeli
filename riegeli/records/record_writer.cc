@@ -177,7 +177,7 @@ class RecordWriterBase::Worker : public Object {
   bool MaybePadToBlockBoundary();
 
   // Precondition: chunk is not open.
-  virtual bool Flush(FlushType flush_type) = 0;
+  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
 
   virtual FutureRecordPosition Pos() const = 0;
 
@@ -318,7 +318,7 @@ class RecordWriterBase::SerialWorker : public Worker {
 
   void OpenChunk() override { chunk_encoder_->Clear(); }
   bool CloseChunk() override;
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   FutureRecordPosition Pos() const override;
 
  protected:
@@ -400,7 +400,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(); }
   bool CloseChunk() override;
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   FutureRecordPosition Pos() const override;
 
  protected:

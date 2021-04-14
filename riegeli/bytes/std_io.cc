@@ -55,8 +55,8 @@ class StandardStreams {
 
  private:
   void FlushAll() {
-    std_out_->Flush(FlushType::kFromProcess);
-    std_err_->Flush(FlushType::kFromProcess);
+    std_out_->Flush();
+    std_err_->Flush();
   }
 
   std::unique_ptr<Reader> std_in_;

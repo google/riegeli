@@ -114,7 +114,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   virtual Chain* dest_chain() = 0;
   virtual const Chain* dest_chain() const = 0;
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 

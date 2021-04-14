@@ -48,7 +48,7 @@ void WriterStreambuf::Fail() { state_.Fail(dest_->status()); }
 int WriterStreambuf::sync() {
   if (ABSL_PREDICT_FALSE(!healthy())) return -1;
   BufferSync buffer_sync(this);
-  if (ABSL_PREDICT_FALSE(!dest_->Flush(FlushType::kFromProcess))) {
+  if (ABSL_PREDICT_FALSE(!dest_->Flush())) {
     Fail();
     return -1;
   }

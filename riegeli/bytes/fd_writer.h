@@ -156,7 +156,7 @@ class FdWriterBase : public internal::FdWriterCommon {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return supports_random_access_; }
@@ -253,7 +253,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   FdStreamWriterBase() noexcept {}

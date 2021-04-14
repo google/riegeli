@@ -158,22 +158,30 @@ class BackwardWriter : public Object {
   // later and can be applied to any `BackwardWriter`.
   void WriteHint(size_t length);
 
-  // Pushes data written between `start()` and `cursor()` to the destination.
+  // Pushes buffered data to the destination.
   //
-  // Additionally, attempts to ensure the following, depending on `flush_type`
-  // (without a guarantee though):
-  //  * `FlushType::kFromObject`  - flushes the destination too if it is owned
-  //  * `FlushType::kFromProcess` - data survives process crash
-  //  * `FlushType::kFromMachine` - data survives operating system crash
+  // This makes data written so far visible, but in contrast to `Close()`,
+  // keeps the possibility to write more data later. What exactly does it mean
+  // for data to be visible depends on the destination.
   //
-  // The precise meaning of `Flush()` depends on the particular
-  // `BackwardWriter`. The intent is to make data written so far visible, but in
-  // contrast to `Close()`, keeping the possibility to write more data later.
+  // The scope of objects to flush and the intended data durability (without a
+  // guarantee) are specified by `flush_type`:
+  //  * `FlushType::kFromObject`  - Makes data written so far visible in other
+  //                                objects, propagating flushing through owned
+  //                                dependencies of the given writer.
+  //  * `FlushType::kFromProcess` - Makes data written so far visible outside
+  //                                the process, propagating flushing through
+  //                                dependencies of the given writer.
+  //                                This is the default.
+  //  * `FlushType::kFromMachine` - Makes data written so far visible outside
+  //                                the process and durable in case of operating
+  //                                system crash, propagating flushing through
+  //                                dependencies of the given writer.
   //
   // Return values:
   //  * `true ` - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Flush(FlushType flush_type) = 0;
+  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
 
   // Returns the current position (increasing as data are prepended).
   //

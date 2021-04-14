@@ -154,7 +154,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   void Done() override;

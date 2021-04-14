@@ -62,20 +62,28 @@ class ChunkWriter : public Object {
 
   // Pushes buffered data to the destination.
   //
-  // Additionally, attempts to ensure the following, depending on `flush_type`
-  // (without a guarantee though):
-  //  * `FlushType::kFromObject`  - flushes the destination too if it is owned
-  //  * `FlushType::kFromProcess` - data survives process crash
-  //  * `FlushType::kFromMachine` - data survives operating system crash
+  // This makes data written so far visible, but in contrast to `Close()`,
+  // keeps the possibility to write more data later. What exactly does it mean
+  // for data to be visible depends on the destination.
   //
-  // The precise meaning of `Flush()` depends on the particular `ChunkWriter`.
-  // The intent is to make data written so far visible, but in contrast to
-  // `Close()`, keeping the possibility to write more data later.
+  // The scope of objects to flush and the intended data durability (without a
+  // guarantee) are specified by `flush_type`:
+  //  * `FlushType::kFromObject`  - Makes data written so far visible in other
+  //                                objects, propagating flushing through owned
+  //                                dependencies of the given writer.
+  //  * `FlushType::kFromProcess` - Makes data written so far visible outside
+  //                                the process, propagating flushing through
+  //                                dependencies of the given writer.
+  //                                This is the default.
+  //  * `FlushType::kFromMachine` - Makes data written so far visible outside
+  //                                the process and durable in case of operating
+  //                                system crash, propagating flushing through
+  //                                dependencies of the given writer.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Flush(FlushType flush_type) = 0;
+  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
 
   // Returns the current byte position. Unchanged by `Close()`.
   Position pos() const { return pos_; }
@@ -187,7 +195,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   void Done() override;

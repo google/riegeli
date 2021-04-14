@@ -166,7 +166,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   BackwardWriter* dest_writer() override { return dest_.get(); }
   const BackwardWriter* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   void Done() override;

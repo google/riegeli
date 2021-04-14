@@ -72,7 +72,7 @@ class SnappyWriterBase : public Writer {
   using Writer::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   SnappyWriterBase() noexcept : Writer(kInitiallyClosed) {}

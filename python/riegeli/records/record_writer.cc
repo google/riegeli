@@ -649,15 +649,17 @@ static PyObject* RecordWriterWriteMessagesWithKeys(PyRecordWriterObject* self,
 static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
                                    PyObject* kwargs) {
   static constexpr const char* keywords[] = {"flush_type", nullptr};
-  PyObject* flush_type_arg;
+  PyObject* flush_type_arg = nullptr;
   if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:flush", const_cast<char**>(keywords),
+          args, kwargs, "|O:flush", const_cast<char**>(keywords),
           &flush_type_arg))) {
     return nullptr;
   }
-  FlushType flush_type;
-  if (ABSL_PREDICT_FALSE(!FlushTypeFromPython(flush_type_arg, &flush_type))) {
-    return nullptr;
+  FlushType flush_type = FlushType::kFromProcess;
+  if (flush_type_arg != nullptr) {
+    if (ABSL_PREDICT_FALSE(!FlushTypeFromPython(flush_type_arg, &flush_type))) {
+      return nullptr;
+    }
   }
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
   const bool ok =
@@ -806,20 +808,32 @@ Returns:
 )doc"},
     {"flush", reinterpret_cast<PyCFunction>(RecordWriterFlush),
      METH_VARARGS | METH_KEYWORDS, R"doc(
-flush(self, flush_type: FlushType) -> None
+flush(self, flush_type: FlushType = FlushType.FROM_PROCESS) -> None
 
-Finalizes any open chunk and writes buffered data to the file.
-
+Finalizes any open chunk and pushes buffered data to the destination.
 If parallelism was used in options, waits for any background writing to
 complete.
+
+This makes data written so far visible, but in contrast to close(),
+keeps the possibility to write more data later. What exactly does it mean
+for data to be visible depends on the destination.
 
 This degrades compression density if used too often.
 
 Args:
-  flush_type: What more to attempt to ensure:
-   * FlushType.FROM_OBJECT: Flushes the file object too if it is owned.
-   * FlushType.FROM_PROCESS: Data survives process crash.
-   * FlushType.FROM_MACHINE: Data survives operating system crash.
+  flush_type: The scope of objects to flush and the intended data durability
+  (without a guarantee).
+   * FlushType.FROM_OBJECT:  Makes data written so far visible in other
+                             objects, propagating flushing through owned
+                             dependencies of the given writer.
+   * FlushType.FROM_PROCESS: Makes data written so far visible outside
+                             the process, propagating flushing through
+                             dependencies of the given writer.
+                             This is the default.
+   * FlushType.FROM_MACHINE: Makes data written so far visible outside
+                             the process and durable in case of operating
+                             system crash, propagating flushing through
+                             dependencies of the given writer.
 )doc"},
     {nullptr, nullptr, 0, nullptr},
 };

@@ -215,7 +215,7 @@ class FileWriter : public FileWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
 
  protected:
   void Done() override;

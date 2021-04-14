@@ -124,7 +124,7 @@ class PythonWriter : public BufferedWriter {
 
   const Exception& exception() const { return exception_; }
 
-  bool Flush(FlushType flush_type) override;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return supports_random_access_; }
