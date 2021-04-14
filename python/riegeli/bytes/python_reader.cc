@@ -343,7 +343,7 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
       src_.get(), id_seek.get(), file_pos.get(), whence.get(), nullptr));
   if (result.get() == Py_None) {
     // Python2 `file.seek()` returns `None`, so `tell()` is needed to get the
-    // new position.
+    // new position. Python2 is dead, but some classes still behave like that.
     static constexpr Identifier id_tell("tell");
     result.reset(
         PyObject_CallMethodObjArgs(src_.get(), id_tell.get(), nullptr));

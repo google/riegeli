@@ -16,7 +16,7 @@
 __all__ = ('SkippedRegion',)
 
 
-class SkippedRegion(object):
+class SkippedRegion:
   """Details about a skipped region of invalid file contents.
 
   Attributes:

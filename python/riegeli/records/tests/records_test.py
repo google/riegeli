@@ -22,7 +22,6 @@ from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
 import riegeli
-import six
 import tensorflow as tf
 
 from riegeli.records.tests import records_test_pb2
@@ -50,7 +49,7 @@ class RandomAccess(Enum):
   SEQUENTIAL_ACCESS_EXPLICIT = 3
 
 
-class FakeFile(object):
+class FakeFile:
 
   __slots__ = ('_random_access',)
 
@@ -69,7 +68,7 @@ class FakeFile(object):
     raise NotImplementedError(f'{name}()')
 
 
-class UnseekableWrapper(object):
+class UnseekableWrapper:
 
   __slots__ = ('_wrapped',)
 
@@ -89,7 +88,7 @@ class UnseekableWrapper(object):
     return getattr(self._wrapped, name)
 
 
-class FileSpecBase(six.with_metaclass(abc.ABCMeta, object)):
+class FileSpecBase(metaclass=abc.ABCMeta):
 
   __slots__ = ('_random_access', '_file')
 
@@ -275,10 +274,7 @@ class RecordsTest(parameterized.TestCase):
     byte_reader = files.reading_open()
     contents1 = byte_reader.read(index)
     contents2 = byte_reader.read(1)
-    if six.PY3:
-      contents2 = bytes([(contents2[0] + 1) % 256])
-    else:
-      contents2 = chr((ord(contents2) + 1) % 256)
+    contents2 = bytes([(contents2[0] + 1) % 256])
     contents3 = byte_reader.read()
     if files.reading_should_close:
       byte_reader.close()

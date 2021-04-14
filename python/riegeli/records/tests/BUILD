@@ -14,7 +14,6 @@ py_test(
         "@absl_py//absl/logging",
         "@absl_py//absl/testing:absltest",
         "@absl_py//absl/testing:parameterized",
-        "@six_archive//:six",
     ],
 )
 

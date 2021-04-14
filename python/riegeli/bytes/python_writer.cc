@@ -170,7 +170,8 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
       }
       if (write_result.get() == Py_None) {
         // Python2 `file.write()` returns `None`, and would raise an exception
-        // if less than the full length had been written.
+        // if less than the full length had been written. Python2 is dead, but
+        // some classes still behave like that.
         length_written = length_to_write;
       } else {
         // `io.IOBase.write()` returns the length written.
@@ -293,7 +294,8 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
   PythonPtr result(PyObject_CallMethodObjArgs(
       dest_.get(), id_seek.get(), file_pos.get(), whence.get(), nullptr));
   if (result.get() == Py_None) {
-    // Python2 `file.seek()` returns `None`.
+    // Python2 `file.seek()` returns `None`. Python2 is dead, but some classes
+    // still behave like that.
     static constexpr Identifier id_tell("tell");
     result.reset(
         PyObject_CallMethodObjArgs(dest_.get(), id_tell.get(), nullptr));

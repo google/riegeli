@@ -526,28 +526,24 @@ PythonPtr ChainToPython(const Chain& value);
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<Chain> ChainFromPython(PyObject* object);
 
-// Converts C++ `size_t` to a Python `int` object (or possibly `long` in
-// Python2).
+// Converts C++ `size_t` to a Python `int` object.
 //
 // Returns `nullptr` on failure (with Python exception set).
 PythonPtr SizeToPython(size_t value);
 
 // Converts a Python object to C++ `size_t`. Valid Python objects are the same
-// as for slicing: `int`, `long` (in Python2), or objects supporting
-// `__index__()`.
+// as for slicing: `int` or objects supporting `__index__()`.
 //
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<size_t> SizeFromPython(PyObject* object);
 
-// Converts C++ `Position` to a Python `int` object (or possibly `long` in
-// Python2).
+// Converts C++ `Position` to a Python `int` object.
 //
 // Returns `nullptr` on failure (with Python exception set).
 PythonPtr PositionToPython(Position value);
 
 // Converts a Python object to C++ `Position`. Valid Python objects are the same
-// as for slicing: `int`, `long` (in Python2), or objects supporting
-// `__index__()`.
+// as for slicing: `int` or objects supporting `__index__()`.
 //
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<Position> PositionFromPython(PyObject* object);
