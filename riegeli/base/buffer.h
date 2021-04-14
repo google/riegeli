@@ -94,8 +94,6 @@ inline Buffer& Buffer::operator=(Buffer&& that) noexcept {
 inline void Buffer::Reset(size_t min_capacity) {
   if (data_ != nullptr) {
     if (capacity_ >= min_capacity) return;
-    min_capacity =
-        UnsignedMax(min_capacity, SaturatingAdd(capacity_, capacity_));
     DeleteInternal();
   }
   AllocateInternal(min_capacity);

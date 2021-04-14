@@ -24,7 +24,6 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/memory.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -55,11 +54,8 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     dest.reserve(UnsignedMin(
         UnsignedMax(SaturatingAdd(dest.size(),
                                   UnsignedMax(min_length, recommended_length)),
-                    // Double the capacity, and round up to one below a possible
-                    // allocated size (for NUL terminator).
-                    EstimatedAllocatedSize(SaturatingAdd(
-                        dest.capacity(), dest.capacity(), size_t{1})) -
-                        1),
+                    // Ensure amortized constant time of a reallocation.
+                    SaturatingAdd(dest.capacity(), dest.capacity() / 2)),
         dest.max_size()));
   }
   MakeBuffer(dest);
@@ -150,11 +146,8 @@ void StringWriterBase::WriteHintSlow(size_t length) {
   if (length > dest.capacity() - dest.size()) {
     dest.reserve(UnsignedMin(
         UnsignedMax(SaturatingAdd(dest.size(), length),
-                    // Double the capacity, and round up to one below a possible
-                    // allocated size (for NUL terminator).
-                    EstimatedAllocatedSize(SaturatingAdd(
-                        dest.capacity(), dest.capacity(), size_t{1})) -
-                        1),
+                    // Ensure amortized constant time of a reallocation.
+                    SaturatingAdd(dest.capacity(), dest.capacity() / 2)),
         dest.max_size()));
   }
   MakeBuffer(dest);
