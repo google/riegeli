@@ -193,9 +193,6 @@ class Object {
   // Returns `true` if the `Object` is open, i.e. not closed.
   bool is_open() const { return state_.is_open(); }
 
-  ABSL_DEPRECATED("Use !is_open() instead")
-  bool closed() const { return !is_open(); }
-
   // Returns an `absl::Status` describing the failure if the `Object` is failed,
   // or an `absl::FailedPreconditionError()` if the `Object` is closed, or
   // `absl::OkStatus()` if the `Object` is healthy.
