@@ -251,13 +251,7 @@ class Reader : public Object {
   bool Skip(Position length);
 
   // Returns `true` if this `Reader` supports `Size()`.
-  //
-  // During migration please override both versions or (preferably)
-  // the non-`const` version.
   virtual bool SupportsSize() { return false; }
-  virtual bool SupportsSize() const {
-    return const_cast<Reader*>(this)->SupportsSize();
-  }
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
