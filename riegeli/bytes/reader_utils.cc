@@ -70,8 +70,7 @@ bool ReadAll(Reader& src, absl::string_view& dest, size_t max_size) {
         src.move_cursor(max_size);
         return MaxSizeExceeded(src, max_size);
       }
-    } while (src.Pull(src.available() + 1,
-                      SaturatingAdd(src.available(), src.available())));
+    } while (src.Pull(src.available() + 1));
     dest = absl::string_view(src.cursor(), src.available());
     src.move_cursor(src.available());
     return src.healthy();

@@ -79,11 +79,12 @@ void PullableReader::PullToScratchSlow(size_t min_length,
       move_limit_pos(available());
     }
   }
-  const absl::Span<char> flat_buffer =
-      new_scratch->buffer.AppendFixedBuffer(recommended_length);
+  const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
+      min_length, recommended_length,
+      SaturatingAdd(recommended_length, recommended_length));
   char* dest = flat_buffer.data();
   char* const min_limit = flat_buffer.data() + min_length;
-  char* const max_limit = flat_buffer.data() + recommended_length;
+  char* const max_limit = flat_buffer.data() + flat_buffer.size();
   do {
     const size_t length =
         UnsignedMin(available(), PtrDistance(dest, max_limit));

@@ -416,7 +416,8 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
 }
 
 inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
-                                                 size_t* space_before_if_not) {
+                                                 size_t& space_before_if_not,
+                                                 size_t& min_length_if_not) {
   if (is_internal() && has_unique_owner()) {
     if (space_after() >= length) return true;
     const size_t final_size = size() + length;
@@ -432,15 +433,18 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
       data_ = absl::string_view(new_begin, data_.size());
       return true;
     }
-    *space_before_if_not = space_before();
+    space_before_if_not = space_before();
   } else {
-    *space_before_if_not = 0;
+    space_before_if_not = 0;
   }
+  min_length_if_not =
+      UnsignedMax(length, SaturatingAdd(capacity(), capacity() / 2));
   return false;
 }
 
 inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
-                                                  size_t* space_after_if_not) {
+                                                  size_t& space_after_if_not,
+                                                  size_t& min_length_if_not) {
   if (is_internal() && has_unique_owner()) {
     if (space_before() >= length) return true;
     const size_t final_size = size() + length;
@@ -454,10 +458,12 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
       data_ = absl::string_view(new_begin, data_.size());
       return true;
     }
-    *space_after_if_not = space_after();
+    space_after_if_not = space_after();
   } else {
-    *space_after_if_not = 0;
+    space_after_if_not = 0;
   }
+  min_length_if_not =
+      UnsignedMax(length, SaturatingAdd(capacity(), capacity() / 2));
   return false;
 }
 
@@ -2518,12 +2524,13 @@ absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
     block_.reset(RawBlock::NewInternal(
         NewBlockCapacity(size(), min_length, recommended_length, options)));
   } else {
-    size_t space_before;
-    if (!block_->CanAppendMovingData(min_length, &space_before)) {
+    size_t space_before, new_min_length;
+    if (!block_->CanAppendMovingData(min_length, space_before,
+                                     new_min_length)) {
       if (min_length == 0) return absl::Span<char>();
       // Reallocate the array, keeping space before the contents unchanged.
       RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
-          space_before + size(), min_length, recommended_length, options));
+          space_before + size(), new_min_length, recommended_length, options));
       block->Append(absl::string_view(*block_), space_before);
       block_.reset(block);
     }
@@ -2549,12 +2556,13 @@ absl::Span<char> ChainBlock::PrependBuffer(size_t min_length,
     block_.reset(RawBlock::NewInternal(
         NewBlockCapacity(size(), min_length, recommended_length, options)));
   } else {
-    size_t space_after;
-    if (!block_->CanPrependMovingData(min_length, &space_after)) {
+    size_t space_after, new_min_length;
+    if (!block_->CanPrependMovingData(min_length, space_after,
+                                      new_min_length)) {
       if (min_length == 0) return absl::Span<char>();
       // Reallocate the array, keeping space after the contents unchanged.
       RawBlock* const block = RawBlock::NewInternal(NewBlockCapacity(
-          space_after + size(), min_length, recommended_length, options));
+          space_after + size(), new_min_length, recommended_length, options));
       block->Prepend(absl::string_view(*block_), space_after);
       block_.reset(block);
     }

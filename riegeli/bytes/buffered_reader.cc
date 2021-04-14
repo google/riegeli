@@ -56,18 +56,19 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
   const size_t buffer_length =
-      UnsignedMax(buffer_size_, min_length, recommended_length);
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
-  if (flat_buffer.size() < min_length - available_length ||
-      Wasteful(buffer_length, flat_buffer.size())) {
+      BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
+                   size_hint_, pos());
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+      0, buffer_length - available_length,
+      SaturatingAdd(buffer_length, buffer_length) - available_length);
+  if (flat_buffer.size() < min_length - available_length) {
     // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
     buffer_.RemoveSuffix(flat_buffer.size());
     buffer_.RemovePrefix(cursor_index);
     cursor_index = 0;
-    flat_buffer = buffer_.AppendFixedBuffer(
-        BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
-                     size_hint_, pos()) -
-        available_length);
+    flat_buffer = buffer_.AppendBuffer(
+        buffer_length - available_length, buffer_length - available_length,
+        SaturatingAdd(buffer_length, buffer_length) - available_length);
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
@@ -136,16 +137,20 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       return true;
     }
     size_t cursor_index = read_from_buffer();
-    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+    const size_t buffer_length =
+        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+        0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
+    if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `*dest` and make a
       // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(
-          BufferLength(0, buffer_size_, size_hint_, limit_pos()));
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
@@ -199,16 +204,20 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       return true;
     }
     size_t cursor_index = read_from_buffer();
-    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+    const size_t buffer_length =
+        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+        0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
+    if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `*dest` and make a
       // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
       buffer_.Clear();
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(
-          BufferLength(0, buffer_size_, size_hint_, limit_pos()));
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
@@ -240,8 +249,11 @@ bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
       break;
     }
     size_t cursor_index = read_from_buffer();
-    absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-    if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+    const size_t buffer_length =
+        BufferLength(0, buffer_size_, size_hint_, limit_pos());
+    absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+        0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
+    if (flat_buffer.empty()) {
       // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
       if (available() > 0) {
@@ -262,8 +274,9 @@ bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
       }
       buffer_.Clear();
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(
-          BufferLength(0, buffer_size_, size_hint_, limit_pos()));
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_length, buffer_length,
+                               SaturatingAdd(buffer_length, buffer_length));
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
@@ -318,18 +331,19 @@ void BufferedReader::ReadHintSlow(size_t length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
-  const size_t buffer_length = UnsignedMax(buffer_size_, length);
-  absl::Span<char> flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
-  if (flat_buffer.size() < length - available_length ||
-      Wasteful(buffer_length, flat_buffer.size())) {
-    // `flat_buffer` is too small. Resize `buffer_`, keeping data between
-    // `cursor()` and `limit()`.
+  const size_t buffer_length =
+      BufferLength(length, buffer_size_, size_hint_, pos());
+  absl::Span<char> flat_buffer = buffer_.AppendBuffer(
+      0, buffer_length - available_length,
+      SaturatingAdd(buffer_length, buffer_length) - available_length);
+  if (flat_buffer.size() < length - available_length) {
+    // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
     buffer_.RemoveSuffix(flat_buffer.size());
     buffer_.RemovePrefix(cursor_index);
     cursor_index = 0;
-    flat_buffer = buffer_.AppendFixedBuffer(
-        BufferLength(length, buffer_size_, size_hint_, pos()) -
-        available_length);
+    flat_buffer = buffer_.AppendBuffer(
+        buffer_length - available_length, buffer_length - available_length,
+        SaturatingAdd(buffer_length, buffer_length) - available_length);
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();

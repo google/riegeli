@@ -142,7 +142,9 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     // Copy available data to `buffer_` so that newly read data will be adjacent
     // to available data.
     cursor_index = 0;
-    flat_buffer = buffer_.AppendFixedBuffer(buffer_length);
+    flat_buffer =
+        buffer_.AppendBuffer(buffer_length, buffer_length,
+                             SaturatingAdd(buffer_length, buffer_length));
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
         available() > 0) {
@@ -151,14 +153,17 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     }
   } else {
     cursor_index = read_from_buffer();
-    flat_buffer = buffer_.AppendBuffer(0, 0, buffer_length);
-    if (flat_buffer.size() < min_length - available_length ||
-        Wasteful(buffer_length, flat_buffer.size())) {
+    flat_buffer = buffer_.AppendBuffer(
+        0, buffer_length - available_length,
+        SaturatingAdd(buffer_length, buffer_length) - available_length);
+    if (flat_buffer.size() < min_length - available_length) {
       // `flat_buffer` is too small. Resize `buffer_`, keeping available data.
       buffer_.RemoveSuffix(flat_buffer.size());
       buffer_.RemovePrefix(cursor_index);
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(buffer_length - available_length);
+      flat_buffer = buffer_.AppendBuffer(
+          buffer_length - available_length, buffer_length - available_length,
+          SaturatingAdd(buffer_length, buffer_length) - available_length);
     }
   }
   // Read more data, preferably into `buffer_`.
@@ -227,18 +232,23 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       length -= available();
       dest.Append(absl::string_view(cursor(), available()));
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                               SaturatingAdd(buffer_size_, buffer_size_));
     } else {
       cursor_index = read_from_buffer();
-      flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      flat_buffer = buffer_.AppendBuffer(
+          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+      if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `*dest` and make
         // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
         buffer_.Clear();
         cursor_index = 0;
-        flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+        flat_buffer =
+            buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                                 SaturatingAdd(buffer_size_, buffer_size_));
       }
     }
     // Read more data, preferably into `buffer_`.
@@ -286,18 +296,23 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       length -= available();
       dest.Append(absl::string_view(cursor(), available()));
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                               SaturatingAdd(buffer_size_, buffer_size_));
     } else {
       cursor_index = read_from_buffer();
-      flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      flat_buffer = buffer_.AppendBuffer(
+          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+      if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `*dest` and make
         // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
         buffer_.Clear();
         cursor_index = 0;
-        flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+        flat_buffer =
+            buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                                 SaturatingAdd(buffer_size_, buffer_size_));
       }
     }
     // Read more data, preferably into `buffer_`.
@@ -338,11 +353,14 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
         return false;
       }
       cursor_index = 0;
-      flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+      flat_buffer =
+          buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                               SaturatingAdd(buffer_size_, buffer_size_));
     } else {
       cursor_index = read_from_buffer();
-      flat_buffer = buffer_.AppendBuffer(0, 0, buffer_size_);
-      if (flat_buffer.empty() || Wasteful(buffer_size_, flat_buffer.size())) {
+      flat_buffer = buffer_.AppendBuffer(
+          0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
+      if (flat_buffer.empty()) {
         // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
         if (available() > 0) {
@@ -364,7 +382,9 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
         }
         buffer_.Clear();
         cursor_index = 0;
-        flat_buffer = buffer_.AppendFixedBuffer(buffer_size_);
+        flat_buffer =
+            buffer_.AppendBuffer(buffer_size_, buffer_size_,
+                                 SaturatingAdd(buffer_size_, buffer_size_));
       }
     }
     // Read more data, preferably into `buffer_`.

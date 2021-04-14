@@ -49,8 +49,10 @@ void PushableWriter::PushFromScratchSlow(size_t min_length,
   } else {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
   }
-  const absl::Span<char> flat_buffer = scratch_->buffer.AppendFixedBuffer(
-      UnsignedMax(min_length, recommended_length));
+  recommended_length = UnsignedMax(min_length, recommended_length);
+  const absl::Span<char> flat_buffer = scratch_->buffer.AppendBuffer(
+      min_length, recommended_length,
+      SaturatingAdd(recommended_length, recommended_length));
   set_start_pos(pos());
   scratch_->original_start = start();
   scratch_->original_buffer_size = buffer_size();

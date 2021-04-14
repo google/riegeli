@@ -195,7 +195,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
       return MaxLineLengthExceeded(src, dest, options.max_length());
     }
-  } while (src.Pull(length + 1, SaturatingAdd(length, length)));
+  } while (src.Pull(length + 1));
   dest = absl::string_view(src.cursor(), src.available());
   src.move_cursor(src.available());
   return src.healthy();
