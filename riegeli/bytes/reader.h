@@ -72,10 +72,13 @@ class Reader : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  // Ensures that enough data are available for reading: pulls more data from
-  // the source, and points `cursor()` and `limit()` to data with length at
-  // least `min_length`, preferably `recommended_length`. If enough data were
-  // already available, does nothing.
+  // Ensures that enough data are available in the buffer: if less than
+  // `min_length` of data is available, pulls more data from the source, and
+  // points `cursor()` and `limit()` to data following the current position
+  // with length at least `min_length`, preferably `recommended_length`.
+  //
+  // The current position does not change with `Pull()`. It changes with e.g.
+  // `move_cursor()` and `Read()`.
   //
   // If `recommended_length < min_length`, `recommended_length` is assumed to be
   // `min_length`.
@@ -87,7 +90,7 @@ class Reader : public Object {
   bool Pull(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Data between `start()` and `limit()` are available for
-  // reading, with `cursor()` pointing to the current position.
+  // immediate reading, with `cursor()` pointing to the current position.
   //
   // Invariants:
   //   `start() <= cursor() <= limit()` (possibly all `nullptr`)
@@ -125,7 +128,7 @@ class Reader : public Object {
   // `cursor()`.
   size_t read_from_buffer() const { return PtrDistance(start_, cursor_); }
 
-  // Reads a single byte.
+  // Reads a single byte from the buffer or the source.
   //
   // Return values:
   //  * not `absl::nullopt`                 - success
@@ -134,8 +137,8 @@ class Reader : public Object {
   absl::optional<char> ReadChar();
   absl::optional<uint8_t> ReadByte();
 
-  // Reads a fixed number of bytes from the buffer to `dest`, pulling data from
-  // the source as needed, clearing any existing data in `dest`.
+  // Reads a fixed number of bytes from the buffer and/or the source to `dest`,
+  // clearing any existing data in `dest`.
   //
   // `Read(absl::string_view&)` points `dest` to an array holding the data. The
   // array is valid until the next non-const operation on the `Reader`.
@@ -154,8 +157,8 @@ class Reader : public Object {
   bool Read(size_t length, Chain& dest);
   bool Read(size_t length, absl::Cord& dest);
 
-  // Reads a fixed number of bytes from the buffer to `dest`, pulling data from
-  // the source as needed, appending to any existing data in `dest`.
+  // Reads a fixed number of bytes from the buffer and/or the source to `dest`,
+  // appending to any existing data in `dest`.
   //
   // Precondition for `ReadAndAppend(std::string&)`:
   //   `length <= dest->max_size() - dest->size()`
@@ -172,8 +175,7 @@ class Reader : public Object {
   bool ReadAndAppend(size_t length, Chain& dest);
   bool ReadAndAppend(size_t length, absl::Cord& dest);
 
-  // Reads a fixed number of bytes from the buffer to `*dest`, pulling data from
-  // the source as needed.
+  // Reads a fixed number of bytes from the buffer and/or the source to `dest`.
   //
   // `CopyTo(Writer&)` writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
@@ -199,13 +201,11 @@ class Reader : public Object {
   // into an internal buffer.
   void ReadHint(size_t length);
 
-  // Informs the source that data between `start()` and `cursor()` have been
-  // read.
+  // Synchronizes the current position to the source (if applicable).
   //
-  // The precise meaning of `Sync()` depends on the particular `Reader`. The
-  // intent is to propagate the current position to the source if the source
-  // tracks the current position, but in contrast to `Close()`, keeping the
-  // possibility to read more data later.
+  // In contrast to `Close()`, keeps the possibility to read more data later.
+  // What exactly does it mean for the position to be synchronized depends on
+  // the source.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
@@ -312,7 +312,7 @@ class Reader : public Object {
   // `CopyTo()`.
   //
   // `ReadSlow(std::string&)`, `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)`
-  // append to any existing data in `*dest`.
+  // append to any existing data in `dest`.
   //
   // By default `ReadSlow(char*)` and `CopyToSlow(Writer&)` are implemented in
   // terms of `PullSlow()`; `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)` are

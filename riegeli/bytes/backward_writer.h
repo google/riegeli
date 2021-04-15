@@ -52,10 +52,14 @@ class BackwardWriter : public Object {
   using Object::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
-  // Ensures that enough space is available for writing: pushes previously
-  // written data to the destination, and points `cursor()` and `limit()` to
-  // space with length at least `min_length`, preferably `recommended_length`.
-  // If enough space was already available, does nothing.
+  // Ensures that enough space is available in the buffer: if less than
+  // `min_length` of space is available, pushes previously written data to the
+  // destination, and points `cursor()` and `limit()` to space following the
+  // current position with length at least `min_length`, preferably
+  // `recommended_length`.
+  //
+  // The current position does not change with `Push()`. It changes with e.g.
+  // `move_cursor()` and `Write()`.
   //
   // If `recommended_length < min_length`, `recommended_length` is assumed to be
   // `min_length`.
@@ -66,9 +70,9 @@ class BackwardWriter : public Object {
   bool Push(size_t min_length = 1, size_t recommended_length = 0);
 
   // Buffer pointers. Space between `start()` (exclusive upper bound) and
-  // `limit()` (inclusive lower bound) is available for writing data to it, with
-  // `cursor()` pointing to the current position going downwards (past the next
-  // byte to write).
+  // `limit()` (inclusive lower bound) is available for immediate writing data
+  // to it, with `cursor()` pointing to the current position going downwards
+  // (past the next byte to write).
   //
   // Invariants:
   //   `start() >= cursor() >= limit()` (possibly all `nullptr`)
@@ -106,7 +110,7 @@ class BackwardWriter : public Object {
   // Invariant: if `!healthy()` then `written_to_buffer() == 0`
   size_t written_to_buffer() const { return PtrDistance(cursor_, start_); }
 
-  // Writes a single byte.
+  // Writes a single byte to the buffer or the destination.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
@@ -114,8 +118,8 @@ class BackwardWriter : public Object {
   bool WriteChar(char data);
   bool WriteByte(uint8_t data);
 
-  // Prepends a fixed number of bytes from `src` to the buffer, pushing data to
-  // the destination as needed.
+  // Writes a fixed number of bytes from `src` to the buffer and/or the
+  // destination. The whole `src` is prepended, bytes are not reversed.
   //
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `absl::string_view`
@@ -134,7 +138,7 @@ class BackwardWriter : public Object {
   bool Write(const absl::Cord& src);
   bool Write(absl::Cord&& src);
 
-  // Writes the given number of zero bytes.
+  // Writes the given number of zero bytes to the buffer and/or the destination.
   //
   // Return values:
   //  * `true`  - success (`length` bytes written)
