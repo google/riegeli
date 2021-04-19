@@ -142,9 +142,9 @@ absl::Status ParseFromReaderImpl(Reader& src,
                                  ParseOptions options);
 
 template <typename Src>
-inline absl::Status ParseFromReaderImpl(Dependency<Reader*, Src> src,
-                                        google::protobuf::MessageLite& dest,
-                                        ParseOptions options) {
+inline absl::Status ParseFromReaderUsingDependency(
+    Dependency<Reader*, Src> src, google::protobuf::MessageLite& dest,
+    ParseOptions options) {
   absl::Status status = ParseFromReaderImpl(*src, dest, options);
   if (src.is_owning()) {
     if (ABSL_PREDICT_FALSE(!src->Close())) status = src->status();
@@ -158,15 +158,15 @@ template <typename Src>
 inline absl::Status ParseFromReader(const Src& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderImpl(Dependency<Reader*, const Src&>(src),
-                                       dest, options);
+  return internal::ParseFromReaderUsingDependency(
+      Dependency<Reader*, const Src&>(src), dest, options);
 }
 
 template <typename Src>
 inline absl::Status ParseFromReader(Src&& src,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderImpl(
+  return internal::ParseFromReaderUsingDependency(
       Dependency<Reader*, Src&&>(std::forward<Src>(src)), dest, options);
 }
 
@@ -174,7 +174,7 @@ template <typename Src, typename... SrcArgs>
 inline absl::Status ParseFromReader(std::tuple<SrcArgs...> src_args,
                                     google::protobuf::MessageLite& dest,
                                     ParseOptions options) {
-  return internal::ParseFromReaderImpl(
+  return internal::ParseFromReaderUsingDependency(
       Dependency<Reader*, Src>(std::move(src_args)), dest, options);
 }
 
