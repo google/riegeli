@@ -17,13 +17,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
-
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -144,9 +141,7 @@ bool DefaultChunkWriterBase::PadToBlockBoundary() {
   }
   length -= ChunkHeader::size();
   Chunk chunk;
-  const absl::Span<char> buffer = chunk.data.AppendFixedBuffer(
-      length, Chain::Options().set_size_hint(length));
-  std::memset(buffer.data(), '\0', buffer.size());
+  chunk.data = ChainOfZeros(length);
   chunk.header = ChunkHeader(chunk.data, ChunkType::kPadding, 0, 0);
   return WriteChunk(chunk);
 }
