@@ -50,9 +50,12 @@ Reader& StdIn();
 // output accessed by other means, such as fd 1, `std::cout`, or `stdout`,
 // except that if random access is not used, careful interleaving of multiple
 // writers is possible: flushing is needed before switching to another writer
-// (`StdOut().Flush(FlushType::kFromProcess)`, `std::cout.flush()`,
-// `std::fflush(stdout)`, nothing needed for fd 1), and `pos()` does not take
-// other writers into account.
+// (`StdOut().Flush()`, `std::cout.flush()`, `std::fflush(stdout)`, nothing
+// needed for fd 1), and `pos()` does not take other writers into account.
+//
+// As an alternative to `StdOut()`, creating and later closing an
+// `OstreamWriter(&std::cout)` makes it easier to combine writing to a `Writer`
+// with accessing `std::cout` afterwards.
 Writer& StdOut();
 
 // A singleton `Writer` writing to standard error (by default to the same
@@ -69,9 +72,13 @@ Writer& StdOut();
 // error accessed by other means, such as fd 2, `std::cerr`, `std::clog`, or
 // `stderr`, except that if random access is not used, careful interleaving of
 // multiple writers is possible: flushing is needed before switching to another
-// writer (`StdErr().Flush(FlushType::kFromProcess)`, `std::clog.flush()`,
-// nothing needed for fd 2, `std::cerr`, or `stderr`), and `pos()` does not take
-// other writers into account.
+// writer (`StdErr().Flush()`, `std::clog.flush()`, nothing needed for fd 2,
+// `std::cerr`, or `stderr`), and `pos()` does not take other writers into
+// account.
+//
+// As an alternative to `StdErr()`, creating and later closing an
+// `OstreamWriter(&std::cerr)` makes it easier to combine writing to a `Writer`
+// with accessing `std::cerr` afterwards.
 Writer& StdErr();
 
 // Replaces `StdIn()` with a new `Reader`. Returns the previous `Reader`.
