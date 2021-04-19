@@ -99,14 +99,14 @@ class PullableReader : public Reader {
   // Precondition: `available() < min_length`
   bool PullUsingScratch(size_t min_length, size_t recommended_length);
 
-  // Helps to implement `{Read,CopyTo}Slow(length, dest)` if scratch is used.
+  // Helps to implement `{Read,Copy}Slow(length, dest)` if scratch is used.
   //
   // Typical usage in `ReadSlow()`:
   //   ```
   //   if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
   //   ```
   //
-  // Typical usage in `CopyToSlow()`:
+  // Typical usage in `CopySlow()`:
   //   ```
   //   if (ABSL_PREDICT_FALSE(!CopyScratchTo(length, dest))) {
   //     return length == 0 && dest.healthy();
@@ -116,12 +116,12 @@ class PullableReader : public Reader {
   // Return values:
   //  * `true`  - some data have been copied from scratch to `dest`,
   //              `length` was appropriately reduced, scratch is not used now,
-  //              the caller should continue `{Read,CopyTo}Slow(length, dest)`
+  //              the caller should continue `{Read,Copy}Slow(length, dest)`
   //              no longer assuming that
   //              `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  //  * `false` - `{Read,CopyTo}Slow()` is done,
+  //  * `false` - `{Read,Copy}Slow()` is done,
   //              the caller should return `length == 0` for `ReadSlow()`, or
-  //              `length == 0 && dest.healthy()` for `CopyToSlow()`
+  //              `length == 0 && dest.healthy()` for `CopySlow()`
   //
   // Preconditions for `ReadScratch()`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
@@ -256,7 +256,7 @@ inline bool PullableReader::ReadScratch(size_t& length, absl::Cord& dest) {
 inline bool PullableReader::CopyScratchTo(Position& length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::CopyScratchTo(): "
-         "enough data available, use CopyTo(Writer&) instead";
+         "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     return CopyScratchToSlow(length, dest);
   }

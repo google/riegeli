@@ -62,9 +62,9 @@ class CordReaderBase : public PullableReader {
   using PullableReader::ReadSlow;
   bool ReadSlow(size_t length, Chain& dest) override;
   bool ReadSlow(size_t length, absl::Cord& dest) override;
-  using PullableReader::CopyToSlow;
-  bool CopyToSlow(Position length, Writer& dest) override;
-  bool CopyToSlow(size_t length, BackwardWriter& dest) override;
+  using PullableReader::CopySlow;
+  bool CopySlow(Position length, Writer& dest) override;
+  bool CopySlow(size_t length, BackwardWriter& dest) override;
   bool SeekSlow(Position new_pos) override;
 
   // Invariant:

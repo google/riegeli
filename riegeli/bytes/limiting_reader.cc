@@ -109,25 +109,25 @@ inline bool LimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
   return ok && length_to_read == length;
 }
 
-bool LimitingReaderBase::CopyToSlow(Position length, Writer& dest) {
+bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "enough data available, use CopyTo(Writer&) instead";
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   SyncBuffer(src);
   const Position length_to_copy = UnsignedMin(length, size_limit_ - pos());
-  const bool ok = src.CopyTo(length_to_copy, dest);
+  const bool ok = src.Copy(length_to_copy, dest);
   MakeBuffer(src);
   return ok && length_to_copy == length;
 }
 
-bool LimitingReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
+bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "enough data available, use CopyTo(BackwardWriter&) instead";
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
   RIEGELI_ASSERT_LE(pos(), size_limit_)
       << "Failed invariant of LimitingReaderBase: position exceeds size limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -138,7 +138,7 @@ bool LimitingReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
     MakeBuffer(src);
     return false;
   }
-  const bool ok = src.CopyTo(length, dest);
+  const bool ok = src.Copy(length, dest);
   MakeBuffer(src);
   return ok;
 }

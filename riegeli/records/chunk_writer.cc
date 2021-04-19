@@ -99,7 +99,7 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
     }
     const Position length =
         UnsignedMin(*size - src.pos(), internal::RemainingInBlock(pos_));
-    if (ABSL_PREDICT_FALSE(!src.CopyTo(length, dest))) return Fail(dest);
+    if (ABSL_PREDICT_FALSE(!src.Copy(length, dest))) return Fail(dest);
     pos_ += length;
   }
   if (!src.Close()) {

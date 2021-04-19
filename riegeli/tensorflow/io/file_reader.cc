@@ -327,10 +327,10 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   return enough_read;
 }
 
-bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
+bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "enough data available, use CopyTo(Writer&) instead";
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
   bool read_ok = healthy();
@@ -407,10 +407,10 @@ bool FileReaderBase::CopyToSlow(Position length, Writer& dest) {
   return write_ok && enough_read;
 }
 
-bool FileReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
+bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "enough data available, use CopyTo(BackwardWriter&) instead";
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
   if (length <= available() && buffer_.empty()) {
     // Avoid writing an `absl::string_view` if available data are in `buffer_`,
     // because in this case it is better to write a `Chain`.

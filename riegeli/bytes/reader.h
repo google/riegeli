@@ -177,11 +177,11 @@ class Reader : public Object {
 
   // Reads a fixed number of bytes from the buffer and/or the source to `dest`.
   //
-  // `CopyTo(Writer&)` writes as much as could be read if reading failed, and
+  // `Copy(Writer&)` writes as much as could be read if reading failed, and
   // reads an unspecified length (between what could be written and the
   // requested length) if writing failed.
   //
-  // `CopyTo(BackwardWriter&)` writes nothing if reading failed, and reads the
+  // `Copy(BackwardWriter&)` writes nothing if reading failed, and reads the
   // full requested length even if writing failed.
   //
   // Return values:
@@ -191,10 +191,10 @@ class Reader : public Object {
   //                                                     `length` bytes copied)
   //  * `false` (when `!dest.healthy() || !healthy()`) - failure (less than
   //                                                     `length` bytes copied)
-  bool CopyTo(Position length, Writer& dest);
-  bool CopyTo(size_t length, BackwardWriter& dest);
+  bool Copy(Position length, Writer& dest);
+  bool Copy(size_t length, BackwardWriter& dest);
 
-  // Hints that several consecutive `Pull()`, `Read()`, or `CopyTo()` calls will
+  // Hints that several consecutive `Pull()`, `Read()`, or `Copy()` calls will
   // follow, reading this amount of data in total.
   //
   // This can make these calls faster by by prefetching all the data at once
@@ -366,22 +366,21 @@ class Reader : public Object {
                   size_t read_from_buffer = 0);
 
   // Implementations of the slow part of `Read()`, `ReadAndAppend()`, and
-  // `CopyTo()`.
+  // `Copy()`.
   //
   // `ReadSlow(std::string&)`, `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)`
   // append to any existing data in `dest`.
   //
-  // By default `ReadSlow(char*)` and `CopyToSlow(Writer&)` are implemented in
+  // By default `ReadSlow(char*)` and `CopySlow(Writer&)` are implemented in
   // terms of `PullSlow()`; `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)` are
-  // implemented in terms of `ReadSlow(char*)`; and
-  // `CopyToSlow(BackwardWriter&)` is implemented in terms of `ReadSlow(char*)`
-  // and `ReadSlow(Chain&)`.
+  // implemented in terms of `ReadSlow(char*)`; and `CopySlow(BackwardWriter&)`
+  // is implemented in terms of `ReadSlow(char*)` and `ReadSlow(Chain&)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string&)`:
   //   `available() < length`
   //
   // Precondition for `ReadSlow(Chain&)`, `ReadSlow(absl::Cord&)`, and
-  // `CopyToSlow()`:
+  // `CopySlow()`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   //
   // Precondition for `ReadSlow(std::string&)`:
@@ -393,8 +392,8 @@ class Reader : public Object {
   bool ReadSlow(size_t length, std::string& dest);
   virtual bool ReadSlow(size_t length, Chain& dest);
   virtual bool ReadSlow(size_t length, absl::Cord& dest);
-  virtual bool CopyToSlow(Position length, Writer& dest);
-  virtual bool CopyToSlow(size_t length, BackwardWriter& dest);
+  virtual bool CopySlow(Position length, Writer& dest);
+  virtual bool CopySlow(size_t length, BackwardWriter& dest);
 
   // Implementation of the slow part of `ReadHint()`.
   //
@@ -618,22 +617,22 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest) {
   return ReadSlow(length, dest);
 }
 
-inline bool Reader::CopyTo(Position length, Writer& dest) {
+inline bool Reader::Copy(Position length, Writer& dest) {
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     const absl::string_view data(cursor(), IntCast<size_t>(length));
     move_cursor(IntCast<size_t>(length));
     return dest.Write(data);
   }
-  return CopyToSlow(length, dest);
+  return CopySlow(length, dest);
 }
 
-inline bool Reader::CopyTo(size_t length, BackwardWriter& dest) {
+inline bool Reader::Copy(size_t length, BackwardWriter& dest) {
   if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     const absl::string_view data(cursor(), length);
     move_cursor(length);
     return dest.Write(data);
   }
-  return CopyToSlow(length, dest);
+  return CopySlow(length, dest);
 }
 
 inline void Reader::ReadHint(size_t length) {

@@ -1082,7 +1082,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
                                length_length)) {                               \
       return Fail(absl::DataLossError("String length overflow"));              \
     }                                                                          \
-    if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(                              \
+    if (ABSL_PREDICT_FALSE(!node->buffer->Copy(                                \
             length_length + size_t{length->value}, dest))) {                   \
       if (!dest.healthy()) return Fail(dest);                                  \
       node->buffer->Fail(absl::DataLossError("Reading string field failed"));  \
@@ -1253,7 +1253,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
               absl::DataLossError("Reading non-proto record length failed"));
           return Fail(*context.nonproto_lengths);
         }
-        if (ABSL_PREDICT_FALSE(!node->buffer->CopyTo(*length, dest))) {
+        if (ABSL_PREDICT_FALSE(!node->buffer->Copy(*length, dest))) {
           if (!dest.healthy()) return Fail(dest);
           node->buffer->Fail(
               absl::DataLossError("Reading non-proto record failed"));

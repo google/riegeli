@@ -106,10 +106,10 @@ bool CordReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   return length_to_read == length;
 }
 
-bool CordReaderBase::CopyToSlow(Position length, Writer& dest) {
+bool CordReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "enough data available, use CopyTo(Writer&) instead";
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const absl::Cord& src = *src_cord();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -140,10 +140,10 @@ bool CordReaderBase::CopyToSlow(Position length, Writer& dest) {
   return ok && length_to_copy == length;
 }
 
-bool CordReaderBase::CopyToSlow(size_t length, BackwardWriter& dest) {
+bool CordReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "enough data available, use CopyTo(BackwardWriter&) instead";
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const absl::Cord& src = *src_cord();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())

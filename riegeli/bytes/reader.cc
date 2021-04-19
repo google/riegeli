@@ -159,10 +159,10 @@ bool Reader::ReadSlow(size_t length, absl::Cord& dest) {
   return true;
 }
 
-bool Reader::CopyToSlow(Position length, Writer& dest) {
+bool Reader::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(Writer*): "
-         "enough data available, use CopyTo(Writer*) instead";
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
   while (length > available()) {
     const absl::string_view data(cursor(), available());
     move_cursor(data.size());
@@ -175,10 +175,10 @@ bool Reader::CopyToSlow(Position length, Writer& dest) {
   return dest.Write(data);
 }
 
-bool Reader::CopyToSlow(size_t length, BackwardWriter& dest) {
+bool Reader::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter*): "
-         "enough data available, use CopyTo(BackwardWriter*) instead";
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
   if (length <= available()) {
     const absl::string_view data(cursor(), length);
     move_cursor(length);
@@ -373,12 +373,12 @@ bool Reader::CopyAll(Writer& dest, Position max_length) {
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
     const Position remaining = SaturatingSub(*size, pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
-      if (ABSL_PREDICT_FALSE(!CopyTo(max_length, dest))) {
+      if (ABSL_PREDICT_FALSE(!Copy(max_length, dest))) {
         return dest.healthy() && healthy();
       }
       return FailMaxLengthExceeded(max_length);
     }
-    if (ABSL_PREDICT_FALSE(!CopyTo(remaining, dest))) {
+    if (ABSL_PREDICT_FALSE(!Copy(remaining, dest))) {
       return dest.healthy() && healthy();
     }
     return true;
@@ -386,13 +386,13 @@ bool Reader::CopyAll(Writer& dest, Position max_length) {
     Position remaining_max_length = max_length;
     do {
       if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        if (ABSL_PREDICT_FALSE(!CopyTo(remaining_max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!Copy(remaining_max_length, dest))) {
           if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
         }
         return FailMaxLengthExceeded(max_length);
       }
       remaining_max_length -= available();
-      if (ABSL_PREDICT_FALSE(!CopyTo(available(), dest))) {
+      if (ABSL_PREDICT_FALSE(!Copy(available(), dest))) {
         if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
       }
     } while (Pull());
@@ -411,7 +411,7 @@ bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
       }
       return FailMaxLengthExceeded(max_length);
     }
-    if (ABSL_PREDICT_FALSE(!CopyTo(IntCast<size_t>(remaining), dest))) {
+    if (ABSL_PREDICT_FALSE(!Copy(IntCast<size_t>(remaining), dest))) {
       return dest.healthy() && healthy();
     }
     return true;

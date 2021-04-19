@@ -235,10 +235,10 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
   return enough_read;
 }
 
-bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
+bool BufferedReader::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(Writer&): "
-         "enough data available, use CopyTo(Writer&) instead";
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
   bool enough_read = true;
   bool read_ok = healthy();
   while (length > available()) {
@@ -306,10 +306,10 @@ bool BufferedReader::CopyToSlow(Position length, Writer& dest) {
   return write_ok && enough_read;
 }
 
-bool BufferedReader::CopyToSlow(size_t length, BackwardWriter& dest) {
+bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopyToSlow(BackwardWriter&): "
-         "enough data available, use CopyTo(BackwardWriter&) instead";
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
   if (length <= kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
     dest.move_cursor(length);

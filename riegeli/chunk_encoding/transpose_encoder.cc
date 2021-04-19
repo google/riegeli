@@ -273,7 +273,7 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
     encoded_tags_.push_back(
         GetPosInTagsList(node, internal::Subtype::kTrivial));
     BackwardWriter* const buffer = GetBuffer(node, BufferType::kNonProto);
-    if (ABSL_PREDICT_FALSE(!record.CopyTo(IntCast<size_t>(*size), *buffer))) {
+    if (ABSL_PREDICT_FALSE(!record.Copy(IntCast<size_t>(*size), *buffer))) {
       return Fail(*buffer);
     }
     if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(*size),
@@ -368,7 +368,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed32);
-        if (ABSL_PREDICT_FALSE(!record.CopyTo(sizeof(uint32_t), *buffer))) {
+        if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint32_t), *buffer))) {
           return Fail(*buffer);
         }
       } break;
@@ -376,7 +376,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
         encoded_tags_.push_back(
             GetPosInTagsList(node, internal::Subtype::kTrivial));
         BackwardWriter* const buffer = GetBuffer(node, BufferType::kFixed64);
-        if (ABSL_PREDICT_FALSE(!record.CopyTo(sizeof(uint64_t), *buffer))) {
+        if (ABSL_PREDICT_FALSE(!record.Copy(sizeof(uint64_t), *buffer))) {
           return Fail(*buffer);
         }
       } break;
@@ -415,7 +415,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
                 << "Seeking message reader failed: " << record.status();
           }
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
-          if (ABSL_PREDICT_FALSE(!record.CopyTo(
+          if (ABSL_PREDICT_FALSE(!record.Copy(
                   IntCast<size_t>(value_pos - length_pos) + *length,
                   *buffer))) {
             return Fail(*buffer);
