@@ -20,6 +20,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
@@ -29,59 +30,62 @@
 
 namespace riegeli {
 
-// Reads all remaining bytes from `src` to `*dest`, clearing any existing data
-// in `dest`.
-//
-// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
-// exceeded.
-//
-// Return values:
-//  * `true` (`src.healthy()`)   - success
-//  * `false` (`!src.healthy()`) - failure
-bool ReadAll(Reader& src, absl::string_view& dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader& src, std::string& dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader& src, Chain& dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAll(Reader& src, absl::Cord& dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
+ABSL_DEPRECATED("Use Reader::ReadAll() instead")
+inline bool ReadAll(Reader& src, absl::string_view& dest,
+                    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAll(dest, max_size);
+}
 
-// Reads all remaining bytes from `src` to `*dest`, appending to any existing
-// data in `dest`.
-//
-// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
-// exceeded.
-//
-// Return values:
-//  * `true` (`src.healthy()`)   - success
-//  * `false` (`!src.healthy()`) - failure
-bool ReadAndAppendAll(Reader& src, std::string& dest,
-                      size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAndAppendAll(Reader& src, Chain& dest,
-                      size_t max_size = std::numeric_limits<size_t>::max());
-bool ReadAndAppendAll(Reader& src, absl::Cord& dest,
-                      size_t max_size = std::numeric_limits<size_t>::max());
+ABSL_DEPRECATED("Use Reader::ReadAll() instead")
+inline bool ReadAll(Reader& src, std::string& dest,
+                    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAll(dest, max_size);
+}
 
-// Reads all remaining bytes from `src` to `dest`.
-//
-// `CopyAll(Writer&)` writes as much as could be read if reading failed, and
-// reads an unspecified length (between what could be written and the
-// requested length) if writing failed.
-//
-// `CopyAll(BackwardWriter&)` writes nothing if reading failed, and reads
-// the full requested length even if writing failed.
-//
-// Fails `src` with `absl::ResourceExhaustedError()` if `max_size` would be
-// exceeded.
-//
-// Return values:
-//  * `true` (`dest.healthy() && src.healthy()`)    - success
-//  * `false` (`!dest.healthy() || !src.healthy()`) - failure
-bool CopyAll(Reader& src, Writer& dest,
-             Position max_size = std::numeric_limits<Position>::max());
-bool CopyAll(Reader& src, BackwardWriter& dest,
-             size_t max_size = std::numeric_limits<size_t>::max());
+ABSL_DEPRECATED("Use Reader::ReadAll() instead")
+inline bool ReadAll(Reader& src, Chain& dest,
+                    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::ReadAll() instead")
+inline bool ReadAll(Reader& src, absl::Cord& dest,
+                    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::ReadAndAppendAll() instead")
+inline bool ReadAndAppendAll(
+    Reader& src, std::string& dest,
+    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAndAppendAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::ReadAndAppendAll() instead")
+inline bool ReadAndAppendAll(
+    Reader& src, Chain& dest,
+    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAndAppendAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::ReadAndAppendAll() instead")
+inline bool ReadAndAppendAll(
+    Reader& src, absl::Cord& dest,
+    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.ReadAndAppendAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::CopyAll() instead")
+inline bool CopyAll(Reader& src, Writer& dest,
+                    Position max_size = std::numeric_limits<Position>::max()) {
+  return src.CopyAll(dest, max_size);
+}
+
+ABSL_DEPRECATED("Use Reader::CopyAll() instead")
+inline bool CopyAll(Reader& src, BackwardWriter& dest,
+                    size_t max_size = std::numeric_limits<size_t>::max()) {
+  return src.CopyAll(dest, max_size);
+}
 
 }  // namespace riegeli
 

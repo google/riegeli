@@ -68,6 +68,11 @@ bool Reader::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Reader position overflow"));
 }
 
+bool Reader::FailMaxLengthExceeded(Position max_length) {
+  return Fail(absl::ResourceExhaustedError(
+      absl::StrCat("Maximum length exceeded: ", max_length)));
+}
+
 bool Reader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
@@ -197,6 +202,212 @@ void Reader::ReadHintSlow(size_t length) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
+}
+
+bool Reader::ReadAll(absl::string_view& dest, size_t max_length) {
+  max_length = UnsignedMin(max_length, dest.max_size());
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      dest = absl::string_view();
+      return false;
+    }
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!Read(max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!Read(IntCast<size_t>(remaining), dest))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    do {
+      if (ABSL_PREDICT_FALSE(available() > max_length)) {
+        dest = absl::string_view(cursor(), max_length);
+        move_cursor(max_length);
+        return FailMaxLengthExceeded(max_length);
+      }
+    } while (Pull(available() + 1));
+    dest = absl::string_view(cursor(), available());
+    move_cursor(available());
+    return healthy();
+  }
+}
+
+bool Reader::ReadAll(std::string& dest, size_t max_length) {
+  dest.clear();
+  return ReadAndAppendAll(dest, max_length);
+}
+
+bool Reader::ReadAll(Chain& dest, size_t max_length) {
+  dest.Clear();
+  return ReadAndAppendAll(dest, max_length);
+}
+
+bool Reader::ReadAll(absl::Cord& dest, size_t max_length) {
+  dest.Clear();
+  return ReadAndAppendAll(dest, max_length);
+}
+
+bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
+  max_length = UnsignedMin(max_length, dest.max_size() - dest.size());
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    size_t remaining_max_length = max_length;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        dest.append(cursor(), remaining_max_length);
+        move_cursor(remaining_max_length);
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      dest.append(cursor(), available());
+      move_cursor(available());
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::ReadAndAppendAll(Chain& dest, size_t max_length) {
+  max_length =
+      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    size_t remaining_max_length = max_length;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        ReadAndAppend(remaining_max_length, dest);
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      ReadAndAppend(available(), dest);
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::ReadAndAppendAll(absl::Cord& dest, size_t max_length) {
+  max_length =
+      UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!ReadAndAppend(max_length, dest))) {
+        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!ReadAndAppend(IntCast<size_t>(remaining), dest))) {
+      return healthy();
+    }
+    return true;
+  } else {
+    size_t remaining_max_length = max_length;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        ReadAndAppend(remaining_max_length, dest);
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      ReadAndAppend(available(), dest);
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::CopyAll(Writer& dest, Position max_length) {
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!CopyTo(max_length, dest))) {
+        return dest.healthy() && healthy();
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!CopyTo(remaining, dest))) {
+      return dest.healthy() && healthy();
+    }
+    return true;
+  } else {
+    Position remaining_max_length = max_length;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        if (ABSL_PREDICT_FALSE(!CopyTo(remaining_max_length, dest))) {
+          if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
+        }
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      if (ABSL_PREDICT_FALSE(!CopyTo(available(), dest))) {
+        if (ABSL_PREDICT_FALSE(!dest.healthy())) return false;
+      }
+    } while (Pull());
+    return healthy();
+  }
+}
+
+bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
+  if (SupportsSize()) {
+    const absl::optional<Position> size = Size();
+    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const Position remaining = SaturatingSub(*size, pos());
+    if (ABSL_PREDICT_FALSE(remaining > max_length)) {
+      if (ABSL_PREDICT_FALSE(!Skip(max_length))) {
+        if (ABSL_PREDICT_FALSE(!healthy())) return false;
+      }
+      return FailMaxLengthExceeded(max_length);
+    }
+    if (ABSL_PREDICT_FALSE(!CopyTo(IntCast<size_t>(remaining), dest))) {
+      return dest.healthy() && healthy();
+    }
+    return true;
+  } else {
+    size_t remaining_max_length = max_length;
+    Chain data;
+    do {
+      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
+        move_cursor(remaining_max_length);
+        return FailMaxLengthExceeded(max_length);
+      }
+      remaining_max_length -= available();
+      ReadAndAppend(available(), data);
+    } while (Pull());
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    return dest.Write(std::move(data));
+  }
 }
 
 bool Reader::SeekSlow(Position new_pos) {

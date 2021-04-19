@@ -201,6 +201,63 @@ class Reader : public Object {
   // into an internal buffer.
   void ReadHint(size_t length);
 
+  // Reads all remaining bytes from the buffer and/or the source to `dest`,
+  // clearing any existing data in `dest`.
+  //
+  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
+  // would be read.
+  //
+  // `ReadAll(absl::string_view&)` points `dest` to an array holding the data.
+  // The array is valid until the next non-const operation on the `Reader`.
+  //
+  // Return values:
+  //  * `true` (`healthy()`)   - success
+  //  * `false` (`!healthy()`) - failure
+  bool ReadAll(absl::string_view& dest,
+               size_t max_length = std::numeric_limits<size_t>::max());
+  bool ReadAll(std::string& dest,
+               size_t max_length = std::numeric_limits<size_t>::max());
+  bool ReadAll(Chain& dest,
+               size_t max_length = std::numeric_limits<size_t>::max());
+  bool ReadAll(absl::Cord& dest,
+               size_t max_length = std::numeric_limits<size_t>::max());
+
+  // Reads all remaining bytes from the buffer and/or the source to `dest`,
+  // appending to any existing data in `dest`.
+  //
+  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
+  // would be read.
+  //
+  // Return values:
+  //  * `true` (`healthy()`)   - success
+  //  * `false` (`!healthy()`) - failure
+  bool ReadAndAppendAll(std::string& dest,
+                        size_t max_length = std::numeric_limits<size_t>::max());
+  bool ReadAndAppendAll(Chain& dest,
+                        size_t max_length = std::numeric_limits<size_t>::max());
+  bool ReadAndAppendAll(absl::Cord& dest,
+                        size_t max_length = std::numeric_limits<size_t>::max());
+
+  // Reads all remaining bytes from the buffer and/or the source to `dest`,
+  //
+  // `CopyAll(Writer&)` writes as much as could be read if reading failed,
+  // and reads an unspecified length (between what could be written and the
+  // requested length) if writing failed.
+  //
+  // `CopyAll(BackwardWriter&)` writes nothing if reading failed, and reads
+  // the full requested length even if writing failed.
+  //
+  // Fails with `absl::ResourceExhaustedError()` if more than `max_length` bytes
+  // would be read.
+  //
+  // Return values:
+  //  * `true` (`dest.healthy() && healthy()`)    - success
+  //  * `false` (`!dest.healthy() || !healthy()`) - failure
+  bool CopyAll(Writer& dest,
+               Position max_length = std::numeric_limits<Position>::max());
+  bool CopyAll(BackwardWriter& dest,
+               size_t max_length = std::numeric_limits<size_t>::max());
+
   // Synchronizes the current position to the source (if applicable).
   //
   // In contrast to `Close()`, keeps the possibility to read more data later.
@@ -364,6 +421,8 @@ class Reader : public Object {
   virtual bool SeekSlow(Position new_pos);
 
  private:
+  ABSL_ATTRIBUTE_COLD bool FailMaxLengthExceeded(Position max_length);
+
   const char* start_ = nullptr;
   const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
