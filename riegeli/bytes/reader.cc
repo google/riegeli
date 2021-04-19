@@ -270,16 +270,37 @@ bool Reader::ReadAndAppendAll(std::string& dest, size_t max_length) {
     return true;
   } else {
     size_t remaining_max_length = max_length;
-    do {
-      if (ABSL_PREDICT_FALSE(available() > remaining_max_length)) {
-        dest.append(cursor(), remaining_max_length);
-        move_cursor(remaining_max_length);
+    for (;;) {
+      if (ABSL_PREDICT_FALSE(remaining_max_length == 0)) {
+        if (!Pull()) break;
         return FailMaxLengthExceeded(max_length);
       }
-      remaining_max_length -= available();
-      dest.append(cursor(), available());
-      move_cursor(available());
-    } while (Pull());
+      if (dest.capacity() - dest.size() <= available()) {
+        // `dest` has not enough space to fit currently available data and to
+        // determine whether the source ends.
+        dest.reserve(UnsignedMin(
+            UnsignedMax(SaturatingAdd(dest.size(), available(), size_t{1}),
+                        // Ensure amortized constant time of a reallocation.
+                        SaturatingAdd(dest.capacity(), dest.capacity() / 2)),
+            dest.size() + remaining_max_length));
+      }
+      // Try to fill all remaining space in `dest`.
+      const size_t dest_pos = dest.size();
+      const size_t length =
+          UnsignedMin(dest.capacity() - dest_pos, remaining_max_length);
+      dest.resize(dest_pos + length);
+      const Position pos_before = pos();
+      if (!Read(length, &dest[dest_pos])) {
+        RIEGELI_ASSERT_GE(pos(), pos_before)
+            << "Reader::Read(char*) decreased pos()";
+        const Position length_read = pos() - pos_before;
+        RIEGELI_ASSERT_LE(length_read, length)
+            << "Reader::Read(char*) read more than requested";
+        dest.erase(dest_pos + IntCast<size_t>(length_read));
+        break;
+      }
+      remaining_max_length -= length;
+    }
     return healthy();
   }
 }
