@@ -33,81 +33,76 @@ namespace riegeli {
 
 namespace {
 
-ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src,
-                                               absl::string_view& dest,
-                                               size_t max_length) {
-  dest = absl::string_view(src.cursor(), max_length);
-  src.move_cursor(max_length);
-  return src.Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Maximum line length exceeded: ", max_length)));
+// Reads `length_to_read` bytes from `src`, writes their prefix of
+// `length_to_write` bytes to `dest`, appending to existing contents
+// (unless `Dest` is `absl::string_view`).
+//
+// The data to read must be already available in the buffer.
+
+template <typename Dest>
+inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
+                            size_t length_to_write, Dest& dest) {
+  RIEGELI_ASSERT_LE(length_to_read, src.available())
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "reading more than buffered";
+  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "writing more than reading";
+  src.ReadAndAppend(length_to_write, dest);
+  src.Skip(length_to_read - length_to_write);
 }
 
-ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, std::string& dest,
-                                               size_t max_length) {
-  dest.append(src.cursor(), max_length);
-  src.move_cursor(max_length);
-  return src.Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Maximum length exceeded: ", max_length)));
+inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
+                            size_t length_to_write, absl::string_view& dest) {
+  RIEGELI_ASSERT_LE(length_to_read, src.available())
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "reading more than buffered";
+  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "writing more than reading";
+  dest = absl::string_view(src.cursor(), length_to_write);
+  src.move_cursor(length_to_read);
+}
+
+inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
+                            size_t length_to_write, std::string& dest) {
+  RIEGELI_ASSERT_LE(length_to_read, src.available())
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "reading more than buffered";
+  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+      << "Failed precondition of ReadFlatAndSkip(): "
+         "writing more than reading";
+  dest.append(src.cursor(), length_to_write);
+  src.move_cursor(length_to_read);
+}
+
+template <typename Dest>
+inline void ReadFlat(Reader& src, size_t length, Dest& dest) {
+  return ReadFlatAndSkip(src, length, length, dest);
 }
 
 template <typename Dest>
 ABSL_ATTRIBUTE_COLD bool MaxLineLengthExceeded(Reader& src, Dest& dest,
                                                size_t max_length) {
-  src.ReadAndAppend(max_length, dest);
+  ReadFlat(src, max_length, dest);
   return src.Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Maximum length exceeded: ", max_length)));
+      absl::StrCat("Maximum line length exceeded: ", max_length)));
 }
 
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
-                                                      absl::string_view& dest,
-                                                      ReadLineOptions options,
-                                                      size_t length,
-                                                      size_t newline_length) {
+template <typename Dest>
+inline bool FoundNewline(Reader& src, Dest& dest, ReadLineOptions options,
+                         size_t length, size_t newline_length) {
   const size_t length_with_newline = length + newline_length;
   if (options.keep_newline()) length = length_with_newline;
   if (ABSL_PREDICT_FALSE(length > options.max_length())) {
     return MaxLineLengthExceeded(src, dest, options.max_length());
   }
-  dest = absl::string_view(src.cursor(), length);
-  src.move_cursor(length_with_newline);
-  return true;
-}
-
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src,
-                                                      std::string& dest,
-                                                      ReadLineOptions options,
-                                                      size_t length,
-                                                      size_t newline_length) {
-  const size_t length_with_newline = length + newline_length;
-  if (options.keep_newline()) length = length_with_newline;
-  if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLineLengthExceeded(src, dest, options.max_length());
-  }
-  dest.append(src.cursor(), length);
-  src.move_cursor(length_with_newline);
+  ReadFlatAndSkip(src, length_with_newline, length, dest);
   return true;
 }
 
 template <typename Dest>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool FoundNewline(Reader& src, Dest& dest,
-                                                      ReadLineOptions options,
-                                                      size_t length,
-                                                      size_t newline_length) {
-  if (options.keep_newline()) {
-    length += newline_length;
-    newline_length = 0;
-  }
-  if (ABSL_PREDICT_FALSE(length > options.max_length())) {
-    return MaxLineLengthExceeded(src, dest, options.max_length());
-  }
-  src.ReadAndAppend(length, dest);
-  src.Skip(newline_length);
-  return true;
-}
-
-template <typename Dest>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLineAndAppend(
-    Reader& src, Dest& dest, ReadLineOptions options) {
+inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
   if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
   do {
     switch (options.newline()) {
@@ -145,7 +140,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLineAndAppend(
       return MaxLineLengthExceeded(src, dest, options.max_length());
     }
     options.set_max_length(options.max_length() - src.available());
-    src.ReadAndAppend(src.available(), dest);
+    ReadFlat(src, src.available(), dest);
   } while (src.Pull());
   return src.healthy();
 }
@@ -204,57 +199,17 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
 bool ReadLine(Reader& src, std::string& dest, ReadLineOptions options) {
   dest.clear();
   options.set_max_length(UnsignedMin(options.max_length(), dest.max_size()));
-  if (ABSL_PREDICT_FALSE(!src.Pull())) return false;
-  do {
-    switch (options.newline()) {
-      case ReadLineOptions::Newline::kLf: {
-        const char* const newline = static_cast<const char*>(
-            std::memchr(src.cursor(), '\n', src.available()));
-        if (ABSL_PREDICT_TRUE(newline != nullptr)) {
-          return FoundNewline(src, dest, options,
-                              PtrDistance(src.cursor(), newline), 1);
-        }
-        goto continue_reading;
-      }
-      case ReadLineOptions::Newline::kAny:
-        for (const char* newline = src.cursor(); newline < src.limit();
-             ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src.cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            const size_t length = PtrDistance(src.cursor(), newline);
-            return FoundNewline(src, dest, options, length,
-                                ABSL_PREDICT_TRUE(src.Pull(length + 2)) &&
-                                        src.cursor()[length + 1] == '\n'
-                                    ? size_t{2}
-                                    : size_t{1});
-          }
-        }
-        goto continue_reading;
-    }
-    RIEGELI_ASSERT_UNREACHABLE()
-        << "Unknown newline: " << static_cast<int>(options.newline());
-  continue_reading:
-    if (ABSL_PREDICT_FALSE(src.available() > options.max_length())) {
-      return MaxLineLengthExceeded(src, dest, options.max_length());
-    }
-    options.set_max_length(options.max_length() - src.available());
-    dest.append(src.cursor(), src.available());
-    src.move_cursor(src.available());
-  } while (src.Pull());
-  return src.healthy();
+  return ReadLineInternal(src, dest, options);
 }
 
 bool ReadLine(Reader& src, Chain& dest, ReadLineOptions options) {
   dest.Clear();
-  return ReadLineAndAppend(src, dest, options);
+  return ReadLineInternal(src, dest, options);
 }
 
 bool ReadLine(Reader& src, absl::Cord& dest, ReadLineOptions options) {
   dest.Clear();
-  return ReadLineAndAppend(src, dest, options);
+  return ReadLineInternal(src, dest, options);
 }
 
 void SkipBOM(riegeli::Reader& src) {
