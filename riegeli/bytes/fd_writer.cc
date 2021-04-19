@@ -213,7 +213,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool FdWriterBase::Flush(FlushType flush_type) {
+bool FdWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
@@ -365,7 +365,7 @@ bool FdStreamWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool FdStreamWriterBase::Flush(FlushType flush_type) {
+bool FdStreamWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   const int dest = dest_fd();
   switch (flush_type) {

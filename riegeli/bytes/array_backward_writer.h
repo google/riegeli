@@ -43,7 +43,6 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   absl::Span<const char> written() const { return written_; }
 
   bool PrefersCopying() const override { return true; }
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 
@@ -62,6 +61,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
+  bool FlushImpl(FlushType flush_type) override;
 
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;

@@ -293,10 +293,9 @@ class ZlibWriter : public ZlibWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   // The object providing and possibly owning the compressed `Writer`.
@@ -449,7 +448,7 @@ void ZlibWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool ZlibWriter<Dest>::Flush(FlushType flush_type) {
+bool ZlibWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);

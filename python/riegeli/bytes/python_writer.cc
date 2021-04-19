@@ -192,7 +192,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool PythonWriter::Flush(FlushType flush_type) {
+bool PythonWriter::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:

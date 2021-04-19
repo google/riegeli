@@ -153,7 +153,7 @@ void StringWriterBase::WriteHintSlow(size_t length) {
   MakeBuffer(dest);
 }
 
-bool StringWriterBase::Flush(FlushType flush_type) {
+bool StringWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())

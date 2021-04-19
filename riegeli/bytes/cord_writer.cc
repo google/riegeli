@@ -196,7 +196,7 @@ bool CordWriterBase::WriteZerosSlow(Position length) {
   return true;
 }
 
-bool CordWriterBase::Flush(FlushType flush_type) {
+bool CordWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())

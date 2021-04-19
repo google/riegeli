@@ -180,10 +180,9 @@ class DigestingWriter : public DigestingWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
   using DigestingWriterBase::DigesterWrite;
   void DigesterWrite(absl::string_view src) override;
@@ -367,7 +366,7 @@ DigestingWriter<Digester, Dest>::Digest() {
 }
 
 template <typename Digester, typename Dest>
-bool DigestingWriter<Digester, Dest>::Flush(FlushType flush_type) {
+bool DigestingWriter<Digester, Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   SyncBuffer(*dest_);
   bool ok = true;

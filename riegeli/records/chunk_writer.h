@@ -83,7 +83,7 @@ class ChunkWriter : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
+  bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current byte position. Unchanged by `Close()`.
   Position pos() const { return pos_; }
@@ -92,6 +92,7 @@ class ChunkWriter : public Object {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
   void Initialize(Position pos) { pos_ = pos; }
+  virtual bool FlushImpl(FlushType flush_type) = 0;
 
   Position pos_ = 0;
 };
@@ -195,10 +196,9 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   // The object providing and possibly owning the Riegeli/records file being
@@ -250,6 +250,10 @@ inline void ChunkWriter::Reset(InitiallyClosed) {
 inline void ChunkWriter::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   pos_ = 0;
+}
+
+inline bool ChunkWriter::Flush(FlushType flush_type) {
+  return FlushImpl(flush_type);
 }
 
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(
@@ -340,7 +344,7 @@ void DefaultChunkWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool DefaultChunkWriter<Dest>::Flush(FlushType flush_type) {
+bool DefaultChunkWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);

@@ -177,7 +177,7 @@ class RecordWriterBase::Worker : public Object {
   bool MaybePadToBlockBoundary();
 
   // Precondition: chunk is not open.
-  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
+  virtual bool Flush(FlushType flush_type) = 0;
 
   virtual FutureRecordPosition Pos() const = 0;
 

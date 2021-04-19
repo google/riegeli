@@ -178,10 +178,9 @@ class OstreamWriter : public OstreamWriterBase {
   std::ostream* dest_stream() override { return dest_.get(); }
   const std::ostream* dest_stream() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   // The object providing and possibly owning the stream being written to.
@@ -322,7 +321,7 @@ void OstreamWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool OstreamWriter<Dest>::Flush(FlushType flush_type) {
+bool OstreamWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:

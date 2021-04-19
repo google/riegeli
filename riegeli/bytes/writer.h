@@ -196,7 +196,7 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess) = 0;
+  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current position.
   //
@@ -330,6 +330,12 @@ class Writer : public Object {
   //
   // Precondition: `available() < length`
   virtual void WriteHintSlow(size_t length);
+
+  // Implementation of `Flush()`, except that the parameter is not defaulted,
+  // which is problematic for virtual functions.
+  //
+  // By default does nothing and returns `healthy()`.
+  virtual bool FlushImpl(FlushType flush_type);
 
   // Destination position corresponding to `start()`.
   Position start_pos() const { return start_pos_; }
@@ -538,6 +544,10 @@ inline bool Writer::WriteZeros(Position length) {
 inline void Writer::WriteHint(size_t length) {
   if (ABSL_PREDICT_TRUE(available() >= length)) return;
   WriteHintSlow(length);
+}
+
+inline bool Writer::Flush(FlushType flush_type) {
+  return FlushImpl(flush_type);
 }
 
 inline Position Writer::pos() const {

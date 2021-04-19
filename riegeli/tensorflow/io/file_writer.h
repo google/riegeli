@@ -215,10 +215,9 @@ class FileWriter : public FileWriterBase {
   const Dest& dest() const { return dest_.manager(); }
   ::tensorflow::WritableFile* dest_file() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   using FileWriterBase::Initialize;
@@ -399,7 +398,7 @@ void FileWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool FileWriter<Dest>::Flush(FlushType flush_type) {
+bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   switch (flush_type) {
     case FlushType::kFromObject:

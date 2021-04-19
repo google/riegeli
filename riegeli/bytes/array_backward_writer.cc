@@ -43,7 +43,7 @@ bool ArrayBackwardWriterBase::PushSlow(size_t min_length,
   return FailOverflow();
 }
 
-bool ArrayBackwardWriterBase::Flush(FlushType flush_type) {
+bool ArrayBackwardWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   written_ = absl::Span<char>(cursor(), written_to_buffer());

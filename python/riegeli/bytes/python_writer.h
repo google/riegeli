@@ -124,7 +124,6 @@ class PythonWriter : public BufferedWriter {
 
   const Exception& exception() const { return exception_; }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return supports_random_access_; }
@@ -136,6 +135,7 @@ class PythonWriter : public BufferedWriter {
  protected:
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
+  bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
 
  private:

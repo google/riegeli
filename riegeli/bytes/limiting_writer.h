@@ -163,10 +163,9 @@ class LimitingWriter : public LimitingWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   void MoveDest(LimitingWriter&& that);
@@ -341,7 +340,7 @@ void LimitingWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool LimitingWriter<Dest>::Flush(FlushType flush_type) {
+bool LimitingWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
   bool ok = true;

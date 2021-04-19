@@ -80,7 +80,6 @@ class StringWriterBase : public Writer {
   virtual const std::string* dest_string() const = 0;
 
   bool PrefersCopying() const override { return true; }
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 
@@ -103,6 +102,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   void WriteHintSlow(size_t length) override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains

@@ -191,8 +191,6 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
   return true;
 }
 
-bool SnappyWriterBase::Flush(FlushType flush_type) { return healthy(); }
-
 inline size_t SnappyWriterBase::MinBytesToShare() const {
   const Position next_block_begin = RoundUp<kBlockSize>(pos());
   Position length_in_next_block = kBlockSize;

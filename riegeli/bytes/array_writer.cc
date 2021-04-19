@@ -42,7 +42,7 @@ bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return FailOverflow();
 }
 
-bool ArrayWriterBase::Flush(FlushType flush_type) {
+bool ArrayWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   written_ = absl::Span<char>(start(), written_to_buffer());

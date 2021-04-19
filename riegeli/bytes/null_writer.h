@@ -49,7 +49,6 @@ class NullWriter : public Writer {
   using Writer::Reset;
 
   bool PrefersCopying() const override { return true; }
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 

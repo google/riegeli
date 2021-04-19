@@ -142,6 +142,8 @@ void Writer::WriteHintSlow(size_t length) {
          "enough space available, use WriteHint() instead";
 }
 
+bool Writer::FlushImpl(FlushType flush_type) { return healthy(); }
+
 bool Writer::SeekSlow(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }

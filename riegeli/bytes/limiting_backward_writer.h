@@ -166,10 +166,9 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   BackwardWriter* dest_writer() override { return dest_.get(); }
   const BackwardWriter* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   void MoveDest(LimitingBackwardWriter&& that);
@@ -353,7 +352,7 @@ void LimitingBackwardWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool LimitingBackwardWriter<Dest>::Flush(FlushType flush_type) {
+bool LimitingBackwardWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return false;
   bool ok = true;

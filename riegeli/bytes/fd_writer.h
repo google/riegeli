@@ -156,7 +156,6 @@ class FdWriterBase : public internal::FdWriterCommon {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return supports_random_access_; }
@@ -182,6 +181,7 @@ class FdWriterBase : public internal::FdWriterCommon {
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
+  bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
 
   bool supports_random_access_ = false;
@@ -253,8 +253,6 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
     size_t buffer_size_ = kDefaultBufferSize;
   };
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   FdStreamWriterBase() noexcept {}
 
@@ -270,6 +268,7 @@ class FdStreamWriterBase : public internal::FdWriterCommon {
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
+  bool FlushImpl(FlushType flush_type) override;
 };
 
 // A `Writer` which writes to a file descriptor.

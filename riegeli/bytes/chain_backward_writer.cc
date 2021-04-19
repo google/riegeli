@@ -151,7 +151,7 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   return true;
 }
 
-bool ChainBackwardWriterBase::Flush(FlushType flush_type) {
+bool ChainBackwardWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())

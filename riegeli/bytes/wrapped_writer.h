@@ -133,10 +133,9 @@ class WrappedWriter : public WrappedWriterBase {
   Writer* dest_writer() override { return dest_.get(); }
   const Writer* dest_writer() const override { return dest_.get(); }
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
-
  protected:
   void Done() override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   void MoveDest(WrappedWriter&& that);
@@ -271,7 +270,7 @@ void WrappedWriter<Dest>::Done() {
 }
 
 template <typename Dest>
-bool WrappedWriter<Dest>::Flush(FlushType flush_type) {
+bool WrappedWriter<Dest>::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   SyncBuffer(*dest_);
   bool ok = true;

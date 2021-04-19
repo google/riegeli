@@ -116,7 +116,6 @@ class CordBackwardWriterBase : public BackwardWriter {
   virtual absl::Cord* dest_cord() = 0;
   virtual const absl::Cord* dest_cord() const = 0;
 
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
   bool SupportsTruncate() override { return true; }
   bool Truncate(Position new_size) override;
 
@@ -140,6 +139,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;

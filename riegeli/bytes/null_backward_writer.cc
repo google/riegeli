@@ -78,11 +78,6 @@ bool NullBackwardWriter::WriteZerosSlow(Position length) {
   return MakeBuffer();
 }
 
-bool NullBackwardWriter::Flush(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  return true;
-}
-
 bool NullBackwardWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_size >= start_pos()) {
