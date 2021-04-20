@@ -92,7 +92,7 @@ class TransposeEncoder : public ChunkEncoder {
   bool AddRecordInternal(Reader& record);
 
   // Encode messages added with `AddRecord()` calls and write the result to
-  // `*dest`.
+  // `dest`.
   bool EncodeAndCloseInternal(uint32_t max_transition,
                               uint32_t min_count_for_state, Writer& dest,
                               uint64_t& num_records,

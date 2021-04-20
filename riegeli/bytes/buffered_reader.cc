@@ -142,7 +142,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
-      // `flat_buffer` is too small. Append available data to `*dest` and make a
+      // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
@@ -209,7 +209,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
         0, buffer_length, SaturatingAdd(buffer_length, buffer_length));
     if (flat_buffer.empty()) {
-      // `flat_buffer` is too small. Append available data to `*dest` and make a
+      // `flat_buffer` is too small. Append available data to `dest` and make a
       // new buffer.
       length -= available();
       buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);

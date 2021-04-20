@@ -240,7 +240,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       flat_buffer = buffer_.AppendBuffer(
           0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
       if (flat_buffer.empty()) {
-        // `flat_buffer` is too small. Append available data to `*dest` and make
+        // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);
@@ -304,7 +304,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       flat_buffer = buffer_.AppendBuffer(
           0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
       if (flat_buffer.empty()) {
-        // `flat_buffer` is too small. Append available data to `*dest` and make
+        // `flat_buffer` is too small. Append available data to `dest` and make
         // a new buffer.
         length -= available();
         buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), dest);

@@ -190,7 +190,7 @@ class RecordReaderBase : public Object {
   // `RecordsMetadataDescriptors`.
   //
   // Return values:
-  //  * `true`                      - success (`*metadata` is set)
+  //  * `true`                      - success (`metadata` is set)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
   bool ReadMetadata(RecordsMetadata& metadata);
