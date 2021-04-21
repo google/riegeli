@@ -157,21 +157,12 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   errno = 0;
   for (;;) {
     std::streamsize length_read;
-    if (min_length == max_length) {
-      // Use `std::istream::read()` to read a fixed length.
-      src.read(dest, IntCast<std::streamsize>(UnsignedMin(
-                         min_length,
-                         size_t{std::numeric_limits<std::streamsize>::max()})));
-      length_read = src.gcount();
-      RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::gcount()";
-      RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), min_length)
-          << "istream::read() read more than requested";
-    } else {
+    if (min_length < max_length) {
       // Use `std::istream::readsome()` to read as much data as is available,
       // up to `max_length`.
       //
-      // `std::istream::peek()` forces some characters to be read into the
-      // buffer, otherwise `std::istream::readsome()` may return 0.
+      // `std::istream::peek()` asks to read some characters into the buffer,
+      // otherwise `std::istream::readsome()` may return 0.
       if (ABSL_PREDICT_FALSE(src.peek() == std::char_traits<char>::eof())) {
         if (ABSL_PREDICT_FALSE(src.fail())) {
           FailOperation("istream::peek()");
@@ -186,12 +177,25 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
           dest, IntCast<std::streamsize>(UnsignedMin(
                     max_length,
                     size_t{std::numeric_limits<std::streamsize>::max()})));
-      RIEGELI_ASSERT_GT(length_read, 0)
-          << "istream::readsome() returned 0 "
-             "even though istream::peek() returned non-eof()";
+      RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::readsome()";
       RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
           << "istream::readsome() read more than requested";
+      if (ABSL_PREDICT_TRUE(length_read > 0)) goto fragment_read;
+      // `std::istream::peek()` returned non-`eof()` but
+      // `std::istream::readsome()` returned 0. This might happen if
+      // `src.rdbuf()->sgetc()` does not use the get area but leaves the next
+      // character buffered elsewhere, e.g. for `std::cin` synchronized to
+      // stdio. Fall back to `std::istream::read()` with `min_length`.
     }
+    // Use `std::istream::read()` to read a fixed length.
+    src.read(dest, IntCast<std::streamsize>(UnsignedMin(
+                       min_length,
+                       size_t{std::numeric_limits<std::streamsize>::max()})));
+    length_read = src.gcount();
+    RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::gcount()";
+    RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), min_length)
+        << "istream::read() read more than requested";
+  fragment_read:
     move_limit_pos(IntCast<size_t>(length_read));
     if (ABSL_PREDICT_FALSE(src.fail())) {
       if (ABSL_PREDICT_FALSE(src.bad())) {
