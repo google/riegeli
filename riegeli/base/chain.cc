@@ -438,7 +438,7 @@ inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
     space_before_if_not = 0;
   }
   min_length_if_not =
-      UnsignedMax(length, SaturatingAdd(capacity(), capacity() / 2));
+      UnsignedMax(length, SaturatingAdd(space_after(), capacity() / 2));
   return false;
 }
 
@@ -463,7 +463,7 @@ inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
     space_after_if_not = 0;
   }
   min_length_if_not =
-      UnsignedMax(length, SaturatingAdd(capacity(), capacity() / 2));
+      UnsignedMax(length, SaturatingAdd(space_before(), capacity() / 2));
   return false;
 }
 
@@ -2504,7 +2504,7 @@ inline size_t ChainBlock::NewBlockCapacity(size_t old_size, size_t min_length,
   return old_size +
          BufferLength(
              min_length,
-             UnsignedMax(recommended_length, old_size,
+             UnsignedMax(recommended_length,
                          SaturatingSub(options.min_block_size(), old_size)),
              options.size_hint(), old_size);
 }
