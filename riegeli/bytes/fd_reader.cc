@@ -77,9 +77,15 @@ void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 }  // namespace
 
-namespace internal {
+void FdReaderBase::Initialize(int src, absl::optional<Position> assumed_pos,
+                              absl::optional<Position> independent_pos) {
+  RIEGELI_ASSERT_GE(src, 0)
+      << "Failed precondition of FdReader: negative file descriptor";
+  SetFilename(src);
+  InitializePos(src, assumed_pos, independent_pos);
+}
 
-void FdReaderCommon::SetFilename(int src) {
+inline void FdReaderBase::SetFilename(int src) {
   if (src == 0) {
     filename_ = "/dev/stdin";
   } else {
@@ -87,7 +93,7 @@ void FdReaderCommon::SetFilename(int src) {
   }
 }
 
-int FdReaderCommon::OpenFd(absl::string_view filename, int flags) {
+int FdReaderBase::OpenFd(absl::string_view filename, int flags) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
@@ -100,27 +106,6 @@ again:
   }
   return src;
 }
-
-bool FdReaderCommon::FailOperation(absl::string_view operation) {
-  const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdReaderCommon::FailOperation(): "
-         "zero errno";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FdReaderCommon::FailOperation(): "
-         "Object closed";
-  return Fail(
-      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
-}
-
-bool FdReaderCommon::Fail(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return BufferedReader::Fail(
-      Annotate(status, absl::StrCat("reading ", filename_)));
-}
-
-}  // namespace internal
 
 void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
                                  absl::optional<Position> independent_pos) {
@@ -183,7 +168,26 @@ void FdReaderBase::Done() {
     const int src = src_fd();
     SyncPos(src);
   }
-  FdReaderCommon::Done();
+  BufferedReader::Done();
+}
+
+bool FdReaderBase::FailOperation(absl::string_view operation) {
+  const int error_number = errno;
+  RIEGELI_ASSERT_NE(error_number, 0)
+      << "Failed precondition of FdReaderBase::FailOperation(): "
+         "zero errno";
+  RIEGELI_ASSERT(is_open())
+      << "Failed precondition of FdReaderBase::FailOperation(): "
+         "Object closed";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+}
+
+bool FdReaderBase::Fail(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::Fail(): status not failed";
+  return BufferedReader::Fail(
+      Annotate(status, absl::StrCat("reading ", filename_)));
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -276,56 +280,15 @@ absl::optional<Position> FdReaderBase::Size() {
   return IntCast<Position>(stat_info.st_size);
 }
 
-void FdStreamReaderBase::InitializePos(int src,
-                                       absl::optional<Position> assumed_pos) {
-  if (assumed_pos != absl::nullopt) {
-    set_limit_pos(*assumed_pos);
-  } else {
-    const off_t file_pos = lseek(src, 0, SEEK_CUR);
-    if (ABSL_PREDICT_FALSE(file_pos < 0)) {
-      FailOperation("lseek()");
-      return;
-    }
-    set_limit_pos(IntCast<Position>(file_pos));
-  }
+void FdMMapReaderBase::Initialize(int src,
+                                  absl::optional<Position> independent_pos) {
+  RIEGELI_ASSERT_GE(src, 0)
+      << "Failed precondition of FdMMapReader: negative file descriptor";
+  SetFilename(src);
+  InitializePos(src, independent_pos);
 }
 
-bool FdStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
-                                      char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
-      << "Failed precondition of BufferedReader::ReadInternal(): "
-         "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
-      << "Failed precondition of BufferedReader::ReadInternal(): "
-         "max_length < min_length";
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of BufferedReader::ReadInternal(): " << status();
-  const int src = src_fd();
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - limit_pos())) {
-    return FailOverflow();
-  }
-  for (;;) {
-  again:
-    const ssize_t length_read = read(
-        src, dest,
-        UnsignedMin(max_length, size_t{std::numeric_limits<ssize_t>::max()}));
-    if (ABSL_PREDICT_FALSE(length_read < 0)) {
-      if (errno == EINTR) goto again;
-      return FailOperation("read()");
-    }
-    if (ABSL_PREDICT_FALSE(length_read == 0)) return false;
-    RIEGELI_ASSERT_LE(IntCast<size_t>(length_read), max_length)
-        << "read() read more than requested";
-    move_limit_pos(IntCast<size_t>(length_read));
-    if (IntCast<size_t>(length_read) >= min_length) return true;
-    dest += length_read;
-    min_length -= IntCast<size_t>(length_read);
-    max_length -= IntCast<size_t>(length_read);
-  }
-}
-
-void FdMMapReaderBase::SetFilename(int src) {
+inline void FdMMapReaderBase::SetFilename(int src) {
   if (src == 0) {
     filename_ = "/dev/stdin";
   } else {
@@ -345,18 +308,6 @@ again:
     return -1;
   }
   return src;
-}
-
-bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
-  const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
-      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
-         "zero errno";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
-         "Object closed";
-  return Fail(
-      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 void FdMMapReaderBase::InitializePos(int src,
@@ -414,6 +365,18 @@ void FdMMapReaderBase::Done() {
   }
   ChainReader::Done();
   ChainReader::src().Clear();
+}
+
+bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
+  const int error_number = errno;
+  RIEGELI_ASSERT_NE(error_number, 0)
+      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
+         "zero errno";
+  RIEGELI_ASSERT(is_open())
+      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
+         "Object closed";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
 bool FdMMapReaderBase::Fail(absl::Status status) {
