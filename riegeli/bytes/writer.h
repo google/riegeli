@@ -196,7 +196,7 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Flush(FlushType flush_type = FlushType::kFromProcess);
+  bool Flush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current position.
   //
