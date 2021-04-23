@@ -62,6 +62,7 @@ void PullableReader::PullToScratchSlow(size_t min_length,
     if (available() >= min_length) return;
   }
   recommended_length = UnsignedMax(min_length, recommended_length);
+  size_t max_length = SaturatingAdd(recommended_length, recommended_length);
   std::unique_ptr<Scratch> new_scratch;
   if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
     new_scratch = std::make_unique<Scratch>();
@@ -69,19 +70,17 @@ void PullableReader::PullToScratchSlow(size_t min_length,
     new_scratch = std::move(scratch_);
     if (!new_scratch->buffer.empty()) {
       // Scratch is used but it does have enough data after the cursor.
-      new_scratch->buffer.RemovePrefix(
-          read_from_buffer(),
-          ChainBlock::Options().set_size_hint(recommended_length));
+      new_scratch->buffer.RemovePrefix(read_from_buffer());
       min_length -= new_scratch->buffer.size();
       recommended_length -= new_scratch->buffer.size();
+      max_length -= new_scratch->buffer.size();
       set_buffer(new_scratch->original_start, new_scratch->original_buffer_size,
                  new_scratch->original_read_from_buffer);
       move_limit_pos(available());
     }
   }
   const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
-      min_length, recommended_length,
-      SaturatingAdd(recommended_length, recommended_length));
+      min_length, recommended_length, max_length);
   char* dest = flat_buffer.data();
   char* const min_limit = flat_buffer.data() + min_length;
   char* const max_limit = flat_buffer.data() + flat_buffer.size();
