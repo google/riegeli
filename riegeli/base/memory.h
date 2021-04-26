@@ -86,6 +86,9 @@ template <typename T, size_t alignment = alignof(T), typename... Args>
 inline T* NewAligned(size_t num_bytes, Args&&... args) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
+  // Allocate enough space to construct the object, even if the caller does not
+  // need the whole tail part of the object.
+  num_bytes = UnsignedMax(num_bytes, sizeof(T));
   T* ptr;
 #if __cpp_aligned_new
   if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
@@ -123,6 +126,7 @@ template <typename T, size_t alignment = alignof(T)>
 inline void DeleteAligned(T* ptr, size_t num_bytes) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
+  num_bytes = UnsignedMax(num_bytes, sizeof(T));
   ptr->~T();
 #if __cpp_aligned_new
 #if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
@@ -183,6 +187,9 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
                                   size_t* actual_num_bytes, Args&&... args) {
   static_assert(alignment != 0 && (alignment & (alignment - 1)) == 0,
                 "alignment must be a power of 2");
+  // Allocate enough space to construct the object, even if the caller does not
+  // need the whole tail part of the object.
+  min_num_bytes = UnsignedMax(min_num_bytes, sizeof(T));
   T* ptr;
   const size_t capacity = EstimatedAllocatedSize(min_num_bytes);
 #if __cpp_aligned_new
