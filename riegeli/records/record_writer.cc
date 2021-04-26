@@ -318,7 +318,7 @@ class RecordWriterBase::SerialWorker : public Worker {
 
   void OpenChunk() override { chunk_encoder_->Clear(); }
   bool CloseChunk() override;
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
+  bool Flush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
 
  protected:
@@ -400,7 +400,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(); }
   bool CloseChunk() override;
-  bool Flush(FlushType flush_type = FlushType::kFromProcess) override;
+  bool Flush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
 
  protected:
