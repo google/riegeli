@@ -179,6 +179,9 @@ class RecordWriterBase::Worker : public Object {
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
 
+  // Precondition: chunk is not open.
+  virtual std::future<bool> FutureFlush(FlushType flush_type) = 0;
+
   virtual FutureRecordPosition Pos() const = 0;
 
  protected:
@@ -319,6 +322,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   void OpenChunk() override { chunk_encoder_->Clear(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+  std::future<bool> FutureFlush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
 
  protected:
@@ -385,6 +389,13 @@ bool RecordWriterBase::SerialWorker::Flush(FlushType flush_type) {
   return true;
 }
 
+std::future<bool> RecordWriterBase::SerialWorker::FutureFlush(
+    FlushType flush_type) {
+  std::promise<bool> promise;
+  promise.set_value(Flush(flush_type));
+  return promise.get_future();
+}
+
 FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
   return FutureRecordPosition(
       RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
@@ -401,6 +412,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   void OpenChunk() override { chunk_encoder_ = MakeChunkEncoder(); }
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
+  std::future<bool> FutureFlush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
 
  protected:
@@ -602,6 +614,11 @@ bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
 }
 
 bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
+  return FutureFlush(flush_type).get();
+}
+
+std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
+    FlushType flush_type) {
   std::promise<bool> done_promise;
   std::future<bool> done_future = done_promise.get_future();
   mutex_.LockWhen(
@@ -609,7 +626,7 @@ bool RecordWriterBase::ParallelWorker::Flush(FlushType flush_type) {
   chunk_writer_requests_.emplace_back(
       FlushRequest{flush_type, std::move(done_promise)});
   mutex_.Unlock();
-  return done_future.get();
+  return done_future;
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
@@ -816,6 +833,42 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
     chunk_size_so_far_ = 0;
   }
   return true;
+}
+
+RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
+    FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) {
+    std::promise<bool> promise;
+    promise.set_value(false);
+    return promise.get_future();
+  }
+  if (chunk_size_so_far_ != 0) {
+    if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
+      Fail(*worker_);
+      std::promise<bool> promise;
+      promise.set_value(false);
+      return promise.get_future();
+    }
+  }
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
+    Fail(*worker_);
+    std::promise<bool> promise;
+    promise.set_value(false);
+    return promise.get_future();
+  }
+  FutureBool result;
+  if (flush_type == FlushType::kFromObject && !is_owning()) {
+    std::promise<bool> promise;
+    promise.set_value(true);
+    result = promise.get_future();
+  } else {
+    result = worker_->FutureFlush(flush_type);
+  }
+  if (chunk_size_so_far_ != 0) {
+    worker_->OpenChunk();
+    chunk_size_so_far_ = 0;
+  }
+  return result;
 }
 
 FutureRecordPosition RecordWriterBase::Pos() const {

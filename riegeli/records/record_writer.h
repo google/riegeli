@@ -419,6 +419,9 @@ class RecordWriterBase : public Object {
     int parallelism_ = 0;
   };
 
+  // `get()` returns the resolved value. Can block.
+  using FutureBool = std::shared_future<bool>;
+
   ~RecordWriterBase();
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
@@ -457,7 +460,8 @@ class RecordWriterBase : public Object {
   bool WriteRecord(absl::Cord&& record, FutureRecordPosition* key = nullptr);
 
   // Finalizes any open chunk and pushes buffered data to the destination.
-  // If `Options::parallelism()`, waits for any background writing to complete.
+  // If `Options::parallelism() > 0`, waits for any background writing to
+  // complete.
   //
   // This makes data written so far visible, but in contrast to `Close()`,
   // keeps the possibility to write more data later. What exactly does it mean
@@ -483,6 +487,17 @@ class RecordWriterBase : public Object {
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
   bool Flush(FlushType flush_type = FlushType::kFromProcess);
+
+  // Like `Flush()`, but if `Options::parallelism() > 0`, does not wait for
+  // background writing to complete. Returns a `FutureBool` which can be used to
+  // wait for background writing to complete.
+  //
+  // Like any member function, `FutureFlush()` must not be called concurrently
+  // with other member functions, but there are no concurrency restrictions on
+  // calling `get()` on the result.
+  //
+  // `Flush()` is equivalent to `FutureFlush().get()`.
+  FutureBool FutureFlush(FlushType flush_type = FlushType::kFromProcess);
 
   // Returns the current position.
   //
