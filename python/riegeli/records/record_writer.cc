@@ -678,6 +678,12 @@ static PyObject* RecordWriterPos(PyRecordWriterObject* self, void* closure) {
       .release();
 }
 
+static PyObject* RecordWriterEstimatedSize(PyRecordWriterObject* self,
+                                           PyObject* args) {
+  if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
+  return PositionToPython(self->record_writer->EstimatedSize()).release();
+}
+
 }  // extern "C"
 
 const PyMethodDef RecordWriterMethods[] = {
@@ -834,6 +840,23 @@ Args:
                              the process and durable in case of operating
                              system crash, propagating flushing through
                              dependencies of the given writer.
+)doc"},
+    {"estimated_size", reinterpret_cast<PyCFunction>(RecordWriterEstimatedSize),
+     METH_NOARGS,
+     R"doc(
+estimated_size(self) -> int
+
+Returns an estimation of the file size if no more data is written, without
+affecting data representation (i.e. without closing the current chunk) and
+without blocking.
+
+This is an underestimation because pending work is not taken into account:
+ * The currently open chunk.
+ * If parallelism was used in options, chunks being encoded in background.
+
+The exact file size can be found by flush(FlushType.FROM_OBJECT) which closes
+the currently open chunk, and pos.chunk_begin (record_index == 0 after flushing)
+which might need to wait for some background work to complete.
 )doc"},
     {nullptr, nullptr, 0, nullptr},
 };

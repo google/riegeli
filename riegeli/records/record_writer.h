@@ -513,6 +513,20 @@ class RecordWriterBase : public Object {
   // file for appending in the case of `Close()`).
   FutureRecordPosition Pos() const;
 
+  // Returns an estimation of the file size if no more data is written, without
+  // affecting data representation (i.e. without closing the current chunk) and
+  // without blocking.
+  //
+  // This is an underestimation because pending work is not taken into account:
+  //  * The currently open chunk.
+  //  * If `Options::parallelism() > 0`, chunks being encoded in background.
+  //
+  // The exact file size can be found by `FutureFlush(FlushType::kFromObject)`
+  // which closes the currently open chunk, and `Pos().get().chunk_begin()`
+  // (`record_index() == 0` after flushing) which might need to wait for some
+  // background work to complete.
+  Position EstimatedSize() const;
+
  protected:
   explicit RecordWriterBase(InitiallyClosed) noexcept;
   explicit RecordWriterBase(InitiallyOpen) noexcept;

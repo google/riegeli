@@ -184,6 +184,8 @@ class RecordWriterBase::Worker : public Object {
 
   virtual FutureRecordPosition Pos() const = 0;
 
+  virtual Position EstimatedSize() const = 0;
+
  protected:
   void Initialize(Position initial_pos);
   virtual bool WriteSignature() = 0;
@@ -324,6 +326,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   bool Flush(FlushType flush_type) override;
   std::future<bool> FutureFlush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
+  Position EstimatedSize() const override;
 
  protected:
   bool WriteSignature() override;
@@ -401,6 +404,10 @@ FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
       RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
 }
 
+Position RecordWriterBase::SerialWorker::EstimatedSize() const {
+  return chunk_writer_->pos();
+}
+
 // `ParallelWorker` uses parallelism internally, but the class is still only
 // thread-compatible, not thread-safe.
 class RecordWriterBase::ParallelWorker : public Worker {
@@ -414,6 +421,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   bool Flush(FlushType flush_type) override;
   std::future<bool> FutureFlush(FlushType flush_type) override;
   FutureRecordPosition Pos() const override;
+  Position EstimatedSize() const override;
 
  protected:
   void Done() override;
@@ -655,6 +663,11 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
       chunk_encoder_ == nullptr ? uint64_t{0} : chunk_encoder_->num_records());
 }
 
+Position RecordWriterBase::ParallelWorker::EstimatedSize() const {
+  absl::MutexLock lock(&mutex_);
+  return pos_before_chunks_;
+}
+
 RecordWriterBase::RecordWriterBase(InitiallyClosed) noexcept
     : Object(kInitiallyClosed) {}
 
@@ -874,6 +887,11 @@ RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
 FutureRecordPosition RecordWriterBase::Pos() const {
   if (ABSL_PREDICT_FALSE(worker_ == nullptr)) return FutureRecordPosition();
   return worker_->Pos();
+}
+
+Position RecordWriterBase::EstimatedSize() const {
+  if (ABSL_PREDICT_FALSE(worker_ == nullptr)) return 0;
+  return worker_->EstimatedSize();
 }
 
 }  // namespace riegeli
