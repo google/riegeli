@@ -671,6 +671,19 @@ static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
   Py_RETURN_NONE;
 }
 
+static PyObject* RecordWriterLastPos(PyRecordWriterObject* self,
+                                     void* closure) {
+  if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!self->record_writer->last_record_is_valid())) {
+    SetRiegeliError(absl::FailedPreconditionError("No record was written"));
+    return nullptr;
+  }
+  return kRecordPositionApi
+      ->RecordPositionToPython(self->record_writer->LastPos())
+      .release();
+}
+
 static PyObject* RecordWriterPos(PyRecordWriterObject* self, void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
@@ -736,6 +749,8 @@ write_record_with_key(
 
 Writes the next record.
 
+Deprecated. Use write_record() and last_pos instead.
+
 Args:
   record: Record to write as a bytes-like object.
 
@@ -757,6 +772,8 @@ Args:
 write_message_with_key(self, record: Message) -> RecordPosition
 
 Writes the next record.
+
+Deprecated. Use write_message() and last_pos instead.
 
 Args:
   record: Record to write as a proto message.
@@ -783,6 +800,8 @@ write_records_with_keys(
 
 Writes a number of records.
 
+Deprecated. Use a loop with write_record() and last_pos instead.
+
 Args:
   records: Records to write as an iterable of bytes-like objects.
 
@@ -805,6 +824,8 @@ write_messages_with_keys(
     self, records: Iterable[Message]) -> List[RecordPosition]
 
 Writes a number of records.
+
+Deprecated. Use a loop with write_message() and last_pos instead.
 
 Args:
   records: Records to write as an iterable of proto messages.
@@ -869,21 +890,36 @@ dest: BinaryIO
 Binary IO stream being written to.
 )doc"),
      nullptr},
+    {const_cast<char*>("last_pos"),
+     reinterpret_cast<getter>(RecordWriterLastPos), nullptr,
+     const_cast<char*>(R"doc(
+last_pos: RecordPosition
+
+The canonical position of the last record written.
+
+The canonical position is the largest among all equivalent positions.
+Seeking to any equivalent position leads to reading the same record.
+
+last_pos.numeric returns the position as an int.
+
+Precondition:
+  a record was successfully written and there was no intervening call to
+  close() or flush().
+)doc"),
+     nullptr},
     {const_cast<char*>("pos"), reinterpret_cast<getter>(RecordWriterPos),
      nullptr, const_cast<char*>(R"doc(
 pos: RecordPosition
 
-The current position.
+A position of the next record (or the end of file if there is no next record).
+
+A position which is not canonical can be smaller than the equivalent canonical
+position. Seeking to any equivalent position leads to reading the same record.
 
 pos.numeric returns the position as an int.
 
-A position returned by pos before writing a record is not greater than the
-canonical position returned by write_record_with_key() for that record, but
-seeking to either position will read the same record.
-
-After close() or flush(), pos is equal to the canonical position returned by the
-following write_record_with_key() (after reopening the file for appending in the
-case of close()).
+After opening the file, close(), or flush(), pos is the canonical position of
+the next record, and pos.record_index == 0.
 )doc"),
      nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}};

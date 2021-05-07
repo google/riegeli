@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/types/compare.h"
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
@@ -680,6 +681,20 @@ static PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
   Py_RETURN_NONE;
 }
 
+static PyObject* RecordReaderLastPos(PyRecordReaderObject* self,
+                                     void* closure) {
+  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!self->record_reader->last_record_is_valid())) {
+    SetRiegeliError(absl::FailedPreconditionError("No record was read"));
+    return nullptr;
+  }
+  return kRecordPositionApi
+      ->RecordPositionToPython(
+          FutureRecordPosition(self->record_reader->last_pos()))
+      .release();
+}
+
 static PyObject* RecordReaderPos(PyRecordReaderObject* self, void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
@@ -1007,6 +1022,8 @@ read_record_with_key(self) -> Optional[Tuple[RecordPosition, bytes]]
 
 Reads the next record.
 
+Deprecated. Use read_record() and last_pos instead.
+
 Returns:
   If successful, a tuple of canonical record position and the record read as
   bytes. Returns None at end of file.
@@ -1032,6 +1049,8 @@ read_message_with_key(
 
 Reads the next record.
 
+Deprecated. Use read_message() and last_pos instead.
+
 Args:
   message_type: Type of the message to parse the record as.
 
@@ -1055,6 +1074,8 @@ read_records_with_keys(self) -> Iterator[Tuple[RecordPosition, bytes]]
 
 Returns an iterator which reads all remaining records.
 
+Deprecated. Use a loop with read_record() and last_pos instead.
+
 Yields:
   If successful, a tuple of canonical record position and the next record read
   as bytes.
@@ -1076,6 +1097,8 @@ read_messages_with_keys(
 ) -> Iterator[Tuple[RecordPosition, Message]]
 
 Returns an iterator which reads all remaining records.
+
+Deprecated. Use a loop with read_message() and last_pos instead.
 
 Yields:
   A tuple of the canonical record position and the next record read as parsed
@@ -1229,17 +1252,36 @@ src: BinaryIO
 Binary IO stream being read from.
 )doc"),
      nullptr},
+    {const_cast<char*>("last_pos"),
+     reinterpret_cast<getter>(RecordReaderLastPos), nullptr,
+     const_cast<char*>(R"doc(
+last_pos: RecordPosition
+
+The canonical position of the last record read.
+
+The canonical position is the largest among all equivalent positions.
+Seeking to any equivalent position leads to reading the same record.
+
+last_pos.numeric returns the position as an int.
+
+Precondition:
+  a record was successfully read and there was no intervening call to
+  close(), seek(), seek_numeric(), seek_back(), search(), search_for_record(),
+  or search_for_message().
+)doc"),
+     nullptr},
     {const_cast<char*>("pos"), reinterpret_cast<getter>(RecordReaderPos),
      nullptr, const_cast<char*>(R"doc(
 pos: RecordPosition
 
-The current position.
+A position of the next record.
+
+A position of the next record (or the end of file if there is no next record).
+
+A position which is not canonical can be smaller than the equivalent canonical
+position. Seeking to any equivalent position leads to reading the same record.
 
 pos.numeric returns the position as an int.
-
-A position returned by pos before reading a record is not greater than the
-canonical position returned by read_record_with_key() for that record, but
-seeking to either position will read the same record.
 
 pos is unchanged by close().
 )doc"),

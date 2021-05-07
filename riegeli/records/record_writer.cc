@@ -182,6 +182,8 @@ class RecordWriterBase::Worker : public Object {
   // Precondition: chunk is not open.
   virtual std::future<bool> FutureFlush(FlushType flush_type) = 0;
 
+  virtual FutureRecordPosition LastPos() const = 0;
+
   virtual FutureRecordPosition Pos() const = 0;
 
   virtual Position EstimatedSize() const = 0;
@@ -325,6 +327,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
   std::future<bool> FutureFlush(FlushType flush_type) override;
+  FutureRecordPosition LastPos() const override;
   FutureRecordPosition Pos() const override;
   Position EstimatedSize() const override;
 
@@ -399,6 +402,14 @@ std::future<bool> RecordWriterBase::SerialWorker::FutureFlush(
   return promise.get_future();
 }
 
+FutureRecordPosition RecordWriterBase::SerialWorker::LastPos() const {
+  RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
+      << "Failed invariant of RecordWriterBase::SerialWorker: "
+         "last position should be valid but no record was encoded";
+  return FutureRecordPosition(
+      RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records() - 1));
+}
+
 FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
   return FutureRecordPosition(
       RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
@@ -420,6 +431,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
   bool CloseChunk() override;
   bool Flush(FlushType flush_type) override;
   std::future<bool> FutureFlush(FlushType flush_type) override;
+  FutureRecordPosition LastPos() const override;
   FutureRecordPosition Pos() const override;
   Position EstimatedSize() const override;
 
@@ -453,6 +465,8 @@ class RecordWriterBase::ParallelWorker : public Worker {
                     FlushRequest>;
 
   bool HasCapacityForRequest() const;
+  template <typename GetRecordIndex>
+  FutureRecordPosition PosInternal(GetRecordIndex get_record_index) const;
 
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
@@ -637,7 +651,9 @@ std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
   return done_future;
 }
 
-FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
+template <typename GetRecordIndex>
+FutureRecordPosition RecordWriterBase::ParallelWorker::PosInternal(
+    GetRecordIndex get_record_index) const {
   struct Visitor {
     void operator()(const DoneRequest&) {}
     void operator()(const WriteChunkRequest& request) {
@@ -656,11 +672,31 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     absl::visit(visitor, request);
   }
-  // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
-  // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
-  return FutureRecordPosition(
-      pos_before_chunks_, std::move(visitor.actions),
-      chunk_encoder_ == nullptr ? uint64_t{0} : chunk_encoder_->num_records());
+  return FutureRecordPosition(pos_before_chunks_, std::move(visitor.actions),
+                              get_record_index());
+}
+
+FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {
+  return PosInternal([this] {
+    // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
+    // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
+    RIEGELI_ASSERT(chunk_encoder_ != nullptr)
+        << "Failed invariant of RecordWriterBase::ParallelWorker: "
+           "last position should be valid but chunk is closed";
+    RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
+        << "Failed invariant of RecordWriterBase::ParallelWorker: "
+           "last position should be valid but no record was encoded";
+    return chunk_encoder_->num_records() - 1;
+  });
+}
+
+FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
+  return PosInternal([this] {
+    // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
+    // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
+    if (ABSL_PREDICT_FALSE(chunk_encoder_ == nullptr)) return uint64_t{0};
+    return chunk_encoder_->num_records();
+  });
 }
 
 Position RecordWriterBase::ParallelWorker::EstimatedSize() const {
@@ -678,6 +714,7 @@ void RecordWriterBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
+  last_record_is_valid_ = false;
   worker_.reset();
 }
 
@@ -685,6 +722,7 @@ void RecordWriterBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
+  last_record_is_valid_ = false;
   worker_.reset();
 }
 
@@ -694,6 +732,7 @@ RecordWriterBase::RecordWriterBase(RecordWriterBase&& that) noexcept
       // part was moved.
       desired_chunk_size_(that.desired_chunk_size_),
       chunk_size_so_far_(that.chunk_size_so_far_),
+      last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
       worker_(std::move(that.worker_)) {}
 
 RecordWriterBase& RecordWriterBase::operator=(
@@ -703,6 +742,7 @@ RecordWriterBase& RecordWriterBase::operator=(
   // was moved.
   desired_chunk_size_ = that.desired_chunk_size_;
   chunk_size_so_far_ = that.chunk_size_so_far_;
+  last_record_is_valid_ = std::exchange(that.last_record_is_valid_, false);
   worker_ = std::move(that.worker_);
   return *this;
 }
@@ -734,6 +774,7 @@ void RecordWriterBase::Done() {
                                   "null worker_ but RecordWriterBase healthy()";
     return;
   }
+  last_record_is_valid_ = false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) Fail(*worker_);
     chunk_size_so_far_ = 0;
@@ -748,6 +789,7 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
                                    SerializeOptions serialize_options,
                                    FutureRecordPosition* key) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
@@ -767,6 +809,7 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
   if (ABSL_PREDICT_FALSE(!worker_->AddRecord(record, serialize_options))) {
     return Fail(*worker_);
   }
+  last_record_is_valid_ = true;
   return true;
 }
 
@@ -809,6 +852,7 @@ template <typename Record>
 inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
                                               FutureRecordPosition* key) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
   // another array. We limit the size of both arrays together, to include
   // attempts to accumulate an unbounded number of empty records.
@@ -827,11 +871,13 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
   if (ABSL_PREDICT_FALSE(!worker_->AddRecord(std::forward<Record>(record)))) {
     return Fail(*worker_);
   }
+  last_record_is_valid_ = true;
   return true;
 }
 
 bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  last_record_is_valid_ = false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) return Fail(*worker_);
   }
@@ -855,6 +901,7 @@ RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
     promise.set_value(false);
     return promise.get_future();
   }
+  last_record_is_valid_ = false;
   if (chunk_size_so_far_ != 0) {
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
       Fail(*worker_);
@@ -882,6 +929,16 @@ RecordWriterBase::FutureBool RecordWriterBase::FutureFlush(
     chunk_size_so_far_ = 0;
   }
   return result;
+}
+
+FutureRecordPosition RecordWriterBase::LastPos() const {
+  RIEGELI_ASSERT(last_record_is_valid())
+      << "Failed precondition of RecordWriterBase::LastPos(): "
+         "no record was recently written";
+  RIEGELI_ASSERT(worker_ != nullptr)
+      << "Failed invariant of RecordWriterBase: "
+         "last position should be valid but worker is null";
+  return worker_->LastPos();
 }
 
 FutureRecordPosition RecordWriterBase::Pos() const {

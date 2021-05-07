@@ -112,6 +112,7 @@ RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
       // part was moved.
       chunk_begin_(that.chunk_begin_),
       chunk_decoder_(std::move(that.chunk_decoder_)),
+      last_record_is_valid_(std::exchange(that.last_record_is_valid_, false)),
       recoverable_(std::exchange(that.recoverable_, Recoverable::kNo)),
       recovery_(std::move(that.recovery_)) {}
 
@@ -122,6 +123,7 @@ RecordReaderBase& RecordReaderBase::operator=(
   // was moved.
   chunk_begin_ = that.chunk_begin_;
   chunk_decoder_ = std::move(that.chunk_decoder_);
+  last_record_is_valid_ = std::exchange(that.last_record_is_valid_, false);
   recoverable_ = std::exchange(that.recoverable_, Recoverable::kNo);
   recovery_ = std::move(that.recovery_);
   return *this;
@@ -131,6 +133,7 @@ void RecordReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   chunk_begin_ = 0;
   chunk_decoder_.Clear();
+  last_record_is_valid_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -139,6 +142,7 @@ void RecordReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   chunk_begin_ = 0;
   chunk_decoder_.Clear();
+  last_record_is_valid_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;
 }
@@ -157,6 +161,7 @@ void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
 }
 
 void RecordReaderBase::Done() {
+  last_record_is_valid_ = false;
   recoverable_ = Recoverable::kNo;
   if (ABSL_PREDICT_FALSE(!chunk_decoder_.Close())) Fail(chunk_decoder_);
 }
@@ -177,8 +182,8 @@ inline bool RecordReaderBase::FailSeeking(const ChunkReader& src) {
 
 bool RecordReaderBase::CheckFileFormat() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  if (chunk_decoder_.num_records() > 0) return true;
   ChunkReader& src = *src_chunk_reader();
-  if (chunk_decoder_.index() < chunk_decoder_.num_records()) return true;
   if (ABSL_PREDICT_FALSE(!src.CheckFileFormat())) {
     chunk_decoder_.Clear();
     if (ABSL_PREDICT_FALSE(!src.healthy())) {
@@ -304,6 +309,7 @@ bool RecordReaderBase::ReadRecord(absl::Cord& record, RecordPosition* key) {
 template <typename Record>
 inline bool RecordReaderBase::ReadRecordImpl(Record& record,
                                              RecordPosition* key) {
+  last_record_is_valid_ = false;
   for (;;) {
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
       RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
@@ -311,6 +317,7 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record,
       if (key != nullptr) {
         *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
       }
+      last_record_is_valid_ = true;
       return true;
     }
     if (ABSL_PREDICT_FALSE(!healthy())) {
@@ -385,6 +392,7 @@ bool RecordReaderBase::SupportsRandomAccess() {
 }
 
 bool RecordReaderBase::Seek(RecordPosition new_pos) {
+  last_record_is_valid_ = false;
   if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader& src = *src_chunk_reader();
   if (new_pos.chunk_begin() == chunk_begin_) {
@@ -414,6 +422,7 @@ skip_reading_chunk:
 }
 
 bool RecordReaderBase::Seek(Position new_pos) {
+  last_record_is_valid_ = false;
   if (ABSL_PREDICT_FALSE(!healthy())) return TryRecovery();
   ChunkReader& src = *src_chunk_reader();
   if (new_pos >= chunk_begin_ && new_pos <= src.pos()) {
@@ -443,6 +452,7 @@ bool RecordReaderBase::Seek(Position new_pos) {
 
 bool RecordReaderBase::SeekBack() {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  last_record_is_valid_ = false;
   if (ABSL_PREDICT_TRUE(chunk_decoder_.index() > 0)) {
     chunk_decoder_.SetIndex(chunk_decoder_.index() - 1);
     return true;
@@ -525,6 +535,7 @@ class RecordReaderBase::ChunkSearchTraits {
 bool RecordReaderBase::Search(
     absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  last_record_is_valid_ = false;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return Fail(src);

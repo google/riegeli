@@ -313,27 +313,7 @@ class RecordsTest(parameterized.TestCase):
   def test_write_read_record(self, file_spec, random_access, parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
-        for i in range(23):
-          writer.write_record(sample_string(i, 10000))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
-        for i in range(23):
-          self.assertEqual(reader.read_record(), sample_string(i, 10000))
-        self.assertIsNone(reader.read_record())
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_write_read_record_with_key(self, file_spec, random_access,
-                                      parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -341,11 +321,12 @@ class RecordsTest(parameterized.TestCase):
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           pos = writer.pos
-          key = writer.write_record_with_key(sample_string(i, 10000))
-          if keys:
-            self.assertGreater(pos, keys[-1])
-          self.assertLessEqual(pos, key)
-          keys.append(key)
+          writer.write_record(sample_string(i, 10000))
+          canonical_pos = writer.last_pos
+          if positions:
+            self.assertGreater(pos, positions[-1])
+          self.assertLessEqual(pos, canonical_pos)
+          positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
@@ -354,10 +335,11 @@ class RecordsTest(parameterized.TestCase):
           assumed_pos=files.reading_assumed_pos) as reader:
         for i in range(23):
           pos = reader.pos
-          self.assertEqual(reader.read_record_with_key(),
-                           (keys[i], sample_string(i, 10000)))
-          self.assertLessEqual(pos, key)
-        self.assertIsNone(reader.read_record_with_key())
+          self.assertEqual(reader.read_record(), sample_string(i, 10000))
+          canonical_pos = reader.last_pos
+          self.assertEqual(canonical_pos, positions[i])
+          self.assertLessEqual(pos, canonical_pos)
+        self.assertIsNone(reader.read_record())
         self.assertEqual(reader.pos, end_pos)
         reader.close()
         self.assertEqual(reader.pos, end_pos)
@@ -366,29 +348,7 @@ class RecordsTest(parameterized.TestCase):
   def test_write_read_message(self, file_spec, random_access, parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
-        for i in range(23):
-          writer.write_message(sample_message(i, 10000))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
-        for i in range(23):
-          self.assertEqual(
-              reader.read_message(records_test_pb2.SimpleMessage),
-              sample_message(i, 10000))
-        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_write_read_message_with_key(self, file_spec, random_access,
-                                       parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -396,11 +356,12 @@ class RecordsTest(parameterized.TestCase):
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           pos = writer.pos
-          key = writer.write_message_with_key(sample_message(i, 10000))
-          if keys:
-            self.assertGreater(pos, keys[-1])
-          self.assertLessEqual(pos, key)
-          keys.append(key)
+          writer.write_message(sample_message(i, 10000))
+          canonical_pos = writer.last_pos
+          if positions:
+            self.assertGreater(pos, positions[-1])
+          self.assertLessEqual(pos, canonical_pos)
+          positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
@@ -410,11 +371,12 @@ class RecordsTest(parameterized.TestCase):
         for i in range(23):
           pos = reader.pos
           self.assertEqual(
-              reader.read_message_with_key(records_test_pb2.SimpleMessage),
-              (keys[i], sample_message(i, 10000)))
-          self.assertLessEqual(pos, key)
-        self.assertIsNone(
-            reader.read_message_with_key(records_test_pb2.SimpleMessage))
+              reader.read_message(records_test_pb2.SimpleMessage),
+              sample_message(i, 10000))
+          canonical_pos = reader.last_pos
+          self.assertEqual(canonical_pos, positions[i])
+          self.assertLessEqual(pos, canonical_pos)
+        self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
         self.assertEqual(reader.pos, end_pos)
         reader.close()
         self.assertEqual(reader.pos, end_pos)
@@ -436,26 +398,6 @@ class RecordsTest(parameterized.TestCase):
         self.assertEqual(
             list(reader.read_records()),
             [sample_string(i, 10000) for i in range(23)])
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_write_read_records_with_keys(self, file_spec, random_access,
-                                        parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
-        keys = writer.write_records_with_keys(
-            sample_string(i, 10000) for i in range(23))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
-        self.assertEqual(
-            list(reader.read_records_with_keys()),
-            [(keys[i], sample_string(i, 10000)) for i in range(23)])
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_messages(self, file_spec, random_access, parallelism):
@@ -534,27 +476,6 @@ class RecordsTest(parameterized.TestCase):
               reader.read_message(records_test_pb2.SimpleMessage),
               sample_message(i, 10000))
         self.assertIsNone(reader.read_message(records_test_pb2.SimpleMessage))
-
-  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
-  def test_write_read_messages_with_keys(self, file_spec, random_access,
-                                         parallelism):
-    with contextlib.closing(file_spec(self.create_tempfile,
-                                      random_access)) as files:
-      with riegeli.RecordWriter(
-          files.writing_open(),
-          owns_dest=files.writing_should_close,
-          assumed_pos=files.writing_assumed_pos,
-          options=record_writer_options(parallelism)) as writer:
-        keys = writer.write_messages_with_keys(
-            sample_message(i, 10000) for i in range(23))
-      with riegeli.RecordReader(
-          files.reading_open(),
-          owns_src=files.reading_should_close,
-          assumed_pos=files.reading_assumed_pos) as reader:
-        self.assertEqual(
-            list(
-                reader.read_messages_with_keys(records_test_pb2.SimpleMessage)),
-            [(keys[i], sample_message(i, 10000)) for i in range(23)])
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_metadata(self, file_spec, random_access, parallelism):
@@ -653,7 +574,7 @@ class RecordsTest(parameterized.TestCase):
         file_spec(
             self.create_tempfile,
             random_access=RandomAccess.RANDOM_ACCESS)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -661,51 +582,52 @@ class RecordsTest(parameterized.TestCase):
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           pos = writer.pos
-          key = writer.write_record_with_key(sample_string(i, 10000))
-          if keys:
-            self.assertGreater(pos, keys[-1])
-          self.assertLessEqual(pos, key)
-          keys.append(key)
+          writer.write_record(sample_string(i, 10000))
+          canonical_pos = writer.last_pos
+          if positions:
+            self.assertGreater(pos, positions[-1])
+          self.assertLessEqual(pos, canonical_pos)
+          positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
-        reader.seek(keys[9])
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
-        reader.seek(keys[9])
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
-        reader.seek(keys[11])
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek(positions[9])
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
+        reader.seek(positions[9])
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
+        reader.seek(positions[11])
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         self.assertEqual(reader.read_record(), sample_string(11, 10000))
-        reader.seek(keys[9])
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
+        reader.seek(positions[9])
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
         self.assertEqual(reader.read_record(), sample_string(9, 10000))
-        reader.seek(keys[11])
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek(positions[11])
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         self.assertEqual(reader.read_record(), sample_string(11, 10000))
-        reader.seek(keys[13])
-        self.assertGreater(reader.pos, keys[12])
-        self.assertLessEqual(reader.pos, keys[13])
+        reader.seek(positions[13])
+        self.assertGreater(reader.pos, positions[12])
+        self.assertLessEqual(reader.pos, positions[13])
         self.assertEqual(reader.read_record(), sample_string(13, 10000))
         reader.seek(riegeli.RecordPosition(0, 0))
-        self.assertLessEqual(reader.pos, keys[0])
+        self.assertLessEqual(reader.pos, positions[0])
         self.assertEqual(reader.read_record(), sample_string(0, 10000))
         reader.seek(end_pos)
         self.assertLessEqual(reader.pos, end_pos)
         self.assertIsNone(reader.read_record())
-        reader.seek(keys[11])
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek(positions[11])
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         reader.close()
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_PARALLELISM
   def test_seek_numeric(self, file_spec, parallelism):
@@ -713,7 +635,7 @@ class RecordsTest(parameterized.TestCase):
         file_spec(
             self.create_tempfile,
             random_access=RandomAccess.RANDOM_ACCESS)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
@@ -721,51 +643,52 @@ class RecordsTest(parameterized.TestCase):
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
           pos = writer.pos
-          key = writer.write_record_with_key(sample_string(i, 10000))
-          if keys:
-            self.assertGreater(pos, keys[-1])
-          self.assertLessEqual(pos, key)
-          keys.append(key)
+          writer.write_record(sample_string(i, 10000))
+          canonical_pos = writer.last_pos
+          if positions:
+            self.assertGreater(pos, positions[-1])
+          self.assertLessEqual(pos, canonical_pos)
+          positions.append(canonical_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
           assumed_pos=files.reading_assumed_pos) as reader:
-        reader.seek_numeric(keys[9].numeric)
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
-        reader.seek_numeric(keys[9].numeric)
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
-        reader.seek_numeric(keys[11].numeric)
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek_numeric(positions[9].numeric)
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
+        reader.seek_numeric(positions[9].numeric)
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
+        reader.seek_numeric(positions[11].numeric)
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         self.assertEqual(reader.read_record(), sample_string(11, 10000))
-        reader.seek_numeric(keys[9].numeric)
-        self.assertGreater(reader.pos, keys[8])
-        self.assertLessEqual(reader.pos, keys[9])
+        reader.seek_numeric(positions[9].numeric)
+        self.assertGreater(reader.pos, positions[8])
+        self.assertLessEqual(reader.pos, positions[9])
         self.assertEqual(reader.read_record(), sample_string(9, 10000))
-        reader.seek_numeric(keys[11].numeric)
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek_numeric(positions[11].numeric)
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         self.assertEqual(reader.read_record(), sample_string(11, 10000))
-        reader.seek_numeric(keys[13].numeric)
-        self.assertGreater(reader.pos, keys[12])
-        self.assertLessEqual(reader.pos, keys[13])
+        reader.seek_numeric(positions[13].numeric)
+        self.assertGreater(reader.pos, positions[12])
+        self.assertLessEqual(reader.pos, positions[13])
         self.assertEqual(reader.read_record(), sample_string(13, 10000))
         reader.seek_numeric(0)
-        self.assertLessEqual(reader.pos, keys[0])
+        self.assertLessEqual(reader.pos, positions[0])
         self.assertEqual(reader.read_record(), sample_string(0, 10000))
         reader.seek_numeric(end_pos.numeric)
         self.assertLessEqual(reader.pos, end_pos)
         self.assertIsNone(reader.read_record())
-        reader.seek_numeric(keys[11].numeric)
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        reader.seek_numeric(positions[11].numeric)
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
         reader.close()
-        self.assertGreater(reader.pos, keys[10])
-        self.assertLessEqual(reader.pos, keys[11])
+        self.assertGreater(reader.pos, positions[10])
+        self.assertLessEqual(reader.pos, positions[11])
 
   @_PARAMETERIZE_BY_FILE_SPEC
   def test_seek_back(self, file_spec):
@@ -802,8 +725,10 @@ class RecordsTest(parameterized.TestCase):
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
-        keys = writer.write_messages_with_keys(
-            sample_message(i, 10000) for i in range(23))
+        positions = []
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
@@ -820,11 +745,11 @@ class RecordsTest(parameterized.TestCase):
           return test
 
         reader.search(test_function(7))
-        self.assertEqual(reader.pos, keys[7])
+        self.assertEqual(reader.pos, positions[7])
         reader.search(test_function(0))
-        self.assertEqual(reader.pos, keys[0])
+        self.assertEqual(reader.pos, positions[0])
         reader.search(test_function(22))
-        self.assertEqual(reader.pos, keys[22])
+        self.assertEqual(reader.pos, positions[22])
         reader.search(test_function(23))
         self.assertEqual(reader.pos, end_pos)
 
@@ -839,8 +764,10 @@ class RecordsTest(parameterized.TestCase):
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
-        keys = writer.write_messages_with_keys(
-            sample_message(i, 10000) for i in range(23))
+        positions = []
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
@@ -857,11 +784,11 @@ class RecordsTest(parameterized.TestCase):
           return test
 
         reader.search_for_record(test_function(7))
-        self.assertEqual(reader.pos, keys[7])
+        self.assertEqual(reader.pos, positions[7])
         reader.search_for_record(test_function(0))
-        self.assertEqual(reader.pos, keys[0])
+        self.assertEqual(reader.pos, positions[0])
         reader.search_for_record(test_function(22))
-        self.assertEqual(reader.pos, keys[22])
+        self.assertEqual(reader.pos, positions[22])
         reader.search_for_record(test_function(23))
         self.assertEqual(reader.pos, end_pos)
 
@@ -876,8 +803,10 @@ class RecordsTest(parameterized.TestCase):
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism=0)) as writer:
-        keys = writer.write_messages_with_keys(
-            sample_message(i, 10000) for i in range(23))
+        positions = []
+        for i in range(23):
+          writer.write_message(sample_message(i, 10000))
+          positions.append(writer.last_pos)
         writer.close()
         end_pos = writer.pos
       with riegeli.RecordReader(
@@ -894,13 +823,13 @@ class RecordsTest(parameterized.TestCase):
 
         reader.search_for_message(records_test_pb2.SimpleMessage,
                                   test_function(7))
-        self.assertEqual(reader.pos, keys[7])
+        self.assertEqual(reader.pos, positions[7])
         reader.search_for_message(records_test_pb2.SimpleMessage,
                                   test_function(0))
-        self.assertEqual(reader.pos, keys[0])
+        self.assertEqual(reader.pos, positions[0])
         reader.search_for_message(records_test_pb2.SimpleMessage,
                                   test_function(22))
-        self.assertEqual(reader.pos, keys[22])
+        self.assertEqual(reader.pos, positions[22])
         reader.search_for_message(records_test_pb2.SimpleMessage,
                                   test_function(23))
         self.assertEqual(reader.pos, end_pos)
@@ -909,16 +838,17 @@ class RecordsTest(parameterized.TestCase):
   def test_corruption_exception(self, file_spec, random_access, parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
-          keys.append(writer.write_record_with_key(sample_string(i, 10000)))
+          writer.write_record(sample_string(i, 10000))
+          positions.append(writer.last_pos)
       # Corrupt the header of the chunk containing records [9, 12).
-      self.corrupt_at(files, keys[9].chunk_begin + 20)
+      self.corrupt_at(files, positions[9].chunk_begin + 20)
       # Read records [0, 9) successfully (all before the corrupted chunk).
       reader = riegeli.RecordReader(
           files.reading_open(),
@@ -935,16 +865,17 @@ class RecordsTest(parameterized.TestCase):
   def test_corruption_recovery(self, file_spec, random_access, parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
-          keys.append(writer.write_record_with_key(sample_string(i, 10000)))
+          writer.write_record(sample_string(i, 10000))
+          positions.append(writer.last_pos)
       # Corrupt the header of the chunk containing records [9, 12).
-      self.corrupt_at(files, keys[9].chunk_begin + 20)
+      self.corrupt_at(files, positions[9].chunk_begin + 20)
       # Read records [0, 9) and [15, 23) successfully (all except the corrupted
       # chunk and the next chunk which intersects the same block).
       skipped_regions = []
@@ -960,24 +891,25 @@ class RecordsTest(parameterized.TestCase):
         self.assertIsNone(reader.read_record())
       self.assertLen(skipped_regions, 1)
       skipped_region = skipped_regions[0]
-      self.assertEqual(skipped_region.begin, keys[9].numeric)
-      self.assertEqual(skipped_region.end, keys[15].numeric)
+      self.assertEqual(skipped_region.begin, positions[9].numeric)
+      self.assertEqual(skipped_region.end, positions[15].numeric)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_recovery_stop_iteration(self, file_spec, random_access,
                                               parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
-          keys.append(writer.write_record_with_key(sample_string(i, 10000)))
+          writer.write_record(sample_string(i, 10000))
+          positions.append(writer.last_pos)
       # Corrupt the header of the chunk containing records [9, 12).
-      self.corrupt_at(files, keys[9].chunk_begin + 20)
+      self.corrupt_at(files, positions[9].chunk_begin + 20)
       # Read records [0, 9) successfully (all before the corrupted chunk).
       skipped_regions = []
 
@@ -995,24 +927,25 @@ class RecordsTest(parameterized.TestCase):
         self.assertIsNone(reader.read_record())
       self.assertLen(skipped_regions, 1)
       skipped_region = skipped_regions[0]
-      self.assertEqual(skipped_region.begin, keys[9].numeric)
-      self.assertEqual(skipped_region.end, keys[15].numeric)
+      self.assertEqual(skipped_region.begin, positions[9].numeric)
+      self.assertEqual(skipped_region.end, positions[15].numeric)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_corruption_recovery_exception(self, file_spec, random_access,
                                          parallelism):
     with contextlib.closing(file_spec(self.create_tempfile,
                                       random_access)) as files:
-      keys = []
+      positions = []
       with riegeli.RecordWriter(
           files.writing_open(),
           owns_dest=files.writing_should_close,
           assumed_pos=files.writing_assumed_pos,
           options=record_writer_options(parallelism)) as writer:
         for i in range(23):
-          keys.append(writer.write_record_with_key(sample_string(i, 10000)))
+          writer.write_record(sample_string(i, 10000))
+          positions.append(writer.last_pos)
       # Corrupt the header of the chunk containing records [9, 12).
-      self.corrupt_at(files, keys[9].chunk_begin + 20)
+      self.corrupt_at(files, positions[9].chunk_begin + 20)
 
       # Propagate exception from the recovery function
       def recovery(skipped_region):

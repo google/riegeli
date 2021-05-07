@@ -438,7 +438,7 @@ class RecordWriterBase : public Object {
   // (e.g. `const char*`).
   //
   // If `key != nullptr`, `*key` is set to the canonical record position on
-  // success.
+  // success. This parameter is deprecated: use `LastPos()` instead.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
@@ -499,18 +499,34 @@ class RecordWriterBase : public Object {
   // `Flush()` is equivalent to `FutureFlush().get()`.
   FutureBool FutureFlush(FlushType flush_type = FlushType::kFromProcess);
 
-  // Returns the current position.
+  // Returns the canonical position of the last record written.
+  //
+  // The canonical position is the largest among all equivalent positions.
+  // Seeking to any equivalent position leads to reading the same record.
+  //
+  // `LastPos().get().numeric()` returns the position as an integer of type
+  // `Position`.
+  //
+  // Precondition: a record was successfully written and there was no
+  // intervening call to `Close()`, `Flush()` or `FutureFlush()` (this can be
+  // checked with `last_record_is_valid()`).
+  FutureRecordPosition LastPos() const;
+
+  // Returns `true` if calling `LastPos()` is valid.
+  bool last_record_is_valid() const { return last_record_is_valid_; }
+
+  // Returns a position of the next record (or the end of file if there is no
+  // next record).
+  //
+  // A position which is not canonical can be smaller than the equivalent
+  // canonical position. Seeking to any equivalent position leads to reading the
+  // same record.
   //
   // `Pos().get().numeric()` returns the position as an integer of type
   // `Position`.
   //
-  // A position returned by `Pos()` before writing a record is not greater than
-  // the canonical position returned by `WriteRecord()` in `*key` for that
-  // record, but seeking to either position will read the same record.
-  //
-  // After `Close()` or `Flush()`, `Pos()` is equal to the canonical position
-  // returned by the following `WriteRecord()` in `*key` (after reopening the
-  // file for appending in the case of `Close()`).
+  // After opening the file, `Close()`, or `Flush()`, `Pos()` is the canonical
+  // position of the next record, and `Pos().get().record_index() == 0`.
   FutureRecordPosition Pos() const;
 
   // Returns an estimation of the file size if no more data is written, without
@@ -553,6 +569,7 @@ class RecordWriterBase : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
+  bool last_record_is_valid_ = false;
   // Invariant: if `is_open()` then `worker_ != nullptr`.
   std::unique_ptr<Worker> worker_;
 };

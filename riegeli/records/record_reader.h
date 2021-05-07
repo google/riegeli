@@ -208,7 +208,7 @@ class RecordReaderBase : public Object {
   // next non-const operation on this `RecordReader`.
   //
   // If `key != nullptr`, `*key` is set to the canonical record position on
-  // success.
+  // success. This parameter is deprecated: use `last_pos()` instead.
   //
   // Return values:
   //  * `true`                      - success (`record` is set)
@@ -259,13 +259,30 @@ class RecordReaderBase : public Object {
   //  * `false` - failure not caused by invalid file contents
   bool Recover(SkippedRegion* skipped_region = nullptr);
 
-  // Returns the current position.
+  // Returns the canonical position of the last record read.
+  //
+  // The canonical position is the largest among all equivalent positions.
+  // Seeking to any equivalent position leads to reading the same record.
+  //
+  // `last_pos().numeric()` returns the position as an integer of type
+  // `Position`.
+  //
+  // Precondition: a record was successfully read and there was no intervening
+  // call to `Close()`, `Seek()`, `SeekBack()`, or `Search()` (this can be
+  // checked with `last_record_is_valid()`).
+  RecordPosition last_pos() const;
+
+  // Returns `true` if calling `last_pos()` is valid.
+  bool last_record_is_valid() const { return last_record_is_valid_; }
+
+  // Returns a position of the next record (or the end of file if there is no
+  // next record).
+  //
+  // A position which is not canonical can be smaller than the equivalent
+  // canonical position. Seeking to any equivalent position leads to reading the
+  // same record.
   //
   // `pos().numeric()` returns the position as an integer of type `Position`.
-  //
-  // A position returned by `pos()` before reading a record is not greater than
-  // the canonical position returned by `ReadRecord()` in `*key` for that
-  // record, but seeking to either position will read the same record.
   //
   // `pos()` is unchanged by `Close()`.
   RecordPosition pos() const;
@@ -392,6 +409,8 @@ class RecordReaderBase : public Object {
   //       `!chunk_decoder_.healthy() ||
   //        chunk_decoder_.index() == chunk_decoder_.num_records()`
   ChunkDecoder chunk_decoder_;
+
+  bool last_record_is_valid_ = false;
 
   // Whether `Recover()` is applicable, and if so, how it should be performed:
   //
@@ -583,6 +602,16 @@ inline bool RecordReaderBase::TryRecovery() {
   if (recovery_ == nullptr) return false;
   SkippedRegion skipped_region;
   return Recover(&skipped_region) && recovery_(skipped_region);
+}
+
+inline RecordPosition RecordReaderBase::last_pos() const {
+  RIEGELI_ASSERT(last_record_is_valid())
+      << "Failed precondition of RecordReaderBase::last_pos(): "
+         "no record was recently read";
+  RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+      << "Failed invariant of RecordReaderBase: "
+         "last position should be valid but no record was decoded";
+  return RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
 }
 
 inline RecordPosition RecordReaderBase::pos() const {
