@@ -284,39 +284,33 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   return true;
 }
 
-bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite& record,
-                                  RecordPosition* key) {
-  return ReadRecordImpl(record, key);
+bool RecordReaderBase::ReadRecord(google::protobuf::MessageLite& record) {
+  return ReadRecordImpl(record);
 }
 
-bool RecordReaderBase::ReadRecord(absl::string_view& record,
-                                  RecordPosition* key) {
-  return ReadRecordImpl(record, key);
+bool RecordReaderBase::ReadRecord(absl::string_view& record) {
+  return ReadRecordImpl(record);
 }
 
-bool RecordReaderBase::ReadRecord(std::string& record, RecordPosition* key) {
-  return ReadRecordImpl(record, key);
+bool RecordReaderBase::ReadRecord(std::string& record) {
+  return ReadRecordImpl(record);
 }
 
-bool RecordReaderBase::ReadRecord(Chain& record, RecordPosition* key) {
-  return ReadRecordImpl(record, key);
+bool RecordReaderBase::ReadRecord(Chain& record) {
+  return ReadRecordImpl(record);
 }
 
-bool RecordReaderBase::ReadRecord(absl::Cord& record, RecordPosition* key) {
-  return ReadRecordImpl(record, key);
+bool RecordReaderBase::ReadRecord(absl::Cord& record) {
+  return ReadRecordImpl(record);
 }
 
 template <typename Record>
-inline bool RecordReaderBase::ReadRecordImpl(Record& record,
-                                             RecordPosition* key) {
+inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
   last_record_is_valid_ = false;
   for (;;) {
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
       RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
           << "ChunkDecoder::ReadRecord() left record index at 0";
-      if (key != nullptr) {
-        *key = RecordPosition(chunk_begin_, chunk_decoder_.index() - 1);
-      }
       last_record_is_valid_ = true;
       return true;
     }

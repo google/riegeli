@@ -786,8 +786,7 @@ void RecordWriterBase::Done() {
 void RecordWriterBase::DoneBackground() { worker_.reset(); }
 
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
-                                   SerializeOptions serialize_options,
-                                   FutureRecordPosition* key) {
+                                   SerializeOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
@@ -805,7 +804,6 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
-  if (key != nullptr) *key = worker_->Pos();
   if (ABSL_PREDICT_FALSE(!worker_->AddRecord(record, serialize_options))) {
     return Fail(*worker_);
   }
@@ -813,44 +811,38 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
   return true;
 }
 
-bool RecordWriterBase::WriteRecord(absl::string_view record,
-                                   FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
+bool RecordWriterBase::WriteRecord(absl::string_view record) {
+  return WriteRecordImpl(record);
 }
 
 template <typename Src,
           std::enable_if_t<std::is_same<Src, std::string>::value, int>>
-bool RecordWriterBase::WriteRecord(Src&& record, FutureRecordPosition* key) {
+bool RecordWriterBase::WriteRecord(Src&& record) {
   // `std::move(record)` is correct and `std::forward<Src>(record)` is not
   // necessary: `Src` is always `std::string`, never an lvalue reference.
-  return WriteRecordImpl(std::move(record), key);
+  return WriteRecordImpl(std::move(record));
 }
 
-template bool RecordWriterBase::WriteRecord(std::string&& record,
-                                            FutureRecordPosition* key);
+template bool RecordWriterBase::WriteRecord(std::string&& record);
 
-bool RecordWriterBase::WriteRecord(const Chain& record,
-                                   FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
+bool RecordWriterBase::WriteRecord(const Chain& record) {
+  return WriteRecordImpl(record);
 }
 
-bool RecordWriterBase::WriteRecord(Chain&& record, FutureRecordPosition* key) {
-  return WriteRecordImpl(std::move(record), key);
+bool RecordWriterBase::WriteRecord(Chain&& record) {
+  return WriteRecordImpl(std::move(record));
 }
 
-bool RecordWriterBase::WriteRecord(const absl::Cord& record,
-                                   FutureRecordPosition* key) {
-  return WriteRecordImpl(record, key);
+bool RecordWriterBase::WriteRecord(const absl::Cord& record) {
+  return WriteRecordImpl(record);
 }
 
-bool RecordWriterBase::WriteRecord(absl::Cord&& record,
-                                   FutureRecordPosition* key) {
-  return WriteRecordImpl(std::move(record), key);
+bool RecordWriterBase::WriteRecord(absl::Cord&& record) {
+  return WriteRecordImpl(std::move(record));
 }
 
 template <typename Record>
-inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
-                                              FutureRecordPosition* key) {
+inline bool RecordWriterBase::WriteRecordImpl(Record&& record) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   last_record_is_valid_ = false;
   // Decoding a chunk writes records to one array, and their positions to
@@ -867,7 +859,6 @@ inline bool RecordWriterBase::WriteRecordImpl(Record&& record,
     chunk_size_so_far_ = 0;
   }
   chunk_size_so_far_ += added_size;
-  if (key != nullptr) *key = worker_->Pos();
   if (ABSL_PREDICT_FALSE(!worker_->AddRecord(std::forward<Record>(record)))) {
     return Fail(*worker_);
   }

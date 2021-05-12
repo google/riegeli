@@ -207,19 +207,15 @@ class RecordReaderBase : public Object {
   // `ReadRecord(absl::string_view&)` the `absl::string_view` is valid until the
   // next non-const operation on this `RecordReader`.
   //
-  // If `key != nullptr`, `*key` is set to the canonical record position on
-  // success. This parameter is deprecated: use `last_pos()` instead.
-  //
   // Return values:
   //  * `true`                      - success (`record` is set)
   //  * `false` (when `healthy()`)  - source ends
   //  * `false` (when `!healthy()`) - failure
-  bool ReadRecord(google::protobuf::MessageLite& record,
-                  RecordPosition* key = nullptr);
-  bool ReadRecord(absl::string_view& record, RecordPosition* key = nullptr);
-  bool ReadRecord(std::string& record, RecordPosition* key = nullptr);
-  bool ReadRecord(Chain& record, RecordPosition* key = nullptr);
-  bool ReadRecord(absl::Cord& record, RecordPosition* key = nullptr);
+  bool ReadRecord(google::protobuf::MessageLite& record);
+  bool ReadRecord(absl::string_view& record);
+  bool ReadRecord(std::string& record);
+  bool ReadRecord(Chain& record);
+  bool ReadRecord(absl::Cord& record);
 
   // Like `Options::set_field_projection()`, but can be done at any time.
   //
@@ -438,7 +434,7 @@ class RecordReaderBase : public Object {
   bool ParseMetadata(const Chunk& chunk, Chain& metadata);
 
   template <typename Record>
-  bool ReadRecordImpl(Record& record, RecordPosition* key);
+  bool ReadRecordImpl(Record& record);
 
   // Reads the next chunk from `chunk_reader_` and decodes it into
   // `chunk_decoder_` and `chunk_begin_`. On failure resets `chunk_decoder_`.

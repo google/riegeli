@@ -437,27 +437,20 @@ class RecordWriterBase : public Object {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   //
-  // If `key != nullptr`, `*key` is set to the canonical record position on
-  // success. This parameter is deprecated: use `LastPos()` instead.
-  //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
+  bool WriteRecord(const google::protobuf::MessageLite& record);
   bool WriteRecord(const google::protobuf::MessageLite& record,
-                   FutureRecordPosition* key = nullptr);
-  bool WriteRecord(const google::protobuf::MessageLite& record,
-                   SerializeOptions serialize_options,
-                   FutureRecordPosition* key = nullptr);
-  bool WriteRecord(absl::string_view record,
-                   FutureRecordPosition* key = nullptr);
+                   SerializeOptions serialize_options);
+  bool WriteRecord(absl::string_view record);
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  bool WriteRecord(Src&& record, FutureRecordPosition* key = nullptr);
-  bool WriteRecord(const Chain& record, FutureRecordPosition* key = nullptr);
-  bool WriteRecord(Chain&& record, FutureRecordPosition* key = nullptr);
-  bool WriteRecord(const absl::Cord& record,
-                   FutureRecordPosition* key = nullptr);
-  bool WriteRecord(absl::Cord&& record, FutureRecordPosition* key = nullptr);
+  bool WriteRecord(Src&& record);
+  bool WriteRecord(const Chain& record);
+  bool WriteRecord(Chain&& record);
+  bool WriteRecord(const absl::Cord& record);
+  bool WriteRecord(absl::Cord&& record);
 
   // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism() > 0`, waits for any background writing to
@@ -565,7 +558,7 @@ class RecordWriterBase : public Object {
   class ParallelWorker;
 
   template <typename Record>
-  bool WriteRecordImpl(Record&& record, FutureRecordPosition* key);
+  bool WriteRecordImpl(Record&& record);
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
@@ -676,12 +669,11 @@ explicit RecordWriter(
 
 // Implementation details follow.
 
-extern template bool RecordWriterBase::WriteRecord(std::string&& record,
-                                                   FutureRecordPosition* key);
+extern template bool RecordWriterBase::WriteRecord(std::string&& record);
 
 inline bool RecordWriterBase::WriteRecord(
-    const google::protobuf::MessageLite& record, FutureRecordPosition* key) {
-  return WriteRecord(record, SerializeOptions(), key);
+    const google::protobuf::MessageLite& record) {
+  return WriteRecord(record, SerializeOptions());
 }
 
 template <typename Dest>

@@ -484,30 +484,6 @@ static PyObject* RecordReaderReadRecord(PyRecordReaderObject* self,
   return ChainToPython(record).release();
 }
 
-static PyObject* RecordReaderReadRecordWithKey(PyRecordReaderObject* self,
-                                               PyObject* args) {
-  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  Chain record;
-  RecordPosition key;
-  const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadRecord(record, &key); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
-      SetExceptionFromRecordReader(self);
-      return nullptr;
-    }
-    Py_RETURN_NONE;
-  }
-  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  const PythonPtr key_object(
-      kRecordPositionApi->RecordPositionToPython(FutureRecordPosition(key)));
-  if (ABSL_PREDICT_FALSE(key_object == nullptr)) return nullptr;
-  const PythonPtr record_object = ChainToPython(record);
-  if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
-  // return key, record
-  return PyTuple_Pack(2, key_object.get(), record_object.get());
-}
-
 static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
                                          PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"message_type", nullptr};
@@ -540,45 +516,6 @@ static PyObject* RecordReaderReadMessage(PyRecordReaderObject* self,
   return message.release();
 }
 
-static PyObject* RecordReaderReadMessageWithKey(PyRecordReaderObject* self,
-                                                PyObject* args,
-                                                PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"message_type", nullptr};
-  PyObject* message_type_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:read_message_with_key", const_cast<char**>(keywords),
-          &message_type_arg))) {
-    return nullptr;
-  }
-  if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  absl::string_view record;
-  RecordPosition key;
-  const bool ok = PythonUnlocked(
-      [&] { return self->record_reader->ReadRecord(record, &key); });
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    if (ABSL_PREDICT_FALSE(RecordReaderHasException(self))) {
-      SetExceptionFromRecordReader(self);
-      return nullptr;
-    }
-    Py_RETURN_NONE;
-  }
-  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  const PythonPtr key_object(
-      kRecordPositionApi->RecordPositionToPython(FutureRecordPosition(key)));
-  if (ABSL_PREDICT_FALSE(key_object == nullptr)) return nullptr;
-  MemoryView memory_view;
-  PyObject* const record_object = memory_view.ToPython(record);
-  if (ABSL_PREDICT_FALSE(record_object == nullptr)) return nullptr;
-  // message = message_type.FromString(record)
-  static constexpr Identifier id_FromString("FromString");
-  const PythonPtr message(PyObject_CallMethodObjArgs(
-      message_type_arg, id_FromString.get(), record_object, nullptr));
-  if (ABSL_PREDICT_FALSE(message == nullptr)) return nullptr;
-  if (ABSL_PREDICT_FALSE(!memory_view.Release())) return nullptr;
-  // return key, message
-  return PyTuple_Pack(2, key_object.get(), message.get());
-}
-
 static PyRecordIterObject* RecordReaderReadRecords(PyRecordReaderObject* self,
                                                    PyObject* args) {
   std::unique_ptr<PyRecordIterObject, Deleter> iter(
@@ -586,20 +523,6 @@ static PyRecordIterObject* RecordReaderReadRecords(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
   iter->read_record = [](PyRecordReaderObject* self, PyObject* args) {
     return RecordReaderReadRecord(self, args);
-  };
-  Py_INCREF(self);
-  iter->record_reader = self;
-  iter->args = nullptr;
-  return iter.release();
-}
-
-static PyRecordIterObject* RecordReaderReadRecordsWithKeys(
-    PyRecordReaderObject* self, PyObject* args) {
-  std::unique_ptr<PyRecordIterObject, Deleter> iter(
-      PyObject_GC_New(PyRecordIterObject, &PyRecordIter_Type));
-  if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
-  iter->read_record = [](PyRecordReaderObject* self, PyObject* args) {
-    return RecordReaderReadRecordWithKey(self, args);
   };
   Py_INCREF(self);
   iter->record_reader = self;
@@ -622,28 +545,6 @@ static PyRecordIterObject* RecordReaderReadMessages(PyRecordReaderObject* self,
   if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
   iter->read_record = [](PyRecordReaderObject* self, PyObject* args) {
     return RecordReaderReadMessage(self, args, nullptr);
-  };
-  Py_INCREF(self);
-  iter->record_reader = self;
-  iter->args = PyTuple_Pack(1, message_type_arg);
-  if (ABSL_PREDICT_FALSE(iter->args == nullptr)) return nullptr;
-  return iter.release();
-}
-
-static PyRecordIterObject* RecordReaderReadMessagesWithKeys(
-    PyRecordReaderObject* self, PyObject* args, PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"message_type", nullptr};
-  PyObject* message_type_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:read_messages_with_keys",
-          const_cast<char**>(keywords), &message_type_arg))) {
-    return nullptr;
-  }
-  std::unique_ptr<PyRecordIterObject, Deleter> iter(
-      PyObject_GC_New(PyRecordIterObject, &PyRecordIter_Type));
-  if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
-  iter->read_record = [](PyRecordReaderObject* self, PyObject* args) {
-    return RecordReaderReadMessageWithKey(self, args, nullptr);
   };
   Py_INCREF(self);
   iter->record_reader = self;
@@ -1015,19 +916,6 @@ Reads the next record.
 Returns:
   The record read as bytes, or None at end of file.
 )doc"},
-    {"read_record_with_key",
-     reinterpret_cast<PyCFunction>(RecordReaderReadRecordWithKey), METH_NOARGS,
-     R"doc(
-read_record_with_key(self) -> Optional[Tuple[RecordPosition, bytes]]
-
-Reads the next record.
-
-Deprecated. Use read_record() and last_pos instead.
-
-Returns:
-  If successful, a tuple of canonical record position and the record read as
-  bytes. Returns None at end of file.
-)doc"},
     {"read_message", reinterpret_cast<PyCFunction>(RecordReaderReadMessage),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 read_message(self, message_type: Type[Message]) -> Optional[Message]
@@ -1040,24 +928,6 @@ Args:
 Returns:
   The record read as a parsed message, or None at end of file.
 )doc"},
-    {"read_message_with_key",
-     reinterpret_cast<PyCFunction>(RecordReaderReadMessageWithKey),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-read_message_with_key(
-    self, message_type: Type[Message]
-) -> Optional[Tuple[RecordPosition, Message]]
-
-Reads the next record.
-
-Deprecated. Use read_message() and last_pos instead.
-
-Args:
-  message_type: Type of the message to parse the record as.
-
-Returns:
-  If successful, a tuple of the canonical record position and the record read as
-  a parsed message. Returns None at end of file.
-)doc"},
     {"read_records", reinterpret_cast<PyCFunction>(RecordReaderReadRecords),
      METH_NOARGS, R"doc(
 read_records(self) -> Iterator[bytes]
@@ -1067,19 +937,6 @@ Returns an iterator which reads all remaining records.
 Yields:
   The next record read as bytes.
 )doc"},
-    {"read_records_with_keys",
-     reinterpret_cast<PyCFunction>(RecordReaderReadRecordsWithKeys),
-     METH_NOARGS, R"doc(
-read_records_with_keys(self) -> Iterator[Tuple[RecordPosition, bytes]]
-
-Returns an iterator which reads all remaining records.
-
-Deprecated. Use a loop with read_record() and last_pos instead.
-
-Yields:
-  If successful, a tuple of canonical record position and the next record read
-  as bytes.
-)doc"},
     {"read_messages", reinterpret_cast<PyCFunction>(RecordReaderReadMessages),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 read_messages(self, message_type: Type[Message]) -> Iterator[Message]
@@ -1088,21 +945,6 @@ Returns an iterator which reads all remaining records.
 
 Yields:
   The next record read as parsed message.
-)doc"},
-    {"read_messages_with_keys",
-     reinterpret_cast<PyCFunction>(RecordReaderReadMessagesWithKeys),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-read_messages_with_keys(
-    self, message_type: Type[Message]
-) -> Iterator[Tuple[RecordPosition, Message]]
-
-Returns an iterator which reads all remaining records.
-
-Deprecated. Use a loop with read_message() and last_pos instead.
-
-Yields:
-  A tuple of the canonical record position and the next record read as parsed
-  message.
 )doc"},
     {"set_field_projection",
      reinterpret_cast<PyCFunction>(RecordReaderSetFieldProjection),

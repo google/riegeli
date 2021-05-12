@@ -402,31 +402,6 @@ static PyObject* RecordWriterWriteRecord(PyRecordWriterObject* self,
   Py_RETURN_NONE;
 }
 
-static PyObject* RecordWriterWriteRecordWithKey(PyRecordWriterObject* self,
-                                                PyObject* args,
-                                                PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"record", nullptr};
-  PyObject* record_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:write_record_with_key", const_cast<char**>(keywords),
-          &record_arg))) {
-    return nullptr;
-  }
-  BytesLike record;
-  if (ABSL_PREDICT_FALSE(!record.FromPython(record_arg))) return nullptr;
-  if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  FutureRecordPosition key;
-  const bool ok = PythonUnlocked([&] {
-    return self->record_writer->WriteRecord(absl::string_view(record), &key);
-  });
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    SetExceptionFromRecordWriter(self);
-    return nullptr;
-  }
-  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  return kRecordPositionApi->RecordPositionToPython(std::move(key)).release();
-}
-
 static PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
                                           PyObject* args, PyObject* kwargs) {
   static constexpr const char* keywords[] = {"record", nullptr};
@@ -454,39 +429,6 @@ static PyObject* RecordWriterWriteMessage(PyRecordWriterObject* self,
     return nullptr;
   }
   Py_RETURN_NONE;
-}
-
-static PyObject* RecordWriterWriteMessageWithKey(PyRecordWriterObject* self,
-                                                 PyObject* args,
-                                                 PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"record", nullptr};
-  PyObject* record_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:write_message_with_key",
-          const_cast<char**>(keywords), &record_arg))) {
-    return nullptr;
-  }
-  // return self.write_record_with_key(record.SerializeToString())
-  static constexpr Identifier id_SerializeToString("SerializeToString");
-  const PythonPtr serialized_object(PyObject_CallMethodObjArgs(
-      record_arg, id_SerializeToString.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(serialized_object == nullptr)) return nullptr;
-  BytesLike serialized;
-  if (ABSL_PREDICT_FALSE(!serialized.FromPython(serialized_object.get()))) {
-    return nullptr;
-  }
-  if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-  FutureRecordPosition key;
-  const bool ok = PythonUnlocked([&] {
-    return self->record_writer->WriteRecord(absl::string_view(serialized),
-                                            &key);
-  });
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    SetExceptionFromRecordWriter(self);
-    return nullptr;
-  }
-  if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  return kRecordPositionApi->RecordPositionToPython(std::move(key)).release();
 }
 
 static PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
@@ -518,49 +460,6 @@ static PyObject* RecordWriterWriteRecords(PyRecordWriterObject* self,
   }
   if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return nullptr;
   Py_RETURN_NONE;
-}
-
-static PyObject* RecordWriterWriteRecordsWithKeys(PyRecordWriterObject* self,
-                                                  PyObject* args,
-                                                  PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"records", nullptr};
-  PyObject* records_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:write_records_with_keys",
-          const_cast<char**>(keywords), &records_arg))) {
-    return nullptr;
-  }
-  // keys = []
-  PythonPtr keys(PyList_New(0));
-  // for record in records:
-  //   keys.append(self.write_record_with_key(record))
-  const PythonPtr iter(PyObject_GetIter(records_arg));
-  if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
-  while (const PythonPtr record_object{PyIter_Next(iter.get())}) {
-    BytesLike record;
-    if (ABSL_PREDICT_FALSE(!record.FromPython(record_object.get()))) {
-      return nullptr;
-    }
-    if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    FutureRecordPosition key;
-    const bool ok = PythonUnlocked([&] {
-      return self->record_writer->WriteRecord(absl::string_view(record), &key);
-    });
-    if (ABSL_PREDICT_FALSE(!ok)) {
-      SetExceptionFromRecordWriter(self);
-      return nullptr;
-    }
-    if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-    const PythonPtr key_object(
-        kRecordPositionApi->RecordPositionToPython(std::move(key)));
-    if (ABSL_PREDICT_FALSE(key_object == nullptr)) return nullptr;
-    if (ABSL_PREDICT_FALSE(PyList_Append(keys.get(), key_object.get()) < 0)) {
-      return nullptr;
-    }
-  }
-  if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return nullptr;
-  // return keys
-  return keys.release();
 }
 
 static PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
@@ -596,54 +495,6 @@ static PyObject* RecordWriterWriteMessages(PyRecordWriterObject* self,
   }
   if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return nullptr;
   Py_RETURN_NONE;
-}
-
-static PyObject* RecordWriterWriteMessagesWithKeys(PyRecordWriterObject* self,
-                                                   PyObject* args,
-                                                   PyObject* kwargs) {
-  static constexpr const char* keywords[] = {"records", nullptr};
-  PyObject* records_arg;
-  if (ABSL_PREDICT_FALSE(!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "O:write_messages_with_keys",
-          const_cast<char**>(keywords), &records_arg))) {
-    return nullptr;
-  }
-  // keys = []
-  PythonPtr keys(PyList_New(0));
-  // for record in records:
-  //   keys.append(self.write_record_with_key(record.SerializeToString()))
-  const PythonPtr iter(PyObject_GetIter(records_arg));
-  if (ABSL_PREDICT_FALSE(iter == nullptr)) return nullptr;
-  while (const PythonPtr record_object{PyIter_Next(iter.get())}) {
-    static constexpr Identifier id_SerializeToString("SerializeToString");
-    const PythonPtr serialized_object(PyObject_CallMethodObjArgs(
-        record_object.get(), id_SerializeToString.get(), nullptr));
-    if (ABSL_PREDICT_FALSE(serialized_object == nullptr)) return nullptr;
-    BytesLike serialized;
-    if (ABSL_PREDICT_FALSE(!serialized.FromPython(serialized_object.get()))) {
-      return nullptr;
-    }
-    if (ABSL_PREDICT_FALSE(!self->record_writer.Verify())) return nullptr;
-    FutureRecordPosition key;
-    const bool ok = PythonUnlocked([&] {
-      return self->record_writer->WriteRecord(absl::string_view(serialized),
-                                              &key);
-    });
-    if (ABSL_PREDICT_FALSE(!ok)) {
-      SetExceptionFromRecordWriter(self);
-      return nullptr;
-    }
-    if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-    const PythonPtr key_object(
-        kRecordPositionApi->RecordPositionToPython(std::move(key)));
-    if (ABSL_PREDICT_FALSE(key_object == nullptr)) return nullptr;
-    if (ABSL_PREDICT_FALSE(PyList_Append(keys.get(), key_object.get()) < 0)) {
-      return nullptr;
-    }
-  }
-  if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return nullptr;
-  // return keys
-  return keys.release();
 }
 
 static PyObject* RecordWriterFlush(PyRecordWriterObject* self, PyObject* args,
@@ -741,22 +592,6 @@ Writes the next record.
 Args:
   record: Record to write as a bytes-like object.
 )doc"},
-    {"write_record_with_key",
-     reinterpret_cast<PyCFunction>(RecordWriterWriteRecordWithKey),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-write_record_with_key(
-    self, record: Union[bytes, bytearray, memoryview]) -> RecordPosition
-
-Writes the next record.
-
-Deprecated. Use write_record() and last_pos instead.
-
-Args:
-  record: Record to write as a bytes-like object.
-
-Returns:
-  The canonical record position of the record written.
-)doc"},
     {"write_message", reinterpret_cast<PyCFunction>(RecordWriterWriteMessage),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 write_message(self, record: Message) -> None
@@ -765,21 +600,6 @@ Writes the next record.
 
 Args:
   record: Record to write as a proto message.
-)doc"},
-    {"write_message_with_key",
-     reinterpret_cast<PyCFunction>(RecordWriterWriteMessageWithKey),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-write_message_with_key(self, record: Message) -> RecordPosition
-
-Writes the next record.
-
-Deprecated. Use write_message() and last_pos instead.
-
-Args:
-  record: Record to write as a proto message.
-
-Returns:
-  The canonical record position of the record written.
 )doc"},
     {"write_records", reinterpret_cast<PyCFunction>(RecordWriterWriteRecords),
      METH_VARARGS | METH_KEYWORDS, R"doc(
@@ -791,23 +611,6 @@ Writes a number of records.
 Args:
   records: Records to write as an iterable of bytes-like objects.
 )doc"},
-    {"write_records_with_keys",
-     reinterpret_cast<PyCFunction>(RecordWriterWriteRecordsWithKeys),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-write_records_with_keys(
-    self, records: Iterable[Union[bytes, bytearray, memoryview]]
-) -> List[RecordPosition]
-
-Writes a number of records.
-
-Deprecated. Use a loop with write_record() and last_pos instead.
-
-Args:
-  records: Records to write as an iterable of bytes-like objects.
-
-Returns:
-  A list of canonical record positions corresponding to records written.
-)doc"},
     {"write_messages", reinterpret_cast<PyCFunction>(RecordWriterWriteMessages),
      METH_VARARGS | METH_KEYWORDS, R"doc(
 write_messages(self, records: Iterable[Message]) -> None
@@ -816,22 +619,6 @@ Writes a number of records.
 
 Args:
   records: Records to write as an iterable of proto messages.
-)doc"},
-    {"write_messages_with_keys",
-     reinterpret_cast<PyCFunction>(RecordWriterWriteMessagesWithKeys),
-     METH_VARARGS | METH_KEYWORDS, R"doc(
-write_messages_with_keys(
-    self, records: Iterable[Message]) -> List[RecordPosition]
-
-Writes a number of records.
-
-Deprecated. Use a loop with write_message() and last_pos instead.
-
-Args:
-  records: Records to write as an iterable of proto messages.
-
-Returns:
-  A list of canonical record positions corresponding to records written.
 )doc"},
     {"flush", reinterpret_cast<PyCFunction>(RecordWriterFlush),
      METH_VARARGS | METH_KEYWORDS, R"doc(
