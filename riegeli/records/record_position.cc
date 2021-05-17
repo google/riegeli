@@ -32,9 +32,12 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "riegeli/base/base.h"
+#include "riegeli/bytes/string_reader.h"
+#include "riegeli/bytes/string_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/endian/endian_reading.h"
-#include "riegeli/endian/endian_writing.h"
+#include "riegeli/ordered_varint/ordered_varint_reading.h"
+#include "riegeli/ordered_varint/ordered_varint_writing.h"
 #include "riegeli/records/block.h"
 
 namespace riegeli {
@@ -66,24 +69,40 @@ bool RecordPosition::FromString(absl::string_view serialized) {
 }
 
 std::string RecordPosition::ToBytes() const {
-  std::string serialized(2 * sizeof(uint64_t), '\0');
-  WriteBigEndian64(chunk_begin_, &serialized[0]);
-  WriteBigEndian64(record_index_, &serialized[sizeof(uint64_t)]);
+  std::string serialized;
+  StringWriter<> writer(&serialized);
+  WriteOrderedVarint64(chunk_begin_, writer);
+  WriteOrderedVarint64(record_index_, writer);
+  writer.Close();
   return serialized;
 }
 
 bool RecordPosition::FromBytes(absl::string_view serialized) {
-  if (ABSL_PREDICT_FALSE(serialized.size() != 2 * sizeof(uint64_t))) {
+  if (serialized.size() == 2 * sizeof(uint64_t)) {
+    // Reading the old format is temporarily supported too.
+    const uint64_t chunk_begin = ReadBigEndian64(&serialized[0]);
+    const uint64_t record_index =
+        ReadBigEndian64(&serialized[sizeof(uint64_t)]);
+    if (ABSL_PREDICT_FALSE(record_index > std::numeric_limits<uint64_t>::max() -
+                                              chunk_begin)) {
+      return false;
+    }
+    chunk_begin_ = chunk_begin;
+    record_index_ = record_index;
+    return true;
+  }
+  StringReader<> reader(serialized);
+  const absl::optional<uint64_t> chunk_begin = ReadOrderedVarint64(reader);
+  if (ABSL_PREDICT_FALSE(chunk_begin == absl::nullopt)) return false;
+  const absl::optional<uint64_t> record_index = ReadOrderedVarint64(reader);
+  if (ABSL_PREDICT_FALSE(record_index == absl::nullopt)) return false;
+  if (ABSL_PREDICT_FALSE(*record_index >
+                         std::numeric_limits<uint64_t>::max() - *chunk_begin)) {
     return false;
   }
-  const uint64_t chunk_begin = ReadBigEndian64(&serialized[0]);
-  const uint64_t record_index = ReadBigEndian64(&serialized[sizeof(uint64_t)]);
-  if (ABSL_PREDICT_FALSE(record_index >
-                         std::numeric_limits<uint64_t>::max() - chunk_begin)) {
-    return false;
-  }
-  chunk_begin_ = chunk_begin;
-  record_index_ = record_index;
+  if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) return false;
+  chunk_begin_ = *chunk_begin;
+  record_index_ = *record_index;
   return true;
 }
 

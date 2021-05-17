@@ -83,9 +83,12 @@ cc_library(
     deps = [
         ":block",
         "//riegeli/base",
+        "//riegeli/bytes:string_reader",
+        "//riegeli/bytes:string_writer",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/endian:endian_reading",
-        "//riegeli/endian:endian_writing",
+        "//riegeli/ordered_varint:ordered_varint_reading",
+        "//riegeli/ordered_varint:ordered_varint_writing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
