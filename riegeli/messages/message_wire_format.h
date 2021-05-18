@@ -91,7 +91,7 @@ bool WriteLengthWithTag(int field_number, size_t length, BackwardWriter& dest);
 
 // Implementation details follow.
 
-constexpr inline uint32_t MakeTag(int field_number, WireType wire_type) {
+inline constexpr uint32_t MakeTag(int field_number, WireType wire_type) {
   return (static_cast<uint32_t>(field_number) << 3) |
          static_cast<uint32_t>(wire_type);
 }
