@@ -80,8 +80,8 @@ class ObjectState {
   // Returns `not_failed()`.
   bool MarkClosed();
 
-  // Marks the `ObjectState` as failed with the given `absl::Status`, keeping
-  // its `is_open()` state unchanged.
+  // Marks the `ObjectState` as failed with the given `status`, keeping its
+  // `is_open()` state unchanged.
   //
   // Always returns `false`.
   //
@@ -198,11 +198,12 @@ class Object {
   // `absl::OkStatus()` if the `Object` is healthy.
   absl::Status status() const { return state_.status(); }
 
-  // Marks the `Object` as failed with the given `absl::Status`, keeping its
+  // Marks the `Object` as failed with the given `status`, keeping its
   // `is_open()` state unchanged.
   //
-  // Derived classes may override `Fail()` to annotate the `absl::Status` with
-  // some context or update other state.
+  // In derived classes the status can be annotated with some context, and some
+  // other state can be updated (`Fail()` calls `AnnotateFailure()` and
+  // `OnFail()`).
   //
   // Even though `Fail()` is not const, if the derived class allows this, it may
   // be called concurrently with public member functions, with const member
@@ -219,7 +220,7 @@ class Object {
   // distinguished from failures of the `Object` itself.
   //
   // Precondition: `!status.ok()`
-  ABSL_ATTRIBUTE_COLD virtual bool Fail(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
 
   // Propagates failure from another `Object`.
   //
@@ -304,6 +305,27 @@ class Object {
   //
   // Precondition: `is_open()`
   virtual void Done() {}
+
+  // Called by `Fail()`. Can annotate the `status` with some context,
+  // appropriately for the derived class.
+  //
+  // The default implementation in `Object::AnnotateFailure()` does nothing.
+  //
+  // Precondition and postcondition: `!status.ok()`
+  ABSL_ATTRIBUTE_COLD virtual void AnnotateFailure(absl::Status& status);
+
+  // Called by `Fail()` and `FailWithoutAnnotation()`. Can update some other
+  // state, appropriately for the derived class.
+  //
+  // The default implementation in `Object::OnFail()` does nothing.
+  ABSL_ATTRIBUTE_COLD virtual void OnFail();
+
+  // Exposes a variant of `Fail()` which does not call `AnnotateFailure()`.
+  //
+  // This can be called instead of `Fail()` if the annotation supplied by
+  // `AnnotateFailure()` would be irrelevant or duplicated in a particular case.
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
+  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 
  private:
   ObjectState state_;

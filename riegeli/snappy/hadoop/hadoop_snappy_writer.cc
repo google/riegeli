@@ -49,11 +49,10 @@ void HadoopSnappyWriterBase::Done() {
   PushableWriter::Done();
 }
 
-bool HadoopSnappyWriterBase::Fail(absl::Status status) {
+void HadoopSnappyWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool HadoopSnappyWriterBase::PushSlow(size_t min_length,

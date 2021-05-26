@@ -74,29 +74,12 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   }
 }
 
-bool CsvWriterBase::Fail(absl::Status status) {
+void CsvWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  if (standalone_record_) {
-    return FailWithoutAnnotation(std::move(status));
-  } else {
-    return FailWithoutAnnotation(
-        Annotate(status, absl::StrCat("at record ", record_index())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  if (!standalone_record_) {
+    status = Annotate(status, absl::StrCat("at record ", record_index()));
   }
-}
-
-bool CsvWriterBase::FailWithoutAnnotation(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of CsvWriterBase::FailWithoutAnnotation(): "
-         "status not failed";
-  return Object::Fail(std::move(status));
-}
-
-bool CsvWriterBase::FailWithoutAnnotation(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of CsvWriterBase::FailWithoutAnnotation(): "
-         "dependency healthy";
-  return FailWithoutAnnotation(dependency.status());
 }
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,

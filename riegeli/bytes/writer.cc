@@ -32,27 +32,13 @@
 
 namespace riegeli {
 
-bool Writer::Fail(absl::Status status) {
+void Writer::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at byte ", start_pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at byte ", start_pos()));
 }
 
-bool Writer::FailWithoutAnnotation(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Writer::FailWithoutAnnotation(): "
-         "status not failed";
-  set_buffer();
-  return Object::Fail(std::move(status));
-}
-
-bool Writer::FailWithoutAnnotation(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of Writer::FailWithoutAnnotation(): "
-         "dependency healthy";
-  return FailWithoutAnnotation(dependency.status());
-}
+void Writer::OnFail() { set_buffer(); }
 
 bool Writer::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Writer position overflow"));

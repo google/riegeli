@@ -56,15 +56,6 @@ namespace riegeli {
 // for its output to be available in the destination.
 class Writer : public Object {
  public:
-  // `Writer` overrides `Object::Fail()` to set buffer pointers to `nullptr`
-  // and annotate the status with the current position. Derived classes which
-  // override it further should include a call to `Writer::Fail()`.
-  //
-  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
-  // data have been lost.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
   // destination, and points `cursor()` and `limit()` to space following the
@@ -267,10 +258,17 @@ class Writer : public Object {
   // `Writer::Done()`.
   void Done() override;
 
-  // Exposes a `Fail()` override which does not annotate the status with the
-  // current position, unlike the public `Writer::Fail()`.
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
+  // `Writer` overrides `Object::AnnotateFailure()` to annotate the status with
+  // the current position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+
+  // `Writer` overrides `Object::OnFail()` to set buffer pointers to `nullptr`.
+  // Derived classes which override it further should include a call to
+  // `Writer::OnFail()`.
+  //
+  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
+  // data have been lost.
+  ABSL_ATTRIBUTE_COLD void OnFail() override;
 
   // Marks the `Writer` as failed with message "Writer position overflow".
   // Always returns `false`.

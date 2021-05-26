@@ -104,13 +104,13 @@ bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
                absl::StrCat(operation, " failed")));
 }
 
-bool FileWriterBase::Fail(absl::Status status) {
+void FileWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return Writer::Fail(
-      filename_.empty()
-          ? std::move(status)
-          : Annotate(status, absl::StrCat("writing ", filename_)));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  if (!filename_.empty()) {
+    status = Annotate(status, absl::StrCat("writing ", filename_));
+  }
+  Writer::AnnotateFailure(status);
 }
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {

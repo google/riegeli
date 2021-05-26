@@ -66,11 +66,10 @@ bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
                        absl::StrCat("at byte ", src.pos())));
 }
 
-bool FramedSnappyReaderBase::Fail(absl::Status status) {
+void FramedSnappyReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool FramedSnappyReaderBase::PullSlow(size_t min_length,

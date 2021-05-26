@@ -34,27 +34,13 @@
 
 namespace riegeli {
 
-bool BackwardWriter::Fail(absl::Status status) {
+void BackwardWriter::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at byte ", start_pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at byte ", start_pos()));
 }
 
-bool BackwardWriter::FailWithoutAnnotation(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of BackwardWriter::FailWithoutAnnotation(): "
-         "status not failed";
-  set_buffer();
-  return Object::Fail(std::move(status));
-}
-
-bool BackwardWriter::FailWithoutAnnotation(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of BackwardWriter::FailWithoutAnnotation(): "
-         "dependency healthy";
-  return FailWithoutAnnotation(dependency.status());
-}
+void BackwardWriter::OnFail() { set_buffer(); }
 
 bool BackwardWriter::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("BackwardWriter position overflow"));

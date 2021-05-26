@@ -66,12 +66,6 @@ class Reader : public Object {
   // with an `absl::DataLossError()` if not.
   virtual void VerifyEnd();
 
-  // `Reader` overrides `Object::Fail()` to annotate the status with the current
-  // position. Derived classes which override it further should include a call
-  // to `Reader::Fail()`.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Ensures that enough data are available in the buffer: if less than
   // `min_length` of data is available, pulls more data from the source, and
   // points `cursor()` and `limit()` to data following the current position
@@ -338,10 +332,9 @@ class Reader : public Object {
   // `Reader::Done()`.
   void Done() override;
 
-  // Exposes a `Fail()` override which does not annotate the status with the
-  // current position, unlike the public `Reader::Fail()`.
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
+  // `Reader` overrides `Object::AnnotateFailure()` to annotate the status with
+  // the current position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
 
   // Marks the `Reader` as failed with message "Reader position overflow".
   // Always returns `false`.

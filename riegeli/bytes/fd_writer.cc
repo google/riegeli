@@ -170,11 +170,11 @@ bool FdWriterBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-bool FdWriterBase::Fail(absl::Status status) {
+void FdWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return BufferedWriter::Fail(
-      Annotate(status, absl::StrCat("writing ", filename_)));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("writing ", filename_));
+  BufferedWriter::AnnotateFailure(status);
 }
 
 bool FdWriterBase::WriteInternal(absl::string_view src) {

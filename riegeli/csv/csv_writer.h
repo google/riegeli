@@ -168,12 +168,6 @@ class CsvWriterBase : public Object {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  // `CsvWriter` overrides `Object::Fail()` to annotate the status with the
-  // current record index. Derived classes which override it further should
-  // include a call to `CsvWriter::Fail()`.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Returns `true` if writing the header was requested, i.e. if
   // `Options::header() != absl::nullopt`.
   //
@@ -252,10 +246,9 @@ class CsvWriterBase : public Object {
   void Reset(InitiallyOpen);
   void Initialize(Writer* dest, Options&& options);
 
-  // Exposes a `Fail()` override which does not annotate the status with the
-  // current position, unlike the public `CsvWriter::Fail()`.
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
+  // `CsvWriter` overrides `Object::AnnotateFailure()` to annotate the status
+  // with the current record index.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
 
  private:
   template <typename Record>

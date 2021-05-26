@@ -129,8 +129,6 @@ class FdWriterBase : public BufferedWriter {
   // `Close()`.
   const std::string& filename() const { return filename_; }
 
-  using BufferedWriter::Fail;
-  bool Fail(absl::Status status) override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return supports_random_access_; }
@@ -158,6 +156,7 @@ class FdWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
+  void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;

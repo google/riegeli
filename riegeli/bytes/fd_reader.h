@@ -115,8 +115,6 @@ class FdReaderBase : public BufferedReader {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  using BufferedReader::Fail;
-  bool Fail(absl::Status status) override;
   bool Sync() override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   bool SupportsSize() override { return supports_random_access_; }
@@ -140,6 +138,7 @@ class FdReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
+  void AnnotateFailure(absl::Status& status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
 
@@ -193,8 +192,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  using ChainReader::Fail;
-  bool Fail(absl::Status status) override;
+  void AnnotateFailure(absl::Status& status) override;
   bool Sync() override;
 
  protected:

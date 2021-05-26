@@ -64,13 +64,6 @@ class HadoopSnappyWriterBase : public PushableWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  // `HadoopSnappyWriterBase` overrides `Writer::Fail()` to annotate the status
-  // with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*dest_writer()` might carry annotation
-  // with the compressed position.
-  using PushableWriter::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
  protected:
   HadoopSnappyWriterBase() noexcept : PushableWriter(kInitiallyClosed) {}
 
@@ -84,6 +77,11 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Initialize(Writer* dest);
 
   void Done() override;
+  // `HadoopSnappyWriterBase` overrides `Writer::AnnotateFailure()` to annotate
+  // the status with the current position, clarifying that this is the
+  // uncompressed position. A status propagated from `*dest_writer()` might
+  // carry annotation with the compressed position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   bool FlushInternal();
 

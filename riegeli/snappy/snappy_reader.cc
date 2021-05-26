@@ -62,11 +62,10 @@ void SnappyReaderBase::Initialize(Reader* src,
   ChainReader::Reset(std::move(decompressed));
 }
 
-bool SnappyReaderBase::Fail(absl::Status status) {
+void SnappyReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
 namespace internal {

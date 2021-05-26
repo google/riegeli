@@ -183,11 +183,11 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-bool FdReaderBase::Fail(absl::Status status) {
+void FdReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return BufferedReader::Fail(
-      Annotate(status, absl::StrCat("reading ", filename_)));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("reading ", filename_));
+  BufferedReader::AnnotateFailure(status);
 }
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
@@ -379,11 +379,11 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-bool FdMMapReaderBase::Fail(absl::Status status) {
+void FdMMapReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return ChainReader::Fail(
-      Annotate(status, absl::StrCat("reading ", filename_)));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("reading ", filename_));
+  ChainReader::AnnotateFailure(status);
 }
 
 bool FdMMapReaderBase::Sync() {

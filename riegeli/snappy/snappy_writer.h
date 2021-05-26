@@ -65,13 +65,6 @@ class SnappyWriterBase : public Writer {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  // `SnappyWriterBase` overrides `Writer::Fail()` to annotate the status with
-  // the current position, clarifying that this is the uncompressed position.
-  // A status propagated from `*dest_writer()` might carry annotation with the
-  // compressed position.
-  using Writer::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
  protected:
   SnappyWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
@@ -85,6 +78,11 @@ class SnappyWriterBase : public Writer {
   void Initialize(Writer* dest);
 
   void Done() override;
+  // `SnappyWriterBase` overrides `Writer::AnnotateFailure()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*dest_writer()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(const Chain& src) override;

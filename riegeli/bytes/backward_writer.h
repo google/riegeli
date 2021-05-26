@@ -42,16 +42,6 @@ namespace riegeli {
 // is optionally supported.
 class BackwardWriter : public Object {
  public:
-  // `BackwardWriter` overrides `Object::Fail()` to set buffer pointers to
-  // `nullptr` and annotate the status with the current position. Derived
-  // classes which override it further should include a call to
-  // `BackwardWriter::Fail()`.
-  //
-  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
-  // data have been lost.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
   // destination, and points `cursor()` and `limit()` to space following the
@@ -239,10 +229,17 @@ class BackwardWriter : public Object {
   // to `BackwardWriter::Done()`.
   void Done() override;
 
-  // Exposes a `Fail()` override which does not annotate the status with the
-  // current position, unlike the public `BackwardWriter::Fail()`.
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
+  // `BackwardWriter` overrides `Object::AnnotateFailure()` to annotate the
+  // status with the current position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+
+  // `BackwardWriter` overrides `Object::OnFail()` to set buffer pointers to
+  // `nullptr`. Derived classes which override it further should include a call
+  // to `BackwardWriter::OnFail()`.
+  //
+  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
+  // data have been lost.
+  ABSL_ATTRIBUTE_COLD void OnFail();
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.

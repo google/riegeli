@@ -240,12 +240,6 @@ class CsvReaderBase : public Object {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  // `CsvReader` overrides `Object::Fail()` to annotate the status with the
-  // current line number. Derived classes which override it further should
-  // include a call to `CsvReader::Fail()`.
-  using Object::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Changes the recovery function to be called after skipping over an invalid
   // line.
   //
@@ -348,13 +342,12 @@ class CsvReaderBase : public Object {
   void Reset(InitiallyOpen);
   void Initialize(Reader* src, Options&& options);
 
-  // Fails, attributing it to `last_line_number()`.
-  ABSL_ATTRIBUTE_COLD bool FailAtPreviousRecord(absl::Status status);
+  // `CsvReader` overrides `Object::AnnotateFailure()` to annotate the status
+  // with the current line number.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
 
-  // Exposes a `Fail()` override which does not annotate the status with the
-  // current position, unlike the public `CsvReader::Fail()`.
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
-  ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
+  // Fails, attributing this to `last_line_number()` instead of `line_number()`.
+  ABSL_ATTRIBUTE_COLD void FailAtPreviousRecord(absl::Status status);
 
  private:
   friend bool internal::ReadStandaloneRecord(CsvReaderBase& csv_reader,

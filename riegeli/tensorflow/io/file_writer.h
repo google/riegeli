@@ -109,9 +109,6 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  using Writer::Fail;
-  bool Fail(absl::Status status) override;
-
  protected:
   FileWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
@@ -130,6 +127,7 @@ class FileWriterBase : public Writer {
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
 
+  void AnnotateFailure(absl::Status& status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
   // Writes buffered data to the destination, but unlike `PushSlow()`, does not

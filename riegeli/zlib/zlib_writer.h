@@ -182,13 +182,6 @@ class ZlibWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
-  // `ZlibWriterBase` overrides `Writer::Fail()` to annotate the status with
-  // the current position, clarifying that this is the uncompressed position.
-  // A status propagated from `*dest_writer()` might carry annotation with the
-  // compressed position.
-  using BufferedWriter::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
  protected:
   ZlibWriterBase() noexcept {}
 
@@ -205,6 +198,11 @@ class ZlibWriterBase : public BufferedWriter {
   void Initialize(Writer* dest, int compression_level, int window_bits);
 
   void Done() override;
+  // `ZlibWriterBase` overrides `Writer::AnnotateFailure()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*dest_writer()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushInternal();
 

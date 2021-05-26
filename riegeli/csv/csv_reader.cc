@@ -104,40 +104,23 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
   recovery_ = std::move(options.recovery());
 }
 
-bool CsvReaderBase::Fail(absl::Status status) {
+void CsvReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  if (standalone_record_) {
-    return FailWithoutAnnotation(std::move(status));
-  } else {
-    return FailWithoutAnnotation(
-        Annotate(status, absl::StrCat("at line ", line_number())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  if (!standalone_record_) {
+    status = Annotate(status, absl::StrCat("at line ", line_number()));
   }
 }
 
-bool CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
+void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "status not failed";
   RIEGELI_ASSERT(!standalone_record_)
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "should never happen in ReadCsvRecordFromString()";
-  return FailWithoutAnnotation(
+  FailWithoutAnnotation(
       Annotate(status, absl::StrCat("at line ", last_line_number())));
-}
-
-bool CsvReaderBase::FailWithoutAnnotation(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of CsvReaderBase::FailWithoutAnnotation(): "
-         "status not failed";
-  return Object::Fail(std::move(status));
-}
-
-bool CsvReaderBase::FailWithoutAnnotation(const Object& dependency) {
-  RIEGELI_ASSERT(!dependency.healthy())
-      << "Failed precondition of CsvReaderBase::FailWithoutAnnotation(): "
-         "dependency healthy";
-  return FailWithoutAnnotation(dependency.status());
 }
 
 bool CsvReaderBase::MaxFieldLengthExceeded() {

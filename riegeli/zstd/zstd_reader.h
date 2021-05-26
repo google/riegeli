@@ -259,13 +259,6 @@ class ZstdReaderBase : public BufferedReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  // `ZstdReaderBase` overrides `Reader::Fail()` to annotate the status with
-  // the current position, clarifying that this is the uncompressed position.
-  // A status propagated from `*src_reader()` might carry annotation with the
-  // compressed position.
-  using BufferedReader::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
@@ -290,6 +283,11 @@ class ZstdReaderBase : public BufferedReader {
   void Initialize(Reader* src);
 
   void Done() override;
+  // `ZstdReaderBase` overrides `Reader::AnnotateFailure()` to annotate the
+  // status with the current position, clarifying that this is the uncompressed
+  // position. A status propagated from `*src_reader()` might carry annotation
+  // with the compressed position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
 

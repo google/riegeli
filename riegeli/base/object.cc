@@ -66,16 +66,44 @@ bool ObjectState::Fail(absl::Status status) {
   return false;
 }
 
+void Object::AnnotateFailure(absl::Status& status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+}
+
+void Object::OnFail() {}
+
 bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  return state_.Fail(std::move(status));
+  AnnotateFailure(status);
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed postcondition of Object::AnnotateFailure(): status not failed";
+  OnFail();
+  state_.Fail(std::move(status));
+  return false;
 }
 
 bool Object::Fail(const Object& dependency) {
   RIEGELI_ASSERT(!dependency.healthy())
       << "Failed precondition of Object::Fail(): dependency healthy";
   return Fail(dependency.status());
+}
+
+bool Object::FailWithoutAnnotation(absl::Status status) {
+  RIEGELI_ASSERT(!status.ok())
+      << "Failed precondition of Object::FailWithoutAnnotation(): "
+         "status not failed";
+  OnFail();
+  state_.Fail(std::move(status));
+  return false;
+}
+
+bool Object::FailWithoutAnnotation(const Object& dependency) {
+  RIEGELI_ASSERT(!dependency.healthy())
+      << "Failed precondition of Object::FailWithoutAnnotation(): "
+         "dependency healthy";
+  return FailWithoutAnnotation(dependency.status());
 }
 
 TypeId Object::GetTypeId() const { return TypeId(); }

@@ -215,11 +215,10 @@ void ZstdWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-bool ZstdWriterBase::Fail(absl::Status status) {
+void ZstdWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {

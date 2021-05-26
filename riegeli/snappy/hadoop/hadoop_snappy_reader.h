@@ -43,13 +43,6 @@ class HadoopSnappyReaderBase : public PullableReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  // `HadoopSnappyReaderBase` overrides `Reader::Fail()` to annotate the status
-  // with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*src_reader()` might carry annotation
-  // with the compressed position.
-  using PullableReader::Fail;
-  ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
-
  protected:
   explicit HadoopSnappyReaderBase(InitiallyClosed) noexcept
       : PullableReader(kInitiallyClosed) {}
@@ -64,6 +57,11 @@ class HadoopSnappyReaderBase : public PullableReader {
   void Initialize(Reader* src);
 
   void Done() override;
+  // `HadoopSnappyReaderBase` overrides `Reader::AnnotateFailure()` to annotate
+  // the status with the current position, clarifying that this is the
+  // uncompressed position. A status propagated from `*src_reader()` might carry
+  // annotation with the compressed position.
+  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
 
  private:

@@ -118,11 +118,10 @@ void BrotliWriterBase::Done() {
   BufferedWriter::Done();
 }
 
-bool BrotliWriterBase::Fail(absl::Status status) {
+void BrotliWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::Fail(): status not failed";
-  return FailWithoutAnnotation(
-      Annotate(status, absl::StrCat("at uncompressed byte ", pos())));
+      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool BrotliWriterBase::WriteInternal(absl::string_view src) {

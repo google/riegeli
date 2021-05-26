@@ -108,8 +108,6 @@ class FileReaderBase : public Reader {
   // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  using Reader::Fail;
-  bool Fail(absl::Status status) override;
   bool SupportsRandomAccess() override { return !filename_.empty(); }
   bool SupportsSize() override { return !filename_.empty(); }
   absl::optional<Position> Size() override;
@@ -134,6 +132,7 @@ class FileReaderBase : public Reader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
 
+  void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
