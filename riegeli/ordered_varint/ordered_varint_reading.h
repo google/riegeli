@@ -38,6 +38,9 @@ namespace riegeli {
 // Bits of X, from highest to lowest, consist of:
 //  * 8 - N lower order bits of F, if N < 8
 //  * the remaining N - 1 bytes of the encoding in big endian
+//
+// Only the canonical representation is accepted, i.e. the shortest: if N > 1
+// then X must be at least 1 << ((N - 1) * 7).
 
 // Reads an ordered varint.
 //
@@ -45,24 +48,12 @@ namespace riegeli {
 absl::optional<uint32_t> ReadOrderedVarint32(Reader& src);
 absl::optional<uint64_t> ReadOrderedVarint64(Reader& src);
 
-// Reads a varint.
-//
-// Accepts only the canonical representation, i.e. the shortest: if length > 1
-// then the decoded value must be at least 1 << ((length - 1) * 7).
-//
-// Returns `absl::nullopt` on failure, with the current position unchanged.
-absl::optional<uint32_t> ReadCanonicalOrderedVarint32(Reader& src);
-absl::optional<uint64_t> ReadCanonicalOrderedVarint64(Reader& src);
-
 // Implementation details follow.
 
 namespace internal {
 
 absl::optional<uint32_t> ReadOrderedVarint32Slow(Reader& src);
 absl::optional<uint64_t> ReadOrderedVarint64Slow(Reader& src);
-
-absl::optional<uint32_t> ReadCanonicalOrderedVarint32Slow(Reader& src);
-absl::optional<uint64_t> ReadCanonicalOrderedVarint64Slow(Reader& src);
 
 }  // namespace internal
 
@@ -88,30 +79,6 @@ inline absl::optional<uint64_t> ReadOrderedVarint64(Reader& src) {
     return first_byte;
   }
   return internal::ReadOrderedVarint64Slow(src);
-}
-
-inline absl::optional<uint32_t> ReadCanonicalOrderedVarint32(Reader& src) {
-  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint32))) {
-    return absl::nullopt;
-  }
-  const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
-  if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
-    src.move_cursor(1);
-    return first_byte;
-  }
-  return internal::ReadCanonicalOrderedVarint32Slow(src);
-}
-
-inline absl::optional<uint64_t> ReadCanonicalOrderedVarint64(Reader& src) {
-  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint64))) {
-    return absl::nullopt;
-  }
-  const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
-  if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
-    src.move_cursor(1);
-    return first_byte;
-  }
-  return internal::ReadCanonicalOrderedVarint64Slow(src);
 }
 
 }  // namespace riegeli
