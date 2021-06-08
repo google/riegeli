@@ -38,11 +38,11 @@ struct HasClose<T, absl::void_t<decltype(std::declval<T>().close())>>
     : public std::true_type {};
 
 template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>
-inline void CloseStream(Stream& src) {}
+inline void CloseStream(Stream& stream) {}
 
 template <typename Stream, std::enable_if_t<HasClose<Stream>::value, int> = 0>
-inline void CloseStream(Stream& src) {
-  src.close();
+inline void CloseStream(Stream& stream) {
+  stream.close();
 }
 
 }  // namespace internal
