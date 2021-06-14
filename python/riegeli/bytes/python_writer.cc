@@ -213,10 +213,7 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
-bool PythonWriter::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
-      << "Failed precondition of Writer::SeekSlow(): "
-         "position in the buffer, use Seek() instead";
+bool PythonWriter::SeekImpl(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
   }

@@ -121,10 +121,7 @@ bool WrappedWriterBase::SupportsRandomAccess() {
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
-bool WrappedWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
-      << "Failed precondition of Writer::SeekSlow(): "
-         "position in the buffer, use Seek() instead";
+bool WrappedWriterBase::SeekImpl(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);

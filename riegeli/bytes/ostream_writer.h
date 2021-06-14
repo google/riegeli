@@ -107,7 +107,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekImpl(Position new_pos) override;
   bool FlushInternal();
 
   // Whether random access is supported, as detected by calling

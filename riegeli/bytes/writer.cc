@@ -130,7 +130,7 @@ void Writer::WriteHintSlow(size_t length) {
 
 bool Writer::FlushImpl(FlushType flush_type) { return healthy(); }
 
-bool Writer::SeekSlow(Position new_pos) {
+bool Writer::SeekImpl(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 

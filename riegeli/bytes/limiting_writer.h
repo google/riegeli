@@ -81,7 +81,7 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekImpl(Position new_pos) override;
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if size limit is
   // exceeded.

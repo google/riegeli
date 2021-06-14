@@ -347,10 +347,8 @@ class Writer : public Object {
   // Sets the value of `start_pos()`.
   void set_start_pos(Position start_pos);
 
-  // Implementation of the slow part of `Seek()`.
-  //
-  // Precondition: `new_pos < start_pos() || new_pos > pos()`
-  virtual bool SeekSlow(Position new_pos);
+  // Implementation of `Seek()`.
+  virtual bool SeekImpl(Position new_pos);
 
  private:
   char* start_ = nullptr;
@@ -573,13 +571,7 @@ inline void Writer::set_start_pos(Position start_pos) {
   start_pos_ = start_pos;
 }
 
-inline bool Writer::Seek(Position new_pos) {
-  if (ABSL_PREDICT_TRUE(new_pos >= start_pos() && new_pos <= pos())) {
-    set_cursor(start() + (new_pos - start_pos()));
-    return true;
-  }
-  return SeekSlow(new_pos);
-}
+inline bool Writer::Seek(Position new_pos) { return SeekImpl(new_pos); }
 
 }  // namespace riegeli
 

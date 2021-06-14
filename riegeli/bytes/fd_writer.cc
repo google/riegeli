@@ -236,10 +236,7 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
-bool FdWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
-      << "Failed precondition of Writer::SeekSlow(): "
-         "position in the buffer, use Seek() instead";
+bool FdWriterBase::SeekImpl(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
       << "BufferedWriter::PushInternal() did not empty the buffer";

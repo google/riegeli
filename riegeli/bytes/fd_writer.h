@@ -159,7 +159,7 @@ class FdWriterBase : public BufferedWriter {
   void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekImpl(Position new_pos) override;
 
  private:
   std::string filename_;

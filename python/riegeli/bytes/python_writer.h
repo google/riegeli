@@ -136,7 +136,7 @@ class PythonWriter : public BufferedWriter {
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekImpl(Position new_pos) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);

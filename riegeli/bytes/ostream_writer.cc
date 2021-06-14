@@ -158,10 +158,7 @@ bool OstreamWriterBase::FlushInternal() {
   return true;
 }
 
-bool OstreamWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > pos())
-      << "Failed precondition of Writer::SeekSlow(): "
-         "position in the buffer, use Seek() instead";
+bool OstreamWriterBase::SeekImpl(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return Fail(
         absl::UnimplementedError("OstreamWriterBase::Seek() not supported"));

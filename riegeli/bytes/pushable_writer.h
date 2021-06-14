@@ -98,7 +98,7 @@ class PushableWriter : public Writer {
   bool PushUsingScratch(size_t min_length, size_t recommended_length);
 
   // Helps to implement `Done()`, `WriteSlow()`, `WriteZerosSlow()`, `Flush()`,
-  // `SeekSlow()`, or `Truncate()` if scratch is used, in terms of
+  // `SeekImpl()`, or `Truncate()` if scratch is used, in terms of
   // `WriteSlow(absl::string_view)` and `WriteSlow(Chain&&)`.
   //
   // Typical usage in `Done()`:
