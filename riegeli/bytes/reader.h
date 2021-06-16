@@ -175,8 +175,9 @@ class Reader : public Object {
   // reads an unspecified length (between what could be written and the
   // requested length) if writing failed.
   //
-  // `Copy(BackwardWriter&)` writes nothing if reading failed, and reads the
-  // full requested length even if writing failed.
+  // `Copy(BackwardWriter&)` writes nothing if reading failed, and reads an
+  // unspecified length (between what could be written and the requested length)
+  // if writing failed.
   //
   // Return values:
   //  * `true`                                         - success (`length`
@@ -364,16 +365,17 @@ class Reader : public Object {
   // `ReadSlow(std::string&)`, `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)`
   // append to any existing data in `dest`.
   //
-  // By default `ReadSlow(char*)` and `CopySlow(Writer&)` are implemented in
-  // terms of `PullSlow()`; `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)` are
-  // implemented in terms of `ReadSlow(char*)`; and `CopySlow(BackwardWriter&)`
-  // is implemented in terms of `ReadSlow(char*)` and `ReadSlow(Chain&)`.
+  // By default `ReadSlow(char*)`, `ReadSlow(absl::Cord&)`, and
+  // `CopySlow(Writer&)` are implemented in terms of `PullSlow()`;
+  // `ReadSlow(Chain&)` is implemented in terms of `ReadSlow(char*)`;
+  // and `CopySlow(BackwardWriter&)` is implemented in terms of
+  // `ReadSlow(char*)` and `ReadSlow(Chain&)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string&)`:
   //   `available() < length`
   //
-  // Precondition for `ReadSlow(Chain&)`, `ReadSlow(absl::Cord&)`, and
-  // `CopySlow()`:
+  // Precondition for `ReadSlow(Chain&)`, `ReadSlow(absl::Cord&)`,
+  // `CopySlow(Writer&)`, and `CopySlow(BackwardWriter&)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   //
   // Precondition for `ReadSlow(std::string&)`:
