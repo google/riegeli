@@ -168,7 +168,8 @@ class Writer : public Object {
   //
   // This makes data written so far visible, but in contrast to `Close()`,
   // keeps the possibility to write more data later. What exactly does it mean
-  // for data to be visible depends on the destination.
+  // for data to be visible depends on the destination. If this is not
+  // applicable or not feasible, does nothing.
   //
   // The scope of objects to flush and the intended data durability (without a
   // guarantee) are specified by `flush_type`:

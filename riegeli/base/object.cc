@@ -66,6 +66,8 @@ bool ObjectState::Fail(absl::Status status) {
   return false;
 }
 
+void Object::Done() {}
+
 void Object::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";

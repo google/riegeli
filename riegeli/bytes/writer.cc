@@ -18,7 +18,6 @@
 
 #include <cstring>
 #include <string>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -27,7 +26,6 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 
 namespace riegeli {

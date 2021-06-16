@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>

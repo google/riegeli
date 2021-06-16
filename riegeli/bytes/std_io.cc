@@ -20,7 +20,6 @@
 #include <memory>
 #include <utility>
 
-#include "riegeli/base/base.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"

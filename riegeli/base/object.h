@@ -303,8 +303,10 @@ class Object {
   // If a derived class uses background threads, `Done()` should cause
   // background threads to stop interacting with the `Object`.
   //
+  // The default implementation in `Object::Done()` does nothing.
+  //
   // Precondition: `is_open()`
-  virtual void Done() {}
+  virtual void Done();
 
   // Called by `Fail()`. Can annotate the `status` with some context,
   // appropriately for the derived class.
