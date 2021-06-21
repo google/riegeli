@@ -65,15 +65,10 @@ class BufferedReader : public Reader {
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
-  using Reader::ReadSlow;
-  bool ReadSlow(size_t length, char* dest) override;
-  bool ReadSlow(size_t length, Chain& dest) override;
-  bool ReadSlow(size_t length, absl::Cord& dest) override;
-  using Reader::CopySlow;
-  bool CopySlow(Position length, Writer& dest) override;
-  bool CopySlow(size_t length, BackwardWriter& dest) override;
-  void ReadHintSlow(size_t length) override;
+  // Changes the size hint after construction.
+  void set_size_hint(absl::optional<Position> size_hint) {
+    size_hint_ = size_hint.value_or(0);
+  }
 
   // Reads data from the source, from the physical source position which is
   // `limit_pos()`.
@@ -90,13 +85,18 @@ class BufferedReader : public Reader {
   virtual bool ReadInternal(size_t min_length, size_t max_length,
                             char* dest) = 0;
 
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  using Reader::ReadSlow;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
+  using Reader::CopySlow;
+  bool CopySlow(Position length, Writer& dest) override;
+  bool CopySlow(size_t length, BackwardWriter& dest) override;
+  void ReadHintSlow(size_t length) override;
+
   // Discards buffer contents.
   void ClearBuffer();
-
-  // Changes the size hint after construction.
-  void set_size_hint(absl::optional<Position> size_hint) {
-    size_hint_ = size_hint.value_or(0);
-  }
 
  private:
   // Minimum length for which it is better to append current contents of

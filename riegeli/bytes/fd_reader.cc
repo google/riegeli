@@ -150,18 +150,6 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
   }
 }
 
-inline bool FdReaderBase::SyncPos(int src) {
-  RIEGELI_ASSERT(supports_random_access_)
-      << "Failed precondition of FdReaderBase::SyncPos(): "
-         "random access not supported";
-  if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      return FailOperation("lseek()");
-    }
-  }
-  return true;
-}
-
 void FdReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
       available() > 0) {
@@ -238,6 +226,18 @@ bool FdReaderBase::SyncImpl(SyncType sync_type) {
   if (supports_random_access_ && available() > 0) {
     const int src = src_fd();
     return SyncPos(src);
+  }
+  return true;
+}
+
+inline bool FdReaderBase::SyncPos(int src) {
+  RIEGELI_ASSERT(supports_random_access_)
+      << "Failed precondition of FdReaderBase::SyncPos(): "
+         "random access not supported";
+  if (!has_independent_pos_) {
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+      return FailOperation("lseek()");
+    }
   }
   return true;
 }
@@ -349,15 +349,6 @@ void FdMMapReaderBase::InitializePos(int src,
   }
 }
 
-inline bool FdMMapReaderBase::SyncPos(int src) {
-  if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
-      return FailOperation("lseek()");
-    }
-  }
-  return true;
-}
-
 void FdMMapReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     const int src = src_fd();
@@ -384,6 +375,15 @@ void FdMMapReaderBase::AnnotateFailure(absl::Status& status) {
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
   status = Annotate(status, absl::StrCat("reading ", filename_));
   ChainReader::AnnotateFailure(status);
+}
+
+inline bool FdMMapReaderBase::SyncPos(int src) {
+  if (!has_independent_pos_) {
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+      return FailOperation("lseek()");
+    }
+  }
+  return true;
 }
 
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {

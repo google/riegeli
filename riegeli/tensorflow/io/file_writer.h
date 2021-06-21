@@ -130,10 +130,6 @@ class FileWriterBase : public Writer {
   void AnnotateFailure(absl::Status& status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
 
-  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
-  // ensure that a buffer is allocated.
-  bool PushInternal();
-
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   void WriteHintSlow(size_t length) override;
@@ -146,6 +142,10 @@ class FileWriterBase : public Writer {
   //   `!src.empty()`
   //   `healthy()`
   bool WriteInternal(absl::string_view src);
+
+  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
+  // ensure that a buffer is allocated.
+  bool PushInternal();
 
  private:
   // Minimum length for which it is better to push current contents of `buffer_`

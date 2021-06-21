@@ -82,36 +82,6 @@ PythonReader::PythonReader(PyObject* src, Options options)
   }
 }
 
-bool PythonReader::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of PythonReader::FailOperation(): "
-         "Object closed";
-  PythonLock::AssertHeld();
-  if (ABSL_PREDICT_FALSE(!healthy())) {
-    // Ignore this error because `PythonReader` already failed.
-    PyErr_Clear();
-    return false;
-  }
-  exception_ = Exception::Fetch();
-  return Fail(absl::UnknownError(
-      absl::StrCat(operation, " failed: ", exception_.message())));
-}
-
-inline bool PythonReader::SyncPos() {
-  PythonLock lock;
-  const PythonPtr file_pos = PositionToPython(pos());
-  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    return FailOperation("PositionToPython()");
-  }
-  static constexpr Identifier id_seek("seek");
-  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
-      src_.get(), id_seek.get(), file_pos.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
-    return FailOperation("seek()");
-  }
-  return true;
-}
-
 void PythonReader::Done() {
   if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
       available() > 0) {
@@ -125,6 +95,21 @@ void PythonReader::Done() {
         PyObject_CallMethodObjArgs(src_.get(), id_close.get(), nullptr));
     if (ABSL_PREDICT_FALSE(close_result == nullptr)) FailOperation("close()");
   }
+}
+
+bool PythonReader::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(is_open())
+      << "Failed precondition of PythonReader::FailOperation(): "
+         "Object closed";
+  PythonLock::AssertHeld();
+  if (ABSL_PREDICT_FALSE(!healthy())) {
+    // Ignore this error because `PythonReader` already failed.
+    PyErr_Clear();
+    return false;
+  }
+  exception_ = Exception::Fetch();
+  return Fail(absl::UnknownError(
+      absl::StrCat(operation, " failed: ", exception_.message())));
 }
 
 bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
@@ -253,6 +238,21 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
+inline bool PythonReader::SyncPos() {
+  PythonLock lock;
+  const PythonPtr file_pos = PositionToPython(pos());
+  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
+    return FailOperation("PositionToPython()");
+  }
+  static constexpr Identifier id_seek("seek");
+  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
+      src_.get(), id_seek.get(), file_pos.get(), nullptr));
+  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
+    return FailOperation("seek()");
+  }
+  return true;
+}
+
 bool PythonReader::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (supports_random_access_ && available() > 0) {
@@ -298,30 +298,6 @@ bool PythonReader::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> PythonReader::Size() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
-    return absl::nullopt;
-  }
-  PythonLock lock;
-  const absl::optional<Position> size = SizeInternal();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
-  const PythonPtr file_pos = PositionToPython(limit_pos());
-  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    FailOperation("PositionToPython()");
-    return absl::nullopt;
-  }
-  static constexpr Identifier id_seek("seek");
-  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
-      src_.get(), id_seek.get(), file_pos.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
-    FailOperation("seek()");
-    return absl::nullopt;
-  }
-  return *size;
-}
-
 inline absl::optional<Position> PythonReader::SizeInternal() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of PythonReader::SizeInternal(): " << status();
@@ -361,6 +337,30 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
   const absl::optional<Position> size = PositionFromPython(result.get());
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
     FailOperation(absl::StrCat("PositionFromPython() after ", operation));
+    return absl::nullopt;
+  }
+  return *size;
+}
+
+absl::optional<Position> PythonReader::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+    Fail(absl::UnimplementedError("PythonReader::Size() not supported"));
+    return absl::nullopt;
+  }
+  PythonLock lock;
+  const absl::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  const PythonPtr file_pos = PositionToPython(limit_pos());
+  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
+    FailOperation("PositionToPython()");
+    return absl::nullopt;
+  }
+  static constexpr Identifier id_seek("seek");
+  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
+      src_.get(), id_seek.get(), file_pos.get(), nullptr));
+  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
+    FailOperation("seek()");
     return absl::nullopt;
   }
   return *size;

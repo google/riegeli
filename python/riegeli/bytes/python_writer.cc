@@ -81,6 +81,18 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
   }
 }
 
+void PythonWriter::Done() {
+  PushInternal();
+  BufferedWriter::Done();
+  if (owns_dest_ && dest_ != nullptr) {
+    PythonLock lock;
+    static constexpr Identifier id_close("close");
+    const PythonPtr close_result(
+        PyObject_CallMethodObjArgs(dest_.get(), id_close.get(), nullptr));
+    if (ABSL_PREDICT_FALSE(close_result == nullptr)) FailOperation("close()");
+  }
+}
+
 bool PythonWriter::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of PythonWriter::FailOperation(): "
@@ -94,18 +106,6 @@ bool PythonWriter::FailOperation(absl::string_view operation) {
   exception_ = Exception::Fetch();
   return Fail(absl::UnknownError(
       absl::StrCat(operation, " failed: ", exception_.message())));
-}
-
-void PythonWriter::Done() {
-  PushInternal();
-  BufferedWriter::Done();
-  if (owns_dest_ && dest_ != nullptr) {
-    PythonLock lock;
-    static constexpr Identifier id_close("close");
-    const PythonPtr close_result(
-        PyObject_CallMethodObjArgs(dest_.get(), id_close.get(), nullptr));
-    if (ABSL_PREDICT_FALSE(close_result == nullptr)) FailOperation("close()");
-  }
 }
 
 bool PythonWriter::WriteInternal(absl::string_view src) {
@@ -245,30 +245,6 @@ bool PythonWriter::SeekImpl(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> PythonWriter::Size() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
-    return absl::nullopt;
-  }
-  PythonLock lock;
-  const absl::optional<Position> size = SizeInternal();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
-  const PythonPtr file_pos = PositionToPython(start_pos());
-  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    FailOperation("PositionToPython()");
-    return absl::nullopt;
-  }
-  static constexpr Identifier id_seek("seek");
-  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
-      dest_.get(), id_seek.get(), file_pos.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
-    FailOperation("seek()");
-    return absl::nullopt;
-  }
-  return *size;
-}
-
 inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of PythonWriter::SizeInternal(): " << status();
@@ -311,6 +287,30 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
     return absl::nullopt;
   }
   return UnsignedMax(*size, pos());
+}
+
+absl::optional<Position> PythonWriter::Size() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+    Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
+    return absl::nullopt;
+  }
+  PythonLock lock;
+  const absl::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  const PythonPtr file_pos = PositionToPython(start_pos());
+  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
+    FailOperation("PositionToPython()");
+    return absl::nullopt;
+  }
+  static constexpr Identifier id_seek("seek");
+  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
+      dest_.get(), id_seek.get(), file_pos.get(), nullptr));
+  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
+    FailOperation("seek()");
+    return absl::nullopt;
+  }
+  return *size;
 }
 
 bool PythonWriter::Truncate(Position new_size) {

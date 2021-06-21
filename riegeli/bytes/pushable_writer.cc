@@ -27,37 +27,6 @@
 
 namespace riegeli {
 
-void PushableWriter::PushFromScratchSlow(size_t min_length,
-                                         size_t recommended_length) {
-  if (scratch_used()) {
-    RIEGELI_ASSERT(start() == scratch_->buffer.data())
-        << "Failed invariant of PushableWriter: "
-           "scratch used but buffer pointers do not point to scratch";
-    RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-        << "Failed invariant of PushableWriter: "
-           "scratch used but buffer pointers do not point to scratch";
-  }
-  RIEGELI_ASSERT_GT(min_length, 1u)
-      << "Failed precondition of PushableWriter::PushFromScratchSlow(): "
-         "trivial min_length";
-  if (available() == 0) {
-    if (ABSL_PREDICT_FALSE(!PushSlow(1, 0))) return;
-    if (available() >= min_length) return;
-  }
-  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
-    scratch_ = std::make_unique<Scratch>();
-  } else {
-    if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
-  }
-  const absl::Span<char> flat_buffer =
-      scratch_->buffer.AppendBuffer(min_length, recommended_length);
-  set_start_pos(pos());
-  scratch_->original_start = start();
-  scratch_->original_buffer_size = buffer_size();
-  scratch_->original_written_to_buffer = written_to_buffer();
-  set_buffer(flat_buffer.data(), flat_buffer.size());
-}
-
 bool PushableWriter::SyncScratchSlow() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PushableWriter::SyncScratchSlow(): "
@@ -89,6 +58,37 @@ bool PushableWriter::SyncScratchSlow() {
                           data);
     return Write(std::move(data));
   }
+}
+
+void PushableWriter::PushFromScratchSlow(size_t min_length,
+                                         size_t recommended_length) {
+  if (scratch_used()) {
+    RIEGELI_ASSERT(start() == scratch_->buffer.data())
+        << "Failed invariant of PushableWriter: "
+           "scratch used but buffer pointers do not point to scratch";
+    RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+        << "Failed invariant of PushableWriter: "
+           "scratch used but buffer pointers do not point to scratch";
+  }
+  RIEGELI_ASSERT_GT(min_length, 1u)
+      << "Failed precondition of PushableWriter::PushFromScratchSlow(): "
+         "trivial min_length";
+  if (available() == 0) {
+    if (ABSL_PREDICT_FALSE(!PushSlow(1, 0))) return;
+    if (available() >= min_length) return;
+  }
+  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
+    scratch_ = std::make_unique<Scratch>();
+  } else {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
+  }
+  const absl::Span<char> flat_buffer =
+      scratch_->buffer.AppendBuffer(min_length, recommended_length);
+  set_start_pos(pos());
+  scratch_->original_start = start();
+  scratch_->original_buffer_size = buffer_size();
+  scratch_->original_written_to_buffer = written_to_buffer();
+  set_buffer(flat_buffer.data(), flat_buffer.size());
 }
 
 void PushableWriter::BehindScratch::Enter() {

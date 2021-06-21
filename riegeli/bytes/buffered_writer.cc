@@ -28,6 +28,13 @@
 
 namespace riegeli {
 
+bool BufferedWriter::PushInternal() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const absl::string_view data(start(), written_to_buffer());
+  set_buffer();
+  return data.empty() || WriteInternal(data);
+}
+
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
   size_t length = buffer_size_;
   if (written_to_buffer() > 0) {
@@ -66,13 +73,6 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
   return true;
-}
-
-bool BufferedWriter::PushInternal() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::string_view data(start(), written_to_buffer());
-  set_buffer();
-  return data.empty() || WriteInternal(data);
 }
 
 bool BufferedWriter::WriteSlow(absl::string_view src) {

@@ -141,18 +141,6 @@ void FdWriterBase::InitializePos(int dest, int flags,
   }
 }
 
-inline bool FdWriterBase::SyncPos(int dest) {
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
-  if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
-                           0)) {
-      return FailOperation("lseek()");
-    }
-  }
-  return true;
-}
-
 void FdWriterBase::Done() {
   PushInternal();
   BufferedWriter::Done();
@@ -234,6 +222,18 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);
+}
+
+inline bool FdWriterBase::SyncPos(int dest) {
+  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
+      << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
+  if (!has_independent_pos_) {
+    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
+                           0)) {
+      return FailOperation("lseek()");
+    }
+  }
+  return true;
 }
 
 bool FdWriterBase::SeekImpl(Position new_pos) {

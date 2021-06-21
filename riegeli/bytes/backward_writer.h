@@ -484,19 +484,6 @@ inline bool BackwardWriter::Write(const absl::Cord& src) {
   return WriteSlow(src);
 }
 
-inline bool BackwardWriter::WriteZeros(Position length) {
-  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    if (ABSL_PREDICT_TRUE(
-            // `std::memset(nullptr, _, 0)` is undefined.
-            length > 0)) {
-      move_cursor(IntCast<size_t>(length));
-      std::memset(cursor(), 0, IntCast<size_t>(length));
-    }
-    return true;
-  }
-  return WriteZerosSlow(length);
-}
-
 inline bool BackwardWriter::Write(absl::Cord&& src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
@@ -509,6 +496,19 @@ inline bool BackwardWriter::Write(absl::Cord&& src) {
     return true;
   }
   return WriteSlow(std::move(src));
+}
+
+inline bool BackwardWriter::WriteZeros(Position length) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memset(nullptr, _, 0)` is undefined.
+            length > 0)) {
+      move_cursor(IntCast<size_t>(length));
+      std::memset(cursor(), 0, IntCast<size_t>(length));
+    }
+    return true;
+  }
+  return WriteZerosSlow(length);
 }
 
 inline void BackwardWriter::WriteHint(size_t length) {

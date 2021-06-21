@@ -32,23 +32,6 @@
 
 namespace riegeli {
 
-bool IstreamReaderBase::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of IstreamReaderBase::FailOperation(): "
-         "Object closed";
-  // There is no way to get details why a stream operation failed without
-  // letting the stream throw exceptions. Hopefully low level failures have set
-  // `errno` as a side effect.
-  //
-  // This requires resetting `errno` to 0 before the stream operation because
-  // the operation may fail without setting `errno`.
-  const int error_number = errno;
-  const std::string message = absl::StrCat(operation, " failed");
-  return Fail(error_number == 0
-                  ? absl::UnknownError(message)
-                  : ErrnoToCanonicalStatus(error_number, message));
-}
-
 void IstreamReaderBase::Initialize(std::istream* src,
                                    absl::optional<Position> assumed_pos) {
   RIEGELI_ASSERT(src != nullptr)
@@ -86,6 +69,23 @@ void IstreamReaderBase::Initialize(std::istream* src,
   }
 }
 
+bool IstreamReaderBase::FailOperation(absl::string_view operation) {
+  RIEGELI_ASSERT(is_open())
+      << "Failed precondition of IstreamReaderBase::FailOperation(): "
+         "Object closed";
+  // There is no way to get details why a stream operation failed without
+  // letting the stream throw exceptions. Hopefully low level failures have set
+  // `errno` as a side effect.
+  //
+  // This requires resetting `errno` to 0 before the stream operation because
+  // the operation may fail without setting `errno`.
+  const int error_number = errno;
+  const std::string message = absl::StrCat(operation, " failed");
+  return Fail(error_number == 0
+                  ? absl::UnknownError(message)
+                  : ErrnoToCanonicalStatus(error_number, message));
+}
+
 bool IstreamReaderBase::supports_random_access() {
   switch (supports_random_access_) {
     case LazyBoolState::kFalse:
@@ -115,18 +115,6 @@ bool IstreamReaderBase::supports_random_access() {
   supports_random_access_ =
       supported ? LazyBoolState::kTrue : LazyBoolState::kFalse;
   return supported;
-}
-
-inline bool IstreamReaderBase::SyncPos(std::istream& src) {
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kTrue)
-      << "Failed precondition of IstreamReaderBase::SyncPos(): "
-         "random access not certain to be supported";
-  errno = 0;
-  src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
-  if (ABSL_PREDICT_FALSE(src.fail())) {
-    return FailOperation("istream::seekg()");
-  }
-  return true;
 }
 
 void IstreamReaderBase::Done() {
@@ -225,6 +213,18 @@ bool IstreamReaderBase::SyncImpl(SyncType sync_type) {
     set_limit_pos(pos());
     ClearBuffer();
     if (ABSL_PREDICT_FALSE(!ok)) return false;
+  }
+  return true;
+}
+
+inline bool IstreamReaderBase::SyncPos(std::istream& src) {
+  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kTrue)
+      << "Failed precondition of IstreamReaderBase::SyncPos(): "
+         "random access not certain to be supported";
+  errno = 0;
+  src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
+  if (ABSL_PREDICT_FALSE(src.fail())) {
+    return FailOperation("istream::seekg()");
   }
   return true;
 }

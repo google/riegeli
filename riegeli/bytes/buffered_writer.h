@@ -63,6 +63,17 @@ class BufferedWriter : public Writer {
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
+  // Writes data to the destination, to the physical destination position which
+  // is `start_pos()`.
+  //
+  // Increments `start_pos()` by the length written.
+  //
+  // Preconditions:
+  //   `!src.empty()`
+  //   `healthy()`
+  //   `written_to_buffer() == 0`
+  virtual bool WriteInternal(absl::string_view src) = 0;
+
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
@@ -74,17 +85,6 @@ class BufferedWriter : public Writer {
   //
   // Postcondition: `written_to_buffer() == 0`
   bool PushInternal();
-
-  // Writes data to the destination, to the physical destination position which
-  // is `start_pos()`.
-  //
-  // Increments `start_pos()` by the length written.
-  //
-  // Preconditions:
-  //   `!src.empty()`
-  //   `healthy()`
-  //   `written_to_buffer() == 0`
-  virtual bool WriteInternal(absl::string_view src) = 0;
 
  private:
   // Minimum length for which it is better to push current contents of `buffer_`

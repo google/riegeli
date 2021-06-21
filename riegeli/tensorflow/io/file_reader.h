@@ -144,6 +144,9 @@ class FileReaderBase : public Reader {
   bool CopySlow(size_t length, BackwardWriter& dest) override;
 
  private:
+  // Discards buffer contents.
+  void ClearBuffer();
+
   // Minimum length for which it is better to append current contents of
   // `buffer_` and read the remaining data directly than to read the data
   // through `buffer_`.
@@ -169,9 +172,6 @@ class FileReaderBase : public Reader {
   // Precondition: `flat_buffer` is a suffix of `buffer_`
   bool ReadToBuffer(size_t cursor_index, ::tensorflow::RandomAccessFile* src,
                     absl::Span<char> flat_buffer);
-
-  // Discards buffer contents.
-  void ClearBuffer();
 
   std::string filename_;
   // Invariant:

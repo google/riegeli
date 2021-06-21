@@ -113,6 +113,13 @@ void FileWriterBase::AnnotateFailure(absl::Status& status) {
   Writer::AnnotateFailure(status);
 }
 
+bool FileWriterBase::PushInternal() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const absl::string_view data(start(), written_to_buffer());
+  set_buffer();
+  return data.empty() || WriteInternal(data);
+}
+
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
   size_t length = buffer_size_;
   if (written_to_buffer() > 0) {
@@ -144,24 +151,6 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
-bool FileWriterBase::PushInternal() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const absl::string_view data(start(), written_to_buffer());
-  set_buffer();
-  return data.empty() || WriteInternal(data);
-}
-
-bool FileWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
-      << "Failed precondition of Writer::WriteSlow(string_view): "
-         "enough space available, use Write(string_view) instead";
-  if (src.size() >= LengthToWriteDirectly()) {
-    if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-    return WriteInternal(src);
-  }
-  return Writer::WriteSlow(src);
-}
-
 bool FileWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
@@ -184,6 +173,17 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
   }
   move_start_pos(src.size());
   return true;
+}
+
+bool FileWriterBase::WriteSlow(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of Writer::WriteSlow(string_view): "
+         "enough space available, use Write(string_view) instead";
+  if (src.size() >= LengthToWriteDirectly()) {
+    if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+    return WriteInternal(src);
+  }
+  return Writer::WriteSlow(src);
 }
 
 void FileWriterBase::WriteHintSlow(size_t length) {

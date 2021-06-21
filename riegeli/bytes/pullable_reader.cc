@@ -30,6 +30,22 @@
 
 namespace riegeli {
 
+void PullableReader::SyncScratchSlow() {
+  RIEGELI_ASSERT(scratch_used())
+      << "Failed precondition of PullableReader::SyncScratchSlow(): "
+         "scratch not used";
+  RIEGELI_ASSERT(start() == scratch_->buffer.data())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
+      << "Failed invariant of PullableReader: "
+         "scratch used but buffer pointers do not point to scratch";
+  scratch_->buffer.Clear();
+  set_buffer(scratch_->original_start, scratch_->original_buffer_size,
+             scratch_->original_read_from_buffer);
+  move_limit_pos(available());
+}
+
 inline bool PullableReader::ScratchEnds() {
   RIEGELI_ASSERT(scratch_used())
       << "Failed precondition of PullableReader::ScratchEnds(): "
@@ -190,22 +206,6 @@ bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
     return false;
   }
   return true;
-}
-
-void PullableReader::SyncScratchSlow() {
-  RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::SyncScratchSlow(): "
-         "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  scratch_->buffer.Clear();
-  set_buffer(scratch_->original_start, scratch_->original_buffer_size,
-             scratch_->original_read_from_buffer);
-  move_limit_pos(available());
 }
 
 void PullableReader::BehindScratch::Enter() {

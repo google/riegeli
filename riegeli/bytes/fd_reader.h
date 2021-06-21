@@ -134,9 +134,9 @@ class FdReaderBase : public BufferedReader {
   int OpenFd(absl::string_view filename, int flags);
   void InitializePos(int src, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void AnnotateFailure(absl::Status& status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SyncImpl(SyncType sync_type) override;

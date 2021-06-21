@@ -33,19 +33,19 @@
 
 namespace riegeli {
 
+void BufferedReader::VerifyEnd() {
+  // No more data are expected, so allocate a minimum non-empty buffer for
+  // verifying that.
+  set_size_hint(SaturatingAdd(pos(), Position{1}));
+  Reader::VerifyEnd();
+}
+
 inline size_t BufferedReader::LengthToReadDirectly() const {
   // Read directly if reading through `buffer_` would need more than one read,
   // or if `buffer_` would be full. Read directly also if `size_hint_` is
   // reached.
   return SaturatingAdd(available(),
                        BufferLength(0, buffer_size_, size_hint_, limit_pos()));
-}
-
-void BufferedReader::VerifyEnd() {
-  // No more data are expected, so allocate a minimum non-empty buffer for
-  // verifying that.
-  set_size_hint(SaturatingAdd(pos(), Position{1}));
-  Reader::VerifyEnd();
 }
 
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
