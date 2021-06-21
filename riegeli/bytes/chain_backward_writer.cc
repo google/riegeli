@@ -29,12 +29,7 @@
 namespace riegeli {
 
 void ChainBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    Chain& dest = *dest_chain();
-    RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
-        << "ChainBackwardWriter destination changed unexpectedly";
-    SyncBuffer(dest);
-  }
+  ChainBackwardWriterBase::FlushImpl(FlushType::kFromObject);
   BackwardWriter::Done();
 }
 

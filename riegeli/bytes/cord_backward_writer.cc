@@ -39,12 +39,7 @@ constexpr size_t CordBackwardWriterBase::kShortBufferSize;
 #endif
 
 void CordBackwardWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    absl::Cord& dest = *dest_cord();
-    RIEGELI_ASSERT_EQ(start_pos(), dest.size())
-        << "CordBackwardWriter destination changed unexpectedly";
-    SyncBuffer(dest);
-  }
+  CordBackwardWriterBase::FlushImpl(FlushType::kFromObject);
   BackwardWriter::Done();
 }
 

@@ -29,12 +29,7 @@
 namespace riegeli {
 
 void StringWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    std::string& dest = *dest_string();
-    RIEGELI_ASSERT_EQ(buffer_size(), dest.size())
-        << "StringWriter destination changed unexpectedly";
-    SyncBuffer(dest);
-  }
+  StringWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
 }
 

@@ -39,12 +39,7 @@ constexpr size_t CordWriterBase::kShortBufferSize;
 #endif
 
 void CordWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    absl::Cord& dest = *dest_cord();
-    RIEGELI_ASSERT_EQ(start_pos(), dest.size())
-        << "CordWriter destination changed unexpectedly";
-    SyncBuffer(dest);
-  }
+  CordWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
 }
 
