@@ -93,6 +93,10 @@ namespace riegeli {
 //   bool is_owning() const;
 //
 //   // If true, get() stays unchanged when a Dependency is moved.
+//   //
+//   // If Ptr is P* and kIsStable() is false, get() must never be nullptr.
+//   // This avoids callers having to consider cases which never occur in
+//   // practice.
 //   static constexpr bool kIsStable();
 // ```
 

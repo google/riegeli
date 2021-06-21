@@ -223,9 +223,19 @@ inline void WriterStreambuf::Initialize(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest_->healthy())) Fail();
 }
 
-inline void WriterStreambuf::MoveBegin() { dest_->set_cursor(pptr()); }
+inline void WriterStreambuf::MoveBegin() {
+  // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
+  // does not imply `WriterStreamBuf::dest_ != nullptr`, because
+  // `WriterOstream::streambuf_` can be left uninitialized.
+  if (dest_ == nullptr) return;
+  dest_->set_cursor(pptr());
+}
 
 inline void WriterStreambuf::MoveEnd(Writer* dest) {
+  // In a closed `WriterOstream`, `WriterOstream::dest_.get() != nullptr`
+  // does not imply `WriterStreamBuf::dest_ != nullptr`, because
+  // `WriterOstream::streambuf_` can be left uninitialized.
+  if (dest_ == nullptr) return;
   dest_ = dest;
   setp(dest_->cursor(), dest_->limit());
 }

@@ -226,9 +226,19 @@ inline void ReaderStreambuf::Initialize(Reader* src) {
   if (ABSL_PREDICT_FALSE(!src_->healthy()) && src_->available() == 0) Fail();
 }
 
-inline void ReaderStreambuf::MoveBegin() { src_->set_cursor(gptr()); }
+inline void ReaderStreambuf::MoveBegin() {
+  // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
+  // does not imply `ReaderStreambuf::src_ != nullptr`, because
+  // `ReaderIstream::streambuf_` can be left uninitialized.
+  if (src_ == nullptr) return;
+  src_->set_cursor(gptr());
+}
 
 inline void ReaderStreambuf::MoveEnd(Reader* src) {
+  // In a closed `ReaderIstream`, `ReaderIstream::src_.get() != nullptr`
+  // does not imply `ReaderStreambuf::src_ != nullptr`, because
+  // `ReaderIstream::streambuf_` can be left uninitialized.
+  if (src_ == nullptr) return;
   src_ = src;
   setg(const_cast<char*>(src_->start()), const_cast<char*>(src_->cursor()),
        const_cast<char*>(src_->limit()));
