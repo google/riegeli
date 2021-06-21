@@ -57,7 +57,7 @@ void ThreadPool::Schedule(std::function<void()> task) {
                 return !self->tasks_.empty() || self->exiting_;
               },
               this),
-          absl::Seconds(60));
+          absl::Seconds(1));
       --num_idle_threads_;
       if (tasks_.empty() || exiting_) {
         --num_threads_;
