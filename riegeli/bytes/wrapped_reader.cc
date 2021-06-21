@@ -126,15 +126,6 @@ void WrappedReaderBase::ReadHintSlow(size_t length) {
   MakeBuffer(src);
 }
 
-bool WrappedReaderBase::Sync() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader& src = *src_reader();
-  SyncBuffer(src);
-  const bool ok = src.Sync();
-  MakeBuffer(src);
-  return ok;
-}
-
 bool WrappedReaderBase::SupportsRandomAccess() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();

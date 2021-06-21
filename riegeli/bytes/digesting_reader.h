@@ -42,7 +42,6 @@ class DigestingReaderBase : public Reader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  bool Sync() override;
   bool SupportsSize() override;
   absl::optional<Position> Size() override;
 
@@ -173,6 +172,7 @@ class DigestingReader : public DigestingReaderBase {
 
  protected:
   void Done() override;
+  bool SyncImpl(SyncType sync_type) override;
 
   using DigestingReaderBase::DigesterWrite;
   void DigesterWrite(absl::string_view src) override;
@@ -361,6 +361,18 @@ void DigestingReader<Digester, Src>::VerifyEnd() {
     src_->VerifyEnd();
     MakeBuffer(*src_);
   }
+}
+
+template <typename Digester, typename Src>
+bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  SyncBuffer(*src_);
+  bool ok = true;
+  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+    ok = src_->Sync(sync_type);
+  }
+  MakeBuffer(*src_);
+  return ok;
 }
 
 template <typename Digester, typename Src>

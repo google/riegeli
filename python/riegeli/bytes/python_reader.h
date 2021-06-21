@@ -127,7 +127,6 @@ class PythonReader : public BufferedReader {
 
   const Exception& exception() const { return exception_; }
 
-  bool Sync() override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   bool SupportsSize() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
@@ -138,6 +137,7 @@ class PythonReader : public BufferedReader {
  protected:
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
 
  private:

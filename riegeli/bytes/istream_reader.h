@@ -85,7 +85,6 @@ class IstreamReaderBase : public BufferedReader {
   virtual std::istream* src_stream() = 0;
   virtual const std::istream* src_stream() const = 0;
 
-  bool Sync() override;
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsSize() override { return supports_random_access(); }
   absl::optional<Position> Size() override;
@@ -111,6 +110,7 @@ class IstreamReaderBase : public BufferedReader {
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
+  bool SyncImpl(SyncType sync_type) override;
 
   // Whether random access is supported, as detected by calling
   // `std::istream::tellg()` and `std::istream::seekg()` to the end and back.
@@ -182,6 +182,7 @@ class IstreamReader : public IstreamReaderBase {
 
  protected:
   void Done() override;
+  bool SyncImpl(SyncType sync_type) override;
 
   // The object providing and possibly owning the stream being read from.
   Dependency<std::istream*, Src> src_;
@@ -318,6 +319,18 @@ void IstreamReader<Src>::Done() {
       FailOperation("istream::close()");
     }
   }
+}
+
+template <typename Src>
+bool IstreamReader<Src>::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!IstreamReaderBase::SyncImpl(sync_type))) return false;
+  if ((sync_type != SyncType::kFromObject || src_.is_owning()) &&
+      supports_random_access()) {
+    if (ABSL_PREDICT_FALSE(src_->sync() != 0)) {
+      return FailOperation("istream::sync()");
+    }
+  }
+  return true;
 }
 
 }  // namespace riegeli

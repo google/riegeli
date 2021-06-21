@@ -217,18 +217,14 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool IstreamReaderBase::Sync() {
+bool IstreamReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (!supports_random_access()) return true;
-  std::istream& src = *src_stream();
-  if (available() > 0) {
+  if (available() > 0 && supports_random_access()) {
+    std::istream& src = *src_stream();
     const bool ok = SyncPos(src);
     set_limit_pos(pos());
     ClearBuffer();
     if (ABSL_PREDICT_FALSE(!ok)) return false;
-  }
-  if (ABSL_PREDICT_FALSE(src.sync() != 0)) {
-    return FailOperation("istream::sync()");
   }
   return true;
 }

@@ -156,15 +156,6 @@ void LimitingReaderBase::ReadHintSlow(size_t length) {
   MakeBuffer(src);
 }
 
-bool LimitingReaderBase::Sync() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Reader& src = *src_reader();
-  SyncBuffer(src);
-  const bool ok = src.Sync();
-  MakeBuffer(src);
-  return ok;
-}
-
 bool LimitingReaderBase::SupportsRandomAccess() {
   Reader* const src = src_reader();
   return src != nullptr && src->SupportsRandomAccess();

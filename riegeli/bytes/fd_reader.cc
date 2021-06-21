@@ -233,7 +233,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool FdReaderBase::Sync() {
+bool FdReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (supports_random_access_ && available() > 0) {
     const int src = src_fd();
@@ -386,7 +386,7 @@ void FdMMapReaderBase::AnnotateFailure(absl::Status& status) {
   ChainReader::AnnotateFailure(status);
 }
 
-bool FdMMapReaderBase::Sync() {
+bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const int src = src_fd();
   return SyncPos(src);

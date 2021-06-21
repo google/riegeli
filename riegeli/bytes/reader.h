@@ -259,10 +259,17 @@ class Reader : public Object {
   // What exactly does it mean for the position to be synchronized depends on
   // the source.
   //
+  // The scope of objects to synchronize is specified by `sync_type`:
+  //  * `SyncType::kFromObject`  - Propagates synchronization through owned
+  //                               dependencies of the given reader.
+  //  * `SyncType::kFromProcess` - Propagates synchronization through all
+  //                               dependencies of the given reader.
+  //                               This is the default.
+  //
   // Return values:
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
-  virtual bool Sync() { return healthy(); }
+  bool Sync(SyncType sync_type = SyncType::kFromProcess);
 
   // Returns the current position.
   //
@@ -396,6 +403,12 @@ class Reader : public Object {
   //
   // Precondition: `length > available()`
   virtual void ReadHintSlow(size_t length);
+
+  // Implementation of `Sync()`, except that the parameter is not defaulted,
+  // which is problematic for virtual functions.
+  //
+  // By default does nothing and returns `healthy()`.
+  virtual bool SyncImpl(SyncType sync_type);
 
   // Source position corresponding to `start()`.
   Position start_pos() const;
@@ -634,6 +647,8 @@ inline void Reader::ReadHint(size_t length) {
   if (ABSL_PREDICT_TRUE(available() >= length)) return;
   ReadHintSlow(length);
 }
+
+inline bool Reader::Sync(SyncType sync_type) { return SyncImpl(sync_type); }
 
 inline Position Reader::pos() const {
   RIEGELI_ASSERT_GE(limit_pos_, buffer_size())

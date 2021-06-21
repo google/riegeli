@@ -115,7 +115,6 @@ class FdReaderBase : public BufferedReader {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  bool Sync() override;
   bool SupportsRandomAccess() override { return supports_random_access_; }
   bool SupportsSize() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
@@ -135,11 +134,12 @@ class FdReaderBase : public BufferedReader {
   int OpenFd(absl::string_view filename, int flags);
   void InitializePos(int src, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void AnnotateFailure(absl::Status& status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
 
  private:
@@ -193,7 +193,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   const std::string& filename() const { return filename_; }
 
   void AnnotateFailure(absl::Status& status) override;
-  bool Sync() override;
 
  protected:
   FdMMapReaderBase() noexcept {}
@@ -208,9 +207,10 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void Initialize(int src, absl::optional<Position> independent_pos);
   int OpenFd(absl::string_view filename, int flags);
   void InitializePos(int src, absl::optional<Position> independent_pos);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  bool SyncImpl(SyncType sync_type) override;
 
  private:
   void SetFilename(int src);

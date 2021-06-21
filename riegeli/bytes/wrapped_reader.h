@@ -41,7 +41,6 @@ class WrappedReaderBase : public Reader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  bool Sync() override;
   bool SupportsRandomAccess() override;
   bool SupportsSize() override;
   absl::optional<Position> Size() override;
@@ -136,6 +135,7 @@ class WrappedReader : public WrappedReaderBase {
 
  protected:
   void Done() override;
+  bool SyncImpl(SyncType sync_type) override;
 
  private:
   void MoveSrc(WrappedReader&& that);
@@ -277,6 +277,18 @@ void WrappedReader<Src>::VerifyEnd() {
     src_->VerifyEnd();
     MakeBuffer(*src_);
   }
+}
+
+template <typename Src>
+bool WrappedReader<Src>::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  SyncBuffer(*src_);
+  bool ok = true;
+  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+    ok = src_->Sync(sync_type);
+  }
+  MakeBuffer(*src_);
+  return ok;
 }
 
 }  // namespace riegeli

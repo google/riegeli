@@ -253,13 +253,15 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool PythonReader::Sync() {
+bool PythonReader::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (!supports_random_access_ || available() == 0) return true;
-  const bool ok = SyncPos();
-  set_limit_pos(pos());
-  ClearBuffer();
-  return ok;
+  if (supports_random_access_ && available() > 0) {
+    const bool ok = SyncPos();
+    set_limit_pos(pos());
+    ClearBuffer();
+    if (ABSL_PREDICT_FALSE(!ok)) return false;
+  }
+  return true;
 }
 
 bool PythonReader::SeekSlow(Position new_pos) {

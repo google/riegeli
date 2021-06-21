@@ -415,6 +415,8 @@ bool Reader::CopyAll(BackwardWriter& dest, size_t max_length) {
   }
 }
 
+bool Reader::SyncImpl(SyncType sync_type) { return healthy(); }
+
 bool Reader::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "

@@ -613,6 +613,15 @@ enum class FlushType {
   kFromMachine = 2,
 };
 
+// Specifies the scope of objects to synchronize.
+enum class SyncType {
+  // Propagates synchronization through owned dependencies of the given reader.
+  kFromObject = 0,
+  // Propagates synchronization through all dependencies of the given reader.
+  // This is generally the default.
+  kFromProcess = 1,
+};
+
 // The default size of buffers used to amortize copying data to/from a more
 // expensive destination/source.
 RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kDefaultBufferSize, size_t{64} << 10);

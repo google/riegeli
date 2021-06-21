@@ -56,7 +56,6 @@ class LimitingReaderBase : public Reader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
-  bool Sync() override;
   bool SupportsRandomAccess() override;
   bool SupportsSize() override;
   absl::optional<Position> Size() override;
@@ -170,6 +169,7 @@ class LimitingReader : public LimitingReaderBase {
 
  protected:
   void Done() override;
+  bool SyncImpl(SyncType sync_type) override;
 
  private:
   void MoveSrc(LimitingReader&& that);
@@ -393,6 +393,18 @@ void LimitingReader<Src>::VerifyEnd() {
     src_->VerifyEnd();
     MakeBuffer(*src_);
   }
+}
+
+template <typename Src>
+bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  SyncBuffer(*src_);
+  bool ok = true;
+  if (sync_type != SyncType::kFromObject || src_.is_owning()) {
+    ok = src_->Sync(sync_type);
+  }
+  MakeBuffer(*src_);
+  return ok;
 }
 
 }  // namespace riegeli
