@@ -126,7 +126,6 @@ class PythonWriter : public BufferedWriter {
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
-  bool SupportsTruncate() override { return supports_random_access_; }
   bool Truncate(Position new_size) override;
 
   // For implementing `tp_traverse` of objects containing `PythonWriter`.

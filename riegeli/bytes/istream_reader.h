@@ -86,7 +86,6 @@ class IstreamReaderBase : public BufferedReader {
   virtual const std::istream* src_stream() const = 0;
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
-  bool SupportsSize() override { return supports_random_access(); }
   absl::optional<Position> Size() override;
 
  protected:

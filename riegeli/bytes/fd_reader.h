@@ -116,7 +116,6 @@ class FdReaderBase : public BufferedReader {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
-  bool SupportsSize() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
 
  protected:

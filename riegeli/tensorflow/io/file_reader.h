@@ -109,7 +109,6 @@ class FileReaderBase : public Reader {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return !filename_.empty(); }
-  bool SupportsSize() override { return !filename_.empty(); }
   absl::optional<Position> Size() override;
 
  protected:

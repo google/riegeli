@@ -310,7 +310,9 @@ class Reader : public Object {
   bool Skip(Position length);
 
   // Returns `true` if this `Reader` supports `Size()`.
-  virtual bool SupportsSize() { return false; }
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`.
+  virtual bool SupportsSize() { return SupportsRandomAccess(); }
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //

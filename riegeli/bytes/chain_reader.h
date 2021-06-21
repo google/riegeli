@@ -40,7 +40,6 @@ class ChainReaderBase : public PullableReader {
   virtual const Chain* src_chain() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
-  bool SupportsSize() override { return true; }
   absl::optional<Position> Size() override;
 
  protected:

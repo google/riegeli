@@ -87,6 +87,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   absl::optional<Position> Size() override;
+  bool SupportsTruncate() override { return false; }
 
  protected:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.

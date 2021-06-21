@@ -128,7 +128,6 @@ class PythonReader : public BufferedReader {
   const Exception& exception() const { return exception_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
-  bool SupportsSize() override { return supports_random_access_; }
   absl::optional<Position> Size() override;
 
   // For implementing `tp_traverse` of objects containing `PythonReader`.
