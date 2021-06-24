@@ -264,7 +264,7 @@ bool IstreamReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> IstreamReaderBase::Size() {
+absl::optional<Position> IstreamReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     Fail(absl::UnimplementedError("IstreamReaderBase::Size() not supported"));

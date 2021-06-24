@@ -155,7 +155,7 @@ bool ChainBackwardWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-bool ChainBackwardWriterBase::Truncate(Position new_size) {
+bool ChainBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Chain& dest = *dest_chain();
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())

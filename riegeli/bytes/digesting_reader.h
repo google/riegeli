@@ -43,7 +43,6 @@ class DigestingReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
   bool SupportsSize() override;
-  absl::optional<Position> Size() override;
 
  protected:
   explicit DigestingReaderBase(InitiallyClosed) noexcept
@@ -67,6 +66,7 @@ class DigestingReaderBase : public Reader {
   bool ReadSlow(size_t length, Chain& dest) override;
   bool ReadSlow(size_t length, absl::Cord& dest) override;
   void ReadHintSlow(size_t length) override;
+  absl::optional<Position> SizeImpl() override;
 
   // Sets cursor of `src` to cursor of `*this`, digesting what has been read
   // from the buffer (until `cursor()`).

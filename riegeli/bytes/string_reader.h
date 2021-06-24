@@ -39,7 +39,6 @@ class StringReaderBase : public Reader {
   virtual absl::string_view src_string_view() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
-  absl::optional<Position> Size() override;
 
  protected:
   explicit StringReaderBase(InitiallyClosed) noexcept
@@ -53,6 +52,7 @@ class StringReaderBase : public Reader {
 
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
 };
 
 // A `Reader` which reads from a `std::string` or array. It supports random

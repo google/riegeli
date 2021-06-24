@@ -265,7 +265,6 @@ class ZstdReaderBase : public BufferedReader {
   bool truncated() const { return truncated_; }
 
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
-  absl::optional<Position> Size() override;
 
  protected:
   ZstdReaderBase() noexcept {}
@@ -290,6 +289,7 @@ class ZstdReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  absl::optional<Position> SizeImpl() override;
 
  private:
   struct ZSTD_DCtxDeleter {

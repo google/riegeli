@@ -317,7 +317,7 @@ class Reader : public Object {
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
   // Returns `absl::nullopt` on failure (`!healthy()`).
-  virtual absl::optional<Position> Size();
+  absl::optional<Position> Size();
 
  protected:
   // Creates a `Reader` with the given initial state.
@@ -426,8 +426,16 @@ class Reader : public Object {
 
   // Implementation of the slow part of `Seek()` and `Skip()`.
   //
+  // By default seeking forwards is implemented in terms of `Pull()`, and
+  // seeking backwards fails.
+  //
   // Precondition: `new_pos < start_pos() || new_pos > limit_pos()`
   virtual bool SeekSlow(Position new_pos);
+
+  // Implementation of `Size()`.
+  //
+  // By default fails.
+  virtual absl::optional<Position> SizeImpl();
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailMaxLengthExceeded(Position max_length);
@@ -694,6 +702,8 @@ inline bool Reader::Skip(Position length) {
   }
   return SeekSlow(pos() + length);
 }
+
+inline absl::optional<Position> Reader::Size() { return SizeImpl(); }
 
 }  // namespace riegeli
 

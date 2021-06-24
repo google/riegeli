@@ -200,7 +200,7 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-bool CordWriterBase::Truncate(Position new_size) {
+bool CordWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   absl::Cord& dest = *dest_cord();
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())

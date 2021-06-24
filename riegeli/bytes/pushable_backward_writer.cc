@@ -395,7 +395,7 @@ bool PushableBackwardWriter::FlushImpl(FlushType flush_type) {
   return FlushBehindScratch(flush_type);
 }
 
-bool PushableBackwardWriter::Truncate(Position new_size) {
+bool PushableBackwardWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   }

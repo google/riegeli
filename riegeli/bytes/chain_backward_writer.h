@@ -115,7 +115,6 @@ class ChainBackwardWriterBase : public BackwardWriter {
   virtual const Chain* dest_chain() const = 0;
 
   bool SupportsTruncate() override { return true; }
-  bool Truncate(Position new_size) override;
 
  protected:
   ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
@@ -138,6 +137,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool TruncateImpl(Position new_size) override;
 
  private:
   // Discards uninitialized space from the beginning of `dest`, so that it
