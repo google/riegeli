@@ -21,6 +21,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -34,6 +36,12 @@ namespace riegeli {
 // `PushableBackwardWriter` accumulates data to be pushed in a scratch buffer if
 // needed.
 class PushableBackwardWriter : public BackwardWriter {
+ private:
+  struct Scratch;
+
+ public:
+  bool Truncate(Position new_size) override;
+
  protected:
   // Helps to implement move constructor or move assignment if scratch is used.
   //
@@ -43,8 +51,9 @@ class PushableBackwardWriter : public BackwardWriter {
   //
   // This temporarily reveals the relationship between the destination and the
   // buffer pointers, in case it was hidden behind scratch usage. In a
-  // `BehindScratch` scope, buffer pointers are set up as if scratch was not
-  // used, and the current position might have been temporarily changed.
+  // `BehindScratch` scope, scratch is not used, and buffer pointers may be
+  // changed. The current position reflects what has been written to the
+  // destination and must not be changed.
   class BehindScratch {
    public:
     explicit BehindScratch(PushableBackwardWriter* context);
@@ -59,6 +68,7 @@ class PushableBackwardWriter : public BackwardWriter {
     void Leave();
 
     PushableBackwardWriter* context_;
+    std::unique_ptr<Scratch> scratch_;
     size_t written_to_scratch_;
   };
 
@@ -78,51 +88,66 @@ class PushableBackwardWriter : public BackwardWriter {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Helps to implement `PushSlow(min_length, recommended_length)`
-  // if `min_length > 1` in terms of `PushSlow(1, 0)`,
-  // `WriteSlow(absl::string_view)`, and `WriteSlow(Chain&&)`.
-  //
-  // Typical usage in `PushSlow()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(
-  //           !PushUsingScratch(min_length, recommended_length))) {
-  //     return available() >= min_length;
-  //   }
-  //   ```
-  //
-  // Return values:
-  //  * `true`  - scratch is not used now, `min_length == 1`,
-  //              the caller should continue `PushSlow(1, 0)`
-  //  * `false` - `PushSlow()` is done,
-  //              the caller should return `available() >= min_length`
-  //
-  // Precondition: `available() < min_length`
-  bool PushUsingScratch(size_t min_length, size_t recommended_length);
+  // Returns `true` if scratch is used, which means that buffer pointers are
+  // temporarily unrelated to the destination. This is exposed for assertions.
+  bool scratch_used() const;
 
-  // Helps to implement `Done()`, `WriteSlow()`, `WriteZerosSlow()`, `Flush()`,
-  // or `Truncate()` if scratch is used, in terms of
-  // `WriteSlow(absl::string_view)` and `WriteSlow(Chain&&)`.
+  // `PushableBackwardWriter::{Done,FlushImpl}()` write the scratch if needed,
+  // and call
+  // `{Done,Flush}BehindScratch()` to close/flush the destination before buffer
+  // pointers are reset.
   //
-  // Typical usage in `Done()`:
-  //   ```
-  //   if (ABSL_PREDICT_TRUE(healthy())) {
-  //     if (ABSL_PREDICT_TRUE(SyncScratch())) {
-  //       ...
-  //     }
-  //   }
-  //   PushableBackwardWriter::Done();
-  //   ```
+  // For propagating `{Close,Flush}()` to dependencies, `{Done,FlushImpl}()`
+  // should be overridden to call `PushableBackwardWriter::{Done,FlushImpl}()`
+  // and then close/flush the dependencies.
+
+  // Implementation of `Done()`, called while scratch is not used, and only if
+  // writing the scratch succeeded. This is called before buffer pointers are
+  // reset.
   //
-  // Typical usage in functions other than `Done()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
-  //   ```
+  // By default calls `FlushBehindScratch(FlushType::kFromObject)`, which by
+  // default does nothing.
   //
-  // Return values:
-  //  * `true`  - scratch is not used now, the caller should continue
-  //  * `false` - failure (`!healthy()`), the caller should return `false`
-  //              (or skip the rest of flushing in `Done()`)
-  bool SyncScratch();
+  // Precondition: `!scratch_used()`
+  virtual void DoneBehindScratch();
+
+  // Implementation of `PushSlow(1, 0)`, called while scratch is not used.
+  //
+  // Preconditions:
+  //   `available() == 0`
+  //   `!scratch_used()`
+  virtual bool PushBehindScratch() = 0;
+
+  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `WriteHintSlow()`,
+  // `FlushImpl()`, and `Truncate()`, called while scratch is not used.
+  //
+  // By default they are implemented analogously to the corresponding
+  // `BackwardWriter` functions.
+  //
+  // Preconditions:
+  //   like the corresponding `BackwardWriter` functions
+  //   `!scratch_used()`
+  virtual bool WriteBehindScratch(absl::string_view src);
+  virtual bool WriteBehindScratch(const Chain& src);
+  virtual bool WriteBehindScratch(Chain&& src);
+  virtual bool WriteBehindScratch(const absl::Cord& src);
+  virtual bool WriteBehindScratch(absl::Cord&& src);
+  virtual bool WriteZerosBehindScratch(Position length);
+  virtual void WriteHintBehindScratch(size_t length);
+  virtual bool FlushBehindScratch(FlushType flush_type);
+  virtual bool TruncateBehindScratch(Position new_size);
+
+  void Done() override;
+  void OnFail() override;
+  bool PushSlow(size_t min_length, size_t recommended_length) override;
+  bool WriteSlow(absl::string_view src) override;
+  bool WriteSlow(const Chain& src) override;
+  bool WriteSlow(Chain&& src) override;
+  bool WriteSlow(const absl::Cord& src) override;
+  bool WriteSlow(absl::Cord&& src) override;
+  bool WriteZerosSlow(Position length) override;
+  void WriteHintSlow(size_t length) override;
+  bool FlushImpl(FlushType flush_type) override;
 
  private:
   struct Scratch {
@@ -132,10 +157,7 @@ class PushableBackwardWriter : public BackwardWriter {
     size_t original_written_to_buffer = 0;
   };
 
-  bool scratch_used() const;
-
-  void PushFromScratchSlow(size_t min_length, size_t recommended_length);
-  bool SyncScratchSlow();
+  bool SyncScratch();
 
   std::unique_ptr<Scratch> scratch_;
 
@@ -176,27 +198,6 @@ inline bool PushableBackwardWriter::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline bool PushableBackwardWriter::PushUsingScratch(
-    size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of PushableBackwardWriter::PushUsingScratch(): "
-         "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    PushFromScratchSlow(min_length, recommended_length);
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    SyncScratchSlow();
-    return available() == 0;
-  }
-  return true;
-}
-
-inline bool PushableBackwardWriter::SyncScratch() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) return SyncScratchSlow();
-  return true;
-}
-
 inline PushableBackwardWriter::BehindScratch::BehindScratch(
     PushableBackwardWriter* context)
     : context_(context) {
@@ -204,7 +205,7 @@ inline PushableBackwardWriter::BehindScratch::BehindScratch(
 }
 
 inline PushableBackwardWriter::BehindScratch::~BehindScratch() {
-  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Leave();
+  if (ABSL_PREDICT_FALSE(scratch_ != nullptr)) Leave();
 }
 
 }  // namespace riegeli

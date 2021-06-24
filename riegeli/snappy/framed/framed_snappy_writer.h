@@ -15,8 +15,6 @@
 #ifndef RIEGELI_SNAPPY_FRAMED_FRAMED_SNAPPY_WRITER_H_
 #define RIEGELI_SNAPPY_FRAMED_FRAMED_SNAPPY_WRITER_H_
 
-#include <stddef.h>
-
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -76,14 +74,13 @@ class FramedSnappyWriterBase : public PushableWriter {
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
-  void Done() override;
   // `FramedSnappyWriterBase` overrides `Writer::AnnotateFailure()` to annotate
   // the status with the current position, clarifying that this is the
   // uncompressed position. A status propagated from `*dest_writer()` might
   // carry annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
-  bool PushSlow(size_t min_length, size_t recommended_length) override;
-  bool FlushInternal();
+  bool PushBehindScratch() override;
+  bool FlushBehindScratch(FlushType flush_type);
 
  private:
   // Compresses buffered data, but unlike `PushSlow()`, does not ensure that a
@@ -294,7 +291,9 @@ void FramedSnappyWriter<Dest>::Done() {
 
 template <typename Dest>
 bool FramedSnappyWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!FramedSnappyWriterBase::FlushImpl(flush_type))) {
+    return false;
+  }
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
   }

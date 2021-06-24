@@ -44,7 +44,6 @@ class ArrayWriterBase : public PushableWriter {
 
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
-  bool Truncate(Position new_size) override;
 
  protected:
   explicit ArrayWriterBase(InitiallyClosed) noexcept
@@ -59,9 +58,9 @@ class ArrayWriterBase : public PushableWriter {
   void Reset(InitiallyOpen);
   void Initialize(absl::Span<char> dest);
 
-  void Done() override;
-  bool PushSlow(size_t min_length, size_t recommended_length) override;
-  bool FlushImpl(FlushType flush_type) override;
+  bool PushBehindScratch() override;
+  bool FlushBehindScratch(FlushType flush_type) override;
+  bool TruncateBehindScratch(Position new_size) override;
 
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;

@@ -14,43 +14,35 @@
 
 #include "riegeli/bytes/array_writer.h"
 
-#include <stddef.h>
-
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
-#include "riegeli/bytes/pushable_writer.h"
 
 namespace riegeli {
 
-void ArrayWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    if (ABSL_PREDICT_TRUE(SyncScratch())) {
-      written_ = absl::Span<char>(start(), written_to_buffer());
-    }
-  }
-  PushableWriter::Done();
-}
-
-bool ArrayWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Writer::PushSlow(): "
-         "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length, recommended_length))) {
-    return available() >= min_length;
-  }
+bool ArrayWriterBase::PushBehindScratch() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PushableWriter::PushBehindScratch(): "
+         "some space available, use Push() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::PushBehindScratch(): "
+         "scratch used";
   return FailOverflow();
 }
 
-bool ArrayWriterBase::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+bool ArrayWriterBase::FlushBehindScratch(FlushType flush_type) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::FlushBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   written_ = absl::Span<char>(start(), written_to_buffer());
   return true;
 }
 
-bool ArrayWriterBase::Truncate(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::TruncateBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
   set_cursor(start() + new_size);

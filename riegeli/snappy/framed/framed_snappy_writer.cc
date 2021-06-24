@@ -29,7 +29,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/status.h"
-#include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
 #include "snappy.h"
@@ -60,30 +59,19 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
   }
 }
 
-void FramedSnappyWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    if (ABSL_PREDICT_TRUE(SyncScratch())) {
-      Writer& dest = *dest_writer();
-      PushInternal(dest);
-    }
-  }
-  PushableWriter::Done();
-}
-
 void FramedSnappyWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
   status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
-bool FramedSnappyWriterBase::PushSlow(size_t min_length,
-                                      size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Writer::PushSlow(): "
-         "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!PushUsingScratch(min_length, recommended_length))) {
-    return available() >= min_length;
-  }
+bool FramedSnappyWriterBase::PushBehindScratch() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PushableWriter::PushBehindScratch(): "
+         "some space available, use Push() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::PushBehindScratch():"
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
@@ -137,8 +125,10 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   return true;
 }
 
-bool FramedSnappyWriterBase::FlushInternal() {
-  if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+bool FramedSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::FlushBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return PushInternal(dest);

@@ -16,20 +16,45 @@
 
 #include <stddef.h>
 
+#include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/backward_writer.h"
 
 namespace riegeli {
 
-bool PushableBackwardWriter::SyncScratchSlow() {
+void PushableBackwardWriter::DoneBehindScratch() {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableBackwardWriter::DoneBehindScratch():"
+         "scratch used";
+  FlushBehindScratch(FlushType::kFromObject);
+}
+
+void PushableBackwardWriter::Done() {
+  if (ABSL_PREDICT_TRUE(!scratch_used()) || ABSL_PREDICT_TRUE(SyncScratch())) {
+    DoneBehindScratch();
+  }
+  scratch_.reset();
+  BackwardWriter::Done();
+}
+
+void PushableBackwardWriter::OnFail() {
+  BackwardWriter::OnFail();
+  scratch_.reset();
+}
+
+bool PushableBackwardWriter::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PushableBackwardWriter::SyncScratchSlow(): "
+      << "Failed precondition of PushableBackwardWriter::SyncScratch(): "
          "scratch not used";
   RIEGELI_ASSERT(limit() == scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
@@ -63,36 +88,318 @@ bool PushableBackwardWriter::SyncScratchSlow() {
   }
 }
 
-void PushableBackwardWriter::PushFromScratchSlow(size_t min_length,
-                                                 size_t recommended_length) {
-  if (scratch_used()) {
+bool PushableBackwardWriter::PushSlow(size_t min_length,
+                                      size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
+      << "Failed precondition of BackwardWriter::PushSlow(): "
+         "enough space available, use Push() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
     RIEGELI_ASSERT(limit() == scratch_->buffer.data())
         << "Failed invariant of PushableBackwardWriter: "
            "scratch used but buffer pointers do not point to scratch";
     RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
         << "Failed invariant of PushableBackwardWriter: "
            "scratch used but buffer pointers do not point to scratch";
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= min_length) return true;
   }
-  RIEGELI_ASSERT_GT(min_length, 1u)
+  if (ABSL_PREDICT_FALSE(min_length > 1)) {
+    if (available() == 0) {
+      if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
+      if (available() >= min_length) return true;
+    }
+    if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
+      scratch_ = std::make_unique<Scratch>();
+    }
+    const absl::Span<char> flat_buffer =
+        scratch_->buffer.PrependBuffer(min_length, recommended_length);
+    set_start_pos(pos());
+    scratch_->original_limit = limit();
+    scratch_->original_buffer_size = buffer_size();
+    scratch_->original_written_to_buffer = written_to_buffer();
+    set_buffer(flat_buffer.data(), flat_buffer.size());
+    return true;
+  }
+  return PushBehindScratch();
+}
+
+bool PushableBackwardWriter::WriteBehindScratch(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of "
-         "PushableBackwardWriter::PushFromScratchSlow(): "
-         "trivial min_length";
-  if (available() == 0) {
-    if (ABSL_PREDICT_FALSE(!PushSlow(1, 0))) return;
-    if (available() >= min_length) return;
+         "PushableBackwardWriter::WriteBehindScratch(string_view): "
+         "enough space available, use Write(string_view) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(string_view): "
+         "scratch used";
+  do {
+    const size_t available_length = available();
+    if (
+        // `std::memcpy(nullptr, _, 0)` is undefined.
+        available_length > 0) {
+      move_cursor(available_length);
+      std::memcpy(cursor(), src.data() + src.size() - available_length,
+                  available_length);
+      src.remove_suffix(available_length);
+    }
+    if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
+  } while (src.size() > available());
+  move_cursor(src.size());
+  std::memcpy(cursor(), src.data(), src.size());
+  return true;
+}
+
+bool PushableBackwardWriter::WriteBehindScratch(const Chain& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Chain): "
+         "enough space available, use Write(Chain) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Chain): "
+         "scratch used";
+  for (Chain::Blocks::const_reverse_iterator iter = src.blocks().crbegin();
+       iter != src.blocks().crend(); ++iter) {
+    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
   }
-  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
-    scratch_ = std::make_unique<Scratch>();
-  } else {
+  return true;
+}
+
+bool PushableBackwardWriter::WriteBehindScratch(Chain&& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Chain&&): "
+         "enough space available, use Write(Chain&&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Chain&&): "
+         "scratch used";
+  // Not `std::move(src)`: forward to `WriteBehindScratch(const Chain&)`.
+  return WriteBehindScratch(src);
+}
+
+bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Cord): "
+         "enough space available, use Write(Cord) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Cord): "
+         "scratch used";
+  if (src.size() <= available()) {
+    move_cursor(src.size());
+    char* dest = cursor();
+    for (absl::string_view fragment : src.Chunks()) {
+      std::memcpy(dest, fragment.data(), fragment.size());
+      dest += fragment.size();
+    }
+    return true;
+  }
+  std::vector<absl::string_view> fragments(src.chunk_begin(), src.chunk_end());
+  for (std::vector<absl::string_view>::const_reverse_iterator iter =
+           fragments.crbegin();
+       iter != fragments.crend(); ++iter) {
+    if (ABSL_PREDICT_FALSE(!Write(*iter))) return false;
+  }
+  return true;
+}
+
+bool PushableBackwardWriter::WriteBehindScratch(absl::Cord&& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Cord&&): "
+         "enough space available, use Write(Cord&&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteBehindScratch(Cord&&): "
+         "scratch used";
+  // Not `std::move(src)`: forward to `WriteBehindScratch(const absl::Cord&)`.
+  return WriteBehindScratch(src);
+}
+
+bool PushableBackwardWriter::WriteZerosBehindScratch(Position length) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteZerosBehindScratch(): "
+         "enough space available, use WriteZeros() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteZerosBehindScratch(): "
+         "scratch used";
+  while (length > available()) {
+    const size_t available_length = available();
+    if (
+        // `std::memset(nullptr, _, 0)` is undefined.
+        available_length > 0) {
+      move_cursor(available_length);
+      std::memset(cursor(), 0, available_length);
+      length -= available_length;
+    }
+    if (ABSL_PREDICT_FALSE(!PushBehindScratch())) return false;
+  }
+  move_cursor(IntCast<size_t>(length));
+  std::memset(cursor(), 0, IntCast<size_t>(length));
+  return true;
+}
+
+void PushableBackwardWriter::WriteHintBehindScratch(size_t length) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteHintBehindScratch(): "
+         "enough space available, use WriteHint() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::WriteHintBehindScratch(): "
+         "scratch used";
+}
+
+bool PushableBackwardWriter::FlushBehindScratch(FlushType flush_type) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableBackwardWriter::FlushBehindScratch(): "
+         "scratch used";
+  return healthy();
+}
+
+bool PushableBackwardWriter::TruncateBehindScratch(Position new_size) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PushableBackwardWriter::TruncateBehindScratch(): "
+         "scratch used";
+  return Fail(
+      absl::UnimplementedError("BackwardWriter::Truncate() not supported"));
+}
+
+bool PushableBackwardWriter::WriteSlow(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
+         "enough space available, use Write(string_view) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size()) {
+      if (ABSL_PREDICT_TRUE(
+              // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
+              // are undefined.
+              !src.empty())) {
+        move_cursor(src.size());
+        std::memcpy(cursor(), src.data(), src.size());
+      }
+      return true;
+    }
+  }
+  return WriteBehindScratch(src);
+}
+
+bool PushableBackwardWriter::WriteSlow(const Chain& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
+         "enough space available, use Write(Chain) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
+      move_cursor(src.size());
+      src.CopyTo(cursor());
+      return true;
+    }
+  }
+  return WriteBehindScratch(src);
+}
+
+bool PushableBackwardWriter::WriteSlow(Chain&& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
+         "enough space available, use Write(Chain&&) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
+      move_cursor(src.size());
+      src.CopyTo(cursor());
+      return true;
+    }
+  }
+  return WriteBehindScratch(std::move(src));
+}
+
+bool PushableBackwardWriter::WriteSlow(const absl::Cord& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
+         "enough space available, use Write(Cord) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
+      move_cursor(src.size());
+      char* dest = cursor();
+      for (absl::string_view fragment : src.Chunks()) {
+        std::memcpy(dest, fragment.data(), fragment.size());
+        dest += fragment.size();
+      }
+      return true;
+    }
+  }
+  return WriteBehindScratch(src);
+}
+
+bool PushableBackwardWriter::WriteSlow(absl::Cord&& src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
+         "enough space available, use Write(Cord&&) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
+      move_cursor(src.size());
+      char* dest = cursor();
+      for (absl::string_view fragment : src.Chunks()) {
+        std::memcpy(dest, fragment.data(), fragment.size());
+        dest += fragment.size();
+      }
+      return true;
+    }
+  }
+  return WriteBehindScratch(std::move(src));
+}
+
+bool PushableBackwardWriter::WriteZerosSlow(Position length) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of BackwardWriter::WriteZerosSlow(): "
+         "enough space available, use WriteZeros() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+    if (available() >= length && length <= kMaxBytesToCopy) {
+      if (ABSL_PREDICT_TRUE(
+              // `std::memset(nullptr, _, 0)` is undefined.
+              length > 0)) {
+        std::memset(cursor(), 0, IntCast<size_t>(length));
+        move_cursor(IntCast<size_t>(length));
+      }
+      return true;
+    }
+  }
+  return WriteZerosBehindScratch(length);
+}
+
+void PushableBackwardWriter::WriteHintSlow(size_t length) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
+         "enough space available, use WriteHint() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
+    if (ABSL_PREDICT_TRUE(available() >= length)) return;
   }
-  const absl::Span<char> flat_buffer = scratch_->buffer.PrependFixedBuffer(
-      UnsignedMax(min_length, recommended_length));
-  set_start_pos(pos());
-  scratch_->original_limit = limit();
-  scratch_->original_buffer_size = buffer_size();
-  scratch_->original_written_to_buffer = written_to_buffer();
-  set_buffer(flat_buffer.data(), flat_buffer.size());
+  return WriteHintBehindScratch(length);
+}
+
+bool PushableBackwardWriter::FlushImpl(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+  }
+  return FlushBehindScratch(flush_type);
+}
+
+bool PushableBackwardWriter::Truncate(Position new_size) {
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
+  }
+  return TruncateBehindScratch(new_size);
 }
 
 void PushableBackwardWriter::BehindScratch::Enter() {
@@ -106,25 +413,26 @@ void PushableBackwardWriter::BehindScratch::Enter() {
   RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
+  scratch_ = std::move(context_->scratch_);
   written_to_scratch_ = context_->written_to_buffer();
-  context_->set_buffer(context_->scratch_->original_limit,
-                       context_->scratch_->original_buffer_size,
-                       context_->scratch_->original_written_to_buffer);
+  context_->set_buffer(scratch_->original_limit, scratch_->original_buffer_size,
+                       scratch_->original_written_to_buffer);
   context_->set_start_pos(context_->start_pos() -
                           context_->written_to_buffer());
 }
 
 void PushableBackwardWriter::BehindScratch::Leave() {
-  RIEGELI_ASSERT(context_->scratch_used())
+  RIEGELI_ASSERT(scratch_ != nullptr)
       << "Failed precondition of "
          "PushableBackwardWriter::BehindScratch::Leave(): "
          "scratch not used";
   context_->set_start_pos(context_->pos());
-  context_->scratch_->original_limit = context_->limit();
-  context_->scratch_->original_buffer_size = context_->buffer_size();
-  context_->scratch_->original_limit = context_->limit();
-  context_->set_buffer(const_cast<char*>(context_->scratch_->buffer.data()),
-                       context_->scratch_->buffer.size(), written_to_scratch_);
+  scratch_->original_limit = context_->limit();
+  scratch_->original_buffer_size = context_->buffer_size();
+  scratch_->original_limit = context_->limit();
+  context_->set_buffer(const_cast<char*>(scratch_->buffer.data()),
+                       scratch_->buffer.size(), written_to_scratch_);
+  context_->scratch_ = std::move(scratch_);
 }
 
 }  // namespace riegeli
