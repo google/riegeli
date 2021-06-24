@@ -76,6 +76,7 @@ class SnappyReaderBase : public ChainReader<Chain> {
   void Reset(InitiallyOpen);
   void Initialize(Reader* src, absl::optional<Position> assumed_size);
 
+  void Done() override;
   // `SnappyReaderBase` overrides `Reader::AnnotateFailure()` to annotate the
   // status with the current position, clarifying that this is the uncompressed
   // position. A status propagated from `*src_reader()` might carry annotation

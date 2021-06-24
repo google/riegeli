@@ -61,7 +61,7 @@ class FramedSnappyReaderBase : public PullableReader {
   // uncompressed position. A status propagated from `*src_reader()` might carry
   // annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  bool PullBehindScratch() override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);

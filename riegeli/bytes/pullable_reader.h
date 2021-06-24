@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <memory>
 #include <utility>
 
@@ -26,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -36,6 +36,9 @@ namespace riegeli {
 //
 // `PullableReader` accumulates pulled data in a scratch buffer if needed.
 class PullableReader : public Reader {
+ private:
+  struct Scratch;
+
  protected:
   // Helps to implement move constructor or move assignment if scratch is used.
   //
@@ -45,8 +48,9 @@ class PullableReader : public Reader {
   //
   // This temporarily reveals the relationship between the source and the buffer
   // pointers, in case it was hidden behind scratch usage. In a `BehindScratch`
-  // scope, buffer pointers are set up as if scratch was not used, and the
-  // current position might have been temporarily changed.
+  // scope, scratch is not used, and buffer pointers may be changed. The current
+  // position reflects what has been read from the source and must not be
+  // changed.
   class BehindScratch {
    public:
     explicit BehindScratch(PullableReader* context);
@@ -61,6 +65,7 @@ class PullableReader : public Reader {
     void Leave();
 
     PullableReader* context_;
+    std::unique_ptr<Scratch> scratch_;
     size_t read_from_scratch_;
   };
 
@@ -79,78 +84,55 @@ class PullableReader : public Reader {
   void Reset(InitiallyClosed);
   void Reset(InitiallyOpen);
 
-  // Helps to implement `PullSlow(min_length, recommended_length)` if
-  // `min_length > 1` in terms of `PullSlow(1, 0)`.
-  //
-  // Typical usage in `PullSlow()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(
-  //       !PullUsingScratch(min_length, recommended_length))) {
-  //     return available() >= min_length;
-  //   }
-  //   ```
-  //
-  // Return values:
-  //  * `true`  - scratch is not used now, `min_length == 1`,
-  //              the caller should continue `PullSlow(1, 0)`
-  //  * `false` - `PullSlow()` is done,
-  //              the caller should return `available() >= min_length`
-  //
-  // Precondition: `available() < min_length`
-  bool PullUsingScratch(size_t min_length, size_t recommended_length);
+  // Returns `true` if scratch is used, which means that buffer pointers are
+  // temporarily unrelated to the source. This is exposed for assertions.
+  bool scratch_used() const;
 
-  // Helps to implement `{Read,Copy}Slow(length, dest)` if scratch is used.
+  // `PullableReader::{Done,SyncImpl}()` seek the source back to the current
+  // position if scratch is used but not all data from scratch were read.
+  // This is feasible only if `SupportsRandomAccess()`.
   //
-  // Typical usage in `ReadSlow()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
-  //   ```
+  // Warning: if `!SupportsRandomAccess()`, the source will have an
+  // unpredictable amount of extra data consumed because of buffering.
   //
-  // Typical usage in `CopySlow()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(!CopyScratchTo(length, dest))) {
-  //     return length == 0 && dest.healthy();
-  //   }
-  //   ```
-  //
-  // Return values:
-  //  * `true`  - some data have been copied from scratch to `dest`,
-  //              `length` was appropriately reduced, scratch is not used now,
-  //              the caller should continue `{Read,Copy}Slow(length, dest)`
-  //              no longer assuming that
-  //              `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  //  * `false` - `{Read,Copy}Slow()` is done,
-  //              the caller should return `length == 0` for `ReadSlow()`, or
-  //              `length == 0 && dest.healthy()` for `CopySlow()`
-  //
-  // Preconditions for `ReadScratch()`:
-  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  //   `length <= std::numeric_limits<size_t>::max() - dest.size()`
-  //
-  // Precondition for `CopyScratchTo()`:
-  //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
-  bool ReadScratch(size_t& length, Chain& dest);
-  bool ReadScratch(size_t& length, absl::Cord& dest);
-  bool CopyScratchTo(Position& length, Writer& dest);
+  // For propagating `{Close,Sync}()` to dependencies, `{Done,SyncImpl}()`
+  // should be overridden to call `PullableReader::{Done,SyncImpl}()` and then
+  // close/sync the dependencies.
 
-  // Helps to implement `SeekSlow()` if scratch is used.
+  // Implementation of `PullSlow(1, 0)`, called while scratch is not used.
   //
-  // Typical usage in `SeekSlow()`:
-  //   ```
-  //   if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
-  //   ```
-  //
-  // Return values:
-  //  * `true`  - scratch is not used now, the caller should continue
-  //              `SeekSlow(new_pos)`
-  //  * `false` - `SeekSlow()` is done, the caller should return `true`
-  bool SeekUsingScratch(Position new_pos);
+  // Preconditions:
+  //   `available() == 0`
+  //   `!scratch_used()`
+  virtual bool PullBehindScratch() = 0;
 
-  // Helps to implement `SizeImpl()` if scratch is used.
+  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadHintSlow()`, and
+  // `SeekSlow()`, called while scratch is not used.
   //
-  // Returns what would be the value of `start_pos()` if scratch was not used,
-  // i.e. if `SyncScratch()` was called now.
-  Position start_pos_after_scratch() const;
+  // By default they are implemented analogously to the corresponding `Reader`
+  // functions.
+  //
+  // Preconditions:
+  //   like the corresponding `Reader` functions
+  //   `!scratch_used()`
+  virtual bool ReadBehindScratch(size_t length, char* dest);
+  virtual bool ReadBehindScratch(size_t length, Chain& dest);
+  virtual bool ReadBehindScratch(size_t length, absl::Cord& dest);
+  virtual bool CopyBehindScratch(Position length, Writer& dest);
+  virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
+  virtual void ReadHintBehindScratch(size_t length);
+  virtual bool SeekBehindScratch(Position new_pos);
+
+  void Done() override;
+  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  bool ReadSlow(size_t length, char* dest) override;
+  bool ReadSlow(size_t length, Chain& dest) override;
+  bool ReadSlow(size_t length, absl::Cord& dest) override;
+  bool CopySlow(Position length, Writer& dest) override;
+  bool CopySlow(size_t length, BackwardWriter& dest) override;
+  void ReadHintSlow(size_t length) override;
+  bool SyncImpl(SyncType sync_type) override;
+  bool SeekSlow(Position new_pos) override;
 
  private:
   struct Scratch {
@@ -160,18 +142,11 @@ class PullableReader : public Reader {
     size_t original_read_from_buffer = 0;
   };
 
-  bool scratch_used() const;
+  void SyncScratch();
 
   // Stops using scratch and returns `true` if all remaining data in scratch
   // come from a single fragment of the original source.
   bool ScratchEnds();
-
-  void PullToScratchSlow(size_t min_length, size_t recommended_length);
-  bool ReadScratchSlow(size_t& length, Chain& dest);
-  bool ReadScratchSlow(size_t& length, absl::Cord& dest);
-  bool CopyScratchToSlow(Position& length, Writer& dest);
-  bool SeekUsingScratchSlow(Position new_pos);
-  void SyncScratchSlow();
 
   std::unique_ptr<Scratch> scratch_;
 
@@ -211,79 +186,13 @@ inline bool PullableReader::scratch_used() const {
   return scratch_ != nullptr && !scratch_->buffer.empty();
 }
 
-inline bool PullableReader::PullUsingScratch(size_t min_length,
-                                             size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of PullableReader::PullUsingScratch(): "
-         "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(min_length > 1)) {
-    PullToScratchSlow(min_length, recommended_length);
-    return false;
-  }
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    SyncScratchSlow();
-    return available() == 0;
-  }
-  return true;
-}
-
-inline bool PullableReader::ReadScratch(size_t& length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of PullableReader::ReadScratch(Chain&): "
-         "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of PullableReader::ReadScratch(Chain&): "
-         "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return ReadScratchSlow(length, dest);
-  }
-  return true;
-}
-
-inline bool PullableReader::ReadScratch(size_t& length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of PullableReader::ReadScratch(Cord&): "
-         "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of PullableReader::ReadScratch(Cord&): "
-         "Cord size overflow";
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return ReadScratchSlow(length, dest);
-  }
-  return true;
-}
-
-inline bool PullableReader::CopyScratchTo(Position& length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of PullableReader::CopyScratchTo(): "
-         "enough data available, use Copy(Writer&) instead";
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    return CopyScratchToSlow(length, dest);
-  }
-  return true;
-}
-
-inline bool PullableReader::SeekUsingScratch(Position new_pos) {
-  if (ABSL_PREDICT_FALSE(scratch_used())) return SeekUsingScratchSlow(new_pos);
-  return true;
-}
-
-inline Position PullableReader::start_pos_after_scratch() const {
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    RIEGELI_ASSERT_GE(limit_pos(), scratch_->original_read_from_buffer)
-        << "Failed invariant of Reader: negative position of buffer start";
-    return limit_pos() - scratch_->original_read_from_buffer;
-  }
-  return start_pos();
-}
-
 inline PullableReader::BehindScratch::BehindScratch(PullableReader* context)
     : context_(context) {
   if (ABSL_PREDICT_FALSE(context_->scratch_used())) Enter();
 }
 
 inline PullableReader::BehindScratch::~BehindScratch() {
-  if (ABSL_PREDICT_FALSE(context_->scratch_used())) Leave();
+  if (ABSL_PREDICT_FALSE(scratch_ != nullptr)) Leave();
 }
 
 }  // namespace riegeli

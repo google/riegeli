@@ -17,22 +17,42 @@
 #include <stddef.h>
 
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-void PullableReader::SyncScratchSlow() {
+void PullableReader::Done() {
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (available() > 0 && !SupportsRandomAccess()) {
+      // Seeking back is not feasible.
+      Reader::Done();
+      scratch_.reset();
+      return;
+    }
+    const Position new_pos = pos();
+    SyncScratch();
+    scratch_.reset();
+    Seek(new_pos);
+  }
+  Reader::Done();
+}
+
+void PullableReader::SyncScratch() {
   RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::SyncScratchSlow(): "
+      << "Failed precondition of PullableReader::SyncScratch(): "
          "scratch not used";
   RIEGELI_ASSERT(start() == scratch_->buffer.data())
       << "Failed invariant of PullableReader: "
@@ -52,160 +72,423 @@ inline bool PullableReader::ScratchEnds() {
          "scratch not used";
   const size_t available_length = available();
   if (scratch_->original_read_from_buffer >= available_length) {
-    SyncScratchSlow();
+    SyncScratch();
     set_cursor(cursor() - available_length);
     return true;
   }
   return false;
 }
 
-void PullableReader::PullToScratchSlow(size_t min_length,
-                                       size_t recommended_length) {
-  if (scratch_used()) {
-    RIEGELI_ASSERT(start() == scratch_->buffer.data())
-        << "Failed invariant of PullableReader: "
-           "scratch used but buffer pointers do not point to scratch";
-    RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-        << "Failed invariant of PullableReader: "
-           "scratch used but buffer pointers do not point to scratch";
-  }
-  RIEGELI_ASSERT_GT(min_length, 1u)
-      << "Failed precondition of PullableReader::PullToScratchSlow(): "
-         "trivial min_length";
-  if (scratch_used() && ScratchEnds() && available() >= min_length) return;
-  if (available() == 0) {
-    if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return;
-    if (available() >= min_length) return;
-  }
-  recommended_length = UnsignedMax(min_length, recommended_length);
-  size_t max_length = SaturatingAdd(recommended_length, recommended_length);
-  std::unique_ptr<Scratch> new_scratch;
-  if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
-    new_scratch = std::make_unique<Scratch>();
-  } else {
-    new_scratch = std::move(scratch_);
-    if (!new_scratch->buffer.empty()) {
-      // Scratch is used but it does have enough data after the cursor.
-      new_scratch->buffer.RemovePrefix(read_from_buffer());
-      min_length -= new_scratch->buffer.size();
-      recommended_length -= new_scratch->buffer.size();
-      max_length -= new_scratch->buffer.size();
-      set_buffer(new_scratch->original_start, new_scratch->original_buffer_size,
-                 new_scratch->original_read_from_buffer);
-      move_limit_pos(available());
+bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
+  RIEGELI_ASSERT_LT(available(), min_length)
+      << "Failed precondition of Reader::PullSlow(): "
+         "enough data available, use Pull() instead";
+  if (ABSL_PREDICT_FALSE(min_length > 1)) {
+    if (scratch_used() && ScratchEnds() && available() >= min_length) {
+      return true;
     }
+    if (available() == 0) {
+      RIEGELI_ASSERT(!scratch_used())
+          << "Scratch should have ended but is still used";
+      if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+      if (available() >= min_length) return true;
+    }
+    size_t remaining_min_length = min_length;
+    recommended_length = UnsignedMax(min_length, recommended_length);
+    size_t max_length = SaturatingAdd(recommended_length, recommended_length);
+    std::unique_ptr<Scratch> new_scratch;
+    if (ABSL_PREDICT_FALSE(scratch_ == nullptr)) {
+      new_scratch = std::make_unique<Scratch>();
+    } else {
+      new_scratch = std::move(scratch_);
+      if (!new_scratch->buffer.empty()) {
+        // Scratch is used but it does have enough data after the cursor.
+        new_scratch->buffer.RemovePrefix(read_from_buffer());
+        remaining_min_length -= new_scratch->buffer.size();
+        recommended_length -= new_scratch->buffer.size();
+        max_length -= new_scratch->buffer.size();
+        set_buffer(new_scratch->original_start,
+                   new_scratch->original_buffer_size,
+                   new_scratch->original_read_from_buffer);
+        move_limit_pos(available());
+      }
+    }
+    const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
+        remaining_min_length, recommended_length, max_length);
+    char* dest = flat_buffer.data();
+    char* const min_limit = flat_buffer.data() + remaining_min_length;
+    char* const max_limit = flat_buffer.data() + flat_buffer.size();
+    do {
+      const size_t length =
+          UnsignedMin(available(), PtrDistance(dest, max_limit));
+      if (
+          // `std::memcpy(_, nullptr, 0)` is undefined.
+          length > 0) {
+        std::memcpy(dest, cursor(), length);
+        move_cursor(length);
+        dest += length;
+        if (dest >= min_limit) break;
+      }
+      if (ABSL_PREDICT_FALSE(scratch_used())) {
+        SyncScratch();
+        if (available() > 0) continue;
+      }
+    } while (PullBehindScratch());
+    new_scratch->buffer.RemoveSuffix(PtrDistance(dest, max_limit));
+    set_limit_pos(pos());
+    new_scratch->original_start = start();
+    new_scratch->original_buffer_size = buffer_size();
+    new_scratch->original_read_from_buffer = read_from_buffer();
+    scratch_ = std::move(new_scratch);
+    set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
+    return available() >= min_length;
   }
-  const absl::Span<char> flat_buffer = new_scratch->buffer.AppendBuffer(
-      min_length, recommended_length, max_length);
-  char* dest = flat_buffer.data();
-  char* const min_limit = flat_buffer.data() + min_length;
-  char* const max_limit = flat_buffer.data() + flat_buffer.size();
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    SyncScratch();
+    if (available() > 0) return true;
+  }
+  return PullBehindScratch();
+}
+
+bool PullableReader::ReadBehindScratch(size_t length, char* dest) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
+         "enough data available, use Read(char*) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
+         "scratch used";
   do {
-    const size_t length =
-        UnsignedMin(available(), PtrDistance(dest, max_limit));
+    const size_t available_length = available();
     if (
         // `std::memcpy(_, nullptr, 0)` is undefined.
-        length > 0) {
-      std::memcpy(dest, cursor(), length);
-      move_cursor(length);
-      dest += length;
-      if (dest >= min_limit) break;
+        available_length > 0) {
+      std::memcpy(dest, cursor(), available_length);
+      move_cursor(available_length);
+      dest += available_length;
+      length -= available_length;
     }
-  } while (PullSlow(1, 0));
-  new_scratch->buffer.RemoveSuffix(PtrDistance(dest, max_limit));
-  set_limit_pos(pos());
-  new_scratch->original_start = start();
-  new_scratch->original_buffer_size = buffer_size();
-  new_scratch->original_read_from_buffer = read_from_buffer();
-  scratch_ = std::move(new_scratch);
-  set_buffer(scratch_->buffer.data(), scratch_->buffer.size());
-}
-
-bool PullableReader::ReadScratchSlow(size_t& length, Chain& dest) {
-  RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::ReadScratchSlow(Chain&): "
-         "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  if (ScratchEnds()) return true;
-  const size_t length_to_read = UnsignedMin(length, available());
-  scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
-                                  dest);
-  length -= length_to_read;
-  move_cursor(length_to_read);
-  if (available() == 0) {
-    SyncScratchSlow();
-    return true;
-  }
-  return false;
-}
-
-bool PullableReader::ReadScratchSlow(size_t& length, absl::Cord& dest) {
-  RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::ReadScratchSlow(Cord&): "
-         "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  if (ScratchEnds()) return true;
-  const size_t length_to_read = UnsignedMin(length, available());
-  scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_read),
-                                  dest);
-  length -= length_to_read;
-  move_cursor(length_to_read);
-  if (available() == 0) {
-    SyncScratchSlow();
-    return true;
-  }
-  return false;
-}
-
-bool PullableReader::CopyScratchToSlow(Position& length, Writer& dest) {
-  RIEGELI_ASSERT(scratch_used())
-      << "Failed precondition of PullableReader::CopyScratchToSlow(): "
-         "scratch not used";
-  RIEGELI_ASSERT(start() == scratch_->buffer.data())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(buffer_size(), scratch_->buffer.size())
-      << "Failed invariant of PullableReader: "
-         "scratch used but buffer pointers do not point to scratch";
-  if (ScratchEnds()) return true;
-  const size_t length_to_copy = UnsignedMin(length, available());
-  bool ok;
-  if (length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()) {
-    ok = dest.Write(absl::string_view(cursor(), length_to_copy));
-  } else if (length_to_copy == scratch_->buffer.size()) {
-    ok = dest.Write(Chain(scratch_->buffer));
-  } else {
-    Chain data;
-    scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length_to_copy),
-                                    data);
-    ok = dest.Write(std::move(data));
-  }
-  length -= length_to_copy;
-  move_cursor(length_to_copy);
-  if (available() == 0) {
-    SyncScratchSlow();
-    return ok;
-  }
-  return false;
-}
-
-bool PullableReader::SeekUsingScratchSlow(Position new_pos) {
-  SyncScratchSlow();
-  if (new_pos >= start_pos() && new_pos <= limit_pos()) {
-    set_cursor(limit() - (limit_pos() - new_pos));
-    return false;
-  }
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+  } while (length > available());
+  std::memcpy(dest, cursor(), length);
+  move_cursor(length);
   return true;
+}
+
+bool PullableReader::ReadBehindScratch(size_t length, Chain& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
+         "enough data available, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
+         "Chain size overflow";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
+         "scratch used";
+  do {
+    const absl::Span<char> buffer = dest.AppendBuffer(1, length, length);
+    const Position pos_before = pos();
+    if (ABSL_PREDICT_FALSE(!Read(buffer.size(), buffer.data()))) {
+      RIEGELI_ASSERT_GE(pos(), pos_before)
+          << "Reader::Read(char*) decreased pos()";
+      const Position length_read = pos() - pos_before;
+      RIEGELI_ASSERT_LE(length_read, buffer.size())
+          << "Reader::Read(char*) read more than requested";
+      dest.RemoveSuffix(buffer.size() - IntCast<size_t>(length_read));
+      return false;
+    }
+    length -= buffer.size();
+  } while (length > 0);
+  return true;
+}
+
+bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
+         "enough data available, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
+         "Cord size overflow";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
+         "scratch used";
+  while (length > available()) {
+    const size_t available_length = available();
+    dest.Append(absl::string_view(cursor(), available_length));
+    move_cursor(available_length);
+    length -= available_length;
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+  }
+  dest.Append(absl::string_view(cursor(), length));
+  move_cursor(length);
+  return true;
+}
+
+bool PullableReader::CopyBehindScratch(Position length, Writer& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
+         "scratch used";
+  while (length > available()) {
+    const absl::string_view data(cursor(), available());
+    move_cursor(data.size());
+    if (ABSL_PREDICT_FALSE(!dest.Write(data))) return false;
+    length -= data.size();
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+  }
+  const absl::string_view data(cursor(), IntCast<size_t>(length));
+  move_cursor(IntCast<size_t>(length));
+  return dest.Write(data);
+}
+
+bool PullableReader::CopyBehindScratch(size_t length, BackwardWriter& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of "
+         "PullableReader::CopyBehindScratch(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PullableReader::CopyBehindScratch(BackwardWriter&): "
+         "scratch used";
+  if (length <= available()) {
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
+    return dest.Write(data);
+  }
+  if (length <= kMaxBytesToCopy) {
+    if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
+    dest.move_cursor(length);
+    if (ABSL_PREDICT_FALSE(!ReadBehindScratch(length, dest.cursor()))) {
+      dest.set_cursor(dest.cursor() + length);
+      return false;
+    }
+    return true;
+  }
+  Chain data;
+  if (ABSL_PREDICT_FALSE(!ReadBehindScratch(length, data))) return false;
+  return dest.Write(std::move(data));
+}
+
+void PullableReader::ReadHintBehindScratch(size_t length) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
+         "enough data available, use ReadHint() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
+         "scratch used";
+}
+
+bool PullableReader::SeekBehindScratch(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
+    return Fail(
+        absl::UnimplementedError("Reader::Seek() backwards not supported"));
+  }
+  // Seeking forwards.
+  do {
+    move_cursor(available());
+    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
+  } while (new_pos > limit_pos());
+  const Position available_length = limit_pos() - new_pos;
+  RIEGELI_ASSERT_LE(available_length, buffer_size())
+      << "PullableReader::PullBehindScratch() skipped some data";
+  set_cursor(limit() - available_length);
+  return true;
+}
+
+bool PullableReader::ReadSlow(size_t length, char* dest) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of Reader::ReadSlow(char*): "
+         "enough data available, use Read(char*) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      const size_t length_to_read = available();
+      std::memcpy(dest, cursor(), length_to_read);
+      dest += length_to_read;
+      length -= length_to_read;
+      move_cursor(length_to_read);
+      SyncScratch();
+    }
+    if (available() >= length) {
+      // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+      // undefined.
+      if (ABSL_PREDICT_TRUE(length > 0)) {
+        std::memcpy(dest, cursor(), length);
+        move_cursor(length);
+      }
+      return true;
+    }
+  }
+  return ReadBehindScratch(length, dest);
+}
+
+bool PullableReader::ReadSlow(size_t length, Chain& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "enough data available, use Read(Chain&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Chain&): "
+         "Chain size overflow";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      const size_t length_to_read = UnsignedMin(length, available());
+      scratch_->buffer.AppendSubstrTo(
+          absl::string_view(cursor(), length_to_read), dest);
+      move_cursor(length_to_read);
+      length -= length_to_read;
+      if (length == 0) return true;
+      SyncScratch();
+    }
+    if (available() >= length && length <= kMaxBytesToCopy) {
+      dest.Append(absl::string_view(cursor(), length));
+      move_cursor(length);
+      return true;
+    }
+  }
+  return ReadBehindScratch(length, dest);
+}
+
+bool PullableReader::ReadSlow(size_t length, absl::Cord& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "enough data available, use Read(Cord&) instead";
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSlow(Cord&): "
+         "Cord size overflow";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      const size_t length_to_read = UnsignedMin(length, available());
+      scratch_->buffer.AppendSubstrTo(
+          absl::string_view(cursor(), length_to_read), dest);
+      move_cursor(length_to_read);
+      length -= length_to_read;
+      if (length == 0) return true;
+      SyncScratch();
+    }
+    if (available() >= length && length <= kMaxBytesToCopy) {
+      dest.Append(absl::string_view(cursor(), length));
+      move_cursor(length);
+      return true;
+    }
+  }
+  return ReadBehindScratch(length, dest);
+}
+
+bool PullableReader::CopySlow(Position length, Writer& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of Reader::CopySlow(Writer&): "
+         "enough data available, use Copy(Writer&) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      const size_t length_to_copy = UnsignedMin(length, available());
+      bool ok;
+      if (length_to_copy <= kMaxBytesToCopy || dest.PrefersCopying()) {
+        ok = dest.Write(absl::string_view(cursor(), length_to_copy));
+      } else {
+        Chain data;
+        scratch_->buffer.AppendSubstrTo(
+            absl::string_view(cursor(), length_to_copy), data);
+        ok = dest.Write(std::move(data));
+      }
+      move_cursor(length_to_copy);
+      if (ABSL_PREDICT_FALSE(!ok)) return false;
+      length -= length_to_copy;
+      if (length == 0) return true;
+      SyncScratch();
+    }
+    if (available() >= length && length <= kMaxBytesToCopy) {
+      const absl::string_view data(cursor(), IntCast<size_t>(length));
+      move_cursor(IntCast<size_t>(length));
+      return dest.Write(data);
+    }
+  }
+  return CopyBehindScratch(length, dest);
+}
+
+bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+         "enough data available, use Copy(BackwardWriter&) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    Chain from_scratch;
+    if (!ScratchEnds()) {
+      if (available() >= length) {
+        bool ok;
+        if (length <= kMaxBytesToCopy || dest.PrefersCopying()) {
+          ok = dest.Write(absl::string_view(cursor(), length));
+        } else {
+          Chain data;
+          scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), length),
+                                          data);
+          ok = dest.Write(std::move(data));
+        }
+        move_cursor(length);
+        return ok;
+      }
+      scratch_->buffer.AppendSubstrTo(absl::string_view(cursor(), available()),
+                                      from_scratch);
+      length -= available();
+      SyncScratch();
+    }
+    if (available() >= length && length <= kMaxBytesToCopy) {
+      const absl::string_view data(cursor(), length);
+      move_cursor(length);
+      if (ABSL_PREDICT_FALSE(!dest.Write(data))) return false;
+    } else {
+      if (ABSL_PREDICT_FALSE(!CopyBehindScratch(length, dest))) return false;
+    }
+    return dest.Write(std::move(from_scratch));
+  }
+  return CopyBehindScratch(length, dest);
+}
+
+void PullableReader::ReadHintSlow(size_t length) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of Reader::ReadHintSlow(): "
+         "enough data available, use ReadHint() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      length -= available();
+      BehindScratch behind_scratch(this);
+      if (available() < length) ReadHintBehindScratch(length);
+      return;
+    }
+    if (available() >= length) return;
+  }
+  ReadHintBehindScratch(length);
+}
+
+bool PullableReader::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (available() > 0 && !SupportsRandomAccess()) {
+      // Seeking back is not feasible.
+      return healthy();
+    }
+    const Position new_pos = pos();
+    SyncScratch();
+    Seek(new_pos);
+  }
+  return healthy();
+}
+
+bool PullableReader::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    SyncScratch();
+    if (new_pos >= start_pos() && new_pos <= limit_pos()) {
+      set_cursor(limit() - (limit_pos() - new_pos));
+      return true;
+    }
+  }
+  return SeekBehindScratch(new_pos);
 }
 
 void PullableReader::BehindScratch::Enter() {
@@ -218,23 +501,24 @@ void PullableReader::BehindScratch::Enter() {
   RIEGELI_ASSERT_EQ(context_->buffer_size(), context_->scratch_->buffer.size())
       << "Failed invariant of PullableReader: "
          "scratch used but buffer pointers do not point to scratch";
+  scratch_ = std::move(context_->scratch_);
   read_from_scratch_ = context_->read_from_buffer();
-  context_->set_buffer(context_->scratch_->original_start,
-                       context_->scratch_->original_buffer_size,
-                       context_->scratch_->original_read_from_buffer);
+  context_->set_buffer(scratch_->original_start, scratch_->original_buffer_size,
+                       scratch_->original_read_from_buffer);
   context_->move_limit_pos(context_->available());
 }
 
 void PullableReader::BehindScratch::Leave() {
-  RIEGELI_ASSERT(context_->scratch_used())
+  RIEGELI_ASSERT(scratch_ != nullptr)
       << "Failed precondition of PullableReader::BehindScratch::Leave(): "
          "scratch not used";
   context_->set_limit_pos(context_->pos());
-  context_->scratch_->original_start = context_->start();
-  context_->scratch_->original_buffer_size = context_->buffer_size();
-  context_->scratch_->original_read_from_buffer = context_->read_from_buffer();
-  context_->set_buffer(context_->scratch_->buffer.data(),
-                       context_->scratch_->buffer.size(), read_from_scratch_);
+  scratch_->original_start = context_->start();
+  scratch_->original_buffer_size = context_->buffer_size();
+  scratch_->original_read_from_buffer = context_->read_from_buffer();
+  context_->set_buffer(scratch_->buffer.data(), scratch_->buffer.size(),
+                       read_from_scratch_);
+  context_->scratch_ = std::move(scratch_);
 }
 
 }  // namespace riegeli

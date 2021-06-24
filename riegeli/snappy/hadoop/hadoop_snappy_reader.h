@@ -15,7 +15,6 @@
 #ifndef RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_READER_H_
 #define RIEGELI_SNAPPY_HADOOP_HADOOP_SNAPPY_READER_H_
 
-#include <stddef.h>
 #include <stdint.h>
 
 #include <tuple>
@@ -62,7 +61,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   // uncompressed position. A status propagated from `*src_reader()` might carry
   // annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
+  bool PullBehindScratch() override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);

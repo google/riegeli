@@ -64,14 +64,13 @@ void HadoopSnappyReaderBase::AnnotateFailure(absl::Status& status) {
   status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
-bool HadoopSnappyReaderBase::PullSlow(size_t min_length,
-                                      size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Reader::PullSlow(): "
-         "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length, recommended_length))) {
-    return available() >= min_length;
-  }
+bool HadoopSnappyReaderBase::PullBehindScratch() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
+         "some data available, use Pull() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Reader& src = *src_reader();
   truncated_ = false;

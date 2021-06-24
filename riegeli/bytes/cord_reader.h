@@ -56,14 +56,14 @@ class CordReaderBase : public PullableReader {
   void Initialize(const absl::Cord* src);
 
   void Done() override;
-  bool PullSlow(size_t min_length, size_t recommended_length) override;
-  using PullableReader::ReadSlow;
-  bool ReadSlow(size_t length, Chain& dest) override;
-  bool ReadSlow(size_t length, absl::Cord& dest) override;
-  using PullableReader::CopySlow;
-  bool CopySlow(Position length, Writer& dest) override;
-  bool CopySlow(size_t length, BackwardWriter& dest) override;
-  bool SeekSlow(Position new_pos) override;
+  bool PullBehindScratch() override;
+  using PullableReader::ReadBehindScratch;
+  bool ReadBehindScratch(size_t length, Chain& dest) override;
+  bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
+  using PullableReader::CopyBehindScratch;
+  bool CopyBehindScratch(Position length, Writer& dest) override;
+  bool CopyBehindScratch(size_t length, BackwardWriter& dest) override;
+  bool SeekBehindScratch(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
   // Invariant:

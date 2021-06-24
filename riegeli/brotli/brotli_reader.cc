@@ -59,8 +59,8 @@ void BrotliReaderBase::Done() {
     Fail(Annotate(absl::DataLossError("Truncated Brotli-compressed stream"),
                   absl::StrCat("at byte ", src.pos())));
   }
-  decompressor_.reset();
   PullableReader::Done();
+  decompressor_.reset();
 }
 
 void BrotliReaderBase::AnnotateFailure(absl::Status& status) {
@@ -69,13 +69,13 @@ void BrotliReaderBase::AnnotateFailure(absl::Status& status) {
   status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
 }
 
-bool BrotliReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Reader::PullSlow(): "
-         "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length, recommended_length))) {
-    return available() >= min_length;
-  }
+bool BrotliReaderBase::PullBehindScratch() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
+         "some data available, use Pull() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) return false;
   Reader& src = *src_reader();

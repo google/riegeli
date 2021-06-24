@@ -36,13 +36,13 @@ void ChainReaderBase::Done() {
   iter_ = Chain::BlockIterator();
 }
 
-bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
-      << "Failed precondition of Reader::PullSlow(): "
+bool ChainReaderBase::PullBehindScratch() {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";
-  if (ABSL_PREDICT_FALSE(!PullUsingScratch(min_length, recommended_length))) {
-    return available() >= min_length;
-  }
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::PullBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -61,14 +61,16 @@ bool ChainReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
   return false;
 }
 
-bool ChainReaderBase::ReadSlow(size_t length, Chain& dest) {
+bool ChainReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::ReadSlow(Chain&): "
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "enough data available, use Read(Chain&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadSlow(Chain&): "
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "Chain size overflow";
-  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -97,14 +99,16 @@ bool ChainReaderBase::ReadSlow(size_t length, Chain& dest) {
   return false;
 }
 
-bool ChainReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
+bool ChainReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::ReadSlow(Cord&): "
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "enough data available, use Read(Cord&) instead";
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadSlow(Cord&): "
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "Cord size overflow";
-  if (ABSL_PREDICT_FALSE(!ReadScratch(length, dest))) return length == 0;
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -133,10 +137,13 @@ bool ChainReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   return false;
 }
 
-bool ChainReaderBase::CopySlow(Position length, Writer& dest) {
+bool ChainReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopySlow(Writer&): "
+      << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "enough data available, use Copy(Writer&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -167,10 +174,15 @@ bool ChainReaderBase::CopySlow(Position length, Writer& dest) {
   return ok && length_to_copy == length;
 }
 
-bool ChainReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
+bool ChainReaderBase::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
-      << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
+      << "Failed precondition of "
+         "PullableReader::CopyBehindScratch(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PullableReader::CopyBehindScratch(BackwardWriter&): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -190,24 +202,27 @@ bool ChainReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   if (length <= kMaxBytesToCopy) {
     if (ABSL_PREDICT_FALSE(!dest.Push(length))) return false;
     dest.move_cursor(length);
-    if (ABSL_PREDICT_FALSE(!ReadSlow(length, dest.cursor()))) {
+    if (ABSL_PREDICT_FALSE(!ReadBehindScratch(length, dest.cursor()))) {
       dest.set_cursor(dest.cursor() + length);
       return false;
     }
     return true;
   }
   Chain data;
-  if (!ReadSlow(length, data)) {
-    RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::ReadSlow(Chain&) failed";
+  if (!ReadBehindScratch(length, data)) {
+    RIEGELI_ASSERT_UNREACHABLE()
+        << "ChainReader::ReadBehindScratch(Chain&) failed";
   }
   return dest.Write(std::move(data));
 }
 
-bool ChainReaderBase::SeekSlow(Position new_pos) {
+bool ChainReaderBase::SeekBehindScratch(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
-      << "Failed precondition of Reader::SeekSlow(): "
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!SeekUsingScratch(new_pos))) return true;
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())

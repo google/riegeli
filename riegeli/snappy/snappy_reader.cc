@@ -62,6 +62,11 @@ void SnappyReaderBase::Initialize(Reader* src,
   ChainReader::Reset(std::move(decompressed));
 }
 
+void SnappyReaderBase::Done() {
+  ChainReader::Done();
+  ChainReader::src() = Chain();
+}
+
 void SnappyReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
