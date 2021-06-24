@@ -70,9 +70,6 @@ void IstreamReaderBase::Initialize(std::istream* src,
 }
 
 bool IstreamReaderBase::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of IstreamReaderBase::FailOperation(): "
-         "Object closed";
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.

@@ -66,9 +66,6 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
 }
 
 bool OstreamWriterBase::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of OstreamWriterBase::FailOperation(): "
-         "Object closed";
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set
   // `errno` as a side effect.

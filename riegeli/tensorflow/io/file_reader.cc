@@ -103,9 +103,6 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of FileReaderBase::FailOperation(): "
          "status not failed";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FileReaderBase::FailOperation(): "
-         "Object closed";
   return Fail(
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
                             status.error_message()),

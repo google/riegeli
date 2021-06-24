@@ -267,6 +267,8 @@ class FdReader : public FdReaderBase {
   // `flags` is the second argument of `open()`, typically `O_RDONLY`.
   //
   // `flags` must include either `O_RDONLY` or `O_RDWR`.
+  //
+  // If opening the file fails, `FdReader` will be failed and closed.
   explicit FdReader(absl::string_view filename, int flags,
                     Options options = Options());
 
@@ -294,9 +296,7 @@ class FdReader : public FdReaderBase {
 
  private:
   using FdReaderBase::Initialize;
-  void Initialize(absl::string_view filename, int flags,
-                  absl::optional<Position> assumed_pos,
-                  absl::optional<Position> independent_pos);
+  void Initialize(absl::string_view filename, int flags, Options&& options);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -366,6 +366,8 @@ class FdMMapReader : public FdMMapReaderBase {
   // `flags` is the second argument of `open()`, typically `O_RDONLY`.
   //
   // `flags` must include either `O_RDONLY` or `O_RDWR`.
+  //
+  // If opening the file fails, `FdMMapReader` will be failed and closed.
   explicit FdMMapReader(absl::string_view filename, int flags,
                         Options options = Options());
 
@@ -393,8 +395,7 @@ class FdMMapReader : public FdMMapReaderBase {
 
  private:
   using FdMMapReaderBase::Initialize;
-  void Initialize(absl::string_view filename, int flags,
-                  absl::optional<Position> independent_pos);
+  void Initialize(absl::string_view filename, int flags, Options&& options);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -457,7 +458,7 @@ inline void FdReaderBase::Reset() {
 
 inline void FdReaderBase::Reset(size_t buffer_size) {
   BufferedReader::Reset(buffer_size);
-  // `filename_` will be set by `Initialize()`.
+  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = false;
   has_independent_pos_ = false;
 }
@@ -495,7 +496,7 @@ inline void FdMMapReaderBase::Reset(bool has_independent_pos) {
   // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
   // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
-  // `filename_` will be set by `Initialize()`.
+  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   has_independent_pos_ = has_independent_pos;
 }
 
@@ -520,9 +521,8 @@ inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
 
 template <typename Src>
 inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
-                               Options options)
-    : FdReaderBase(options.buffer_size()) {
-  Initialize(filename, flags, options.assumed_pos(), options.independent_pos());
+                               Options options) {
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Src>
@@ -573,23 +573,18 @@ inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
-  FdReaderBase::Reset(options.buffer_size());
-  src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.assumed_pos(), options.independent_pos());
+  Reset();
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Src>
 void FdReader<Src>::Initialize(absl::string_view filename, int flags,
-                               absl::optional<Position> assumed_pos,
-                               absl::optional<Position> independent_pos) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdReader: "
-         "flags must include either O_RDONLY or O_RDWR";
+                               Options&& options) {
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
+  FdReaderBase::Reset(options.buffer_size());
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), assumed_pos, independent_pos);
+  InitializePos(src_.get(), options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Src>
@@ -628,9 +623,8 @@ inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
-                                       Options options)
-    : FdMMapReaderBase(options.independent_pos() != absl::nullopt) {
-  Initialize(filename, flags, options.independent_pos());
+                                       Options options) {
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Src>
@@ -682,22 +676,18 @@ inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
-  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
-  src_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.independent_pos());
+  Reset();
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Src>
 void FdMMapReader<Src>::Initialize(absl::string_view filename, int flags,
-                                   absl::optional<Position> independent_pos) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdMMapReader: "
-         "flags must include either O_RDONLY or O_RDWR";
+                                   Options&& options) {
   const int src = OpenFd(filename, flags);
   if (ABSL_PREDICT_FALSE(src < 0)) return;
+  FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(std::forward_as_tuple(src));
-  InitializePos(src_.get(), independent_pos);
+  InitializePos(src_.get(), options.independent_pos());
 }
 
 template <typename Src>

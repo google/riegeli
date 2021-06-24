@@ -227,6 +227,8 @@ class FdWriter : public FdWriterBase {
   //  * `O_WRONLY | O_CREAT | O_APPEND`
   //
   // `flags` must include either `O_WRONLY` or `O_RDWR`.
+  //
+  // If opening the file fails, `FdWriter` will be failed and closed.
   explicit FdWriter(absl::string_view filename, int flags,
                     Options options = Options());
 
@@ -251,9 +253,7 @@ class FdWriter : public FdWriterBase {
 
  protected:
   using FdWriterBase::Initialize;
-  void Initialize(absl::string_view filename, int flags, mode_t permissions,
-                  absl::optional<Position> assumed_pos,
-                  absl::optional<Position> independent_pos);
+  void Initialize(absl::string_view filename, int flags, Options&& options);
 
   void Done() override;
 
@@ -316,7 +316,7 @@ inline void FdWriterBase::Reset() {
 
 inline void FdWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
-  // `filename_` will be set by `Initialize()`.
+  // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = false;
   has_independent_pos_ = false;
 }
@@ -343,10 +343,8 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
-                                Options options)
-    : FdWriterBase(options.buffer_size()) {
-  Initialize(filename, flags, options.permissions(), options.assumed_pos(),
-             options.independent_pos());
+                                Options options) {
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Dest>
@@ -397,25 +395,19 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
-  FdWriterBase::Reset(options.buffer_size());
-  dest_.Reset();  // In case `OpenFd()` fails.
-  Initialize(filename, flags, options.permissions(), options.assumed_pos(),
-             options.independent_pos());
+  Reset();
+  Initialize(filename, flags, std::move(options));
 }
 
 template <typename Dest>
 void FdWriter<Dest>::Initialize(absl::string_view filename, int flags,
-                                mode_t permissions,
-                                absl::optional<Position> assumed_pos,
-                                absl::optional<Position> independent_pos) {
-  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
-                 (flags & O_ACCMODE) == O_RDWR)
-      << "Failed precondition of FdWriter: "
-         "flags must include either O_WRONLY or O_RDWR";
-  const int dest = OpenFd(filename, flags, permissions);
+                                Options&& options) {
+  const int dest = OpenFd(filename, flags, options.permissions());
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
+  FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest));
-  InitializePos(dest_.get(), flags, assumed_pos, independent_pos);
+  InitializePos(dest_.get(), flags, options.assumed_pos(),
+                options.independent_pos());
 }
 
 template <typename Dest>

@@ -45,7 +45,9 @@ void Reader::VerifyEnd() {
 void Reader::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("at byte ", pos()));
+  if (is_open()) {
+    status = Annotate(status, absl::StrCat("at byte ", pos()));
+  }
 }
 
 bool Reader::FailOverflow() {

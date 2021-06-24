@@ -33,7 +33,9 @@ namespace riegeli {
 void Writer::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("at byte ", start_pos()));
+  if (is_open()) {
+    status = Annotate(status, absl::StrCat("at byte ", start_pos()));
+  }
 }
 
 void Writer::OnFail() { set_buffer(); }

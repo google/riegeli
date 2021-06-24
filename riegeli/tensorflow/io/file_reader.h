@@ -223,6 +223,8 @@ class FileReader : public FileReaderBase {
                       Options options = Options());
 
   // Opens a `::tensorflow::RandomAccessFile` for reading.
+  //
+  // If opening the file fails, `FileReader` will be failed and closed.
   explicit FileReader(absl::string_view filename, Options options = Options());
 
   FileReader(FileReader&& that) noexcept;
@@ -252,8 +254,7 @@ class FileReader : public FileReaderBase {
 
  private:
   using FileReaderBase::Initialize;
-  void Initialize(absl::string_view filename, ::tensorflow::Env* env,
-                  Position initial_pos);
+  void Initialize(absl::string_view filename, Options&& options);
 
   // The object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from.
@@ -316,8 +317,8 @@ inline void FileReaderBase::Reset() {
 
 inline void FileReaderBase::Reset(size_t buffer_size) {
   Reader::Reset(kInitiallyOpen);
-  filename_.clear();
-  file_system_ = nullptr;
+  // `filename_` and `file_system_` will be or were set by
+  // `InitializeFilename()`.
   buffer_size_ = buffer_size;
   buffer_.Clear();
 }
@@ -352,9 +353,9 @@ inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
-    : FileReaderBase(options.buffer_size()) {
-  Initialize(filename, options.env(), options.initial_pos());
+inline FileReader<Src>::FileReader(absl::string_view filename,
+                                   Options options) {
+  Initialize(filename, std::move(options));
 }
 
 template <typename Src>
@@ -389,20 +390,19 @@ inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FileReader<Src>::Reset(absl::string_view filename,
                                    Options options) {
-  FileReaderBase::Reset(options.buffer_size());
-  src_.Reset();  // In case `OpenFile()` fails.
-  Initialize(filename, options.env(), options.initial_pos());
+  Reset();
+  Initialize(filename, std::move(options));
 }
 
 template <typename Src>
 inline void FileReader<Src>::Initialize(absl::string_view filename,
-                                        ::tensorflow::Env* env,
-                                        Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(!InitializeFilename(filename, env))) return;
+                                        Options&& options) {
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(filename, options.env()))) return;
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
+  FileReaderBase::Reset(options.buffer_size());
   src_.Reset(std::forward_as_tuple(src.release()));
-  InitializePos(initial_pos);
+  InitializePos(options.initial_pos());
 }
 
 template <typename Src>

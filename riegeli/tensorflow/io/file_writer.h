@@ -193,6 +193,8 @@ class FileWriter : public FileWriterBase {
                       Options options = Options());
 
   // Opens a `::tensorflow::WritableFile` for writing.
+  //
+  // If opening the file fails, `FileWriter` will be failed and closed.
   explicit FileWriter(absl::string_view filename, Options options = Options());
 
   FileWriter(FileWriter&& that) noexcept;
@@ -219,8 +221,7 @@ class FileWriter : public FileWriterBase {
 
  private:
   using FileWriterBase::Initialize;
-  void Initialize(absl::string_view filename, ::tensorflow::Env* env,
-                  bool append);
+  void Initialize(absl::string_view filename, Options&& options);
 
   // The object providing and possibly owning the `::tensorflow::WritableFile`
   // being written to.
@@ -279,7 +280,8 @@ inline void FileWriterBase::Reset() {
 
 inline void FileWriterBase::Reset(size_t buffer_size) {
   Writer::Reset(kInitiallyOpen);
-  filename_.clear();
+  // `filename_` will by set by `InitializeFilename()` or was set by
+  // `OpenFile()`.
   buffer_size_ = buffer_size;
 }
 
@@ -311,9 +313,9 @@ inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
-    : FileWriterBase(options.buffer_size()) {
-  Initialize(filename, options.env(), options.append());
+inline FileWriter<Dest>::FileWriter(absl::string_view filename,
+                                    Options options) {
+  Initialize(filename, std::move(options));
 }
 
 template <typename Dest>
@@ -366,17 +368,17 @@ inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(absl::string_view filename,
                                     Options options) {
-  FileWriterBase::Reset(options.buffer_size());
-  dest_.Reset();  // In case `OpenFile()` fails.
-  Initialize(filename, options.env(), options.append());
+  Reset();
+  Initialize(filename, std::move(options));
 }
 
 template <typename Dest>
 inline void FileWriter<Dest>::Initialize(absl::string_view filename,
-                                         ::tensorflow::Env* env, bool append) {
+                                         Options&& options) {
   std::unique_ptr<::tensorflow::WritableFile> dest =
-      OpenFile(env, filename, append);
+      OpenFile(options.env(), filename, options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
+  FileWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest.release()));
   InitializePos(dest_.get());
 }

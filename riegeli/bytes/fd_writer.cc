@@ -67,6 +67,10 @@ inline void FdWriterBase::SetFilename(int dest) {
 
 int FdWriterBase::OpenFd(absl::string_view filename, int flags,
                          mode_t permissions) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_WRONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdWriter: "
+         "flags must include either O_WRONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
@@ -146,9 +150,6 @@ bool FdWriterBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdWriterBase::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FdWriterBase::FailOperation(): "
-         "Object closed";
   return Fail(
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }

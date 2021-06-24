@@ -94,6 +94,10 @@ inline void FdReaderBase::SetFilename(int src) {
 }
 
 int FdReaderBase::OpenFd(absl::string_view filename, int flags) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdReader: "
+         "flags must include either O_RDONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
@@ -155,9 +159,6 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdReaderBase::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FdReaderBase::FailOperation(): "
-         "Object closed";
   return Fail(
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
@@ -283,6 +284,10 @@ inline void FdMMapReaderBase::SetFilename(int src) {
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {
+  RIEGELI_ASSERT((flags & O_ACCMODE) == O_RDONLY ||
+                 (flags & O_ACCMODE) == O_RDWR)
+      << "Failed precondition of FdMMapReader: "
+         "flags must include either O_RDONLY or O_RDWR";
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
@@ -346,9 +351,6 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
-  RIEGELI_ASSERT(is_open())
-      << "Failed precondition of FdMMapReaderBase::FailOperation(): "
-         "Object closed";
   return Fail(
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
