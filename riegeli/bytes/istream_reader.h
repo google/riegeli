@@ -103,11 +103,11 @@ class IstreamReaderBase : public BufferedReader {
 
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
-  absl::optional<Position> SizeImpl() override;
 
   // Whether random access is supported, as detected by calling
   // `std::istream::tellg()` and `std::istream::seekg()` to the end and back.
