@@ -45,7 +45,7 @@ namespace riegeli {
 // Working with `RecordPosition` is recommended, unless it is needed to seek to
 // an approximate position interpolated along the file, e.g. for splitting the
 // file into shards, or unless the position must be expressed as an integer from
-// the range [0, `file_size`] in order to fit into a preexisting API.
+// the range [0..`file_size`] in order to fit into a preexisting API.
 class RecordPosition {
  public:
   // Creates a `RecordPosition` corresponding to the first record.

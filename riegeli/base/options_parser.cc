@@ -54,8 +54,8 @@ ValueParser::Function ValueParser::Int(int min_value, int max_value, int* out) {
       *out = int_value;
       return true;
     }
-    return value_parser.InvalidValue(
-        absl::StrCat("integers ", min_value, "..", max_value));
+    return value_parser.InvalidValue(absl::StrCat(
+        "integers in the range [", min_value, "..", max_value, "]"));
   };
 }
 
@@ -113,8 +113,8 @@ ValueParser::Function ValueParser::Bytes(uint64_t min_value, uint64_t max_value,
     }
     return value_parser.InvalidValue(
         absl::StrCat("integers expressed as reals with "
-                     "optional suffix [BkKMGTPE], ",
-                     min_value, "..", max_value));
+                     "optional suffix [BkKMGTPE], in the range [",
+                     min_value, "..", max_value, "]"));
   };
 }
 
@@ -131,7 +131,7 @@ ValueParser::Function ValueParser::Real(double min_value, double max_value,
       return true;
     }
     return value_parser.InvalidValue(
-        absl::StrCat("reals ", min_value, "..", max_value));
+        absl::StrCat("reals in the range [", min_value, "..", max_value, "]"));
   };
 }
 

@@ -47,8 +47,8 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
   const char* start = src.data();
   const char* next_to_check = src.data() + already_scanned;
   const char* const limit = src.data() + src.size();
-  // Write characters [start, limit), except that if quotes are found in
-  // [next_to_check, limit), write them twice.
+  // Write characters in the range [`start`..`limit`), except that if quotes are
+  // found in the range [`next_to_check`..`limit`), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
              next_to_check, '"', PtrDistance(next_to_check, limit)))) {
     writer.Write(absl::string_view(start, PtrDistance(start, next_quote + 1)));

@@ -40,9 +40,9 @@ class CompressorOptions {
   //     "zstd" (":" zstd_level)? |
   //     "snappy" |
   //     "window_log" ":" window_log
-  //   brotli_level ::= integer 0..11 (default 6)
-  //   zstd_level ::= integer -131072..22 (default 3)
-  //   window_log ::= "auto" or integer 10..31
+  //   brotli_level ::= integer in the range [0..11] (default 6)
+  //   zstd_level ::= integer in the range [-131072..22] (default 3)
+  //   window_log ::= "auto" or integer in the range [10..31]
   // ```
   //
   // Returns status:

@@ -367,7 +367,7 @@ class Reader : public Object {
   //  * `limit()` - to `start + buffer_size`
   //
   // Preconditions:
-  //   [`start`, `start + buffer_size`) is a valid byte range
+  //   [`start`..`start + buffer_size`) is a valid byte range
   //   `read_from_buffer <= buffer_size`
   void set_buffer(const char* start = nullptr, size_t buffer_size = 0,
                   size_t read_from_buffer = 0);

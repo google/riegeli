@@ -60,14 +60,14 @@ class ValueParser : public Object {
   static Function Enum(std::vector<std::pair<std::string, T>> possible_values,
                        T* out);
 
-  // Value parser for integers `min_value`..`max_value`.
+  // Value parser for integers in the range [`min_value`..`max_value`].
   static Function Int(int min_value, int max_value, int* out);
 
   // Value parser for integers expressed as reals with optional suffix
-  // `[BkKMGTPE]`, `min_value`..`max_value`.
+  // `[BkKMGTPE]`, in the range [`min_value`..`max_value`].
   static Function Bytes(uint64_t min_value, uint64_t max_value, uint64_t* out);
 
-  // Value parser for reals `min_value`..`max_value`.
+  // Value parser for reals in the range [`min_value`..`max_value`].
   static Function Real(double min_value, double max_value, double* out);
 
   // Value parser which tries multiple parsers and returns the result of the

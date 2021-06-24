@@ -287,7 +287,7 @@ class Writer : public Object {
   //  * `limit()` - to `start + buffer_size`
   //
   // Preconditions:
-  //   [`start`, `start + buffer_size`) is a valid byte range
+  //   [`start`..`start + buffer_size`) is a valid byte range
   //   `written_to_buffer <= buffer_size`
   void set_buffer(char* start = nullptr, size_t buffer_size = 0,
                   size_t written_to_buffer = 0);

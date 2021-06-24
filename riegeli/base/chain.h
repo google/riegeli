@@ -591,7 +591,7 @@ class Chain {
   //   if `begin_ == end_` then `size_ <= kMaxShortDataSize`
   //   if `begin_ == end_ && has_allocated()` then `size_ == 0`
   //   if `begin_ != end_` then
-  //       `size_` is the sum of sizes of blocks in [`begin_`, `end_`)
+  //       `size_` is the sum of sizes of blocks in the range [`begin_`..`end_`)
   size_t size_ = 0;
 };
 

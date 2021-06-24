@@ -1274,7 +1274,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
   return state_machine;
 }
 
-// Maximum transition number. Transitions are encoded as values
+// Maximum transition number. Transitions are encoded as values in the range
 // [0..`kMaxTransition`].
 constexpr uint32_t kMaxTransition = 63;
 // Minimum number of transitions between nodes A and B for state for node B to

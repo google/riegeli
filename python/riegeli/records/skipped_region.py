@@ -40,7 +40,7 @@ class SkippedRegion:
     return self.end - self.begin
 
   def __str__(self):
-    return f'[{self.begin}, {self.end}): {self.message}'
+    return f'[{self.begin}..{self.end}): {self.message}'
 
   def __repr__(self):
     return f'SkippedRegion({self.begin}, {self.end}, {self.message!r})'

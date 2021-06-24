@@ -22,7 +22,7 @@
 namespace riegeli {
 
 std::string SkippedRegion::ToString() const {
-  return absl::StrCat("[", begin_, ", ", end_, "): ", message_);
+  return absl::StrCat("[", begin_, "..", end_, "): ", message_);
 }
 
 std::ostream& operator<<(std::ostream& out,

@@ -75,13 +75,13 @@ class RecordWriterBase : public Object {
     //     "bucket_fraction" ":" bucket_fraction |
     //     "pad_to_block_boundary" (":" ("true" | "false"))? |
     //     "parallelism" ":" parallelism
-    //   brotli_level ::= integer 0..11 (default 6)
-    //   zstd_level ::= integer -131072..22 (default 3)
-    //   window_log ::= "auto" or integer 10..31
-    //   chunk_size ::= "auto" or integer expressed as real with optional suffix
-    //     [BkKMGTPE], 1..
-    //   bucket_fraction ::= real 0..1
-    //   parallelism ::= integer 0..
+    //   brotli_level ::= integer in the range [0..11] (default 6)
+    //   zstd_level ::= integer in the range [-131072..22] (default 3)
+    //   window_log ::= "auto" or integer in the range [10..31]
+    //   chunk_size ::= "auto" or positive integer expressed as real with
+    //     optional suffix [BkKMGTPE]
+    //   bucket_fraction ::= real in the range [0..1]
+    //   parallelism ::= non-negative integer
     // ```
     //
     // An empty string is the same as "default".

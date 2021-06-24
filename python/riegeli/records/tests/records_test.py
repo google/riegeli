@@ -847,9 +847,9 @@ class RecordsTest(parameterized.TestCase):
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
-      # Corrupt the header of the chunk containing records [9, 12).
+      # Corrupt the header of the chunk containing records [9..12).
       self.corrupt_at(files, positions[9].chunk_begin + 20)
-      # Read records [0, 9) successfully (all before the corrupted chunk).
+      # Read records [0..9) successfully (all before the corrupted chunk).
       reader = riegeli.RecordReader(
           files.reading_open(),
           owns_src=files.reading_should_close,
@@ -874,9 +874,9 @@ class RecordsTest(parameterized.TestCase):
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
-      # Corrupt the header of the chunk containing records [9, 12).
+      # Corrupt the header of the chunk containing records [9..12).
       self.corrupt_at(files, positions[9].chunk_begin + 20)
-      # Read records [0, 9) and [15, 23) successfully (all except the corrupted
+      # Read records [0..9) and [15..23) successfully (all except the corrupted
       # chunk and the next chunk which intersects the same block).
       skipped_regions = []
       with riegeli.RecordReader(
@@ -908,9 +908,9 @@ class RecordsTest(parameterized.TestCase):
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
-      # Corrupt the header of the chunk containing records [9, 12).
+      # Corrupt the header of the chunk containing records [9..12).
       self.corrupt_at(files, positions[9].chunk_begin + 20)
-      # Read records [0, 9) successfully (all before the corrupted chunk).
+      # Read records [0..9) successfully (all before the corrupted chunk).
       skipped_regions = []
 
       def recovery(skipped_region):
@@ -944,7 +944,7 @@ class RecordsTest(parameterized.TestCase):
         for i in range(23):
           writer.write_record(sample_string(i, 10000))
           positions.append(writer.last_pos)
-      # Corrupt the header of the chunk containing records [9, 12).
+      # Corrupt the header of the chunk containing records [9..12).
       self.corrupt_at(files, positions[9].chunk_begin + 20)
 
       # Propagate exception from the recovery function

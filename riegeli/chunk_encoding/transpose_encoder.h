@@ -171,7 +171,7 @@ class TransposeEncoder : public ChunkEncoder {
     // `kInvalidPos` for `kNoOp` states.
     uint32_t etag_index;
     // Base index of this state. Transitions from this state can target only
-    // states [`base`, `base + kMaxTransition`].
+    // states in the range [`base`..`base + kMaxTransition`].
     // `kInvalidPos` if no outgoing transition.
     uint32_t base;
     // Usual source of transition into this state. Set if there is `kNoOp`
@@ -260,7 +260,7 @@ class TransposeEncoder : public ChunkEncoder {
     // serves infrequent transitions.
     uint32_t public_list_noop_pos;
     // Base index of this encoded tag. Transitions from this tag can target only
-    // states [`base`, `base + kMaxTransition`].
+    // states in the range [`base`..`base + kMaxTransition`].
     // `kInvalidPos` if no outgoing transition.
     uint32_t base;
   };

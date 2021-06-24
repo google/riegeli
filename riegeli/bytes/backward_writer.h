@@ -260,7 +260,7 @@ class BackwardWriter : public Object {
   //  * `limit()` - to `limit`
   //
   // Preconditions:
-  //   [`limit`, `limit + buffer_size`) is a valid byte range
+  //   [`limit`..`limit + buffer_size`) is a valid byte range
   //   `written_to_buffer <= buffer_size`
   void set_buffer(char* limit = nullptr, size_t buffer_size = 0,
                   size_t written_to_buffer = 0);

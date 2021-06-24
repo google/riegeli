@@ -94,8 +94,8 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
   const char* start = field.data();
   const char* next_to_check = field.data() + already_scanned;
   const char* const limit = field.data() + field.size();
-  // Write characters [start, limit), except that if quotes are found in
-  // [next_to_check, limit), write them twice.
+  // Write characters in the range [`start`..`limit`), except that if quotes are
+  // found in the range [`next_to_check`..`limit`), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
              next_to_check, *quote_, PtrDistance(next_to_check, limit)))) {
     if (ABSL_PREDICT_FALSE(!dest.Write(

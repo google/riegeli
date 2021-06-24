@@ -49,7 +49,7 @@ class SkippedRegion {
   // Message explaining why the region is invalid.
   const std::string& message() const { return message_; }
 
-  // Formats `SkippedRegion` as string: "[<begin>, <end>): <message>".
+  // Formats `SkippedRegion` as string: "[<begin>..<end>): <message>".
   std::string ToString() const;
 
   // Same as: `out << skipped_region.ToString()`
