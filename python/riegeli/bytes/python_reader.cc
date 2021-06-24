@@ -83,10 +83,6 @@ PythonReader::PythonReader(PyObject* src, Options options)
 }
 
 void PythonReader::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
-      available() > 0) {
-    SyncPos();
-  }
   BufferedReader::Done();
   if (owns_src_ && src_ != nullptr) {
     PythonLock lock;
@@ -238,41 +234,17 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-inline bool PythonReader::SyncPos() {
-  PythonLock lock;
-  const PythonPtr file_pos = PositionToPython(pos());
-  if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
-    return FailOperation("PositionToPython()");
-  }
-  static constexpr Identifier id_seek("seek");
-  const PythonPtr seek_result(PyObject_CallMethodObjArgs(
-      src_.get(), id_seek.get(), file_pos.get(), nullptr));
-  if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
-    return FailOperation("seek()");
-  }
-  return true;
-}
-
-bool PythonReader::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (supports_random_access_ && available() > 0) {
-    const bool ok = SyncPos();
-    set_limit_pos(pos());
-    ClearBuffer();
-    if (ABSL_PREDICT_FALSE(!ok)) return false;
-  }
-  return true;
-}
-
-bool PythonReader::SeekSlow(Position new_pos) {
+bool PythonReader::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
-      << "Failed precondition of Reader::SeekSlow(): "
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    return BufferedReader::SeekSlow(new_pos);
+    return BufferedReader::SeekBehindBuffer(new_pos);
   }
-  ClearBuffer();
   PythonLock lock;
   if (new_pos > limit_pos()) {
     // Seeking forwards.

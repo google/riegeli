@@ -134,16 +134,14 @@ class FdReaderBase : public BufferedReader {
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
-  void Done() override;
   void AnnotateFailure(absl::Status& status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
-  bool SyncImpl(SyncType sync_type) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
   void SetFilename(int src);
-  bool SyncPos(int src);
+  bool SeekInternal(int dest, Position new_pos);
 
   std::string filename_;
   bool supports_random_access_ = false;
@@ -213,7 +211,6 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
  private:
   void SetFilename(int src);
-  bool SyncPos(int src);
 
   std::string filename_;
   bool has_independent_pos_ = false;

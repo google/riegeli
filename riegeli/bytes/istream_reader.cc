@@ -117,15 +117,6 @@ bool IstreamReaderBase::supports_random_access() {
   return supported;
 }
 
-void IstreamReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && available() > 0 &&
-      supports_random_access()) {
-    std::istream& src = *src_stream();
-    SyncPos(src);
-  }
-  BufferedReader::Done();
-}
-
 bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                      char* dest) {
   RIEGELI_ASSERT_GT(min_length, 0u)
@@ -205,39 +196,17 @@ bool IstreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool IstreamReaderBase::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (available() > 0 && supports_random_access()) {
-    std::istream& src = *src_stream();
-    const bool ok = SyncPos(src);
-    set_limit_pos(pos());
-    ClearBuffer();
-    if (ABSL_PREDICT_FALSE(!ok)) return false;
-  }
-  return true;
-}
-
-inline bool IstreamReaderBase::SyncPos(std::istream& src) {
-  RIEGELI_ASSERT(supports_random_access_ == LazyBoolState::kTrue)
-      << "Failed precondition of IstreamReaderBase::SyncPos(): "
-         "random access not certain to be supported";
-  errno = 0;
-  src.seekg(-IntCast<std::streamoff>(available()), std::ios_base::cur);
-  if (ABSL_PREDICT_FALSE(src.fail())) {
-    return FailOperation("istream::seekg()");
-  }
-  return true;
-}
-
-bool IstreamReaderBase::SeekSlow(Position new_pos) {
+bool IstreamReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
-      << "Failed precondition of Reader::SeekSlow(): "
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
-    return BufferedReader::SeekSlow(new_pos);
+    return BufferedReader::SeekBehindBuffer(new_pos);
   }
-  ClearBuffer();
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::istream& src = *src_stream();
   errno = 0;
   if (new_pos >= limit_pos()) {

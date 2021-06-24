@@ -75,8 +75,8 @@ void ZlibReaderBase::Done() {
     Fail(Annotate(absl::DataLossError("Truncated zlib-compressed stream"),
                   absl::StrCat("at byte ", src.pos())));
   }
-  decompressor_.reset();
   BufferedReader::Done();
+  decompressor_.reset();
 }
 
 inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,

@@ -121,6 +121,16 @@ void FileReaderBase::AnnotateFailure(absl::Status& status) {
   Reader::AnnotateFailure(status);
 }
 
+void FileReaderBase::Done() {
+  Reader::Done();
+  buffer_ = ChainBlock();
+}
+
+inline void FileReaderBase::SyncBuffer() {
+  buffer_.Clear();
+  set_buffer();
+}
+
 inline size_t FileReaderBase::LengthToReadDirectly() const {
   // Read directly if reading through `buffer_` would need more than one read,
   // or if `buffer_` would be full.
@@ -176,7 +186,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 inline bool FileReaderBase::ReadToDest(size_t length,
                                        ::tensorflow::RandomAccessFile* src,
                                        char* dest, size_t& length_read) {
-  ClearBuffer();
+  SyncBuffer();
   if (ABSL_PREDICT_FALSE(length >
                          std::numeric_limits<::tensorflow::uint64>::max() -
                              limit_pos())) {
@@ -258,7 +268,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
       length -= available_length;
     }
     if (ABSL_PREDICT_FALSE(!healthy())) {
-      ClearBuffer();
+      SyncBuffer();
       return false;
     }
     size_t length_read;
@@ -508,7 +518,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SeekSlow(new_pos);
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  ClearBuffer();
+  SyncBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     ::tensorflow::uint64 file_size;
@@ -542,11 +552,6 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     }
   }
   return Position{file_size};
-}
-
-void FileReaderBase::ClearBuffer() {
-  buffer_.Clear();
-  set_buffer();
 }
 
 }  // namespace tensorflow

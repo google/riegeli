@@ -150,15 +150,6 @@ void FdReaderBase::InitializePos(int src, absl::optional<Position> assumed_pos,
   }
 }
 
-void FdReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy()) && supports_random_access_ &&
-      available() > 0) {
-    const int src = src_fd();
-    SyncPos(src);
-  }
-  BufferedReader::Done();
-}
-
 bool FdReaderBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
@@ -221,37 +212,34 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-bool FdReaderBase::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (supports_random_access_ && available() > 0) {
-    const int src = src_fd();
-    return SyncPos(src);
-  }
-  return true;
-}
-
-inline bool FdReaderBase::SyncPos(int src) {
+inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of FdReaderBase::SeekInternal(): "
+         "buffer not empty";
   RIEGELI_ASSERT(supports_random_access_)
-      << "Failed precondition of FdReaderBase::SyncPos(): "
+      << "Failed precondition of FdReaderBase::SeekInternal(): "
          "random access not supported";
   if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
+    if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(new_pos), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
   }
+  set_limit_pos(new_pos);
   return true;
 }
 
-bool FdReaderBase::SeekSlow(Position new_pos) {
+bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
-      << "Failed precondition of Reader::SeekSlow(): "
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
-    return BufferedReader::SeekSlow(new_pos);
+    return BufferedReader::SeekBehindBuffer(new_pos);
   }
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const int src = src_fd();
-  ClearBuffer();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     struct stat stat_info;
@@ -260,13 +248,11 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      set_limit_pos(IntCast<Position>(stat_info.st_size));
-      SyncPos(src);
+      SeekInternal(src, IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
-  set_limit_pos(new_pos);
-  return SyncPos(src);
+  return SeekInternal(src, new_pos);
 }
 
 absl::optional<Position> FdReaderBase::SizeImpl() {
@@ -350,10 +336,7 @@ void FdMMapReaderBase::InitializePos(int src,
 }
 
 void FdMMapReaderBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    const int src = src_fd();
-    SyncPos(src);
-  }
+  FdMMapReaderBase::SyncImpl(SyncType::kFromObject);
   ChainReader::Done();
   ChainReader::src().Clear();
 }
@@ -377,19 +360,15 @@ void FdMMapReaderBase::AnnotateFailure(absl::Status& status) {
   ChainReader::AnnotateFailure(status);
 }
 
-inline bool FdMMapReaderBase::SyncPos(int src) {
+bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int src = src_fd();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(src, IntCast<off_t>(pos()), SEEK_SET) < 0)) {
       return FailOperation("lseek()");
     }
   }
   return true;
-}
-
-bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  const int src = src_fd();
-  return SyncPos(src);
 }
 
 }  // namespace riegeli

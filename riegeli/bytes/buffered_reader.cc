@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -33,11 +34,32 @@
 
 namespace riegeli {
 
+void BufferedReader::Done() {
+  if (available() > 0) {
+    if (!SupportsRandomAccess()) {
+      // Seeking back is not feasible.
+      Reader::Done();
+      buffer_ = ChainBlock();
+      return;
+    }
+    const Position new_pos = pos();
+    set_buffer();
+    buffer_ = ChainBlock();
+    SeekBehindBuffer(new_pos);
+  }
+  Reader::Done();
+}
+
 void BufferedReader::VerifyEnd() {
   // No more data are expected, so allocate a minimum non-empty buffer for
   // verifying that.
   set_size_hint(SaturatingAdd(pos(), Position{1}));
   Reader::VerifyEnd();
+}
+
+inline void BufferedReader::SyncBuffer() {
+  set_buffer();
+  buffer_.Clear();
 }
 
 inline size_t BufferedReader::LengthToReadDirectly() const {
@@ -84,6 +106,29 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   return ok;
 }
 
+bool BufferedReader::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
+    return Fail(
+        absl::UnimplementedError("Reader::Seek() backwards not supported"));
+  }
+  // Seeking forwards.
+  do {
+    move_cursor(available());
+    if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
+  } while (new_pos > limit_pos());
+  const Position available_length = limit_pos() - new_pos;
+  RIEGELI_ASSERT_LE(available_length, buffer_size())
+      << "Reader::PullSlow() skipped some data";
+  set_cursor(limit() - available_length);
+  return true;
+}
+
 bool BufferedReader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
@@ -97,7 +142,7 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
       dest += available_length;
       length -= available_length;
     }
-    ClearBuffer();
+    SyncBuffer();
     if (ABSL_PREDICT_FALSE(!healthy())) return false;
     return ReadInternal(length, length, dest);
   }
@@ -121,7 +166,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       break;
     }
     if (available() == 0 && length >= LengthToReadDirectly()) {
-      ClearBuffer();
+      SyncBuffer();
       const absl::Span<char> flat_buffer = dest.AppendFixedBuffer(length);
       const Position pos_before = limit_pos();
       if (ABSL_PREDICT_FALSE(!ReadInternal(
@@ -185,7 +230,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       break;
     }
     if (available() == 0 && length >= LengthToReadDirectly()) {
-      ClearBuffer();
+      SyncBuffer();
       Buffer flat_buffer(length);
       const Position pos_before = limit_pos();
       if (ABSL_PREDICT_FALSE(
@@ -357,9 +402,25 @@ void BufferedReader::ReadHintSlow(size_t length) {
   set_buffer(buffer_.data(), buffer_.size(), cursor_index);
 }
 
-void BufferedReader::ClearBuffer() {
-  buffer_.Clear();
-  set_buffer();
+bool BufferedReader::SyncImpl(SyncType sync_type) {
+  if (available() > 0) {
+    if (!SupportsRandomAccess()) {
+      // Seeking back is not feasible.
+      return healthy();
+    }
+    const Position new_pos = pos();
+    SyncBuffer();
+    SeekBehindBuffer(new_pos);
+  }
+  return healthy();
+}
+
+bool BufferedReader::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of Reader::SeekSlow(): "
+         "position in the buffer, use Seek() instead";
+  SyncBuffer();
+  return SeekBehindBuffer(new_pos);
 }
 
 }  // namespace riegeli

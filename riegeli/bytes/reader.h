@@ -253,11 +253,12 @@ class Reader : public Object {
   bool CopyAll(BackwardWriter& dest,
                size_t max_length = std::numeric_limits<size_t>::max());
 
-  // Synchronizes the current position to the source (if applicable).
+  // Synchronizes the current position to the source and discards buffered data
+  // read from the source (if applicable).
   //
   // In contrast to `Close()`, keeps the possibility to read more data later.
   // What exactly does it mean for the position to be synchronized depends on
-  // the source.
+  // the source. If this is not applicable or not feasible, does nothing.
   //
   // The scope of objects to synchronize is specified by `sync_type`:
   //  * `SyncType::kFromObject`  - Propagates synchronization through owned

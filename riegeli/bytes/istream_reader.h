@@ -88,9 +88,6 @@ class IstreamReaderBase : public BufferedReader {
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
-
   IstreamReaderBase() noexcept {}
 
   explicit IstreamReaderBase(size_t buffer_size);
@@ -100,15 +97,16 @@ class IstreamReaderBase : public BufferedReader {
 
   void Reset();
   void Reset(size_t buffer_size);
-  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
+  ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool supports_random_access();
-  bool SyncPos(std::istream& src);
 
-  void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
-  bool SeekSlow(Position new_pos) override;
-  bool SyncImpl(SyncType sync_type) override;
+  bool SeekBehindBuffer(Position new_pos) override;
+
+ private:
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
   absl::optional<Position> SizeImpl() override;
 
   // Whether random access is supported, as detected by calling

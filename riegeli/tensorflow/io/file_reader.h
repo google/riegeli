@@ -130,6 +130,7 @@ class FileReaderBase : public Reader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
 
+  void Done() override;
   void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
@@ -144,7 +145,7 @@ class FileReaderBase : public Reader {
 
  private:
   // Discards buffer contents.
-  void ClearBuffer();
+  void SyncBuffer();
 
   // Minimum length for which it is better to append current contents of
   // `buffer_` and read the remaining data directly than to read the data
@@ -154,7 +155,7 @@ class FileReaderBase : public Reader {
   // Clears `buffer_`. Reads `length` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, to `dest[]`.
   //
-  // Sets `length_read` to the length read.
+  // Sets `length_read` to the length read. Returns `true` on success.
   //
   // Increments `limit_pos()` by the length read.
   bool ReadToDest(size_t length, ::tensorflow::RandomAccessFile* src,
@@ -166,7 +167,8 @@ class FileReaderBase : public Reader {
   // `cursor_index` is the amount of already read data before previously
   // available data.
   //
-  // Increments `limit_pos()` by the length read. Sets buffer pointers.
+  // Increments `limit_pos()` by the length read. Sets buffer pointers. Returns
+  // `true` on success.
   //
   // Precondition: `flat_buffer` is a suffix of `buffer_`
   bool ReadToBuffer(size_t cursor_index, ::tensorflow::RandomAccessFile* src,

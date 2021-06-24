@@ -135,13 +135,11 @@ class PythonReader : public BufferedReader {
  protected:
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
-  bool SyncImpl(SyncType sync_type) override;
-  bool SeekSlow(Position new_pos) override;
+  bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  bool SyncPos();
   absl::optional<Position> SizeInternal();
 
   PythonPtrLocking src_;

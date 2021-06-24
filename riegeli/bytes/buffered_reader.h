@@ -50,6 +50,8 @@ class BufferedReader : public Reader {
   // unknown. This avoids allocating a larger buffer than necessary.
   //
   // If the size hint turns out to not match reality, nothing breaks.
+  //
+  // Precondition: `buffer_size > 0`
   explicit BufferedReader(
       size_t buffer_size,
       absl::optional<Position> size_hint = absl::nullopt) noexcept;
@@ -66,9 +68,18 @@ class BufferedReader : public Reader {
              absl::optional<Position> size_hint = absl::nullopt);
 
   // Changes the size hint after construction.
-  void set_size_hint(absl::optional<Position> size_hint) {
-    size_hint_ = size_hint.value_or(0);
-  }
+  void set_size_hint(absl::optional<Position> size_hint);
+
+  // `BufferedReader::{Done,SyncImpl}()` seek the source back to the current
+  // position if not all buffered data were read. This is feasible only if
+  // `SupportsRandomAccess()`.
+  //
+  // Warning: if `!SupportsRandomAccess()`, the source will have an
+  // unpredictable amount of extra data consumed because of buffering.
+  //
+  // For propagating `{Close,Sync}()` to dependencies, `{Done,SyncImpl}()`
+  // should be overridden to call `BufferedReader::{Done,SyncImpl}()` and then
+  // close/sync the dependencies.
 
   // Reads data from the source, from the physical source position which is
   // `limit_pos()`.
@@ -77,7 +88,9 @@ class BufferedReader : public Reader {
   // reading at least `min_length` if less data was available in the source at
   // the moment.
   //
-  // Increments `limit_pos()` by the length read.
+  // Does not use buffer pointers. Increments `limit_pos()` by the length read,
+  // which must be in the range [`min_length`..`max_length`] on success. Returns
+  // `true` on success.
   //
   // Preconditions:
   //   `0 < min_length <= max_length`
@@ -85,6 +98,17 @@ class BufferedReader : public Reader {
   virtual bool ReadInternal(size_t min_length, size_t max_length,
                             char* dest) = 0;
 
+  // Implementation of `SeekSlow()`, called while no data are buffered.
+  //
+  // By default it is implemented analogously to the corresponding `Reader`
+  // function.
+  //
+  // Preconditions:
+  //   like the corresponding `Reader` function
+  //   `buffer_size() == 0`
+  virtual bool SeekBehindBuffer(Position new_pos);
+
+  void Done() override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   using Reader::ReadSlow;
   bool ReadSlow(size_t length, char* dest) override;
@@ -94,11 +118,16 @@ class BufferedReader : public Reader {
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
   void ReadHintSlow(size_t length) override;
-
-  // Discards buffer contents.
-  void ClearBuffer();
+  bool SyncImpl(SyncType sync_type) override;
+  bool SeekSlow(Position new_pos) override;
 
  private:
+  // Discards buffer contents and sets buffer pointers to `nullptr`.
+  //
+  // This can move `pos()` forwards to account for skipping over previously
+  // buffered data. `limit_pos()` remains unchanged.
+  void SyncBuffer();
+
   // Minimum length for which it is better to append current contents of
   // `buffer_` and read the remaining data directly than to read the data
   // through `buffer_`.
@@ -162,6 +191,10 @@ inline void BufferedReader::Reset(size_t buffer_size,
   buffer_size_ = buffer_size;
   size_hint_ = size_hint.value_or(0);
   buffer_.Clear();
+}
+
+inline void BufferedReader::set_size_hint(absl::optional<Position> size_hint) {
+  size_hint_ = size_hint.value_or(0);
 }
 
 }  // namespace riegeli

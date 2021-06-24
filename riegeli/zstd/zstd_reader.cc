@@ -171,8 +171,8 @@ void ZstdReaderBase::Done() {
     Fail(Annotate(absl::DataLossError("Truncated Zstd-compressed stream"),
                   absl::StrCat("at byte ", src.pos())));
   }
-  decompressor_.reset();
   BufferedReader::Done();
+  decompressor_.reset();
 }
 
 void ZstdReaderBase::AnnotateFailure(absl::Status& status) {
