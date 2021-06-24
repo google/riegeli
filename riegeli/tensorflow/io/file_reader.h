@@ -109,7 +109,6 @@ class FileReaderBase : public Reader {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return !filename_.empty(); }
-  absl::optional<Position> Size() override;
 
  protected:
   FileReaderBase() noexcept : Reader(kInitiallyClosed) {}
@@ -141,6 +140,7 @@ class FileReaderBase : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
+  absl::optional<Position> SizeImpl() override;
 
  private:
   // Discards buffer contents.

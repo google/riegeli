@@ -216,7 +216,7 @@ bool CordReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> CordReaderBase::Size() {
+absl::optional<Position> CordReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const absl::Cord& src = *src_cord();
   return src.size();

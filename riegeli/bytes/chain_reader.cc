@@ -226,7 +226,7 @@ bool ChainReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> ChainReaderBase::Size() {
+absl::optional<Position> ChainReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const Chain& src = *iter_.chain();
   return src.size();

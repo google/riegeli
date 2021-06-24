@@ -124,7 +124,7 @@ bool DigestingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> DigestingReaderBase::Size() {
+absl::optional<Position> DigestingReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader& src = *src_reader();
   SyncBuffer(src);

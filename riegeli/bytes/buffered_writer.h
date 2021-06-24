@@ -39,8 +39,6 @@ namespace riegeli {
 class BufferedWriter : public Writer {
  public:
   bool PrefersCopying() const override { return true; }
-  absl::optional<Position> Size() override;
-  bool Truncate(Position new_size) override;
 
  protected:
   // Creates a closed `BufferedWriter`.
@@ -125,6 +123,8 @@ class BufferedWriter : public Writer {
   void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekImpl(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
+  bool TruncateImpl(Position new_size) override;
 
   ABSL_DEPRECATED("Override methods with suffix BehindBuffer instead")
   bool PushInternal() {

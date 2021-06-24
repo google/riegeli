@@ -78,7 +78,7 @@ bool NullBackwardWriter::WriteZerosSlow(Position length) {
   return MakeBuffer();
 }
 
-bool NullBackwardWriter::Truncate(Position new_size) {
+bool NullBackwardWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;

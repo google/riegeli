@@ -148,7 +148,7 @@ bool WrappedReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> WrappedReaderBase::Size() {
+absl::optional<Position> WrappedReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader& src = *src_reader();
   SyncBuffer(src);

@@ -529,8 +529,8 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> FileReaderBase::Size() {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::Size();
+absl::optional<Position> FileReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SizeImpl();
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ::tensorflow::uint64 file_size;
   {

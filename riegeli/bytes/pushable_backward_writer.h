@@ -39,9 +39,6 @@ class PushableBackwardWriter : public BackwardWriter {
  private:
   struct Scratch;
 
- public:
-  bool Truncate(Position new_size) override;
-
  protected:
   // Helps to implement move constructor or move assignment if scratch is used.
   //
@@ -119,7 +116,7 @@ class PushableBackwardWriter : public BackwardWriter {
   virtual bool PushBehindScratch() = 0;
 
   // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `WriteHintSlow()`,
-  // `FlushImpl()`, and `Truncate()`, called while scratch is not used.
+  // `FlushImpl()`, and `TruncateImpl()`, called while scratch is not used.
   //
   // By default they are implemented analogously to the corresponding
   // `BackwardWriter` functions.
@@ -148,6 +145,7 @@ class PushableBackwardWriter : public BackwardWriter {
   bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool TruncateImpl(Position new_size) override;
 
  private:
   struct Scratch {

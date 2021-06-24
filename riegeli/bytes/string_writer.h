@@ -81,7 +81,6 @@ class StringWriterBase : public Writer {
 
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
-  bool Truncate(Position new_size) override;
 
  protected:
   explicit StringWriterBase(InitiallyClosed) noexcept
@@ -103,6 +102,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool TruncateImpl(Position new_size) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains

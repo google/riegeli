@@ -126,7 +126,7 @@ bool WrappedBackwardWriterBase::SupportsTruncate() {
   return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool WrappedBackwardWriterBase::Truncate(Position new_size) {
+bool WrappedBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   SyncBuffer(dest);

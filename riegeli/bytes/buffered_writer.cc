@@ -175,12 +175,12 @@ bool BufferedWriter::SeekImpl(Position new_pos) {
   return SeekBehindBuffer(new_pos);
 }
 
-absl::optional<Position> BufferedWriter::Size() {
+absl::optional<Position> BufferedWriter::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return SizeBehindBuffer();
 }
 
-bool BufferedWriter::Truncate(Position new_size) {
+bool BufferedWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return TruncateBehindBuffer(new_size);
 }

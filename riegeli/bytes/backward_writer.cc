@@ -144,7 +144,7 @@ void BackwardWriter::WriteHintSlow(size_t length) {
 
 bool BackwardWriter::FlushImpl(FlushType flush_type) { return healthy(); }
 
-bool BackwardWriter::Truncate(Position new_size) {
+bool BackwardWriter::TruncateImpl(Position new_size) {
   return Fail(
       absl::UnimplementedError("BackwardWriter::Truncate() not supported"));
 }

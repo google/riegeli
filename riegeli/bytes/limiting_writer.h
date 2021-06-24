@@ -55,9 +55,7 @@ class LimitingWriterBase : public Writer {
 
   bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
-  absl::optional<Position> Size() override;
   bool SupportsTruncate() override;
-  bool Truncate(Position new_size) override;
 
  protected:
   LimitingWriterBase() noexcept : Writer(kInitiallyClosed) {}
@@ -82,6 +80,8 @@ class LimitingWriterBase : public Writer {
   bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
   bool SeekImpl(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
+  bool TruncateImpl(Position new_size) override;
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if size limit is
   // exceeded.

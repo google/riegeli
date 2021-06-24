@@ -41,7 +41,6 @@ class CordReaderBase : public PullableReader {
   virtual const absl::Cord* src_cord() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
-  absl::optional<Position> Size() override;
 
  protected:
   explicit CordReaderBase(InitiallyClosed) noexcept
@@ -65,6 +64,7 @@ class CordReaderBase : public PullableReader {
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
   bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
 
   // Invariant:
   //   if `!is_open()` or

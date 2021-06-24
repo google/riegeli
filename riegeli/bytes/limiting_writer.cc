@@ -164,7 +164,7 @@ bool LimitingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-absl::optional<Position> LimitingWriterBase::Size() {
+absl::optional<Position> LimitingWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
@@ -179,7 +179,7 @@ bool LimitingWriterBase::SupportsTruncate() {
   return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool LimitingWriterBase::Truncate(Position new_size) {
+bool LimitingWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;

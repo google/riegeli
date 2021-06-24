@@ -43,7 +43,6 @@ class WrappedReaderBase : public Reader {
 
   bool SupportsRandomAccess() override;
   bool SupportsSize() override;
-  absl::optional<Position> Size() override;
 
  protected:
   explicit WrappedReaderBase(InitiallyClosed) noexcept
@@ -66,6 +65,7 @@ class WrappedReaderBase : public Reader {
   bool CopySlow(size_t length, BackwardWriter& dest) override;
   void ReadHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
+  absl::optional<Position> SizeImpl() override;
 
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);

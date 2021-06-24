@@ -135,7 +135,7 @@ bool WrappedWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
-absl::optional<Position> WrappedWriterBase::Size() {
+absl::optional<Position> WrappedWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
@@ -149,7 +149,7 @@ bool WrappedWriterBase::SupportsTruncate() {
   return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool WrappedWriterBase::Truncate(Position new_size) {
+bool WrappedWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   SyncBuffer(dest);
