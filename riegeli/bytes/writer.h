@@ -218,7 +218,7 @@ class Writer : public Object {
   // end.
   //
   // Returns `absl::nullopt` on failure (`!healthy()`).
-  absl::optional<Position> Size();
+  virtual absl::optional<Position> Size();
 
   // Returns `true` if this `Writer` supports `Truncate()`.
   virtual bool SupportsTruncate() { return SupportsRandomAccess(); }
@@ -232,7 +232,7 @@ class Writer : public Object {
   //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
-  bool Truncate(Position new_size);
+  virtual bool Truncate(Position new_size);
 
  protected:
   // Creates a `Writer` with the given initial state.
@@ -347,19 +347,7 @@ class Writer : public Object {
   void set_start_pos(Position start_pos);
 
   // Implementation of `Seek()`.
-  //
-  // By default fails.
   virtual bool SeekImpl(Position new_pos);
-
-  // Implementation of `Size()`.
-  //
-  // By default fails.
-  virtual absl::optional<Position> SizeImpl();
-
-  // Implementation of `Truncate()`.
-  //
-  // By default fails.
-  virtual bool TruncateImpl(Position new_size);
 
  private:
   char* start_ = nullptr;
@@ -583,12 +571,6 @@ inline void Writer::set_start_pos(Position start_pos) {
 }
 
 inline bool Writer::Seek(Position new_pos) { return SeekImpl(new_pos); }
-
-inline absl::optional<Position> Writer::Size() { return SizeImpl(); }
-
-inline bool Writer::Truncate(Position new_size) {
-  return TruncateImpl(new_size);
-}
 
 }  // namespace riegeli
 

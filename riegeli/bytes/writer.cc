@@ -132,12 +132,12 @@ bool Writer::SeekImpl(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
-absl::optional<Position> Writer::SizeImpl() {
+absl::optional<Position> Writer::Size() {
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
   return absl::nullopt;
 }
 
-bool Writer::TruncateImpl(Position new_size) {
+bool Writer::Truncate(Position new_size) {
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
 }
 

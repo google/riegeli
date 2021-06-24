@@ -265,7 +265,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
 }
 
-absl::optional<Position> ZstdReaderBase::SizeImpl() {
+absl::optional<Position> ZstdReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(uncompressed_size_ == absl::nullopt)) {
     Fail(absl::UnimplementedError(

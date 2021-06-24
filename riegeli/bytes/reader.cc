@@ -437,7 +437,7 @@ bool Reader::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> Reader::SizeImpl() {
+absl::optional<Position> Reader::Size() {
   Fail(absl::UnimplementedError("Reader::Size() not supported"));
   return absl::nullopt;
 }

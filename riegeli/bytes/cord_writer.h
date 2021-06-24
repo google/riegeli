@@ -116,6 +116,7 @@ class CordWriterBase : public Writer {
   virtual const absl::Cord* dest_cord() const = 0;
 
   bool SupportsTruncate() override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   CordWriterBase() noexcept : Writer(kInitiallyClosed) {}
@@ -138,7 +139,6 @@ class CordWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool TruncateImpl(Position new_size) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;

@@ -114,6 +114,7 @@ class ChainWriterBase : public Writer {
   virtual const Chain* dest_chain() const = 0;
 
   bool SupportsTruncate() override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
@@ -136,7 +137,6 @@ class ChainWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool TruncateImpl(Position new_size) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains

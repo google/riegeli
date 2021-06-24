@@ -40,6 +40,7 @@ class ChainReaderBase : public PullableReader {
   virtual const Chain* src_chain() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
+  absl::optional<Position> Size() override;
 
  protected:
   explicit ChainReaderBase(InitiallyClosed) noexcept
@@ -63,7 +64,6 @@ class ChainReaderBase : public PullableReader {
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
 
   // Invariant: `iter_.chain() == (is_open() ? src_chain() : nullptr)`
   Chain::BlockIterator iter_;

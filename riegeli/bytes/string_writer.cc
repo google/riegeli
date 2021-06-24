@@ -157,7 +157,7 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
   return true;
 }
 
-bool StringWriterBase::TruncateImpl(Position new_size) {
+bool StringWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();
   RIEGELI_ASSERT_EQ(buffer_size(), dest.size())

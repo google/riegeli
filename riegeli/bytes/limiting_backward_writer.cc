@@ -156,7 +156,7 @@ bool LimitingBackwardWriterBase::SupportsTruncate() {
   return dest != nullptr && dest->SupportsTruncate();
 }
 
-bool LimitingBackwardWriterBase::TruncateImpl(Position new_size) {
+bool LimitingBackwardWriterBase::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;

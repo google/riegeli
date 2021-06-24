@@ -385,14 +385,14 @@ bool PushableWriter::SeekImpl(Position new_pos) {
   return SeekBehindScratch(new_pos);
 }
 
-absl::optional<Position> PushableWriter::SizeImpl() {
+absl::optional<Position> PushableWriter::Size() {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   }
   return SizeBehindScratch();
 }
 
-bool PushableWriter::TruncateImpl(Position new_size) {
+bool PushableWriter::Truncate(Position new_size) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   }

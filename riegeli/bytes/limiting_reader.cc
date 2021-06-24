@@ -179,7 +179,7 @@ bool LimitingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> LimitingReaderBase::SizeImpl() {
+absl::optional<Position> LimitingReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Reader& src = *src_reader();
   SyncBuffer(src);

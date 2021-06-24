@@ -342,7 +342,7 @@ inline absl::optional<Position> PythonReader::SizeInternal() {
   return *size;
 }
 
-absl::optional<Position> PythonReader::SizeImpl() {
+absl::optional<Position> PythonReader::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonReader::Size() not supported"));

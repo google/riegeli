@@ -42,7 +42,9 @@ class WrappedWriterBase : public Writer {
 
   bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
+  absl::optional<Position> Size() override;
   bool SupportsTruncate() override;
+  bool Truncate(Position new_size) override;
 
  protected:
   explicit WrappedWriterBase(InitiallyClosed) noexcept
@@ -65,8 +67,6 @@ class WrappedWriterBase : public Writer {
   bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
   bool SeekImpl(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
-  bool TruncateImpl(Position new_size) override;
 
   // Sets cursor of `dest` to cursor of `*this`.
   void SyncBuffer(Writer& dest);

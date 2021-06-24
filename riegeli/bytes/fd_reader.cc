@@ -269,7 +269,7 @@ bool FdReaderBase::SeekSlow(Position new_pos) {
   return SyncPos(src);
 }
 
-absl::optional<Position> FdReaderBase::SizeImpl() {
+absl::optional<Position> FdReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const int src = src_fd();
   struct stat stat_info;

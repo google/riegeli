@@ -41,7 +41,7 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
   return false;
 }
 
-absl::optional<Position> StringReaderBase::SizeImpl() {
+absl::optional<Position> StringReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   return limit_pos();
 }

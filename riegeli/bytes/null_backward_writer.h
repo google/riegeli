@@ -52,6 +52,7 @@ class NullBackwardWriter : public BackwardWriter {
 
   bool PrefersCopying() const override { return true; }
   bool SupportsTruncate() override { return true; }
+  bool Truncate(Position new_size) override;
 
  protected:
   using BackwardWriter::Done;
@@ -60,7 +61,6 @@ class NullBackwardWriter : public BackwardWriter {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteZerosSlow(Position length) override;
-  bool TruncateImpl(Position new_size) override;
 
  private:
   // Resets buffer pointers to the beginning of the buffer.

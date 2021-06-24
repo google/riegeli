@@ -39,6 +39,10 @@ class PushableWriter : public Writer {
  private:
   struct Scratch;
 
+ public:
+  absl::optional<Position> Size() override;
+  bool Truncate(Position new_size) override;
+
  protected:
   // Helps to implement move constructor or move assignment if scratch is used.
   //
@@ -114,8 +118,8 @@ class PushableWriter : public Writer {
   virtual bool PushBehindScratch() = 0;
 
   // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `WriteHintSlow()`,
-  // `FlushImpl()`, `SeekImpl()`, `SizeImpl()`, and `TruncateImpl()`, called
-  // while scratch is not used.
+  // `FlushImpl()`, `SeekImpl()`, `Size()`, and `Truncate()`, called while
+  // scratch is not used.
   //
   // By default they are implemented analogously to the corresponding `Writer`
   // functions.
@@ -147,8 +151,6 @@ class PushableWriter : public Writer {
   void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekImpl(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
-  bool TruncateImpl(Position new_size) override;
 
  private:
   struct Scratch {

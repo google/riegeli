@@ -203,7 +203,7 @@ class BackwardWriter : public Object {
   //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
-  bool Truncate(Position new_size);
+  virtual bool Truncate(Position new_size);
 
  protected:
   // Creates a `BackwardWriter` with the given initial state.
@@ -318,11 +318,6 @@ class BackwardWriter : public Object {
 
   // Sets the value of `start_pos()`.
   void set_start_pos(Position start_pos);
-
-  // Implementation of `Truncate()`.
-  //
-  // By default fails.
-  virtual bool TruncateImpl(Position new_size);
 
  private:
   char* start_ = nullptr;
@@ -550,10 +545,6 @@ inline void BackwardWriter::move_start_pos(Position length) {
 
 inline void BackwardWriter::set_start_pos(Position start_pos) {
   start_pos_ = start_pos;
-}
-
-inline bool BackwardWriter::Truncate(Position new_size) {
-  return TruncateImpl(new_size);
 }
 
 }  // namespace riegeli

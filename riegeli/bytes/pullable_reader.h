@@ -146,7 +146,7 @@ class PullableReader : public Reader {
   //  * `false` - `SeekSlow()` is done, the caller should return `true`
   bool SeekUsingScratch(Position new_pos);
 
-  // Helps to implement `SizeImpl()` if scratch is used.
+  // Helps to implement `Size()` if scratch is used.
   //
   // Returns what would be the value of `start_pos()` if scratch was not used,
   // i.e. if `SyncScratch()` was called now.

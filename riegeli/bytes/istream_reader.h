@@ -86,6 +86,7 @@ class IstreamReaderBase : public BufferedReader {
   virtual const std::istream* src_stream() const = 0;
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
+  absl::optional<Position> Size() override;
 
  protected:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
@@ -109,7 +110,6 @@ class IstreamReaderBase : public BufferedReader {
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekSlow(Position new_pos) override;
   bool SyncImpl(SyncType sync_type) override;
-  absl::optional<Position> SizeImpl() override;
 
   // Whether random access is supported, as detected by calling
   // `std::istream::tellg()` and `std::istream::seekg()` to the end and back.
