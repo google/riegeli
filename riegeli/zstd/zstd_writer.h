@@ -399,6 +399,7 @@ class ZstdWriterBase : public BufferedWriter {
                   absl::optional<int> window_log, bool store_checksum,
                   absl::optional<Position> size_hint);
 
+  void DoneBehindBuffer(absl::string_view src) override;
   void Done() override;
   // `ZstdWriterBase` overrides `Writer::AnnotateFailure()` to annotate the
   // status with the current position, clarifying that this is the uncompressed
@@ -406,7 +407,7 @@ class ZstdWriterBase : public BufferedWriter {
   // with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
-  bool FlushInternal();
+  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
 
  private:
   struct ZSTD_CCtxDeleter {
@@ -688,7 +689,7 @@ void ZstdWriter<Dest>::Done() {
 
 template <typename Dest>
 bool ZstdWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!ZstdWriterBase::FlushImpl(flush_type))) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
   }

@@ -130,8 +130,6 @@ class FdWriterBase : public BufferedWriter {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
-  absl::optional<Position> Size() override;
-  bool Truncate(Position new_size) override;
 
  protected:
   FdWriterBase() noexcept {}
@@ -145,22 +143,24 @@ class FdWriterBase : public BufferedWriter {
   void Reset(size_t buffer_size);
   void Initialize(int dest, absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
-  void SetFilename(int dest);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
   void InitializePos(int dest, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
-  bool SyncPos(int dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
-  void Done() override;
   void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekImpl(Position new_pos) override;
+  bool SeekBehindBuffer(Position new_pos) override;
+  absl::optional<Position> SizeBehindBuffer() override;
+  bool TruncateBehindBuffer(Position new_size) override;
 
  private:
+  void SetFilename(int dest);
+  bool SeekInternal(int dest, Position new_pos);
+
   std::string filename_;
   bool supports_random_access_ = false;
   bool has_independent_pos_ = false;

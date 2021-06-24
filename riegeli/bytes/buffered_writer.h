@@ -19,6 +19,8 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -37,6 +39,8 @@ namespace riegeli {
 class BufferedWriter : public Writer {
  public:
   bool PrefersCopying() const override { return true; }
+  absl::optional<Position> Size() override;
+  bool Truncate(Position new_size) override;
 
  protected:
   // Creates a closed `BufferedWriter`.
@@ -48,6 +52,8 @@ class BufferedWriter : public Writer {
   // unknown. This avoids allocating a larger buffer than necessary.
   //
   // If the size hint turns out to not match reality, nothing breaks.
+  //
+  // Precondition: `buffer_size > 0`
   explicit BufferedWriter(
       size_t buffer_size,
       absl::optional<Position> size_hint = absl::nullopt) noexcept;
@@ -63,30 +69,72 @@ class BufferedWriter : public Writer {
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
+  // `BufferedWriter::{Done,FlushImpl}()` call `{Done,Flush}BehindBuffer()` to
+  // write the last piece of data and close/flush the destination.
+  //
+  // For propagating `{Close,Flush}()` to dependencies, `{Done,FlushImpl}()`
+  // should be overridden to call `BufferedWriter::{Done,FlushImpl}()` and then
+  // close/flush the dependencies.
+
+  // Implementation of `Done()`, called with the last piece of data.
+  //
+  // By default calls `FlushBehindBuffer(FlushType::kFromObject)`, which by
+  // default writes data to the destination. Can be overridden if writing
+  // coupled with closing can be implemented better.
+  //
+  // Precondition: `buffer_size() == 0`
+  virtual void DoneBehindBuffer(absl::string_view src);
+
   // Writes data to the destination, to the physical destination position which
   // is `start_pos()`.
   //
-  // Increments `start_pos()` by the length written.
+  // Does not use buffer pointers. Increments `start_pos()` by the length
+  // written, which must be `src.size()` on success. Returns `true` on success.
   //
   // Preconditions:
   //   `!src.empty()`
   //   `healthy()`
-  //   `written_to_buffer() == 0`
   virtual bool WriteInternal(absl::string_view src) = 0;
 
+  // Implementation of `FlushImpl()`, called with the last piece of data.
+  //
+  // By default writes data to the destination. Can be overridden if writing
+  // coupled with flushing can be implemented better.
+  //
+  // Precondition: `buffer_size() == 0`
+  virtual bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
+
+  // Implementation of `SeekImpl()`, `Size()`, and `Truncate()`, called while no
+  // data are buffered.
+  //
+  // By default they are implemented analogously to the corresponding `Writer`
+  // functions.
+  //
+  // Preconditions:
+  //   like the corresponding `Writer` functions
+  //   `buffer_size() == 0`
+  virtual bool SeekBehindBuffer(Position new_pos);
+  virtual absl::optional<Position> SizeBehindBuffer();
+  virtual bool TruncateBehindBuffer(Position new_size);
+
+  void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   bool WriteZerosSlow(Position length) override;
   void WriteHintSlow(size_t length) override;
+  bool FlushImpl(FlushType flush_type) override;
+  bool SeekImpl(Position new_pos) override;
 
-  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
-  // ensure that a buffer is allocated.
-  //
-  // Postcondition: `written_to_buffer() == 0`
-  bool PushInternal();
+  ABSL_DEPRECATED("Override methods with suffix BehindBuffer instead")
+  bool PushInternal() {
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    return SyncBuffer();
+  }
 
  private:
+  bool SyncBuffer();
+
   // Minimum length for which it is better to push current contents of `buffer_`
   // and write the data directly than to write the data through `buffer_`.
   size_t LengthToWriteDirectly() const;
@@ -94,8 +142,8 @@ class BufferedWriter : public Writer {
   // Invariant: if `is_open()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   Position size_hint_ = 0;
-  // Buffered data, to be written directly after the physical destination
-  // position which is `start_pos()`.
+  // Contains buffered data, to be written directly after the physical
+  // destination position which is `start_pos()`.
   Buffer buffer_;
 };
 

@@ -204,15 +204,18 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
   }
 }
 
+void ZstdWriterBase::DoneBehindBuffer(absl::string_view src) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Writer& dest = *dest_writer();
+  WriteInternal(src, dest, ZSTD_e_end);
+}
+
 void ZstdWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer& dest = *dest_writer();
-    const absl::string_view data(start(), written_to_buffer());
-    set_buffer();
-    WriteInternal(data, dest, ZSTD_e_end);
-  }
-  compressor_.reset();
   BufferedWriter::Done();
+  compressor_.reset();
 }
 
 void ZstdWriterBase::AnnotateFailure(absl::Status& status) {
@@ -227,15 +230,14 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not empty";
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, ZSTD_e_continue);
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                    ZSTD_EndDirective end_op) {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of ZstdWriterBase::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -297,12 +299,14 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
   }
 }
 
-bool ZstdWriterBase::FlushInternal() {
+bool ZstdWriterBase::FlushBehindBuffer(absl::string_view src,
+                                       FlushType flush_type) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer():"
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
-  const absl::string_view data(start(), written_to_buffer());
-  set_buffer();
-  return WriteInternal(data, dest, ZSTD_e_flush);
+  return WriteInternal(src, dest, ZSTD_e_flush);
 }
 
 }  // namespace riegeli

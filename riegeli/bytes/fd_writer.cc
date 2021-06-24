@@ -141,11 +141,6 @@ void FdWriterBase::InitializePos(int dest, int flags,
   }
 }
 
-void FdWriterBase::Done() {
-  PushInternal();
-  BufferedWriter::Done();
-}
-
 bool FdWriterBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
@@ -171,9 +166,6 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not empty";
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
@@ -207,7 +199,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
 }
 
 bool FdWriterBase::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!BufferedWriter::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
     case FlushType::kFromProcess:
@@ -224,22 +216,25 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
-inline bool FdWriterBase::SyncPos(int dest) {
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of FdWriterBase::SyncPos(): buffer not empty";
+inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of FdWriterBase::SeekInternal(): "
+         "buffer not empty";
   if (!has_independent_pos_) {
-    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(start_pos()), SEEK_SET) <
+    if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(new_pos), SEEK_SET) <
                            0)) {
       return FailOperation("lseek()");
     }
   }
+  set_start_pos(new_pos);
   return true;
 }
 
-bool FdWriterBase::SeekImpl(Position new_pos) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
+bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const int dest = dest_fd();
   if (new_pos >= start_pos()) {
     // Seeking forwards.
@@ -249,16 +244,17 @@ bool FdWriterBase::SeekImpl(Position new_pos) {
     }
     if (ABSL_PREDICT_FALSE(new_pos > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      set_start_pos(IntCast<Position>(stat_info.st_size));
-      SyncPos(dest);
+      SeekInternal(dest, IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
-  set_start_pos(new_pos);
-  return SyncPos(dest);
+  return SeekInternal(dest, new_pos);
 }
 
-absl::optional<Position> FdWriterBase::Size() {
+absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const int dest = dest_fd();
   struct stat stat_info;
@@ -266,13 +262,14 @@ absl::optional<Position> FdWriterBase::Size() {
     FailOperation("fstat()");
     return absl::nullopt;
   }
-  return UnsignedMax(IntCast<Position>(stat_info.st_size), pos());
+  return IntCast<Position>(stat_info.st_size);
 }
 
-bool FdWriterBase::Truncate(Position new_size) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
+bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const int dest = dest_fd();
   if (new_size >= start_pos()) {
     // Seeking forwards.
@@ -282,8 +279,7 @@ bool FdWriterBase::Truncate(Position new_size) {
     }
     if (ABSL_PREDICT_FALSE(new_size > IntCast<Position>(stat_info.st_size))) {
       // File ends.
-      set_start_pos(IntCast<Position>(stat_info.st_size));
-      SyncPos(dest);
+      SeekInternal(dest, IntCast<Position>(stat_info.st_size));
       return false;
     }
   }
@@ -292,8 +288,7 @@ again:
     if (errno == EINTR) goto again;
     return FailOperation("ftruncate()");
   }
-  set_start_pos(new_size);
-  return SyncPos(dest);
+  return SeekInternal(dest, new_size);
 }
 
 }  // namespace riegeli

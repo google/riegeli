@@ -82,7 +82,6 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
 }
 
 void PythonWriter::Done() {
-  PushInternal();
   BufferedWriter::Done();
   if (owns_dest_ && dest_ != nullptr) {
     PythonLock lock;
@@ -114,9 +113,6 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -193,7 +189,7 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
 }
 
 bool PythonWriter::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!BufferedWriter::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!owns_dest_) return true;
@@ -213,13 +209,13 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
-bool PythonWriter::SeekImpl(Position new_pos) {
+bool PythonWriter::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
   }
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
   PythonLock lock;
   if (new_pos >= start_pos()) {
     // Seeking forwards.
@@ -251,6 +247,9 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of PythonWriter::SizeInternal(): "
+         "buffer not empty";
   PythonLock::AssertHeld();
   absl::string_view operation;
   const PythonPtr file_pos = PositionToPython(0);
@@ -286,10 +285,13 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
     FailOperation(absl::StrCat("PositionFromPython() after ", operation));
     return absl::nullopt;
   }
-  return UnsignedMax(*size, pos());
+  return *size;
 }
 
-absl::optional<Position> PythonWriter::Size() {
+absl::optional<Position> PythonWriter::SizeBehindBuffer() {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     Fail(absl::UnimplementedError("PythonWriter::Size() not supported"));
@@ -313,13 +315,15 @@ absl::optional<Position> PythonWriter::Size() {
   return *size;
 }
 
-bool PythonWriter::Truncate(Position new_size) {
+bool PythonWriter::TruncateBehindBuffer(Position new_size) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
     return Fail(
         absl::UnimplementedError("PythonWriter::Truncate() not supported"));
   }
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
   PythonLock lock;
   const absl::optional<Position> size = SizeInternal();
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;

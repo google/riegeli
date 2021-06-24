@@ -113,20 +113,12 @@ bool OstreamWriterBase::supports_random_access() {
   return supported;
 }
 
-void OstreamWriterBase::Done() {
-  PushInternal();
-  BufferedWriter::Done();
-}
-
 bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not empty";
   std::ostream& dest = *dest_stream();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<std::streamoff>::max()} -
@@ -147,25 +139,14 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   return true;
 }
 
-bool OstreamWriterBase::FlushInternal() {
-  RIEGELI_ASSERT(healthy())
-      << "Failed precondition of OstreamWriterBase::FlushInternal(): "
-      << status();
-  std::ostream& dest = *dest_stream();
-  errno = 0;
-  dest.flush();
-  if (ABSL_PREDICT_FALSE(dest.fail())) return FailOperation("ostream::flush()");
-  return true;
-}
-
-bool OstreamWriterBase::SeekImpl(Position new_pos) {
+bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     return Fail(
         absl::UnimplementedError("OstreamWriterBase::Seek() not supported"));
   }
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "BufferedWriter::PushInternal() did not empty the buffer";
   std::ostream& dest = *dest_stream();
   errno = 0;
   if (new_pos >= start_pos()) {
@@ -192,7 +173,10 @@ bool OstreamWriterBase::SeekImpl(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> OstreamWriterBase::Size() {
+absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
     Fail(absl::UnimplementedError("OstreamWriterBase::Size() not supported"));
@@ -215,7 +199,7 @@ absl::optional<Position> OstreamWriterBase::Size() {
     FailOperation("ostream::seekp()");
     return absl::nullopt;
   }
-  return UnsignedMax(IntCast<Position>(stream_size), pos());
+  return IntCast<Position>(stream_size);
 }
 
 }  // namespace riegeli

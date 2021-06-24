@@ -125,8 +125,6 @@ class PythonWriter : public BufferedWriter {
   const Exception& exception() const { return exception_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
-  absl::optional<Position> Size() override;
-  bool Truncate(Position new_size) override;
 
   // For implementing `tp_traverse` of objects containing `PythonWriter`.
   int Traverse(visitproc visit, void* arg);
@@ -135,7 +133,9 @@ class PythonWriter : public BufferedWriter {
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekImpl(Position new_pos) override;
+  bool SeekBehindBuffer(Position new_pos) override;
+  absl::optional<Position> SizeBehindBuffer() override;
+  bool TruncateBehindBuffer(Position new_size) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);

@@ -90,6 +90,12 @@ void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
   set_start_pos(IntCast<Position>(file_pos));
 }
 
+void FileWriterBase::Done() {
+  SyncBuffer();
+  buffer_ = Buffer();
+  Writer::Done();
+}
+
 bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,
                                    absl::string_view operation) {
   RIEGELI_ASSERT(!status.ok())
@@ -113,11 +119,12 @@ void FileWriterBase::AnnotateFailure(absl::Status& status) {
   Writer::AnnotateFailure(status);
 }
 
-bool FileWriterBase::PushInternal() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+bool FileWriterBase::SyncBuffer() {
   const absl::string_view data(start(), written_to_buffer());
   set_buffer();
-  return data.empty() || WriteInternal(data);
+  if (data.empty()) return true;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  return WriteInternal(data);
 }
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
@@ -138,7 +145,8 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (ABSL_PREDICT_FALSE(min_length >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -157,9 +165,6 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of FileWriterBase::WriteInternal(): "
-         "buffer not empty";
   ::tensorflow::WritableFile* const dest = dest_file();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
@@ -180,7 +185,8 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (src.size() >= LengthToWriteDirectly()) {
-    if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+    if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
     return WriteInternal(src);
   }
   return Writer::WriteSlow(src);
@@ -190,12 +196,18 @@ void FileWriterBase::WriteHintSlow(size_t length) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Writer::WriteHintSlow(): "
          "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return;
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t buffer_length =
       UnsignedMin(UnsignedMax(buffer_size_, length),
                   std::numeric_limits<Position>::max() - start_pos());
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
+}
+
+bool FileWriterBase::FlushImpl(FlushType flush_type) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  return healthy();
 }
 
 }  // namespace tensorflow

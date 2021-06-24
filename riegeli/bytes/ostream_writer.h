@@ -86,13 +86,9 @@ class OstreamWriterBase : public BufferedWriter {
   virtual const std::ostream* dest_stream() const = 0;
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
-  absl::optional<Position> Size() override;
   bool SupportsTruncate() override { return false; }
 
  protected:
-  // Encodes a `bool` or a marker that the value is not fully resolved yet.
-  enum class LazyBoolState { kFalse, kTrue, kUnknown };
-
   OstreamWriterBase() noexcept {}
 
   explicit OstreamWriterBase(size_t buffer_size);
@@ -104,12 +100,16 @@ class OstreamWriterBase : public BufferedWriter {
   void Reset(size_t buffer_size);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
-  bool supports_random_access();
 
-  void Done() override;
   bool WriteInternal(absl::string_view src) override;
-  bool SeekImpl(Position new_pos) override;
-  bool FlushInternal();
+  bool SeekBehindBuffer(Position new_pos) override;
+  absl::optional<Position> SizeBehindBuffer() override;
+
+ private:
+  // Encodes a `bool` or a marker that the value is not fully resolved yet.
+  enum class LazyBoolState { kFalse, kTrue, kUnknown };
+
+  bool supports_random_access();
 
   // Whether random access is supported, as detected by calling
   // `std::ostream::tellp()` and `std::ostream::seekp()` to the end and back.
@@ -323,14 +323,21 @@ void OstreamWriter<Dest>::Done() {
 
 template <typename Dest>
 bool OstreamWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!OstreamWriterBase::FlushImpl(flush_type))) {
+    return false;
+  }
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.is_owning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
-      return FlushInternal();
+      errno = 0;
+      dest_->flush();
+      if (ABSL_PREDICT_FALSE(dest_->fail())) {
+        return FailOperation("ostream::flush()");
+      }
+      return true;
   }
   RIEGELI_ASSERT_UNREACHABLE()
       << "Unknown flush type: " << static_cast<int>(flush_type);

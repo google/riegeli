@@ -90,19 +90,21 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
   }
 }
 
-void ZlibWriterBase::Done() {
-  if (ABSL_PREDICT_TRUE(healthy())) {
-    Writer& dest = *dest_writer();
-    const absl::string_view data(start(), written_to_buffer());
-    set_buffer();
-    WriteInternal(data, dest, Z_FINISH);
-  }
-  compressor_.reset();
-  BufferedWriter::Done();
+void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Writer& dest = *dest_writer();
+  WriteInternal(src, dest, Z_FINISH);
 }
 
-inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
-                                          int zlib_code) {
+void ZlibWriterBase::Done() {
+  BufferedWriter::Done();
+  compressor_.reset();
+}
+
+bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
@@ -154,9 +156,6 @@ bool ZlibWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of BufferedWriter::WriteInternal(): "
-         "buffer not empty";
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, Z_NO_FLUSH);
 }
@@ -165,9 +164,6 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           int flush) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of ZlibWriterBase::WriteInternal(): " << status();
-  RIEGELI_ASSERT_EQ(written_to_buffer(), 0u)
-      << "Failed precondition of ZlibWriterBase::WriteInternal(): "
-         "buffer not empty";
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -216,12 +212,14 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
   }
 }
 
-bool ZlibWriterBase::FlushInternal() {
+bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
+                                       FlushType flush_type) {
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+         "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
-  const absl::string_view data(start(), written_to_buffer());
-  set_buffer();
-  return WriteInternal(data, dest, Z_SYNC_FLUSH);
+  return WriteInternal(src, dest, Z_SYNC_FLUSH);
 }
 
 }  // namespace riegeli

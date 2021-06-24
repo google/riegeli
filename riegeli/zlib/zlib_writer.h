@@ -197,6 +197,7 @@ class ZlibWriterBase : public BufferedWriter {
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level, int window_bits);
 
+  void DoneBehindBuffer(absl::string_view src) override;
   void Done() override;
   // `ZlibWriterBase` overrides `Writer::AnnotateFailure()` to annotate the
   // status with the current position, clarifying that this is the uncompressed
@@ -204,7 +205,7 @@ class ZlibWriterBase : public BufferedWriter {
   // with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
-  bool FlushInternal();
+  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
 
  private:
   struct ZStreamDeleter {
@@ -447,7 +448,7 @@ void ZlibWriter<Dest>::Done() {
 
 template <typename Dest>
 bool ZlibWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!FlushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!ZlibWriterBase::FlushImpl(flush_type))) return false;
   if (flush_type != FlushType::kFromObject || dest_.is_owning()) {
     if (ABSL_PREDICT_FALSE(!dest_->Flush(flush_type))) return Fail(*dest_);
   }

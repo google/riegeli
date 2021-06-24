@@ -120,37 +120,37 @@ class FileWriterBase : public Writer {
   void Reset();
   void Reset(size_t buffer_size);
   void Initialize(::tensorflow::WritableFile* dest);
-  void InitializeFilename(::tensorflow::WritableFile* dest);
   std::unique_ptr<::tensorflow::WritableFile> OpenFile(
       ::tensorflow::Env* env, absl::string_view filename, bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
 
+  void Done() override;
   void AnnotateFailure(absl::Status& status) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
-
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   void WriteHintSlow(size_t length) override;
+  bool FlushImpl(FlushType flush_type) override;
+
+ private:
+  void InitializeFilename(::tensorflow::WritableFile* dest);
+  bool SyncBuffer();
+
+  // Minimum length for which it is better to push current contents of `buffer_`
+  // and write the data directly than to write the data through `buffer_`.
+  size_t LengthToWriteDirectly() const;
 
   // Writes `src` to the destination.
   //
-  // Increments `start_pos()` by the length written.
+  // Does not use buffer pointers. Increments `start_pos()` by the length
+  // written, which must be `src.size()` on success. Returns `true` on success.
   //
   // Preconditions:
   //   `!src.empty()`
   //   `healthy()`
   bool WriteInternal(absl::string_view src);
-
-  // Writes buffered data to the destination, but unlike `PushSlow()`, does not
-  // ensure that a buffer is allocated.
-  bool PushInternal();
-
- private:
-  // Minimum length for which it is better to push current contents of `buffer_`
-  // and write the data directly than to write the data through `buffer_`.
-  size_t LengthToWriteDirectly() const;
 
   std::string filename_;
   // Invariant: if `is_open()` then `buffer_size_ > 0`
@@ -383,7 +383,6 @@ inline void FileWriter<Dest>::Initialize(absl::string_view filename,
 
 template <typename Dest>
 void FileWriter<Dest>::Done() {
-  PushInternal();
   FileWriterBase::Done();
   if (dest_.is_owning()) {
     {
@@ -397,7 +396,7 @@ void FileWriter<Dest>::Done() {
 
 template <typename Dest>
 bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
-  if (ABSL_PREDICT_FALSE(!PushInternal())) return false;
+  if (ABSL_PREDICT_FALSE(!FileWriterBase::FlushImpl(flush_type))) return false;
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.is_owning()) return true;
