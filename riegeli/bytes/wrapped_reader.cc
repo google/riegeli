@@ -131,6 +131,11 @@ bool WrappedReaderBase::SupportsRandomAccess() {
   return src != nullptr && src->SupportsRandomAccess();
 }
 
+bool WrappedReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
 bool WrappedReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "

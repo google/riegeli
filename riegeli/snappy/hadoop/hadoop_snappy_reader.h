@@ -42,6 +42,8 @@ class HadoopSnappyReaderBase : public PullableReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  bool SupportsRewind() override;
+
  protected:
   explicit HadoopSnappyReaderBase(InitiallyClosed) noexcept
       : PullableReader(kInitiallyClosed) {}
@@ -62,6 +64,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   // annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullBehindScratch() override;
+  bool SeekBehindScratch(Position new_pos) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
@@ -72,6 +75,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   bool truncated_ = false;
   // Remaining number of uncompressed bytes in the current chunk.
   uint32_t remaining_chunk_length_ = 0;
+  Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
 
@@ -166,6 +170,7 @@ inline HadoopSnappyReaderBase::HadoopSnappyReaderBase(
       // part was moved.
       truncated_(that.truncated_),
       remaining_chunk_length_(that.remaining_chunk_length_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline HadoopSnappyReaderBase& HadoopSnappyReaderBase::operator=(
@@ -175,6 +180,7 @@ inline HadoopSnappyReaderBase& HadoopSnappyReaderBase::operator=(
   // was moved.
   truncated_ = that.truncated_;
   remaining_chunk_length_ = that.remaining_chunk_length_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
@@ -183,12 +189,14 @@ inline void HadoopSnappyReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
   truncated_ = false;
   remaining_chunk_length_ = 0;
+  initial_compressed_pos_ = 0;
 }
 
 inline void HadoopSnappyReaderBase::Reset(InitiallyOpen) {
   PullableReader::Reset(kInitiallyOpen);
   truncated_ = false;
   remaining_chunk_length_ = 0;
+  initial_compressed_pos_ = 0;
 }
 
 template <typename Src>

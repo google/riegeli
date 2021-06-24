@@ -264,6 +264,7 @@ class ZstdReaderBase : public BufferedReader {
   // does not grow, `Close()` will fail.
   bool truncated() const { return truncated_; }
 
+  bool SupportsRewind() override;
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
 
  protected:
@@ -289,12 +290,15 @@ class ZstdReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
+  bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
 
  private:
   struct ZSTD_DCtxDeleter {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
+
+  void InitializeDecompressor(Reader& src);
 
   // If `true`, supports decompressing as much as possible from a truncated
   // source, then retrying when the source has grown.
@@ -307,6 +311,7 @@ class ZstdReaderBase : public BufferedReader {
   bool truncated_ = false;
   Dictionary dictionary_;
   std::shared_ptr<const ZSTD_DDict> prepared_dictionary_;
+  Position initial_compressed_pos_ = 0;
   // If `healthy()` but `decompressor_ == nullptr` then all data have been
   // decompressed. In this case `ZSTD_decompressStream()` must not be called
   // again.
@@ -449,6 +454,7 @@ inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
       truncated_(that.truncated_),
       dictionary_(std::move(that.dictionary_)),
       prepared_dictionary_(std::move(that.prepared_dictionary_)),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)),
       uncompressed_size_(that.uncompressed_size_) {}
 
@@ -462,6 +468,7 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   truncated_ = that.truncated_;
   dictionary_ = std::move(that.dictionary_);
   prepared_dictionary_ = std::move(that.prepared_dictionary_);
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   uncompressed_size_ = that.uncompressed_size_;
   return *this;
@@ -474,6 +481,7 @@ inline void ZstdReaderBase::Reset() {
   truncated_ = false;
   dictionary_.reset();
   prepared_dictionary_.reset();
+  initial_compressed_pos_ = 0;
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
 }
@@ -487,6 +495,7 @@ inline void ZstdReaderBase::Reset(bool growing_source, Dictionary&& dictionary,
   truncated_ = false;
   dictionary_ = std::move(dictionary);
   prepared_dictionary_.reset();
+  initial_compressed_pos_ = 0;
   decompressor_.reset();
   uncompressed_size_ = absl::nullopt;
 }

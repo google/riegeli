@@ -37,7 +37,11 @@ namespace riegeli {
 void HadoopSnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of HadoopSnappyReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) Fail(*src);
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+    Fail(*src);
+    return;
+  }
+  initial_compressed_pos_ = src->pos();
 }
 
 void HadoopSnappyReaderBase::Done() {
@@ -134,6 +138,37 @@ bool HadoopSnappyReaderBase::PullBehindScratch() {
   set_buffer(uncompressed_data, uncompressed_length);
   move_limit_pos(available());
   return true;
+}
+
+bool HadoopSnappyReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
+bool HadoopSnappyReaderBase::SeekBehindScratch(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "scratch used";
+  if (new_pos <= limit_pos()) {
+    // Seeking backwards.
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    Reader& src = *src_reader();
+    truncated_ = false;
+    remaining_chunk_length_ = 0;
+    set_buffer();
+    set_limit_pos(0);
+    if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
+      src.Fail(
+          absl::DataLossError("HadoopSnappy-compressed stream got truncated"));
+      return Fail(src);
+    }
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (new_pos == 0) return true;
+  }
+  return PullableReader::SeekBehindScratch(new_pos);
 }
 
 }  // namespace riegeli

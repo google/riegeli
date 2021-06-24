@@ -161,6 +161,11 @@ bool LimitingReaderBase::SupportsRandomAccess() {
   return src != nullptr && src->SupportsRandomAccess();
 }
 
+bool LimitingReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
 bool LimitingReaderBase::SeekSlow(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "

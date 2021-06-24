@@ -102,6 +102,11 @@ void ZstdReaderBase::Initialize(Reader* src) {
     Fail(*src);
     return;
   }
+  initial_compressed_pos_ = src->pos();
+  InitializeDecompressor(*src);
+}
+
+inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
   decompressor_ = RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::global().Get(
       [] {
         return std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxDeleter>(ZSTD_createDCtx());
@@ -155,7 +160,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
       return;
     }
   }
-  uncompressed_size_ = ZstdUncompressedSize(*src);
+  uncompressed_size_ = ZstdUncompressedSize(src);
   if (uncompressed_size_ != absl::nullopt) {
     // If `uncompressed_size_` is 0, set `size_hint` to 1, because the first
     // `Pull()` call will need a non-empty destination buffer before calling the
@@ -263,6 +268,37 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return output.pos >= min_length;
     }
   }
+}
+
+bool ZstdReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
+bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
+  if (new_pos <= limit_pos()) {
+    // Seeking backwards.
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    Reader& src = *src_reader();
+    truncated_ = false;
+    set_buffer();
+    set_limit_pos(0);
+    decompressor_.reset();
+    if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
+      src.Fail(absl::DataLossError("Zstd-compressed stream got truncated"));
+      return Fail(src);
+    }
+    InitializeDecompressor(src);
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (new_pos == 0) return true;
+  }
+  return BufferedReader::SeekBehindBuffer(new_pos);
 }
 
 absl::optional<Position> ZstdReaderBase::SizeImpl() {

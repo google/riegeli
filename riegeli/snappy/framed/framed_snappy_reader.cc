@@ -47,14 +47,19 @@ inline uint32_t MaskChecksum(uint32_t x) {
 void FramedSnappyReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of FramedSnappyReader: null Reader pointer";
-  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) Fail(*src);
+  if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
+    Fail(*src);
+    return;
+  }
+  initial_compressed_pos_ = src->pos();
 }
 
 void FramedSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
-    Fail(Annotate(absl::DataLossError("Truncated Snappy-compressed stream"),
-                  absl::StrCat("at byte ", src.pos())));
+    Fail(Annotate(
+        absl::DataLossError("Truncated FramedSnappy-compressed stream"),
+        absl::StrCat("at byte ", src.pos())));
   }
   PullableReader::Done();
   uncompressed_ = Buffer();
@@ -62,9 +67,10 @@ void FramedSnappyReaderBase::Done() {
 
 bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
   Reader& src = *src_reader();
-  return Fail(Annotate(absl::DataLossError(absl::StrCat(
-                           "Invalid Snappy-compressed stream: ", message)),
-                       absl::StrCat("at byte ", src.pos())));
+  return Fail(
+      Annotate(absl::DataLossError(absl::StrCat(
+                   "Invalid FramedSnappy-compressed stream: ", message)),
+               absl::StrCat("at byte ", src.pos())));
 }
 
 void FramedSnappyReaderBase::AnnotateFailure(absl::Status& status) {
@@ -129,7 +135,7 @@ bool FramedSnappyReaderBase::PullBehindScratch() {
                     uncompressed_.data(), uncompressed_length)) != checksum)) {
           set_buffer();
           return FailInvalidStream(
-              "Invalid Snappy-compressed stream: wrong checksum");
+              "Invalid FramedSnappy-compressed stream: wrong checksum");
         }
         src.move_cursor(sizeof(uint32_t) + chunk_length);
         if (ABSL_PREDICT_FALSE(uncompressed_length == 0)) continue;
@@ -198,6 +204,36 @@ bool FramedSnappyReaderBase::PullBehindScratch() {
   if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
   if (ABSL_PREDICT_FALSE(src.available() > 0)) truncated_ = true;
   return false;
+}
+
+bool FramedSnappyReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
+bool FramedSnappyReaderBase::SeekBehindScratch(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::SeekBehindScratch(): "
+         "scratch used";
+  if (new_pos <= limit_pos()) {
+    // Seeking backwards.
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    Reader& src = *src_reader();
+    truncated_ = false;
+    set_buffer();
+    set_limit_pos(0);
+    if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
+      src.Fail(
+          absl::DataLossError("FramedSnappy-compressed stream got truncated"));
+      return Fail(src);
+    }
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (new_pos == 0) return true;
+  }
+  return PullableReader::SeekBehindScratch(new_pos);
 }
 
 }  // namespace riegeli

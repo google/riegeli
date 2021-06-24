@@ -42,6 +42,8 @@ class FramedSnappyReaderBase : public PullableReader {
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
 
+  bool SupportsRewind() override;
+
  protected:
   explicit FramedSnappyReaderBase(InitiallyClosed) noexcept
       : PullableReader(kInitiallyClosed) {}
@@ -62,6 +64,7 @@ class FramedSnappyReaderBase : public PullableReader {
   // annotation with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullBehindScratch() override;
+  bool SeekBehindScratch(Position new_pos) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
@@ -70,6 +73,7 @@ class FramedSnappyReaderBase : public PullableReader {
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
+  Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
 
@@ -166,6 +170,7 @@ inline FramedSnappyReaderBase::FramedSnappyReaderBase(
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       truncated_(that.truncated_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
@@ -174,6 +179,7 @@ inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   truncated_ = that.truncated_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
@@ -181,11 +187,13 @@ inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
 inline void FramedSnappyReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
   truncated_ = false;
+  initial_compressed_pos_ = 0;
 }
 
 inline void FramedSnappyReaderBase::Reset(InitiallyOpen) {
   PullableReader::Reset(kInitiallyOpen);
   truncated_ = false;
+  initial_compressed_pos_ = 0;
 }
 
 template <typename Src>

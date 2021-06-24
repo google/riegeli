@@ -57,6 +57,7 @@ class LimitingReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
   bool SupportsRandomAccess() override;
+  bool SupportsRewind() override;
   bool SupportsSize() override;
 
  protected:

@@ -280,19 +280,33 @@ class Reader : public Object {
   // `pos()` is unchanged by `Close()`.
   Position pos() const;
 
-  // Returns `true` if this `Reader` supports `Seek()` backwards (`Seek()`
-  // forwards is always supported) and `Size()`.
+  // Returns `true` if this `Reader` supports efficient `Seek()`, `Skip()`, and
+  // `Size()`.
   //
-  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`
+  // Invariant: if `SupportsRandomAccess()` then `SupportsRewind()`
+  //                                         and `SupportsSize()`
   virtual bool SupportsRandomAccess() { return false; }
+
+  // Returns `true` if this `Reader` supports `Seek()` backwards (`Seek()`
+  // forwards is always supported).
+  //
+  // Even if `SupportsRewind()` is `true`, `Seek()` can be inefficient if
+  // `SupportsRandomAccess()` is `false`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsRewind()`.
+  virtual bool SupportsRewind() { return SupportsRandomAccess(); }
 
   // Sets the current position for subsequent operations.
   //
-  // Seeking to `new_pos >= pos() - read_from_buffer()` is always supported,
-  // although if `SupportsRandomAccess()` is `false` then it is not expected
-  // to be more efficient than reading and discarding the intervening data.
-  // Seeking to `new_pos < pos() - read_from_buffer()` is supported only when
-  // `SupportsRandomAccess()` is `true`.
+  // `Seek()` forwards (or backwards but within the buffer) is always supported,
+  // although if `SupportsRandomAccess()` is `false`, then it is as inefficient
+  // as reading and discarding the intervening data.
+  //
+  // `Seek()` backwards is supported and efficient if `SupportsRandomAccess()`
+  // is `true`. Otherwise, if `SupportsRewind()` is `true`, `Seek()` backwards
+  // is as inefficient as seeking to 0, and then reading and discarding the
+  // intervening data. If `SupportsRewind()` is `false`, `Seek()` backwards is
+  // not supported.
   //
   // Return values:
   //  * `true`                      - success (position is set to `new_pos`)
@@ -301,7 +315,12 @@ class Reader : public Object {
   //  * `false` (when `!healthy()`) - failure
   bool Seek(Position new_pos);
 
-  // Seeks to `pos() + length`.
+  // Increments the current position. Same as `Seek(pos() + length)` if there is
+  // no overflow.
+  //
+  // `Skip()` is always supported, although if `SupportsRandomAccess()` is
+  // `false`, then it is as inefficient as reading and discarding the
+  // intervening data.
   //
   // Return values:
   //  * `true`                      - success (`length` bytes skipped)
@@ -428,7 +447,7 @@ class Reader : public Object {
   // Sets the value of `limit_pos()`.
   void set_limit_pos(Position limit_pos);
 
-  // Implementation of the slow part of `Seek()` and `Skip()`.
+  // Implementation of the slow part of `Seek()`, `Skip()`, and `Rewind()`.
   //
   // By default seeking forwards is implemented in terms of `Pull()`, and
   // seeking backwards fails.

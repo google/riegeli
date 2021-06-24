@@ -74,6 +74,8 @@ class BrotliReaderBase : public PullableReader {
   // does not grow, `Close()` will fail.
   bool truncated() const { return truncated_; }
 
+  bool SupportsRewind() override;
+
  protected:
   BrotliReaderBase() noexcept : PullableReader(kInitiallyClosed) {}
 
@@ -93,6 +95,7 @@ class BrotliReaderBase : public PullableReader {
   // with the compressed position.
   ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
   bool PullBehindScratch() override;
+  bool SeekBehindScratch(Position new_pos) override;
 
  private:
   struct BrotliDecoderStateDeleter {
@@ -101,11 +104,14 @@ class BrotliReaderBase : public PullableReader {
     }
   };
 
+  void InitializeDecompressor();
+
   BrotliAllocator allocator_;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
+  Position initial_compressed_pos_ = 0;
   // If `healthy()` but `decompressor_ == nullptr` then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
@@ -202,6 +208,7 @@ inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
       // part was moved.
       allocator_(std::move(that.allocator_)),
       truncated_(that.truncated_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
@@ -211,6 +218,7 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   // was moved.
   allocator_ = std::move(that.allocator_);
   truncated_ = that.truncated_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
@@ -218,6 +226,7 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
 inline void BrotliReaderBase::Reset() {
   PullableReader::Reset(kInitiallyClosed);
   truncated_ = false;
+  initial_compressed_pos_ = 0;
   decompressor_.reset();
   allocator_ = BrotliAllocator();
 }
@@ -225,6 +234,7 @@ inline void BrotliReaderBase::Reset() {
 inline void BrotliReaderBase::Reset(BrotliAllocator&& allocator) {
   PullableReader::Reset(kInitiallyOpen);
   truncated_ = false;
+  initial_compressed_pos_ = 0;
   decompressor_.reset();
   allocator_ = std::move(allocator);
 }

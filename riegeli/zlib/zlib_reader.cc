@@ -43,17 +43,22 @@ constexpr int ZlibReaderBase::Options::kMaxWindowLog;
 constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
 #endif
 
-void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
+void ZlibReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->healthy()) && src->available() == 0) {
     Fail(*src);
     return;
   }
+  initial_compressed_pos_ = src->pos();
+  InitializeDecompressor();
+}
+
+inline void ZlibReaderBase::InitializeDecompressor() {
   decompressor_ = RecyclingPool<z_stream, ZStreamDeleter>::global().Get(
       [&] {
         std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
-        const int zlib_code = inflateInit2(ptr.get(), window_bits);
+        const int zlib_code = inflateInit2(ptr.get(), window_bits_);
         if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
           FailOperation(absl::StatusCode::kInternal, "inflateInit2()",
                         zlib_code);
@@ -61,7 +66,7 @@ void ZlibReaderBase::Initialize(Reader* src, int window_bits) {
         return ptr;
       },
       [&](z_stream* ptr) {
-        const int zlib_code = inflateReset2(ptr, window_bits);
+        const int zlib_code = inflateReset2(ptr, window_bits_);
         if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
           FailOperation(absl::StatusCode::kInternal, "inflateReset2()",
                         zlib_code);
@@ -220,6 +225,38 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
     move_limit_pos(length_read);
     return length_read >= min_length;
   }
+}
+
+bool ZlibReaderBase::SupportsRewind() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsRewind();
+}
+
+bool ZlibReaderBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "position in the buffer, use Seek() instead";
+  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+      << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
+         "buffer not empty";
+  if (new_pos <= limit_pos()) {
+    // Seeking backwards.
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    Reader& src = *src_reader();
+    truncated_ = false;
+    stream_had_data_ = false;
+    set_buffer();
+    set_limit_pos(0);
+    decompressor_.reset();
+    if (ABSL_PREDICT_FALSE(!src.Seek(initial_compressed_pos_))) {
+      src.Fail(absl::DataLossError("Zlib-compressed stream got truncated"));
+      return Fail(src);
+    }
+    InitializeDecompressor();
+    if (ABSL_PREDICT_FALSE(!healthy())) return false;
+    if (new_pos == 0) return true;
+  }
+  return BufferedReader::SeekBehindBuffer(new_pos);
 }
 
 }  // namespace riegeli
