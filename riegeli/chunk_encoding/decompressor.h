@@ -197,7 +197,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
       ReadVarint64(*compressed_reader);
   if (ABSL_PREDICT_FALSE(uncompressed_size == absl::nullopt)) {
     compressed_reader->Fail(
-        absl::DataLossError("Reading uncompressed size failed"));
+        absl::InvalidArgumentError("Reading uncompressed size failed"));
     Fail(*compressed_reader);
     return;
   }
@@ -218,7 +218,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
           std::move(compressed_reader.manager()));
       return;
   }
-  Fail(absl::DataLossError(absl::StrCat(
+  Fail(absl::UnimplementedError(absl::StrCat(
       "Unknown compression type: ", static_cast<unsigned>(compression_type))));
 }
 

@@ -60,7 +60,7 @@ class RecordsMetadataDescriptors::ErrorCollector
   void AddError(const std::string& filename, const std::string& element_name,
                 const google::protobuf::Message* descriptor,
                 ErrorLocation location, const std::string& message) override {
-    descriptors_->Fail(absl::DataLossError(
+    descriptors_->Fail(absl::InvalidArgumentError(
         absl::StrCat("Error in file ", filename, ", element ", element_name,
                      ": ", message)));
   }
@@ -257,7 +257,7 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
       << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
-    return Fail(absl::DataLossError(absl::StrCat(
+    return Fail(absl::InvalidArgumentError(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records())));
   }

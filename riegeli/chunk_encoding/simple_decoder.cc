@@ -54,7 +54,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
 
   const absl::optional<uint8_t> compression_type_byte = src->ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-    src->Fail(absl::DataLossError("Reading compression type failed"));
+    src->Fail(absl::InvalidArgumentError("Reading compression type failed"));
     return Fail(*src);
   }
   const CompressionType compression_type =
@@ -62,7 +62,7 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
 
   const absl::optional<uint64_t> sizes_size = ReadVarint64(*src);
   if (ABSL_PREDICT_FALSE(sizes_size == absl::nullopt)) {
-    src->Fail(absl::DataLossError("Reading size of sizes failed"));
+    src->Fail(absl::InvalidArgumentError("Reading size of sizes failed"));
     return Fail(*src);
   }
 
@@ -82,12 +82,12 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
         ReadVarint64(sizes_decompressor.reader());
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
       sizes_decompressor.reader().Fail(
-          absl::DataLossError("Reading record size failed"));
+          absl::InvalidArgumentError("Reading record size failed"));
       return Fail(sizes_decompressor.reader());
     }
     if (ABSL_PREDICT_FALSE(*size > decoded_data_size - limit)) {
       return Fail(
-          absl::DataLossError("Decoded data size larger than expected"));
+          absl::InvalidArgumentError("Decoded data size larger than expected"));
     }
     limit += IntCast<size_t>(*size);
     limits.push_back(limit);
@@ -96,7 +96,8 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
     return Fail(sizes_decompressor);
   }
   if (ABSL_PREDICT_FALSE(limit != decoded_data_size)) {
-    return Fail(absl::DataLossError("Decoded data size smaller than expected"));
+    return Fail(
+        absl::InvalidArgumentError("Decoded data size smaller than expected"));
   }
 
   values_decompressor_.Reset(src, compression_type);

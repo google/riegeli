@@ -67,7 +67,7 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
                                        RecordsMetadata& records_metadata) {
   // Based on `RecordReaderBase::ParseMetadata()`.
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
-    return absl::DataLossError(absl::StrCat(
+    return absl::InvalidArgumentError(absl::StrCat(
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records()));
   }
@@ -102,7 +102,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
 
   const absl::optional<uint8_t> compression_type_byte = chunk_reader.ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-    return absl::DataLossError("Reading compression type failed");
+    return absl::InvalidArgumentError("Reading compression type failed");
   }
   const CompressionType compression_type =
       static_cast<CompressionType>(*compression_type_byte);
@@ -112,7 +112,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
   if (absl::GetFlag(FLAGS_show_record_sizes)) {
     const absl::optional<uint64_t> sizes_size = ReadVarint64(chunk_reader);
     if (ABSL_PREDICT_FALSE(sizes_size == absl::nullopt)) {
-      return absl::DataLossError("Reading size of sizes failed");
+      return absl::InvalidArgumentError("Reading size of sizes failed");
     }
 
     if (ABSL_PREDICT_FALSE(*sizes_size > std::numeric_limits<Position>::max() -
@@ -131,7 +131,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
           ReadVarint64(sizes_decompressor.reader());
       if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
         sizes_decompressor.reader().Fail(
-            absl::DataLossError("Reading record size failed"));
+            absl::InvalidArgumentError("Reading record size failed"));
         return sizes_decompressor.reader().status();
       }
       simple_chunk.add_record_sizes(*size);
@@ -150,7 +150,7 @@ absl::Status DescribeTransposedChunk(
 
   const absl::optional<uint8_t> compression_type_byte = chunk_reader.ReadByte();
   if (ABSL_PREDICT_FALSE(compression_type_byte == absl::nullopt)) {
-    return absl::DataLossError("Reading compression type failed");
+    return absl::InvalidArgumentError("Reading compression type failed");
   }
   transposed_chunk.set_compression_type(
       static_cast<summary::CompressionType>(*compression_type_byte));

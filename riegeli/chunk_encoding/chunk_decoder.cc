@@ -76,36 +76,36 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid file signature chunk: data size is not zero: ",
             header.data_size())));
       }
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid file signature chunk: number of records is not zero: ",
             header.num_records())));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid file signature chunk: decoded data size is not zero: ",
             header.decoded_data_size())));
       }
       return true;
     case ChunkType::kFileMetadata:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid file metadata chunk: number of records is not zero: ",
             header.num_records())));
       }
       return true;
     case ChunkType::kPadding:
       if (ABSL_PREDICT_FALSE(header.num_records() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid padding chunk: number of records is not zero: ",
             header.num_records())));
       }
       if (ABSL_PREDICT_FALSE(header.decoded_data_size() != 0)) {
-        return Fail(absl::DataLossError(absl::StrCat(
+        return Fail(absl::InvalidArgumentError(absl::StrCat(
             "Invalid padding chunk: decoded data size is not zero: ",
             header.decoded_data_size())));
       }
@@ -120,7 +120,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
       if (ABSL_PREDICT_FALSE(!simple_decoder.reader().Read(
               IntCast<size_t>(header.decoded_data_size()), dest))) {
         simple_decoder.reader().Fail(
-            absl::DataLossError("Reading record values failed"));
+            absl::InvalidArgumentError("Reading record values failed"));
         return Fail(simple_decoder.reader());
       }
       if (ABSL_PREDICT_FALSE(!simple_decoder.VerifyEndAndClose())) {
@@ -149,7 +149,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
     // Ignore chunks with no records, even if the type is unknown.
     return true;
   }
-  return Fail(absl::DataLossError(absl::StrCat(
+  return Fail(absl::UnimplementedError(absl::StrCat(
       "Unknown chunk type: ", static_cast<uint64_t>(header.chunk_type()))));
 }
 
