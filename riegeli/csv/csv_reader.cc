@@ -89,13 +89,13 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
     has_header_ = true;
     std::vector<std::string> header;
     if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
-      Fail(absl::DataLossError("Empty CSV file"));
+      Fail(absl::InvalidArgumentError("Empty CSV file"));
     } else {
       --record_index_;
       {
         const absl::Status status = header_.TryReset(std::move(header));
         if (!status.ok()) {
-          FailAtPreviousRecord(absl::DataLossError(status.message()));
+          FailAtPreviousRecord(absl::InvalidArgumentError(status.message()));
         }
       }
     }
@@ -160,7 +160,8 @@ inline void CsvReaderBase::SkipLine(Reader& src) {
 inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
   if (ABSL_PREDICT_FALSE(!field.empty())) {
     recoverable_ = true;
-    return Fail(absl::DataLossError("Unquoted data before opening quote"));
+    return Fail(
+        absl::InvalidArgumentError("Unquoted data before opening quote"));
   }
 
   // Data from `src.cursor()` to where `ptr` stops will be appended to `field`.
@@ -176,7 +177,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       if (ABSL_PREDICT_FALSE(!src.Pull())) {
         if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
         recoverable_ = true;
-        return Fail(absl::DataLossError("Missing closing quote"));
+        return Fail(absl::InvalidArgumentError("Missing closing quote"));
       }
       ptr = src.cursor();
     }
@@ -199,7 +200,7 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
           if (ABSL_PREDICT_FALSE(!src.Pull())) {
             if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
             recoverable_ = true;
-            return Fail(absl::DataLossError("Missing closing quote"));
+            return Fail(absl::InvalidArgumentError("Missing closing quote"));
           }
           ptr = src.cursor();
         }
@@ -239,7 +240,8 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           recoverable_ = true;
-          return Fail(absl::DataLossError("Missing character after escape"));
+          return Fail(
+              absl::InvalidArgumentError("Missing character after escape"));
         }
         ptr = src.cursor() + 1;
         continue;
@@ -325,13 +327,13 @@ next_field:
       case CharClass::kLf:
         ++line_number_;
         if (ABSL_PREDICT_FALSE(standalone_record_)) {
-          return Fail(absl::DataLossError("Unexpected newline"));
+          return Fail(absl::InvalidArgumentError("Unexpected newline"));
         }
         return true;
       case CharClass::kCr:
         ++line_number_;
         if (ABSL_PREDICT_FALSE(standalone_record_)) {
-          return Fail(absl::DataLossError("Unexpected newline"));
+          return Fail(absl::InvalidArgumentError("Unexpected newline"));
         }
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           // If `src` failed after a CR, do not propagate the failure yet. The
@@ -360,21 +362,21 @@ next_field:
           case CharClass::kComment:
           case CharClass::kEscape:
             recoverable_ = true;
-            return Fail(
-                absl::DataLossError("Unquoted data after closing quote"));
+            return Fail(absl::InvalidArgumentError(
+                "Unquoted data after closing quote"));
           case CharClass::kFieldSeparator:
             ++field_index;
             goto next_field;
           case CharClass::kLf:
             ++line_number_;
             if (ABSL_PREDICT_FALSE(standalone_record_)) {
-              return Fail(absl::DataLossError("Unexpected newline"));
+              return Fail(absl::InvalidArgumentError("Unexpected newline"));
             }
             return true;
           case CharClass::kCr:
             ++line_number_;
             if (ABSL_PREDICT_FALSE(standalone_record_)) {
-              return Fail(absl::DataLossError("Unexpected newline"));
+              return Fail(absl::InvalidArgumentError("Unexpected newline"));
             }
             if (ABSL_PREDICT_FALSE(!src.Pull())) {
               // If `src` failed after a CR, do not propagate the failure yet.
@@ -395,7 +397,8 @@ next_field:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.healthy())) return Fail(src);
           recoverable_ = true;
-          return Fail(absl::DataLossError("Missing character after escape"));
+          return Fail(
+              absl::InvalidArgumentError("Missing character after escape"));
         }
         ptr = src.cursor() + 1;
         continue;
@@ -425,7 +428,7 @@ try_again:
     --record_index_;
     const size_t record_size = record.fields_.size();
     record.Reset();
-    FailAtPreviousRecord(absl::DataLossError(
+    FailAtPreviousRecord(absl::InvalidArgumentError(
         absl::StrCat("Mismatched number of CSV fields: header has ",
                      header_.size(), ", record has ", record_size)));
     if (recovery_ != nullptr) {
