@@ -337,10 +337,7 @@ class Reader : public Object {
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
   // Returns `absl::nullopt` on failure (`!healthy()`).
-  //
-  // TODO: Remove `virtual` when overrides are migrated to override
-  // `SizeImpl()` instead.
-  virtual absl::optional<Position> Size();
+  absl::optional<Position> Size();
 
  protected:
   // Creates a `Reader` with the given initial state.
