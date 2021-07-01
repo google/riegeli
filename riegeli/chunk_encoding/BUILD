@@ -250,9 +250,7 @@ cc_library(
 cc_library(
     name = "transpose_internal",
     hdrs = ["transpose_internal.h"],
-    visibility = [
-        "//visibility:private",
-    ],
+    visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base",
         "//riegeli/messages:message_wire_format",
