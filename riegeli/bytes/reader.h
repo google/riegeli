@@ -53,7 +53,7 @@ namespace riegeli {
 class Reader : public Object {
  public:
   // Verifies that the source ends at the current position, failing the `Reader`
-  // with an `absl::DataLossError()` if not. Closes the `Reader`.
+  // with an `absl::InvalidArgumentError()` if not. Closes the `Reader`.
   //
   // Return values:
   //  * `true`  - success (the source ends at the former current position)
@@ -63,7 +63,7 @@ class Reader : public Object {
   bool VerifyEndAndClose();
 
   // Verifies that the source ends at the current position, failing the `Reader`
-  // with an `absl::DataLossError()` if not.
+  // with an `absl::InvalidArgumentError()` if not.
   virtual void VerifyEnd();
 
   // Ensures that enough data are available in the buffer: if less than

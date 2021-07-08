@@ -77,8 +77,9 @@ inline void ZlibReaderBase::InitializeDecompressor() {
 void ZlibReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
-    Fail(Annotate(absl::DataLossError("Truncated zlib-compressed stream"),
-                  absl::StrCat("at byte ", src.pos())));
+    Fail(
+        Annotate(absl::InvalidArgumentError("Truncated zlib-compressed stream"),
+                 absl::StrCat("at byte ", src.pos())));
   }
   BufferedReader::Done();
   decompressor_.reset();
@@ -208,15 +209,15 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
                   reinterpret_cast<const Bytef*>(dictionary_.data().data())),
               SaturatingIntCast<uInt>(dictionary_.data().size()));
           if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
-            FailOperation(absl::StatusCode::kDataLoss, "inflateSetDictionary()",
-                          zlib_code);
+            FailOperation(absl::StatusCode::kInvalidArgument,
+                          "inflateSetDictionary()", zlib_code);
             break;
           }
           continue;
         }
         ABSL_FALLTHROUGH_INTENDED;
       case Z_DATA_ERROR:
-        FailOperation(absl::StatusCode::kDataLoss, "inflate()", result);
+        FailOperation(absl::StatusCode::kInvalidArgument, "inflate()", result);
         break;
       default:
         FailOperation(absl::StatusCode::kInternal, "inflate()", result);

@@ -84,7 +84,7 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest,
   if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
   if (ABSL_PREDICT_FALSE(!ok)) {
     return Annotate(
-        Annotate(absl::DataLossError("Invalid snappy-compressed stream"),
+        Annotate(absl::InvalidArgumentError("Invalid snappy-compressed stream"),
                  absl::StrCat("at byte ", src.pos())),
         absl::StrCat("at uncompressed byte ", dest.pos()));
   }

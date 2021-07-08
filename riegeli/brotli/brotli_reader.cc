@@ -61,8 +61,9 @@ inline void BrotliReaderBase::InitializeDecompressor() {
 void BrotliReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
-    Fail(Annotate(absl::DataLossError("Truncated Brotli-compressed stream"),
-                  absl::StrCat("at byte ", src.pos())));
+    Fail(Annotate(
+        absl::InvalidArgumentError("Truncated Brotli-compressed stream"),
+        absl::StrCat("at byte ", src.pos())));
   }
   PullableReader::Done();
   decompressor_.reset();
@@ -97,7 +98,7 @@ bool BrotliReaderBase::PullBehindScratch() {
       case BROTLI_DECODER_RESULT_ERROR:
         set_buffer();
         return Fail(
-            Annotate(absl::DataLossError(absl::StrCat(
+            Annotate(absl::InvalidArgumentError(absl::StrCat(
                          "BrotliDecoderDecompressStream() failed: ",
                          BrotliDecoderErrorString(
                              BrotliDecoderGetErrorCode(decompressor_.get())))),

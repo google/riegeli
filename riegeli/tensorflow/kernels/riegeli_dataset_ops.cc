@@ -174,7 +174,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
               // will resume reading the file after the invalid region has been
               // skipped.
               *end_of_sequence = false;
-              return ::tensorflow::errors::DataLoss(
+              return ::tensorflow::errors::InvalidArgument(
                   "Skipping invalid region of a Riegeli/records file: ",
                   skipped_region.ToString());
             }

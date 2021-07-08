@@ -38,7 +38,7 @@ namespace riegeli {
 
 void Reader::VerifyEnd() {
   if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(absl::DataLossError(absl::StrCat("End of data expected")));
+    Fail(absl::InvalidArgumentError(absl::StrCat("End of data expected")));
   }
 }
 

@@ -40,7 +40,7 @@ namespace {
 inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
                                      ParseOptions options) {
   if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
-    return absl::DataLossError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
                      " because it is missing required fields: ",
                      dest.InitializationErrorString()));
@@ -69,7 +69,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
                                      IntCast<int>(src.available()));
       src.move_cursor(src.available());
       if (ABSL_PREDICT_FALSE(!ok)) {
-        return absl::DataLossError(absl::StrCat(
+        return absl::InvalidArgumentError(absl::StrCat(
             "Failed to parse message of type ", dest.GetTypeName()));
       }
       return CheckInitialized(dest, options);
@@ -79,7 +79,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
   const bool ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
   if (ABSL_PREDICT_FALSE(!src.healthy())) return src.status();
   if (ABSL_PREDICT_FALSE(!ok)) {
-    return absl::DataLossError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
@@ -93,7 +93,7 @@ absl::Status ParseFromString(absl::string_view src,
   if (ABSL_PREDICT_FALSE(
           src.size() > size_t{std::numeric_limits<int>::max()} ||
           !dest.ParsePartialFromArray(src.data(), IntCast<int>(src.size())))) {
-    return absl::DataLossError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);
@@ -108,7 +108,7 @@ absl::Status ParseFromChain(const Chain& src,
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
               flat->data(), IntCast<int>(flat->size())))) {
-        return absl::DataLossError(absl::StrCat(
+        return absl::InvalidArgumentError(absl::StrCat(
             "Failed to parse message of type ", dest.GetTypeName()));
       }
       return CheckInitialized(dest, options);
@@ -119,7 +119,7 @@ absl::Status ParseFromChain(const Chain& src,
   // can never fail.
   ReaderInputStream input_stream(&reader);
   if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromZeroCopyStream(&input_stream))) {
-    return absl::DataLossError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName()));
   }
   return CheckInitialized(dest, options);

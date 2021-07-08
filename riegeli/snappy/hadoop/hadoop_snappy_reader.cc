@@ -48,7 +48,7 @@ void HadoopSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
     Fail(Annotate(
-        absl::DataLossError("Truncated HadoopSnappy-compressed stream"),
+        absl::InvalidArgumentError("Truncated HadoopSnappy-compressed stream"),
         absl::StrCat("at byte ", src.pos())));
   }
   PullableReader::Done();
@@ -57,7 +57,7 @@ void HadoopSnappyReaderBase::Done() {
 bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {
   Reader& src = *src_reader();
   return Fail(
-      Annotate(absl::DataLossError(absl::StrCat(
+      Annotate(absl::InvalidArgumentError(absl::StrCat(
                    "Invalid HadoopSnappy-compressed stream: ", message)),
                absl::StrCat("at byte ", src.pos())));
 }

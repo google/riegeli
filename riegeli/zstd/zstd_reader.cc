@@ -173,8 +173,9 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
 void ZstdReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
-    Fail(Annotate(absl::DataLossError("Truncated Zstd-compressed stream"),
-                  absl::StrCat("at byte ", src.pos())));
+    Fail(
+        Annotate(absl::InvalidArgumentError("Truncated Zstd-compressed stream"),
+                 absl::StrCat("at byte ", src.pos())));
   }
   BufferedReader::Done();
   decompressor_.reset();
@@ -242,8 +243,8 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     }
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(Annotate(
-          absl::DataLossError(absl::StrCat("ZSTD_decompressStream() failed: ",
-                                           ZSTD_getErrorName(result))),
+          absl::InvalidArgumentError(absl::StrCat(
+              "ZSTD_decompressStream() failed: ", ZSTD_getErrorName(result))),
           absl::StrCat("at byte ", src.pos())));
       move_limit_pos(output.pos);
       return output.pos >= min_length;
@@ -262,8 +263,9 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       } else if (growing_source_) {
         truncated_ = true;
       } else {
-        Fail(Annotate(absl::DataLossError("Truncated Zstd-compressed stream"),
-                      absl::StrCat("at byte ", src.pos())));
+        Fail(Annotate(
+            absl::InvalidArgumentError("Truncated Zstd-compressed stream"),
+            absl::StrCat("at byte ", src.pos())));
       }
       return output.pos >= min_length;
     }

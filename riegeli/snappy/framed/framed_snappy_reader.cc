@@ -58,7 +58,7 @@ void FramedSnappyReaderBase::Done() {
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *src_reader();
     Fail(Annotate(
-        absl::DataLossError("Truncated FramedSnappy-compressed stream"),
+        absl::InvalidArgumentError("Truncated FramedSnappy-compressed stream"),
         absl::StrCat("at byte ", src.pos())));
   }
   PullableReader::Done();
@@ -68,7 +68,7 @@ void FramedSnappyReaderBase::Done() {
 bool FramedSnappyReaderBase::FailInvalidStream(absl::string_view message) {
   Reader& src = *src_reader();
   return Fail(
-      Annotate(absl::DataLossError(absl::StrCat(
+      Annotate(absl::InvalidArgumentError(absl::StrCat(
                    "Invalid FramedSnappy-compressed stream: ", message)),
                absl::StrCat("at byte ", src.pos())));
 }
