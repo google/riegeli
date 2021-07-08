@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -125,12 +124,6 @@ class BufferedWriter : public Writer {
   bool SeekImpl(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
-
-  ABSL_DEPRECATED("Override methods with suffix BehindBuffer instead")
-  bool PushInternal() {
-    if (ABSL_PREDICT_FALSE(!healthy())) return false;
-    return SyncBuffer();
-  }
 
  private:
   bool SyncBuffer();
