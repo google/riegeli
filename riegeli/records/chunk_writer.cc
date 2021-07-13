@@ -60,7 +60,6 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   ChainReader<> data_reader(&chunk.data);
   const Position chunk_begin = pos_;
   const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
-  dest.WriteHint(SaturatingIntCast<size_t>(chunk_end - pos_));
   if (ABSL_PREDICT_FALSE(
           !WriteSection(header_reader, chunk_begin, chunk_end, dest))) {
     return false;

@@ -132,20 +132,6 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
   return ok;
 }
 
-void LimitingBackwardWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
-      << "Failed invariant of LimitingBackwardWriterBase: "
-         "position exceeds size limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  BackwardWriter& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return;
-  dest.WriteHint(UnsignedMin(length, size_limit_ - pos()));
-  MakeBuffer(dest);
-}
-
 bool LimitingBackwardWriterBase::PrefersCopying() const {
   const BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->PrefersCopying();

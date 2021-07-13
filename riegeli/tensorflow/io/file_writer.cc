@@ -189,19 +189,6 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
   return Writer::WriteSlow(src);
 }
 
-void FileWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return;
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  const size_t buffer_length =
-      UnsignedMin(UnsignedMax(buffer_size_, length),
-                  std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(), buffer_length);
-}
-
 bool FileWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return healthy();

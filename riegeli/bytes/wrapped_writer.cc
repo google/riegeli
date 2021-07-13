@@ -105,17 +105,6 @@ bool WrappedWriterBase::WriteZerosSlow(Position length) {
   return ok;
 }
 
-void WrappedWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  Writer& dest = *dest_writer();
-  SyncBuffer(dest);
-  dest.WriteHint(length);
-  MakeBuffer(dest);
-}
-
 bool WrappedWriterBase::SupportsRandomAccess() {
   Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsRandomAccess();

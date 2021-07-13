@@ -78,7 +78,6 @@ class LimitingWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
-  void WriteHintSlow(size_t length) override;
   bool SeekImpl(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;

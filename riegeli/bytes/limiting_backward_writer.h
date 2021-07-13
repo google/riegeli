@@ -77,7 +77,6 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
-  void WriteHintSlow(size_t length) override;
   bool TruncateImpl(Position new_size) override;
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if size limit is

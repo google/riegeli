@@ -138,12 +138,6 @@ bool BackwardWriter::WriteZerosSlow(Position length) {
   return true;
 }
 
-void BackwardWriter::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-}
-
 bool BackwardWriter::FlushImpl(FlushType flush_type) { return healthy(); }
 
 bool BackwardWriter::TruncateImpl(Position new_size) {

@@ -131,23 +131,6 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
   return true;
 }
 
-void StringWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  std::string& dest = *dest_string();
-  SyncBuffer(dest);
-  if (length > dest.capacity() - dest.size()) {
-    dest.reserve(UnsignedMin(
-        UnsignedMax(SaturatingAdd(dest.size(), length),
-                    // Ensure amortized constant time of a reallocation.
-                    SaturatingAdd(dest.capacity(), dest.capacity() / 2)),
-        dest.max_size()));
-  }
-  MakeBuffer(dest);
-}
-
 bool StringWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   std::string& dest = *dest_string();

@@ -107,17 +107,6 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
   return ok;
 }
 
-void DigestingWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  Writer& dest = *dest_writer();
-  SyncBuffer(dest);
-  dest.WriteHint(length);
-  MakeBuffer(dest);
-}
-
 bool DigestingWriterBase::PrefersCopying() const {
   const Writer* const dest = dest_writer();
   return dest != nullptr && dest->PrefersCopying();

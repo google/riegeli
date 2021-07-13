@@ -119,7 +119,6 @@ class BufferedWriter : public Writer {
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   bool WriteZerosSlow(Position length) override;
-  void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekImpl(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;

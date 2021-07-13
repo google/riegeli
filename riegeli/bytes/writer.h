@@ -153,17 +153,6 @@ class Writer : public Object {
   // implemented in terms of `WriteSlow(absl::string_view)` anyway.
   virtual bool PrefersCopying() const { return false; }
 
-  // Hints that several consecutive `Push()` or `Write()` calls will follow,
-  // writing this amount of data in total.
-  //
-  // This can make these calls faster by preparing a larger internal buffer for
-  // all the data, and then pushing the data at once to the destination.
-  //
-  // Many classes derived from `Writer` accept a `size_hint` in their `Options`,
-  // which serves a similar purpose, but `WriteHint()` can be used later and can
-  // be applied to any `Writer`.
-  void WriteHint(size_t length);
-
   // Pushes buffered data to the destination.
   //
   // This makes data written so far visible, but in contrast to `Close()`,
@@ -320,13 +309,6 @@ class Writer : public Object {
   // Precondition:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < length`
   virtual bool WriteZerosSlow(Position length);
-
-  // Implementation of the slow part of `WriteHint()`.
-  //
-  // By default does nothing.
-  //
-  // Precondition: `available() < length`
-  virtual void WriteHintSlow(size_t length);
 
   // Implementation of `Flush()`, except that the parameter is not defaulted,
   // which is problematic for virtual functions.
@@ -546,11 +528,6 @@ inline bool Writer::WriteZeros(Position length) {
     return true;
   }
   return WriteZerosSlow(length);
-}
-
-inline void Writer::WriteHint(size_t length) {
-  if (ABSL_PREDICT_TRUE(available() >= length)) return;
-  WriteHintSlow(length);
 }
 
 inline bool Writer::Flush(FlushType flush_type) {

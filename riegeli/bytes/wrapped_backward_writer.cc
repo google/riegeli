@@ -105,17 +105,6 @@ bool WrappedBackwardWriterBase::WriteZerosSlow(Position length) {
   return ok;
 }
 
-void WrappedBackwardWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of BackwardWriter::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  BackwardWriter& dest = *dest_writer();
-  SyncBuffer(dest);
-  dest.WriteHint(length);
-  MakeBuffer(dest);
-}
-
 bool WrappedBackwardWriterBase::PrefersCopying() const {
   const BackwardWriter* const dest = dest_writer();
   return dest != nullptr && dest->PrefersCopying();

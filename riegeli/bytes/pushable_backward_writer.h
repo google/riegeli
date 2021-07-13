@@ -115,8 +115,8 @@ class PushableBackwardWriter : public BackwardWriter {
   //   `!scratch_used()`
   virtual bool PushBehindScratch() = 0;
 
-  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `WriteHintSlow()`,
-  // `FlushImpl()`, and `TruncateImpl()`, called while scratch is not used.
+  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`, and
+  // `TruncateImpl()`, called while scratch is not used.
   //
   // By default they are implemented analogously to the corresponding
   // `BackwardWriter` functions.
@@ -130,7 +130,6 @@ class PushableBackwardWriter : public BackwardWriter {
   virtual bool WriteBehindScratch(const absl::Cord& src);
   virtual bool WriteBehindScratch(absl::Cord&& src);
   virtual bool WriteZerosBehindScratch(Position length);
-  virtual void WriteHintBehindScratch(size_t length);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool TruncateBehindScratch(Position new_size);
 
@@ -143,7 +142,6 @@ class PushableBackwardWriter : public BackwardWriter {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
-  void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool TruncateImpl(Position new_size) override;
 

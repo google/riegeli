@@ -122,12 +122,6 @@ bool Writer::WriteZerosSlow(Position length) {
   return true;
 }
 
-void Writer::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-}
-
 bool Writer::FlushImpl(FlushType flush_type) { return healthy(); }
 
 bool Writer::SeekImpl(Position new_pos) {

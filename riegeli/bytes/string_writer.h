@@ -100,7 +100,6 @@ class StringWriterBase : public Writer {
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
-  void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool TruncateImpl(Position new_size) override;
 

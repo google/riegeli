@@ -151,19 +151,6 @@ bool BufferedWriter::WriteZerosSlow(Position length) {
   return Write(zeros);
 }
 
-void BufferedWriter::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return;
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  const size_t buffer_length =
-      UnsignedMin(BufferLength(length, buffer_size_, size_hint_, start_pos()),
-                  std::numeric_limits<Position>::max() - start_pos());
-  buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(), buffer_length);
-}
-
 bool BufferedWriter::FlushImpl(FlushType flush_type) {
   const absl::string_view src(start(), written_to_buffer());
   set_buffer();

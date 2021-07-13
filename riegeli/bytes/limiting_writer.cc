@@ -131,19 +131,6 @@ bool LimitingWriterBase::WriteZerosSlow(Position length) {
   return ok;
 }
 
-void LimitingWriterBase::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
-      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
-  if (ABSL_PREDICT_FALSE(!healthy())) return;
-  Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return;
-  dest.WriteHint(UnsignedMin(length, size_limit_ - pos()));
-  MakeBuffer(dest);
-}
-
 bool LimitingWriterBase::SupportsRandomAccess() {
   Writer* const dest = dest_writer();
   return dest != nullptr && dest->SupportsRandomAccess();

@@ -215,15 +215,6 @@ bool PushableWriter::WriteZerosBehindScratch(Position length) {
   return true;
 }
 
-void PushableWriter::WriteHintBehindScratch(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of PushableWriter::WriteHintBehindScratch(): "
-         "enough space available, use WriteHint() instead";
-  RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::WriteHintBehindScratch(): "
-         "scratch used";
-}
-
 bool PushableWriter::FlushBehindScratch(FlushType flush_type) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
@@ -358,17 +349,6 @@ bool PushableWriter::WriteZerosSlow(Position length) {
     }
   }
   return WriteZerosBehindScratch(length);
-}
-
-void PushableWriter::WriteHintSlow(size_t length) {
-  RIEGELI_ASSERT_LT(available(), length)
-      << "Failed precondition of Writer::WriteHintSlow(): "
-         "enough space available, use WriteHint() instead";
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    if (ABSL_PREDICT_FALSE(!SyncScratch())) return;
-    if (ABSL_PREDICT_TRUE(available() >= length)) return;
-  }
-  return WriteHintBehindScratch(length);
 }
 
 bool PushableWriter::FlushImpl(FlushType flush_type) {

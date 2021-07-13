@@ -113,9 +113,9 @@ class PushableWriter : public Writer {
   //   `!scratch_used()`
   virtual bool PushBehindScratch() = 0;
 
-  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `WriteHintSlow()`,
-  // `FlushImpl()`, `SeekImpl()`, `SizeImpl()`, and `TruncateImpl()`, called
-  // while scratch is not used.
+  // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`,
+  // `SeekImpl()`, `SizeImpl()`, and `TruncateImpl()`, called while scratch is
+  // not used.
   //
   // By default they are implemented analogously to the corresponding `Writer`
   // functions.
@@ -129,7 +129,6 @@ class PushableWriter : public Writer {
   virtual bool WriteBehindScratch(const absl::Cord& src);
   virtual bool WriteBehindScratch(absl::Cord&& src);
   virtual bool WriteZerosBehindScratch(Position length);
-  virtual void WriteHintBehindScratch(size_t length);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool SeekBehindScratch(Position new_pos);
   virtual absl::optional<Position> SizeBehindScratch();
@@ -144,7 +143,6 @@ class PushableWriter : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
-  void WriteHintSlow(size_t length) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekImpl(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
