@@ -129,9 +129,10 @@ inline void FileReaderBase::SyncBuffer() {
 }
 
 inline size_t FileReaderBase::LengthToReadDirectly() const {
-  // Read directly if reading through `buffer_` would need more than one read,
-  // or if `buffer_` would be full.
-  return SaturatingAdd(available(), buffer_size_);
+  // Read directly at least `buffer_size_` of data. Even if the buffer is
+  // partially full, this ensures that at least every other read has length at
+  // least `buffer_size_`.
+  return buffer_size_;
 }
 
 bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {

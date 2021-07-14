@@ -54,25 +54,16 @@ bool BufferedWriter::SyncBuffer() {
 }
 
 inline size_t BufferedWriter::LengthToWriteDirectly() const {
-  size_t length = buffer_size_;
-  if (written_to_buffer() > 0) {
-    // Two writes are needed because current contents of `buffer_` must be
-    // pushed. Write directly if writing through `buffer_` would need more than
-    // two writes, or if `buffer_` would be full for the second write.
-    if (limit_pos() < size_hint_) {
-      // Write directly also if `size_hint_` is reached.
-      length = UnsignedMin(length, size_hint_ - limit_pos());
-    }
-    length = SaturatingAdd(available(), length);
-  } else {
-    // Write directly if writing through `buffer_` would need more than one
-    // write, or if `buffer_` would be full.
-    if (start_pos() < size_hint_) {
-      // Write directly also if `size_hint_` is reached.
-      length = UnsignedMin(length, size_hint_ - start_pos());
-    }
+  // Write directly at least `buffer_size_` of data. Even if the buffer is
+  // partially full, this ensures that at least every other write has length at
+  // least `buffer_size_`.
+  if (pos() < size_hint_ &&
+      (written_to_buffer() == 0 || limit_pos() < size_hint_)) {
+    // Write directly also if `size_hint_` is reached, as long as the number of
+    // writes is not increased.
+    return UnsignedMin(buffer_size_, size_hint_ - pos());
   }
-  return length;
+  return buffer_size_;
 }
 
 bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {

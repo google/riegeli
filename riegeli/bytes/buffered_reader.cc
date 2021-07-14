@@ -63,11 +63,14 @@ inline void BufferedReader::SyncBuffer() {
 }
 
 inline size_t BufferedReader::LengthToReadDirectly() const {
-  // Read directly if reading through `buffer_` would need more than one read,
-  // or if `buffer_` would be full. Read directly also if `size_hint_` is
-  // reached.
-  return SaturatingAdd(available(),
-                       BufferLength(0, buffer_size_, size_hint_, limit_pos()));
+  // Read directly at least `buffer_size_` of data. Even if the buffer is
+  // partially full, this ensures that at least every other read has length at
+  // least `buffer_size_`.
+  if (pos() < size_hint_) {
+    // Read directly also if `size_hint_` is reached.
+    return UnsignedMin(buffer_size_, size_hint_ - pos());
+  }
+  return buffer_size_;
 }
 
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {

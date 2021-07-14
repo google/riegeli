@@ -125,17 +125,10 @@ bool FileWriterBase::SyncBuffer() {
 }
 
 inline size_t FileWriterBase::LengthToWriteDirectly() const {
-  size_t length = buffer_size_;
-  if (written_to_buffer() > 0) {
-    // Two writes are needed because current contents of `buffer_` must be
-    // pushed. Write directly if writing through `buffer_` would need more than
-    // two writes, or if `buffer_` would be full for the second write.
-    length = SaturatingAdd(available(), length);
-  } else {
-    // Write directly if writing through `buffer_` would need more than one
-    // write, or if `buffer_` would be full.
-  }
-  return length;
+  // Write directly at least `buffer_size_` of data. Even if the buffer is
+  // partially full, this ensures that at least every other write has length at
+  // least `buffer_size_`.
+  return buffer_size_;
 }
 
 bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
