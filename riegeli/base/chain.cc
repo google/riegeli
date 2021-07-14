@@ -1368,7 +1368,7 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
          BufferLength(min_length,
                       SaturatingSub(options.max_block_size(), replaced_length),
                       options.size_hint(), size_,
-                      UnsignedMax(recommended_length, size_ - replaced_length,
+                      UnsignedMax(recommended_length, size_,
                                   SaturatingSub(options.min_block_size(),
                                                 replaced_length)));
 }
