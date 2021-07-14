@@ -112,10 +112,8 @@ class OstreamWriterBase : public BufferedWriter {
   bool supports_random_access();
 
   // Whether random access is supported, as detected by calling
-  // `std::ostream::tellp()` and `std::ostream::seekp()` to the end and back.
-  //
-  // `std::ostream::tellp()` is called during initialization;
-  // `std::ostream::seekp()` is called lazily.
+  // `std::ostream::tellp()` (during initialization) and `std::ostream::seekp()`
+  // to the end and back (lazily).
   //
   // Invariant:
   //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`

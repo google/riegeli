@@ -222,15 +222,12 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
   set_start_pos(pos());
   if (written_to_buffer() <= MaxBytesToCopyToCord(dest) ||
       limit() == short_buffer_) {
-    const absl::string_view data(cursor(), written_to_buffer());
-    set_buffer();
-    dest.Prepend(data);
+    dest.Prepend(absl::string_view(cursor(), written_to_buffer()));
   } else {
-    absl::Cord data =
-        buffer_.ToCord(absl::string_view(cursor(), written_to_buffer()));
-    set_buffer();
-    dest.Prepend(std::move(data));
+    dest.Prepend(
+        buffer_.ToCord(absl::string_view(cursor(), written_to_buffer())));
   }
+  set_buffer();
 }
 
 }  // namespace riegeli

@@ -110,10 +110,8 @@ class IstreamReaderBase : public BufferedReader {
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
   // Whether random access is supported, as detected by calling
-  // `std::istream::tellg()` and `std::istream::seekg()` to the end and back.
-  //
-  // `std::istream::tellg()` is called during initialization;
-  // `std::istream::seekg()` is called lazily.
+  // `std::istream::tellg()` (during initialization) and `std::istream::seekg()`
+  // to the end and back (lazily).
   //
   // Invariant:
   //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`
