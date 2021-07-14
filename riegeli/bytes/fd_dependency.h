@@ -35,7 +35,13 @@ namespace internal {
 //  * `errno` - failure (`fd` is closed anyway)
 int CloseFd(int fd);
 
-absl::string_view CloseFunctionName();
+#ifdef POSIX_CLOSE_RESTART
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName,
+                                  "posix_close()");
+#else
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName,
+                                  "close()");
+#endif
 
 }  // namespace internal
 
@@ -147,14 +153,6 @@ inline int CloseFd(int fd) {
   }
 #endif
   return 0;
-}
-
-inline absl::string_view CloseFunctionName() {
-#ifdef POSIX_CLOSE_RESTART
-  return "posix_close()";
-#else
-  return "close()";
-#endif
 }
 
 }  // namespace internal
