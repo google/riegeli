@@ -101,12 +101,28 @@ class FdIoUringWriterBase : public BufferedWriter {
     }
     size_t buffer_size() const { return buffer_size_; }
 
+    // The option for Io_Uring operation.
+    //
+    // The option includes: async or sync, fd_register or not, and size. 
+    Options& set_io_uring_option(FdIoUringOptions io_uring_option) & {
+      io_uring_option_ = io_uring_option;
+      return *this;
+    }
+
+    Options&& set_io_uring_option(FdIoUringOptions io_uring_option) && {
+      return std::move(set_io_uring_option(io_uring_option));
+    }
+
+    FdIoUringOptions io_uring_option() const {
+      return io_uring_option_;
+    }
+
    private:
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
     size_t buffer_size_ = kDefaultBufferSize;
-    FdIoUringOptions options;
+    FdIoUringOptions io_uring_option_;
   };
 
   // Returns the fd being written to. If the fd is owned then changed to -1 by
@@ -131,12 +147,13 @@ class FdIoUringWriterBase : public BufferedWriter {
   void Reset();
   void Reset(size_t buffer_size);
   void Initialize(int dest, absl::optional<Position> assumed_pos,
-                  absl::optional<Position> independent_pos);
+                  absl::optional<Position> independent_pos, FdIoUringOptions io_uring_option);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
   void InitializePos(int dest, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
   void InitializePos(int dest, int flags, absl::optional<Position> assumed_pos,
                      absl::optional<Position> independent_pos);
+  void InitializeFdIoUring(FdIoUringOptions options, int fd);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void AnnotateFailure(absl::Status& status) override;
@@ -146,6 +163,9 @@ class FdIoUringWriterBase : public BufferedWriter {
   absl::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
 
+  bool SyncWriteInternal(absl::string_view src);
+  bool AsyncWriteInternal(absl::string_view src);
+
  private:
   void SetFilename(int dest);
   bool SeekInternal(int dest, Position new_pos);
@@ -153,7 +173,10 @@ class FdIoUringWriterBase : public BufferedWriter {
   std::string filename_;
   bool supports_random_access_ = false;
   bool has_independent_pos_ = false;
+  bool async_ = false;
 
+ protected:
+  std::unique_ptr<FdIoUring> fd_io_uring_;
   // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
 };
 
@@ -284,7 +307,7 @@ inline FdIoUringWriterBase::FdIoUringWriterBase(FdIoUringWriterBase&& that) noex
       // part was moved.
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
-      has_independent_pos_(that.has_independent_pos_) {}
+      has_independent_pos_(that.has_independent_pos_), async_(that.async_), fd_io_uring_(std::move(that.fd_io_uring_)) {}
 
 inline FdIoUringWriterBase& FdIoUringWriterBase::operator=(FdIoUringWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
@@ -293,6 +316,8 @@ inline FdIoUringWriterBase& FdIoUringWriterBase::operator=(FdIoUringWriterBase&&
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
+  async_ = that.async_;
+  fd_io_uring_ = std::move(that.fd_io_uring_);
   return *this;
 }
 
@@ -301,6 +326,8 @@ inline void FdIoUringWriterBase::Reset() {
   filename_.clear();
   supports_random_access_ = false;
   has_independent_pos_ = false;
+  async_ = false;
+  fd_io_uring_.reset();
 }
 
 inline void FdIoUringWriterBase::Reset(size_t buffer_size) {
@@ -308,18 +335,20 @@ inline void FdIoUringWriterBase::Reset(size_t buffer_size) {
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = false;
   has_independent_pos_ = false;
+  async_ = false;
+  fd_io_uring_.reset();
 }
 
 template <typename Dest>
 inline FdIoUringWriter<Dest>::FdIoUringWriter(const Dest& dest, Options options)
     : FdIoUringWriterBase(options.buffer_size()), dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
 inline FdIoUringWriter<Dest>::FdIoUringWriter(Dest&& dest, Options options)
     : FdIoUringWriterBase(options.buffer_size()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
@@ -327,7 +356,7 @@ template <typename... DestArgs>
 inline FdIoUringWriter<Dest>::FdIoUringWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : FdIoUringWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
@@ -362,14 +391,14 @@ template <typename Dest>
 inline void FdIoUringWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdIoUringWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
 inline void FdIoUringWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdIoUringWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
@@ -378,7 +407,7 @@ inline void FdIoUringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   FdIoUringWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos(), options.io_uring_option());
 }
 
 template <typename Dest>
@@ -395,6 +424,8 @@ void FdIoUringWriter<Dest>::Initialize(absl::string_view filename, int flags,
   if (ABSL_PREDICT_FALSE(dest < 0)) return;
   FdIoUringWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest));
+  int fd = dest_.get();
+  InitializeFdIoUring(options.io_uring_option(), fd);
   InitializePos(dest_.get(), flags, options.assumed_pos(),
                 options.independent_pos());
 }
@@ -402,6 +433,8 @@ void FdIoUringWriter<Dest>::Initialize(absl::string_view filename, int flags,
 template <typename Dest>
 void FdIoUringWriter<Dest>::Done() {
   FdIoUringWriterBase::Done();
+  fd_io_uring_.reset();
+
   if (dest_.is_owning()) {
     const int dest = dest_.Release();
     if (ABSL_PREDICT_FALSE(internal::CloseFd(dest) < 0) &&

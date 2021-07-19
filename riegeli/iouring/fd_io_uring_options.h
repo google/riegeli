@@ -1,13 +1,11 @@
-#ifndef RIEGELI_IOURING_IO_URING_OPTIONS_H_
-#define RIEGELI_IOURING_IO_URING_OPTIONS_H_
+#ifndef RIEGELI_IOURING_FD_IO_URING_OPTIONS_H_
+#define RIEGELI_IOURING_FD_IO_URING_OPTIONS_H_
 
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdint.h>
 
 #include <utility>
-
-#include "liburing.h"
 
 namespace riegeli {
 
@@ -77,28 +75,6 @@ class FdIoUringOptions {
             return fd_register_;
         }
 
-        // If "true", the Io_Uring will apply polled IO.
-        //
-        // If "false", the Io_Uring will apply non-polled IO.
-        //
-        // When IO is polled, the application will repeatedly ask the hardware driver for
-        // status on a submitted IO request instead of relying on hardware interrupts.
-        // This can improve the performance significantly, typically when high IOPS.
-        //
-        // Default: "false".
-        FdIoUringOptions& set_poll_io(bool poll_io) & {
-            poll_io_ = poll_io;
-            return *this;
-        }
-
-        FdIoUringOptions&& set_poll_io(bool poll_io) && {
-            return std::move(set_poll_io(poll_io));
-        }
-
-        bool poll_io() const {
-            return poll_io_;
-        }
-
     private:
         // Tunes the value of size.
         // Get the next power of two.
@@ -107,38 +83,8 @@ class FdIoUringOptions {
         bool async_ = true;
         uint32_t size_ = 8192;
         bool fd_register_ = false;
-        bool poll_io_ = false;
 };
-
-
-uint32_t FdIoUringOptions::RoundUpToNextPowerTwo(uint32_t size) {
-    if(size == 0) {
-        return size;
-    }
-
-    --size;
-    size |= size >> 1;
-    size |= size >> 2;
-    size |= size >> 4;
-    size |= size >> 8;
-    size |= size >> 16;
-    return size + 1;
-}
-
-namespace ioUring {
-
-bool IsIoUringAvailable() {
-    struct io_uring test_ring;
-    bool available = false;
-    if(io_uring_queue_init(4, &test_ring, 0) == 0) {
-        available = true;
-        io_uring_queue_exit(&test_ring);
-    }
-    return available;
-}
-
-}
     
 }  // namespace riegeli
 
-#endif  // RIEGELI_IOURING_IO_URING_OPTIONS_H_
+#endif  // RIEGELI_IOURING_FD_IO_URING_OPTIONS_H_

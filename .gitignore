@@ -3,6 +3,5 @@ bazel-bin
 bazel-out
 bazel-riegeli
 bazel-testlogs
-test/
 .bazelversion
 configure.bazelrc

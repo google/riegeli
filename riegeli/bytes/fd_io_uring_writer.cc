@@ -34,10 +34,11 @@
 namespace riegeli {
 
 void FdIoUringWriterBase::Initialize(int dest, absl::optional<Position> assumed_pos,
-                              absl::optional<Position> independent_pos) {
+                              absl::optional<Position> independent_pos, FdIoUringOptions io_uring_option) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdIoUringWriter: negative file descriptor";
   SetFilename(dest);
+  InitializeFdIoUring(io_uring_option, dest);
   InitializePos(dest, assumed_pos, independent_pos);
 }
 
@@ -131,6 +132,16 @@ void FdIoUringWriterBase::InitializePos(int dest, int flags,
   }
 }
 
+void FdIoUringWriterBase::InitializeFdIoUring(FdIoUringOptions options, int fd) {
+  async_ = options.async();
+
+  if(async_) {
+    
+  } else {
+    fd_io_uring_ = std::make_unique<FdSyncIoUring>(options, fd);
+  }
+}
+
 bool FdIoUringWriterBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
   RIEGELI_ASSERT_NE(error_number, 0)
@@ -153,35 +164,45 @@ bool FdIoUringWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
-  const int dest = dest_fd();
+
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos())) {
     return FailOverflow();
   }
+
+  if(async_) {
+    return AsyncWriteInternal(src);
+  }
+
+  return SyncWriteInternal(src);
+}
+
+bool FdIoUringWriterBase::SyncWriteInternal(absl::string_view src) {
+  const int dest = dest_fd();
+
   do {
   again:
-    const ssize_t length_written =
-        has_independent_pos_
-            ? pwrite(dest, src.data(),
+    const ssize_t length_written = fd_io_uring_ -> pwrite(dest, src.data(),
                      UnsignedMin(src.size(),
                                  size_t{std::numeric_limits<ssize_t>::max()}),
-                     IntCast<off_t>(start_pos()))
-            : write(dest, src.data(),
-                    UnsignedMin(src.size(),
-                                size_t{std::numeric_limits<ssize_t>::max()}));
+                     IntCast<off_t>(start_pos()));
     if (ABSL_PREDICT_FALSE(length_written < 0)) {
       if (errno == EINTR) goto again;
-      return FailOperation(has_independent_pos_ ? "pwrite()" : "write()");
+      return FailOperation("pwrite()");
     }
     RIEGELI_ASSERT_GT(length_written, 0)
-        << (has_independent_pos_ ? "pwrite()" : "write()") << " returned 0";
+        << "pwrite()" << " returned 0";
     RIEGELI_ASSERT_LE(IntCast<size_t>(length_written), src.size())
-        << (has_independent_pos_ ? "pwrite()" : "write()")
+        << "pwrite()"
         << " wrote more than requested";
     move_start_pos(IntCast<size_t>(length_written));
     src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
+  return true;
+}
+
+bool FdIoUringWriterBase::AsyncWriteInternal(absl::string_view src) {
   return true;
 }
 
@@ -193,7 +214,7 @@ bool FdIoUringWriterBase::FlushImpl(FlushType flush_type) {
       return true;
     case FlushType::kFromMachine: {
       const int dest = dest_fd();
-      if (ABSL_PREDICT_FALSE(fsync(dest) < 0)) {
+      if (ABSL_PREDICT_FALSE(fd_io_uring_ -> fsync(dest) < 0)) {
         return FailOperation("fsync()");
       }
       return true;

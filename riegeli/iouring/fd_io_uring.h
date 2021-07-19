@@ -5,9 +5,19 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#include <string>
 #include <utility>
 
+#include "liburing.h"
+#include "syscall.h"
+
 namespace riegeli {
+
+namespace ioUring {
+
+bool IsIoUringAvailable();
+
+}
 
 // The base interface class for sync or async Io_Uring.
 class FdIoUring {
@@ -29,9 +39,9 @@ public:
     virtual void RegisterFd(int fd) = 0;
 
     virtual void UnRegisterFd() = 0;
+
+    virtual std::string Mode() = 0;
 };
-
-
 
 }  // namespace riegeli
 

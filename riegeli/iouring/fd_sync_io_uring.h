@@ -1,5 +1,5 @@
-#ifndef RIEGELI_BYTES_FD_SYNC_IO_URING_H_
-#define RIEGELI_BYTES_FD_SYNC_IO_URING_H_
+#ifndef RIEGELI_IOURING_FD_SYNC_IO_URING_H_
+#define RIEGELI_IOURING_FD_SYNC_IO_URING_H_
 
 #include "riegeli/iouring/fd_io_uring_options.h"
 #include "riegeli/iouring/fd_io_uring.h"
@@ -28,15 +28,13 @@ class FdSyncIoUring : public FdIoUring {
 
         int fsync(int fd) override;
 
-        virtual void RegisterFd(int fd) override;
+        void RegisterFd(int fd) override;
 
-        virtual void UnRegisterFd() override;
+        void UnRegisterFd() override;
+
+        std::string Mode() override;
 
         // Get Io_Uring settings. 
-        bool poll_io() {
-            return poll_io_;
-        }
-
         bool fd_register() {
             return fd_register_;
         }
@@ -65,7 +63,6 @@ class FdSyncIoUring : public FdIoUring {
         struct io_uring_params params_;
         struct io_uring ring_;
 
-        bool poll_io_;
         bool fd_register_ = false;
         uint32_t size_;
         int fd_ = -1;
@@ -73,4 +70,4 @@ class FdSyncIoUring : public FdIoUring {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_FD_SYNC_IO_URING_H_
+#endif  // RIEGELI_IOURING_FD_SYNC_IO_URING_H_S
