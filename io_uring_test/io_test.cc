@@ -33,9 +33,8 @@ void CheckData(const std::string &file) {
 int main() {
     std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
     riegeli::FdIoUringOptions fd_io_uring_options;
-    fd_io_uring_options.set_async(false);
+    fd_io_uring_options.set_async(true);
     fd_io_uring_options.set_fd_register(false);
-    fd_io_uring_options.set_poll_io(true);
 
     riegeli::FdIoUringWriterBase::Options fd_w_options;
     fd_w_options.set_io_uring_option(fd_io_uring_options);
@@ -44,16 +43,13 @@ int main() {
 
     riegeli::FdIoUringWriter<> fd_writer(file, O_WRONLY | O_CREAT | O_TRUNC,
                                  fd_w_options);
-
     WritePtr writer = std::make_unique<riegeli::RecordWriter<riegeli::FdIoUringWriter<>>>(
     std::move(fd_writer), std::move(w_options));
-
-    for(int i = 1; i <= 1000000; ++i) {
+    for(int i = 1; i <= 100000; ++i) {
         std::string temp = std::to_string(i);
         writer -> WriteRecord(temp);
     }
     writer -> Close();
-
     CheckData(file);    
     return 0;
 }

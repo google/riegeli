@@ -11,6 +11,23 @@ namespace iouringtest {
 using WritePtr = std::unique_ptr<riegeli::RecordWriter<riegeli::FdIoUringWriter<>>>;
 using ReadPtr = std::unique_ptr<riegeli::RecordReader<riegeli::FdReader<>>>;
 
+void Sync(WritePtr& writer, const std::string &file) {
+    riegeli::FdIoUringOptions fd_io_uring_options;
+    fd_io_uring_options.set_async(false);
+    fd_io_uring_options.set_fd_register(false);
+
+    riegeli::FdIoUringWriterBase::Options fd_w_options;
+    fd_w_options.set_io_uring_option(fd_io_uring_options);
+    
+    riegeli::RecordWriterBase::Options w_options;
+
+    riegeli::FdIoUringWriter<> fd_writer(file, O_WRONLY | O_CREAT | O_TRUNC,
+                                 fd_w_options);
+
+    writer = std::make_unique<riegeli::RecordWriter<riegeli::FdIoUringWriter<>>>(
+    std::move(fd_writer), std::move(w_options));
+}
+
 void SyncFd(WritePtr& writer, const std::string &file) {
     riegeli::FdIoUringOptions fd_io_uring_options;
     fd_io_uring_options.set_async(false);
@@ -28,10 +45,27 @@ void SyncFd(WritePtr& writer, const std::string &file) {
     std::move(fd_writer), std::move(w_options));
 }
 
-void Sync(WritePtr& writer, const std::string &file) {
+void Async(WritePtr& writer, const std::string &file) {
     riegeli::FdIoUringOptions fd_io_uring_options;
-    fd_io_uring_options.set_async(false);
+    fd_io_uring_options.set_async(true);
     fd_io_uring_options.set_fd_register(false);
+
+    riegeli::FdIoUringWriterBase::Options fd_w_options;
+    fd_w_options.set_io_uring_option(fd_io_uring_options);
+    
+    riegeli::RecordWriterBase::Options w_options;
+
+    riegeli::FdIoUringWriter<> fd_writer(file, O_WRONLY | O_CREAT | O_TRUNC,
+                                 fd_w_options);
+
+    writer = std::make_unique<riegeli::RecordWriter<riegeli::FdIoUringWriter<>>>(
+    std::move(fd_writer), std::move(w_options));
+}
+
+void AsyncFd(WritePtr& writer, const std::string &file) {
+    riegeli::FdIoUringOptions fd_io_uring_options;
+    fd_io_uring_options.set_async(true);
+    fd_io_uring_options.set_fd_register(true);
 
     riegeli::FdIoUringWriterBase::Options fd_w_options;
     fd_w_options.set_io_uring_option(fd_io_uring_options);
@@ -138,6 +172,43 @@ TEST(IoUringTest, SynFdWriteLargeData) {
     std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
     WritePtr writer;
     SyncFd(writer, file);
+
+    WriteLargeData(writer);
+    CheckLargeData(file);    
+}
+
+TEST(IoUringTest, AsynWrite) {
+    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    WritePtr writer;
+    Sync(writer, file);
+
+    WriteData(writer);
+    CheckData(file);    
+}
+
+TEST(IoUringTest, AsynFdWrite) {
+    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    WritePtr writer;
+    SyncFd(writer, file);
+
+    WriteData(writer);
+    CheckData(file);    
+}
+
+
+TEST(IoUringTest, AsynWriteLargeData) {
+    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    WritePtr writer;
+    Async(writer, file);
+
+    WriteLargeData(writer);
+    CheckLargeData(file);  
+}
+
+TEST(IoUringTest, AsynFdWriteLargeData) {
+    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    WritePtr writer;
+    AsyncFd(writer, file);
 
     WriteLargeData(writer);
     CheckLargeData(file);    

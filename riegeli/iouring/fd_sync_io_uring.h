@@ -28,11 +28,14 @@ class FdSyncIoUring : public FdIoUring {
 
         int fsync(int fd) override;
 
+        // Interface for register and unregister fd.
         void RegisterFd(int fd) override;
 
         void UnRegisterFd() override;
 
-        std::string Mode() override;
+        std::string Mode() override {
+            return "Sync Io_Uring";
+        }
 
         // Get Io_Uring settings. 
         bool fd_register() {
@@ -60,11 +63,14 @@ class FdSyncIoUring : public FdIoUring {
         // Submit sqe to kernel.
         ssize_t SubmitAndGetResult();
 
+    private:
+        // Io_Uring entrance and set up params.
         struct io_uring_params params_;
         struct io_uring ring_;
 
+        // Io_Uring settings.
         bool fd_register_ = false;
-        uint32_t size_;
+        uint32_t size_ = 0;
         int fd_ = -1;
 };
 

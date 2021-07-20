@@ -21,6 +21,7 @@
 #include "riegeli/bytes/fd_dependency.h"
 
 #include "riegeli/iouring/fd_sync_io_uring.h"
+#include "riegeli/iouring/fd_async_io_uring.h"
 
 namespace riegeli {
 
@@ -162,9 +163,6 @@ class FdIoUringWriterBase : public BufferedWriter {
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
-
-  bool SyncWriteInternal(absl::string_view src);
-  bool AsyncWriteInternal(absl::string_view src);
 
  private:
   void SetFilename(int dest);

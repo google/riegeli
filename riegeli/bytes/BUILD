@@ -483,6 +483,7 @@ cc_library(
         "//riegeli/base",
         "//riegeli/base:status",
         "//riegeli/iouring:fd_sync_io_uring",
+        "//riegeli/iouring:fd_async_io_uring",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

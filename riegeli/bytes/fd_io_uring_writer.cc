@@ -136,7 +136,7 @@ void FdIoUringWriterBase::InitializeFdIoUring(FdIoUringOptions options, int fd) 
   async_ = options.async();
 
   if(async_) {
-    
+    fd_io_uring_ = std::make_unique<FdAsyncIoUring>(options, fd);
   } else {
     fd_io_uring_ = std::make_unique<FdSyncIoUring>(options, fd);
   }
@@ -165,21 +165,12 @@ bool FdIoUringWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
 
+  const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos())) {
     return FailOverflow();
   }
-
-  if(async_) {
-    return AsyncWriteInternal(src);
-  }
-
-  return SyncWriteInternal(src);
-}
-
-bool FdIoUringWriterBase::SyncWriteInternal(absl::string_view src) {
-  const int dest = dest_fd();
 
   do {
   again:
@@ -199,10 +190,6 @@ bool FdIoUringWriterBase::SyncWriteInternal(absl::string_view src) {
     move_start_pos(IntCast<size_t>(length_written));
     src.remove_prefix(IntCast<size_t>(length_written));
   } while (!src.empty());
-  return true;
-}
-
-bool FdIoUringWriterBase::AsyncWriteInternal(absl::string_view src) {
   return true;
 }
 

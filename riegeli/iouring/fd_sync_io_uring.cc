@@ -15,7 +15,7 @@ FdSyncIoUring::FdSyncIoUring(FdIoUringOptions options, int fd)
 
     RIEGELI_ASSERT(InitIoUring()) << "Failed initilization of Io_Uring. (FdSyncIoUring)";
 
-    if(fd_register_) {
+    if(options.fd_register()) {
         RegisterFd(fd);
     }
 }
@@ -37,7 +37,7 @@ void FdSyncIoUring::RegisterFd(int fd) {
     fd_ = fd;
     
     if(fd_register_ == false) {
-        RIEGELI_ASSERT_EQ(io_uring_register_files(&ring_, &fd_, 1), 1) << "Failed fd register.";
+        RIEGELI_ASSERT_EQ(io_uring_register_files(&ring_, &fd_, 1), 0) << "Failed fd register.";
         fd_register_ = true;
     } else {
         UpdateFd();
@@ -54,15 +54,12 @@ void FdSyncIoUring::UpdateFd() {
     RIEGELI_ASSERT_EQ(io_uring_register_files_update(&ring_, 0, &fd_, 1), 1) << "Failed fd update.";
 }
 
-std::string FdSyncIoUring::Mode() {
-    return "Sync Io_Uring";
-}
-
 ssize_t FdSyncIoUring::pread(int fd, void *buf, size_t count, off_t offset) {
     struct io_uring_sqe *sqe  = GetSqe();
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
         io_uring_prep_read(sqe, 0, buf, count, offset);
+        sqe -> flags |= IOSQE_FIXED_FILE;
     } else {
         io_uring_prep_read(sqe, fd, buf, count, offset);
     }
@@ -75,6 +72,7 @@ ssize_t FdSyncIoUring::pwrite(int fd, const void *buf, size_t count, off_t offse
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
         io_uring_prep_write(sqe, 0, buf, count, offset);
+        sqe -> flags |= IOSQE_FIXED_FILE;
     } else {
         io_uring_prep_write(sqe, fd, buf, count, offset);
     }
@@ -87,6 +85,7 @@ ssize_t FdSyncIoUring::preadv(int fd, const struct ::iovec *iov, int iovcnt, off
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
         io_uring_prep_readv(sqe, 0, iov, iovcnt, offset);
+        sqe -> flags |= IOSQE_FIXED_FILE;
     } else {
         io_uring_prep_readv(sqe, fd, iov, iovcnt, offset);
     }
@@ -99,6 +98,7 @@ ssize_t FdSyncIoUring::pwritev(int fd, const struct ::iovec *iov, int iovcnt, of
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
         io_uring_prep_writev(sqe, 0, iov, iovcnt, offset);
+        sqe -> flags |= IOSQE_FIXED_FILE;
     } else {
         io_uring_prep_writev(sqe, fd, iov, iovcnt, offset);
     }
@@ -108,10 +108,10 @@ ssize_t FdSyncIoUring::pwritev(int fd, const struct ::iovec *iov, int iovcnt, of
 
 int FdSyncIoUring::fsync(int fd) {
     struct io_uring_sqe *sqe  = GetSqe();
-    io_uring_prep_fsync(sqe, fd, 0);
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
         io_uring_prep_fsync(sqe, 0, 0);
+        sqe -> flags |= IOSQE_FIXED_FILE;
     } else {
         io_uring_prep_fsync(sqe, fd, 0);
     }
