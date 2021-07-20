@@ -76,20 +76,20 @@ class FdAsyncIoUring : public FdIoUring {
 
         void UnRegisterFd() override;
 
-        std::string Mode() override {
-            return "Async Io_Uring";
+        IoUringMode Mode() override {
+            return IoUringMode::ASYNCIOURING;
         }
 
         // Get Io_Uring settings. 
-        bool fd_register() {
+        bool fd_register() override {
             return fd_register_;
         }
 
-        uint32_t size() {
+        uint32_t size() override {
             return size_;
         }
 
-        int fd() {
+        int fd() override {
             return fd_;
         }
 
@@ -114,6 +114,9 @@ class FdAsyncIoUring : public FdIoUring {
         void pwriteCallBack(FdAsyncIoUringOp *op, ssize_t res);
 
         void fsyncCallBack(FdAsyncIoUringOp *op, ssize_t res);
+        void preadCallBack(FdAsyncIoUringOp *op, ssize_t res);
+        void preadvCallBack(FdAsyncIoUringOp *op, ssize_t res);
+        void pwritevCallBack(FdAsyncIoUringOp *op, ssize_t res);
 
     private:
         // Io_Uring entrance and set up params.

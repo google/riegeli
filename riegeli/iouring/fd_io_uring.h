@@ -22,6 +22,12 @@ bool IsIoUringAvailable();
 // The base interface class for sync or async Io_Uring.
 class FdIoUring {
 public:
+    enum class IoUringMode {
+        ASYNCIOURING,
+        SYNCIOURING,
+    };
+
+public:
     virtual ~FdIoUring() {}
 
     // The interface for file operation for Io_Uring.
@@ -40,7 +46,13 @@ public:
 
     virtual void UnRegisterFd() = 0;
 
-    virtual std::string Mode() = 0;
+    virtual IoUringMode Mode() = 0;
+
+    virtual bool fd_register() = 0;
+
+    virtual uint32_t size() = 0;
+
+    virtual int fd() = 0;
 };
 
 }  // namespace riegeli

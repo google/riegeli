@@ -33,20 +33,20 @@ class FdSyncIoUring : public FdIoUring {
 
         void UnRegisterFd() override;
 
-        std::string Mode() override {
-            return "Sync Io_Uring";
+        IoUringMode Mode() override {
+            return IoUringMode::SYNCIOURING;
         }
 
         // Get Io_Uring settings. 
-        bool fd_register() {
+        bool fd_register() override {
             return fd_register_;
         }
 
-        uint32_t size() {
+        uint32_t size() override {
             return size_;
         }
 
-        int fd() {
+        int fd() override {
             return fd_;
         }
 

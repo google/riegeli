@@ -141,7 +141,7 @@ void CheckLargeData(const std::string &file) {
 }
 
 TEST(IoUringTest, SynWrite) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     Sync(writer, file);
 
@@ -150,7 +150,7 @@ TEST(IoUringTest, SynWrite) {
 }
 
 TEST(IoUringTest, SynFdWrite) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     SyncFd(writer, file);
 
@@ -160,7 +160,7 @@ TEST(IoUringTest, SynFdWrite) {
 
 
 TEST(IoUringTest, SynWriteLargeData) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     Sync(writer, file);
 
@@ -169,7 +169,7 @@ TEST(IoUringTest, SynWriteLargeData) {
 }
 
 TEST(IoUringTest, SynFdWriteLargeData) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     SyncFd(writer, file);
 
@@ -178,7 +178,7 @@ TEST(IoUringTest, SynFdWriteLargeData) {
 }
 
 TEST(IoUringTest, AsynWrite) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     Sync(writer, file);
 
@@ -187,7 +187,7 @@ TEST(IoUringTest, AsynWrite) {
 }
 
 TEST(IoUringTest, AsynFdWrite) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     SyncFd(writer, file);
 
@@ -197,7 +197,7 @@ TEST(IoUringTest, AsynFdWrite) {
 
 
 TEST(IoUringTest, AsynWriteLargeData) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     Async(writer, file);
 
@@ -206,7 +206,7 @@ TEST(IoUringTest, AsynWriteLargeData) {
 }
 
 TEST(IoUringTest, AsynFdWriteLargeData) {
-    std::string file = "/home/werider/riegeli/io_uring_test/syn_test_file";
+    std::string file = std::string(getenv("TEST_TMPDIR")) + "/write_test_file";
     WritePtr writer;
     AsyncFd(writer, file);
 

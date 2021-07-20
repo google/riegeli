@@ -63,6 +63,7 @@ void FdAsyncIoUring::UpdateFd() {
 }
 
 ssize_t FdAsyncIoUring::pread(int fd, void *buf, size_t count, off_t offset) {
+    std::lock_guard<std::mutex> l(sq_mutex_);
     struct io_uring_sqe *sqe  = GetSqe();
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
@@ -71,6 +72,10 @@ ssize_t FdAsyncIoUring::pread(int fd, void *buf, size_t count, off_t offset) {
     } else {
         io_uring_prep_read(sqe, fd, buf, count, offset);
     }
+    FdAsyncIoUringOp::CallBackFunc cb = std::bind(&FdAsyncIoUring::fsyncCallBack, this, std::placeholders::_1, std::placeholders::_2);
+    FdAsyncIoUringOp* op = new FdAsyncIoUringOp(sqe, cb);
+    io_uring_sqe_set_data(sqe, op);
+    SubmitSqe();
     return count;
 }
 
@@ -89,6 +94,7 @@ ssize_t FdAsyncIoUring::pwrite(int fd, const void *buf, size_t count, off_t offs
 }
 
 ssize_t FdAsyncIoUring::preadv(int fd, const struct ::iovec *iov, int iovcnt, off_t offset) {
+    std::lock_guard<std::mutex> l(sq_mutex_);
     struct io_uring_sqe *sqe  = GetSqe();
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
@@ -97,10 +103,15 @@ ssize_t FdAsyncIoUring::preadv(int fd, const struct ::iovec *iov, int iovcnt, of
     } else {
         io_uring_prep_readv(sqe, fd, iov, iovcnt, offset);
     }
+    FdAsyncIoUringOp::CallBackFunc cb = std::bind(&FdAsyncIoUring::fsyncCallBack, this, std::placeholders::_1, std::placeholders::_2);
+    FdAsyncIoUringOp* op = new FdAsyncIoUringOp(sqe, cb);
+    io_uring_sqe_set_data(sqe, op);
+    SubmitSqe();
     return 0;
 }
 
 ssize_t FdAsyncIoUring::pwritev(int fd, const struct ::iovec *iov, int iovcnt, off_t offset) {
+    std::lock_guard<std::mutex> l(sq_mutex_);
     struct io_uring_sqe *sqe  = GetSqe();
     if(fd_register_) {
         RIEGELI_ASSERT_EQ(fd_, fd) << "The fd is not epual to the registered fd.";
@@ -109,6 +120,10 @@ ssize_t FdAsyncIoUring::pwritev(int fd, const struct ::iovec *iov, int iovcnt, o
     } else {
         io_uring_prep_writev(sqe, fd, iov, iovcnt, offset);
     }
+    FdAsyncIoUringOp::CallBackFunc cb = std::bind(&FdAsyncIoUring::fsyncCallBack, this, std::placeholders::_1, std::placeholders::_2);
+    FdAsyncIoUringOp* op = new FdAsyncIoUringOp(sqe, cb);
+    io_uring_sqe_set_data(sqe, op);
+    SubmitSqe();
     return 0;
 }
 
@@ -149,13 +164,13 @@ void FdAsyncIoUring::pwriteCallBack(FdAsyncIoUringOp *op, ssize_t res) {
     size_t offset = op -> GetSqe().off;
     size_t count = op -> GetSqe().len;
     delete op;
-    
+
     RIEGELI_ASSERT_GE(res, 0) << "pwrite() errno.";
     RIEGELI_ASSERT_GT(res, 0) << "pwrite() return 0.";
     RIEGELI_ASSERT_LE((size_t) res, count) << "pwrite() wrote more than requested.";
 
     char* newBuf = static_cast<char*>(buf);
-    operator delete(buf, count);
+    operator delete(buf, res);
     if(count - res > 0) {
         newBuf += res;
         offset += res;
@@ -167,8 +182,25 @@ void FdAsyncIoUring::pwriteCallBack(FdAsyncIoUringOp *op, ssize_t res) {
 
 void FdAsyncIoUring::fsyncCallBack(FdAsyncIoUringOp *op, ssize_t res) {
     delete op;
-
     RIEGELI_ASSERT_EQ(res, 0) << "fsync() errno.";
+}
+
+void FdAsyncIoUring::preadCallBack(FdAsyncIoUringOp *op, ssize_t res) {
+    delete op;
+    RIEGELI_ASSERT_GE(res, 0) << "pread() errno.";
+    RIEGELI_ASSERT_GT(res, 0) << "pread() return 0.";
+}
+
+void FdAsyncIoUring::pwritevCallBack(FdAsyncIoUringOp *op, ssize_t res) {
+    delete op;
+    RIEGELI_ASSERT_GE(res, 0) << "pwritev() errno.";
+    RIEGELI_ASSERT_GT(res, 0) << "pwritev() return 0.";
+}
+
+void FdAsyncIoUring::preadvCallBack(FdAsyncIoUringOp *op, ssize_t res) {
+    delete op;
+    RIEGELI_ASSERT_GE(res, 0) << "preadv() errno.";
+    RIEGELI_ASSERT_GT(res, 0) << "preadv() return 0.";
 }
 
 inline struct io_uring_sqe* FdAsyncIoUring::GetSqe() {
@@ -184,16 +216,18 @@ inline void FdAsyncIoUring::SubmitSqe() {
 
 void FdAsyncIoUring::Reap() {
     while(!exit_.load() || process_num_ != 0) {
-        struct io_uring_cqe* cqe = NULL;
-        RIEGELI_ASSERT_EQ(io_uring_wait_cqe(&ring_, &cqe), 0) << "Failed to get a cqe";
-        --process_num_;
-        ssize_t res = cqe -> res;
-        FdAsyncIoUringOp *op = static_cast<FdAsyncIoUringOp*>(io_uring_cqe_get_data(cqe));
-        FdAsyncIoUringOp::CallBackFunc cb = op -> GetCallBackFunc();
-        if(cb != NULL) {
-            cb(op, res);
+        if(process_num_ != 0) {
+            struct io_uring_cqe* cqe = NULL;
+            RIEGELI_ASSERT_EQ(io_uring_wait_cqe(&ring_, &cqe), 0) << "Failed to get a cqe";
+            --process_num_;
+            ssize_t res = cqe -> res;
+            FdAsyncIoUringOp *op = static_cast<FdAsyncIoUringOp*>(io_uring_cqe_get_data(cqe));
+            FdAsyncIoUringOp::CallBackFunc cb = op -> GetCallBackFunc();
+            if(cb != NULL) {
+                cb(op, res);
+            }
+            io_uring_cqe_seen(&ring_, cqe);
         }
-        io_uring_cqe_seen(&ring_, cqe);
     }
 }
 
