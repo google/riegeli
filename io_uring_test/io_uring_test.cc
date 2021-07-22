@@ -92,7 +92,7 @@ TEST(IoUringTest, SyncRegisterAndUpdateFd) {
     EXPECT_EQ(IoUring -> fd(), 0);
 
     std::string path = std::string(getenv("TEST_TMPDIR")) + "/io_uring_test_file";
-    int fd  = open(path, O_WRONLY | O_CREAT | O_TRUNC);
+    int fd  = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
     IoUring -> RegisterFd(fd);
     EXPECT_EQ(IoUring -> fd_register(), true);
     EXPECT_EQ(IoUring -> fd(), fd);
@@ -110,7 +110,8 @@ TEST(IoUringTest, AsyncUnRegisterAndUpdateFd) {
     EXPECT_EQ(IoUring -> fd(), 0);
 
     std::string path = std::string(getenv("TEST_TMPDIR")) + "/io_uring_test_file";
-    int fd  = open(path, O_WRONLY | O_CREAT | O_TRUNC);
+    int fd  = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+    IoUring -> RegisterFd(fd);
     EXPECT_EQ(IoUring -> fd_register(), true);
     EXPECT_EQ(IoUring -> fd(), fd);
 }
