@@ -5,3 +5,4 @@ bazel-riegeli
 bazel-testlogs
 .bazelversion
 configure.bazelrc
+io_uring_test

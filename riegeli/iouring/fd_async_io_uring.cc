@@ -13,7 +13,8 @@ FdAsyncIoUring::FdAsyncIoUring(FdIoUringOptions options, int fd)
     memset(&ring_, 0, sizeof(ring_));
     memset(&params_, 0, sizeof(params_));
 
-    RIEGELI_ASSERT(InitIoUring()) << "Failed initilization of Io_Uring. (FdAsyncIoUring)";
+    const bool init_res = InitIoUring();
+    RIEGELI_ASSERT(init_res) << "Failed initilization of Io_Uring. (FdAsyncIoUring)";
 
     if(options.fd_register()) {
         RegisterFd(fd);
@@ -45,7 +46,8 @@ void FdAsyncIoUring::RegisterFd(int fd) {
     fd_ = fd;
     
     if(fd_register_ == false) {
-        RIEGELI_ASSERT_EQ(io_uring_register_files(&ring_, &fd_, 1), 0) << "Failed fd register.";
+        const int register_res = io_uring_register_files(&ring_, &fd_, 1);
+        RIEGELI_ASSERT_EQ(register_res, 0) << "Failed fd register.";
         fd_register_ = true;
     } else {
         UpdateFd();
@@ -54,12 +56,14 @@ void FdAsyncIoUring::RegisterFd(int fd) {
 
 void FdAsyncIoUring::UnRegisterFd() {
     fd_ = -1;
-    RIEGELI_ASSERT_EQ(io_uring_unregister_files(&ring_), 0) << "Failed fd unregister.";
+    const int unregister_res = io_uring_unregister_files(&ring_);
+    RIEGELI_ASSERT_EQ(unregister_res, 0) << "Failed fd unregister.";
     fd_register_ = false;
 }
 
 void FdAsyncIoUring::UpdateFd() {
-    RIEGELI_ASSERT_EQ(io_uring_register_files_update(&ring_, 0, &fd_, 1), 1) << "Failed fd update.";
+    const int update_res = io_uring_register_files_update(&ring_, 0, &fd_, 1);
+    RIEGELI_ASSERT_EQ(update_res, 1) << "Failed fd update.";
 }
 
 ssize_t FdAsyncIoUring::pread(int fd, void *buf, size_t count, off_t offset) {
@@ -210,23 +214,25 @@ inline struct io_uring_sqe* FdAsyncIoUring::GetSqe() {
 }
 
 inline void FdAsyncIoUring::SubmitSqe() {
-    RIEGELI_ASSERT_GT(io_uring_submit(&ring_), 0) << "Failed to submit the sqe.";
-    ++process_num_;
+    const int submit_res = io_uring_submit(&ring_);
+    RIEGELI_ASSERT_GT(submit_res, 0) << "Failed to submit the sqe.";
+    process_num_ += submit_res;
 }
 
 void FdAsyncIoUring::Reap() {
     while(!exit_.load() || process_num_ != 0) {
         if(process_num_ != 0) {
             struct io_uring_cqe* cqe = NULL;
-            RIEGELI_ASSERT_EQ(io_uring_wait_cqe(&ring_, &cqe), 0) << "Failed to get a cqe";
-            --process_num_;
-            ssize_t res = cqe -> res;
-            FdAsyncIoUringOp *op = static_cast<FdAsyncIoUringOp*>(io_uring_cqe_get_data(cqe));
-            FdAsyncIoUringOp::CallBackFunc cb = op -> GetCallBackFunc();
-            if(cb != NULL) {
-                cb(op, res);
+            if(io_uring_wait_cqe(&ring_, &cqe) == 0) {
+                --process_num_;
+                ssize_t res = cqe -> res;
+                FdAsyncIoUringOp *op = static_cast<FdAsyncIoUringOp*>(io_uring_cqe_get_data(cqe));
+                FdAsyncIoUringOp::CallBackFunc cb = op -> GetCallBackFunc();
+                if(cb != NULL) {
+                    cb(op, res);
+                }
+                io_uring_cqe_seen(&ring_, cqe);
             }
-            io_uring_cqe_seen(&ring_, cqe);
         }
     }
 }

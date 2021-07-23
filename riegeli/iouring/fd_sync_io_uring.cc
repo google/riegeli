@@ -13,7 +13,8 @@ FdSyncIoUring::FdSyncIoUring(FdIoUringOptions options, int fd)
     memset(&ring_, 0, sizeof(ring_));
     memset(&params_, 0, sizeof(params_));
 
-    RIEGELI_ASSERT(InitIoUring()) << "Failed initilization of Io_Uring. (FdSyncIoUring)";
+    const bool init_res = InitIoUring();
+    RIEGELI_ASSERT(init_res) << "Failed initilization of Io_Uring. (FdSyncIoUring)";
 
     if(options.fd_register()) {
         RegisterFd(fd);
@@ -37,7 +38,8 @@ void FdSyncIoUring::RegisterFd(int fd) {
     fd_ = fd;
     
     if(fd_register_ == false) {
-        RIEGELI_ASSERT_EQ(io_uring_register_files(&ring_, &fd_, 1), 0) << "Failed fd register.";
+        const int register_res = io_uring_register_files(&ring_, &fd_, 1);
+        RIEGELI_ASSERT_EQ(register_res, 0) << "Failed fd register.";
         fd_register_ = true;
     } else {
         UpdateFd();
@@ -46,12 +48,14 @@ void FdSyncIoUring::RegisterFd(int fd) {
 
 void FdSyncIoUring::UnRegisterFd() {
     fd_ = -1;
-    RIEGELI_ASSERT_EQ(io_uring_unregister_files(&ring_), 0) << "Failed fd unregister.";
+    const int unregister_res = io_uring_unregister_files(&ring_);
+    RIEGELI_ASSERT_EQ(unregister_res, 0) << "Failed fd unregister.";
     fd_register_ = false;
 }
 
 void FdSyncIoUring::UpdateFd() {
-    RIEGELI_ASSERT_EQ(io_uring_register_files_update(&ring_, 0, &fd_, 1), 1) << "Failed fd update.";
+    const int update_res = io_uring_register_files_update(&ring_, 0, &fd_, 1);
+    RIEGELI_ASSERT_EQ(update_res, 1) << "Failed fd update.";
 }
 
 ssize_t FdSyncIoUring::pread(int fd, void *buf, size_t count, off_t offset) {
@@ -126,9 +130,11 @@ inline struct io_uring_sqe* FdSyncIoUring::GetSqe() {
 }
 
 inline ssize_t FdSyncIoUring::SubmitAndGetResult() {
-    RIEGELI_ASSERT_GT(io_uring_submit(&ring_), 0) << "Failed to submit the sqe.";
+    const int submit_res = io_uring_submit(&ring_);
+    RIEGELI_ASSERT_GT(submit_res, 0) << "Failed to submit the sqe.";
     struct io_uring_cqe* cqe = NULL;
-    RIEGELI_ASSERT_EQ(io_uring_wait_cqe(&ring_, &cqe), 0) << "Failed to get a cqe";
+    const int wait_res = io_uring_wait_cqe(&ring_, &cqe);
+    RIEGELI_ASSERT_EQ(wait_res, 0) << "Failed to get a cqe";
     ssize_t res = cqe -> res;
     io_uring_cqe_seen(&ring_, cqe);
     return res;
