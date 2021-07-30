@@ -20,8 +20,11 @@
 #include <cstring>
 
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/endian/endian_common.h"
 
 namespace riegeli {
 
@@ -41,6 +44,18 @@ bool WriteBigEndian16(uint16_t data, BackwardWriter& dest);
 bool WriteBigEndian32(uint32_t data, BackwardWriter& dest);
 bool WriteBigEndian64(uint64_t data, BackwardWriter& dest);
 
+// Writes an array of numbers in a fixed width Little/Big Endian encoding.
+//
+// This is faster than writing them individually for native endianness.
+//
+// Returns `false` on failure.
+bool WriteLittleEndian16s(absl::Span<const uint16_t> data, Writer& dest);
+bool WriteLittleEndian32s(absl::Span<const uint32_t> data, Writer& dest);
+bool WriteLittleEndian64s(absl::Span<const uint64_t> data, Writer& dest);
+bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest);
+bool WriteBigEndian32s(absl::Span<const uint32_t> data, Writer& dest);
+bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest);
+
 // Writes a number in a fixed width Little/Big Endian encoding to an array.
 //
 // Writes `sizeof(uint{16,32,64}_t)` bytes to `dest[]`.
@@ -50,6 +65,19 @@ void WriteLittleEndian64(uint64_t data, char* dest);
 void WriteBigEndian16(uint16_t data, char* dest);
 void WriteBigEndian32(uint32_t data, char* dest);
 void WriteBigEndian64(uint64_t data, char* dest);
+
+// Writes an array of numbers in a fixed width Little/Big Endian encoding to an
+// array.
+//
+// This is faster than writing them individually for native endianness.
+//
+// Writes `data.size() * sizeof(uint{16,32,64}_t)` bytes to `dest[]`.
+void WriteLittleEndian16s(absl::Span<const uint16_t> data, char* dest);
+void WriteLittleEndian32s(absl::Span<const uint32_t> data, char* dest);
+void WriteLittleEndian64s(absl::Span<const uint64_t> data, char* dest);
+void WriteBigEndian16s(absl::Span<const uint16_t> data, char* dest);
+void WriteBigEndian32s(absl::Span<const uint32_t> data, char* dest);
+void WriteBigEndian64s(absl::Span<const uint64_t> data, char* dest);
 
 // Implementation details follow.
 
@@ -134,6 +162,87 @@ inline bool WriteBigEndian64(uint64_t data, BackwardWriter& dest) {
   dest.move_cursor(sizeof(uint64_t));
   WriteBigEndian64(data, dest.cursor());
   return true;
+}
+
+inline bool WriteLittleEndian16s(absl::Span<const uint16_t> data,
+                                 Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint16_t)));
+  } else {
+    for (const uint16_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndian16(value, dest))) return false;
+    }
+    return true;
+  }
+}
+
+inline bool WriteLittleEndian32s(absl::Span<const uint32_t> data,
+                                 Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint32_t)));
+  } else {
+    for (const uint32_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndian32(value, dest))) return false;
+    }
+    return true;
+  }
+}
+
+inline bool WriteLittleEndian64s(absl::Span<const uint64_t> data,
+                                 Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint64_t)));
+  } else {
+    for (const uint64_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndian64(value, dest))) return false;
+    }
+    return true;
+  }
+}
+
+inline bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint16_t)));
+  } else {
+    for (const uint16_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndian16(value, dest))) return false;
+    }
+    return true;
+  }
+}
+
+inline bool WriteBigEndian32s(absl::Span<const uint32_t> data, Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint32_t)));
+  } else {
+    for (const uint32_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndian32(value, dest))) return false;
+    }
+    return true;
+  }
+}
+
+inline bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(
+        absl::string_view(reinterpret_cast<const char*>(data.data()),
+                          data.size() * sizeof(uint64_t)));
+  } else {
+    for (const uint64_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndian64(value, dest))) return false;
+    }
+    return true;
+  }
 }
 
 namespace internal {
@@ -235,6 +344,102 @@ inline void WriteBigEndian32(uint32_t data, char* dest) {
 inline void WriteBigEndian64(uint64_t data, char* dest) {
   const uint64_t encoded = internal::EncodeBigEndian64(data);
   std::memcpy(dest, &encoded, sizeof(uint64_t));
+}
+
+inline void WriteLittleEndian16s(absl::Span<const uint16_t> data, char* dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
+    }
+  } else {
+    for (const uint16_t value : data) {
+      WriteLittleEndian16(value, dest);
+      dest += sizeof(uint16_t);
+    }
+  }
+}
+
+inline void WriteLittleEndian32s(absl::Span<const uint32_t> data, char* dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
+    }
+  } else {
+    for (const uint32_t value : data) {
+      WriteLittleEndian32(value, dest);
+      dest += sizeof(uint32_t);
+    }
+  }
+}
+
+inline void WriteLittleEndian64s(absl::Span<const uint64_t> data, char* dest) {
+  if (internal::IsLittleEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
+    }
+  } else {
+    for (const uint64_t value : data) {
+      WriteLittleEndian64(value, dest);
+      dest += sizeof(uint64_t);
+    }
+  }
+}
+
+inline void WriteBigEndian16s(absl::Span<const uint16_t> data, char* dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
+    }
+  } else {
+    for (const uint16_t value : data) {
+      WriteBigEndian16(value, dest);
+      dest += sizeof(uint16_t);
+    }
+  }
+}
+
+inline void WriteBigEndian32s(absl::Span<const uint32_t> data, char* dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
+    }
+  } else {
+    for (const uint32_t value : data) {
+      WriteBigEndian32(value, dest);
+      dest += sizeof(uint32_t);
+    }
+  }
+}
+
+inline void WriteBigEndian64s(absl::Span<const uint64_t> data, char* dest) {
+  if (internal::IsBigEndian()) {
+    if (ABSL_PREDICT_TRUE(
+            // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+            // undefined.
+            !data.empty())) {
+      std::memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
+    }
+  } else {
+    for (const uint64_t value : data) {
+      WriteBigEndian64(value, dest);
+      dest += sizeof(uint64_t);
+    }
+  }
 }
 
 }  // namespace riegeli
