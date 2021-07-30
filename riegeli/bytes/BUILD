@@ -296,6 +296,44 @@ cc_library(
 )
 
 cc_library(
+    name = "splitting_writer",
+    srcs = ["splitting_writer.cc"],
+    hdrs = ["splitting_writer.h"],
+    deps = [
+        ":chain_reader",
+        ":cord_reader",
+        ":pushable_writer",
+        ":string_reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
+    name = "joining_reader",
+    srcs = ["joining_reader.cc"],
+    hdrs = ["joining_reader.h"],
+    deps = [
+        ":pullable_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "//riegeli/base:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
     name = "array_writer",
     srcs = [
         "array_writer.cc",
