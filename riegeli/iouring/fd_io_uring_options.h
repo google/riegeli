@@ -81,7 +81,7 @@ class FdIoUringOptions {
         uint32_t RoundUpToNextPowerTwo(uint32_t size);
 
         bool async_ = true;
-        uint32_t size_ = 8192;
+        uint32_t size_ = 512;
         bool fd_register_ = false;
 };
     

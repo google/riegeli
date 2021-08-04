@@ -13,6 +13,9 @@ uint32_t FdIoUringOptions::RoundUpToNextPowerTwo(uint32_t size) {
     size |= size >> 4;
     size |= size >> 8;
     size |= size >> 16;
+    if(size + 1 > 4096) {
+        return 4096;
+    }
     return size + 1;
 }
 

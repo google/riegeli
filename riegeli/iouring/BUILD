@@ -13,7 +13,12 @@ cc_library(
     srcs = ["fd_io_uring.cc"],
     hdrs = ["fd_io_uring.h"],
     deps = [
+        "//riegeli/base",
+        "//riegeli/base:status",
+        ":fd_io_uring_options",
         "@liburing",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
     ]
 )
 
@@ -24,8 +29,6 @@ cc_library(
     ],
     hdrs = ["fd_sync_io_uring.h"],
     deps = [
-        "//riegeli/base",
-        ":fd_io_uring_options",
         ":fd_io_uring",
     ],
 )
@@ -37,8 +40,7 @@ cc_library(
     ],
     hdrs = ["fd_async_io_uring.h"],
     deps = [
-        "//riegeli/base",
-        "//riegeli/iouring:fd_io_uring_options",
-        "//riegeli/iouring:fd_io_uring",
+        ":fd_io_uring",
+        "@com_google_absl//absl/functional:bind_front",
     ],
 )

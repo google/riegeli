@@ -140,10 +140,22 @@ void FdIoUringWriterBase::InitializeFdIoUring(FdIoUringOptions options, int fd) 
   } else {
     fd_io_uring_ = std::make_unique<FdSyncIoUring>(options, fd);
   }
+
+  if(ABSL_PREDICT_FALSE(!fd_io_uring_ -> healthy())) {
+    Fail(*fd_io_uring_);
+  }
 }
 
 bool FdIoUringWriterBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
+  RIEGELI_ASSERT_NE(error_number, 0)
+      << "Failed precondition of FdIoUringWriterBase::FailOperation(): "
+         "zero errno";
+  return Fail(
+      ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
+}
+
+bool FdIoUringWriterBase::IoUringFailOperation(const int error_number, absl::string_view operation) {
   RIEGELI_ASSERT_NE(error_number, 0)
       << "Failed precondition of FdIoUringWriterBase::FailOperation(): "
          "zero errno";
@@ -166,6 +178,10 @@ bool FdIoUringWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
 
   const int dest = dest_fd();
+  if(ABSL_PREDICT_FALSE(!fd_io_uring_ -> healthy())) {
+    return Fail(*fd_io_uring_);
+  }
+
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
                              start_pos())) {
@@ -179,8 +195,8 @@ bool FdIoUringWriterBase::WriteInternal(absl::string_view src) {
                                  size_t{std::numeric_limits<ssize_t>::max()}),
                      IntCast<off_t>(start_pos()));
     if (ABSL_PREDICT_FALSE(length_written < 0)) {
-      if (errno == EINTR) goto again;
-      return FailOperation("pwrite()");
+      if (length_written == -EINTR || length_written == -EAGAIN) goto again;
+      return IoUringFailOperation(-length_written, "pwrite()");
     }
     RIEGELI_ASSERT_GT(length_written, 0)
         << "pwrite()" << " returned 0";
@@ -200,9 +216,13 @@ bool FdIoUringWriterBase::FlushImpl(FlushType flush_type) {
     case FlushType::kFromProcess:
       return true;
     case FlushType::kFromMachine: {
+      if(ABSL_PREDICT_FALSE(!fd_io_uring_ -> healthy())) {
+        return Fail(*fd_io_uring_);
+      }
       const int dest = dest_fd();
-      if (ABSL_PREDICT_FALSE(fd_io_uring_ -> fsync(dest) < 0)) {
-        return FailOperation("fsync()");
+      const int fsync_res = fd_io_uring_ -> fsync(dest);
+      if (ABSL_PREDICT_FALSE(fsync_res < 0)) {
+        return IoUringFailOperation(-fsync_res, "fsync()");
       }
       return true;
     }

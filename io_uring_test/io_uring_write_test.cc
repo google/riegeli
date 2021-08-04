@@ -80,7 +80,7 @@ void AsyncFd(WritePtr& writer, const std::string &file) {
 }
 
 void WriteData(WritePtr &writer) {
-    for(int i = 1; i <= 100000000; ++i) {
+    for(int i = 1; i <= 10000000; ++i) {
         std::string temp = std::to_string(i);
         writer -> WriteRecord(temp);
     }
@@ -101,7 +101,7 @@ void CheckData(const std::string &file) {
         EXPECT_EQ(record, std::to_string(num));
         ++num;
     }
-    EXPECT_EQ(num, 100000001);
+    EXPECT_EQ(num, 10000001);
     reader -> Close();
 }
 

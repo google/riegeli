@@ -122,7 +122,7 @@ TEST(IoUringTest, SyncDefaultSize) {
     options.set_async(false);
     IoUring = std::make_unique<riegeli::FdSyncIoUring>(options, 0);
 
-    EXPECT_EQ(IoUring -> size(), 8192);
+    EXPECT_EQ(IoUring -> size(), 512);
 }
 
 TEST(IoUringTest, AsyncDefaultSize) {
@@ -131,7 +131,7 @@ TEST(IoUringTest, AsyncDefaultSize) {
     options.set_async(true);
     IoUring = std::make_unique<riegeli::FdAsyncIoUring>(options, 0);
 
-    EXPECT_EQ(IoUring -> size(), 8192);
+    EXPECT_EQ(IoUring -> size(), 512);
 }
 
 TEST(IoUringTest, SyncSize) {
@@ -152,6 +152,26 @@ TEST(IoUringTest, AsyncSize) {
     IoUring = std::make_unique<riegeli::FdAsyncIoUring>(options, 0);
 
     EXPECT_EQ(IoUring -> size(), 16);
+}
+
+TEST(IoUringTest, SyncMaxSize) {
+    IoUringPtr IoUring;
+    riegeli::FdIoUringOptions options;
+    options.set_async(false);
+    options.set_size(4098);
+    IoUring = std::make_unique<riegeli::FdSyncIoUring>(options, 0);
+
+    EXPECT_EQ(IoUring -> size(), 4096);
+}
+
+TEST(IoUringTest, AsyncMaxSize) {
+    IoUringPtr IoUring;
+    riegeli::FdIoUringOptions options;
+    options.set_async(true);
+    options.set_size(4098);
+    IoUring = std::make_unique<riegeli::FdAsyncIoUring>(options, 0);
+
+    EXPECT_EQ(IoUring -> size(), 4096);
 }
 
 }

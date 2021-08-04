@@ -156,6 +156,7 @@ class FdIoUringWriterBase : public BufferedWriter {
                      absl::optional<Position> independent_pos);
   void InitializeFdIoUring(FdIoUringOptions options, int fd);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
+  ABSL_ATTRIBUTE_COLD bool IoUringFailOperation(const int error_number, absl::string_view operation);
 
   void AnnotateFailure(absl::Status& status) override;
   bool WriteInternal(absl::string_view src) override;
