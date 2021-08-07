@@ -25,13 +25,13 @@ namespace riegeli {
 namespace internal {
 
 absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
-    const char* src, const char* limit, uint32_t result) {
+    const char* src, const char* limit, uint32_t acc) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
-    result += (uint32_t{byte} - 1) << shift;
+    acc += (uint32_t{byte} - 1) << shift;
     shift += 7;
     if (ABSL_PREDICT_FALSE(shift == kMaxLengthVarint32 * 7)) {
       // Last possible byte.
@@ -44,17 +44,17 @@ absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
       break;
     }
   } while (byte >= 0x80);
-  return ReadFromStringResult<uint32_t>{result, src};
+  return ReadFromStringResult<uint32_t>{acc, src};
 }
 
 absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
-    const char* src, const char* limit, uint64_t result) {
+    const char* src, const char* limit, uint64_t acc) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
-    result += (uint64_t{byte} - 1) << shift;
+    acc += (uint64_t{byte} - 1) << shift;
     shift += 7;
     if (ABSL_PREDICT_FALSE(shift == kMaxLengthVarint64 * 7)) {
       // Last possible byte.
@@ -67,19 +67,19 @@ absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
       break;
     }
   } while (byte >= 0x80);
-  return ReadFromStringResult<uint64_t>{result, src};
+  return ReadFromStringResult<uint64_t>{acc, src};
 }
 
 absl::optional<uint32_t> StreamingReadVarint32Slow(Reader& src) {
   uint8_t byte = src.cursor()[0];
-  uint32_t result{byte};
+  uint32_t acc{byte};
   size_t length = 1;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(!src.Pull(length + 1, kMaxLengthVarint32))) {
       return absl::nullopt;
     }
     byte = src.cursor()[length];
-    result += (uint32_t{byte} - 1) << (length * 7);
+    acc += (uint32_t{byte} - 1) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint32)) {
       // Last possible byte.
@@ -93,19 +93,19 @@ absl::optional<uint32_t> StreamingReadVarint32Slow(Reader& src) {
     }
   }
   src.move_cursor(length);
-  return result;
+  return acc;
 }
 
 absl::optional<uint64_t> StreamingReadVarint64Slow(Reader& src) {
   uint8_t byte = src.cursor()[0];
-  uint64_t result{byte};
+  uint64_t acc{byte};
   size_t length = 1;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(!src.Pull(length + 1, kMaxLengthVarint64))) {
       return absl::nullopt;
     }
     byte = src.cursor()[length];
-    result += (uint64_t{byte} - 1) << (length * 7);
+    acc += (uint64_t{byte} - 1) << (length * 7);
     ++length;
     if (ABSL_PREDICT_FALSE(length == kMaxLengthVarint64)) {
       // Last possible byte.
@@ -119,7 +119,7 @@ absl::optional<uint64_t> StreamingReadVarint64Slow(Reader& src) {
     }
   }
   src.move_cursor(length);
-  return result;
+  return acc;
 }
 
 }  // namespace internal

@@ -238,9 +238,9 @@ namespace internal {
 constexpr size_t kReadVarintSlowThreshold = 3 * 7;
 
 absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
-    const char* src, const char* limit, uint32_t result);
+    const char* src, const char* limit, uint32_t acc);
 absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
-    const char* src, const char* limit, uint64_t result);
+    const char* src, const char* limit, uint64_t acc);
 
 }  // namespace internal
 
@@ -248,36 +248,36 @@ inline absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32(
     const char* src, const char* limit) {
   if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
   uint8_t byte = static_cast<uint8_t>(*src++);
-  uint32_t result{byte};
+  uint32_t acc{byte};
   size_t shift = 7;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(shift == internal::kReadVarintSlowThreshold)) {
-      return internal::ReadVarint32Slow(src, limit, result);
+      return internal::ReadVarint32Slow(src, limit, acc);
     }
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
-    result += (uint32_t{byte} - 1) << shift;
+    acc += (uint32_t{byte} - 1) << shift;
     shift += 7;
   }
-  return ReadFromStringResult<uint32_t>{result, src};
+  return ReadFromStringResult<uint32_t>{acc, src};
 }
 
 inline absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64(
     const char* src, const char* limit) {
   if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
   uint8_t byte = static_cast<uint8_t>(*src++);
-  uint64_t result{byte};
+  uint64_t acc{byte};
   size_t shift = 7;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(shift == internal::kReadVarintSlowThreshold)) {
-      return internal::ReadVarint64Slow(src, limit, result);
+      return internal::ReadVarint64Slow(src, limit, acc);
     }
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
-    result += (uint64_t{byte} - 1) << shift;
+    acc += (uint64_t{byte} - 1) << shift;
     shift += 7;
   }
-  return ReadFromStringResult<uint64_t>{result, src};
+  return ReadFromStringResult<uint64_t>{acc, src};
 }
 
 inline absl::optional<char*> CopyVarint32(Reader& src, char* dest) {
