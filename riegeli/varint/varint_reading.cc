@@ -24,10 +24,33 @@
 namespace riegeli {
 namespace internal {
 
+absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
+    const char* src, const char* limit, uint32_t result) {
+  uint8_t byte;
+  size_t shift = kReadVarintSlowThreshold;
+  do {
+    if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
+    byte = static_cast<uint8_t>(*src++);
+    result += (uint32_t{byte} - 1) << shift;
+    shift += 7;
+    if (ABSL_PREDICT_FALSE(shift == kMaxLengthVarint32 * 7)) {
+      // Last possible byte.
+      if (ABSL_PREDICT_FALSE(
+              byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
+        // The representation is longer than `kMaxLengthVarint32`
+        // or the represented value does not fit in `uint32_t`.
+        return absl::nullopt;
+      }
+      break;
+    }
+  } while (byte >= 0x80);
+  return ReadFromStringResult<uint32_t>{result, src};
+}
+
 absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
     const char* src, const char* limit, uint64_t result) {
   uint8_t byte;
-  size_t shift = kReadVarint64SlowThreshold;
+  size_t shift = kReadVarintSlowThreshold;
   do {
     if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
     byte = static_cast<uint8_t>(*src++);
