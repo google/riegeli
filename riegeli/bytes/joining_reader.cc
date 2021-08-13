@@ -104,6 +104,17 @@ bool JoiningReaderBase::OpenShard() {
   return true;
 }
 
+bool JoiningReaderBase::CloseShard() {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of JoiningReaderBase::CloseShard(): " << status();
+  RIEGELI_ASSERT(shard_is_open())
+      << "Failed precondition of JoiningReaderBase::CloseShard(): "
+         "shard already closed";
+  Reader* shard = shard_reader();
+  SyncBuffer(*shard);
+  return CloseShardInternal();
+}
+
 void JoiningReaderBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";

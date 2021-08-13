@@ -79,15 +79,14 @@ class JoiningReaderBase : public PullableReader {
   //
   // The default implementation calls `shard_reader()->Close()` and propagates
   // failures from that.
+  //
+  // `CloseShardImpl()` can be overridden but should not be called directly
+  // because it does not synchronize buffer pointers of `*this` with
+  // `*shard_reader()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
-  // Opens the next shard and synchronizes buffer pointers of `*this` with
+  // Calls `OpenShardImpl()` and synchronizes buffer pointers of `*this` with
   // `*shard_reader()`.
-  //
-  // `OpenShard()` can be called in the constructor to propagate the status of
-  // opening the first shard. Since it calls virtual `OpenShardImpl()`, it must
-  // be called in the constructor of a sufficiently derived class which
-  // overrides `OpenShardImpl()`.
   //
   // Preconditions:
   //   `healthy()`
@@ -98,6 +97,18 @@ class JoiningReaderBase : public PullableReader {
   //  * `false` (when `healthy()`)  - there is no next shard
   //  * `false` (when `!healthy()`) - failure
   bool OpenShard();
+
+  // Synchronizes buffer pointers of `*this` with `*shard_reader()` and calls
+  // `CloseShardImpl()`.
+  //
+  // Preconditions:
+  //   `healthy()`
+  //   `shard_is_open()`
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
+  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  bool CloseShard();
 
   // Returns `true` if a shard is open.
   //

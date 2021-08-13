@@ -113,6 +113,25 @@ class PushableWriter : public Writer {
   //   `!scratch_used()`
   virtual bool PushBehindScratch() = 0;
 
+  // Force using scratch as the buffer.
+  //
+  // This can be used in the implementation of `PushBehindScratch()` if in some
+  // circumstances scratch should be used even when `min_length == 1`.
+  //
+  // These circumstances should be rare, otherwise performance would be poor
+  // because `Push()` would call `PushSlow()` too often.
+  //
+  // Preconditions:
+  //   `available() == 0`
+  //   `!scratch_used()`
+  //
+  // Always returns `true`.
+  //
+  // Postconditions:
+  //   `available() > 0`
+  //   `scratch_used()`
+  bool ForcePushUsingScratch();
+
   // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`,
   // `SeekImpl()`, `SizeImpl()`, and `TruncateImpl()`, called while scratch is
   // not used.

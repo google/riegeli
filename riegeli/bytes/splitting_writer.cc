@@ -25,6 +25,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -68,20 +69,20 @@ inline bool SplittingWriterBase::OpenShardInternal() {
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
-  const Position size_limit = OpenShardImpl();
-  if (ABSL_PREDICT_FALSE(size_limit == 0)) {
+  const absl::optional<Position> size_limit = OpenShardImpl();
+  if (ABSL_PREDICT_FALSE(size_limit == absl::nullopt)) {
     RIEGELI_ASSERT(!healthy())
         << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
            "zero returned but SplittingWriterBase healthy";
     return false;
   }
   RIEGELI_ASSERT(healthy())
-      << "Failed postcondition of SplittingWriterBase::OpenShardIm(): "
+      << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
       << status();
   RIEGELI_ASSERT(shard_is_open())
       << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
          "shard not opened";
-  shard_pos_limit_ = SaturatingAdd(start_pos(), size_limit);
+  shard_pos_limit_ = SaturatingAdd(start_pos(), *size_limit);
   return true;
 }
 
@@ -121,6 +122,18 @@ bool SplittingWriterBase::OpenShard() {
   return true;
 }
 
+bool SplittingWriterBase::CloseShard() {
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of SplittingWriterBase::CloseShard(): "
+      << status();
+  RIEGELI_ASSERT(shard_is_open())
+      << "Failed precondition of SplittingWriterBase::CloseShard(): "
+         "shard already closed";
+  Writer* shard = shard_writer();
+  SyncBuffer(*shard);
+  return CloseShardInternal();
+}
+
 void SplittingWriterBase::AnnotateFailure(absl::Status& status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::AnnotateFailure(): status not failed";
@@ -139,16 +152,11 @@ bool SplittingWriterBase::PushBehindScratch() {
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* shard = shard_writer();
-  if (shard_is_open(shard)) {
-    SyncBuffer(*shard);
-    if (start_pos() == shard_pos_limit_) {
-      if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
-      goto open_shard;
-    }
-  } else {
-  open_shard:
-    if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
-    shard = shard_writer();
+  if (!shard_is_open(shard)) return ForcePushUsingScratch();
+  SyncBuffer(*shard);
+  if (start_pos() == shard_pos_limit_) {
+    if (ABSL_PREDICT_FALSE(!CloseShardInternal())) return false;
+    return ForcePushUsingScratch();
   }
   const bool ok = shard->Push();
   MakeBuffer(*shard);

@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -61,8 +62,8 @@ class SplittingWriterBase : public PushableWriter {
   //   `!shard_is_open()`
   //
   // Return values:
-  //  * size limit - success (`healthy()`, `shard_is_open()`)
-  //  * 0          - failure (`!healthy()`)
+  //  * size limit      - success (`healthy()`, `shard_is_open()`)
+  //  * `absl::nullopt` - failure (`!healthy()`)
   //
   // When the size limit would be exceeded, the shard is closed and a new shard
   // is opened.
@@ -70,7 +71,7 @@ class SplittingWriterBase : public PushableWriter {
   // `OpenShardImpl()` must be overridden but should not be called directly
   // because it does not synchronize buffer pointers of `*this` with
   // `*shard_writer()`. See `OpenShard()` for that.
-  virtual Position OpenShardImpl() = 0;
+  virtual absl::optional<Position> OpenShardImpl() = 0;
 
   // Closes `shard()`. If `shard()` is a temporary destination for shard data,
   // moves it to the final destination.
@@ -85,15 +86,14 @@ class SplittingWriterBase : public PushableWriter {
   //
   // The default implementation calls `shard_witer()->Close()` and propagates
   // failures from that.
+  //
+  // `CloseShardImpl()` can be overridden but should not be called directly
+  // because it does not synchronize buffer pointers of `*this` with
+  // `*shard_writer()`. See `CloseShard()` for that.
   virtual bool CloseShardImpl();
 
-  // Opens the next shard and synchronizes buffer pointers of `*this` with
+  // Calls `OpenShardImpl()` and synchronizes buffer pointers of `*this` with
   // `*shard_writer()`.
-  //
-  // `OpenShard()` can be called in the constructor to ensure that there is at
-  // least one shard. Since it calls virtual `OpenShardImpl()`, it must be
-  // called in the constructor of a sufficiently derived class which overrides
-  // `OpenShardImpl()`.
   //
   // Preconditions:
   //   `healthy()`
@@ -103,6 +103,18 @@ class SplittingWriterBase : public PushableWriter {
   //  * `true`  - success (`healthy()`, `shard_is_open()`)
   //  * `false` - failure (`!healthy()`)
   bool OpenShard();
+
+  // Synchronizes buffer pointers of `*this` with `*shard_writer()` and calls
+  // `CloseShardImpl()`.
+  //
+  // Preconditions:
+  //   `healthy()`
+  //   `shard_is_open()`
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`, `!shard_is_open()`)
+  //  * `false` - failure (`!healthy()`, `!shard_is_open()`)
+  bool CloseShard();
 
   // Returns `true` if a shard is open.
   //
