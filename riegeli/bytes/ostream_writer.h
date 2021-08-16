@@ -101,6 +101,7 @@ class OstreamWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
 
+  void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;

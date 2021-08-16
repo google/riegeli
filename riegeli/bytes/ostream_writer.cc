@@ -65,6 +65,16 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
   }
 }
 
+void OstreamWriterBase::Done() {
+  BufferedWriter::Done();
+  // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
+  // to `LazyBoolState::kFalse`, because trying to resolve it later might access
+  // a closed stream. The resolution is no longer interesting anyway.
+  if (supports_random_access_ == LazyBoolState::kUnknown) {
+    supports_random_access_ = LazyBoolState::kFalse;
+  }
+}
+
 bool OstreamWriterBase::FailOperation(absl::string_view operation) {
   // There is no way to get details why a stream operation failed without
   // letting the stream throw exceptions. Hopefully low level failures have set

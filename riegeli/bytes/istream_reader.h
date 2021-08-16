@@ -101,6 +101,7 @@ class IstreamReaderBase : public BufferedReader {
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   bool supports_random_access();
 
+  void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
