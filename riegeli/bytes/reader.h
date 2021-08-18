@@ -394,11 +394,10 @@ class Reader : public Object {
   // `ReadSlow(std::string&)`, `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)`
   // append to any existing data in `dest`.
   //
-  // By default `ReadSlow(char*)`, `ReadSlow(absl::Cord&)`, and
-  // `CopySlow(Writer&)` are implemented in terms of `PullSlow()`;
-  // `ReadSlow(Chain&)` is implemented in terms of `ReadSlow(char*)`;
-  // and `CopySlow(BackwardWriter&)` is implemented in terms of
-  // `ReadSlow(char*)` and `ReadSlow(Chain&)`.
+  // By default `ReadSlow(char*)` and `CopySlow(Writer&)` are implemented in
+  // terms of `PullSlow()`; `ReadSlow(Chain&)` and `ReadSlow(absl::Cord&)` are
+  // implemented in terms of `ReadSlow(char*)`; and `CopySlow(BackwardWriter&)`
+  // is implemented in terms of `ReadSlow(char*)` and `ReadSlow(Chain&)`.
   //
   // Precondition for `ReadSlow(char*)` and `ReadSlow(std::string&)`:
   //   `available() < length`

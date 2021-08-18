@@ -27,6 +27,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -219,15 +220,34 @@ bool PullableReader::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
-  while (length > available()) {
-    const size_t available_length = available();
-    dest.Append(absl::string_view(cursor(), available_length));
-    move_cursor(available_length);
-    length -= available_length;
-    if (ABSL_PREDICT_FALSE(!PullBehindScratch())) return false;
-  }
-  dest.Append(absl::string_view(cursor(), length));
-  move_cursor(length);
+  Buffer buffer;
+  do {
+    buffer.Reset(UnsignedMin(length, kMaxBufferSize));
+    const size_t length_to_read = UnsignedMin(length, buffer.capacity());
+    const Position pos_before = pos();
+    if (ABSL_PREDICT_FALSE(!Read(length_to_read, buffer.data()))) {
+      RIEGELI_ASSERT_GE(pos(), pos_before)
+          << "Reader::Read(char*) decreased pos()";
+      const Position length_read = pos() - pos_before;
+      RIEGELI_ASSERT_LE(length_read, length_to_read)
+          << "Reader::Read(char*) read more than requested";
+      if (length_read <= MaxBytesToCopyToCord(dest)) {
+        dest.Append(
+            absl::string_view(buffer.data(), IntCast<size_t>(length_read)));
+      } else {
+        dest.Append(buffer.ToCord(
+            absl::string_view(buffer.data(), IntCast<size_t>(length_read))));
+      }
+      return false;
+    }
+    if (length_to_read <= MaxBytesToCopyToCord(dest)) {
+      dest.Append(absl::string_view(buffer.data(), length_to_read));
+    } else {
+      dest.Append(
+          buffer.ToCord(absl::string_view(buffer.data(), length_to_read)));
+    }
+    length -= length_to_read;
+  } while (length > 0);
   return true;
 }
 
