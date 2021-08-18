@@ -99,6 +99,19 @@ class PullableReader : public Reader {
   // should be overridden to call `PullableReader::{Done,SyncImpl}()` and then
   // close/sync the dependencies.
 
+  // Implementation of `Done()`, called while scratch is not used. This is
+  // called before buffer pointers are reset.
+  //
+  // If scratch was used but not all data from scratch were read and
+  // `!SupportsRandomAccess()`, seeking back is not feasible and
+  // `DoneBehindScratch()` is not called.
+  //
+  // By default calls `SyncBehindScratch(SyncType::kFromObject)`, which by
+  // default does nothing.
+  //
+  // Precondition: `!scratch_used()`
+  virtual void DoneBehindScratch();
+
   // Implementation of `PullSlow(1, 0)`, called while scratch is not used.
   //
   // Preconditions:
@@ -106,8 +119,12 @@ class PullableReader : public Reader {
   //   `!scratch_used()`
   virtual bool PullBehindScratch() = 0;
 
-  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadHintSlow()`, and
-  // `SeekSlow()`, called while scratch is not used.
+  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadHintSlow()`,
+  // `SyncImpl()`, and `SeekSlow()`, called while scratch is not used.
+  //
+  // Regarding `SyncBehindScratch()`, if scratch was used but not all data from
+  // scratch were read and `!SupportsRandomAccess()`, seeking back is not
+  // feasible and `SyncBehindScratch()` is not called.
   //
   // By default they are implemented analogously to the corresponding `Reader`
   // functions.
@@ -121,6 +138,7 @@ class PullableReader : public Reader {
   virtual bool CopyBehindScratch(Position length, Writer& dest);
   virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
   virtual void ReadHintBehindScratch(size_t length);
+  virtual bool SyncBehindScratch(SyncType sync_type);
   virtual bool SeekBehindScratch(Position new_pos);
 
   void Done() override;
