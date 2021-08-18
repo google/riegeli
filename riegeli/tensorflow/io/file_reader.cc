@@ -292,16 +292,6 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
       enough_read = false;
       break;
     }
-    if (available() == 0 && length >= LengthToReadDirectly()) {
-      const absl::Span<char> flat_buffer = dest.AppendFixedBuffer(length);
-      size_t length_read;
-      if (ABSL_PREDICT_FALSE(!ReadToDest(flat_buffer.size(), src,
-                                         flat_buffer.data(), length_read))) {
-        dest.RemoveSuffix(flat_buffer.size() - length_read);
-        return false;
-      }
-      return true;
-    }
     size_t cursor_index;
     absl::Span<char> flat_buffer;
     if (buffer_.empty()) {
@@ -357,14 +347,6 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
       length = available();
       enough_read = false;
       break;
-    }
-    if (available() == 0 && length >= LengthToReadDirectly()) {
-      Buffer flat_buffer(length);
-      size_t length_read;
-      ok = ReadToDest(length, src, flat_buffer.data(), length_read);
-      dest.Append(flat_buffer.ToCord(
-          absl::string_view(flat_buffer.data(), length_read)));
-      return ok;
     }
     size_t cursor_index;
     absl::Span<char> flat_buffer;

@@ -168,22 +168,6 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       enough_read = false;
       break;
     }
-    if (available() == 0 && length >= LengthToReadDirectly()) {
-      SyncBuffer();
-      const absl::Span<char> flat_buffer = dest.AppendFixedBuffer(length);
-      const Position pos_before = limit_pos();
-      if (ABSL_PREDICT_FALSE(!ReadInternal(
-              flat_buffer.size(), flat_buffer.size(), flat_buffer.data()))) {
-        RIEGELI_ASSERT_GE(limit_pos(), pos_before)
-            << "BufferedReader::ReadInternal() decreased limit_pos()";
-        const Position length_read = limit_pos() - pos_before;
-        RIEGELI_ASSERT_LE(length_read, flat_buffer.size())
-            << "BufferedReader::ReadInternal() read more than requested";
-        dest.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
-        return false;
-      }
-      return true;
-    }
     size_t cursor_index = read_from_buffer();
     const size_t buffer_length =
         BufferLength(0, buffer_size_, size_hint_, limit_pos());
@@ -231,25 +215,6 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       length = available();
       enough_read = false;
       break;
-    }
-    if (available() == 0 && length >= LengthToReadDirectly()) {
-      SyncBuffer();
-      Buffer flat_buffer(length);
-      const Position pos_before = limit_pos();
-      if (ABSL_PREDICT_FALSE(
-              !ReadInternal(length, length, flat_buffer.data()))) {
-        RIEGELI_ASSERT_GE(limit_pos(), pos_before)
-            << "BufferedReader::ReadInternal() decreased limit_pos()";
-        const Position length_read = limit_pos() - pos_before;
-        RIEGELI_ASSERT_LE(length_read, length)
-            << "BufferedReader::ReadInternal() read more than requested";
-        dest.Append(flat_buffer.ToCord(absl::string_view(
-            flat_buffer.data(), IntCast<size_t>(length_read))));
-        return false;
-      }
-      dest.Append(
-          flat_buffer.ToCord(absl::string_view(flat_buffer.data(), length)));
-      return true;
     }
     size_t cursor_index = read_from_buffer();
     const size_t buffer_length =
