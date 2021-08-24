@@ -142,10 +142,12 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     return FailOverflow();
   }
   const size_t buffer_length =
-      UnsignedMin(UnsignedMax(buffer_size_, min_length, recommended_length),
-                  std::numeric_limits<Position>::max() - start_pos());
+      UnsignedMax(buffer_size_, min_length, recommended_length);
   buffer_.Reset(buffer_length);
-  set_buffer(buffer_.data(), buffer_length);
+  set_buffer(buffer_.data(),
+             UnsignedMin(buffer_.capacity(),
+                         SaturatingAdd(buffer_length, buffer_length),
+                         std::numeric_limits<Position>::max() - start_pos()));
   return true;
 }
 
