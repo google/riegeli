@@ -34,8 +34,10 @@ absl::Status SetMessage(const absl::Status& status, absl::string_view message) {
 
 absl::Status Annotate(const absl::Status& status, absl::string_view message) {
   if (status.ok() || message.empty()) return status;
-  if (status.message().empty()) return SetMessage(status, message);
-  return SetMessage(status, absl::StrCat(status.message(), "; ", message));
+  return SetMessage(status,
+                    status.message().empty()
+                        ? message
+                        : absl::StrCat(status.message(), "; ", message));
 }
 
 }  // namespace riegeli
