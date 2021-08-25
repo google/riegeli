@@ -81,8 +81,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const size_t available_length = available();
   size_t cursor_index = read_from_buffer();
   const size_t buffer_length =
-      BufferLength(UnsignedMax(min_length, recommended_length), buffer_size_,
-                   size_hint_, pos());
+      BufferLength(min_length, buffer_size_, size_hint_, pos());
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(
       0, buffer_length - available_length,
       SaturatingAdd(buffer_length, buffer_length) - available_length);

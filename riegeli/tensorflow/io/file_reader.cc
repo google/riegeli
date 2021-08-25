@@ -141,8 +141,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   ::tensorflow::RandomAccessFile* const src = src_file();
-  const size_t buffer_length =
-      UnsignedMax(buffer_size_, min_length, recommended_length);
+  const size_t buffer_length = UnsignedMax(buffer_size_, min_length);
   const size_t available_length = available();
   size_t cursor_index;
   absl::Span<char> flat_buffer;
