@@ -20,10 +20,12 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "brotli/decode.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/status.h"
@@ -31,6 +33,13 @@
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if __cplusplus < 201703
+constexpr size_t BrotliReaderBase::Dictionaries::kMaxDictionaries;
+#endif
 
 void BrotliReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
@@ -55,6 +64,15 @@ inline void BrotliReaderBase::InitializeDecompressor() {
           uint32_t{true}))) {
     Fail(absl::InternalError(
         "BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed"));
+    return;
+  }
+  for (const Dictionaries::Dictionary& dictionary : dictionaries_) {
+    if (ABSL_PREDICT_FALSE(!BrotliDecoderAttachDictionary(
+            decompressor_.get(), dictionary.type(), dictionary.data().size(),
+            reinterpret_cast<const uint8_t*>(dictionary.data().data())))) {
+      Fail(absl::InternalError("BrotliDecoderAttachDictionary() failed"));
+      return;
+    }
   }
 }
 
@@ -67,6 +85,7 @@ void BrotliReaderBase::Done() {
   }
   PullableReader::Done();
   decompressor_.reset();
+  dictionaries_.clear();
 }
 
 void BrotliReaderBase::AnnotateFailure(absl::Status& status) {

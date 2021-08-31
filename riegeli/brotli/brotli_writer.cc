@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -27,6 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "brotli/encode.h"
+#include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
 #include "riegeli/base/status.h"
@@ -39,6 +41,7 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
+constexpr size_t BrotliWriterBase::Dictionaries::kMaxDictionaries;
 constexpr int BrotliWriterBase::Options::kMinCompressionLevel;
 constexpr int BrotliWriterBase::Options::kMaxCompressionLevel;
 constexpr int BrotliWriterBase::Options::kDefaultCompressionLevel;
@@ -47,11 +50,54 @@ constexpr int BrotliWriterBase::Options::kMaxWindowLog;
 constexpr int BrotliWriterBase::Options::kDefaultWindowLog;
 #endif
 
+namespace {
+
+struct BrotliEncoderDictionaryDeleter {
+  void operator()(BrotliEncoderPreparedDictionary* ptr) const {
+    BrotliEncoderDestroyPreparedDictionary(ptr);
+  }
+};
+
+}  // namespace
+
+BrotliWriterBase::Dictionaries& BrotliWriterBase::Dictionaries::add_raw(
+    absl::string_view data) & {
+  if (ABSL_PREDICT_FALSE(failed_)) return *this;
+  BrotliEncoderPreparedDictionary* const dictionary =
+      BrotliEncoderPrepareDictionary(
+          BROTLI_SHARED_DICTIONARY_RAW, data.size(),
+          reinterpret_cast<const uint8_t*>(data.data()), BROTLI_MAX_QUALITY,
+          nullptr, nullptr, nullptr);
+  if (ABSL_PREDICT_FALSE(dictionary == nullptr)) {
+    failed_ = true;
+    return *this;
+  }
+  dictionaries_.emplace_back(dictionary, BrotliEncoderDictionaryDeleter());
+  return *this;
+}
+
+BrotliWriterBase::Dictionaries& BrotliWriterBase::Dictionaries::set_serialized(
+    absl::string_view data) & {
+  clear();
+  BrotliEncoderPreparedDictionary* const dictionary =
+      BrotliEncoderPrepareDictionary(
+          BROTLI_SHARED_DICTIONARY_SERIALIZED, data.size(),
+          reinterpret_cast<const uint8_t*>(data.data()), BROTLI_MAX_QUALITY,
+          nullptr, nullptr, nullptr);
+  if (ABSL_PREDICT_FALSE(dictionary == nullptr)) {
+    failed_ = true;
+    return *this;
+  }
+  dictionaries_.emplace_back(dictionary, BrotliEncoderDictionaryDeleter());
+  return *this;
+}
+
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
                                   int window_log,
                                   absl::optional<Position> size_hint) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
@@ -100,6 +146,15 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
         "BrotliEncoderSetParameter(BROTLI_PARAM_LGWIN) failed"));
     return;
   }
+  for (const std::shared_ptr<const BrotliEncoderPreparedDictionary>&
+           dictionary : dictionaries_) {
+    if (ABSL_PREDICT_FALSE(!BrotliEncoderAttachPreparedDictionary(
+            compressor_.get(), dictionary.get()))) {
+      Fail(absl::InternalError(
+          "BrotliEncoderAttachPreparedDictionary() failed"));
+      return;
+    }
+  }
   if (size_hint != absl::nullopt) {
     // Ignore errors from tuning.
     BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
@@ -119,6 +174,7 @@ void BrotliWriterBase::DoneBehindBuffer(absl::string_view src) {
 void BrotliWriterBase::Done() {
   BufferedWriter::Done();
   compressor_.reset();
+  dictionaries_.clear();
 }
 
 void BrotliWriterBase::AnnotateFailure(absl::Status& status) {

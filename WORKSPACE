@@ -16,11 +16,11 @@ http_archive(
 
 http_archive(
     name = "org_brotli",
-    sha256 = "6e69be238ff61cef589a3fa88da11b649c7ff7a5932cb12d1e6251c8c2e17a2f",
-    strip_prefix = "brotli-1.0.7",
+    sha256 = "fec5a1d26f3dd102c542548aaa704f655fecec3622a24ec6e97768dcb3c235ff",
+    strip_prefix = "brotli-68f1b90ad0d204907beb58304d0bd06391001a4d",
     urls = [
-        "https://mirror.bazel.build/github.com/google/brotli/archive/v1.0.7.zip",
-        "https://github.com/google/brotli/archive/v1.0.7.zip",  # 2018-10-23
+        "https://mirror.bazel.build/github.com/google/brotli/archive/68f1b90ad0d204907beb58304d0bd06391001a4d.zip",
+        "https://github.com/google/brotli/archive/68f1b90ad0d204907beb58304d0bd06391001a4d.zip",  # 2021-08-18
     ],
 )
 

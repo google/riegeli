@@ -18,14 +18,18 @@
 #include <stddef.h>
 
 #include <memory>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "brotli/decode.h"
+#include "brotli/shared_dictionary.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/brotli/brotli_allocator.h"
@@ -37,9 +41,187 @@ namespace riegeli {
 // Template parameter independent part of `BrotliReader`.
 class BrotliReaderBase : public PullableReader {
  public:
+  // Stores Shared Brotli dictionaries for decompression.
+  //
+  // A `Dictionaries` object can own the dictionary data, or can hold pointers
+  // to unowned dictionary data which must not be changed until the last
+  // `BrotliReader` using these dictionaries is closed or no longer used. If the
+  // same sequence of dictionaries is needed for multiple decompression
+  // sessions, the `Dictionaries` object can be reused.
+  //
+  // Copying a `Dictionaries` object is cheap, sharing the actual dictionaries.
+  class Dictionaries {
+   public:
+    static constexpr size_t kMaxDictionaries = SHARED_BROTLI_MAX_COMPOUND_DICTS;
+
+    Dictionaries() noexcept {}
+
+    // Clears all dictionaries.
+    Dictionaries& clear() & {
+      dictionaries_.clear();
+      return *this;
+    }
+    Dictionaries&& clear() && { return std::move(clear()); }
+
+    // Adds a raw dictionary (data which should contain sequences that are
+    // commonly seen in the data being compressed). Up to `kMaxDictionaries` can
+    // be added.
+    //
+    // `std::string&&` is accepted with a template to avoid implicit conversions
+    // to `std::string` which can be ambiguous against `absl::string_view`
+    // (e.g. `const char*`).
+    Dictionaries& add_raw(absl::string_view data) & {
+      dictionaries_.emplace_back(
+          BROTLI_SHARED_DICTIONARY_RAW, data,
+          std::integral_constant<Ownership, Ownership::kCopied>());
+      return *this;
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionaries& add_raw(Src&& data) & {
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      dictionaries_.emplace_back(BROTLI_SHARED_DICTIONARY_RAW, std::move(data));
+      return *this;
+    }
+    Dictionaries&& add_raw(absl::string_view data) && {
+      return std::move(add_raw(data));
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionaries&& add_raw(Src&& data) && {
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      return std::move(add_raw(std::move(data)));
+    }
+
+    // Like `add_raw()`, but does not take ownership of `data`, which must not
+    // be changed until the last `BrotliReader` using these dictionaries is
+    // closed or no longer used.
+    Dictionaries& add_raw_unowned(absl::string_view data) & {
+      dictionaries_.emplace_back(
+          BROTLI_SHARED_DICTIONARY_RAW, data,
+          std::integral_constant<Ownership, Ownership::kUnowned>());
+      return *this;
+    }
+    Dictionaries&& add_raw_unowned(absl::string_view data) && {
+      return std::move(add_raw_unowned(data));
+    }
+
+    // Sets a serialized dictionary (prepared by shared_brotli_encode_dictionary
+    // tool).
+    //
+    // `std::string&&` is accepted with a template to avoid implicit conversions
+    // to `std::string` which can be ambiguous against `absl::string_view`
+    // (e.g. `const char*`).
+    Dictionaries& set_serialized(absl::string_view data) & {
+      clear();
+      dictionaries_.emplace_back(
+          BROTLI_SHARED_DICTIONARY_SERIALIZED, data,
+          std::integral_constant<Ownership, Ownership::kCopied>());
+      return *this;
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionaries& set_serialized(Src&& data) & {
+      clear();
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      dictionaries_.emplace_back(BROTLI_SHARED_DICTIONARY_SERIALIZED,
+                                 std::move(data));
+      return *this;
+    }
+    Dictionaries&& set_serialized(absl::string_view data) && {
+      return std::move(set_serialized(data));
+    }
+    template <typename Src,
+              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
+    Dictionaries&& set_serialized(Src&& data) && {
+      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+      // necessary: `Src` is always `std::string`, never an lvalue reference.
+      return std::move(set_serialized(std::move(data)));
+    }
+
+    // Like `set_serialized()`, but does not take ownership of `data`, which
+    // must not be changed until the last `BrotliReader` using these
+    // dictionaries is closed or no longer used.
+    Dictionaries& set_serialized_unowned(absl::string_view data) & {
+      clear();
+      dictionaries_.emplace_back(
+          BROTLI_SHARED_DICTIONARY_SERIALIZED, data,
+          std::integral_constant<Ownership, Ownership::kUnowned>());
+      return *this;
+    }
+    Dictionaries&& set_serialized_unowned(absl::string_view data) && {
+      return std::move(set_serialized_unowned(data));
+    }
+
+    // Returns `true` if no dictionaries are present.
+    bool empty() const { return dictionaries_.empty(); }
+
+   private:
+    friend class BrotliReaderBase;
+
+    enum class Ownership { kCopied, kUnowned };
+
+    class Dictionary {
+     public:
+      // Owns a copy of `data`.
+      explicit Dictionary(BrotliSharedDictionaryType type,
+                          absl::string_view data,
+                          std::integral_constant<Ownership, Ownership::kCopied>)
+          : type_(type),
+            owned_data_(std::make_shared<const std::string>(data)),
+            data_(*owned_data_) {}
+      // Owns moved `data`.
+      explicit Dictionary(BrotliSharedDictionaryType type, std::string&& data)
+          : type_(type),
+            owned_data_(std::make_shared<const std::string>(std::move(data))),
+            data_(*owned_data_) {}
+      // Does not take ownership of `data`, which must not be changed until the
+      // last `BrotliReader` using these dictionaries is closed or no longer
+      // used.
+      explicit Dictionary(
+          BrotliSharedDictionaryType type, absl::string_view data,
+          std::integral_constant<Ownership, Ownership::kUnowned>)
+          : type_(type), data_(data) {}
+
+      BrotliSharedDictionaryType type() const { return type_; }
+      absl::string_view data() const { return data_; }
+
+     private:
+      BrotliSharedDictionaryType type_;
+      std::shared_ptr<const std::string> owned_data_;
+      absl::string_view data_;
+    };
+
+    std::vector<Dictionary> dictionaries_;
+  };
+
   class Options {
    public:
     Options() noexcept {}
+
+    // Shared Brotli dictionaries. The same sequence of dictionaries must have
+    // been used for compression.
+    //
+    // Default: `Dictionaries()`.
+    Options& set_dictionaries(const Dictionaries& dictionaries) & {
+      dictionaries_ = dictionaries;
+      return *this;
+    }
+    Options& set_dictionaries(Dictionaries&& dictionaries) & {
+      dictionaries_ = std::move(dictionaries);
+      return *this;
+    }
+    Options&& set_dictionaries(const Dictionaries& dictionaries) && {
+      return std::move(set_dictionaries(dictionaries));
+    }
+    Options&& set_dictionaries(Dictionaries&& dictionaries) && {
+      return std::move(set_dictionaries(std::move(dictionaries)));
+    }
+    Dictionaries& dictionaries() { return dictionaries_; }
+    const Dictionaries& dictionaries() const { return dictionaries_; }
 
     // Memory allocator used by the Brotli engine.
     //
@@ -62,6 +244,7 @@ class BrotliReaderBase : public PullableReader {
     const BrotliAllocator& allocator() const { return allocator_; }
 
    private:
+    Dictionaries dictionaries_;
     BrotliAllocator allocator_;
   };
 
@@ -79,13 +262,14 @@ class BrotliReaderBase : public PullableReader {
  protected:
   BrotliReaderBase() noexcept : PullableReader(kInitiallyClosed) {}
 
-  explicit BrotliReaderBase(BrotliAllocator&& allocator);
+  explicit BrotliReaderBase(Dictionaries&& dictionaries,
+                            BrotliAllocator&& allocator);
 
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
   void Reset();
-  void Reset(BrotliAllocator&& allocator);
+  void Reset(Dictionaries&& dictionaries, BrotliAllocator&& allocator);
   void Initialize(Reader* src);
 
   void Done() override;
@@ -106,6 +290,7 @@ class BrotliReaderBase : public PullableReader {
 
   void InitializeDecompressor();
 
+  std::vector<Dictionaries::Dictionary> dictionaries_;
   BrotliAllocator allocator_;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
@@ -199,13 +384,17 @@ explicit BrotliReader(
 
 // Implementation details follow.
 
-inline BrotliReaderBase::BrotliReaderBase(BrotliAllocator&& allocator)
-    : PullableReader(kInitiallyOpen), allocator_(std::move(allocator)) {}
+inline BrotliReaderBase::BrotliReaderBase(Dictionaries&& dictionaries,
+                                          BrotliAllocator&& allocator)
+    : PullableReader(kInitiallyOpen),
+      dictionaries_(std::move(dictionaries.dictionaries_)),
+      allocator_(std::move(allocator)) {}
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
     : PullableReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
+      dictionaries_(std::move(that.dictionaries_)),
       allocator_(std::move(that.allocator_)),
       truncated_(that.truncated_),
       initial_compressed_pos_(that.initial_compressed_pos_),
@@ -216,6 +405,7 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   PullableReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
+  dictionaries_ = std::move(that.dictionaries_);
   allocator_ = std::move(that.allocator_);
   truncated_ = that.truncated_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
@@ -228,26 +418,33 @@ inline void BrotliReaderBase::Reset() {
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
+  dictionaries_.clear();
   allocator_ = BrotliAllocator();
 }
 
-inline void BrotliReaderBase::Reset(BrotliAllocator&& allocator) {
+inline void BrotliReaderBase::Reset(Dictionaries&& dictionaries,
+                                    BrotliAllocator&& allocator) {
   PullableReader::Reset(kInitiallyOpen);
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
+  dictionaries_ = std::move(dictionaries.dictionaries_);
   allocator_ = std::move(allocator);
 }
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(const Src& src, Options options)
-    : BrotliReaderBase(std::move(options.allocator())), src_(src) {
+    : BrotliReaderBase(std::move(options.dictionaries()),
+                       std::move(options.allocator())),
+      src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline BrotliReader<Src>::BrotliReader(Src&& src, Options options)
-    : BrotliReaderBase(std::move(options.allocator())), src_(std::move(src)) {
+    : BrotliReaderBase(std::move(options.dictionaries()),
+                       std::move(options.allocator())),
+      src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -255,7 +452,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline BrotliReader<Src>::BrotliReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : BrotliReaderBase(std::move(options.allocator())),
+    : BrotliReaderBase(std::move(options.dictionaries()),
+                       std::move(options.allocator())),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -285,14 +483,16 @@ inline void BrotliReader<Src>::Reset() {
 
 template <typename Src>
 inline void BrotliReader<Src>::Reset(const Src& src, Options options) {
-  BrotliReaderBase::Reset(std::move(options.allocator()));
+  BrotliReaderBase::Reset(std::move(options.dictionaries()),
+                          std::move(options.allocator()));
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void BrotliReader<Src>::Reset(Src&& src, Options options) {
-  BrotliReaderBase::Reset(std::move(options.allocator()));
+  BrotliReaderBase::Reset(std::move(options.dictionaries()),
+                          std::move(options.allocator()));
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -301,7 +501,8 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void BrotliReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  BrotliReaderBase::Reset(std::move(options.allocator()));
+  BrotliReaderBase::Reset(std::move(options.dictionaries()),
+                          std::move(options.allocator()));
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }
