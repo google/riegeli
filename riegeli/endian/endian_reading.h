@@ -19,6 +19,7 @@
 
 #include <cstring>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
@@ -28,19 +29,46 @@ namespace riegeli {
 
 // Reads a number in a fixed width Little/Big Endian encoding.
 //
-// Returns `absl::nullopt` on failure, with the current position unchanged.
+// Return values:
+//  * `true`                          - success (`dest` is set)
+//  * `false` (when `src.healthy()`)  - source ends
+//                                      (`src` position is unchanged,
+//                                      `dest` is undefined)
+//  * `false` (when `!src.healthy()`) - failure
+//                                      (`src` position is unchanged,
+//                                      `dest` is undefined)
+bool ReadLittleEndian16(Reader& src, uint16_t& dest);
+bool ReadLittleEndian32(Reader& src, uint32_t& dest);
+bool ReadLittleEndian64(Reader& src, uint64_t& dest);
+bool ReadBigEndian16(Reader& src, uint16_t& dest);
+bool ReadBigEndian32(Reader& src, uint32_t& dest);
+bool ReadBigEndian64(Reader& src, uint64_t& dest);
+
+ABSL_DEPRECATED("Use ReadLittleEndian16(Reader&, uint16_t&) instead")
 absl::optional<uint16_t> ReadLittleEndian16(Reader& src);
+ABSL_DEPRECATED("Use ReadLittleEndian32(Reader&, uint32_t&) instead")
 absl::optional<uint32_t> ReadLittleEndian32(Reader& src);
+ABSL_DEPRECATED("Use ReadLittleEndian64(Reader&, uint64_t&) instead")
 absl::optional<uint64_t> ReadLittleEndian64(Reader& src);
+ABSL_DEPRECATED("Use ReadBigEndian16(Reader&, uint16_t&) instead")
 absl::optional<uint16_t> ReadBigEndian16(Reader& src);
+ABSL_DEPRECATED("Use ReadBigEndian32(Reader&, uint32_t&) instead")
 absl::optional<uint32_t> ReadBigEndian32(Reader& src);
+ABSL_DEPRECATED("Use ReadBigEndian64(Reader&, uint64_t&) instead")
 absl::optional<uint64_t> ReadBigEndian64(Reader& src);
 
 // Reads an array of numbers in a fixed width Little/Big Endian encoding.
 //
 // This is faster than reading them individually for native endianness.
 //
-// Returns `false` on failure, with unspecified current position.
+// Return values:
+//  * `true`                          - success (`dest[]` is filled)
+//  * `false` (when `src.healthy()`)  - source ends
+//                                      (`src` position is undefined,
+//                                      `dest[]` is undefined)
+//  * `false` (when `!src.healthy()`) - failure
+//                                      (`src` position is undefined,
+//                                      `dest[]` is undefined)
 bool ReadLittleEndian16s(Reader& src, absl::Span<uint16_t> dest);
 bool ReadLittleEndian32s(Reader& src, absl::Span<uint32_t> dest);
 bool ReadLittleEndian64s(Reader& src, absl::Span<uint64_t> dest);
@@ -72,6 +100,48 @@ void ReadBigEndian32s(const char* src, absl::Span<uint32_t> dest);
 void ReadBigEndian64s(const char* src, absl::Span<uint64_t> dest);
 
 // Implementation details follow.
+
+inline bool ReadLittleEndian16(Reader& src, uint16_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint16_t)))) return false;
+  dest = ReadLittleEndian16(src.cursor());
+  src.move_cursor(sizeof(uint16_t));
+  return true;
+}
+
+inline bool ReadLittleEndian32(Reader& src, uint32_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) return false;
+  dest = ReadLittleEndian32(src.cursor());
+  src.move_cursor(sizeof(uint32_t));
+  return true;
+}
+
+inline bool ReadLittleEndian64(Reader& src, uint64_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint64_t)))) return false;
+  dest = ReadLittleEndian64(src.cursor());
+  src.move_cursor(sizeof(uint64_t));
+  return true;
+}
+
+inline bool ReadBigEndian16(Reader& src, uint16_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint16_t)))) return false;
+  dest = ReadBigEndian16(src.cursor());
+  src.move_cursor(sizeof(uint16_t));
+  return true;
+}
+
+inline bool ReadBigEndian32(Reader& src, uint32_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t)))) return false;
+  dest = ReadBigEndian32(src.cursor());
+  src.move_cursor(sizeof(uint32_t));
+  return true;
+}
+
+inline bool ReadBigEndian64(Reader& src, uint64_t& dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint64_t)))) return false;
+  dest = ReadBigEndian64(src.cursor());
+  src.move_cursor(sizeof(uint64_t));
+  return true;
+}
 
 inline absl::optional<uint16_t> ReadLittleEndian16(Reader& src) {
   if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint16_t)))) return absl::nullopt;
@@ -121,9 +191,9 @@ inline bool ReadLittleEndian16s(Reader& src, absl::Span<uint16_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint16_t& dest_value : dest) {
-      const absl::optional<uint16_t> src_value = ReadLittleEndian16(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadLittleEndian16(src, dest_value))) {
+        return false;
+      }
     }
     return true;
   }
@@ -135,9 +205,9 @@ inline bool ReadLittleEndian32s(Reader& src, absl::Span<uint32_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint32_t& dest_value : dest) {
-      const absl::optional<uint32_t> src_value = ReadLittleEndian32(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadLittleEndian32(src, dest_value))) {
+        return false;
+      }
     }
     return true;
   }
@@ -149,9 +219,9 @@ inline bool ReadLittleEndian64s(Reader& src, absl::Span<uint64_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint64_t& dest_value : dest) {
-      const absl::optional<uint64_t> src_value = ReadLittleEndian64(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadLittleEndian64(src, dest_value))) {
+        return false;
+      }
     }
     return true;
   }
@@ -163,9 +233,7 @@ inline bool ReadBigEndian16s(Reader& src, absl::Span<uint16_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint16_t& dest_value : dest) {
-      const absl::optional<uint16_t> src_value = ReadBigEndian16(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadBigEndian16(src, dest_value))) return false;
     }
     return true;
   }
@@ -177,9 +245,7 @@ inline bool ReadBigEndian32s(Reader& src, absl::Span<uint32_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint32_t& dest_value : dest) {
-      const absl::optional<uint32_t> src_value = ReadBigEndian32(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadBigEndian32(src, dest_value))) return false;
     }
     return true;
   }
@@ -191,9 +257,7 @@ inline bool ReadBigEndian64s(Reader& src, absl::Span<uint64_t> dest) {
                     reinterpret_cast<char*>(dest.data()));
   } else {
     for (uint64_t& dest_value : dest) {
-      const absl::optional<uint64_t> src_value = ReadBigEndian64(src);
-      if (ABSL_PREDICT_FALSE(src_value == absl::nullopt)) return false;
-      dest_value = *src_value;
+      if (ABSL_PREDICT_FALSE(!ReadBigEndian64(src, dest_value))) return false;
     }
     return true;
   }

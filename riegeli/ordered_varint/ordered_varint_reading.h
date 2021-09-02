@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/ordered_varint/ordered_varint.h"
 
@@ -44,41 +43,50 @@ namespace riegeli {
 
 // Reads an ordered varint.
 //
-// Returns `absl::nullopt` on failure, with the current position unchanged.
-absl::optional<uint32_t> ReadOrderedVarint32(Reader& src);
-absl::optional<uint64_t> ReadOrderedVarint64(Reader& src);
+// Return values:
+//  * `true`                          - success (`dest` is set)
+//  * `false` (when `src.healthy()`)  - source ends
+//                                      (`src` position is unchanged,
+//                                      `dest` is undefined)
+//  * `false` (when `!src.healthy()`) - failure
+//                                      (`src` position is unchanged,
+//                                      `dest` is undefined)
+bool ReadOrderedVarint32(Reader& src, uint32_t& dest);
+bool ReadOrderedVarint64(Reader& src, uint64_t& dest);
 
 // Implementation details follow.
 
 namespace internal {
 
-absl::optional<uint32_t> ReadOrderedVarint32Slow(Reader& src);
-absl::optional<uint64_t> ReadOrderedVarint64Slow(Reader& src);
+bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest);
+bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest);
 
 }  // namespace internal
 
-inline absl::optional<uint32_t> ReadOrderedVarint32(Reader& src) {
+inline bool ReadOrderedVarint32(Reader& src, uint32_t& dest) {
   if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint32))) {
-    return absl::nullopt;
+    return false;
   }
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
   if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
+    dest = first_byte;
     src.move_cursor(1);
-    return first_byte;
+    return true;
   }
-  return internal::ReadOrderedVarint32Slow(src);
+  return internal::ReadOrderedVarint32Slow(src, dest);
 }
 
-inline absl::optional<uint64_t> ReadOrderedVarint64(Reader& src) {
+inline bool ReadOrderedVarint64(Reader& src, uint64_t& dest) {
   if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthOrderedVarint64))) {
-    return absl::nullopt;
+    return false;
   }
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
   if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
+    dest = first_byte;
     src.move_cursor(1);
-    return first_byte;
+    return true;
   }
-  return internal::ReadOrderedVarint64Slow(src);
+  return internal::ReadOrderedVarint64Slow(src, dest);
 }
 
 }  // namespace riegeli

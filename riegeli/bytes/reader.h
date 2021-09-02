@@ -125,10 +125,13 @@ class Reader : public Object {
   // Reads a single byte from the buffer or the source.
   //
   // Return values:
-  //  * not `absl::nullopt`                 - success
-  //  * `absl::nullopt` (when `healthy()`)  - source ends
-  //  * `absl::nullopt` (when `!healthy()`) - failure
-  absl::optional<char> ReadChar();
+  //  * `true`                      - success (`dest` is set)
+  //  * `false` (when `healthy()`)  - source ends (`dest` is undefined)
+  //  * `false` (when `!healthy()`) - failure (`dest` is undefined)
+  bool ReadChar(char& dest);
+  bool ReadByte(uint8_t& dest);
+
+  ABSL_DEPRECATED("Use ReadByte(uint8_t&) instead")
   absl::optional<uint8_t> ReadByte();
 
   // Reads a fixed number of bytes from the buffer and/or the source to `dest`,
@@ -551,17 +554,25 @@ inline void Reader::set_buffer(const char* start, size_t buffer_size,
   limit_ = start + buffer_size;
 }
 
-inline absl::optional<char> Reader::ReadChar() {
+inline bool Reader::ReadChar(char& dest) {
+  if (ABSL_PREDICT_FALSE(!Pull())) return false;
+  dest = *cursor();
+  move_cursor(1);
+  return true;
+}
+
+inline bool Reader::ReadByte(uint8_t& dest) {
+  if (ABSL_PREDICT_FALSE(!Pull())) return false;
+  dest = static_cast<uint8_t>(*cursor());
+  move_cursor(1);
+  return true;
+}
+
+inline absl::optional<uint8_t> Reader::ReadByte() {
   if (ABSL_PREDICT_FALSE(!Pull())) return absl::nullopt;
   const char data = *cursor();
   move_cursor(1);
   return data;
-}
-
-inline absl::optional<uint8_t> Reader::ReadByte() {
-  const absl::optional<char> data = ReadChar();
-  if (ABSL_PREDICT_FALSE(data == absl::nullopt)) return absl::nullopt;
-  return static_cast<uint8_t>(*data);
 }
 
 inline bool Reader::Read(size_t length, absl::string_view& dest) {

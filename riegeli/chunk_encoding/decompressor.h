@@ -193,9 +193,9 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
-  const absl::optional<uint64_t> uncompressed_size =
-      ReadVarint64(*compressed_reader);
-  if (ABSL_PREDICT_FALSE(uncompressed_size == absl::nullopt)) {
+  uint64_t uncompressed_size;
+  if (ABSL_PREDICT_FALSE(
+          !ReadVarint64(*compressed_reader, uncompressed_size))) {
     compressed_reader->Fail(
         absl::InvalidArgumentError("Reading uncompressed size failed"));
     Fail(*compressed_reader);
@@ -211,7 +211,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kZstd:
       reader_ = std::make_unique<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
-          ZstdReaderBase::Options().set_size_hint(*uncompressed_size));
+          ZstdReaderBase::Options().set_size_hint(uncompressed_size));
       return;
     case CompressionType::kSnappy:
       reader_ = std::make_unique<SnappyReader<Src>>(

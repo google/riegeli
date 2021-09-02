@@ -24,8 +24,8 @@
 namespace riegeli {
 namespace internal {
 
-absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
-    const char* src, const char* limit, uint32_t acc) {
+absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
+                                             uint32_t acc, uint32_t& dest) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
@@ -44,11 +44,12 @@ absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32Slow(
       break;
     }
   } while (byte >= 0x80);
-  return ReadFromStringResult<uint32_t>{acc, src};
+  dest = acc;
+  return src;
 }
 
-absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
-    const char* src, const char* limit, uint64_t acc) {
+absl::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
+                                             uint64_t acc, uint64_t& dest) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
@@ -67,16 +68,17 @@ absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64Slow(
       break;
     }
   } while (byte >= 0x80);
-  return ReadFromStringResult<uint64_t>{acc, src};
+  dest = acc;
+  return src;
 }
 
-absl::optional<uint32_t> StreamingReadVarint32Slow(Reader& src) {
+bool StreamingReadVarint32Slow(Reader& src, uint32_t& dest) {
   uint8_t byte = src.cursor()[0];
   uint32_t acc{byte};
   size_t length = 1;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(!src.Pull(length + 1, kMaxLengthVarint32))) {
-      return absl::nullopt;
+      return false;
     }
     byte = src.cursor()[length];
     acc += (uint32_t{byte} - 1) << (length * 7);
@@ -87,22 +89,23 @@ absl::optional<uint32_t> StreamingReadVarint32Slow(Reader& src) {
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint32`
         // or the represented value does not fit in `uint32_t`.
-        return absl::nullopt;
+        return false;
       }
       break;
     }
   }
+  dest = acc;
   src.move_cursor(length);
-  return acc;
+  return true;
 }
 
-absl::optional<uint64_t> StreamingReadVarint64Slow(Reader& src) {
+bool StreamingReadVarint64Slow(Reader& src, uint64_t& dest) {
   uint8_t byte = src.cursor()[0];
   uint64_t acc{byte};
   size_t length = 1;
   while (byte >= 0x80) {
     if (ABSL_PREDICT_FALSE(!src.Pull(length + 1, kMaxLengthVarint64))) {
-      return absl::nullopt;
+      return false;
     }
     byte = src.cursor()[length];
     acc += (uint64_t{byte} - 1) << (length * 7);
@@ -113,13 +116,14 @@ absl::optional<uint64_t> StreamingReadVarint64Slow(Reader& src) {
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint64`
         // or the represented value does not fit in `uint64_t`.
-        return absl::nullopt;
+        return false;
       }
       break;
     }
   }
+  dest = acc;
   src.move_cursor(length);
-  return acc;
+  return true;
 }
 
 }  // namespace internal

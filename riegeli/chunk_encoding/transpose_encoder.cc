@@ -85,14 +85,15 @@ bool IsProtoMessage(Reader& record) {
   // We validate that all started proto groups are closed with endgroup tag.
   std::vector<int> started_groups;
   while (record.Pull()) {
-    const absl::optional<uint32_t> tag = ReadCanonicalVarint32(record);
-    if (tag == absl::nullopt) return false;
-    const int field_number = GetTagFieldNumber(*tag);
+    uint32_t tag;
+    if (!ReadCanonicalVarint32(record, tag)) return false;
+    const int field_number = GetTagFieldNumber(tag);
     if (field_number == 0) return false;
-    switch (GetTagWireType(*tag)) {
-      case WireType::kVarint:
-        if (ReadCanonicalVarint64(record) == absl::nullopt) return false;
-        break;
+    switch (GetTagWireType(tag)) {
+      case WireType::kVarint: {
+        uint64_t value;
+        if (!ReadCanonicalVarint64(record, value)) return false;
+      } break;
       case WireType::kFixed32:
         if (!record.Skip(sizeof(uint32_t))) return false;
         break;
@@ -100,9 +101,10 @@ bool IsProtoMessage(Reader& record) {
         if (!record.Skip(sizeof(uint64_t))) return false;
         break;
       case WireType::kLengthDelimited: {
-        const absl::optional<uint32_t> length = ReadCanonicalVarint32(record);
-        if (length == absl::nullopt) return false;
-        if (!record.Skip(*length)) return false;
+        uint32_t length;
+        if (!ReadCanonicalVarint32(record, length) || !record.Skip(length)) {
+          return false;
+        }
       } break;
       case WireType::kStartGroup:
         started_groups.push_back(field_number);
@@ -327,25 +329,23 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
                                          internal::MessageId parent_message_id,
                                          int depth) {
   while (record.Pull()) {
-    const absl::optional<uint32_t> tag = ReadVarint32(record);
-    if (tag == absl::nullopt) {
+    uint32_t tag;
+    if (!ReadVarint32(record, tag)) {
       RIEGELI_ASSERT_UNREACHABLE() << "Invalid tag: " << record.status();
     }
-    Node* node = GetNode(NodeId(parent_message_id, *tag));
-    switch (GetTagWireType(*tag)) {
+    Node* node = GetNode(NodeId(parent_message_id, tag));
+    switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
         // Storing value as `uint64_t[2]` instead of `uint8_t[10]` lets Clang
         // and GCC generate better code for clearing high bit of each byte.
         uint64_t value[2];
         static_assert(sizeof(value) >= kMaxLengthVarint64,
                       "value too small to hold a varint64");
-        const absl::optional<char*> value_end =
+        const absl::optional<size_t> value_length =
             CopyVarint64(record, reinterpret_cast<char*>(value));
-        if (value_end == absl::nullopt) {
+        if (value_length == absl::nullopt) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid varint: " << record.status();
         }
-        const size_t value_length =
-            PtrDistance(reinterpret_cast<char*>(value), *value_end);
         if (reinterpret_cast<const unsigned char*>(value)[0] <=
             kMaxVarintInline) {
           encoded_tags_.push_back(GetPosInTagsList(
@@ -354,12 +354,12 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
         } else {
           encoded_tags_.push_back(
               GetPosInTagsList(node, internal::Subtype::kVarint1 +
-                                         IntCast<uint8_t>(value_length - 1)));
+                                         IntCast<uint8_t>(*value_length - 1)));
           // Clear high bit of each byte.
           for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
           if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
-                  reinterpret_cast<const char*>(value), value_length)))) {
+                  reinterpret_cast<const char*>(value), *value_length)))) {
             return Fail(*buffer);
           }
         }
@@ -382,15 +382,15 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
       } break;
       case WireType::kLengthDelimited: {
         const Position length_pos = record.pos();
-        const absl::optional<uint32_t> length = ReadVarint32(record);
-        if (length == absl::nullopt) {
+        uint32_t length;
+        if (!ReadVarint32(record, length)) {
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid length: " << record.status();
         }
         const Position value_pos = record.pos();
-        LengthLimiter limiter(&record, *length);
+        LengthLimiter limiter(&record, length);
         // Non-toplevel empty strings are treated as strings, not messages.
         // They have a simpler encoding this way (one node instead of two).
-        if (depth < kMaxRecursionDepth && *length != 0 &&
+        if (depth < kMaxRecursionDepth && length != 0 &&
             IsProtoMessage(record)) {
           encoded_tags_.push_back(GetPosInTagsList(
               node, internal::Subtype::kLengthDelimitedStartOfSubmessage));
@@ -416,8 +416,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           }
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!record.Copy(
-                  IntCast<size_t>(value_pos - length_pos) + *length,
-                  *buffer))) {
+                  IntCast<size_t>(value_pos - length_pos) + length, *buffer))) {
             return Fail(*buffer);
           }
         }
@@ -443,7 +442,7 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
       default:
         RIEGELI_ASSERT_UNREACHABLE()
             << "Invalid wire type: "
-            << static_cast<uint32_t>(GetTagWireType(*tag));
+            << static_cast<uint32_t>(GetTagWireType(tag));
     }
   }
   RIEGELI_ASSERT(record.healthy())

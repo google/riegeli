@@ -92,17 +92,20 @@ bool RecordPosition::FromBytes(absl::string_view serialized) {
     return true;
   }
   StringReader<> reader(serialized);
-  const absl::optional<uint64_t> chunk_begin = ReadOrderedVarint64(reader);
-  if (ABSL_PREDICT_FALSE(chunk_begin == absl::nullopt)) return false;
-  const absl::optional<uint64_t> record_index = ReadOrderedVarint64(reader);
-  if (ABSL_PREDICT_FALSE(record_index == absl::nullopt)) return false;
-  if (ABSL_PREDICT_FALSE(*record_index >
-                         std::numeric_limits<uint64_t>::max() - *chunk_begin)) {
+  uint64_t chunk_begin, record_index;
+  if (ABSL_PREDICT_FALSE(!ReadOrderedVarint64(reader, chunk_begin))) {
+    return false;
+  }
+  if (ABSL_PREDICT_FALSE(!ReadOrderedVarint64(reader, record_index))) {
+    return false;
+  }
+  if (ABSL_PREDICT_FALSE(record_index >
+                         std::numeric_limits<uint64_t>::max() - chunk_begin)) {
     return false;
   }
   if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) return false;
-  chunk_begin_ = *chunk_begin;
-  record_index_ = *record_index;
+  chunk_begin_ = chunk_begin;
+  record_index_ = record_index;
   return true;
 }
 

@@ -181,7 +181,6 @@ cc_library(
         "//riegeli/varint:varint_reading",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 

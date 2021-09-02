@@ -32,7 +32,11 @@ absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
     return compressed_data.size();
   }
   ChainReader<> compressed_data_reader(&compressed_data);
-  return ReadVarint64(compressed_data_reader);
+  uint64_t size;
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(compressed_data_reader, size))) {
+    return absl::nullopt;
+  }
+  return size;
 }
 
 }  // namespace internal
