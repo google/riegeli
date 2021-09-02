@@ -189,7 +189,7 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
                                    CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) {
     reader_ =
-        absl::make_unique<WrappedReader<Src>>(std::forward<SrcInit>(src_init));
+        std::make_unique<WrappedReader<Src>>(std::forward<SrcInit>(src_init));
     return;
   }
   Dependency<Reader*, Src> compressed_reader(std::forward<SrcInit>(src_init));
@@ -205,16 +205,16 @@ void Decompressor<Src>::Initialize(SrcInit&& src_init,
     case CompressionType::kNone:
       RIEGELI_ASSERT_UNREACHABLE() << "kNone handled above";
     case CompressionType::kBrotli:
-      reader_ = absl::make_unique<BrotliReader<Src>>(
+      reader_ = std::make_unique<BrotliReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
     case CompressionType::kZstd:
-      reader_ = absl::make_unique<ZstdReader<Src>>(
+      reader_ = std::make_unique<ZstdReader<Src>>(
           std::move(compressed_reader.manager()),
           ZstdReaderBase::Options().set_size_hint(*uncompressed_size));
       return;
     case CompressionType::kSnappy:
-      reader_ = absl::make_unique<SnappyReader<Src>>(
+      reader_ = std::make_unique<SnappyReader<Src>>(
           std::move(compressed_reader.manager()));
       return;
   }

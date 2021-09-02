@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/memory/memory.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/object.h"
@@ -58,14 +57,14 @@ void Compressor::Clear() {
 void Compressor::Initialize() {
   switch (compressor_options_.compression_type()) {
     case CompressionType::kNone:
-      writer_ = absl::make_unique<ChainWriter<>>(
+      writer_ = std::make_unique<ChainWriter<>>(
           &compressed_, ChainWriterBase::Options().set_size_hint(
                             tuning_options_.pledged_size() != absl::nullopt
                                 ? tuning_options_.pledged_size()
                                 : tuning_options_.size_hint()));
       return;
     case CompressionType::kBrotli:
-      writer_ = absl::make_unique<BrotliWriter<ChainWriter<>>>(
+      writer_ = std::make_unique<BrotliWriter<ChainWriter<>>>(
           std::forward_as_tuple(&compressed_),
           BrotliWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
@@ -75,7 +74,7 @@ void Compressor::Initialize() {
                                  : tuning_options_.size_hint()));
       return;
     case CompressionType::kZstd:
-      writer_ = absl::make_unique<ZstdWriter<ChainWriter<>>>(
+      writer_ = std::make_unique<ZstdWriter<ChainWriter<>>>(
           std::forward_as_tuple(&compressed_),
           ZstdWriterBase::Options()
               .set_compression_level(compressor_options_.compression_level())
@@ -84,7 +83,7 @@ void Compressor::Initialize() {
               .set_size_hint(tuning_options_.size_hint()));
       return;
     case CompressionType::kSnappy:
-      writer_ = absl::make_unique<SnappyWriter<ChainWriter<>>>(
+      writer_ = std::make_unique<SnappyWriter<ChainWriter<>>>(
           std::forward_as_tuple(&compressed_),
           SnappyWriterBase::Options().set_size_hint(
               tuning_options_.size_hint()));
