@@ -261,7 +261,7 @@ class BackwardWriter : public Object {
   // implemented in terms of `WriteSlow(absl::string_view)`;
   // `WriteSlow(Chain&&)` is implemented in terms of `WriteSlow(const Chain&)`;
   // and `WriteSlow(absl::Cord&&)` is implemented in terms of
-  // `WriteSlow(const absl::Cord&)`;
+  // `WriteSlow(const absl::Cord&)`.
   //
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `available() < src.size()`
