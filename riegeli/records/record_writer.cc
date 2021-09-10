@@ -465,8 +465,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
                     FlushRequest>;
 
   bool HasCapacityForRequest() const;
-  template <typename GetRecordIndex>
-  FutureRecordPosition PosInternal(GetRecordIndex get_record_index) const;
+  internal::FutureChunkBegin PosInternal() const;
 
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
@@ -651,20 +650,19 @@ std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
   return done_future;
 }
 
-template <typename GetRecordIndex>
-FutureRecordPosition RecordWriterBase::ParallelWorker::PosInternal(
-    GetRecordIndex get_record_index) const {
+internal::FutureChunkBegin RecordWriterBase::ParallelWorker::PosInternal()
+    const {
   struct Visitor {
     void operator()(const DoneRequest&) {}
     void operator()(const WriteChunkRequest& request) {
       actions.emplace_back(request.chunk_header);
     }
     void operator()(const PadToBlockBoundaryRequest&) {
-      actions.emplace_back(FutureRecordPosition::PadToBlockBoundary());
+      actions.emplace_back(internal::FutureChunkBegin::PadToBlockBoundary());
     }
     void operator()(const FlushRequest&) {}
 
-    std::vector<FutureRecordPosition::Action> actions;
+    std::vector<internal::FutureChunkBegin::Action> actions;
   };
   Visitor visitor;
   absl::MutexLock lock(&mutex_);
@@ -672,31 +670,29 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::PosInternal(
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     absl::visit(visitor, request);
   }
-  return FutureRecordPosition(pos_before_chunks_, std::move(visitor.actions),
-                              get_record_index());
+  return internal::FutureChunkBegin(pos_before_chunks_,
+                                    std::move(visitor.actions));
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {
-  return PosInternal([this] {
-    // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
-    // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
-    RIEGELI_ASSERT(chunk_encoder_ != nullptr)
-        << "Failed invariant of RecordWriterBase::ParallelWorker: "
-           "last position should be valid but chunk is closed";
-    RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
-        << "Failed invariant of RecordWriterBase::ParallelWorker: "
-           "last position should be valid but no record was encoded";
-    return chunk_encoder_->num_records() - 1;
-  });
+  // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
+  // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
+  RIEGELI_ASSERT(chunk_encoder_ != nullptr)
+      << "Failed invariant of RecordWriterBase::ParallelWorker: "
+         "last position should be valid but chunk is closed";
+  RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
+      << "Failed invariant of RecordWriterBase::ParallelWorker: "
+         "last position should be valid but no record was encoded";
+  return FutureRecordPosition(PosInternal(), chunk_encoder_->num_records() - 1);
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
-  return PosInternal([this] {
-    // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
-    // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
-    if (ABSL_PREDICT_FALSE(chunk_encoder_ == nullptr)) return uint64_t{0};
-    return chunk_encoder_->num_records();
-  });
+  // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
+  // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
+  return FutureRecordPosition(PosInternal(),
+                              ABSL_PREDICT_FALSE(chunk_encoder_ == nullptr)
+                                  ? uint64_t{0}
+                                  : chunk_encoder_->num_records());
 }
 
 Position RecordWriterBase::ParallelWorker::EstimatedSize() const {

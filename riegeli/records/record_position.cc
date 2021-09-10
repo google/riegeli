@@ -113,11 +113,13 @@ std::ostream& operator<<(std::ostream& out, RecordPosition pos) {
   return out << pos.ToString();
 }
 
-inline FutureRecordPosition::FutureChunkBegin::FutureChunkBegin(
-    Position pos_before_chunks, std::vector<Action> actions)
+namespace internal {
+
+inline FutureChunkBegin::Unresolved::Unresolved(Position pos_before_chunks,
+                                                std::vector<Action> actions)
     : pos_before_chunks_(pos_before_chunks), actions_(std::move(actions)) {}
 
-void FutureRecordPosition::FutureChunkBegin::Resolve() const {
+void FutureChunkBegin::Unresolved::Resolve() const {
   struct Visitor {
     void operator()(const std::shared_future<ChunkHeader>& chunk_header) {
       // Matches `DefaultChunkWriterBase::WriteChunk()`.
@@ -141,14 +143,13 @@ void FutureRecordPosition::FutureChunkBegin::Resolve() const {
   actions_ = std::vector<Action>();
 }
 
-FutureRecordPosition::FutureRecordPosition(Position pos_before_chunks,
-                                           std::vector<Action> actions,
-                                           uint64_t record_index)
-    : future_chunk_begin_(actions.empty()
-                              ? nullptr
-                              : std::make_shared<FutureChunkBegin>(
-                                    pos_before_chunks, std::move(actions))),
-      chunk_begin_(pos_before_chunks),
-      record_index_(record_index) {}
+FutureChunkBegin::FutureChunkBegin(Position pos_before_chunks,
+                                   std::vector<Action> actions)
+    : unresolved_(actions.empty() ? nullptr
+                                  : std::make_shared<Unresolved>(
+                                        pos_before_chunks, std::move(actions))),
+      resolved_(pos_before_chunks) {}
+
+}  // namespace internal
 
 }  // namespace riegeli

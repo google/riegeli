@@ -97,6 +97,52 @@ class RecordPosition {
   uint64_t record_index_ = 0;
 };
 
+// `FutureChunkBegin` is similar to `std::shared_future<Position>`.
+//
+// It is used to implement `FutureRecordPosition` and internally in
+// `RecordWriter`.
+
+namespace internal {
+
+class FutureChunkBegin {
+ public:
+  struct PadToBlockBoundary {};
+  using Action =
+      absl::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
+
+  constexpr FutureChunkBegin() noexcept {}
+
+  explicit FutureChunkBegin(Position chunk_begin) noexcept;
+
+  explicit FutureChunkBegin(Position pos_before_chunks,
+                            std::vector<Action> actions);
+
+  FutureChunkBegin(const FutureChunkBegin& that) noexcept;
+  FutureChunkBegin& operator=(const FutureChunkBegin& that) noexcept;
+
+  FutureChunkBegin(FutureChunkBegin&& that) noexcept;
+  FutureChunkBegin& operator=(FutureChunkBegin&& that) noexcept;
+
+  // May block if returned by `RecordWriter` with `parallelism > 0`.
+  Position get() const;
+
+ private:
+  class Unresolved;
+
+  // `unresolved_` is a pointer to save memory in the common case when
+  // it is absent.
+  //
+  // The pointer uses shared ownership because `FutureChunkBegin` is not
+  // copyable, which is because its contents are resolved lazily in a const
+  // method, so a copy constructor would need to block.
+  std::shared_ptr<Unresolved> unresolved_;
+  // If `unresolved_ == nullptr`, `chunk_begin_` is stored here,
+  // otherwise it is `unresolved_->get()`.
+  Position resolved_ = 0;
+};
+
+}  // namespace internal
+
 // `FutureRecordPosition` is similar to `std::shared_future<RecordPosition>`.
 //
 // `RecordWriter` returns `FutureRecordPosition` instead of `RecordPosition`
@@ -104,16 +150,12 @@ class RecordPosition {
 // chunks finish encoding in background.
 class FutureRecordPosition {
  public:
-  struct PadToBlockBoundary {};
-  using Action =
-      absl::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
-
   constexpr FutureRecordPosition() noexcept {}
 
   explicit FutureRecordPosition(RecordPosition pos) noexcept;
 
-  FutureRecordPosition(Position pos_before_chunks, std::vector<Action> actions,
-                       uint64_t record_index);
+  explicit FutureRecordPosition(internal::FutureChunkBegin chunk_begin,
+                                uint64_t record_index);
 
   FutureRecordPosition(const FutureRecordPosition& that) noexcept;
   FutureRecordPosition& operator=(const FutureRecordPosition& that) noexcept;
@@ -125,18 +167,7 @@ class FutureRecordPosition {
   RecordPosition get() const;
 
  private:
-  class FutureChunkBegin;
-
-  // `future_chunk_begin_` is a pointer to save memory in the common case when
-  // it is absent.
-  //
-  // The pointer uses shared ownership because `FutureChunkBegin` is not
-  // copyable, which is because its contents are resolved lazily in a const
-  // method, so a copy constructor would need to block.
-  std::shared_ptr<FutureChunkBegin> future_chunk_begin_;
-  // If `future_chunk_begin_ == nullptr`, `chunk_begin_` is stored here,
-  // otherwise it is `future_chunk_begin_->get()`.
-  Position chunk_begin_ = 0;
+  internal::FutureChunkBegin chunk_begin_;
   uint64_t record_index_ = 0;
 };
 
@@ -194,13 +225,14 @@ inline HashState AbslHashValue(HashState hash_state, RecordPosition self) {
                             self.record_index_);
 }
 
-class FutureRecordPosition::FutureChunkBegin {
- public:
-  explicit FutureChunkBegin(Position pos_before_chunks,
-                            std::vector<Action> actions);
+namespace internal {
 
-  FutureChunkBegin(const FutureChunkBegin&) = delete;
-  FutureChunkBegin& operator=(const FutureChunkBegin&) = delete;
+class FutureChunkBegin::Unresolved {
+ public:
+  explicit Unresolved(Position pos_before_chunks, std::vector<Action> actions);
+
+  Unresolved(const Unresolved&) = delete;
+  Unresolved& operator=(const Unresolved&) = delete;
 
   Position get() const;
 
@@ -214,26 +246,56 @@ class FutureRecordPosition::FutureChunkBegin {
   mutable std::vector<Action> actions_;
 };
 
-inline Position FutureRecordPosition::FutureChunkBegin::get() const {
-  absl::call_once(flag_, &FutureChunkBegin::Resolve, this);
-  RIEGELI_ASSERT(actions_.empty())
-      << "FutureRecordPosition::FutureChunkBegin::Resolve() "
-         "did not clear actions_";
+inline Position FutureChunkBegin::Unresolved::get() const {
+  absl::call_once(flag_, &Unresolved::Resolve, this);
+  RIEGELI_ASSERT(actions_.empty()) << "FutureChunkBegin::Unresolved::Resolve() "
+                                      "did not clear actions_";
   return pos_before_chunks_;
 }
+
+inline FutureChunkBegin::FutureChunkBegin(Position chunk_begin) noexcept
+    : resolved_(chunk_begin) {}
+
+inline FutureChunkBegin::FutureChunkBegin(const FutureChunkBegin& that) noexcept
+    : unresolved_(that.unresolved_), resolved_(that.resolved_) {}
+
+inline FutureChunkBegin& FutureChunkBegin::operator=(
+    const FutureChunkBegin& that) noexcept {
+  unresolved_ = that.unresolved_;
+  resolved_ = that.resolved_;
+  return *this;
+}
+
+inline FutureChunkBegin::FutureChunkBegin(FutureChunkBegin&& that) noexcept
+    : unresolved_(std::move(that.unresolved_)),
+      resolved_(std::exchange(that.resolved_, 0)) {}
+
+inline FutureChunkBegin& FutureChunkBegin::operator=(
+    FutureChunkBegin&& that) noexcept {
+  unresolved_ = std::move(that.unresolved_);
+  resolved_ = std::exchange(that.resolved_, 0);
+  return *this;
+}
+
+inline Position FutureChunkBegin::get() const {
+  return unresolved_ == nullptr ? resolved_ : unresolved_->get();
+}
+
+}  // namespace internal
 
 inline FutureRecordPosition::FutureRecordPosition(RecordPosition pos) noexcept
     : chunk_begin_(pos.chunk_begin()), record_index_(pos.record_index()) {}
 
 inline FutureRecordPosition::FutureRecordPosition(
+    internal::FutureChunkBegin chunk_begin, uint64_t record_index)
+    : chunk_begin_(std::move(chunk_begin)), record_index_(record_index) {}
+
+inline FutureRecordPosition::FutureRecordPosition(
     const FutureRecordPosition& that) noexcept
-    : future_chunk_begin_(that.future_chunk_begin_),
-      chunk_begin_(that.chunk_begin_),
-      record_index_(that.record_index_) {}
+    : chunk_begin_(that.chunk_begin_), record_index_(that.record_index_) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
     const FutureRecordPosition& that) noexcept {
-  future_chunk_begin_ = that.future_chunk_begin_;
   chunk_begin_ = that.chunk_begin_;
   record_index_ = that.record_index_;
   return *this;
@@ -241,23 +303,18 @@ inline FutureRecordPosition& FutureRecordPosition::operator=(
 
 inline FutureRecordPosition::FutureRecordPosition(
     FutureRecordPosition&& that) noexcept
-    : future_chunk_begin_(std::move(that.future_chunk_begin_)),
-      chunk_begin_(std::exchange(that.chunk_begin_, 0)),
+    : chunk_begin_(std::move(that.chunk_begin_)),
       record_index_(std::exchange(that.record_index_, 0)) {}
 
 inline FutureRecordPosition& FutureRecordPosition::operator=(
     FutureRecordPosition&& that) noexcept {
-  future_chunk_begin_ = std::move(that.future_chunk_begin_);
-  chunk_begin_ = std::exchange(that.chunk_begin_, 0);
+  chunk_begin_ = std::move(that.chunk_begin_);
   record_index_ = std::exchange(that.record_index_, 0);
   return *this;
 }
 
 inline RecordPosition FutureRecordPosition::get() const {
-  return RecordPosition(future_chunk_begin_ == nullptr
-                            ? chunk_begin_
-                            : future_chunk_begin_->get(),
-                        record_index_);
+  return RecordPosition(chunk_begin_.get(), record_index_);
 }
 
 }  // namespace riegeli
