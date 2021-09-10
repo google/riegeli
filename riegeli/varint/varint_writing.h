@@ -23,7 +23,7 @@
 #include "riegeli/base/port.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/varint/varint.h"
+#include "riegeli/varint/varint_internal.h"
 
 namespace riegeli {
 

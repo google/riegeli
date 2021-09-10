@@ -23,7 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/endian/endian_common.h"
+#include "riegeli/endian/endian_internal.h"
 
 namespace riegeli {
 

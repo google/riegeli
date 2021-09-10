@@ -4,7 +4,7 @@ licenses(["notice"])
 
 cc_library(
     name = "varint_writing",
-    srcs = ["varint.h"],
+    srcs = ["varint_internal.h"],
     hdrs = ["varint_writing.h"],
     deps = [
         "//riegeli/base",
@@ -17,7 +17,7 @@ cc_library(
 cc_library(
     name = "varint_reading",
     srcs = [
-        "varint.h",
+        "varint_internal.h",
         "varint_reading.cc",
     ],
     hdrs = ["varint_reading.h"],

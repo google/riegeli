@@ -24,7 +24,7 @@
 #include "absl/types/span.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/endian/endian_common.h"
+#include "riegeli/endian/endian_internal.h"
 
 namespace riegeli {
 

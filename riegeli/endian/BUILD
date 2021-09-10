@@ -4,7 +4,7 @@ licenses(["notice"])
 
 cc_library(
     name = "endian_writing",
-    srcs = ["endian_common.h"],
+    srcs = ["endian_internal.h"],
     hdrs = ["endian_writing.h"],
     deps = [
         "//riegeli/bytes:backward_writer",
@@ -17,7 +17,7 @@ cc_library(
 
 cc_library(
     name = "endian_reading",
-    srcs = ["endian_common.h"],
+    srcs = ["endian_internal.h"],
     hdrs = ["endian_reading.h"],
     deps = [
         "//riegeli/bytes:reader",

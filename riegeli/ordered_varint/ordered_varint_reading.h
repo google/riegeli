@@ -19,7 +19,7 @@
 
 #include "absl/base/optimization.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/ordered_varint/ordered_varint.h"
+#include "riegeli/ordered_varint/ordered_varint_internal.h"
 
 namespace riegeli {
 

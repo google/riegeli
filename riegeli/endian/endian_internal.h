@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_ENDIAN_ENDIAN_COMMON_H_
-#define RIEGELI_ENDIAN_ENDIAN_COMMON_H_
+#ifndef RIEGELI_ENDIAN_ENDIAN_INTERNAL_H_
+#define RIEGELI_ENDIAN_ENDIAN_INTERNAL_H_
 
 #include <stdint.h>
 
@@ -39,4 +39,4 @@ inline bool IsBigEndian() {
 }  // namespace internal
 }  // namespace riegeli
 
-#endif  // RIEGELI_ENDIAN_ENDIAN_COMMON_H_
+#endif  // RIEGELI_ENDIAN_ENDIAN_INTERNAL_H_

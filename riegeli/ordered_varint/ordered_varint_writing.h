@@ -22,7 +22,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/ordered_varint/ordered_varint.h"
+#include "riegeli/ordered_varint/ordered_varint_internal.h"
 
 namespace riegeli {
 

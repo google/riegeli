@@ -5,7 +5,7 @@ licenses(["notice"])
 cc_library(
     name = "ordered_varint_writing",
     srcs = [
-        "ordered_varint.h",
+        "ordered_varint_internal.h",
         "ordered_varint_writing.cc",
     ],
     hdrs = ["ordered_varint_writing.h"],
@@ -20,7 +20,7 @@ cc_library(
 cc_library(
     name = "ordered_varint_reading",
     srcs = [
-        "ordered_varint.h",
+        "ordered_varint_internal.h",
         "ordered_varint_reading.cc",
     ],
     hdrs = ["ordered_varint_reading.h"],

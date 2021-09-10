@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_VARINT_VARINT_H_
-#define RIEGELI_VARINT_VARINT_H_
+#ifndef RIEGELI_VARINT_VARINT_INTERNAL_H_
+#define RIEGELI_VARINT_VARINT_INTERNAL_H_
 
 #include <stddef.h>
 
@@ -26,4 +26,4 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(size_t, kMaxLengthVarint64, 10);
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_VARINT_VARINT_H_
+#endif  // RIEGELI_VARINT_VARINT_INTERNAL_H_

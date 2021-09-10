@@ -24,7 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/varint/varint.h"
+#include "riegeli/varint/varint_internal.h"
 
 namespace riegeli {
 
