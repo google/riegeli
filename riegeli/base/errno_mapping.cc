@@ -171,6 +171,7 @@ absl::StatusCode ErrnoToCode(int error_number) {
   }
 }
 
+#ifndef _WIN32
 // POSIX `strerror_r()` returns `int`.
 ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(int result, const char* buffer,
                                                  int error_code) {
@@ -186,11 +187,18 @@ ABSL_ATTRIBUTE_UNUSED std::string StrErrorResult(char* result,
                                                  int error_code) {
   return result;
 }
+#endif
 
 std::string StrError(int error_code) {
+#ifdef _WIN32
+  // On Windows, regular `strerror()` is thread-safe and `strerror_r()` does not
+  // exist.
+  return ::strerror(error_code);
+#else
   char message[256];
   return StrErrorResult(strerror_r(error_code, message, sizeof(message)),
                         message, error_code);
+#endif
 }
 
 }  // namespace
