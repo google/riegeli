@@ -22,6 +22,5 @@ cc_library(
     deps = [
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/types:optional",
     ],
 )

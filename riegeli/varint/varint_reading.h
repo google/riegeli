@@ -20,7 +20,6 @@
 
 #include <type_traits>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
@@ -56,11 +55,6 @@ namespace riegeli {
 bool ReadVarint32(Reader& src, uint32_t& dest);
 bool ReadVarint64(Reader& src, uint64_t& dest);
 
-ABSL_DEPRECATED("Use ReadVarint32(Reader&, uint32_t&) instead")
-absl::optional<uint32_t> ReadVarint32(Reader& src);
-ABSL_DEPRECATED("Use ReadVarint64(Reader&, uint64_t&) instead")
-absl::optional<uint64_t> ReadVarint64(Reader& src);
-
 // Reads a varint.
 //
 // Accepts only the canonical representation, i.e. the shortest: rejecting a
@@ -94,11 +88,6 @@ bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
 bool StreamingReadVarint32(Reader& src, uint32_t& dest);
 bool StreamingReadVarint64(Reader& src, uint64_t& dest);
 
-ABSL_DEPRECATED("Use StreamingReadVarint32(Reader&, uint32_t&) instead")
-absl::optional<uint32_t> StreamingReadVarint32(Reader& src);
-ABSL_DEPRECATED("Use StreamingReadVarint64(Reader&, uint64_t&) instead")
-absl::optional<uint64_t> StreamingReadVarint64(Reader& src);
-
 // Reads a varint from an array.
 //
 // Return values:
@@ -108,19 +97,6 @@ absl::optional<const char*> ReadVarint32(const char* src, const char* limit,
                                          uint32_t& dest);
 absl::optional<const char*> ReadVarint64(const char* src, const char* limit,
                                          uint64_t& dest);
-
-template <typename T>
-struct ReadFromStringResult {
-  T value;             // Parsed value.
-  const char* cursor;  // Pointer to remaining data.
-};
-
-ABSL_DEPRECATED("Use ReadVarint32(const char*, const char*, uint32_t&) instead")
-absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32(const char* src,
-                                                            const char* limit);
-ABSL_DEPRECATED("Use ReadVarint64(const char*, const char*, uint64_t&) instead")
-absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64(const char* src,
-                                                            const char* limit);
 
 // Copies a varint to an array.
 //
@@ -181,18 +157,6 @@ inline bool ReadVarint64(Reader& src, uint64_t& dest) {
   if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return false;
   src.set_cursor(*cursor);
   return true;
-}
-
-inline absl::optional<uint32_t> ReadVarint32(Reader& src) {
-  uint32_t result;
-  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, result))) return absl::nullopt;
-  return result;
-}
-
-inline absl::optional<uint64_t> ReadVarint64(Reader& src) {
-  uint64_t result;
-  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, result))) return absl::nullopt;
-  return result;
 }
 
 inline bool ReadCanonicalVarint32(Reader& src, uint32_t& dest) {
@@ -292,22 +256,6 @@ inline bool StreamingReadVarint64(Reader& src, uint64_t& dest) {
   return true;
 }
 
-inline absl::optional<uint32_t> StreamingReadVarint32(Reader& src) {
-  uint32_t dest;
-  if (ABSL_PREDICT_FALSE(!StreamingReadVarint32(src, dest))) {
-    return absl::nullopt;
-  }
-  return dest;
-}
-
-inline absl::optional<uint64_t> StreamingReadVarint64(Reader& src) {
-  uint64_t dest;
-  if (ABSL_PREDICT_FALSE(!StreamingReadVarint64(src, dest))) {
-    return absl::nullopt;
-  }
-  return dest;
-}
-
 namespace internal {
 
 constexpr size_t kReadVarintSlowThreshold = 3 * 7;
@@ -357,26 +305,6 @@ inline absl::optional<const char*> ReadVarint64(const char* src,
   }
   dest = acc;
   return src;
-}
-
-inline absl::optional<ReadFromStringResult<uint32_t>> ReadVarint32(
-    const char* src, const char* limit) {
-  ReadFromStringResult<uint32_t> result;
-  const absl::optional<const char*> cursor =
-      ReadVarint32(src, limit, result.value);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
-  result.cursor = *cursor;
-  return result;
-}
-
-inline absl::optional<ReadFromStringResult<uint64_t>> ReadVarint64(
-    const char* src, const char* limit) {
-  ReadFromStringResult<uint64_t> result;
-  const absl::optional<const char*> cursor =
-      ReadVarint64(src, limit, result.value);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
-  result.cursor = *cursor;
-  return result;
 }
 
 inline absl::optional<size_t> CopyVarint32(Reader& src, char* dest) {

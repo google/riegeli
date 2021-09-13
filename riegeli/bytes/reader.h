@@ -131,9 +131,6 @@ class Reader : public Object {
   bool ReadChar(char& dest);
   bool ReadByte(uint8_t& dest);
 
-  ABSL_DEPRECATED("Use ReadByte(uint8_t&) instead")
-  absl::optional<uint8_t> ReadByte();
-
   // Reads a fixed number of bytes from the buffer and/or the source to `dest`,
   // clearing any existing data in `dest`.
   //
@@ -566,13 +563,6 @@ inline bool Reader::ReadByte(uint8_t& dest) {
   dest = static_cast<uint8_t>(*cursor());
   move_cursor(1);
   return true;
-}
-
-inline absl::optional<uint8_t> Reader::ReadByte() {
-  if (ABSL_PREDICT_FALSE(!Pull())) return absl::nullopt;
-  const char data = *cursor();
-  move_cursor(1);
-  return data;
 }
 
 inline bool Reader::Read(size_t length, absl::string_view& dest) {
