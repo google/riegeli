@@ -229,7 +229,7 @@ class BackwardWriter : public Object {
   //
   // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
   // data have been lost.
-  ABSL_ATTRIBUTE_COLD void OnFail();
+  ABSL_ATTRIBUTE_COLD void OnFail() override;
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.
