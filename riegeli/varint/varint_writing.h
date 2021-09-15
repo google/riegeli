@@ -29,7 +29,9 @@ namespace riegeli {
 
 // Writes a varint.
 //
-// Returns `false` on failure.
+// Return values:
+//  * `true`  - success (`dest.healthy()`)
+//  * `false` - failure (`!dest.healthy()`)
 bool WriteVarint32(uint32_t data, Writer& dest);
 bool WriteVarint64(uint64_t data, Writer& dest);
 bool WriteVarint32(uint32_t data, BackwardWriter& dest);

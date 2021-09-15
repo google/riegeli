@@ -30,7 +30,9 @@ namespace riegeli {
 
 // Writes a number in a fixed width Little/Big Endian encoding.
 //
-// Returns `false` on failure.
+// Return values:
+//  * `true`  - success (`dest.healthy()`)
+//  * `false` - failure (`!dest.healthy()`)
 bool WriteLittleEndian16(uint16_t data, Writer& dest);
 bool WriteLittleEndian32(uint32_t data, Writer& dest);
 bool WriteLittleEndian64(uint64_t data, Writer& dest);
@@ -48,7 +50,9 @@ bool WriteBigEndian64(uint64_t data, BackwardWriter& dest);
 //
 // This is faster than writing them individually for native endianness.
 //
-// Returns `false` on failure.
+// Return values:
+//  * `true`  - success (`dest.healthy()`)
+//  * `false` - failure (`!dest.healthy()`)
 bool WriteLittleEndian16s(absl::Span<const uint16_t> data, Writer& dest);
 bool WriteLittleEndian32s(absl::Span<const uint32_t> data, Writer& dest);
 bool WriteLittleEndian64s(absl::Span<const uint64_t> data, Writer& dest);
