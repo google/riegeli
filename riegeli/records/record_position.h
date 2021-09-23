@@ -112,7 +112,7 @@ class FutureChunkBegin {
 
   constexpr FutureChunkBegin() noexcept {}
 
-  explicit FutureChunkBegin(Position chunk_begin) noexcept;
+  /*implicit*/ FutureChunkBegin(Position chunk_begin) noexcept;
 
   explicit FutureChunkBegin(Position pos_before_chunks,
                             std::vector<Action> actions);
@@ -152,7 +152,7 @@ class FutureRecordPosition {
  public:
   constexpr FutureRecordPosition() noexcept {}
 
-  explicit FutureRecordPosition(RecordPosition pos) noexcept;
+  /*implicit*/ FutureRecordPosition(RecordPosition pos) noexcept;
 
   explicit FutureRecordPosition(internal::FutureChunkBegin chunk_begin,
                                 uint64_t record_index);

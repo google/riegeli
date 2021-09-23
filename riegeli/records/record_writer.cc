@@ -406,13 +406,12 @@ FutureRecordPosition RecordWriterBase::SerialWorker::LastPos() const {
   RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
       << "Failed invariant of RecordWriterBase::SerialWorker: "
          "last position should be valid but no record was encoded";
-  return FutureRecordPosition(
-      RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records() - 1));
+  return RecordPosition(chunk_writer_->pos(),
+                        chunk_encoder_->num_records() - 1);
 }
 
 FutureRecordPosition RecordWriterBase::SerialWorker::Pos() const {
-  return FutureRecordPosition(
-      RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records()));
+  return RecordPosition(chunk_writer_->pos(), chunk_encoder_->num_records());
 }
 
 Position RecordWriterBase::SerialWorker::EstimatedSize() const {
@@ -465,7 +464,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
                     FlushRequest>;
 
   bool HasCapacityForRequest() const;
-  internal::FutureChunkBegin PosInternal() const;
+  internal::FutureChunkBegin ChunkBegin() const;
 
   mutable absl::Mutex mutex_;
   std::deque<ChunkWriterRequest> chunk_writer_requests_ ABSL_GUARDED_BY(mutex_);
@@ -650,7 +649,7 @@ std::future<bool> RecordWriterBase::ParallelWorker::FutureFlush(
   return done_future;
 }
 
-internal::FutureChunkBegin RecordWriterBase::ParallelWorker::PosInternal()
+internal::FutureChunkBegin RecordWriterBase::ParallelWorker::ChunkBegin()
     const {
   struct Visitor {
     void operator()(const DoneRequest&) {}
@@ -683,13 +682,13 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::LastPos() const {
   RIEGELI_ASSERT_GT(chunk_encoder_->num_records(), 0u)
       << "Failed invariant of RecordWriterBase::ParallelWorker: "
          "last position should be valid but no record was encoded";
-  return FutureRecordPosition(PosInternal(), chunk_encoder_->num_records() - 1);
+  return FutureRecordPosition(ChunkBegin(), chunk_encoder_->num_records() - 1);
 }
 
 FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
   // `chunk_encoder_` is `nullptr` when the current chunk is closed, e.g. when
   // `RecordWriter` is closed or if `RecordWriter::Flush()` failed.
-  return FutureRecordPosition(PosInternal(),
+  return FutureRecordPosition(ChunkBegin(),
                               ABSL_PREDICT_FALSE(chunk_encoder_ == nullptr)
                                   ? uint64_t{0}
                                   : chunk_encoder_->num_records());

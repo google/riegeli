@@ -591,16 +591,14 @@ static PyObject* RecordReaderLastPos(PyRecordReaderObject* self,
     return nullptr;
   }
   return kRecordPositionApi
-      ->RecordPositionToPython(
-          FutureRecordPosition(self->record_reader->last_pos()))
+      ->RecordPositionToPython(self->record_reader->last_pos())
       .release();
 }
 
 static PyObject* RecordReaderPos(PyRecordReaderObject* self, void* closure) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  return kRecordPositionApi
-      ->RecordPositionToPython(FutureRecordPosition(self->record_reader->pos()))
+  return kRecordPositionApi->RecordPositionToPython(self->record_reader->pos())
       .release();
 }
 
