@@ -96,7 +96,7 @@ class Compressor : public Object {
   // Precondition: `healthy()`
   Writer& writer();
 
-  // Writes compressed data to `dest`. Closes the `Compressor`.
+  // Writes compressed data to `dest`. Closes the `Compressor` on success.
   //
   // If `compressor_options.compression_type()` is not `kNone`, writes
   // uncompressed size as a varint before the data.
@@ -105,6 +105,11 @@ class Compressor : public Object {
   //  * `true`  - success (`healthy()`)
   //  * `false` - failure (`!healthy()`)
   bool EncodeAndClose(Writer& dest);
+
+  // Like `EncodeAndClose()`, but writes the compressed size as a varint before
+  // anything else. The compressed size includes the length of the uncompressed
+  // size.
+  bool LengthPrefixedEncodeAndClose(Writer& dest);
 
  private:
   void Initialize();

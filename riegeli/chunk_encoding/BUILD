@@ -156,7 +156,6 @@ cc_library(
         ":constants",
         "//riegeli/base",
         "//riegeli/base:chain",
-        "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:writer",
         "//riegeli/messages:message_serialize",
         "//riegeli/varint:varint_writing",

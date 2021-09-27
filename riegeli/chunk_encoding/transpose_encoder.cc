@@ -1327,7 +1327,6 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   if (ABSL_PREDICT_FALSE(!header_writer.Close())) return Fail(header_writer);
   if (ABSL_PREDICT_FALSE(!data_writer.Close())) return Fail(data_writer);
 
-  ChainWriter<Chain> compressed_header_writer(std::forward_as_tuple());
   internal::Compressor header_compressor(
       compressor_options_,
       internal::Compressor::TuningOptions().set_pledged_size(
@@ -1337,17 +1336,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
     return Fail(header_compressor.writer());
   }
   if (ABSL_PREDICT_FALSE(
-          !header_compressor.EncodeAndClose(compressed_header_writer))) {
+          !header_compressor.LengthPrefixedEncodeAndClose(dest))) {
     return Fail(header_compressor);
-  }
-  if (ABSL_PREDICT_FALSE(!compressed_header_writer.Close())) {
-    return Fail(compressed_header_writer);
-  }
-  if (ABSL_PREDICT_FALSE(!WriteVarint64(
-          IntCast<uint64_t>(compressed_header_writer.dest().size()), dest)) ||
-      ABSL_PREDICT_FALSE(
-          !dest.Write(std::move(compressed_header_writer.dest())))) {
-    return Fail(dest);
   }
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data_writer.dest())))) {
     return Fail(dest);

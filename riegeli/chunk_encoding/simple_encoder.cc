@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include <limits>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,7 +28,6 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/chunk_encoder.h"
 #include "riegeli/chunk_encoding/compressor.h"
@@ -171,19 +169,9 @@ bool SimpleEncoder::EncodeAndClose(Writer& dest, ChunkType& chunk_type,
     return Fail(dest);
   }
 
-  ChainWriter<Chain> compressed_sizes_writer(std::forward_as_tuple());
   if (ABSL_PREDICT_FALSE(
-          !sizes_compressor_.EncodeAndClose(compressed_sizes_writer))) {
+          !sizes_compressor_.LengthPrefixedEncodeAndClose(dest))) {
     return Fail(sizes_compressor_);
-  }
-  if (ABSL_PREDICT_FALSE(!compressed_sizes_writer.Close())) {
-    return Fail(compressed_sizes_writer);
-  }
-  if (ABSL_PREDICT_FALSE(!WriteVarint64(
-          IntCast<uint64_t>(compressed_sizes_writer.dest().size()), dest)) ||
-      ABSL_PREDICT_FALSE(
-          !dest.Write(std::move(compressed_sizes_writer.dest())))) {
-    return Fail(dest);
   }
 
   if (ABSL_PREDICT_FALSE(!values_compressor_.EncodeAndClose(dest))) {
