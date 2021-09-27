@@ -159,9 +159,9 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   bool enough_read = true;
-  bool ok = healthy();
+  bool ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -207,9 +207,9 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   bool enough_read = true;
-  bool ok = healthy();
+  bool ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -252,9 +252,9 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   bool enough_read = true;
-  bool read_ok = healthy();
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok)) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !healthy())) {
       // Copy as much as is available.
       length = available();
       enough_read = false;

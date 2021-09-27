@@ -283,9 +283,9 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
          "Chain size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool ok = healthy();
+  bool ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -339,9 +339,9 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
          "Cord size overflow";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool ok = healthy();
+  bool ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!ok)) {
+    if (ABSL_PREDICT_FALSE(!ok || !healthy())) {
       // Read as much as is available.
       length = available();
       enough_read = false;
@@ -392,9 +392,9 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
          "enough data available, use Copy(Writer&) instead";
   ::tensorflow::RandomAccessFile* const src = src_file();
   bool enough_read = true;
-  bool read_ok = healthy();
+  bool read_ok = true;
   while (length > available()) {
-    if (ABSL_PREDICT_FALSE(!read_ok)) {
+    if (ABSL_PREDICT_FALSE(!read_ok || !healthy())) {
       // Copy as much as is available.
       length = available();
       enough_read = false;
