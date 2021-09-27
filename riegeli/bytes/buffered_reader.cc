@@ -185,7 +185,8 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
+    ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
+                      flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -233,7 +234,8 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
+    ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
+                      flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -292,7 +294,8 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     }
     // Read more data into `buffer_`.
     const Position pos_before = limit_pos();
-    read_ok = ReadInternal(1, flat_buffer.size(), flat_buffer.data());
+    read_ok = ReadInternal(UnsignedMin(length, flat_buffer.size()),
+                           flat_buffer.size(), flat_buffer.data());
     RIEGELI_ASSERT_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
@@ -359,7 +362,8 @@ void BufferedReader::ReadHintSlow(size_t length) {
   }
   // Read more data into `buffer_`.
   const Position pos_before = limit_pos();
-  ReadInternal(1, flat_buffer.size(), flat_buffer.data());
+  ReadInternal(UnsignedMin(length, flat_buffer.size()), flat_buffer.size(),
+               flat_buffer.data());
   RIEGELI_ASSERT_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;
