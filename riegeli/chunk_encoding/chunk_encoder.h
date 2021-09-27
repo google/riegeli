@@ -90,7 +90,7 @@ class ChunkEncoder : public Object {
   uint64_t decoded_data_size() const { return decoded_data_size_; }
 
   // Encodes the chunk to `dest`, setting `chunk_type`, `num_records`, and
-  // `decoded_data_size`. Closes the `ChunkEncoder`.
+  // `decoded_data_size`. Closes the `ChunkEncoder` on success.
   //
   // Return values:
   //  * `true`  - success (`healthy()`)
