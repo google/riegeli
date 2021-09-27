@@ -11,6 +11,7 @@ cc_binary(
         ":riegeli_summary_cc_proto",
         "//riegeli/base",
         "//riegeli/base:chain",
+        "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_backward_writer",
         "//riegeli/bytes:chain_reader",
         "//riegeli/bytes:fd_reader",

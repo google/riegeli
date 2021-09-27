@@ -36,6 +36,7 @@
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -58,6 +59,8 @@ ABSL_FLAG(bool, show_records_metadata, true,
           "If true, show parsed file metadata.");
 ABSL_FLAG(bool, show_record_sizes, false,
           "If true, show the list of record sizes in each chunk.");
+ABSL_FLAG(bool, show_records, false,
+          "If true, show contents of records in each chunk.");
 
 namespace riegeli {
 namespace tools {
@@ -95,13 +98,31 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
   return ParseFromChain(serialized_metadata, records_metadata);
 }
 
+absl::Status ReadRecords(
+    Reader& src, const std::vector<size_t>& limits,
+    google::protobuf::RepeatedPtrField<std::string>& dest) {
+  // Based on `ChunkDecoder::ReadRecord()`.
+  const Position initial_pos = src.pos();
+  for (const size_t limit : limits) {
+    const size_t start = IntCast<size_t>(src.pos() - initial_pos);
+    RIEGELI_ASSERT_LE(start, limit) << "Record end positions not sorted";
+    if (ABSL_PREDICT_FALSE(!src.Read(limit - start, *dest.Add()))) {
+      src.Fail(absl::InvalidArgumentError("Reading record failed"));
+      return src.status();
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status DescribeSimpleChunk(const Chunk& chunk,
                                  summary::SimpleChunk& simple_chunk) {
-  // Based on `SimpleDecoder::Decode()`.
-  ChainReader<> chunk_reader(&chunk.data);
+  ChainReader<> src(&chunk.data);
+  const bool show_record_sizes = absl::GetFlag(FLAGS_show_record_sizes);
+  const bool show_records = absl::GetFlag(FLAGS_show_records);
 
+  // Based on `SimpleDecoder::Decode()`.
   uint8_t compression_type_byte;
-  if (ABSL_PREDICT_FALSE(!chunk_reader.ReadByte(compression_type_byte))) {
+  if (ABSL_PREDICT_FALSE(!src.ReadByte(compression_type_byte))) {
     return absl::InvalidArgumentError("Reading compression type failed");
   }
   const CompressionType compression_type =
@@ -109,24 +130,38 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
   simple_chunk.set_compression_type(
       static_cast<summary::CompressionType>(compression_type));
 
-  if (absl::GetFlag(FLAGS_show_record_sizes)) {
+  if (show_record_sizes || show_records) {
     uint64_t sizes_size;
-    if (ABSL_PREDICT_FALSE(!ReadVarint64(chunk_reader, sizes_size))) {
+    if (ABSL_PREDICT_FALSE(!ReadVarint64(src, sizes_size))) {
       return absl::InvalidArgumentError("Reading size of sizes failed");
     }
 
-    if (ABSL_PREDICT_FALSE(sizes_size > std::numeric_limits<Position>::max() -
-                                            chunk_reader.pos())) {
+    if (ABSL_PREDICT_FALSE(sizes_size >
+                           std::numeric_limits<Position>::max() - src.pos())) {
       return absl::ResourceExhaustedError("Size of sizes too large");
     }
     internal::Decompressor<LimitingReader<>> sizes_decompressor(
-        std::forward_as_tuple(&chunk_reader, chunk_reader.pos() + sizes_size),
-        compression_type);
+        std::forward_as_tuple(&src, src.pos() + sizes_size), compression_type);
     if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
       return sizes_decompressor.status();
     }
-    while (IntCast<size_t>(simple_chunk.record_sizes_size()) <
-           chunk.header.num_records()) {
+    if (show_record_sizes) {
+      if (ABSL_PREDICT_FALSE(chunk.header.num_records() >
+                             unsigned{std::numeric_limits<int>::max()})) {
+        return absl::ResourceExhaustedError("Too many records");
+      }
+      simple_chunk.mutable_record_sizes()->Reserve(
+          IntCast<int>(chunk.header.num_records()));
+    }
+    std::vector<size_t> limits;
+    if (show_records) {
+      if (ABSL_PREDICT_FALSE(chunk.header.num_records() > limits.max_size())) {
+        return absl::ResourceExhaustedError("Too many records");
+      }
+      limits.reserve(IntCast<size_t>(chunk.header.num_records()));
+    }
+    size_t limit = 0;
+    for (uint64_t i = 0; i < chunk.header.num_records(); ++i) {
       uint64_t size;
       if (ABSL_PREDICT_FALSE(
               !ReadVarint64(sizes_decompressor.reader(), size))) {
@@ -134,10 +169,40 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
             absl::InvalidArgumentError("Reading record size failed"));
         return sizes_decompressor.reader().status();
       }
-      simple_chunk.add_record_sizes(size);
+      if (ABSL_PREDICT_FALSE(size > chunk.header.decoded_data_size() - limit)) {
+        return absl::InvalidArgumentError(
+            "Decoded data size larger than expected");
+      }
+      limit += IntCast<size_t>(size);
+      if (show_record_sizes) simple_chunk.add_record_sizes(size);
+      if (show_records) limits.push_back(limit);
     }
     if (ABSL_PREDICT_FALSE(!sizes_decompressor.VerifyEndAndClose())) {
       return sizes_decompressor.status();
+    }
+    if (ABSL_PREDICT_FALSE(limit != chunk.header.decoded_data_size())) {
+      return absl::InvalidArgumentError(
+          "Decoded data size smaller than expected");
+    }
+
+    if (show_records) {
+      internal::Decompressor<> records_decompressor(&src, compression_type);
+      if (ABSL_PREDICT_FALSE(!records_decompressor.healthy())) {
+        return records_decompressor.status();
+      }
+      {
+        absl::Status status = ReadRecords(records_decompressor.reader(), limits,
+                                          *simple_chunk.mutable_records());
+        if (!status.ok()) {
+          return status;
+        }
+      }
+      if (ABSL_PREDICT_FALSE(!records_decompressor.VerifyEndAndClose())) {
+        return records_decompressor.status();
+      }
+      if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
+        return src.status();
+      }
     }
   }
   return absl::OkStatus();
@@ -145,37 +210,72 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
 
 absl::Status DescribeTransposedChunk(
     const Chunk& chunk, summary::TransposedChunk& transposed_chunk) {
-  // Based on `TransposeDecoder::Decode()`.
-  ChainReader<> chunk_reader(&chunk.data);
+  ChainReader<> src(&chunk.data);
+  const bool show_record_sizes = absl::GetFlag(FLAGS_show_record_sizes);
+  const bool show_records = absl::GetFlag(FLAGS_show_records);
 
+  // Based on `TransposeDecoder::Decode()`.
   uint8_t compression_type_byte;
-  if (ABSL_PREDICT_FALSE(!chunk_reader.ReadByte(compression_type_byte))) {
+  if (ABSL_PREDICT_FALSE(!src.ReadByte(compression_type_byte))) {
     return absl::InvalidArgumentError("Reading compression type failed");
   }
   transposed_chunk.set_compression_type(
       static_cast<summary::CompressionType>(compression_type_byte));
 
-  if (absl::GetFlag(FLAGS_show_record_sizes)) {
+  if (show_record_sizes || show_records) {
     // Based on `ChunkDecoder::Parse()`.
-    chunk_reader.Seek(0);
+    src.Seek(0);
     TransposeDecoder transpose_decoder;
-    NullBackwardWriter dest_writer(NullBackwardWriter::kInitiallyOpen);
+    ChainBackwardWriter<Chain> chain_dest_writer;
+    NullBackwardWriter null_dest_writer(NullBackwardWriter::kInitiallyClosed);
+    BackwardWriter* dest_writer;
+    if (show_records) {
+      chain_dest_writer.Reset(std::forward_as_tuple(),
+                              ChainBackwardWriterBase::Options().set_size_hint(
+                                  chunk.header.decoded_data_size()));
+      dest_writer = &chain_dest_writer;
+    } else {
+      null_dest_writer.Reset(NullBackwardWriter::kInitiallyOpen);
+      dest_writer = &null_dest_writer;
+    }
     std::vector<size_t> limits;
     const bool ok = transpose_decoder.Decode(
         chunk.header.num_records(), chunk.header.decoded_data_size(),
-        FieldProjection::All(), chunk_reader, dest_writer, limits);
-    if (ABSL_PREDICT_FALSE(!dest_writer.Close())) return dest_writer.status();
+        FieldProjection::All(), src, *dest_writer, limits);
+    if (ABSL_PREDICT_FALSE(!dest_writer->Close())) return dest_writer->status();
     if (ABSL_PREDICT_FALSE(!ok)) return transpose_decoder.status();
-    if (ABSL_PREDICT_FALSE(!chunk_reader.VerifyEndAndClose())) {
-      return chunk_reader.status();
+    if (show_record_sizes) {
+      if (ABSL_PREDICT_FALSE(limits.size() >
+                             unsigned{std::numeric_limits<int>::max()})) {
+        return absl::ResourceExhaustedError("Too many records");
+      }
+      transposed_chunk.mutable_record_sizes()->Reserve(
+          IntCast<int>(limits.size()));
+      size_t prev_limit = 0;
+      for (const size_t next_limit : limits) {
+        RIEGELI_ASSERT_LE(prev_limit, next_limit)
+            << "Failed postcondition of TransposeDecoder: "
+               "record end positions not sorted";
+        transposed_chunk.add_record_sizes(next_limit - prev_limit);
+        prev_limit = next_limit;
+      }
     }
-    size_t prev_limit = 0;
-    for (const size_t next_limit : limits) {
-      RIEGELI_ASSERT_LE(prev_limit, next_limit)
-          << "Failed postcondition of TransposeDecoder: "
-             "record end positions not sorted";
-      transposed_chunk.add_record_sizes(next_limit - prev_limit);
-      prev_limit = next_limit;
+
+    if (show_records) {
+      ChainReader<> records_reader(&chain_dest_writer.dest());
+      {
+        absl::Status status = ReadRecords(records_reader, limits,
+                                          *transposed_chunk.mutable_records());
+        if (!status.ok()) {
+          return status;
+        }
+      }
+      if (ABSL_PREDICT_FALSE(!records_reader.VerifyEndAndClose())) {
+        return records_reader.status();
+      }
+    }
+    if (ABSL_PREDICT_FALSE(!src.VerifyEndAndClose())) {
+      return src.status();
     }
   }
   return absl::OkStatus();

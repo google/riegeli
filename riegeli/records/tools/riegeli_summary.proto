@@ -27,11 +27,13 @@ enum CompressionType {
 message SimpleChunk {
   optional CompressionType compression_type = 1;
   repeated uint64 record_sizes = 2 [packed = true];
+  repeated bytes records = 3;
 }
 
 message TransposedChunk {
   optional CompressionType compression_type = 1;
   repeated uint64 record_sizes = 2 [packed = true];
+  repeated bytes records = 3;
 }
 
 message Chunk {
