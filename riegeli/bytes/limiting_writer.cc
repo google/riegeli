@@ -31,24 +31,27 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if __cplusplus < 201703
-constexpr Position LimitingWriterBase::kNoSizeLimit;
-#endif
-
 void LimitingWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
   }
+  if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
+    FailWithoutAnnotation(absl::InvalidArgumentError(absl::StrCat(
+        "Not enough data: expected ", max_pos_, ", have ", pos())));
+  }
   Writer::Done();
 }
 
-bool LimitingWriterBase::SizeLimitExceeded() {
+bool LimitingWriterBase::FailLimitExceeded() {
   return Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Size limit exceeded: ", size_limit_)));
+      absl::StrCat("Position limit exceeded: ", max_pos_)));
+}
+
+void LimitingWriterBase::FailLengthOverflow(Position max_length) {
+  FailWithoutAnnotation(absl::InvalidArgumentError(
+      absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
+                   " which overflows the Writer position")));
 }
 
 bool LimitingWriterBase::PushSlow(size_t min_length,
@@ -56,8 +59,9 @@ bool LimitingWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
-      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -103,13 +107,14 @@ bool LimitingWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool LimitingWriterBase::WriteInternal(Src&& src) {
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
-      << "Failed invariant of LimitingWriterBase: position exceeds size limit";
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
-    return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
+    return FailLimitExceeded();
   }
   const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -123,8 +128,8 @@ bool LimitingWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
-    return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
+    return FailLimitExceeded();
   }
   const bool ok = dest.WriteZeros(length);
   MakeBuffer(dest);
@@ -140,7 +145,7 @@ bool LimitingWriterBase::SeekImpl(Position new_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  const Position pos_to_seek = UnsignedMin(new_pos, size_limit_);
+  const Position pos_to_seek = UnsignedMin(new_pos, max_pos_);
   const bool ok = dest.Seek(pos_to_seek);
   MakeBuffer(dest);
   return ok && pos_to_seek == new_pos;
@@ -158,7 +163,7 @@ absl::optional<Position> LimitingWriterBase::SizeImpl() {
   const absl::optional<Position> size = dest.Size();
   MakeBuffer(dest);
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
-  return UnsignedMin(*size, size_limit_);
+  return UnsignedMin(*size, max_pos_);
 }
 
 bool LimitingWriterBase::SupportsTruncate() {

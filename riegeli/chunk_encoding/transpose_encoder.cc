@@ -224,7 +224,7 @@ bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
     RIEGELI_ASSERT_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";
-    record_reader.set_size_limit(limit);
+    record_reader.set_max_pos(limit);
     if (ABSL_PREDICT_FALSE(!AddRecordInternal(record_reader))) return false;
     RIEGELI_ASSERT_EQ(record_reader.pos(), limit)
         << "Record was not read up to its end";
@@ -387,7 +387,8 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           RIEGELI_ASSERT_UNREACHABLE() << "Invalid length: " << record.status();
         }
         const Position value_pos = record.pos();
-        LengthLimiter limiter(&record, length);
+        ScopedLimiter limiter(&record,
+                              ScopedLimiter::Options().set_max_length(length));
         // Non-toplevel empty strings are treated as strings, not messages.
         // They have a simpler encoding this way (one node instead of two).
         if (depth < kMaxRecursionDepth && length != 0 &&

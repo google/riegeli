@@ -426,20 +426,16 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
 
   Context context;
   if (ABSL_PREDICT_FALSE(!Parse(context, src, field_projection))) return false;
-  LimitingBackwardWriter<> limiting_dest(&dest, decoded_data_size);
+  LimitingBackwardWriter<> limiting_dest(
+      &dest, riegeli::LimitingBackwardWriterBase::Options()
+                 .set_max_length(decoded_data_size)
+                 .set_exact(field_projection.includes_all()));
   if (ABSL_PREDICT_FALSE(
           !Decode(context, num_records, limiting_dest, limits))) {
     limiting_dest.Close();
     return false;
   }
   if (ABSL_PREDICT_FALSE(!limiting_dest.Close())) return Fail(limiting_dest);
-  RIEGELI_ASSERT_LE(dest.pos(), decoded_data_size)
-      << "Decoded data size larger than expected";
-  if (field_projection.includes_all() &&
-      ABSL_PREDICT_FALSE(dest.pos() != decoded_data_size)) {
-    return Fail(
-        absl::InvalidArgumentError("Decoded data size smaller than expected"));
-  }
   return true;
 }
 

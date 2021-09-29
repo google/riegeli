@@ -38,16 +38,103 @@ namespace riegeli {
 // Template parameter independent part of `LimitingWriter`.
 class LimitingWriterBase : public Writer {
  public:
-  // An infinite size limit.
-  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
+  class Options {
+   public:
+    Options() noexcept {}
 
-  // Changes the size limit.
+    // The limit expressed as an absolute position. It must be at least as large
+    // as the current position.
+    //
+    // `absl::nullopt` means no limit, unless `max_length()` is set.
+    //
+    // `max_pos()` and `max_length()` must not be both set.
+    //
+    // Default: `absl::nullopt`
+    Options& set_max_pos(absl::optional<Position> max_pos) & {
+      max_pos_ = max_pos;
+      return *this;
+    }
+    Options&& set_max_pos(absl::optional<Position> max_pos) && {
+      return std::move(set_max_pos(max_pos));
+    }
+    absl::optional<Position> max_pos() const { return max_pos_; }
+
+    // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
+    Options& set_exact_pos(Position pos) & {
+      return set_max_pos(pos).set_exact(true);
+    }
+    Options&& set_exact_pos(Position pos) && {
+      return std::move(set_exact_pos(pos));
+    }
+
+    // The limit expressed as a length relative to the current position.
+    //
+    // `absl::nullopt` means no limit, unless `max_pos()` is set.
+    //
+    // `max_pos()` and `max_length()` must not be both set.
+    //
+    // Default: `absl::nullopt`
+    Options& set_max_length(absl::optional<Position> max_length) & {
+      max_length_ = max_length;
+      return *this;
+    }
+    Options&& set_max_length(absl::optional<Position> max_length) && {
+      return std::move(set_max_length(max_length));
+    }
+    absl::optional<Position> max_length() const { return max_length_; }
+
+    // A shortcut for `set_max_length(length)` with `set_exact(true)`.
+    Options& set_exact_length(Position length) & {
+      return set_max_length(length).set_exact(true);
+    }
+    Options&& set_exact_length(Position length) && {
+      return std::move(set_exact_length(length));
+    }
+
+    // If `false`, `LimitingWriter` will write data at most up to the limit.
+    // Writing will fail if the limit is exceeded.
+    //
+    // If `true`, `LimitingWriter` will write data exactly up to the limit.
+    // Writing will fail if the limit is exceeded, and `Close()` will fail if
+    // the current position at that time is before the limit.
+    //
+    // Default: `false`
+    Options& set_exact(bool exact) & {
+      exact_ = exact;
+      return *this;
+    }
+    Options&& set_exact(bool exact) && { return std::move(set_exact(exact)); }
+    bool exact() const { return exact_; }
+
+   private:
+    absl::optional<Position> max_pos_;
+    absl::optional<Position> max_length_;
+    bool exact_ = false;
+  };
+
+  // Accesses the limit expressed as an absolute position.
   //
-  // Precondition: `size_limit >= pos()`
-  void set_size_limit(Position size_limit);
+  // If `set_max_length()` was used, `max_pos()` returns the same limit
+  // translated to an absolute position.
+  //
+  // Precondition of `set_max_pos()`: `max_pos >= pos()`
+  //
+  // If no limit is set, returns `std::numeric_limits<Position>::max()`.
+  void set_max_pos(Position max_pos);
+  Position max_pos() const { return max_pos_; }
 
-  // Returns the current size limit.
-  Position size_limit() const { return size_limit_; }
+  // Accesses the limit expressed as a length relative to the current position,
+  // i.e. the length remaining to the limit.
+  //
+  // If `set_max_pos()` was used, `max_length()` returns the same limit
+  // translated to a length relative to the current position.
+  //
+  // If no limit is set, returns `std::numeric_limits<Position>::max() - pos()`.
+  void set_max_length(Position max_length);
+  Position max_length() const;
+
+  // Clears the limit.
+  void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
 
   // Returns the original `Writer`. Unchanged by `Close()`.
   virtual Writer* dest_writer() = 0;
@@ -60,14 +147,14 @@ class LimitingWriterBase : public Writer {
  protected:
   LimitingWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit LimitingWriterBase(Position size_limit);
+  explicit LimitingWriterBase(bool exact);
 
   LimitingWriterBase(LimitingWriterBase&& that) noexcept;
   LimitingWriterBase& operator=(LimitingWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_limit);
-  void Initialize(Writer* dest);
+  void Reset(bool exact);
+  void Initialize(Writer* dest, Options&& options);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -82,21 +169,24 @@ class LimitingWriterBase : public Writer {
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 
-  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if size limit is
+  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.
   //
-  // Postcondition: pos() <= size_limit_
+  // Postcondition: `pos() <= max_pos_`
   bool SyncBuffer(Writer& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
   // if `dest` failed.
   void MakeBuffer(Writer& dest);
 
-  // Invariant: start_pos() <= size_limit_
-  Position size_limit_ = kNoSizeLimit;
+  // Invariant: `start_pos() <= max_pos_`
+  Position max_pos_ = std::numeric_limits<Position>::max();
+
+  bool exact_ = false;
 
  private:
-  ABSL_ATTRIBUTE_COLD bool SizeLimitExceeded();
+  ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
+  ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
   // This template is defined and used only in limiting_writer.cc.
   template <typename Src>
@@ -129,19 +219,22 @@ class LimitingWriter : public LimitingWriterBase {
   LimitingWriter() noexcept {}
 
   // Will write to the original `Writer` provided by `dest`.
-  //
-  // Precondition: `size_limit >= dest->pos()`
-  explicit LimitingWriter(const Dest& dest, Position size_limit = kNoSizeLimit);
-  explicit LimitingWriter(Dest&& dest, Position size_limit = kNoSizeLimit);
+  explicit LimitingWriter(const Dest& dest, Options options = Options());
+  explicit LimitingWriter(Dest&& dest, Options options = Options());
+  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
+  explicit LimitingWriter(const Dest& dest, Position max_pos);
+  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
+  explicit LimitingWriter(Dest&& dest, Position max_pos);
 
   // Will write to the original `Writer` provided by a `Dest` constructed from
   // elements of `dest_args`. This avoids constructing a temporary `Dest` and
   // moving from it.
-  //
-  // Precondition: `size_limit >= dest->pos()`
   template <typename... DestArgs>
   explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
-                          Position size_limit = kNoSizeLimit);
+                          Options options = Options());
+  template <typename... DestArgs>
+  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
+  explicit LimitingWriter(std::tuple<DestArgs...> dest_args, Position max_pos);
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
@@ -149,11 +242,10 @@ class LimitingWriter : public LimitingWriterBase {
   // Makes `*this` equivalent to a newly constructed `LimitingWriter`. This
   // avoids constructing a temporary `LimitingWriter` and moving from it.
   void Reset();
-  void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
-  void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args,
-             Position size_limit = kNoSizeLimit);
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the original `Writer`.
   // Unchanged by `Close()`.
@@ -177,68 +269,117 @@ class LimitingWriter : public LimitingWriterBase {
 #if __cpp_deduction_guides
 LimitingWriter()->LimitingWriter<DeleteCtad<>>;
 template <typename Dest>
-explicit LimitingWriter(const Dest& dest,
-                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
+explicit LimitingWriter(const Dest& dest, LimitingWriterBase::Options options =
+                                              LimitingWriterBase::Options())
     -> LimitingWriter<std::decay_t<Dest>>;
 template <typename Dest>
-explicit LimitingWriter(Dest&& dest,
-                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
+explicit LimitingWriter(Dest&& dest, LimitingWriterBase::Options options =
+                                         LimitingWriterBase::Options())
     -> LimitingWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
-                        Position size_limit = LimitingWriterBase::kNoSizeLimit)
+explicit LimitingWriter(
+    std::tuple<DestArgs...> dest_args,
+    LimitingWriterBase::Options options = LimitingWriterBase::Options())
+    -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+template <typename Dest>
+explicit LimitingWriter(const Dest& dest, Position max_pos)
+    -> LimitingWriter<std::decay_t<Dest>>;
+template <typename Dest>
+explicit LimitingWriter(Dest&& dest, Position max_pos)
+    -> LimitingWriter<std::decay_t<Dest>>;
+template <typename... DestArgs>
+explicit LimitingWriter(std::tuple<DestArgs...> dest_args, Position max_pos)
     -> LimitingWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.
 
-inline LimitingWriterBase::LimitingWriterBase(Position size_limit)
-    : Writer(kInitiallyOpen), size_limit_(size_limit) {}
+inline LimitingWriterBase::LimitingWriterBase(bool exact)
+    : Writer(kInitiallyOpen), exact_(exact) {}
 
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
     : Writer(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      size_limit_(that.size_limit_) {}
+      max_pos_(that.max_pos_),
+      exact_(that.exact_) {}
 
 inline LimitingWriterBase& LimitingWriterBase::operator=(
     LimitingWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  size_limit_ = that.size_limit_;
+  max_pos_ = that.max_pos_;
+  exact_ = that.exact_;
   return *this;
 }
 
 inline void LimitingWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
-  size_limit_ = kNoSizeLimit;
+  max_pos_ = std::numeric_limits<Position>::max();
+  exact_ = false;
 }
 
-inline void LimitingWriterBase::Reset(Position size_limit) {
+inline void LimitingWriterBase::Reset(bool exact) {
   Writer::Reset(kInitiallyOpen);
-  size_limit_ = size_limit;
+  // `max_pos_` will be set by `Initialize()`.
+  exact_ = exact;
 }
 
-inline void LimitingWriterBase::Initialize(Writer* dest) {
+inline void LimitingWriterBase::Initialize(Writer* dest, Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of LimitingWriter: null Writer pointer";
-  RIEGELI_ASSERT_GE(size_limit_, dest->pos())
+  RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
+                 options.max_length() == absl::nullopt)
       << "Failed precondition of LimitingWriter: "
-         "size limit smaller than current position";
+         "Options::max_pos() and Options::max_length() are both set";
+  if (options.max_pos() != absl::nullopt) {
+    RIEGELI_ASSERT_GE(*options.max_pos(), dest->pos())
+        << "Failed precondition of LimitingWriter: "
+           "position already exceeds its limit";
+    max_pos_ = *options.max_pos();
+  } else if (options.max_length() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*options.max_length() >
+                           std::numeric_limits<Position>::max() -
+                               dest->pos())) {
+      max_pos_ = std::numeric_limits<Position>::max();
+      if (exact_) FailLengthOverflow(*options.max_length());
+    } else {
+      max_pos_ = dest->pos() + *options.max_length();
+    }
+  } else {
+    max_pos_ = std::numeric_limits<Position>::max();
+  }
   MakeBuffer(*dest);
 }
 
-inline void LimitingWriterBase::set_size_limit(Position size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, pos())
-      << "Failed precondition of LimitingWriterBase::set_size_limit(): "
-         "size limit smaller than current position";
-  size_limit_ = size_limit;
+inline void LimitingWriterBase::set_max_pos(Position max_pos) {
+  RIEGELI_ASSERT_GE(max_pos, pos())
+      << "Failed precondition of LimitingWriterBase::set_max_pos(): "
+         "position already exceeds its limit";
+  max_pos_ = max_pos;
+}
+
+inline void LimitingWriterBase::set_max_length(Position max_length) {
+  if (ABSL_PREDICT_FALSE(max_length >
+                         std::numeric_limits<Position>::max() - pos())) {
+    max_pos_ = std::numeric_limits<Position>::max();
+    if (exact_) FailLengthOverflow(max_length);
+    return;
+  }
+  max_pos_ = pos() + max_length;
+}
+
+inline Position LimitingWriterBase::max_length() const {
+  RIEGELI_ASSERT_GE(max_pos_, pos())
+      << "Failed invariant of LimitingWriterBase: "
+         "position already exceeds its limit";
+  return max_pos_ - pos();
 }
 
 inline bool LimitingWriterBase::SyncBuffer(Writer& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded();
   dest.set_cursor(cursor());
   return true;
 }
@@ -250,25 +391,38 @@ inline void LimitingWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest,
-                                            Position size_limit)
-    : LimitingWriterBase(size_limit), dest_(dest) {
-  Initialize(dest_.get());
+inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Options options)
+    : LimitingWriterBase(options.exact()), dest_(dest) {
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Position size_limit)
-    : LimitingWriterBase(size_limit), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Options options)
+    : LimitingWriterBase(options.exact()), dest_(std::move(dest)) {
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
-                                            Position size_limit)
-    : LimitingWriterBase(size_limit), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+                                            Options options)
+    : LimitingWriterBase(options.exact()), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), std::move(options));
 }
+
+template <typename Dest>
+inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Position max_pos)
+    : LimitingWriter(dest, Options().set_max_pos(max_pos)) {}
+
+template <typename Dest>
+inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Position max_pos)
+    : LimitingWriter(std::move(dest), Options().set_max_pos(max_pos)) {}
+
+template <typename Dest>
+template <typename... DestArgs>
+inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
+                                            Position max_pos)
+    : LimitingWriter(std::move(dest_args), Options().set_max_pos(max_pos)) {}
 
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(LimitingWriter&& that) noexcept
@@ -295,26 +449,26 @@ inline void LimitingWriter<Dest>::Reset() {
 }
 
 template <typename Dest>
-inline void LimitingWriter<Dest>::Reset(const Dest& dest, Position size_limit) {
-  LimitingWriterBase::Reset(size_limit);
+inline void LimitingWriter<Dest>::Reset(const Dest& dest, Options options) {
+  LimitingWriterBase::Reset(options.exact());
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
-inline void LimitingWriter<Dest>::Reset(Dest&& dest, Position size_limit) {
-  LimitingWriterBase::Reset(size_limit);
+inline void LimitingWriter<Dest>::Reset(Dest&& dest, Options options) {
+  LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void LimitingWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
-                                        Position size_limit) {
-  LimitingWriterBase::Reset(size_limit);
+                                        Options options) {
+  LimitingWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>

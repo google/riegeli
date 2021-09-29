@@ -65,12 +65,10 @@ bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
     return Fail(*src);
   }
 
-  if (ABSL_PREDICT_FALSE(sizes_size >
-                         std::numeric_limits<Position>::max() - src->pos())) {
-    return Fail(absl::ResourceExhaustedError("Size of sizes too large"));
-  }
   internal::Decompressor<LimitingReader<>> sizes_decompressor(
-      std::forward_as_tuple(src, src->pos() + sizes_size), compression_type);
+      std::forward_as_tuple(
+          src, LimitingReaderBase::Options().set_exact_length(sizes_size)),
+      compression_type);
   if (ABSL_PREDICT_FALSE(!sizes_decompressor.healthy())) {
     return Fail(sizes_decompressor);
   }

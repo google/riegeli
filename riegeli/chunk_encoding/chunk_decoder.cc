@@ -160,8 +160,10 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   {
-    absl::Status status =
-        ParseFromReader(LimitingReader<>(&values_reader_, limit), record);
+    absl::Status status = ParseFromReader(
+        LimitingReader<>(&values_reader_,
+                         LimitingReaderBase::Options().set_max_pos(limit)),
+        record);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!values_reader_.Seek(limit)) {
         RIEGELI_ASSERT_UNREACHABLE()

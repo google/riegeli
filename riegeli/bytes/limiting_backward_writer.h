@@ -37,16 +37,103 @@ namespace riegeli {
 // Template parameter independent part of `LimitingBackwardWriter`.
 class LimitingBackwardWriterBase : public BackwardWriter {
  public:
-  // An infinite size limit.
-  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
+  class Options {
+   public:
+    Options() noexcept {}
 
-  // Changes the size limit.
+    // The limit expressed as an absolute position. It must be at least as large
+    // as the current position.
+    //
+    // `absl::nullopt` means no limit, unless `max_length()` is set.
+    //
+    // `max_pos()` and `max_length()` must not be both set.
+    //
+    // Default: `absl::nullopt`
+    Options& set_max_pos(absl::optional<Position> max_pos) & {
+      max_pos_ = max_pos;
+      return *this;
+    }
+    Options&& set_max_pos(absl::optional<Position> max_pos) && {
+      return std::move(set_max_pos(max_pos));
+    }
+    absl::optional<Position> max_pos() const { return max_pos_; }
+
+    // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
+    Options& set_exact_pos(Position pos) & {
+      return set_max_pos(pos).set_exact(true);
+    }
+    Options&& set_exact_pos(Position pos) && {
+      return std::move(set_exact_pos(pos));
+    }
+
+    // The limit expressed as a length relative to the current position.
+    //
+    // `absl::nullopt` means no limit, unless `max_pos()` is set.
+    //
+    // `max_pos()` and `max_length()` must not be both set.
+    //
+    // Default: `absl::nullopt`
+    Options& set_max_length(absl::optional<Position> max_length) & {
+      max_length_ = max_length;
+      return *this;
+    }
+    Options&& set_max_length(absl::optional<Position> max_length) && {
+      return std::move(set_max_length(max_length));
+    }
+    absl::optional<Position> max_length() const { return max_length_; }
+
+    // A shortcut for `set_max_length(length)` with `set_exact(true)`.
+    Options& set_exact_length(Position length) & {
+      return set_max_length(length).set_exact(true);
+    }
+    Options&& set_exact_length(Position length) && {
+      return std::move(set_exact_length(length));
+    }
+
+    // If `false`, `LimitingBackwardWriter` will write data at most up to the
+    // limit. Writing will fail if the limit is exceeded.
+    //
+    // If `true`, `LimitingBackwardWriter` will write data exactly up to the
+    // limit. Writing will fail if the limit is exceeded, and `Close()` will
+    // fail if the current position at that time is before the limit.
+    //
+    // Default: `false`
+    Options& set_exact(bool exact) & {
+      exact_ = exact;
+      return *this;
+    }
+    Options&& set_exact(bool exact) && { return std::move(set_exact(exact)); }
+    bool exact() const { return exact_; }
+
+   private:
+    absl::optional<Position> max_pos_;
+    absl::optional<Position> max_length_;
+    bool exact_ = false;
+  };
+
+  // Accesses the limit expressed as an absolute position.
   //
-  // Precondition: `size_limit >= pos()`
-  void set_size_limit(Position size_limit);
+  // If `set_max_length()` was used, `max_pos()` returns the same limit
+  // translated to an absolute position.
+  //
+  // Precondition of `set_max_pos()`: `max_pos >= pos()`
+  //
+  // If no limit is set, returns `std::numeric_limits<Position>::max()`.
+  void set_max_pos(Position max_pos);
+  Position max_pos() const { return max_pos_; }
 
-  // Returns the current size limit.
-  Position size_limit() const { return size_limit_; }
+  // Accesses the limit expressed as a length relative to the current position,
+  // i.e. the length remaining to the limit.
+  //
+  // If `set_max_pos()` was used, `max_length()` returns the same limit
+  // translated to a length relative to the current position.
+  //
+  // If no limit is set, returns `std::numeric_limits<Position>::max() - pos()`.
+  void set_max_length(Position max_length);
+  Position max_length() const;
+
+  // Clears the limit.
+  void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
 
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
   virtual BackwardWriter* dest_writer() = 0;
@@ -58,15 +145,15 @@ class LimitingBackwardWriterBase : public BackwardWriter {
  protected:
   LimitingBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
 
-  explicit LimitingBackwardWriterBase(Position size_limit);
+  explicit LimitingBackwardWriterBase(bool exact);
 
   LimitingBackwardWriterBase(LimitingBackwardWriterBase&& that) noexcept;
   LimitingBackwardWriterBase& operator=(
       LimitingBackwardWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(Position size_limit);
-  void Initialize(BackwardWriter* dest);
+  void Reset(bool exact);
+  void Initialize(BackwardWriter* dest, Options&& options);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -79,21 +166,24 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteZerosSlow(Position length) override;
   bool TruncateImpl(Position new_size) override;
 
-  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if size limit is
+  // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.
   //
-  // Postcondition: pos() <= size_limit_
+  // Postcondition: `pos() <= max_pos_`
   bool SyncBuffer(BackwardWriter& dest);
 
   // Sets buffer pointers of `*this` to buffer pointers of `dest`. Fails `*this`
   // if `dest` failed.
   void MakeBuffer(BackwardWriter& dest);
 
-  // Invariant: start_pos() <= size_limit_
-  Position size_limit_ = kNoSizeLimit;
+  // Invariant: `start_pos() <= max_pos_`
+  Position max_pos_ = std::numeric_limits<Position>::max();
+
+  bool exact_ = false;
 
  private:
-  ABSL_ATTRIBUTE_COLD bool SizeLimitExceeded();
+  ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
+  ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
 
   // This template is defined and used only in limiting_backward_writer.cc.
   template <typename Src>
@@ -129,21 +219,16 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   LimitingBackwardWriter() noexcept {}
 
   // Will write to the original `BackwardWriter` provided by `dest`.
-  //
-  // Precondition: `size_limit >= dest->pos()`
   explicit LimitingBackwardWriter(const Dest& dest,
-                                  Position size_limit = kNoSizeLimit);
-  explicit LimitingBackwardWriter(Dest&& dest,
-                                  Position size_limit = kNoSizeLimit);
+                                  Options options = Options());
+  explicit LimitingBackwardWriter(Dest&& dest, Options options = Options());
 
   // Will write to the original `BackwardWriter` provided by a `Dest`
   // constructed from elements of `dest_args`. This avoids constructing a
   // temporary `Dest` and moving from it.
-  //
-  // Precondition: `size_limit >= dest->pos()`
   template <typename... DestArgs>
   explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
-                                  Position size_limit = kNoSizeLimit);
+                                  Options options = Options());
 
   LimitingBackwardWriter(LimitingBackwardWriter&& that) noexcept;
   LimitingBackwardWriter& operator=(LimitingBackwardWriter&& that) noexcept;
@@ -152,11 +237,10 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // This avoids constructing a temporary `LimitingBackwardWriter` and moving
   // from it.
   void Reset();
-  void Reset(const Dest& dest, Position size_limit = kNoSizeLimit);
-  void Reset(Dest&& dest, Position size_limit = kNoSizeLimit);
+  void Reset(const Dest& dest, Options options = Options());
+  void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
-  void Reset(std::tuple<DestArgs...> dest_args,
-             Position size_limit = kNoSizeLimit);
+  void Reset(std::tuple<DestArgs...> dest_args, Options options = Options());
 
   // Returns the object providing and possibly owning the original
   // `BackwardWriter`. Unchanged by `Close()`.
@@ -180,72 +264,112 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 #if __cpp_deduction_guides
 LimitingBackwardWriter()->LimitingBackwardWriter<DeleteCtad<>>;
 template <typename Dest>
-explicit LimitingBackwardWriter(
-    const Dest& dest,
-    Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+explicit LimitingBackwardWriter(const Dest& dest,
+                                LimitingBackwardWriterBase::Options options =
+                                    LimitingBackwardWriterBase::Options())
     -> LimitingBackwardWriter<std::decay_t<Dest>>;
 template <typename Dest>
-explicit LimitingBackwardWriter(
-    Dest&& dest, Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+explicit LimitingBackwardWriter(Dest&& dest,
+                                LimitingBackwardWriterBase::Options options =
+                                    LimitingBackwardWriterBase::Options())
     -> LimitingBackwardWriter<std::decay_t<Dest>>;
 template <typename... DestArgs>
-explicit LimitingBackwardWriter(
-    std::tuple<DestArgs...> dest_args,
-    Position size_limit = LimitingBackwardWriterBase::kNoSizeLimit)
+explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
+                                LimitingBackwardWriterBase::Options options =
+                                    LimitingBackwardWriterBase::Options())
     -> LimitingBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
 #endif
 
 // Implementation details follow.
 
-inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
-    Position size_limit)
-    : BackwardWriter(kInitiallyOpen), size_limit_(size_limit) {}
+inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(bool exact)
+    : BackwardWriter(kInitiallyOpen), exact_(exact) {}
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
     : BackwardWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      size_limit_(that.size_limit_) {}
+      max_pos_(that.max_pos_),
+      exact_(that.exact_) {}
 
 inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
     LimitingBackwardWriterBase&& that) noexcept {
   BackwardWriter::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  size_limit_ = that.size_limit_;
+  max_pos_ = that.max_pos_;
+  exact_ = that.exact_;
   return *this;
 }
 
 inline void LimitingBackwardWriterBase::Reset() {
   BackwardWriter::Reset(kInitiallyClosed);
-  size_limit_ = kNoSizeLimit;
+  max_pos_ = std::numeric_limits<Position>::max();
+  exact_ = false;
 }
 
-inline void LimitingBackwardWriterBase::Reset(Position size_limit) {
+inline void LimitingBackwardWriterBase::Reset(bool exact) {
   BackwardWriter::Reset(kInitiallyOpen);
-  size_limit_ = size_limit;
+  // `max_pos_` will be set by `Initialize()`.
+  exact_ = exact;
 }
 
-inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest) {
+inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
+                                                   Options&& options) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";
-  RIEGELI_ASSERT_GE(size_limit_, dest->pos())
+  RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
+                 options.max_length() == absl::nullopt)
       << "Failed precondition of LimitingBackwardWriter: "
-         "size limit smaller than current position";
+         "Options::max_pos() and Options::max_length() are both set";
+  if (options.max_pos() != absl::nullopt) {
+    RIEGELI_ASSERT_GE(*options.max_pos(), dest->pos())
+        << "Failed precondition of LimitingBackwardWriter: "
+           "position already exceeds its limit";
+    max_pos_ = *options.max_pos();
+  } else if (options.max_length() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(*options.max_length() >
+                           std::numeric_limits<Position>::max() -
+                               dest->pos())) {
+      max_pos_ = std::numeric_limits<Position>::max();
+      if (exact_) FailLengthOverflow(*options.max_length());
+    } else {
+      max_pos_ = dest->pos() + *options.max_length();
+    }
+  } else {
+    max_pos_ = std::numeric_limits<Position>::max();
+  }
   MakeBuffer(*dest);
 }
 
-inline void LimitingBackwardWriterBase::set_size_limit(Position size_limit) {
-  RIEGELI_ASSERT_GE(size_limit, pos())
-      << "Failed precondition of LimitingBackwardWriterBase::set_size_limit(): "
-         "size limit smaller than current position";
-  size_limit_ = size_limit;
+inline void LimitingBackwardWriterBase::set_max_pos(Position max_pos) {
+  RIEGELI_ASSERT_GE(max_pos, pos())
+      << "Failed precondition of LimitingBackwardWriterBase::set_max_pos(): "
+         "position already exceeds its limit";
+  max_pos_ = max_pos;
+}
+
+inline void LimitingBackwardWriterBase::set_max_length(Position max_length) {
+  if (ABSL_PREDICT_FALSE(max_length >
+                         std::numeric_limits<Position>::max() - pos())) {
+    max_pos_ = std::numeric_limits<Position>::max();
+    if (exact_) FailLengthOverflow(max_length);
+    return;
+  }
+  max_pos_ = pos() + max_length;
+}
+
+inline Position LimitingBackwardWriterBase::max_length() const {
+  RIEGELI_ASSERT_GE(max_pos_, pos())
+      << "Failed invariant of LimitingBackwardWriterBase: "
+         "position already exceeds its limit";
+  return max_pos_ - pos();
 }
 
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(pos() > size_limit_)) return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) return FailLimitExceeded();
   dest.set_cursor(cursor());
   return true;
 }
@@ -258,24 +382,24 @@ inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
 
 template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(const Dest& dest,
-                                                            Position size_limit)
-    : LimitingBackwardWriterBase(size_limit), dest_(dest) {
-  Initialize(dest_.get());
+                                                            Options options)
+    : LimitingBackwardWriterBase(options.exact()), dest_(dest) {
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(Dest&& dest,
-                                                            Position size_limit)
-    : LimitingBackwardWriterBase(size_limit), dest_(std::move(dest)) {
-  Initialize(dest_.get());
+                                                            Options options)
+    : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
-    std::tuple<DestArgs...> dest_args, Position size_limit)
-    : LimitingBackwardWriterBase(size_limit), dest_(std::move(dest_args)) {
-  Initialize(dest_.get());
+    std::tuple<DestArgs...> dest_args, Options options)
+    : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest_args)) {
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
@@ -305,27 +429,26 @@ inline void LimitingBackwardWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void LimitingBackwardWriter<Dest>::Reset(const Dest& dest,
-                                                Position size_limit) {
-  LimitingBackwardWriterBase::Reset(size_limit);
+                                                Options options) {
+  LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(dest);
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
-inline void LimitingBackwardWriter<Dest>::Reset(Dest&& dest,
-                                                Position size_limit) {
-  LimitingBackwardWriterBase::Reset(size_limit);
+inline void LimitingBackwardWriter<Dest>::Reset(Dest&& dest, Options options) {
+  LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline void LimitingBackwardWriter<Dest>::Reset(
-    std::tuple<DestArgs...> dest_args, Position size_limit) {
-  LimitingBackwardWriterBase::Reset(size_limit);
+    std::tuple<DestArgs...> dest_args, Options options) {
+  LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get());
+  Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>

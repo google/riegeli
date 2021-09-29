@@ -30,24 +30,27 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if __cplusplus < 201703
-constexpr Position LimitingBackwardWriterBase::kNoSizeLimit;
-#endif
-
 void LimitingBackwardWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     BackwardWriter& dest = *dest_writer();
     SyncBuffer(dest);
   }
+  if (ABSL_PREDICT_FALSE(exact_ && pos() < max_pos_)) {
+    FailWithoutAnnotation(absl::InvalidArgumentError(absl::StrCat(
+        "Not enough data: expected ", max_pos_, ", have ", pos())));
+  }
   BackwardWriter::Done();
 }
 
-bool LimitingBackwardWriterBase::SizeLimitExceeded() {
+bool LimitingBackwardWriterBase::FailLimitExceeded() {
   return Fail(absl::ResourceExhaustedError(
-      absl::StrCat("Size limit exceeded: ", size_limit_)));
+      absl::StrCat("Position limit exceeded: ", max_pos_)));
+}
+
+void LimitingBackwardWriterBase::FailLengthOverflow(Position max_length) {
+  FailWithoutAnnotation(absl::InvalidArgumentError(
+      absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
+                   " which overflows the BackwardWriter position")));
 }
 
 bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
@@ -55,9 +58,9 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
-         "position exceeds size limit";
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
@@ -103,14 +106,14 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 
 template <typename Src>
 inline bool LimitingBackwardWriterBase::WriteInternal(Src&& src) {
-  RIEGELI_ASSERT_LE(start_pos(), size_limit_)
+  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
-         "position exceeds size limit";
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > size_limit_ - pos())) {
-    return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(src.size() > max_pos_ - pos())) {
+    return FailLimitExceeded();
   }
   const bool ok = dest.Write(std::forward<Src>(src));
   MakeBuffer(dest);
@@ -124,8 +127,8 @@ bool LimitingBackwardWriterBase::WriteZerosSlow(Position length) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   BackwardWriter& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
-  if (ABSL_PREDICT_FALSE(length > size_limit_ - pos())) {
-    return SizeLimitExceeded();
+  if (ABSL_PREDICT_FALSE(length > max_pos_ - pos())) {
+    return FailLimitExceeded();
   }
   const bool ok = dest.WriteZeros(length);
   MakeBuffer(dest);
