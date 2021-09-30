@@ -16,10 +16,8 @@
 
 #include <stdint.h>
 
-#include <atomic>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
 
@@ -35,33 +33,20 @@ constexpr uintptr_t ObjectState::kHealthy;
 constexpr uintptr_t ObjectState::kClosedSuccessfully;
 #endif
 
-inline ObjectState::FailedStatus::FailedStatus(absl::Status&& status)
-    : status(std::move(status)) {}
-
 absl::Status ObjectState::status() const {
-  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  if (status_ptr == kHealthy) return absl::OkStatus();
-  if (status_ptr == kClosedSuccessfully) {
+  if (status_ptr_ == kHealthy) return absl::OkStatus();
+  if (status_ptr_ == kClosedSuccessfully) {
     return absl::FailedPreconditionError("Object closed");
   }
-  return reinterpret_cast<const FailedStatus*>(status_ptr)->status;
+  return reinterpret_cast<const FailedStatus*>(status_ptr_)->status;
 }
 
 bool ObjectState::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of ObjectState::Fail(): status not failed";
-  const uintptr_t new_status_ptr =
-      reinterpret_cast<uintptr_t>(new FailedStatus(std::move(status)));
-  uintptr_t old_status_ptr = kHealthy;
-  if (ABSL_PREDICT_FALSE(status_ptr_.load(std::memory_order_relaxed) ==
-                         kClosedSuccessfully)) {
-    reinterpret_cast<FailedStatus*>(new_status_ptr)->closed = true;
-    old_status_ptr = kClosedSuccessfully;
-  }
-  if (ABSL_PREDICT_FALSE(!status_ptr_.compare_exchange_strong(
-          old_status_ptr, new_status_ptr, std::memory_order_release))) {
-    // A failure was already set in `status_ptr_`, `new_status_ptr` loses.
-    DeleteStatus(new_status_ptr);
+  if (status_ptr_ == kHealthy || status_ptr_ == kClosedSuccessfully) {
+    status_ptr_ = reinterpret_cast<uintptr_t>(new FailedStatus{
+        status_ptr_ == kClosedSuccessfully, std::move(status)});
   }
   return false;
 }

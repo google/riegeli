@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <future>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -32,6 +33,7 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/stable_dependency.h"
 #include "riegeli/bytes/writer.h"

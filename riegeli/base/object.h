@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <atomic>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -93,12 +93,8 @@ class ObjectState {
 
  private:
   struct FailedStatus {
-    explicit FailedStatus(absl::Status&& status);
-
     // The `closed` flag may be changed from `false` to `true` by `Close()`.
-    // This happens after `Done()` finishes, and thus any background threads
-    // should have stopped interacting with the `Object`.
-    bool closed = false;
+    bool closed;
     // The actual `absl::Status`, never `absl::OkStatus()`.
     absl::Status status;
   };
@@ -110,7 +106,7 @@ class ObjectState {
 
   // `status_ptr_` is either `kHealthy`, or `kClosedSuccessfully`, or
   // `FailedStatus*` `reinterpret_cast` to `uintptr_t`.
-  std::atomic<uintptr_t> status_ptr_;
+  uintptr_t status_ptr_;
 };
 
 // `TypeId::For<A>()` is a token which is equal to `TypeId::For<B>()` whenever
@@ -145,22 +141,11 @@ class TypeId {
 //
 // Derived `Object` classes can be movable but not copyable. After a move the
 // source `Object` is left closed.
-//
-// Derived `Object` classes should be thread-compatible: const member functions
-// may be called concurrently with const member functions, but non-const member
-// functions may not be called concurrently with any member functions unless
-// specified otherwise.
-//
-// A derived class may use background threads which may cause the `Object` to
-// fail asynchronously. See comments in the protected section for rules
-// regarding background threads and asynchronous `Fail()` calls.
 class Object {
  public:
   Object(const Object&) = delete;
   Object& operator=(const Object&) = delete;
 
-  // If a derived class uses background threads, its destructor must cause
-  // background threads to stop interacting with the `Object`.
   virtual ~Object() {}
 
   // Indicates that the `Object` is no longer needed, but in the case of a
@@ -204,10 +189,6 @@ class Object {
   // In derived classes the status can be annotated with some context, and some
   // other state can be updated (`Fail()` calls `AnnotateFailure()` and
   // `OnFail()`).
-  //
-  // Even though `Fail()` is not const, if the derived class allows this, it may
-  // be called concurrently with public member functions, with const member
-  // functions, and with other `Fail()` calls.
   //
   // If `Fail()` is called multiple times, the first `absl::Status` wins.
   //
@@ -265,33 +246,17 @@ class Object {
   explicit Object(InitiallyOpen) noexcept : state_(kInitiallyOpen) {}
 
   // Moves the part of the object defined in the `Object` class.
-  //
-  // If a derived class uses background threads, its assignment operator, if
-  // defined, should cause background threads of the target Object to stop
-  // interacting with the `Object` before `Object::Object(Object&&)` is called.
-  // Also, its move constructor and move assignment operator, if defined,
-  // should cause background threads of the source Object to pause interacting
-  // with the `Object` while `Object::operator=(Object&&)` is called, and then
-  // continue interacting with the target `Object` instead.
   Object(Object&& that) noexcept = default;
   Object& operator=(Object&& that) noexcept = default;
 
   // Makes `*this` equivalent to a newly constructed `Object`. This avoids
   // constructing a temporary `Object` and moving from it. Derived classes which
   // redefine `Reset()` should include a call to `Object::Reset()`.
-  //
-  // If a derived class uses background threads, its methods which call
-  // `Object::Reset()` should cause background threads to stop interacting with
-  // the `Object` before `Object::Reset()` is called.
   void Reset(InitiallyClosed) { state_.Reset(kInitiallyClosed); }
   void Reset(InitiallyOpen) { state_.Reset(kInitiallyOpen); }
 
   // Marks the `Object` as not failed, keeping its `is_open()` state unchanged.
   // This can be used if the `Object` supports recovery after some failures.
-  //
-  // If a derived class uses background threads, its methods which call
-  // `MarkNotFailed()` should cause background threads to stop interacting with
-  // the `Object` before `MarkNotFailed()` is called.
   void MarkNotFailed() { state_.MarkNotFailed(); }
 
   // Implementation of `Close()`, called if the `Object` is not closed yet.
@@ -299,9 +264,6 @@ class Object {
   // `Close()` returns early if `!is_open()`, otherwise calls `Done()` and marks
   // the `Object` as closed. See `Close()` for details of the responsibility of
   // `Done()`.
-  //
-  // If a derived class uses background threads, `Done()` should cause
-  // background threads to stop interacting with the `Object`.
   //
   // The default implementation in `Object::Done()` does nothing.
   //
@@ -342,27 +304,22 @@ inline ObjectState::ObjectState(InitiallyOpen) noexcept
     : status_ptr_(kHealthy) {}
 
 inline ObjectState::ObjectState(ObjectState&& that) noexcept
-    : status_ptr_(that.status_ptr_.exchange(kClosedSuccessfully,
-                                            std::memory_order_relaxed)) {}
+    : status_ptr_(std::exchange(that.status_ptr_, kClosedSuccessfully)) {}
 
 inline ObjectState& ObjectState::operator=(ObjectState&& that) noexcept {
-  DeleteStatus(status_ptr_.exchange(
-      that.status_ptr_.exchange(kClosedSuccessfully, std::memory_order_relaxed),
-      std::memory_order_relaxed));
+  DeleteStatus(std::exchange(
+      status_ptr_, std::exchange(that.status_ptr_, kClosedSuccessfully)));
   return *this;
 }
 
-inline ObjectState::~ObjectState() {
-  DeleteStatus(status_ptr_.load(std::memory_order_relaxed));
-}
+inline ObjectState::~ObjectState() { DeleteStatus(status_ptr_); }
 
 inline void ObjectState::Reset(InitiallyClosed) {
-  DeleteStatus(
-      status_ptr_.exchange(kClosedSuccessfully, std::memory_order_relaxed));
+  DeleteStatus(std::exchange(status_ptr_, kClosedSuccessfully));
 }
 
 inline void ObjectState::Reset(InitiallyOpen) {
-  DeleteStatus(status_ptr_.exchange(kHealthy, std::memory_order_relaxed));
+  DeleteStatus(std::exchange(status_ptr_, kHealthy));
 }
 
 inline void ObjectState::DeleteStatus(uintptr_t status_ptr) {
@@ -372,36 +329,31 @@ inline void ObjectState::DeleteStatus(uintptr_t status_ptr) {
   }
 }
 
-inline bool ObjectState::healthy() const {
-  return status_ptr_.load(std::memory_order_acquire) == kHealthy;
-}
+inline bool ObjectState::healthy() const { return status_ptr_ == kHealthy; }
 
 inline bool ObjectState::is_open() const {
-  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  if (ABSL_PREDICT_TRUE(status_ptr == kHealthy)) return true;
-  if (ABSL_PREDICT_TRUE(status_ptr == kClosedSuccessfully)) return false;
-  return !reinterpret_cast<const FailedStatus*>(status_ptr)->closed;
+  if (ABSL_PREDICT_TRUE(status_ptr_ == kHealthy)) return true;
+  if (ABSL_PREDICT_TRUE(status_ptr_ == kClosedSuccessfully)) return false;
+  return !reinterpret_cast<const FailedStatus*>(status_ptr_)->closed;
 }
 
 inline bool ObjectState::not_failed() const {
-  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  return status_ptr == kHealthy || status_ptr == kClosedSuccessfully;
+  return status_ptr_ == kHealthy || status_ptr_ == kClosedSuccessfully;
 }
 
 inline bool ObjectState::MarkClosed() {
-  const uintptr_t status_ptr = status_ptr_.load(std::memory_order_acquire);
-  if (ABSL_PREDICT_TRUE(status_ptr == kHealthy ||
-                        status_ptr == kClosedSuccessfully)) {
-    status_ptr_.store(kClosedSuccessfully, std::memory_order_relaxed);
+  if (ABSL_PREDICT_TRUE(status_ptr_ == kHealthy ||
+                        status_ptr_ == kClosedSuccessfully)) {
+    status_ptr_ = kClosedSuccessfully;
     return true;
   }
-  reinterpret_cast<FailedStatus*>(status_ptr)->closed = true;
+  reinterpret_cast<FailedStatus*>(status_ptr_)->closed = true;
   return false;
 }
 
 inline void ObjectState::MarkNotFailed() {
-  DeleteStatus(status_ptr_.exchange(is_open() ? kHealthy : kClosedSuccessfully,
-                                    std::memory_order_relaxed));
+  DeleteStatus(
+      std::exchange(status_ptr_, is_open() ? kHealthy : kClosedSuccessfully));
 }
 
 inline bool Object::Close() {
