@@ -197,7 +197,7 @@ class RecordWriterBase::Worker {
   void Initialize(Position initial_pos);
 
   virtual void Done() {}
-  bool healthy() const { return state_.healthy(); }
+  virtual bool healthy() const = 0;
   virtual bool Fail(absl::Status status) = 0;
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
 
@@ -356,6 +356,7 @@ class RecordWriterBase::SerialWorker : public Worker {
   Position EstimatedSize() const override;
 
  protected:
+  bool healthy() const override;
   using Worker::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
@@ -368,6 +369,10 @@ inline RecordWriterBase::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
                                                     Options&& options)
     : Worker(chunk_writer, std::move(options)) {
   Initialize(chunk_writer_->pos());
+}
+
+inline bool RecordWriterBase::SerialWorker::healthy() const {
+  return state_.healthy();
 }
 
 inline absl::Status RecordWriterBase::SerialWorker::status() const {
@@ -473,6 +478,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
  protected:
   void Done() override;
+  bool healthy() const override;
   using Worker::Fail;
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status) override;
 
@@ -595,6 +601,11 @@ void RecordWriterBase::ParallelWorker::Done() {
     chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
   }
   done_future.get();
+}
+
+inline bool RecordWriterBase::ParallelWorker::healthy() const {
+  absl::MutexLock l(&mutex_);
+  return state_.healthy();
 }
 
 inline absl::Status RecordWriterBase::ParallelWorker::status() const {
