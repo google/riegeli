@@ -246,10 +246,6 @@ class Writer : public Object {
   // `Writer::Done()`.
   void Done() override;
 
-  // `Writer` overrides `Object::AnnotateFailure()` to annotate the status with
-  // the current position.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
-
   // `Writer` overrides `Object::OnFail()` to set buffer pointers to `nullptr`.
   // Derived classes which override it further should include a call to
   // `Writer::OnFail()`.
@@ -257,6 +253,10 @@ class Writer : public Object {
   // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
+
+  // `Writer` overrides `Object::DefaultAnnotateStatus()` to annotate the status
+  // with the current position.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
 
   // Marks the `Writer` as failed with message "Writer position overflow".
   // Always returns `false`.

@@ -10,7 +10,6 @@ cc_library(
         ":containers",
         ":csv_record",
         "//riegeli/base",
-        "//riegeli/base:status",
         "//riegeli/bytes:string_writer",
         "//riegeli/bytes:writer",
         "//riegeli/lines:line_writing",
@@ -29,7 +28,6 @@ cc_library(
     deps = [
         ":csv_record",
         "//riegeli/base",
-        "//riegeli/base:status",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:string_reader",
         "@com_google_absl//absl/base:core_headers",

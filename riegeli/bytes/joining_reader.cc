@@ -25,7 +25,6 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/pullable_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -115,10 +114,11 @@ bool JoiningReaderBase::CloseShard() {
   return CloseShardInternal();
 }
 
-void JoiningReaderBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("across shards at byte ", pos()));
+void JoiningReaderBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("across shards at byte ", pos()));
 }
 
 bool JoiningReaderBase::PullBehindScratch() {

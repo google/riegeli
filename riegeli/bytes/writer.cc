@@ -26,19 +26,17 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 
 namespace riegeli {
 
-void Writer::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  if (is_open()) {
-    status = Annotate(status, absl::StrCat("at byte ", start_pos()));
-  }
-}
-
 void Writer::OnFail() { set_buffer(); }
+
+void Writer::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("at byte ", start_pos()));
+}
 
 bool Writer::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Writer position overflow"));

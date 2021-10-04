@@ -62,10 +62,11 @@ bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {
                absl::StrCat("at byte ", src.pos())));
 }
 
-void HadoopSnappyReaderBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+void HadoopSnappyReaderBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool HadoopSnappyReaderBase::PullBehindScratch() {

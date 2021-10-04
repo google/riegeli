@@ -150,7 +150,7 @@ class FdWriterBase : public BufferedWriter {
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
-  void AnnotateFailure(absl::Status& status) override;
+  void DefaultAnnotateStatus() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;

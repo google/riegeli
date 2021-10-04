@@ -131,11 +131,11 @@ class SplittingWriterBase : public PushableWriter {
   // `*this` if `shard` failed.
   void MakeBuffer(Writer& shard);
 
-  // `SplittingWriterBase` overrides `Writer::AnnotateFailure()` to annotate the
-  // status with the current position, clarifying that this is the position
-  // across shards. A status propagated from `*shard_writer()` might carry
-  // annotation with the position within a shard.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+  // `SplittingWriterBase` overrides `Writer::DefaultAnnotateStatus()` to
+  // annotate the status with the current position, clarifying that this is the
+  // position across shards. A status propagated from `*shard_writer()` might
+  // carry annotation with the position within a shard.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
 
   bool PushBehindScratch() override;
   bool WriteBehindScratch(absl::string_view src) override;

@@ -9,7 +9,6 @@ cc_library(
     deps = [
         "//riegeli/base",
         "//riegeli/base:buffer",
-        "//riegeli/base:status",
         "//riegeli/bytes:pushable_writer",
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",

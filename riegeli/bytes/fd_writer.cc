@@ -42,7 +42,6 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -154,11 +153,12 @@ bool FdWriterBase::FailOperation(absl::string_view operation) {
       ErrnoToCanonicalStatus(error_number, absl::StrCat(operation, " failed")));
 }
 
-void FdWriterBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("writing ", filename_));
-  BufferedWriter::AnnotateFailure(status);
+void FdWriterBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  AnnotateStatus(absl::StrCat("writing ", filename_));
+  BufferedWriter::DefaultAnnotateStatus();
 }
 
 bool FdWriterBase::WriteInternal(absl::string_view src) {

@@ -134,7 +134,7 @@ class FdReaderBase : public BufferedReader {
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
-  void AnnotateFailure(absl::Status& status) override;
+  void DefaultAnnotateStatus() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
@@ -189,7 +189,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   // "/proc/self/fd/<fd>" if fd was given). Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
-  void AnnotateFailure(absl::Status& status) override;
+  void DefaultAnnotateStatus() override;
 
  protected:
   FdMMapReaderBase() noexcept {}

@@ -342,9 +342,9 @@ class CsvReaderBase : public Object {
   void Reset(InitiallyOpen);
   void Initialize(Reader* src, Options&& options);
 
-  // `CsvReader` overrides `Object::AnnotateFailure()` to annotate the status
-  // with the current line number.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+  // `CsvReader` overrides `Object::DefaultAnnotateStatus()` to annotate the
+  // status with the current line number.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
 
   // Fails, attributing this to `last_line_number()` instead of `line_number()`.
   ABSL_ATTRIBUTE_COLD void FailAtPreviousRecord(absl::Status status);

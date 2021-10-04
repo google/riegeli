@@ -25,7 +25,6 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
 #include "snappy.h"
@@ -38,10 +37,11 @@ void HadoopSnappyWriterBase::Initialize(Writer* dest) {
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
 }
 
-void HadoopSnappyWriterBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+void HadoopSnappyWriterBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool HadoopSnappyWriterBase::PushBehindScratch() {

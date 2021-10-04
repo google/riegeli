@@ -88,7 +88,20 @@ class ObjectState {
   // Precondition: `!status.ok()`
   ABSL_ATTRIBUTE_COLD bool Fail(absl::Status status);
 
-  // Marks the `Object` as not failed, keeping its `is_open()` state unchanged.
+  // Augments the current status by adding `detail` to the end of the original
+  // message.
+  //
+  // `AnnotateStatus()` adds the appropriate separators, so callers should not
+  // include a separator in `detail`. The exact formatting is subject to change,
+  // so you should not depend on it in your tests.
+  //
+  // Always returns `false`.
+  //
+  // Precondition: `!not_failed()`
+  ABSL_ATTRIBUTE_COLD bool AnnotateStatus(absl::string_view detail);
+
+  // Marks the `ObjectState` as not failed, keeping its `is_open()` state
+  // unchanged.
   void MarkNotFailed();
 
  private:
@@ -178,6 +191,9 @@ class Object {
   // Returns `true` if the `Object` is open, i.e. not closed.
   bool is_open() const { return state_.is_open(); }
 
+  // Returns `true` if the `Object` is not failed.
+  bool not_failed() const { return state_.not_failed(); }
+
   // Returns an `absl::Status` describing the failure if the `Object` is failed,
   // or an `absl::FailedPreconditionError()` if the `Object` is closed, or
   // `absl::OkStatus()` if the `Object` is healthy.
@@ -186,9 +202,9 @@ class Object {
   // Marks the `Object` as failed with the given `status`, keeping its
   // `is_open()` state unchanged.
   //
-  // In derived classes the status can be annotated with some context, and some
-  // other state can be updated (`Fail()` calls `AnnotateFailure()` and
-  // `OnFail()`).
+  // In derived classes `Fail()` may have additional effects. In particular the
+  // status can be annotated with some details (`DefaultAnnotateStatus()` is
+  // called), and other state can be updated (`OnFail()` is called).
   //
   // If `Fail()` is called multiple times, the first `absl::Status` wins.
   //
@@ -209,6 +225,19 @@ class Object {
   //
   // Precondition: `!dependency.healthy()`
   ABSL_ATTRIBUTE_COLD bool Fail(const Object& dependency);
+
+  // Augments the current status by adding `detail` to the end of the original
+  // message.
+  //
+  // `AnnotateStatus()` adds the appropriate separators, so callers should not
+  // include a separator in `detail`. The exact formatting is subject to change,
+  // so you should not depend on it in your tests.
+  //
+  // Always returns `false`, for convenience of reporting the failure as a
+  // `false` result of a failing function.
+  //
+  // Precondition: `!not_failed()`
+  ABSL_ATTRIBUTE_COLD bool AnnotateStatus(absl::string_view detail);
 
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
@@ -270,24 +299,25 @@ class Object {
   // Precondition: `is_open()`
   virtual void Done();
 
-  // Called by `Fail()`. Can annotate the `status` with some context,
-  // appropriately for the derived class.
-  //
-  // The default implementation in `Object::AnnotateFailure()` does nothing.
-  //
-  // Precondition and postcondition: `!status.ok()`
-  ABSL_ATTRIBUTE_COLD virtual void AnnotateFailure(absl::Status& status);
-
   // Called by `Fail()` and `FailWithoutAnnotation()`. Can update some other
   // state, appropriately for the derived class.
   //
   // The default implementation in `Object::OnFail()` does nothing.
   ABSL_ATTRIBUTE_COLD virtual void OnFail();
 
-  // Exposes a variant of `Fail()` which does not call `AnnotateFailure()`.
+  // Called by `Fail()`. Can annotate the current status with some context,
+  // appropriately for the derived class.
+  //
+  // The default implementation in `Object::DefaultAnnotateStatus()` does
+  // nothing.
+  ABSL_ATTRIBUTE_COLD virtual void DefaultAnnotateStatus();
+
+  // Exposes a variant of `Fail()` which does not call
+  // `DefaultAnnotateStatus()`.
   //
   // This can be called instead of `Fail()` if the annotation supplied by
-  // `AnnotateFailure()` would be irrelevant or duplicated in a particular case.
+  // `DefaultAnnotateStatus()` would be irrelevant or duplicated in a particular
+  // case.
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(absl::Status status);
   ABSL_ATTRIBUTE_COLD bool FailWithoutAnnotation(const Object& dependency);
 

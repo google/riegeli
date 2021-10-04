@@ -28,16 +28,16 @@ namespace riegeli {
 absl::Status SetMessage(const absl::Status& status, absl::string_view message);
 
 // Returns an `absl::Status` that is identical to `status` except that the
-// `message()` has been augmented by adding `message` to the end of the original
+// `message()` has been augmented by adding `detail` to the end of the original
 // message.
 //
 // `Annotate()` adds the appropriate separators, so callers should not include a
-// separator in `message`. The exact formatting is subject to change, so you
+// separator in `detail`. The exact formatting is subject to change, so you
 // should not depend on it in your tests.
 //
 // OK status values have no message and therefore if `status` is OK, the result
 // is unchanged.
-absl::Status Annotate(const absl::Status& status, absl::string_view message);
+absl::Status Annotate(const absl::Status& status, absl::string_view detail);
 
 }  // namespace riegeli
 

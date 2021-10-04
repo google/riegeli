@@ -31,7 +31,6 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/status.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -39,16 +38,22 @@ namespace riegeli {
 
 void Reader::VerifyEnd() {
   if (ABSL_PREDICT_FALSE(Pull())) {
-    Fail(absl::InvalidArgumentError(absl::StrCat("End of data expected")));
+    Fail(absl::InvalidArgumentError("End of data expected"));
+    if (SupportsSize()) {
+      const absl::optional<Position> size = Size();
+      if (size != absl::nullopt) {
+        AnnotateStatus(
+            absl::StrCat("remaining length: ", SaturatingSub(*size, pos())));
+      }
+    }
   }
 }
 
-void Reader::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  if (is_open()) {
-    status = Annotate(status, absl::StrCat("at byte ", pos()));
-  }
+void Reader::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("at byte ", pos()));
 }
 
 bool Reader::FailOverflow() {

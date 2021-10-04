@@ -109,13 +109,12 @@ bool FileReaderBase::FailOperation(const ::tensorflow::Status& status,
                absl::StrCat(operation, " failed")));
 }
 
-void FileReaderBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("reading ", filename_));
-  }
-  Reader::AnnotateFailure(status);
+void FileReaderBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (!filename_.empty()) AnnotateStatus(absl::StrCat("reading ", filename_));
+  Reader::DefaultAnnotateStatus();
 }
 
 void FileReaderBase::Done() {

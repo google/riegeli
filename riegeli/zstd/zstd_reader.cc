@@ -181,10 +181,11 @@ void ZstdReaderBase::Done() {
   decompressor_.reset();
 }
 
-void ZstdReaderBase::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
-  status = Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
+void ZstdReaderBase::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+  if (is_open()) AnnotateStatus(absl::StrCat("at uncompressed byte ", pos()));
 }
 
 bool ZstdReaderBase::PullSlow(size_t min_length, size_t recommended_length) {

@@ -246,9 +246,9 @@ class CsvWriterBase : public Object {
   void Reset(InitiallyOpen);
   void Initialize(Writer* dest, Options&& options);
 
-  // `CsvWriter` overrides `Object::AnnotateFailure()` to annotate the status
-  // with the current record index.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+  // `CsvWriter` overrides `Object::DefaultAnnotateStatus()` to annotate the
+  // status with the current record index.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
 
  private:
   template <typename Record>

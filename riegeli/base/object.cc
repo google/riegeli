@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/status.h"
 
 namespace riegeli {
 
@@ -51,23 +52,23 @@ bool ObjectState::Fail(absl::Status status) {
   return false;
 }
 
-void Object::Done() {}
-
-void Object::AnnotateFailure(absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed precondition of Object::AnnotateFailure(): status not failed";
+bool ObjectState::AnnotateStatus(absl::string_view detail) {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of ObjectState::AnnotateStatus(): "
+         "ObjectState not failed";
+  absl::Status& status = reinterpret_cast<FailedStatus*>(status_ptr_)->status;
+  status = Annotate(status, detail);
+  return false;
 }
 
-void Object::OnFail() {}
+void Object::Done() {}
 
 bool Object::Fail(absl::Status status) {
   RIEGELI_ASSERT(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
-  AnnotateFailure(status);
-  RIEGELI_ASSERT(!status.ok())
-      << "Failed postcondition of Object::AnnotateFailure(): status not failed";
   OnFail();
   state_.Fail(std::move(status));
+  DefaultAnnotateStatus();
   return false;
 }
 
@@ -75,6 +76,20 @@ bool Object::Fail(const Object& dependency) {
   RIEGELI_ASSERT(!dependency.healthy())
       << "Failed precondition of Object::Fail(): dependency healthy";
   return Fail(dependency.status());
+}
+
+void Object::OnFail() {}
+
+void Object::DefaultAnnotateStatus() {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::DefaultAnnotateStatus(): "
+         "Object not failed";
+}
+
+bool Object::AnnotateStatus(absl::string_view detail) {
+  RIEGELI_ASSERT(!not_failed())
+      << "Failed precondition of Object::AnnotateStatus(): Object not failed";
+  return state_.AnnotateStatus(detail);
 }
 
 bool Object::FailWithoutAnnotation(absl::Status status) {

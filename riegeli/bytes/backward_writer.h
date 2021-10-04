@@ -219,10 +219,6 @@ class BackwardWriter : public Object {
   // to `BackwardWriter::Done()`.
   void Done() override;
 
-  // `BackwardWriter` overrides `Object::AnnotateFailure()` to annotate the
-  // status with the current position.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
-
   // `BackwardWriter` overrides `Object::OnFail()` to set buffer pointers to
   // `nullptr`. Derived classes which override it further should include a call
   // to `BackwardWriter::OnFail()`.
@@ -230,6 +226,10 @@ class BackwardWriter : public Object {
   // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
+
+  // `BackwardWriter` overrides `Object::DefaultAnnotateStatus()` to annotate
+  // the status with the current position.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
 
   // Marks the `BackwardWriter` as failed with message
   // "BackwardWriter position overflow". Always returns `false`.

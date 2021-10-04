@@ -273,11 +273,11 @@ class BrotliReaderBase : public PullableReader {
   void Initialize(Reader* src);
 
   void Done() override;
-  // `BrotliReaderBase` overrides `Reader::AnnotateFailure()` to annotate the
-  // status with the current position, clarifying that this is the uncompressed
-  // position. A status propagated from `*src_reader()` might carry annotation
-  // with the compressed position.
-  ABSL_ATTRIBUTE_COLD void AnnotateFailure(absl::Status& status) override;
+  // `BrotliReaderBase` overrides `Reader::DefaultAnnotateStatus()` to annotate
+  // the status with the current position, clarifying that this is the
+  // uncompressed position. A status propagated from `*src_reader()` might carry
+  // annotation with the compressed position.
+  ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool PullBehindScratch() override;
   bool SeekBehindScratch(Position new_pos) override;
 

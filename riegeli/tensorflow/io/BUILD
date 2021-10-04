@@ -34,7 +34,6 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:status",
         "//riegeli/bytes:writer",
-        "//third_party/tensorflow/core/platform:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

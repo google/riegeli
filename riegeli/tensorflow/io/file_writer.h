@@ -127,7 +127,7 @@ class FileWriterBase : public Writer {
                                          absl::string_view operation);
 
   void Done() override;
-  void AnnotateFailure(absl::Status& status) override;
+  void DefaultAnnotateStatus() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
