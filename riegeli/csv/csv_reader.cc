@@ -441,10 +441,6 @@ try_again:
   return true;
 }
 
-bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
-  return ReadRecordInternal(record);
-}
-
 namespace internal {
 
 inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
@@ -454,6 +450,10 @@ inline bool ReadStandaloneRecord(CsvReaderBase& csv_reader,
 }
 
 }  // namespace internal
+
+bool CsvReaderBase::ReadRecord(std::vector<std::string>& record) {
+  return ReadRecordInternal(record);
+}
 
 inline bool CsvReaderBase::ReadRecordInternal(
     std::vector<std::string>& record) {

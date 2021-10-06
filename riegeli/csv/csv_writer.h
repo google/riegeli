@@ -449,13 +449,6 @@ inline void CsvWriterBase::Reset(InitiallyOpen) {
   record_index_ = 0;
 }
 
-template <typename Record,
-          std::enable_if_t<
-              internal::IsIterableOf<Record, absl::string_view>::value, int>>
-bool CsvWriterBase::WriteRecord(const Record& record) {
-  return WriteRecordInternal(record);
-}
-
 namespace internal {
 
 template <typename Record>
@@ -466,6 +459,18 @@ inline bool WriteStandaloneRecord(const Record& record,
 }
 
 }  // namespace internal
+
+template <typename Record,
+          std::enable_if_t<
+              internal::IsIterableOf<Record, absl::string_view>::value, int>>
+inline bool CsvWriterBase::WriteRecord(const Record& record) {
+  return WriteRecordInternal(record);
+}
+
+inline bool CsvWriterBase::WriteRecord(
+    std::initializer_list<absl::string_view> record) {
+  return WriteRecord<std::initializer_list<absl::string_view>>(record);
+}
 
 template <typename Record>
 inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
@@ -499,11 +504,6 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
   }
   ++record_index_;
   return true;
-}
-
-inline bool CsvWriterBase::WriteRecord(
-    std::initializer_list<absl::string_view> record) {
-  return WriteRecord<std::initializer_list<absl::string_view>>(record);
 }
 
 inline uint64_t CsvWriterBase::last_record_index() const {
