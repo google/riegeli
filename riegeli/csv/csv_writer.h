@@ -320,13 +320,13 @@ class CsvWriter : public CsvWriterBase {
   // Creates a closed `CsvWriter`.
   CsvWriter() noexcept : CsvWriterBase(kInitiallyClosed) {}
 
-  // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
+  // Will write to the byte `Writer` provided by `dest`.
   explicit CsvWriter(const Dest& dest, Options options = Options());
   explicit CsvWriter(Dest&& dest, Options options = Options());
 
-  // Will write to the byte `Writer` or `ChunkWriter` provided by a `Dest`
-  // constructed from elements of `dest_args`. This avoids constructing a
-  // temporary `Dest` and moving from it.
+  // Will write to the byte `Writer` provided by a `Dest` constructed from
+  // elements of `dest_args`. This avoids constructing a temporary `Dest` and
+  // moving from it.
   template <typename... DestArgs>
   explicit CsvWriter(std::tuple<DestArgs...> dest_args,
                      Options options = Options());
