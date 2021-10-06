@@ -286,9 +286,11 @@ void DescribeFile(absl::string_view filename, std::ostream& report) {
                absl::Utf8SafeCEscape(filename));
   DefaultChunkReader<FdReader<>> chunk_reader(
       std::forward_as_tuple(filename, O_RDONLY));
-  const absl::optional<Position> size = chunk_reader.Size();
-  if (size != absl::nullopt) {
-    absl::Format(&report, "  file_size: %u\n", *size);
+  if (chunk_reader.SupportsRandomAccess()) {
+    const absl::optional<Position> size = chunk_reader.Size();
+    if (size != absl::nullopt) {
+      absl::Format(&report, "  file_size: %u\n", *size);
+    }
   }
   google::protobuf::TextFormat::Printer printer;
   printer.SetInitialIndentLevel(2);
