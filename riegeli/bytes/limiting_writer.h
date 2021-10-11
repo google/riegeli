@@ -221,10 +221,6 @@ class LimitingWriter : public LimitingWriterBase {
   // Will write to the original `Writer` provided by `dest`.
   explicit LimitingWriter(const Dest& dest, Options options = Options());
   explicit LimitingWriter(Dest&& dest, Options options = Options());
-  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
-  explicit LimitingWriter(const Dest& dest, Position max_pos);
-  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
-  explicit LimitingWriter(Dest&& dest, Position max_pos);
 
   // Will write to the original `Writer` provided by a `Dest` constructed from
   // elements of `dest_args`. This avoids constructing a temporary `Dest` and
@@ -232,9 +228,6 @@ class LimitingWriter : public LimitingWriterBase {
   template <typename... DestArgs>
   explicit LimitingWriter(std::tuple<DestArgs...> dest_args,
                           Options options = Options());
-  template <typename... DestArgs>
-  ABSL_DEPRECATED("Use LimitingWriter(_, Options) instead")
-  explicit LimitingWriter(std::tuple<DestArgs...> dest_args, Position max_pos);
 
   LimitingWriter(LimitingWriter&& that) noexcept;
   LimitingWriter& operator=(LimitingWriter&& that) noexcept;
@@ -409,20 +402,6 @@ inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
     : LimitingWriterBase(options.exact()), dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
 }
-
-template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(const Dest& dest, Position max_pos)
-    : LimitingWriter(dest, Options().set_max_pos(max_pos)) {}
-
-template <typename Dest>
-inline LimitingWriter<Dest>::LimitingWriter(Dest&& dest, Position max_pos)
-    : LimitingWriter(std::move(dest), Options().set_max_pos(max_pos)) {}
-
-template <typename Dest>
-template <typename... DestArgs>
-inline LimitingWriter<Dest>::LimitingWriter(std::tuple<DestArgs...> dest_args,
-                                            Position max_pos)
-    : LimitingWriter(std::move(dest_args), Options().set_max_pos(max_pos)) {}
 
 template <typename Dest>
 inline LimitingWriter<Dest>::LimitingWriter(LimitingWriter&& that) noexcept

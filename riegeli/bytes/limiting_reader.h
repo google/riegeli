@@ -41,11 +41,6 @@ class ScopedLimiter;
 // Template parameter independent part of `LimitingReader`.
 class LimitingReaderBase : public Reader {
  public:
-  ABSL_DEPRECATED(
-      "Use absl::nullopt, skip Options altogether, "
-      "or use LimitingReaderBase::clear_limit() instead")
-  static constexpr Position kNoSizeLimit = std::numeric_limits<Position>::max();
-
   class Options {
    public:
     Options() noexcept {}
@@ -166,11 +161,6 @@ class LimitingReaderBase : public Reader {
   void set_exact(bool exact) { exact_ = exact; }
   bool exact() const { return exact_; }
 
-  ABSL_DEPRECATED("Use set_max_pos() instead")
-  void set_size_limit(Position size_limit) { set_max_pos(size_limit); }
-  ABSL_DEPRECATED("Use max_pos() instead")
-  Position size_limit() const { return max_pos(); }
-
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* src_reader() = 0;
   virtual const Reader* src_reader() const = 0;
@@ -266,10 +256,6 @@ class LimitingReader : public LimitingReaderBase {
   // Will read from the original `Reader` provided by `src`.
   explicit LimitingReader(const Src& src, Options options = Options());
   explicit LimitingReader(Src&& src, Options options = Options());
-  ABSL_DEPRECATED("Use LimitingReader(_, Options) instead")
-  explicit LimitingReader(const Src& src, Position max_pos);
-  ABSL_DEPRECATED("Use LimitingReader(_, Options) instead")
-  explicit LimitingReader(Src&& src, Position max_pos);
 
   // Will read from the original `Reader` provided by a `Src` constructed from
   // elements of `src_args`. This avoids constructing a temporary `Src` and
@@ -277,9 +263,6 @@ class LimitingReader : public LimitingReaderBase {
   template <typename... SrcArgs>
   explicit LimitingReader(std::tuple<SrcArgs...> src_args,
                           Options options = Options());
-  template <typename... SrcArgs>
-  ABSL_DEPRECATED("Use LimitingReader(_, Options) instead")
-  explicit LimitingReader(std::tuple<SrcArgs...> src_args, Position max_pos);
 
   LimitingReader(LimitingReader&& that) noexcept;
   LimitingReader& operator=(LimitingReader&& that) noexcept;
@@ -291,13 +274,6 @@ class LimitingReader : public LimitingReaderBase {
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args, Options options = Options());
-  ABSL_DEPRECATED("Use Reset(_, Options) instead")
-  void Reset(const Src& src, Position max_pos);
-  ABSL_DEPRECATED("Use Reset(_, Options) instead")
-  void Reset(Src&& src, Position max_pos);
-  template <typename... SrcArgs>
-  ABSL_DEPRECATED("Use Reset(_, Options) instead")
-  void Reset(std::tuple<SrcArgs...> src_args, Position max_pos);
 
   // Returns the object providing and possibly owning the original `Reader`.
   // Unchanged by `Close()`.
@@ -334,15 +310,6 @@ template <typename... SrcArgs>
 explicit LimitingReader(
     std::tuple<SrcArgs...> src_args,
     LimitingReaderBase::Options options = LimitingReaderBase::Options())
-    -> LimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
-template <typename Src>
-explicit LimitingReader(const Src& src, Position max_pos)
-    -> LimitingReader<std::decay_t<Src>>;
-template <typename Src>
-explicit LimitingReader(Src&& src, Position max_pos)
-    -> LimitingReader<std::decay_t<Src>>;
-template <typename... SrcArgs>
-explicit LimitingReader(std::tuple<SrcArgs...> src_args, Position max_pos)
     -> LimitingReader<DeleteCtad<std::tuple<SrcArgs...>>>;
 #endif
 
@@ -388,15 +355,6 @@ class ScopedLimiter {
   LimitingReaderBase* reader_;
   Position old_max_pos_;
   bool old_exact_;
-};
-
-class ABSL_DEPRECATED("Use ScopedLimiter instead") LengthLimiter
-    : public ScopedLimiter {
- public:
-  using ScopedLimiter::ScopedLimiter;
-
-  explicit LengthLimiter(LimitingReaderBase* reader, Position length)
-      : ScopedLimiter(reader, Options().set_max_length(length)) {}
 };
 
 // Implementation details follow.
@@ -525,20 +483,6 @@ inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
-inline LimitingReader<Src>::LimitingReader(const Src& src, Position max_pos)
-    : LimitingReader(src, Options().set_max_pos(max_pos)) {}
-
-template <typename Src>
-inline LimitingReader<Src>::LimitingReader(Src&& src, Position max_pos)
-    : LimitingReader(std::move(src), Options().set_max_pos(max_pos)) {}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline LimitingReader<Src>::LimitingReader(std::tuple<SrcArgs...> src_args,
-                                           Position max_pos)
-    : LimitingReader(std::move(src_args), Options().set_max_pos(max_pos)) {}
-
-template <typename Src>
 inline LimitingReader<Src>::LimitingReader(LimitingReader&& that) noexcept
     : LimitingReaderBase(std::move(that)) {
   // Using `that` after it was moved is correct because only the base class part
@@ -583,23 +527,6 @@ inline void LimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
   LimitingReaderBase::Reset(options.exact());
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
-}
-
-template <typename Src>
-inline void LimitingReader<Src>::Reset(const Src& src, Position max_pos) {
-  Reset(src, Options().set_max_pos(max_pos));
-}
-
-template <typename Src>
-inline void LimitingReader<Src>::Reset(Src&& src, Position max_pos) {
-  Reset(std::forward<Src>(src), Options().set_max_pos(max_pos));
-}
-
-template <typename Src>
-template <typename... SrcArgs>
-inline void LimitingReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
-                                       Position max_pos) {
-  Reset(std::move(src_args), Options().set_max_pos(max_pos));
 }
 
 template <typename Src>
