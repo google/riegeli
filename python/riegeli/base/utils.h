@@ -548,6 +548,12 @@ PythonPtr PositionToPython(Position value);
 // Returns `absl::nullopt` on failure (with Python exception set).
 absl::optional<Position> PositionFromPython(PyObject* object);
 
+// Converts C++ `absl::partial_ordering` to a Python `None` (for `unordered`)
+// or `int` object (-1 for `less`, 0 for `equivalent`, or 1 for `greater`).
+//
+// Returns `nullptr` on failure (with Python exception set).
+PythonPtr PartialOrderingToPython(absl::partial_ordering ordering);
+
 // Converts a Python object to C++ `absl::partial_ordering`. Valid Python
 // objects are `int` (compared with 0) or `None`.
 //

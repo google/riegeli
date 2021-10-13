@@ -687,33 +687,34 @@ static PyObject* RecordReaderSearch(PyRecordReaderObject* self, PyObject* args,
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::optional<Exception> test_exception;
-  const bool ok = PythonUnlocked([&] {
-    return self->record_reader->Search([&](RecordReaderBase&) {
-      PythonLock lock;
-      const PythonPtr test_result(
-          PyObject_CallFunctionObjArgs(test_arg, self, nullptr));
-      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      const absl::optional<absl::partial_ordering> ordering =
-          PartialOrderingFromPython(test_result.get());
-      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      return *ordering;
-    });
+  const absl::optional<absl::partial_ordering> result = PythonUnlocked([&] {
+    return self->record_reader->Search(
+        [&](RecordReaderBase&) -> absl::optional<absl::partial_ordering> {
+          PythonLock lock;
+          const PythonPtr test_result(
+              PyObject_CallFunctionObjArgs(test_arg, self, nullptr));
+          if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::nullopt;
+          }
+          const absl::optional<absl::partial_ordering> ordering =
+              PartialOrderingFromPython(test_result.get());
+          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::nullopt;
+          }
+          return *ordering;
+        });
   });
-  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
-    test_exception->Restore();
+  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
+    if (test_exception != absl::nullopt) {
+      test_exception->Restore();
+    } else {
+      SetExceptionFromRecordReader(self);
+    }
     return nullptr;
   }
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    SetExceptionFromRecordReader(self);
-    return nullptr;
-  }
-  Py_RETURN_NONE;
+  return PartialOrderingToPython(*result).release();
 }
 
 static PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
@@ -727,38 +728,39 @@ static PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::optional<Exception> test_exception;
-  const bool ok = PythonUnlocked([&] {
-    return self->record_reader->Search<Chain>([&](const Chain& record) {
-      PythonLock lock;
-      const PythonPtr record_object = ChainToPython(record);
-      if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      const PythonPtr test_result(
-          PyObject_CallFunctionObjArgs(test_arg, record_object.get(), nullptr));
-      if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      const absl::optional<absl::partial_ordering> ordering =
-          PartialOrderingFromPython(test_result.get());
-      if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
-        test_exception.emplace(Exception::Fetch());
-        return absl::partial_ordering::equivalent;
-      }
-      return *ordering;
-    });
+  const absl::optional<absl::partial_ordering> result = PythonUnlocked([&] {
+    return self->record_reader->Search<Chain>(
+        [&](const Chain& record) -> absl::optional<absl::partial_ordering> {
+          PythonLock lock;
+          const PythonPtr record_object = ChainToPython(record);
+          if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::nullopt;
+          }
+          const PythonPtr test_result(PyObject_CallFunctionObjArgs(
+              test_arg, record_object.get(), nullptr));
+          if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::nullopt;
+          }
+          const absl::optional<absl::partial_ordering> ordering =
+              PartialOrderingFromPython(test_result.get());
+          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+            test_exception.emplace(Exception::Fetch());
+            return absl::nullopt;
+          }
+          return *ordering;
+        });
   });
-  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
-    test_exception->Restore();
+  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
+    if (test_exception != absl::nullopt) {
+      test_exception->Restore();
+    } else {
+      SetExceptionFromRecordReader(self);
+    }
     return nullptr;
   }
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    SetExceptionFromRecordReader(self);
-    return nullptr;
-  }
-  Py_RETURN_NONE;
+  return PartialOrderingToPython(*result).release();
 }
 
 static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
@@ -774,15 +776,16 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   absl::optional<Exception> test_exception;
-  const bool ok = PythonUnlocked([&] {
+  const absl::optional<absl::partial_ordering> result = PythonUnlocked([&] {
     return self->record_reader->Search<absl::string_view>(
-        [&](absl::string_view record) {
+        [&](absl::string_view record)
+            -> absl::optional<absl::partial_ordering> {
           PythonLock lock;
           MemoryView memory_view;
           PyObject* const record_object = memory_view.ToPython(record);
           if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::partial_ordering::equivalent;
+            return absl::nullopt;
           }
           // message = message_type.FromString(record)
           static constexpr Identifier id_FromString("FromString");
@@ -790,36 +793,36 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
               message_type_arg, id_FromString.get(), record_object, nullptr));
           if (ABSL_PREDICT_FALSE(message_object == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::partial_ordering::equivalent;
+            return absl::nullopt;
           }
           if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
             test_exception.emplace(Exception::Fetch());
-            return absl::partial_ordering::equivalent;
+            return absl::nullopt;
           }
           const PythonPtr test_result(PyObject_CallFunctionObjArgs(
               test_arg, message_object.get(), nullptr));
           if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::partial_ordering::equivalent;
+            return absl::nullopt;
           }
           const absl::optional<absl::partial_ordering> ordering =
               PartialOrderingFromPython(test_result.get());
           if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::partial_ordering::equivalent;
+            return absl::nullopt;
           }
           return *ordering;
         });
   });
-  if (ABSL_PREDICT_FALSE(test_exception != absl::nullopt)) {
-    test_exception->Restore();
+  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
+    if (test_exception != absl::nullopt) {
+      test_exception->Restore();
+    } else {
+      SetExceptionFromRecordReader(self);
+    }
     return nullptr;
   }
-  if (ABSL_PREDICT_FALSE(!ok)) {
-    SetExceptionFromRecordReader(self);
-    return nullptr;
-  }
-  Py_RETURN_NONE;
+  return PartialOrderingToPython(*result).release();
 }
 
 }  // extern "C"
@@ -1020,20 +1023,24 @@ The current position before calling search() does not matter.
 Args:
   test: A function which takes the RecordReader as a parameter, seeked to some
     record, and returns an int or None:
-     * < 0:  the current record is before the desired position
-     * == 0: the current record is desired, searching can stop
-     * > 0:  the current record is after the desired position
-     * None: it could not be determined which is the case; the current record
-             will be skipped
+     * < 0:  The current record is before the desired position.
+     * == 0: The current record is desired, searching can stop.
+     * > 0:  The current record is after the desired position.
+     * None: It could not be determined which is the case. The current record
+             will be skipped.
 
 Preconditions:
- * all < 0 records precede all == 0 records
- * all < 0 records precede all > 0 records
- * all == 0 records precede all > 0 records
+ * All < 0 records precede all == 0 records.
+ * All == 0 records precede all > 0 records.
+ * All < 0 records precede all > 0 records, even if there are no == 0 records.
 
-If there is some == 0 record, search() points to some == 0 record. Otherwise,
-if there is some > 0 record, search() points to earliest > 0 record. Otherwise
-search() points to the end of file.
+Return values:
+ * 0: There is some == 0 record, and search() points to some such record.
+ * 1: There are no == 0 records but there is some > 0 record, and search()
+   points to the earliest such record.
+ * -1: There are no == 0 nor > 0 records, but there is some < 0 record, and
+   search() points to the end of file.
+ * None: All records are None, and search() points to the end of file.
 
 To find the earliest == 0 record instead of an arbitrary one, test() can be
 changed to return > 0 in place of == 0.

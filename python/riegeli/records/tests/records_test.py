@@ -744,13 +744,13 @@ class RecordsTest(parameterized.TestCase):
 
           return test
 
-        reader.search(test_function(7))
+        self.assertEqual(reader.search(test_function(7)), 0)
         self.assertEqual(reader.pos, positions[7])
-        reader.search(test_function(0))
+        self.assertEqual(reader.search(test_function(0)), 0)
         self.assertEqual(reader.pos, positions[0])
-        reader.search(test_function(22))
+        self.assertEqual(reader.search(test_function(22)), 0)
         self.assertEqual(reader.pos, positions[22])
-        reader.search(test_function(23))
+        self.assertEqual(reader.search(test_function(23)), -1)
         self.assertEqual(reader.pos, end_pos)
 
   @_PARAMETERIZE_BY_FILE_SPEC
@@ -783,13 +783,13 @@ class RecordsTest(parameterized.TestCase):
 
           return test
 
-        reader.search_for_record(test_function(7))
+        self.assertEqual(reader.search_for_record(test_function(7)), 0)
         self.assertEqual(reader.pos, positions[7])
-        reader.search_for_record(test_function(0))
+        self.assertEqual(reader.search_for_record(test_function(0)), 0)
         self.assertEqual(reader.pos, positions[0])
-        reader.search_for_record(test_function(22))
+        self.assertEqual(reader.search_for_record(test_function(22)), 0)
         self.assertEqual(reader.pos, positions[22])
-        reader.search_for_record(test_function(23))
+        self.assertEqual(reader.search_for_record(test_function(23)), -1)
         self.assertEqual(reader.pos, end_pos)
 
   @_PARAMETERIZE_BY_FILE_SPEC
@@ -821,17 +821,21 @@ class RecordsTest(parameterized.TestCase):
 
           return test
 
-        reader.search_for_message(records_test_pb2.SimpleMessage,
-                                  test_function(7))
+        self.assertEqual(
+            reader.search_for_message(records_test_pb2.SimpleMessage,
+                                      test_function(7)), 0)
         self.assertEqual(reader.pos, positions[7])
-        reader.search_for_message(records_test_pb2.SimpleMessage,
-                                  test_function(0))
+        self.assertEqual(
+            reader.search_for_message(records_test_pb2.SimpleMessage,
+                                      test_function(0)), 0)
         self.assertEqual(reader.pos, positions[0])
-        reader.search_for_message(records_test_pb2.SimpleMessage,
-                                  test_function(22))
+        self.assertEqual(
+            reader.search_for_message(records_test_pb2.SimpleMessage,
+                                      test_function(22)), 0)
         self.assertEqual(reader.pos, positions[22])
-        reader.search_for_message(records_test_pb2.SimpleMessage,
-                                  test_function(23))
+        self.assertEqual(
+            reader.search_for_message(records_test_pb2.SimpleMessage,
+                                      test_function(23)), -1)
         self.assertEqual(reader.pos, end_pos)
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM

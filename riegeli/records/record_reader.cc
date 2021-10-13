@@ -526,13 +526,19 @@ class RecordReaderBase::ChunkSearchTraits {
   RecordReaderBase* self_;
 };
 
-bool RecordReaderBase::Search(
-    absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test) {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+absl::optional<absl::partial_ordering> RecordReaderBase::Search(
+    absl::FunctionRef<
+        absl::optional<absl::partial_ordering>(RecordReaderBase& reader)>
+        test) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   last_record_is_valid_ = false;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return Fail(src);
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    Fail(src);
+    return absl::nullopt;
+  }
+
   struct ChunkSuffix {
     Position chunk_begin;
     uint64_t record_index;
@@ -540,33 +546,21 @@ bool RecordReaderBase::Search(
   };
   absl::optional<ChunkSuffix> less_found;
   uint64_t greater_record_index = 0;
-  const Position greater_chunk_begin = BinarySearch(
+  absl::optional<SearchResult<Position>> greater_chunk_begin = BinarySearch(
       0, *size,
-      [&](Position chunk_begin) {
+      [&](Position chunk_begin) -> absl::optional<SearchGuide<Position>> {
         if (ABSL_PREDICT_FALSE(!src.Seek(chunk_begin))) {
-          if (!FailSeeking(src)) {
-            // Cancel the search.
-            less_found = absl::nullopt;
-            greater_record_index = 0;
-            return SearchGuide<Position>{absl::partial_ordering::equivalent,
-                                         chunk_begin};
-          }
+          if (!FailSeeking(src)) return absl::nullopt;
           // Declare the skipped region unordered.
           return SearchGuide<Position>{absl::partial_ordering::unordered,
                                        src.pos()};
         }
         if (ABSL_PREDICT_FALSE(!ReadChunk())) {
           if (!TryRecovery()) {
-            if (healthy()) {
-              // The chunk is truncated. Continue the search before the chunk.
-              greater_record_index = 0;
-              return SearchGuide<Position>{absl::partial_ordering::greater,
-                                           chunk_begin};
-            }
-            // Cancel the search.
-            less_found = absl::nullopt;
+            if (!healthy()) return absl::nullopt;
+            // The chunk is truncated. Continue the search before the chunk.
             greater_record_index = 0;
-            return SearchGuide<Position>{absl::partial_ordering::equivalent,
+            return SearchGuide<Position>{absl::partial_ordering::greater,
                                          chunk_begin};
           }
           // Declare the skipped region unordered.
@@ -577,86 +571,81 @@ bool RecordReaderBase::Search(
         // recovery moved it forwards.
         chunk_begin = chunk_begin_;
         const uint64_t num_records = chunk_decoder_.num_records();
+        // Judge the chunk by its earliest record which is not unordered.
         for (uint64_t record_index = 0; record_index < num_records;
              ++record_index) {
           if (ABSL_PREDICT_FALSE(
                   !Seek(RecordPosition(chunk_begin, record_index)))) {
-            // Cancel the search.
-            less_found = absl::nullopt;
-            greater_record_index = record_index;
-            return SearchGuide<Position>{absl::partial_ordering::equivalent,
-                                         chunk_begin};
+            return absl::nullopt;
           }
-          const absl::partial_ordering ordering = test(*this);
+          const absl::optional<absl::partial_ordering> ordering = test(*this);
           if (ABSL_PREDICT_FALSE(!healthy())) {
             // Reading the record made the `RecordReader` unhealthy, probably
             // because a message could not be parsed (or `test()` did something
             // unusual).
-            if (!TryRecovery()) {
-              // Cancel the search.
-              less_found = absl::nullopt;
-              greater_record_index = record_index;
-              return SearchGuide<Position>{absl::partial_ordering::equivalent,
-                                           chunk_begin};
-            }
+            if (!TryRecovery()) return absl::nullopt;
             // Declare the skipped record unordered.
-            return SearchGuide<Position>{absl::partial_ordering::unordered,
-                                         src.pos()};
+            continue;
           }
-          if (ordering < 0) {
+          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+            return absl::nullopt;
+          }
+          if (*ordering < 0) {
             less_found =
                 ChunkSuffix{chunk_begin, record_index + 1, num_records};
             return SearchGuide<Position>{absl::partial_ordering::less,
                                          src.pos()};
           }
-          if (ordering == 0) {
-            less_found = absl::nullopt;
+          if (*ordering >= 0) {
             greater_record_index = record_index;
-            return SearchGuide<Position>{absl::partial_ordering::equivalent,
-                                         chunk_begin};
-          }
-          if (ordering > 0) {
-            greater_record_index = record_index;
-            return SearchGuide<Position>{absl::partial_ordering::greater,
-                                         chunk_begin};
+            return SearchGuide<Position>{*ordering, chunk_begin};
           }
         }
+        // All records are unordered.
         return SearchGuide<Position>{absl::partial_ordering::unordered,
                                      src.pos()};
       },
       ChunkSearchTraits(this));
 
-  RecordPosition position(greater_chunk_begin, greater_record_index);
-  if (less_found.has_value()) {
-    const Position less_chunk_begin = less_found->chunk_begin;
-    const uint64_t less_record_index = BinarySearch(
-        less_found->record_index, less_found->num_records,
-        [&](uint64_t record_index) {
-          if (ABSL_PREDICT_FALSE(
-                  !Seek(RecordPosition(less_chunk_begin, record_index)))) {
-            // Cancel the search.
-            return absl::partial_ordering::equivalent;
-          }
-          const absl::partial_ordering ordering = test(*this);
-          if (ABSL_PREDICT_FALSE(!healthy())) {
-            // Reading the record made the `RecordReader` unhealthy, probably
-            // because a message could not be parsed (or `test()` did something
-            // unusual).
-            if (!TryRecovery()) {
-              // Cancel the search.
-              return absl::partial_ordering::equivalent;
-            }
-            // Declare the skipped record unordered.
-            return absl::partial_ordering::unordered;
-          }
-          return ordering;
-        });
-    if (less_record_index < less_found->num_records) {
-      position = RecordPosition(less_chunk_begin, less_record_index);
+  if (ABSL_PREDICT_FALSE(greater_chunk_begin == absl::nullopt)) {
+    return absl::nullopt;
+  }
+  if (greater_chunk_begin->ordering != 0 && less_found != absl::nullopt) {
+    const absl::optional<SearchResult<uint64_t>> less_record_index =
+        BinarySearch(less_found->record_index, less_found->num_records,
+                     [&](uint64_t record_index)
+                         -> absl::optional<absl::partial_ordering> {
+                       if (ABSL_PREDICT_FALSE(!Seek(RecordPosition(
+                               less_found->chunk_begin, record_index)))) {
+                         return absl::nullopt;
+                       }
+                       const absl::optional<absl::partial_ordering> ordering =
+                           test(*this);
+                       if (ABSL_PREDICT_FALSE(!healthy())) {
+                         // Reading the record made the `RecordReader`
+                         // unhealthy, probably because a message could not be
+                         // parsed (or `test()` did something unusual).
+                         if (!TryRecovery()) return absl::nullopt;
+                         // Declare the skipped record unordered.
+                         return absl::partial_ordering::unordered;
+                       }
+                       return ordering;
+                     });
+    if (ABSL_PREDICT_FALSE(less_record_index == absl::nullopt)) {
+      return absl::nullopt;
+    }
+    if (less_record_index->ordering >= 0) {
+      greater_chunk_begin->ordering = less_record_index->ordering;
+      greater_chunk_begin->found = less_found->chunk_begin;
+      greater_record_index = less_record_index->found;
     }
   }
-  if (ABSL_PREDICT_FALSE(!Seek(position))) return healthy();
-  return true;
+  if (ABSL_PREDICT_FALSE(!Seek(
+          RecordPosition(greater_chunk_begin->found, greater_record_index)))) {
+    Fail(absl::DataLossError("Riegeli/records file got truncated"));
+    return absl::nullopt;
+  }
+  return greater_chunk_begin->ordering;
 }
 
 inline bool RecordReaderBase::ReadChunk() {

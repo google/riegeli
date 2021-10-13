@@ -385,6 +385,13 @@ absl::optional<Position> PositionFromPython(PyObject* object) {
   return IntCast<Position>(index_value);
 }
 
+PythonPtr PartialOrderingToPython(absl::partial_ordering ordering) {
+  if (ordering == absl::partial_ordering::unordered) {
+    return Py_INCREF(Py_None), PythonPtr(Py_None);
+  }
+  return PythonPtr(PyLong_FromLong(ordering < 0 ? -1 : ordering == 0 ? 0 : 1));
+}
+
 absl::optional<absl::partial_ordering> PartialOrderingFromPython(
     PyObject* object) {
   if (object == Py_None) return absl::partial_ordering::unordered;

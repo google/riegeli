@@ -322,32 +322,39 @@ class RecordReaderBase : public Object {
   // The current position before calling `Search()` does not matter.
   //
   // The `test` function takes `*this` as a parameter, seeked to some record,
-  // and returns `absl::partial_ordering`:
-  //  * `less`       - the current record is before the desired position
-  //  * `equivalent` - the current record is desired, searching can stop
-  //  * `greater`    - the current record is after the desired position
-  //  * `unordered`  - it could not be determined which is the case; the current
-  //                   record will be skipped
+  // and returns `absl::optional<absl::partial_ordering>`:
+  //  * `absl::nullopt` - Cancel the search.
+  //  * `less`          - The current record is before the desired position.
+  //  * `equivalent`    - The current record is desired, searching can stop.
+  //  * `greater`       - The current record is after the desired position.
+  //  * `unordered`     - It could not be determined which is the case.
+  //                      The current record will be skipped.
   //
   // Preconditions:
-  //  * all `less` records precede all `equivalent` records
-  //  * all `less` records precede all `greater` records
-  //  * all `equivalent` records precede all `greater` records
+  //  * All `less` records precede all `equivalent` records.
+  //  * All `equivalent` records precede all `greater` records.
+  //  * All `less` records precede all `greater` records,
+  //    even if there are no `equivalent` records.
   //
   // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  //
-  // On success, if there is some `equivalent` record, `Search()` points to some
-  // `equivalent` record. Otherwise, if there is some `greater` record,
-  // `Search()` points to earliest `greater` record. Otherwise `Search()` points
-  // to the end of file.
+  //  * `absl::nullopt` - Reading failed (`!healthy()`)
+  //                      or the search was cancelled (`healthy()`).
+  //  * `equivalent`    - There is some `equivalent` record,
+  //                      and `Search()` points to some such record.
+  //  * `greater`       - There are no `equivalent` records
+  //                      but there is some `greater` record,
+  //                      and `Search()` points to the earliest such record.
+  //  * `less`          - There are no `equivalent` nor `greater` records
+  //                      but there is some `less` record,
+  //                      and `Search()` points to the end of file.
+  //  * `unordered`     - All records are `unordered`,
+  //                      and `Search()` points to the end of file.
   //
   // To find the earliest `equivalent` record instead of an arbitrary one,
   // `test()` can be changed to return `greater` in place of `equivalent`.
   //
   // Further guarantees:
-  //  * If a `test()` returns `equivalent`, `Search()` points back to the record
+  //  * If a `test()` returns `equivalent`, `Search()` seeks back to the record
   //    before `test()` and returns.
   //  * If a `test()` returns `less`, `test()` will not be called again at
   //    earlier positions.
@@ -363,17 +370,19 @@ class RecordReaderBase : public Object {
   // For skipping invalid file regions during `Search()`, a recovery function
   // (`RecordReaderBase::Options::recovery()`) can be set, but `Recover()`
   // resumes only simple operations and is not applicable here.
-  bool Search(
-      absl::FunctionRef<absl::partial_ordering(RecordReaderBase& reader)> test);
+  absl::optional<absl::partial_ordering> Search(
+      absl::FunctionRef<
+          absl::optional<absl::partial_ordering>(RecordReaderBase& reader)>
+          test);
 
   // A variant of `Search()` which reads a record before calling `test()`,
   // instead of letting `test()` read the record.
   //
   // The `Record` type must be supported by `ReadRecord()`, and `test` must be
   // callable with an argument of type `Record&` or `const Record&`, returning
-  // `absl::partial_ordering`.
+  // `absl::optional<absl::partial_ordering>`.
   template <typename Record, typename Test>
-  bool Search(Test test);
+  absl::optional<absl::partial_ordering> Search(Test test);
 
  protected:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
@@ -620,14 +629,15 @@ inline RecordPosition RecordReaderBase::pos() const {
 }
 
 template <typename Record, typename Test>
-bool RecordReaderBase::Search(Test test) {
+absl::optional<absl::partial_ordering> RecordReaderBase::Search(Test test) {
   Record record;
-  return Search([&](RecordReaderBase& self) {
-    if (ABSL_PREDICT_FALSE(!self.ReadRecord(record))) {
-      return absl::partial_ordering::unordered;
-    }
-    return test(record);
-  });
+  return Search(
+      [&](RecordReaderBase& self) -> absl::optional<absl::partial_ordering> {
+        if (ABSL_PREDICT_FALSE(!self.ReadRecord(record))) {
+          return absl::partial_ordering::unordered;
+        }
+        return test(record);
+      });
 }
 
 template <typename Src>
