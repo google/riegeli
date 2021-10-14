@@ -15,14 +15,12 @@
 #ifndef RIEGELI_BYTES_FD_DEPENDENCY_H_
 #define RIEGELI_BYTES_FD_DEPENDENCY_H_
 
-#include <unistd.h>
-
-#include <cerrno>
+#include <string>
 #include <tuple>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 
@@ -30,9 +28,16 @@ namespace riegeli {
 
 namespace internal {
 
+// Returns the `assumed_filename`. If `absl::nullopt`, then "/dev/stdin",
+// "/dev/stdout", "/dev/stderr", or "/proc/self/fd/<fd>" is inferred from `fd`.
+std::string ResolveFilename(int fd,
+                            absl::optional<std::string>&& assumed_filename);
+
+// Closes a file descriptor, taking interruption by signals into account.
+//
 // Return value:
-//  * 0       - success
-//  * `errno` - failure (`fd` is closed anyway)
+//  * 0  - success
+//  * -1 - failure (`errno` is set, `fd` is closed anyway)
 int CloseFd(int fd);
 
 #ifdef POSIX_CLOSE_RESTART
@@ -133,29 +138,6 @@ class Dependency<int, UnownedFd> {
 };
 
 // Implementation details follow.
-
-namespace internal {
-
-inline int CloseFd(int fd) {
-  // http://austingroupbugs.net/view.php?id=529 explains this mess.
-#ifdef POSIX_CLOSE_RESTART
-  // Avoid EINTR by using posix_close(_, 0) if available.
-  if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
-    if (errno == EINPROGRESS) return 0;
-    return -1;
-  }
-#else
-  if (ABSL_PREDICT_FALSE(close(fd) < 0)) {
-    // After `EINTR` it is unspecified whether `fd` has been closed or not.
-    // Assume that it is closed, which is the case e.g. on Linux.
-    if (errno == EINPROGRESS || errno == EINTR) return 0;
-    return -1;
-  }
-#endif
-  return 0;
-}
-
-}  // namespace internal
 
 inline OwnedFd::OwnedFd(OwnedFd&& that) noexcept
     : fd_(std::exchange(that.fd_, -1)) {}

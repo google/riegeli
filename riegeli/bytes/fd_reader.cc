@@ -48,6 +48,7 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/fd_dependency.h"
 
 namespace riegeli {
 
@@ -76,20 +77,14 @@ void MMapRef::DumpStructure(std::ostream& out) const { out << "[mmap] { }"; }
 
 }  // namespace
 
-void FdReaderBase::Initialize(int src, absl::optional<Position> assumed_pos,
+void FdReaderBase::Initialize(int src,
+                              absl::optional<std::string>&& assumed_filename,
+                              absl::optional<Position> assumed_pos,
                               absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  SetFilename(src);
+  filename_ = internal::ResolveFilename(src, std::move(assumed_filename));
   InitializePos(src, assumed_pos, independent_pos);
-}
-
-inline void FdReaderBase::SetFilename(int src) {
-  if (src == 0) {
-    filename_ = "/dev/stdin";
-  } else {
-    filename_ = absl::StrCat("/proc/self/fd/", src);
-  }
 }
 
 int FdReaderBase::OpenFd(absl::string_view filename, int flags) {
@@ -267,20 +262,13 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
   return IntCast<Position>(stat_info.st_size);
 }
 
-void FdMMapReaderBase::Initialize(int src,
-                                  absl::optional<Position> independent_pos) {
+void FdMMapReaderBase::Initialize(
+    int src, absl::optional<std::string>&& assumed_filename,
+    absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  SetFilename(src);
+  filename_ = internal::ResolveFilename(src, std::move(assumed_filename));
   InitializePos(src, independent_pos);
-}
-
-inline void FdMMapReaderBase::SetFilename(int src) {
-  if (src == 0) {
-    filename_ = "/dev/stdin";
-  } else {
-    filename_ = absl::StrCat("/proc/self/fd/", src);
-  }
 }
 
 int FdMMapReaderBase::OpenFd(absl::string_view filename, int flags) {

@@ -491,13 +491,11 @@ cc_library(
 
 cc_library(
     name = "fd_writer",
-    srcs = [
-        "fd_dependency.h",
-        "fd_writer.cc",
-    ],
+    srcs = ["fd_writer.cc"],
     hdrs = ["fd_writer.h"],
     deps = [
         ":buffered_writer",
+        ":fd_dependency",
         "//riegeli/base",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
@@ -509,14 +507,12 @@ cc_library(
 
 cc_library(
     name = "fd_reader",
-    srcs = [
-        "fd_dependency.h",
-        "fd_reader.cc",
-    ],
+    srcs = ["fd_reader.cc"],
     hdrs = ["fd_reader.h"],
     deps = [
         ":buffered_reader",
         ":chain_reader",
+        ":fd_dependency",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:memory_estimator",
@@ -538,6 +534,19 @@ cc_library(
         ":reader",
         ":writer",
         "//riegeli/base",
+    ],
+)
+
+cc_library(
+    name = "fd_dependency",
+    srcs = ["fd_dependency.cc"],
+    hdrs = ["fd_dependency.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 

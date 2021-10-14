@@ -43,25 +43,18 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/fd_dependency.h"
 
 namespace riegeli {
 
-void FdWriterBase::Initialize(int dest, absl::optional<Position> assumed_pos,
+void FdWriterBase::Initialize(int dest,
+                              absl::optional<std::string>&& assumed_filename,
+                              absl::optional<Position> assumed_pos,
                               absl::optional<Position> independent_pos) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
-  SetFilename(dest);
+  filename_ = internal::ResolveFilename(dest, std::move(assumed_filename));
   InitializePos(dest, assumed_pos, independent_pos);
-}
-
-inline void FdWriterBase::SetFilename(int dest) {
-  if (dest == 1) {
-    filename_ = "/dev/stdout";
-  } else if (dest == 2) {
-    filename_ = "/dev/stderr";
-  } else {
-    filename_ = absl::StrCat("/proc/self/fd/", dest);
-  }
 }
 
 int FdWriterBase::OpenFd(absl::string_view filename, int flags,

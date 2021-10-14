@@ -26,7 +26,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -42,6 +41,40 @@ class FdWriterBase : public BufferedWriter {
   class Options {
    public:
     Options() noexcept {}
+
+    // If `FdWriter` writes to an already open fd, `set_assumed_filename()`
+    // allows to override the filename which is included in failure messages and
+    // returned by `filename()`.
+    //
+    // If this is `absl::nullopt`, then "/dev/stdin", "/dev/stdout",
+    // "/dev/stderr", or "/proc/self/fd/<fd>" is assumed.
+    //
+    // If `FdWriter` writes to a filename, `set_assumed_filename()` has no
+    // effect.
+    //
+    // Default: `absl::nullopt`
+    Options& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) & {
+      if (assumed_filename == absl::nullopt) {
+        assumed_filename_ = absl::nullopt;
+      } else {
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `assumed_filename_.emplace(*assumed_filename)`
+        assumed_filename_.emplace(assumed_filename->data(),
+                                  assumed_filename->size());
+      }
+      return *this;
+    }
+    Options&& set_assumed_filename(
+        absl::optional<absl::string_view> assumed_filename) && {
+      return std::move(set_assumed_filename(assumed_filename));
+    }
+    absl::optional<std::string>& assumed_filename() {
+      return assumed_filename_;
+    }
+    const absl::optional<std::string>& assumed_filename() const {
+      return assumed_filename_;
+    }
 
     // Permissions to use in case a new file is created (9 bits). The effective
     // permissions are modified by the process's umask.
@@ -114,6 +147,7 @@ class FdWriterBase : public BufferedWriter {
     size_t buffer_size() const { return buffer_size_; }
 
    private:
+    absl::optional<std::string> assumed_filename_;
     mode_t permissions_ = 0666;
     absl::optional<Position> assumed_pos_;
     absl::optional<Position> independent_pos_;
@@ -124,8 +158,7 @@ class FdWriterBase : public BufferedWriter {
   // `Close()`, otherwise unchanged.
   virtual int dest_fd() const = 0;
 
-  // Returns the original name of the file being written to (or "/dev/stdout",
-  // "/dev/stderr", or "/proc/self/fd/<fd>" if fd was given). Unchanged by
+  // Returns the original name of the file being written to. Unchanged by
   // `Close()`.
   const std::string& filename() const { return filename_; }
 
@@ -141,7 +174,8 @@ class FdWriterBase : public BufferedWriter {
 
   void Reset();
   void Reset(size_t buffer_size);
-  void Initialize(int dest, absl::optional<Position> assumed_pos,
+  void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
+                  absl::optional<Position> assumed_pos,
                   absl::optional<Position> independent_pos);
   int OpenFd(absl::string_view filename, int flags, mode_t permissions);
   void InitializePos(int dest, absl::optional<Position> assumed_pos,
@@ -158,7 +192,6 @@ class FdWriterBase : public BufferedWriter {
   bool TruncateBehindBuffer(Position new_size) override;
 
  private:
-  void SetFilename(int dest);
   bool SeekInternal(int dest, Position new_pos);
 
   std::string filename_;
@@ -324,13 +357,15 @@ inline void FdWriterBase::Reset(size_t buffer_size) {
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(const Dest& dest, Options options)
     : FdWriterBase(options.buffer_size()), dest_(dest) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Dest&& dest, Options options)
     : FdWriterBase(options.buffer_size()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
@@ -338,7 +373,8 @@ template <typename... DestArgs>
 inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
                                 Options options)
     : FdWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
@@ -373,14 +409,16 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(const Dest& dest, Options options) {
   FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(dest);
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(Dest&& dest, Options options) {
   FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
@@ -389,7 +427,8 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                   Options options) {
   FdWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
-  Initialize(dest_.get(), options.assumed_pos(), options.independent_pos());
+  Initialize(dest_.get(), std::move(options.assumed_filename()),
+             options.assumed_pos(), options.independent_pos());
 }
 
 template <typename Dest>
