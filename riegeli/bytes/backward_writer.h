@@ -192,6 +192,8 @@ class BackwardWriter : public Object {
   //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
+  //
+  // `Truncate()` is supported if `SupportsTruncate()` is `true`.
   bool Truncate(Position new_size);
 
  protected:

@@ -298,6 +298,12 @@ class Reader : public Object {
 
   // Sets the current position for subsequent operations.
   //
+  // Return values:
+  //  * `true`                      - success (position is set to `new_pos`)
+  //  * `false` (when `healthy()`)  - source ends before `new_pos`
+  //                                  (position is set to the end)
+  //  * `false` (when `!healthy()`) - failure
+  //
   // `Seek()` forwards (or backwards but within the buffer) is always supported,
   // although if `SupportsRandomAccess()` is `false`, then it is as inefficient
   // as reading and discarding the intervening data.
@@ -307,26 +313,20 @@ class Reader : public Object {
   // is as inefficient as seeking to 0, and then reading and discarding the
   // intervening data. If `SupportsRewind()` is `false`, `Seek()` backwards is
   // not supported.
-  //
-  // Return values:
-  //  * `true`                      - success (position is set to `new_pos`)
-  //  * `false` (when `healthy()`)  - source ends before `new_pos`
-  //                                  (position is set to the end)
-  //  * `false` (when `!healthy()`) - failure
   bool Seek(Position new_pos);
 
   // Increments the current position. Same as `Seek(pos() + length)` if there is
   // no overflow.
-  //
-  // `Skip()` is always supported, although if `SupportsRandomAccess()` is
-  // `false`, then it is as inefficient as reading and discarding the
-  // intervening data.
   //
   // Return values:
   //  * `true`                      - success (`length` bytes skipped)
   //  * `false` (when `healthy()`)  - source ends before skipping `length` bytes
   //                                  (position is set to the end)
   //  * `false` (when `!healthy()`) - failure
+  //
+  // `Skip()` is always supported, although if `SupportsRandomAccess()` is
+  // `false`, then it is as inefficient as reading and discarding the
+  // intervening data.
   bool Skip(Position length);
 
   // Returns `true` if this `Reader` supports `Size()`.
@@ -337,6 +337,9 @@ class Reader : public Object {
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
   // Returns `absl::nullopt` on failure (`!healthy()`).
+  //
+  // `Size()` is supported if `SupportsRandomAccess()` or `SupportsSize()` is
+  // `true`.
   absl::optional<Position> Size();
 
  protected:

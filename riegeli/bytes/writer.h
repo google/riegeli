@@ -191,7 +191,7 @@ class Writer : public Object {
   // `pos()` is unchanged by a successful `Close()`.
   Position pos() const;
 
-  // Returns true if this Writer supports `Seek()` and `Size()`.
+  // Returns `true` if this Writer supports `Seek()` and `Size()`.
   virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
@@ -201,12 +201,16 @@ class Writer : public Object {
   //  * `false` (when `healthy()`)  - destination ends before `new_pos`
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
+  //
+  // `Seek()` is supported if `SupportsRandomAccess()` is `true`.
   bool Seek(Position new_pos);
 
   // Returns the size of the destination, i.e. the position corresponding to its
   // end.
   //
   // Returns `absl::nullopt` on failure (`!healthy()`).
+  //
+  // `Size()` is supported if `SupportsRandomAccess()` is `true`.
   absl::optional<Position> Size();
 
   // Returns `true` if this `Writer` supports `Truncate()`.
@@ -221,6 +225,8 @@ class Writer : public Object {
   //  * `false` (when `healthy()`)  - destination is smaller than `new_size`
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
+  //
+  // `Truncate()` is supported if `SupportsTruncate()` is `true`.
   bool Truncate(Position new_size);
 
  protected:
