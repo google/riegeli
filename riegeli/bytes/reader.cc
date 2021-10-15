@@ -65,6 +65,24 @@ bool Reader::FailMaxLengthExceeded(Position max_length) {
       absl::StrCat("Maximum length exceeded: ", max_length)));
 }
 
+bool Reader::Copy(Position length, Writer& dest) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), IntCast<size_t>(length));
+    move_cursor(IntCast<size_t>(length));
+    return dest.Write(data);
+  }
+  return CopySlow(length, dest);
+}
+
+bool Reader::Copy(size_t length, BackwardWriter& dest) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
+    return dest.Write(data);
+  }
+  return CopySlow(length, dest);
+}
+
 bool Reader::ReadSlow(size_t length, char* dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "

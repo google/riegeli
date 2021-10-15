@@ -32,10 +32,11 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/backward_writer.h"
-#include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+class BackwardWriter;
+class Writer;
 
 // Abstract class `Reader` reads sequences of bytes from a source. The nature of
 // the source depends on the particular class derived from `Reader`.
@@ -656,24 +657,6 @@ inline bool Reader::ReadAndAppend(size_t length, absl::Cord& dest) {
     return true;
   }
   return ReadSlow(length, dest);
-}
-
-inline bool Reader::Copy(Position length, Writer& dest) {
-  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    const absl::string_view data(cursor(), IntCast<size_t>(length));
-    move_cursor(IntCast<size_t>(length));
-    return dest.Write(data);
-  }
-  return CopySlow(length, dest);
-}
-
-inline bool Reader::Copy(size_t length, BackwardWriter& dest) {
-  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
-    const absl::string_view data(cursor(), length);
-    move_cursor(length);
-    return dest.Write(data);
-  }
-  return CopySlow(length, dest);
 }
 
 inline void Reader::ReadHint(size_t length) {
