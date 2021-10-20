@@ -295,4 +295,23 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   return true;
 }
 
+void JoiningReaderBase::ReadHintBehindScratch(size_t length) {
+  RIEGELI_ASSERT_LT(available(), length)
+      << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
+         "enough data available, use ReadHint() instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!healthy())) return;
+  Reader* shard = shard_reader();
+  if (shard_is_open(shard)) {
+    SyncBuffer(*shard);
+  } else {
+    if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return;
+    shard = shard_reader();
+  }
+  shard->ReadHint(length);
+  MakeBuffer(*shard);
+}
+
 }  // namespace riegeli
