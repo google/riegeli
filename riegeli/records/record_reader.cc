@@ -482,11 +482,8 @@ absl::optional<Position> RecordReaderBase::Size() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ChunkReader& src = *src_chunk_reader();
   const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
-    Fail(src);
-    return absl::nullopt;
-  }
-  return *size;
+  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) Fail(src);
+  return size;
 }
 
 // Traits for `BinarySearch()`: searching for a chunk.
