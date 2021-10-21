@@ -148,30 +148,27 @@ bool ChainReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   const Chain& src = *iter_.chain();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "ChainReader source changed unexpectedly";
-  const Position length_to_copy = UnsignedMin(length, src.size() - pos());
-  bool ok;
+  const size_t length_to_copy =
+      UnsignedMin(length, src.size() - IntCast<size_t>(pos()));
   if (length_to_copy == src.size()) {
     if (!Skip(length_to_copy)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Skip() failed";
     }
-    ok = dest.Write(src);
+    if (ABSL_PREDICT_FALSE(!dest.Write(src))) return false;
   } else if (length_to_copy <= kMaxBytesToCopy) {
-    if (ABSL_PREDICT_FALSE(!dest.Push(IntCast<size_t>(length_to_copy)))) {
-      return false;
-    }
-    if (!Read(IntCast<size_t>(length_to_copy), dest.cursor())) {
+    if (ABSL_PREDICT_FALSE(!dest.Push(length_to_copy))) return false;
+    if (!Read(length_to_copy, dest.cursor())) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(char*) failed";
     }
-    dest.move_cursor(IntCast<size_t>(length_to_copy));
-    ok = true;
+    dest.move_cursor(length_to_copy);
   } else {
     Chain data;
-    if (!Read(IntCast<size_t>(length_to_copy), data)) {
+    if (!Read(length_to_copy, data)) {
       RIEGELI_ASSERT_UNREACHABLE() << "ChainReader::Read(Chain&) failed";
     }
-    ok = dest.Write(std::move(data));
+    if (ABSL_PREDICT_FALSE(!dest.Write(std::move(data)))) return false;
   }
-  return ok && length_to_copy == length;
+  return length_to_copy == length;
 }
 
 bool ChainReaderBase::CopyBehindScratch(size_t length, BackwardWriter& dest) {
@@ -234,7 +231,8 @@ bool ChainReaderBase::SeekBehindScratch(Position new_pos) {
     set_buffer();
     return new_pos == src.size();
   }
-  const Chain::BlockAndChar block_and_char = src.BlockAndCharIndex(new_pos);
+  const Chain::BlockAndChar block_and_char =
+      src.BlockAndCharIndex(IntCast<size_t>(new_pos));
   iter_ = block_and_char.block_iter;
   set_buffer(iter_->data(), iter_->size(), block_and_char.char_index);
   set_limit_pos(new_pos + available());
