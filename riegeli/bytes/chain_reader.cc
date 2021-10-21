@@ -234,9 +234,9 @@ bool ChainReaderBase::SeekBehindScratch(Position new_pos) {
     set_buffer();
     return new_pos == src.size();
   }
-  const Chain::CharPosition char_pos = src.FindPosition(new_pos);
-  iter_ = char_pos.block_iter;
-  set_buffer(iter_->data(), iter_->size(), char_pos.char_index);
+  const Chain::BlockAndChar block_and_char = src.BlockAndCharIndex(new_pos);
+  iter_ = block_and_char.block_iter;
+  set_buffer(iter_->data(), iter_->size(), block_and_char.char_index);
   set_limit_pos(new_pos + available());
   return true;
 }

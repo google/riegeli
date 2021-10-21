@@ -163,7 +163,7 @@ class Chain {
 
   class Blocks;
   class BlockIterator;
-  struct CharPosition;
+  struct BlockAndChar;
 
   // A sentinel value for the `max_length` parameter of
   // `AppendBuffer()`/`PrependBuffer()`.
@@ -295,8 +295,10 @@ class Chain {
   // Locates the block containing the given character position, and the
   // character index within the block.
   //
-  // Precondition: `pos <= size()`
-  CharPosition FindPosition(size_t pos) const;
+  // The opposite conversion is `Chain::BlockIterator::CharIndexInChain()`.
+  //
+  // Precondition: `char_index_in_chain <= size()`
+  BlockAndChar BlockAndCharIndex(size_t char_index_in_chain) const;
 
   // Estimates the amount of memory used by this `Chain`.
   size_t EstimateMemory() const;
@@ -646,6 +648,12 @@ class Chain::BlockIterator {
   const Chain* chain() const { return chain_; }
   size_t block_index() const;
 
+  // Returns the char index relative to the beginning of the chain, given the
+  // corresponding char index relative to the beginning of the block.
+  //
+  // The opposite conversion is `Chain::BlockAndCharIndex()`.
+  size_t CharIndexInChain(size_t char_index_in_block = 0) const;
+
   reference operator*() const;
   pointer operator->() const;
   BlockIterator& operator++();
@@ -714,6 +722,8 @@ class Chain::BlockIterator {
 
   explicit BlockIterator(const Chain* chain, BlockPtrPtr ptr) noexcept;
 
+  size_t CharIndexInChainInternal() const;
+
   RawBlock* PinImpl();
 
   const Chain* chain_ = nullptr;
@@ -771,7 +781,7 @@ class Chain::Blocks {
 //
 // A `CharIterator` is not provided because it is more efficient to iterate by
 // blocks and process character ranges within a block.
-struct Chain::CharPosition {
+struct Chain::BlockAndChar {
   // Intended invariant:
   //   if `block_iter == block_iter.chain()->blocks().cend()`
   //       then `char_index == 0`
@@ -1528,7 +1538,7 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
     : chain_(chain),
       ptr_((ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
             : chain_->begin_ == chain_->end_
-                ? kBeginShortData + (chain_->empty() ? 1 : 0)
+                ? (chain_->empty() ? kEndShortData : kBeginShortData)
                 : BlockPtrPtr::from_ptr(chain_->begin_)) +
            IntCast<ptrdiff_t>(block_index)) {}
 
@@ -1537,11 +1547,18 @@ inline Chain::BlockIterator::BlockIterator(const Chain* chain,
     : chain_(chain), ptr_(ptr) {}
 
 inline size_t Chain::BlockIterator::block_index() const {
-  return IntCast<size_t>(
-      ptr_ - (ABSL_PREDICT_FALSE(chain_ == nullptr) ? kBeginShortData
-              : chain_->begin_ == chain_->end_
-                  ? kBeginShortData + (chain_->empty() ? 1 : 0)
-                  : BlockPtrPtr::from_ptr(chain_->begin_)));
+  if (ptr_ == kBeginShortData) {
+    return 0;
+  } else if (ptr_ == kEndShortData) {
+    return chain_->empty() ? 0 : 1;
+  } else {
+    return PtrDistance(chain_->begin_, ptr_.as_ptr());
+  }
+}
+
+inline size_t Chain::BlockIterator::CharIndexInChain(
+    size_t char_index_in_block) const {
+  return CharIndexInChainInternal() + char_index_in_block;
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
@@ -1678,10 +1695,11 @@ inline const T* Chain::BlockIterator::external_object() const {
 inline ChainBlock Chain::BlockIterator::Pin() { return ChainBlock(PinImpl()); }
 
 inline Chain::Blocks::iterator Chain::Blocks::begin() const {
-  return BlockIterator(
-      chain_, chain_->begin_ == chain_->end_
-                  ? BlockIterator::kBeginShortData + (chain_->empty() ? 1 : 0)
-                  : BlockPtrPtr::from_ptr(chain_->begin_));
+  return BlockIterator(chain_,
+                       chain_->begin_ == chain_->end_
+                           ? (chain_->empty() ? BlockIterator::kEndShortData
+                                              : BlockIterator::kBeginShortData)
+                           : BlockPtrPtr::from_ptr(chain_->begin_));
 }
 
 inline Chain::Blocks::iterator Chain::Blocks::end() const {

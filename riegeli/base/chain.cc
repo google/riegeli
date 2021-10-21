@@ -647,6 +647,29 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
       absl::string_view(*this), [this](absl::string_view) { Unref(); }));
 }
 
+size_t Chain::BlockIterator::CharIndexInChainInternal() const {
+  if (ptr_ == kBeginShortData) {
+    return 0;
+  } else if (ptr_ == kEndShortData) {
+    return chain_->size();
+  } else if (chain_->has_here()) {
+    switch (block_index()) {
+      case 0:
+        return 0;
+      case 1:
+        return chain_->begin_[0].block_ptr->size();
+      default:
+        RIEGELI_ASSERT_UNREACHABLE()
+            << "Failed invariant of Chain: "
+               "only two block pointers fit without allocating their array";
+    }
+  } else {
+    const size_t offset_base =
+        chain_->begin_[chain_->block_offsets()].block_offset;
+    return ptr_.as_ptr()[chain_->block_offsets()].block_offset - offset_base;
+  }
+}
+
 Chain::RawBlock* Chain::BlockIterator::PinImpl() {
   RIEGELI_ASSERT(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::Pin(): "
@@ -989,36 +1012,36 @@ Chain::operator absl::Cord() && {
   return dest;
 }
 
-Chain::CharPosition Chain::FindPosition(size_t pos) const {
-  RIEGELI_ASSERT_LE(pos, size())
-      << "Failed precondition of Chain::FindPosition(): "
+Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
+  RIEGELI_ASSERT_LE(char_index_in_chain, size())
+      << "Failed precondition of Chain::BlockAndCharIndex(): "
          "position out of range";
-  if (pos == size()) {
-    return CharPosition{blocks().cend(), 0};
+  if (char_index_in_chain == size()) {
+    return BlockAndChar{blocks().cend(), 0};
   } else if (begin_ == end_) {
-    return CharPosition{blocks().cbegin(), pos};
+    return BlockAndChar{blocks().cbegin(), char_index_in_chain};
   } else if (has_here()) {
     BlockIterator block_iter = blocks().cbegin();
-    if (pos >= block_iter->size()) {
-      pos -= block_iter->size();
+    if (char_index_in_chain >= block_iter->size()) {
+      char_index_in_chain -= block_iter->size();
       ++block_iter;
-      RIEGELI_ASSERT_LT(pos, block_iter->size())
+      RIEGELI_ASSERT_LT(char_index_in_chain, block_iter->size())
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
-    return CharPosition{block_iter, pos};
+    return BlockAndChar{block_iter, char_index_in_chain};
   } else {
     const size_t offset_base = begin_[block_offsets()].block_offset;
     const BlockPtr* const found =
         std::upper_bound(begin_ + block_offsets() + 1, end_ + block_offsets(),
-                         pos,
+                         char_index_in_chain,
                          [&](size_t value, BlockPtr element) {
                            return value < element.block_offset - offset_base;
                          }) -
         1;
-    return CharPosition{
+    return BlockAndChar{
         BlockIterator(this, PtrDistance(begin_ + block_offsets(), found)),
-        pos - (found->block_offset - offset_base)};
+        char_index_in_chain - (found->block_offset - offset_base)};
   }
 }
 
