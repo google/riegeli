@@ -273,8 +273,9 @@ inline FileWriterBase& FileWriterBase::operator=(
 
 inline void FileWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
-  filename_.clear();
+  filename_ = std::string();
   buffer_size_ = 0;
+  buffer_ = Buffer();
 }
 
 inline void FileWriterBase::Reset(size_t buffer_size) {

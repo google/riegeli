@@ -309,10 +309,10 @@ inline FileReaderBase& FileReaderBase::operator=(
 
 inline void FileReaderBase::Reset() {
   Reader::Reset(kInitiallyClosed);
-  filename_.clear();
+  filename_ = std::string();
   file_system_ = nullptr;
   buffer_size_ = 0;
-  buffer_.Clear();
+  buffer_ = ChainBlock();
 }
 
 inline void FileReaderBase::Reset(size_t buffer_size) {

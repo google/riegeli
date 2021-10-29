@@ -349,7 +349,7 @@ inline void DefaultChunkReaderBase::Reset(InitiallyOpen) {
   Object::Reset(kInitiallyOpen);
   truncated_ = false;
   pos_ = 0;
-  chunk_.Reset();
+  chunk_.Clear();
   recoverable_ = Recoverable::kNo;
   recoverable_pos_ = 0;
 }

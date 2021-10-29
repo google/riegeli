@@ -66,6 +66,7 @@ void DefaultChunkReaderBase::Done() {
         absl::StrCat("Truncated Riegeli/records file, incomplete chunk at ",
                      pos_, " with length ", recoverable_pos_ - pos_)));
   }
+  chunk_.Reset();
 }
 
 inline bool DefaultChunkReaderBase::FailReading(const Reader& src) {
@@ -157,7 +158,7 @@ bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
 
   chunk = std::move(chunk_);
   pos_ = chunk_end;
-  chunk_.Reset();
+  chunk_.Clear();
   return true;
 }
 
@@ -330,7 +331,7 @@ again:
   recoverable_pos_ = 0;
   std::string saved_message(status().message());
   MarkNotFailed();
-  chunk_.Reset();
+  chunk_.Clear();
   if (recoverable == Recoverable::kHaveChunk) {
     pos_ = recoverable_pos;
     if (healthy()) {
@@ -406,7 +407,7 @@ bool DefaultChunkReaderBase::Seek(Position new_pos) {
   Reader& src = *src_reader();
   truncated_ = false;
   pos_ = new_pos;
-  chunk_.Reset();
+  chunk_.Clear();
   if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) return FailSeeking(src, pos_);
   if (ABSL_PREDICT_FALSE(!internal::IsPossibleChunkBoundary(pos_))) {
     recoverable_ = Recoverable::kFindChunk;
@@ -457,11 +458,11 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
       goto read_block_header;
     }
     chunk_begin = chunk_end;
-    chunk_.Reset();
+    chunk_.Clear();
   } else {
   read_block_header:
     pos_ = block_begin;
-    chunk_.Reset();
+    chunk_.Clear();
     if (ABSL_PREDICT_FALSE(!src.Seek(pos_))) return FailSeeking(src, new_pos);
     if (ABSL_PREDICT_FALSE(!ReadBlockHeader())) {
       if (ABSL_PREDICT_FALSE(!healthy())) return false;

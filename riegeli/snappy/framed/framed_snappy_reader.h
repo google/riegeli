@@ -188,6 +188,7 @@ inline void FramedSnappyReaderBase::Reset(InitiallyClosed) {
   PullableReader::Reset(kInitiallyClosed);
   truncated_ = false;
   initial_compressed_pos_ = 0;
+  uncompressed_ = Buffer();
 }
 
 inline void FramedSnappyReaderBase::Reset(InitiallyOpen) {

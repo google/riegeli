@@ -180,7 +180,7 @@ inline void BufferedReader::Reset() {
   Reader::Reset(kInitiallyClosed);
   buffer_size_ = 0;
   size_hint_ = 0;
-  buffer_.Clear();
+  buffer_ = ChainBlock();
 }
 
 inline void BufferedReader::Reset(size_t buffer_size,

@@ -56,6 +56,7 @@ void SnappyWriterBase::Done() {
       }
     }
   }
+  uncompressed_ = Chain();
 }
 
 void SnappyWriterBase::DefaultAnnotateStatus() {

@@ -92,8 +92,8 @@ void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
 
 void FileWriterBase::Done() {
   SyncBuffer();
-  buffer_ = Buffer();
   Writer::Done();
+  buffer_ = Buffer();
 }
 
 bool FileWriterBase::FailOperation(const ::tensorflow::Status& status,

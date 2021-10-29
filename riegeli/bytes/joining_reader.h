@@ -251,7 +251,7 @@ inline void JoiningReader<Shard>::Reset(InitiallyOpen) {
 template <typename Shard>
 void JoiningReader<Shard>::Done() {
   JoiningReaderBase::Done();
-  shard_ = Dependency<Reader*, Shard>();
+  shard_.Reset();
 }
 
 template <typename Shard>

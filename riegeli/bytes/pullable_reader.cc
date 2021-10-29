@@ -52,11 +52,11 @@ void PullableReader::Done() {
     }
     const Position new_pos = pos();
     SyncScratch();
-    scratch_.reset();
     Seek(new_pos);
   }
   DoneBehindScratch();
   Reader::Done();
+  scratch_.reset();
 }
 
 void PullableReader::SyncScratch() {

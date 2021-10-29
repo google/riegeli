@@ -44,10 +44,10 @@ void BufferedReader::Done() {
     }
     const Position new_pos = pos();
     set_buffer();
-    buffer_ = ChainBlock();
     SeekBehindBuffer(new_pos);
   }
   Reader::Done();
+  buffer_ = ChainBlock();
 }
 
 void BufferedReader::VerifyEnd() {

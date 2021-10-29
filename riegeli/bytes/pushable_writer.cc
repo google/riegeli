@@ -43,8 +43,8 @@ void PushableWriter::Done() {
   if (ABSL_PREDICT_TRUE(!scratch_used()) || ABSL_PREDICT_TRUE(SyncScratch())) {
     DoneBehindScratch();
   }
-  scratch_.reset();
   Writer::Done();
+  scratch_.reset();
 }
 
 void PushableWriter::OnFail() {

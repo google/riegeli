@@ -342,7 +342,7 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
 
 inline void FdWriterBase::Reset() {
   BufferedWriter::Reset();
-  filename_.clear();
+  filename_ = std::string();
   supports_random_access_ = false;
   has_independent_pos_ = false;
 }

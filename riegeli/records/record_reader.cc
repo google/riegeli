@@ -132,7 +132,7 @@ RecordReaderBase& RecordReaderBase::operator=(
 void RecordReaderBase::Reset(InitiallyClosed) {
   Object::Reset(kInitiallyClosed);
   chunk_begin_ = 0;
-  chunk_decoder_.Clear();
+  chunk_decoder_.Reset();
   last_record_is_valid_ = false;
   recoverable_ = Recoverable::kNo;
   recovery_ = nullptr;

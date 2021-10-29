@@ -519,7 +519,7 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
 
 inline void FdReaderBase::Reset() {
   BufferedReader::Reset();
-  filename_.clear();
+  filename_ = std::string();
   supports_random_access_ = false;
   has_independent_pos_ = false;
 }
@@ -556,7 +556,7 @@ inline FdMMapReaderBase& FdMMapReaderBase::operator=(
 
 inline void FdMMapReaderBase::Reset() {
   ChainReader::Reset();
-  filename_.clear();
+  filename_ = std::string();
   has_independent_pos_ = false;
 }
 

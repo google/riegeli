@@ -174,6 +174,7 @@ inline void BufferedWriter::Reset() {
   Writer::Reset(kInitiallyClosed);
   buffer_size_ = 0;
   size_hint_ = 0;
+  buffer_ = Buffer();
 }
 
 inline void BufferedWriter::Reset(size_t buffer_size,

@@ -192,7 +192,7 @@ inline PullableReader& PullableReader::operator=(
 
 inline void PullableReader::Reset(InitiallyClosed) {
   Reader::Reset(kInitiallyClosed);
-  if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
+  scratch_.reset();
 }
 
 inline void PullableReader::Reset(InitiallyOpen) {

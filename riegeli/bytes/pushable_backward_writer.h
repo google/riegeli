@@ -201,7 +201,7 @@ inline PushableBackwardWriter& PushableBackwardWriter::operator=(
 
 inline void PushableBackwardWriter::Reset(InitiallyClosed) {
   BackwardWriter::Reset(kInitiallyClosed);
-  if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
+  scratch_.reset();
 }
 
 inline void PushableBackwardWriter::Reset(InitiallyOpen) {

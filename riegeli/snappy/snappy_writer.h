@@ -311,7 +311,7 @@ inline SnappyWriterBase& SnappyWriterBase::operator=(
 inline void SnappyWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
   options_ = Chain::Options();
-  uncompressed_.Clear();
+  uncompressed_ = Chain();
 }
 
 inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {

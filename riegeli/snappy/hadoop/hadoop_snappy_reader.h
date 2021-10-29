@@ -190,6 +190,7 @@ inline void HadoopSnappyReaderBase::Reset(InitiallyClosed) {
   truncated_ = false;
   remaining_chunk_length_ = 0;
   initial_compressed_pos_ = 0;
+  uncompressed_ = Buffer();
 }
 
 inline void HadoopSnappyReaderBase::Reset(InitiallyOpen) {

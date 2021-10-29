@@ -52,6 +52,7 @@ void HadoopSnappyReaderBase::Done() {
         absl::StrCat("at byte ", src.pos())));
   }
   PullableReader::Done();
+  uncompressed_ = Buffer();
 }
 
 bool HadoopSnappyReaderBase::FailInvalidStream(absl::string_view message) {

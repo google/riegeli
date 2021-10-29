@@ -203,7 +203,7 @@ inline PushableWriter& PushableWriter::operator=(
 
 inline void PushableWriter::Reset(InitiallyClosed) {
   Writer::Reset(kInitiallyClosed);
-  if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
+  scratch_.reset();
 }
 
 inline void PushableWriter::Reset(InitiallyOpen) {

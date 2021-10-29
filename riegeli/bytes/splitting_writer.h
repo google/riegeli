@@ -299,7 +299,7 @@ inline void SplittingWriter<Shard>::Reset(InitiallyOpen) {
 template <typename Shard>
 void SplittingWriter<Shard>::Done() {
   SplittingWriterBase::Done();
-  shard_ = Dependency<Writer*, Shard>();
+  shard_.Reset();
 }
 
 template <typename Shard>
