@@ -397,9 +397,6 @@ class Chain {
   friend bool operator<=(absl::string_view a, const Chain& b);
   friend bool operator>=(absl::string_view a, const Chain& b);
 
-  template <typename HashState>
-  friend HashState AbslHashValue(HashState hash_state, const Chain& self);
-
   friend std::ostream& operator<<(std::ostream& out, const Chain& str);
 
   // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
@@ -2104,20 +2101,6 @@ inline bool operator<=(absl::string_view a, const Chain& b) {
 
 inline bool operator>=(absl::string_view a, const Chain& b) {
   return b.Compare(a) <= 0;
-}
-
-template <typename HashState>
-HashState AbslHashValue(HashState hash_state, const Chain& self) {
-  if (const absl::optional<absl::string_view> flat = self.TryFlat()) {
-    return HashState::combine(std::move(hash_state), *flat);
-  }
-  typename HashState::AbslInternalPiecewiseCombiner combiner;
-  for (const absl::string_view block : self.blocks()) {
-    hash_state =
-        combiner.add_buffer(std::move(hash_state), block.data(), block.size());
-  }
-  return HashState::combine(combiner.finalize(std::move(hash_state)),
-                            self.size());
 }
 
 template <typename T>
