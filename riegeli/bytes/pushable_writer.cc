@@ -248,6 +248,9 @@ bool PushableWriter::FlushBehindScratch(FlushType flush_type) {
 }
 
 bool PushableWriter::SeekBehindScratch(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of PushableWriter::SeekBehindScratch(): "
+         "position unchanged, use Seek() instead";
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::SeekBehindScratch(): "
          "scratch used";
@@ -383,7 +386,10 @@ bool PushableWriter::FlushImpl(FlushType flush_type) {
   return FlushBehindScratch(flush_type);
 }
 
-bool PushableWriter::SeekImpl(Position new_pos) {
+bool PushableWriter::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   }

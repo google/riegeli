@@ -97,6 +97,9 @@ bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
 }
 
 bool BufferedWriter::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "position unchanged, use Seek() instead";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer():"
          "buffer not empty";
@@ -149,7 +152,10 @@ bool BufferedWriter::FlushImpl(FlushType flush_type) {
   return FlushBehindBuffer(src, flush_type);
 }
 
-bool BufferedWriter::SeekImpl(Position new_pos) {
+bool BufferedWriter::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return SeekBehindBuffer(new_pos);
 }

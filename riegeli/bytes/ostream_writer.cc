@@ -147,6 +147,9 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
 }
 
 bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "position unchanged, use Seek() instead";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
@@ -156,7 +159,7 @@ bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
   }
   std::ostream& dest = *dest_stream();
   errno = 0;
-  if (new_pos >= start_pos()) {
+  if (new_pos > start_pos()) {
     // Seeking forwards.
     dest.seekp(0, std::ios_base::end);
     if (ABSL_PREDICT_FALSE(dest.fail())) {

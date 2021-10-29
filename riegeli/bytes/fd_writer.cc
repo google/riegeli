@@ -225,12 +225,15 @@ inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
 }
 
 bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "position unchanged, use Seek() instead";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const int dest = dest_fd();
-  if (new_pos >= start_pos()) {
+  if (new_pos > start_pos()) {
     // Seeking forwards.
     struct stat stat_info;
     if (ABSL_PREDICT_FALSE(fstat(dest, &stat_info) < 0)) {

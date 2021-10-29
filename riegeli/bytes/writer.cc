@@ -122,7 +122,10 @@ bool Writer::WriteZerosSlow(Position length) {
 
 bool Writer::FlushImpl(FlushType flush_type) { return healthy(); }
 
-bool Writer::SeekImpl(Position new_pos) {
+bool Writer::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 

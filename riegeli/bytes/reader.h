@@ -455,7 +455,7 @@ class Reader : public Object {
   // Sets the value of `limit_pos()`.
   void set_limit_pos(Position limit_pos);
 
-  // Implementation of the slow part of `Seek()`, `Skip()`, and `Rewind()`.
+  // Implementation of the slow part of `Seek()` and `Skip()`.
   //
   // By default seeking forwards is implemented in terms of `Pull()`, and
   // seeking backwards fails.

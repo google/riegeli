@@ -210,6 +210,9 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
 }
 
 bool PythonWriter::SeekBehindBuffer(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
+         "position unchanged, use Seek() instead";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
@@ -217,7 +220,7 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
     return Fail(absl::UnimplementedError("PythonWriter::Seek() not supported"));
   }
   PythonLock lock;
-  if (new_pos >= start_pos()) {
+  if (new_pos > start_pos()) {
     // Seeking forwards.
     const absl::optional<Position> size = SizeInternal();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;

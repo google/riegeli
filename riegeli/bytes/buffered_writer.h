@@ -101,7 +101,7 @@ class BufferedWriter : public Writer {
   // Precondition: `start_to_limit() == 0`
   virtual bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
 
-  // Implementation of `SeekImpl()`, `Size()`, and `Truncate()`, called while no
+  // Implementation of `SeekSlow()`, `Size()`, and `Truncate()`, called while no
   // data are buffered.
   //
   // By default they are implemented analogously to the corresponding `Writer`
@@ -120,7 +120,7 @@ class BufferedWriter : public Writer {
   bool WriteSlow(absl::string_view src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekImpl(Position new_pos) override;
+  bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 

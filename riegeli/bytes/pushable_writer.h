@@ -133,7 +133,7 @@ class PushableWriter : public Writer {
   bool ForcePushUsingScratch();
 
   // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`,
-  // `SeekImpl()`, `SizeImpl()`, and `TruncateImpl()`, called while scratch is
+  // `SeekSlow()`, `SizeImpl()`, and `TruncateImpl()`, called while scratch is
   // not used.
   //
   // By default they are implemented analogously to the corresponding `Writer`
@@ -163,7 +163,7 @@ class PushableWriter : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   bool FlushImpl(FlushType flush_type) override;
-  bool SeekImpl(Position new_pos) override;
+  bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 

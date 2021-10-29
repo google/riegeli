@@ -205,7 +205,8 @@ class Writer : public Object {
   // i.e. `pos() + available()`.
   Position limit_pos() const;
 
-  // Returns `true` if this Writer supports `Seek()` and `Size()`.
+  // Returns `true` if this Writer supports `Seek()` to other positions
+  // (`Seek()` to the current position is always supported) and `Size()`.
   virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
@@ -216,7 +217,10 @@ class Writer : public Object {
   //                                  (position is set to end)
   //  * `false` (when `!healthy()`) - failure
   //
-  // `Seek()` is supported if `SupportsRandomAccess()` is `true`.
+  // `Seek()` to the current position is always supported.
+  //
+  // `Seek()` to other positions is supported if `SupportsRandomAccess()` is
+  // `true`.
   bool Seek(Position new_pos);
 
   // Returns the size of the destination, i.e. the position corresponding to its
@@ -342,10 +346,12 @@ class Writer : public Object {
   // Sets the value of `start_pos()`.
   void set_start_pos(Position start_pos);
 
-  // Implementation of `Seek()`.
+  // Implementation of the slow part of `Seek()`.
   //
   // By default fails.
-  virtual bool SeekImpl(Position new_pos);
+  //
+  // Precondition: `new_pos != pos()`
+  virtual bool SeekSlow(Position new_pos);
 
   // Implementation of `Size()`.
   //
@@ -573,7 +579,10 @@ inline void Writer::set_start_pos(Position start_pos) {
   start_pos_ = start_pos;
 }
 
-inline bool Writer::Seek(Position new_pos) { return SeekImpl(new_pos); }
+inline bool Writer::Seek(Position new_pos) {
+  if (ABSL_PREDICT_TRUE(new_pos == pos())) return true;
+  return SeekSlow(new_pos);
+}
 
 inline absl::optional<Position> Writer::Size() { return SizeImpl(); }
 

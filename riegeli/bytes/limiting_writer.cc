@@ -141,7 +141,10 @@ bool LimitingWriterBase::SupportsRandomAccess() {
   return dest != nullptr && dest->SupportsRandomAccess();
 }
 
-bool LimitingWriterBase::SeekImpl(Position new_pos) {
+bool LimitingWriterBase::SeekSlow(Position new_pos) {
+  RIEGELI_ASSERT_NE(new_pos, pos())
+      << "Failed precondition of Writer::SeekSlow(): "
+         "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return false;
