@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -109,19 +110,22 @@ class FileWriterBase : public Writer {
   // Unchanged by `Close()`.
   const std::string& filename() const { return filename_; }
 
+  bool SupportsSize() override { return !filename_.empty(); }
+
  protected:
   FileWriterBase() noexcept : Writer(kInitiallyClosed) {}
 
-  explicit FileWriterBase(size_t buffer_size);
+  explicit FileWriterBase(::tensorflow::Env* env, size_t buffer_size);
 
   FileWriterBase(FileWriterBase&& that) noexcept;
   FileWriterBase& operator=(FileWriterBase&& that) noexcept;
 
   void Reset();
-  void Reset(size_t buffer_size);
+  void Reset(::tensorflow::Env* env, size_t buffer_size);
   void Initialize(::tensorflow::WritableFile* dest);
-  std::unique_ptr<::tensorflow::WritableFile> OpenFile(
-      ::tensorflow::Env* env, absl::string_view filename, bool append);
+  bool InitializeFilename(::tensorflow::WritableFile* dest);
+  bool InitializeFilename(absl::string_view filename, ::tensorflow::Env* env);
+  std::unique_ptr<::tensorflow::WritableFile> OpenFile(bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const ::tensorflow::Status& status,
                                          absl::string_view operation);
@@ -132,9 +136,9 @@ class FileWriterBase : public Writer {
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
 
  private:
-  void InitializeFilename(::tensorflow::WritableFile* dest);
   bool SyncBuffer();
 
   // Minimum length for which it is better to push current contents of `buffer_`
@@ -152,6 +156,12 @@ class FileWriterBase : public Writer {
   bool WriteInternal(absl::string_view src);
 
   std::string filename_;
+  // Invariant:
+  //   if `is_open() && !filename_.empty()` then `env_ != nullptr`
+  ::tensorflow::Env* env_ = nullptr;
+  // Invariant:
+  //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
+  ::tensorflow::FileSystem* file_system_ = nullptr;
   // Invariant: if `is_open()` then `buffer_size_ > 0`
   size_t buffer_size_ = 0;
   // Buffered data to be written.
@@ -249,14 +259,19 @@ explicit FileWriter(absl::string_view filename,
 
 // Implementation details follow.
 
-inline FileWriterBase::FileWriterBase(size_t buffer_size)
-    : Writer(kInitiallyOpen), buffer_size_(buffer_size) {}
+inline FileWriterBase::FileWriterBase(::tensorflow::Env* env,
+                                      size_t buffer_size)
+    : Writer(kInitiallyOpen),
+      env_(env != nullptr ? env : ::tensorflow::Env::Default()),
+      buffer_size_(buffer_size) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       filename_(std::move(that.filename_)),
+      env_(that.env_),
+      file_system_(that.file_system_),
       buffer_size_(that.buffer_size_),
       buffer_(std::move(that.buffer_)) {}
 
@@ -266,6 +281,8 @@ inline FileWriterBase& FileWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   filename_ = std::move(that.filename_);
+  env_ = that.env_;
+  file_system_ = that.file_system_;
   buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
   return *this;
@@ -274,33 +291,37 @@ inline FileWriterBase& FileWriterBase::operator=(
 inline void FileWriterBase::Reset() {
   Writer::Reset(kInitiallyClosed);
   filename_ = std::string();
+  env_ = nullptr;
+  file_system_ = nullptr;
   buffer_size_ = 0;
   buffer_ = Buffer();
 }
 
-inline void FileWriterBase::Reset(size_t buffer_size) {
+inline void FileWriterBase::Reset(::tensorflow::Env* env, size_t buffer_size) {
   Writer::Reset(kInitiallyOpen);
-  // `filename_` will by set by `InitializeFilename()` or was set by
-  // `OpenFile()`.
+  env_ = env != nullptr ? env : ::tensorflow::Env::Default();
+  // `filename_` and `file_system_` will be or were set by
+  // `InitializeFilename()`.
   buffer_size_ = buffer_size;
 }
 
 inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of FileWriter: null WritableFile pointer";
-  InitializeFilename(dest);
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(dest))) return;
   InitializePos(dest);
 }
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(const Dest& dest, Options options)
-    : FileWriterBase(options.buffer_size()), dest_(dest) {
+    : FileWriterBase(options.env(), options.buffer_size()), dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline FileWriter<Dest>::FileWriter(Dest&& dest, Options options)
-    : FileWriterBase(options.buffer_size()), dest_(std::move(dest)) {
+    : FileWriterBase(options.env(), options.buffer_size()),
+      dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -308,7 +329,8 @@ template <typename Dest>
 template <typename... DestArgs>
 inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
                                     Options options)
-    : FileWriterBase(options.buffer_size()), dest_(std::move(dest_args)) {
+    : FileWriterBase(options.env(), options.buffer_size()),
+      dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -344,14 +366,14 @@ inline void FileWriter<Dest>::Reset() {
 
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(const Dest& dest, Options options) {
-  FileWriterBase::Reset(options.buffer_size());
+  FileWriterBase::Reset(options.env(), options.buffer_size());
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(Dest&& dest, Options options) {
-  FileWriterBase::Reset(options.buffer_size());
+  FileWriterBase::Reset(options.env(), options.buffer_size());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -360,7 +382,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                     Options options) {
-  FileWriterBase::Reset(options.buffer_size());
+  FileWriterBase::Reset(options.env(), options.buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
@@ -375,10 +397,14 @@ inline void FileWriter<Dest>::Reset(absl::string_view filename,
 template <typename Dest>
 inline void FileWriter<Dest>::Initialize(absl::string_view filename,
                                          Options&& options) {
-  std::unique_ptr<::tensorflow::WritableFile> dest =
-      OpenFile(options.env(), filename, options.append());
+  if (ABSL_PREDICT_FALSE(!InitializeFilename(
+          filename, options.env() != nullptr ? options.env()
+                                             : ::tensorflow::Env::Default()))) {
+    return;
+  }
+  std::unique_ptr<::tensorflow::WritableFile> dest = OpenFile(options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
-  FileWriterBase::Reset(options.buffer_size());
+  FileWriterBase::Reset(options.env(), options.buffer_size());
   dest_.Reset(std::forward_as_tuple(dest.release()));
   InitializePos(dest_.get());
 }

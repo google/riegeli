@@ -142,6 +142,7 @@ class LimitingWriterBase : public Writer {
 
   bool PrefersCopying() const override;
   bool SupportsRandomAccess() override;
+  bool SupportsSize() override;
   bool SupportsTruncate() override;
 
  protected:

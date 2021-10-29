@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -43,6 +44,7 @@ class ArrayWriterBase : public PushableWriter {
   absl::Span<const char> written() const { return written_; }
 
   bool PrefersCopying() const override { return true; }
+  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
@@ -60,6 +62,7 @@ class ArrayWriterBase : public PushableWriter {
 
   bool PushBehindScratch() override;
   bool FlushBehindScratch(FlushType flush_type) override;
+  absl::optional<Position> SizeBehindScratch() override;
   bool TruncateBehindScratch(Position new_size) override;
 
   // Written data. Valid only after `Close()` or `Flush()`.

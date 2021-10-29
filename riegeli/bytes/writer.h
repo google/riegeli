@@ -207,6 +207,8 @@ class Writer : public Object {
 
   // Returns `true` if this Writer supports `Seek()` to other positions
   // (`Seek()` to the current position is always supported) and `Size()`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`.
   virtual bool SupportsRandomAccess() { return false; }
 
   // Sets the current position for subsequent operations.
@@ -222,6 +224,11 @@ class Writer : public Object {
   // `Seek()` to other positions is supported if `SupportsRandomAccess()` is
   // `true`.
   bool Seek(Position new_pos);
+
+  // Returns `true` if this `Reader` supports `Size()`.
+  //
+  // Invariant: if `SupportsRandomAccess()` then `SupportsSize()`.
+  virtual bool SupportsSize() { return SupportsRandomAccess(); }
 
   // Returns the size of the destination, i.e. the position corresponding to its
   // end.

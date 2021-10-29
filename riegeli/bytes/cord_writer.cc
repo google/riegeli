@@ -23,6 +23,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -198,6 +199,11 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
+}
+
+absl::optional<Position> CordWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  return pos();
 }
 
 bool CordWriterBase::TruncateImpl(Position new_size) {

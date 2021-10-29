@@ -80,6 +80,7 @@ class StringWriterBase : public Writer {
   virtual const std::string* dest_string() const = 0;
 
   bool PrefersCopying() const override { return true; }
+  bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
 
  protected:
@@ -101,6 +102,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool FlushImpl(FlushType flush_type) override;
+  absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 
  private:

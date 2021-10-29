@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -152,6 +153,11 @@ bool ChainWriterBase::FlushImpl(FlushType flush_type) {
       << "ChainWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
+}
+
+absl::optional<Position> ChainWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  return pos();
 }
 
 bool ChainWriterBase::TruncateImpl(Position new_size) {

@@ -21,6 +21,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/writer.h"
@@ -110,6 +111,20 @@ bool DigestingWriterBase::WriteZerosSlow(Position length) {
 bool DigestingWriterBase::PrefersCopying() const {
   const Writer* const dest = dest_writer();
   return dest != nullptr && dest->PrefersCopying();
+}
+
+bool DigestingWriterBase::SupportsSize() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsSize();
+}
+
+absl::optional<Position> DigestingWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  Writer& dest = *dest_writer();
+  SyncBuffer(dest);
+  const absl::optional<Position> size = dest.Size();
+  MakeBuffer(dest);
+  return size;
 }
 
 inline void DigestingWriterBase::DigesterWrite(const Chain& src) {

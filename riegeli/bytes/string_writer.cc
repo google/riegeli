@@ -22,6 +22,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/writer.h"
@@ -138,6 +139,11 @@ bool StringWriterBase::FlushImpl(FlushType flush_type) {
       << "StringWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
+}
+
+absl::optional<Position> StringWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  return pos();
 }
 
 bool StringWriterBase::TruncateImpl(Position new_size) {

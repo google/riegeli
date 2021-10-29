@@ -159,6 +159,11 @@ bool LimitingWriterBase::PrefersCopying() const {
   return dest != nullptr && dest->PrefersCopying();
 }
 
+bool LimitingWriterBase::SupportsSize() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsSize();
+}
+
 absl::optional<Position> LimitingWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   Writer& dest = *dest_writer();

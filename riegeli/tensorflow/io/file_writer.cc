@@ -26,6 +26,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
@@ -41,37 +42,46 @@
 namespace riegeli {
 namespace tensorflow {
 
-void FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
+bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
   {
     const ::tensorflow::Status status = dest->Name(&filename);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       if (!::tensorflow::errors::IsUnimplemented(status)) {
-        FailOperation(status, "WritableFile::Name()");
+        return FailOperation(status, "WritableFile::Name()");
       }
-      return;
+      return true;
     }
   }
+  return InitializeFilename(filename, env_);
+}
+
+bool FileWriterBase::InitializeFilename(absl::string_view filename,
+                                        ::tensorflow::Env* env) {
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
+  {
+    const ::tensorflow::Status status =
+        env->GetFileSystemForFile(filename_, &file_system_);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return FailOperation(status, "Env::GetFileSystemForFile()");
+    }
+  }
+  return true;
 }
 
 std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
-    ::tensorflow::Env* env, absl::string_view filename, bool append) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `filename_ = filename`
-  filename_.assign(filename.data(), filename.size());
-  if (env == nullptr) env = ::tensorflow::Env::Default();
+    bool append) {
   std::unique_ptr<::tensorflow::WritableFile> dest;
   {
     const ::tensorflow::Status status =
-        append ? env->NewAppendableFile(filename_, &dest)
-               : env->NewWritableFile(filename_, &dest);
+        append ? file_system_->NewAppendableFile(filename_, &dest)
+               : file_system_->NewWritableFile(filename_, &dest);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailOperation(status, append
-                                ? absl::string_view("Env::NewAppendableFile()")
-                                : absl::string_view("Env::NewWritableFile()"));
+      FailOperation(
+          status, append ? absl::string_view("FileSystem::NewAppendableFile()")
+                         : absl::string_view("FileSystem::NewWritableFile()"));
       return nullptr;
     }
   }
@@ -185,6 +195,23 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
 bool FileWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return healthy();
+}
+
+absl::optional<Position> FileWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(filename_.empty())) {
+    return Writer::SizeImpl();  // Fail.
+  }
+  if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
+  ::tensorflow::uint64 file_size;
+  {
+    const ::tensorflow::Status status =
+        file_system_->GetFileSize(filename_, &file_size);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      FailOperation(status, "FileSystem::GetFileSize()");
+      return absl::nullopt;
+    }
+  }
+  return Position{file_size};
 }
 
 }  // namespace tensorflow

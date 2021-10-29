@@ -342,6 +342,7 @@ cc_library(
         ":pushable_writer",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )

@@ -43,6 +43,7 @@ class DigestingWriterBase : public Writer {
   virtual const Writer* dest_writer() const = 0;
 
   bool PrefersCopying() const override;
+  bool SupportsSize() override;
 
  protected:
   explicit DigestingWriterBase(InitiallyClosed) noexcept
@@ -64,6 +65,7 @@ class DigestingWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
+  absl::optional<Position> SizeImpl();
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).
