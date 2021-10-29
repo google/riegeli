@@ -138,14 +138,13 @@ class DefaultChunkReaderBase : public Object {
   absl::optional<Position> Size();
 
  protected:
-  explicit DefaultChunkReaderBase(InitiallyClosed) : Object(kInitiallyClosed) {}
-  explicit DefaultChunkReaderBase(InitiallyOpen) : Object(kInitiallyOpen) {}
+  using Object::Object;
 
   DefaultChunkReaderBase(DefaultChunkReaderBase&& that) noexcept;
   DefaultChunkReaderBase& operator=(DefaultChunkReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src);
 
   void Done() override;
@@ -256,7 +255,7 @@ template <typename Src = Reader*>
 class DefaultChunkReader : public DefaultChunkReaderBase {
  public:
   // Creates a closed `DefaultChunkReader`.
-  DefaultChunkReader() : DefaultChunkReaderBase(kInitiallyClosed) {}
+  explicit DefaultChunkReader(Closed) : DefaultChunkReaderBase(kClosed) {}
 
   // Will read from the byte `Reader` provided by `src`.
   explicit DefaultChunkReader(const Src& src);
@@ -273,7 +272,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkReader`. This
   // avoids constructing a temporary `DefaultChunkReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
@@ -297,7 +296,7 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-DefaultChunkReader()->DefaultChunkReader<DeleteCtad<>>;
+explicit DefaultChunkReader(Closed)->DefaultChunkReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit DefaultChunkReader(const Src& src)
     -> DefaultChunkReader<std::decay_t<Src>>;
@@ -336,8 +335,8 @@ inline DefaultChunkReaderBase& DefaultChunkReaderBase::operator=(
   return *this;
 }
 
-inline void DefaultChunkReaderBase::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void DefaultChunkReaderBase::Reset(Closed) {
+  Object::Reset(kClosed);
   truncated_ = false;
   pos_ = 0;
   chunk_.Reset();
@@ -345,8 +344,8 @@ inline void DefaultChunkReaderBase::Reset(InitiallyClosed) {
   recoverable_pos_ = 0;
 }
 
-inline void DefaultChunkReaderBase::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void DefaultChunkReaderBase::Reset() {
+  Object::Reset();
   truncated_ = false;
   pos_ = 0;
   chunk_.Clear();
@@ -355,14 +354,13 @@ inline void DefaultChunkReaderBase::Reset(InitiallyOpen) {
 }
 
 template <typename Src>
-inline DefaultChunkReader<Src>::DefaultChunkReader(const Src& src)
-    : DefaultChunkReaderBase(kInitiallyOpen), src_(src) {
+inline DefaultChunkReader<Src>::DefaultChunkReader(const Src& src) : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline DefaultChunkReader<Src>::DefaultChunkReader(Src&& src)
-    : DefaultChunkReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -370,7 +368,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline DefaultChunkReader<Src>::DefaultChunkReader(
     std::tuple<SrcArgs...> src_args)
-    : DefaultChunkReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -393,21 +391,21 @@ inline DefaultChunkReader<Src>& DefaultChunkReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void DefaultChunkReader<Src>::Reset() {
-  DefaultChunkReaderBase::Reset(kInitiallyClosed);
+inline void DefaultChunkReader<Src>::Reset(Closed) {
+  DefaultChunkReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void DefaultChunkReader<Src>::Reset(const Src& src) {
-  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  DefaultChunkReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void DefaultChunkReader<Src>::Reset(Src&& src) {
-  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  DefaultChunkReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -415,7 +413,7 @@ inline void DefaultChunkReader<Src>::Reset(Src&& src) {
 template <typename Src>
 template <typename... SrcArgs>
 inline void DefaultChunkReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  DefaultChunkReaderBase::Reset(kInitiallyOpen);
+  DefaultChunkReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

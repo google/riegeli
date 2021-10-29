@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -46,10 +47,7 @@ class DigestingWriterBase : public Writer {
   bool SupportsSize() override;
 
  protected:
-  explicit DigestingWriterBase(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit DigestingWriterBase(InitiallyOpen) noexcept
-      : Writer(kInitiallyOpen) {}
+  using Writer::Writer;
 
   DigestingWriterBase(DigestingWriterBase&& that) noexcept;
   DigestingWriterBase& operator=(DigestingWriterBase&& that) noexcept;
@@ -141,7 +139,10 @@ class DigestingWriter : public DigestingWriterBase {
   using DigestType = internal::DigestType<Digester>;
 
   // Creates a closed `DigestingWriter`.
-  DigestingWriter() noexcept : DigestingWriterBase(kInitiallyClosed) {}
+  explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  DigestingWriter() noexcept : DigestingWriter(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`. Constructs a
   // `Digester` from `digester_args`.
@@ -162,7 +163,7 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `DigestingWriter`. This
   // avoids constructing a temporary `DigestingWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   template <typename... DigesterArgs>
   void Reset(const Dest& dest, DigesterArgs&&... digester_args);
   template <typename... DigesterArgs>
@@ -199,7 +200,7 @@ class DigestingWriter : public DigestingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-DigestingWriter()->DigestingWriter<void, DeleteCtad<>>;
+explicit DigestingWriter(Closed)->DigestingWriter<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Dest>
 explicit DigestingWriter(const Dest& dest, Digester&& digester)
     -> DigestingWriter<std::decay_t<Digester>, std::decay_t<Dest>>;
@@ -249,9 +250,7 @@ template <typename Digester, typename Dest>
 template <typename... DigesterArgs>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     const Dest& dest, DigesterArgs&&... digester_args)
-    : DigestingWriterBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
-      dest_(dest) {
+    : digester_(std::forward<DigesterArgs>(digester_args)...), dest_(dest) {
   Initialize(dest_.get());
 }
 
@@ -259,8 +258,7 @@ template <typename Digester, typename Dest>
 template <typename... DigesterArgs>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     Dest&& dest, DigesterArgs&&... digester_args)
-    : DigestingWriterBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
+    : digester_(std::forward<DigesterArgs>(digester_args)...),
       dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
@@ -269,8 +267,7 @@ template <typename Digester, typename Dest>
 template <typename... DestArgs, typename... DigesterArgs>
 inline DigestingWriter<Digester, Dest>::DigestingWriter(
     std::tuple<DestArgs...> dest_args, DigesterArgs&&... digester_args)
-    : DigestingWriterBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
+    : digester_(std::forward<DigesterArgs>(digester_args)...),
       dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
@@ -297,8 +294,8 @@ DigestingWriter<Digester, Dest>::operator=(DigestingWriter&& that) noexcept {
 }
 
 template <typename Digester, typename Dest>
-inline void DigestingWriter<Digester, Dest>::Reset() {
-  DigestingWriterBase::Reset(kInitiallyClosed);
+inline void DigestingWriter<Digester, Dest>::Reset(Closed) {
+  DigestingWriterBase::Reset(kClosed);
   riegeli::Reset(digester_);
   dest_.Reset();
 }
@@ -307,7 +304,7 @@ template <typename Digester, typename Dest>
 template <typename... DigesterArgs>
 inline void DigestingWriter<Digester, Dest>::Reset(
     const Dest& dest, DigesterArgs&&... digester_args) {
-  DigestingWriterBase::Reset(kInitiallyOpen);
+  DigestingWriterBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   dest_.Reset(dest);
   Initialize(dest_.get());
@@ -317,7 +314,7 @@ template <typename Digester, typename Dest>
 template <typename... DigesterArgs>
 inline void DigestingWriter<Digester, Dest>::Reset(
     Dest&& dest, DigesterArgs&&... digester_args) {
-  DigestingWriterBase::Reset(kInitiallyOpen);
+  DigestingWriterBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
@@ -327,7 +324,7 @@ template <typename Digester, typename Dest>
 template <typename... DestArgs, typename... DigesterArgs>
 inline void DigestingWriter<Digester, Dest>::Reset(
     std::tuple<DestArgs...> dest_args, DigesterArgs&&... digester_args) {
-  DigestingWriterBase::Reset(kInitiallyOpen);
+  DigestingWriterBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());

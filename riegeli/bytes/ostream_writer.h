@@ -29,6 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/stream_dependency.h"
 
@@ -89,14 +90,14 @@ class OstreamWriterBase : public BufferedWriter {
   bool SupportsTruncate() override { return false; }
 
  protected:
-  OstreamWriterBase() noexcept {}
+  explicit OstreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit OstreamWriterBase(size_t buffer_size);
 
   OstreamWriterBase(OstreamWriterBase&& that) noexcept;
   OstreamWriterBase& operator=(OstreamWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
@@ -147,7 +148,7 @@ template <typename Dest = std::ostream*>
 class OstreamWriter : public OstreamWriterBase {
  public:
   // Creates a closed `OstreamWriter`.
-  OstreamWriter() noexcept {}
+  explicit OstreamWriter(Closed) noexcept : OstreamWriterBase(kClosed) {}
 
   // Will write to the stream provided by `dest`.
   explicit OstreamWriter(const Dest& dest, Options options = Options());
@@ -165,7 +166,7 @@ class OstreamWriter : public OstreamWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `OstreamWriter`. This
   // avoids constructing a temporary `OstreamWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -189,7 +190,7 @@ class OstreamWriter : public OstreamWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-OstreamWriter()->OstreamWriter<DeleteCtad<>>;
+explicit OstreamWriter(Closed)->OstreamWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit OstreamWriter(const Dest& dest, OstreamWriterBase::Options options =
                                              OstreamWriterBase::Options())
@@ -229,8 +230,8 @@ inline OstreamWriterBase& OstreamWriterBase::operator=(
   return *this;
 }
 
-inline void OstreamWriterBase::Reset() {
-  BufferedWriter::Reset();
+inline void OstreamWriterBase::Reset(Closed) {
+  BufferedWriter::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
 }
 
@@ -280,8 +281,8 @@ inline OstreamWriter<Dest>& OstreamWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void OstreamWriter<Dest>::Reset() {
-  OstreamWriterBase::Reset();
+inline void OstreamWriter<Dest>::Reset(Closed) {
+  OstreamWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

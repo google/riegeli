@@ -45,16 +45,13 @@ class FramedSnappyReaderBase : public PullableReader {
   bool SupportsRewind() override;
 
  protected:
-  explicit FramedSnappyReaderBase(InitiallyClosed) noexcept
-      : PullableReader(kInitiallyClosed) {}
-  explicit FramedSnappyReaderBase(InitiallyOpen) noexcept
-      : PullableReader(kInitiallyOpen) {}
+  using PullableReader::PullableReader;
 
   FramedSnappyReaderBase(FramedSnappyReaderBase&& that) noexcept;
   FramedSnappyReaderBase& operator=(FramedSnappyReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src);
 
   void Done() override;
@@ -100,7 +97,8 @@ template <typename Src = Reader*>
 class FramedSnappyReader : public FramedSnappyReaderBase {
  public:
   // Creates a closed `FramedSnappyReader`.
-  FramedSnappyReader() noexcept : FramedSnappyReaderBase(kInitiallyClosed) {}
+  explicit FramedSnappyReader(Closed) noexcept
+      : FramedSnappyReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit FramedSnappyReader(const Src& src, Options options = Options());
@@ -118,7 +116,7 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FramedSnappyReader`. This
   // avoids constructing a temporary `FramedSnappyReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -145,7 +143,7 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FramedSnappyReader()->FramedSnappyReader<DeleteCtad<>>;
+explicit FramedSnappyReader(Closed)->FramedSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FramedSnappyReader(
     const Src& src,
@@ -184,15 +182,15 @@ inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
   return *this;
 }
 
-inline void FramedSnappyReaderBase::Reset(InitiallyClosed) {
-  PullableReader::Reset(kInitiallyClosed);
+inline void FramedSnappyReaderBase::Reset(Closed) {
+  PullableReader::Reset(kClosed);
   truncated_ = false;
   initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
 }
 
-inline void FramedSnappyReaderBase::Reset(InitiallyOpen) {
-  PullableReader::Reset(kInitiallyOpen);
+inline void FramedSnappyReaderBase::Reset() {
+  PullableReader::Reset();
   truncated_ = false;
   initial_compressed_pos_ = 0;
 }
@@ -200,13 +198,13 @@ inline void FramedSnappyReaderBase::Reset(InitiallyOpen) {
 template <typename Src>
 inline FramedSnappyReader<Src>::FramedSnappyReader(const Src& src,
                                                    Options options)
-    : FramedSnappyReaderBase(kInitiallyOpen), src_(src) {
+    : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline FramedSnappyReader<Src>::FramedSnappyReader(Src&& src, Options options)
-    : FramedSnappyReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -214,7 +212,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline FramedSnappyReader<Src>::FramedSnappyReader(
     std::tuple<SrcArgs...> src_args, Options options)
-    : FramedSnappyReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -238,21 +236,21 @@ inline FramedSnappyReader<Src>& FramedSnappyReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void FramedSnappyReader<Src>::Reset() {
-  FramedSnappyReaderBase::Reset(kInitiallyClosed);
+inline void FramedSnappyReader<Src>::Reset(Closed) {
+  FramedSnappyReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void FramedSnappyReader<Src>::Reset(const Src& src, Options options) {
-  FramedSnappyReaderBase::Reset(kInitiallyOpen);
+  FramedSnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void FramedSnappyReader<Src>::Reset(Src&& src, Options options) {
-  FramedSnappyReaderBase::Reset(kInitiallyOpen);
+  FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -261,7 +259,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void FramedSnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                            Options options) {
-  FramedSnappyReaderBase::Reset(kInitiallyOpen);
+  FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

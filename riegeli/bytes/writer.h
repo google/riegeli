@@ -26,7 +26,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -255,9 +254,7 @@ class Writer : public Object {
   bool Truncate(Position new_size);
 
  protected:
-  // Creates a `Writer` with the given initial state.
-  explicit Writer(InitiallyClosed) noexcept : Object(kInitiallyClosed) {}
-  explicit Writer(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
+  using Object::Object;
 
   // Moves the part of the object defined in this class.
   //
@@ -268,9 +265,11 @@ class Writer : public Object {
 
   // Makes `*this` equivalent to a newly constructed `Writer`. This avoids
   // constructing a temporary `Writer` and moving from it. Derived classes which
-  // redefine `Reset()` should include a call to `Write::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  // redefine `Reset()` should include a call to `Writer::Reset()`.
+  void Reset(Closed);
+  void Reset();
+  ABSL_DEPRECATED("Use Reset() with no arguments instead")
+  void Reset(InitiallyOpen) { Reset(); }
 
   // `Writer` overrides `Object::Done()` to set buffer pointers to `nullptr`.
   // Derived classes which override it further should include a call to
@@ -404,16 +403,16 @@ inline Writer& Writer::operator=(Writer&& that) noexcept {
   return *this;
 }
 
-inline void Writer::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void Writer::Reset(Closed) {
+  Object::Reset(kClosed);
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
   start_pos_ = 0;
 }
 
-inline void Writer::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void Writer::Reset() {
+  Object::Reset();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

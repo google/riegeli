@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -381,7 +382,7 @@ class ZstdWriterBase : public BufferedWriter {
   virtual const Writer* dest_writer() const = 0;
 
  protected:
-  ZstdWriterBase() noexcept {}
+  explicit ZstdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit ZstdWriterBase(Dictionary&& dictionary, size_t buffer_size,
                           absl::optional<Position> pledged_size,
@@ -391,7 +392,7 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(Dictionary&& dictionary, size_t buffer_size,
              absl::optional<Position> pledged_size,
              absl::optional<Position> size_hint, bool reserve_max_size);
@@ -444,7 +445,7 @@ template <typename Dest = Writer*>
 class ZstdWriter : public ZstdWriterBase {
  public:
   // Creates a closed `ZstdWriter`.
-  ZstdWriter() noexcept {}
+  explicit ZstdWriter(Closed) noexcept : ZstdWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
   explicit ZstdWriter(const Dest& dest, Options options = Options());
@@ -462,7 +463,7 @@ class ZstdWriter : public ZstdWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ZstdWriter`. This avoids
   // constructing a temporary `ZstdWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -486,7 +487,7 @@ class ZstdWriter : public ZstdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ZstdWriter()->ZstdWriter<DeleteCtad<>>;
+explicit ZstdWriter(Closed)->ZstdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZstdWriter(const Dest& dest,
                     ZstdWriterBase::Options options = ZstdWriterBase::Options())
@@ -568,8 +569,8 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   return *this;
 }
 
-inline void ZstdWriterBase::Reset() {
-  BufferedWriter::Reset();
+inline void ZstdWriterBase::Reset(Closed) {
+  BufferedWriter::Reset(kClosed);
   dictionary_.reset();
   prepared_dictionary_.reset();
   pledged_size_ = absl::nullopt;
@@ -639,8 +640,8 @@ inline ZstdWriter<Dest>& ZstdWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ZstdWriter<Dest>::Reset() {
-  ZstdWriterBase::Reset();
+inline void ZstdWriter<Dest>::Reset(Closed) {
+  ZstdWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

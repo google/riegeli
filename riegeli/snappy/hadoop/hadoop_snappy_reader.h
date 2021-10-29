@@ -45,16 +45,13 @@ class HadoopSnappyReaderBase : public PullableReader {
   bool SupportsRewind() override;
 
  protected:
-  explicit HadoopSnappyReaderBase(InitiallyClosed) noexcept
-      : PullableReader(kInitiallyClosed) {}
-  explicit HadoopSnappyReaderBase(InitiallyOpen) noexcept
-      : PullableReader(kInitiallyOpen) {}
+  using PullableReader::PullableReader;
 
   HadoopSnappyReaderBase(HadoopSnappyReaderBase&& that) noexcept;
   HadoopSnappyReaderBase& operator=(HadoopSnappyReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src);
 
   void Done() override;
@@ -101,7 +98,8 @@ template <typename Src = Reader*>
 class HadoopSnappyReader : public HadoopSnappyReaderBase {
  public:
   // Creates a closed `HadoopSnappyReader`.
-  HadoopSnappyReader() noexcept : HadoopSnappyReaderBase(kInitiallyClosed) {}
+  explicit HadoopSnappyReader(Closed) noexcept
+      : HadoopSnappyReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit HadoopSnappyReader(const Src& src, Options options = Options());
@@ -119,7 +117,7 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `HadoopSnappyReader`. This
   // avoids constructing a temporary `HadoopSnappyReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -144,7 +142,7 @@ class HadoopSnappyReader : public HadoopSnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-HadoopSnappyReader()->HadoopSnappyReader<DeleteCtad<>>;
+explicit HadoopSnappyReader(Closed)->HadoopSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit HadoopSnappyReader(
     const Src& src,
@@ -185,16 +183,16 @@ inline HadoopSnappyReaderBase& HadoopSnappyReaderBase::operator=(
   return *this;
 }
 
-inline void HadoopSnappyReaderBase::Reset(InitiallyClosed) {
-  PullableReader::Reset(kInitiallyClosed);
+inline void HadoopSnappyReaderBase::Reset(Closed) {
+  PullableReader::Reset(kClosed);
   truncated_ = false;
   remaining_chunk_length_ = 0;
   initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
 }
 
-inline void HadoopSnappyReaderBase::Reset(InitiallyOpen) {
-  PullableReader::Reset(kInitiallyOpen);
+inline void HadoopSnappyReaderBase::Reset() {
+  PullableReader::Reset();
   truncated_ = false;
   remaining_chunk_length_ = 0;
   initial_compressed_pos_ = 0;
@@ -203,13 +201,13 @@ inline void HadoopSnappyReaderBase::Reset(InitiallyOpen) {
 template <typename Src>
 inline HadoopSnappyReader<Src>::HadoopSnappyReader(const Src& src,
                                                    Options options)
-    : HadoopSnappyReaderBase(kInitiallyOpen), src_(src) {
+    : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline HadoopSnappyReader<Src>::HadoopSnappyReader(Src&& src, Options options)
-    : HadoopSnappyReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
@@ -217,7 +215,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline HadoopSnappyReader<Src>::HadoopSnappyReader(
     std::tuple<SrcArgs...> src_args, Options options)
-    : HadoopSnappyReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -241,21 +239,21 @@ inline HadoopSnappyReader<Src>& HadoopSnappyReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void HadoopSnappyReader<Src>::Reset() {
-  HadoopSnappyReaderBase::Reset(kInitiallyClosed);
+inline void HadoopSnappyReader<Src>::Reset(Closed) {
+  HadoopSnappyReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void HadoopSnappyReader<Src>::Reset(const Src& src, Options options) {
-  HadoopSnappyReaderBase::Reset(kInitiallyOpen);
+  HadoopSnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void HadoopSnappyReader<Src>::Reset(Src&& src, Options options) {
-  HadoopSnappyReaderBase::Reset(kInitiallyOpen);
+  HadoopSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -264,7 +262,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void HadoopSnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                            Options options) {
-  HadoopSnappyReaderBase::Reset(kInitiallyOpen);
+  HadoopSnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

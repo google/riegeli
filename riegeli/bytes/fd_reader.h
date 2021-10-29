@@ -30,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
@@ -152,14 +153,14 @@ class FdReaderBase : public BufferedReader {
   bool SupportsRandomAccess() override { return supports_random_access_; }
 
  protected:
-  FdReaderBase() noexcept {}
+  explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit FdReaderBase(size_t buffer_size);
 
   FdReaderBase(FdReaderBase&& that) noexcept;
   FdReaderBase& operator=(FdReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size);
   void Initialize(int src, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
@@ -261,14 +262,14 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void DefaultAnnotateStatus() override;
 
  protected:
-  FdMMapReaderBase() noexcept {}
+  explicit FdMMapReaderBase(Closed) noexcept : ChainReader(kClosed) {}
 
   explicit FdMMapReaderBase(bool has_independent_pos);
 
   FdMMapReaderBase(FdMMapReaderBase&& that) noexcept;
   FdMMapReaderBase& operator=(FdMMapReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(bool has_independent_pos);
   void Initialize(int src, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> independent_pos);
@@ -318,7 +319,10 @@ template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
  public:
   // Creates a closed `FdReader`.
-  FdReader() noexcept {}
+  explicit FdReader(Closed) noexcept : FdReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  FdReader() noexcept : FdReader(kClosed) {}
 
   // Will read from the fd provided by `src`.
   explicit FdReader(const Src& src, Options options = Options());
@@ -345,7 +349,7 @@ class FdReader : public FdReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FdReader`. This avoids
   // constructing a temporary `FdReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -372,7 +376,7 @@ class FdReader : public FdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdReader()->FdReader<DeleteCtad<>>;
+explicit FdReader(Closed)->FdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdReader(const Src& src,
                   FdReaderBase::Options options = FdReaderBase::Options())
@@ -417,7 +421,7 @@ template <typename Src = OwnedFd>
 class FdMMapReader : public FdMMapReaderBase {
  public:
   // Creates a closed `FdMMapReader`.
-  FdMMapReader() noexcept {}
+  explicit FdMMapReader(Closed) noexcept : FdMMapReaderBase(kClosed) {}
 
   // Will read from the fd provided by `src`.
   explicit FdMMapReader(const Src& src, Options options = Options());
@@ -444,7 +448,7 @@ class FdMMapReader : public FdMMapReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FdMMapReader`. This avoids
   // constructing a temporary `FdMMapReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -471,7 +475,7 @@ class FdMMapReader : public FdMMapReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdMMapReader()->FdMMapReader<DeleteCtad<>>;
+explicit FdMMapReader(Closed)->FdMMapReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdMMapReader(const Src& src, FdMMapReaderBase::Options options =
                                           FdMMapReaderBase::Options())
@@ -517,8 +521,8 @@ inline FdReaderBase& FdReaderBase::operator=(FdReaderBase&& that) noexcept {
   return *this;
 }
 
-inline void FdReaderBase::Reset() {
-  BufferedReader::Reset();
+inline void FdReaderBase::Reset(Closed) {
+  BufferedReader::Reset(kClosed);
   filename_ = std::string();
   supports_random_access_ = false;
   has_independent_pos_ = false;
@@ -554,8 +558,8 @@ inline FdMMapReaderBase& FdMMapReaderBase::operator=(
   return *this;
 }
 
-inline void FdMMapReaderBase::Reset() {
-  ChainReader::Reset();
+inline void FdMMapReaderBase::Reset(Closed) {
+  ChainReader::Reset(kClosed);
   filename_ = std::string();
   has_independent_pos_ = false;
 }
@@ -592,7 +596,8 @@ inline FdReader<Src>::FdReader(std::tuple<SrcArgs...> src_args, Options options)
 
 template <typename Src>
 inline FdReader<Src>::FdReader(absl::string_view filename, int flags,
-                               Options options) {
+                               Options options)
+    : FdReaderBase(kClosed) {
   Initialize(filename, flags, std::move(options));
 }
 
@@ -613,8 +618,8 @@ inline FdReader<Src>& FdReader<Src>::operator=(FdReader&& that) noexcept {
 }
 
 template <typename Src>
-inline void FdReader<Src>::Reset() {
-  FdReaderBase::Reset();
+inline void FdReader<Src>::Reset(Closed) {
+  FdReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
@@ -647,7 +652,7 @@ inline void FdReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FdReader<Src>::Reset(absl::string_view filename, int flags,
                                  Options options) {
-  Reset();
+  Reset(kClosed);
   Initialize(filename, flags, std::move(options));
 }
 
@@ -700,7 +705,8 @@ inline FdMMapReader<Src>::FdMMapReader(std::tuple<SrcArgs...> src_args,
 
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(absl::string_view filename, int flags,
-                                       Options options) {
+                                       Options options)
+    : FdMMapReaderBase(kClosed) {
   Initialize(filename, flags, std::move(options));
 }
 
@@ -722,8 +728,8 @@ inline FdMMapReader<Src>& FdMMapReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void FdMMapReader<Src>::Reset() {
-  FdMMapReaderBase::Reset();
+inline void FdMMapReader<Src>::Reset(Closed) {
+  FdMMapReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
@@ -756,7 +762,7 @@ inline void FdMMapReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FdMMapReader<Src>::Reset(absl::string_view filename, int flags,
                                      Options options) {
-  Reset();
+  Reset(kClosed);
   Initialize(filename, flags, std::move(options));
 }
 

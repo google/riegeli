@@ -31,7 +31,7 @@ namespace riegeli {
 class SimpleDecoder : public Object {
  public:
   // Creates a closed `SimpleDecoder`.
-  SimpleDecoder() noexcept : Object(kInitiallyClosed) {}
+  SimpleDecoder() noexcept : Object(kClosed), values_decompressor_(kClosed) {}
 
   SimpleDecoder(const SimpleDecoder&) = delete;
   SimpleDecoder& operator=(const SimpleDecoder&) = delete;

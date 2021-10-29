@@ -260,7 +260,7 @@ class BrotliReaderBase : public PullableReader {
   bool SupportsRewind() override;
 
  protected:
-  BrotliReaderBase() noexcept : PullableReader(kInitiallyClosed) {}
+  explicit BrotliReaderBase(Closed) noexcept : PullableReader(kClosed) {}
 
   explicit BrotliReaderBase(Dictionaries&& dictionaries,
                             BrotliAllocator&& allocator);
@@ -268,7 +268,7 @@ class BrotliReaderBase : public PullableReader {
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(Dictionaries&& dictionaries, BrotliAllocator&& allocator);
   void Initialize(Reader* src);
 
@@ -323,7 +323,7 @@ template <typename Src = Reader*>
 class BrotliReader : public BrotliReaderBase {
  public:
   // Creates a closed `BrotliReader`.
-  BrotliReader() noexcept {}
+  explicit BrotliReader(Closed) noexcept : BrotliReaderBase(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit BrotliReader(const Src& src, Options options = Options());
@@ -341,7 +341,7 @@ class BrotliReader : public BrotliReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `BrotliReader`. This avoids
   // constructing a temporary `BrotliReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -366,7 +366,7 @@ class BrotliReader : public BrotliReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-BrotliReader()->BrotliReader<DeleteCtad<>>;
+explicit BrotliReader(Closed)->BrotliReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit BrotliReader(const Src& src, BrotliReaderBase::Options options =
                                           BrotliReaderBase::Options())
@@ -386,8 +386,7 @@ explicit BrotliReader(
 
 inline BrotliReaderBase::BrotliReaderBase(Dictionaries&& dictionaries,
                                           BrotliAllocator&& allocator)
-    : PullableReader(kInitiallyOpen),
-      dictionaries_(std::move(dictionaries.dictionaries_)),
+    : dictionaries_(std::move(dictionaries.dictionaries_)),
       allocator_(std::move(allocator)) {}
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
@@ -413,8 +412,8 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   return *this;
 }
 
-inline void BrotliReaderBase::Reset() {
-  PullableReader::Reset(kInitiallyClosed);
+inline void BrotliReaderBase::Reset(Closed) {
+  PullableReader::Reset(kClosed);
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
@@ -424,7 +423,7 @@ inline void BrotliReaderBase::Reset() {
 
 inline void BrotliReaderBase::Reset(Dictionaries&& dictionaries,
                                     BrotliAllocator&& allocator) {
-  PullableReader::Reset(kInitiallyOpen);
+  PullableReader::Reset();
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
@@ -476,8 +475,8 @@ inline BrotliReader<Src>& BrotliReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void BrotliReader<Src>::Reset() {
-  BrotliReaderBase::Reset();
+inline void BrotliReader<Src>::Reset(Closed) {
+  BrotliReaderBase::Reset(kClosed);
   src_.Reset();
 }
 

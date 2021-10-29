@@ -146,14 +146,14 @@ class LimitingWriterBase : public Writer {
   bool SupportsTruncate() override;
 
  protected:
-  LimitingWriterBase() noexcept : Writer(kInitiallyClosed) {}
+  explicit LimitingWriterBase(Closed) noexcept : Writer(kClosed) {}
 
   explicit LimitingWriterBase(bool exact);
 
   LimitingWriterBase(LimitingWriterBase&& that) noexcept;
   LimitingWriterBase& operator=(LimitingWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(bool exact);
   void Initialize(Writer* dest, Options&& options);
 
@@ -217,7 +217,7 @@ template <typename Dest = Writer*>
 class LimitingWriter : public LimitingWriterBase {
  public:
   // Creates a closed `LimitingWriter`.
-  LimitingWriter() noexcept {}
+  explicit LimitingWriter(Closed) noexcept : LimitingWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
   explicit LimitingWriter(const Dest& dest, Options options = Options());
@@ -235,7 +235,7 @@ class LimitingWriter : public LimitingWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `LimitingWriter`. This
   // avoids constructing a temporary `LimitingWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -261,7 +261,7 @@ class LimitingWriter : public LimitingWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-LimitingWriter()->LimitingWriter<DeleteCtad<>>;
+explicit LimitingWriter(Closed)->LimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingWriter(const Dest& dest, LimitingWriterBase::Options options =
                                               LimitingWriterBase::Options())
@@ -288,8 +288,7 @@ explicit LimitingWriter(std::tuple<DestArgs...> dest_args, Position max_pos)
 
 // Implementation details follow.
 
-inline LimitingWriterBase::LimitingWriterBase(bool exact)
-    : Writer(kInitiallyOpen), exact_(exact) {}
+inline LimitingWriterBase::LimitingWriterBase(bool exact) : exact_(exact) {}
 
 inline LimitingWriterBase::LimitingWriterBase(
     LimitingWriterBase&& that) noexcept
@@ -309,14 +308,14 @@ inline LimitingWriterBase& LimitingWriterBase::operator=(
   return *this;
 }
 
-inline void LimitingWriterBase::Reset() {
-  Writer::Reset(kInitiallyClosed);
+inline void LimitingWriterBase::Reset(Closed) {
+  Writer::Reset(kClosed);
   max_pos_ = std::numeric_limits<Position>::max();
   exact_ = false;
 }
 
 inline void LimitingWriterBase::Reset(bool exact) {
-  Writer::Reset(kInitiallyOpen);
+  Writer::Reset();
   // `max_pos_` will be set by `Initialize()`.
   exact_ = exact;
 }
@@ -423,9 +422,9 @@ inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void LimitingWriter<Dest>::Reset() {
-  LimitingWriterBase::Reset();
-  dest_.Reset();
+inline void LimitingWriter<Dest>::Reset(Closed) {
+  LimitingWriterBase::Reset(kClosed);
+  dest_.Reset(kClosed);
 }
 
 template <typename Dest>

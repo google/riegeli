@@ -35,10 +35,9 @@ namespace internal {
 
 class WriterStreambuf : public std::streambuf {
  public:
-  explicit WriterStreambuf(ObjectState::InitiallyClosed) noexcept
-      : state_(ObjectState::kInitiallyClosed) {}
-  explicit WriterStreambuf(ObjectState::InitiallyOpen) noexcept
-      : state_(ObjectState::kInitiallyOpen) {}
+  explicit WriterStreambuf(Closed) noexcept : state_(kClosed) {}
+
+  WriterStreambuf() noexcept {}
 
   WriterStreambuf(WriterStreambuf&& that) noexcept;
   WriterStreambuf& operator=(WriterStreambuf&& that) noexcept;
@@ -106,16 +105,16 @@ class WriterOstreamBase : public std::ostream {
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  explicit WriterOstreamBase(ObjectState::InitiallyClosed) noexcept
-      : std::ostream(&streambuf_), streambuf_(ObjectState::kInitiallyClosed) {}
-  explicit WriterOstreamBase(ObjectState::InitiallyOpen) noexcept
-      : std::ostream(&streambuf_), streambuf_(ObjectState::kInitiallyOpen) {}
+  explicit WriterOstreamBase(Closed) noexcept
+      : std::ostream(&streambuf_), streambuf_(kClosed) {}
+
+  WriterOstreamBase() noexcept : std::ostream(&streambuf_) {}
 
   WriterOstreamBase(WriterOstreamBase&& that) noexcept;
   WriterOstreamBase& operator=(WriterOstreamBase&& that) noexcept;
 
-  void Reset(ObjectState::InitiallyClosed);
-  void Reset(ObjectState::InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Writer* dest);
 
   internal::WriterStreambuf streambuf_;
@@ -142,7 +141,7 @@ template <typename Dest = Writer*>
 class WriterOstream : public WriterOstreamBase {
  public:
   // Creates a closed `WriterOstream`.
-  WriterOstream() noexcept : WriterOstreamBase(ObjectState::kInitiallyClosed) {}
+  explicit WriterOstream(Closed) noexcept : WriterOstreamBase(kClosed) {}
 
   // Will write to the `Writer` provided by `dest`.
   explicit WriterOstream(const Dest& dest);
@@ -161,7 +160,7 @@ class WriterOstream : public WriterOstreamBase {
 
   // Makes `*this` equivalent to a newly constructed `WriterOstream`. This
   // avoids constructing a temporary `WriterOstream` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest);
   void Reset(Dest&& dest);
   template <typename... DestArgs>
@@ -185,7 +184,7 @@ class WriterOstream : public WriterOstreamBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-WriterOstream()->WriterOstream<DeleteCtad<>>;
+explicit WriterOstream(Closed)->WriterOstream<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WriterOstream(const Dest& dest) -> WriterOstream<std::decay_t<Dest>>;
 template <typename Dest>
@@ -264,13 +263,13 @@ inline WriterOstreamBase& WriterOstreamBase::operator=(
   return *this;
 }
 
-inline void WriterOstreamBase::Reset(ObjectState::InitiallyClosed) {
-  streambuf_ = internal::WriterStreambuf(ObjectState::kInitiallyClosed);
+inline void WriterOstreamBase::Reset(Closed) {
+  streambuf_ = internal::WriterStreambuf(kClosed);
   init(&streambuf_);
 }
 
-inline void WriterOstreamBase::Reset(ObjectState::InitiallyOpen) {
-  streambuf_ = internal::WriterStreambuf(ObjectState::kInitiallyOpen);
+inline void WriterOstreamBase::Reset() {
+  streambuf_ = internal::WriterStreambuf();
   init(&streambuf_);
 }
 
@@ -282,22 +281,20 @@ inline void WriterOstreamBase::Initialize(Writer* dest) {
 }
 
 template <typename Dest>
-inline WriterOstream<Dest>::WriterOstream(const Dest& dest)
-    : WriterOstreamBase(ObjectState::kInitiallyOpen), dest_(dest) {
+inline WriterOstream<Dest>::WriterOstream(const Dest& dest) : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline WriterOstream<Dest>::WriterOstream(Dest&& dest)
-    : WriterOstreamBase(ObjectState::kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline WriterOstream<Dest>::WriterOstream(std::tuple<DestArgs...> dest_args)
-    : WriterOstreamBase(ObjectState::kInitiallyOpen),
-      dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -323,16 +320,16 @@ inline WriterOstream<Dest>& WriterOstream<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void WriterOstream<Dest>::Reset() {
+inline void WriterOstream<Dest>::Reset(Closed) {
   close();
-  WriterOstreamBase::Reset(ObjectState::kInitiallyClosed);
+  WriterOstreamBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void WriterOstream<Dest>::Reset(const Dest& dest) {
   close();
-  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  WriterOstreamBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
@@ -340,7 +337,7 @@ inline void WriterOstream<Dest>::Reset(const Dest& dest) {
 template <typename Dest>
 inline void WriterOstream<Dest>::Reset(Dest&& dest) {
   close();
-  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  WriterOstreamBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -349,7 +346,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void WriterOstream<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
   close();
-  WriterOstreamBase::Reset(ObjectState::kInitiallyOpen);
+  WriterOstreamBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -268,7 +269,7 @@ class ZstdReaderBase : public BufferedReader {
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
 
  protected:
-  ZstdReaderBase() noexcept {}
+  explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZstdReaderBase(bool growing_source, Dictionary&& dictionary,
                           size_t buffer_size,
@@ -277,7 +278,7 @@ class ZstdReaderBase : public BufferedReader {
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
   ZstdReaderBase& operator=(ZstdReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(bool growing_source, Dictionary&& dictionary, size_t buffer_size,
              absl::optional<Position> size_hint);
   void Initialize(Reader* src);
@@ -337,7 +338,10 @@ template <typename Src = Reader*>
 class ZstdReader : public ZstdReaderBase {
  public:
   // Creates a closed `ZstdReader`.
-  ZstdReader() noexcept {}
+  explicit ZstdReader(Closed) noexcept : ZstdReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  ZstdReader() noexcept : ZstdReader(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit ZstdReader(const Src& src, Options options = Options());
@@ -355,7 +359,7 @@ class ZstdReader : public ZstdReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `ZstdReader`. This avoids
   // constructing a temporary `ZstdReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -380,7 +384,7 @@ class ZstdReader : public ZstdReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ZstdReader()->ZstdReader<DeleteCtad<>>;
+explicit ZstdReader(Closed)->ZstdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZstdReader(const Src& src,
                     ZstdReaderBase::Options options = ZstdReaderBase::Options())
@@ -474,8 +478,8 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
   return *this;
 }
 
-inline void ZstdReaderBase::Reset() {
-  BufferedReader::Reset();
+inline void ZstdReaderBase::Reset(Closed) {
+  BufferedReader::Reset(kClosed);
   growing_source_ = false;
   just_initialized_ = false;
   truncated_ = false;
@@ -543,8 +547,8 @@ inline ZstdReader<Src>& ZstdReader<Src>::operator=(ZstdReader&& that) noexcept {
 }
 
 template <typename Src>
-inline void ZstdReader<Src>::Reset() {
-  ZstdReaderBase::Reset();
+inline void ZstdReader<Src>::Reset(Closed) {
+  ZstdReaderBase::Reset(kClosed);
   src_.Reset();
 }
 

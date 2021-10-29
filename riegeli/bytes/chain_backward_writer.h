@@ -117,14 +117,14 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  ChainBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
+  explicit ChainBackwardWriterBase(Closed) noexcept : BackwardWriter(kClosed) {}
 
   explicit ChainBackwardWriterBase(const Options& options);
 
   ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
   ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(const Options& options);
   void Initialize(Chain* dest, bool prepend);
 
@@ -173,7 +173,8 @@ template <typename Dest = Chain*>
 class ChainBackwardWriter : public ChainBackwardWriterBase {
  public:
   // Creates a closed `ChainBackwardWriter`.
-  ChainBackwardWriter() noexcept {}
+  explicit ChainBackwardWriter(Closed) noexcept
+      : ChainBackwardWriterBase(kClosed) {}
 
   // Will prepend to the `Chain` provided by `dest`.
   explicit ChainBackwardWriter(const Dest& dest, Options options = Options());
@@ -191,7 +192,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
   // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -216,7 +217,7 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ChainBackwardWriter()->ChainBackwardWriter<DeleteCtad<>>;
+explicit ChainBackwardWriter(Closed)->ChainBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainBackwardWriter(const Dest& dest,
                              ChainBackwardWriterBase::Options options =
@@ -243,8 +244,7 @@ explicit ChainBackwardWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline ChainBackwardWriterBase::ChainBackwardWriterBase(const Options& options)
-    : BackwardWriter(kInitiallyOpen),
-      options_(Chain::Options()
+    : options_(Chain::Options()
                    .set_size_hint(SaturatingIntCast<size_t>(
                        options.size_hint().value_or(0)))
                    .set_min_block_size(options.min_block_size())
@@ -266,13 +266,13 @@ inline ChainBackwardWriterBase& ChainBackwardWriterBase::operator=(
   return *this;
 }
 
-inline void ChainBackwardWriterBase::Reset() {
-  BackwardWriter::Reset(kInitiallyClosed);
+inline void ChainBackwardWriterBase::Reset(Closed) {
+  BackwardWriter::Reset(kClosed);
   options_ = Chain::Options();
 }
 
 inline void ChainBackwardWriterBase::Reset(const Options& options) {
-  BackwardWriter::Reset(kInitiallyOpen);
+  BackwardWriter::Reset();
   options_ = Chain::Options()
                  .set_size_hint(
                      SaturatingIntCast<size_t>(options.size_hint().value_or(0)))
@@ -335,8 +335,8 @@ inline ChainBackwardWriter<Dest>& ChainBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ChainBackwardWriter<Dest>::Reset() {
-  ChainBackwardWriterBase::Reset();
+inline void ChainBackwardWriter<Dest>::Reset(Closed) {
+  ChainBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

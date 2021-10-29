@@ -84,9 +84,7 @@ class StringWriterBase : public Writer {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  explicit StringWriterBase(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit StringWriterBase(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+  using Writer::Writer;
 
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
@@ -140,7 +138,10 @@ template <typename Dest = std::string*>
 class StringWriter : public StringWriterBase {
  public:
   // Creates a closed `StringWriter`.
-  StringWriter() noexcept : StringWriterBase(kInitiallyClosed) {}
+  explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  StringWriter() noexcept : StringWriter(kClosed) {}
 
   // Will append to the `std::string` provided by `dest`.
   explicit StringWriter(const Dest& dest, Options options = Options());
@@ -158,7 +159,7 @@ class StringWriter : public StringWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -182,7 +183,7 @@ class StringWriter : public StringWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-StringWriter()->StringWriter<DeleteCtad<>>;
+explicit StringWriter(Closed)->StringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
                                             StringWriterBase::Options())
@@ -237,13 +238,13 @@ inline void StringWriterBase::MakeBuffer(std::string& dest) {
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
-    : StringWriterBase(kInitiallyOpen), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline StringWriter<Dest>::StringWriter(Dest&& dest, Options options)
-    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
@@ -251,7 +252,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline StringWriter<Dest>::StringWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : StringWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
@@ -274,21 +275,21 @@ inline StringWriter<Dest>& StringWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void StringWriter<Dest>::Reset() {
-  StringWriterBase::Reset(kInitiallyClosed);
+inline void StringWriter<Dest>::Reset(Closed) {
+  StringWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(const Dest& dest, Options options) {
-  StringWriterBase::Reset(kInitiallyOpen);
+  StringWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Dest&& dest, Options options) {
-  StringWriterBase::Reset(kInitiallyOpen);
+  StringWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.append(), options.size_hint());
 }
@@ -297,7 +298,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void StringWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  StringWriterBase::Reset(kInitiallyOpen);
+  StringWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.append(), options.size_hint());
 }

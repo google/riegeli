@@ -26,7 +26,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
@@ -205,10 +204,7 @@ class BackwardWriter : public Object {
   bool Truncate(Position new_size);
 
  protected:
-  // Creates a `BackwardWriter` with the given initial state.
-  explicit BackwardWriter(InitiallyClosed) noexcept
-      : Object(kInitiallyClosed) {}
-  explicit BackwardWriter(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
+  using Object::Object;
 
   // Moves the part of the object defined in this class.
   //
@@ -221,8 +217,8 @@ class BackwardWriter : public Object {
   // avoids constructing a temporary `BackwardWriter` and moving from it.
   // Derived classes which redefine `Reset()` should include a call to
   // `BackwardWriter::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // `BackwardWriter` overrides `Object::Done()` to set buffer pointers to
   // `nullptr`. Derived classes which override it further should include a call
@@ -345,16 +341,16 @@ inline BackwardWriter& BackwardWriter::operator=(
   return *this;
 }
 
-inline void BackwardWriter::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void BackwardWriter::Reset(Closed) {
+  Object::Reset(kClosed);
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
   start_pos_ = 0;
 }
 
-inline void BackwardWriter::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void BackwardWriter::Reset() {
+  Object::Reset();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

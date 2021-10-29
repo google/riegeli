@@ -170,14 +170,14 @@ class LimitingReaderBase : public Reader {
   bool SupportsSize() override;
 
  protected:
-  LimitingReaderBase() noexcept : Reader(kInitiallyClosed) {}
+  explicit LimitingReaderBase(Closed) noexcept : Reader(kClosed) {}
 
   explicit LimitingReaderBase(bool exact);
 
   LimitingReaderBase(LimitingReaderBase&& that) noexcept;
   LimitingReaderBase& operator=(LimitingReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(bool exact);
   void Initialize(Reader* src, Options&& options);
 
@@ -251,7 +251,10 @@ template <typename Src = Reader*>
 class LimitingReader : public LimitingReaderBase {
  public:
   // Creates a closed `LimitingReader`.
-  LimitingReader() noexcept {}
+  explicit LimitingReader(Closed) noexcept : LimitingReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  LimitingReader() noexcept : LimitingReader(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
   explicit LimitingReader(const Src& src, Options options = Options());
@@ -269,7 +272,9 @@ class LimitingReader : public LimitingReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `LimitingReader`. This
   // avoids constructing a temporary `LimitingReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
+  ABSL_DEPRECATED("Use Reset(kClosed) instead")
+  void Reset() { Reset(kClosed); }
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -297,7 +302,7 @@ class LimitingReader : public LimitingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-LimitingReader()->LimitingReader<DeleteCtad<>>;
+explicit LimitingReader(Closed)->LimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit LimitingReader(const Src& src, LimitingReaderBase::Options options =
                                             LimitingReaderBase::Options())
@@ -359,8 +364,7 @@ class ScopedLimiter {
 
 // Implementation details follow.
 
-inline LimitingReaderBase::LimitingReaderBase(bool exact)
-    : Reader(kInitiallyOpen), exact_(exact) {}
+inline LimitingReaderBase::LimitingReaderBase(bool exact) : exact_(exact) {}
 
 inline LimitingReaderBase::LimitingReaderBase(
     LimitingReaderBase&& that) noexcept
@@ -380,14 +384,14 @@ inline LimitingReaderBase& LimitingReaderBase::operator=(
   return *this;
 }
 
-inline void LimitingReaderBase::Reset() {
-  Reader::Reset(kInitiallyClosed);
+inline void LimitingReaderBase::Reset(Closed) {
+  Reader::Reset(kClosed);
   max_pos_ = std::numeric_limits<Position>::max();
   exact_ = false;
 }
 
 inline void LimitingReaderBase::Reset(bool exact) {
-  Reader::Reset(kInitiallyOpen);
+  Reader::Reset();
   // `max_pos_` will be set by `Initialize()`.
   exact_ = exact;
 }
@@ -503,8 +507,8 @@ inline LimitingReader<Src>& LimitingReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void LimitingReader<Src>::Reset() {
-  LimitingReaderBase::Reset();
+inline void LimitingReader<Src>::Reset(Closed) {
+  LimitingReaderBase::Reset(kClosed);
   src_.Reset();
 }
 

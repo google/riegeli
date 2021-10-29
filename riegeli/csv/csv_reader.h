@@ -332,14 +332,13 @@ class CsvReaderBase : public Object {
   int64_t line_number() const { return line_number_; }
 
  protected:
-  explicit CsvReaderBase(InitiallyClosed) noexcept;
-  explicit CsvReaderBase(InitiallyOpen) noexcept;
+  using Object::Object;
 
   CsvReaderBase(CsvReaderBase&& that) noexcept;
   CsvReaderBase& operator=(CsvReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src, Options&& options);
 
   // `CsvReader` overrides `Object::DefaultAnnotateStatus()` to annotate the
@@ -437,7 +436,10 @@ template <typename Src = Reader*>
 class CsvReader : public CsvReaderBase {
  public:
   // Creates a closed `CsvReader`.
-  CsvReader() noexcept : CsvReaderBase(kInitiallyClosed) {}
+  explicit CsvReader(Closed) noexcept : CsvReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  CsvReader() noexcept : CsvReader(kClosed) {}
 
   // Will read from the byte `Reader` provided by `src`.
   explicit CsvReader(const Src& src, Options options = Options());
@@ -455,7 +457,7 @@ class CsvReader : public CsvReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `CsvReader`. This avoids
   // constructing a temporary `CsvReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -478,7 +480,7 @@ class CsvReader : public CsvReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-CsvReader()->CsvReader<DeleteCtad<>>;
+explicit CsvReader(Closed)->CsvReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CsvReader(const Src& src,
                    CsvReaderBase::Options options = CsvReaderBase::Options())
@@ -503,12 +505,6 @@ absl::Status ReadCsvRecordFromString(
     CsvReaderBase::Options options = CsvReaderBase::Options());
 
 // Implementation details follow.
-
-inline CsvReaderBase::CsvReaderBase(InitiallyClosed) noexcept
-    : Object(kInitiallyClosed) {}
-
-inline CsvReaderBase::CsvReaderBase(InitiallyOpen) noexcept
-    : Object(kInitiallyOpen) {}
 
 inline CsvReaderBase::CsvReaderBase(CsvReaderBase&& that) noexcept
     : Object(std::move(that)),
@@ -546,8 +542,8 @@ inline CsvReaderBase& CsvReaderBase::operator=(CsvReaderBase&& that) noexcept {
   return *this;
 }
 
-inline void CsvReaderBase::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void CsvReaderBase::Reset(Closed) {
+  Object::Reset(kClosed);
   standalone_record_ = false;
   has_header_ = false;
   header_.Reset();
@@ -558,8 +554,8 @@ inline void CsvReaderBase::Reset(InitiallyClosed) {
   recoverable_ = false;
 }
 
-inline void CsvReaderBase::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void CsvReaderBase::Reset() {
+  Object::Reset();
   standalone_record_ = false;
   has_header_ = false;
   header_.Reset();
@@ -579,14 +575,13 @@ inline uint64_t CsvReaderBase::last_record_index() const {
 }
 
 template <typename Src>
-inline CsvReader<Src>::CsvReader(const Src& src, Options options)
-    : CsvReaderBase(kInitiallyOpen), src_(src) {
+inline CsvReader<Src>::CsvReader(const Src& src, Options options) : src_(src) {
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline CsvReader<Src>::CsvReader(Src&& src, Options options)
-    : CsvReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -594,7 +589,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline CsvReader<Src>::CsvReader(std::tuple<SrcArgs...> src_args,
                                  Options options)
-    : CsvReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -615,21 +610,21 @@ inline CsvReader<Src>& CsvReader<Src>::operator=(CsvReader&& that) noexcept {
 }
 
 template <typename Src>
-inline void CsvReader<Src>::Reset() {
-  CsvReaderBase::Reset(kInitiallyClosed);
+inline void CsvReader<Src>::Reset(Closed) {
+  CsvReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void CsvReader<Src>::Reset(const Src& src, Options options) {
-  CsvReaderBase::Reset(kInitiallyOpen);
+  CsvReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline void CsvReader<Src>::Reset(Src&& src, Options options) {
-  CsvReaderBase::Reset(kInitiallyOpen);
+  CsvReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options));
 }
@@ -638,7 +633,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void CsvReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                   Options options) {
-  CsvReaderBase::Reset(kInitiallyOpen);
+  CsvReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }

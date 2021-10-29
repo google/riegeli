@@ -30,6 +30,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
 
@@ -165,14 +166,14 @@ class FdWriterBase : public BufferedWriter {
   bool SupportsRandomAccess() override { return supports_random_access_; }
 
  protected:
-  FdWriterBase() noexcept {}
+  explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit FdWriterBase(size_t buffer_size);
 
   FdWriterBase(FdWriterBase&& that) noexcept;
   FdWriterBase& operator=(FdWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size);
   void Initialize(int dest, absl::optional<std::string>&& assumed_filename,
                   absl::optional<Position> assumed_pos,
@@ -240,7 +241,10 @@ template <typename Dest = OwnedFd>
 class FdWriter : public FdWriterBase {
  public:
   // Creates a closed `FdWriter`.
-  FdWriter() noexcept {}
+  explicit FdWriter(Closed) noexcept : FdWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  FdWriter() noexcept : FdWriter(kClosed) {}
 
   // Will write to the fd provided by `dest`.
   explicit FdWriter(const Dest& dest, Options options = Options());
@@ -270,7 +274,7 @@ class FdWriter : public FdWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `FdWriter`. This avoids
   // constructing a temporary `FdWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -297,7 +301,7 @@ class FdWriter : public FdWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FdWriter()->FdWriter<DeleteCtad<>>;
+explicit FdWriter(Closed)->FdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FdWriter(const Dest& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
@@ -340,8 +344,8 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   return *this;
 }
 
-inline void FdWriterBase::Reset() {
-  BufferedWriter::Reset();
+inline void FdWriterBase::Reset(Closed) {
+  BufferedWriter::Reset(kClosed);
   filename_ = std::string();
   supports_random_access_ = false;
   has_independent_pos_ = false;
@@ -379,7 +383,8 @@ inline FdWriter<Dest>::FdWriter(std::tuple<DestArgs...> dest_args,
 
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(absl::string_view filename, int flags,
-                                Options options) {
+                                Options options)
+    : FdWriterBase(kClosed) {
   Initialize(filename, flags, std::move(options));
 }
 
@@ -400,8 +405,8 @@ inline FdWriter<Dest>& FdWriter<Dest>::operator=(FdWriter&& that) noexcept {
 }
 
 template <typename Dest>
-inline void FdWriter<Dest>::Reset() {
-  FdWriterBase::Reset();
+inline void FdWriter<Dest>::Reset(Closed) {
+  FdWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
@@ -434,7 +439,7 @@ inline void FdWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void FdWriter<Dest>::Reset(absl::string_view filename, int flags,
                                   Options options) {
-  Reset();
+  Reset(kClosed);
   Initialize(filename, flags, std::move(options));
 }
 

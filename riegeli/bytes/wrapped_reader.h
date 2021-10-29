@@ -46,9 +46,7 @@ class WrappedReaderBase : public Reader {
   bool SupportsSize() override;
 
  protected:
-  explicit WrappedReaderBase(InitiallyClosed) noexcept
-      : Reader(kInitiallyClosed) {}
-  explicit WrappedReaderBase(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
+  using Reader::Reader;
 
   WrappedReaderBase(WrappedReaderBase&& that) noexcept;
   WrappedReaderBase& operator=(WrappedReaderBase&& that) noexcept;
@@ -102,7 +100,7 @@ template <typename Src = Reader*>
 class WrappedReader : public WrappedReaderBase {
  public:
   // Creates a closed `WrappedReader`.
-  WrappedReader() noexcept : WrappedReaderBase(kInitiallyClosed) {}
+  explicit WrappedReader(Closed) noexcept : WrappedReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`.
   explicit WrappedReader(const Src& src);
@@ -119,7 +117,7 @@ class WrappedReader : public WrappedReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `WrappedReader`. This
   // avoids constructing a temporary `WrappedReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
@@ -147,7 +145,7 @@ class WrappedReader : public WrappedReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-WrappedReader()->WrappedReader<DeleteCtad<>>;
+explicit WrappedReader(Closed)->WrappedReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit WrappedReader(const Src& src) -> WrappedReader<std::decay_t<Src>>;
 template <typename Src>
@@ -185,21 +183,19 @@ inline void WrappedReaderBase::MakeBuffer(Reader& src) {
 }
 
 template <typename Src>
-inline WrappedReader<Src>::WrappedReader(const Src& src)
-    : WrappedReaderBase(kInitiallyOpen), src_(src) {
+inline WrappedReader<Src>::WrappedReader(const Src& src) : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline WrappedReader<Src>::WrappedReader(Src&& src)
-    : WrappedReaderBase(kInitiallyOpen), src_(std::move(src)) {
+inline WrappedReader<Src>::WrappedReader(Src&& src) : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline WrappedReader<Src>::WrappedReader(std::tuple<SrcArgs...> src_args)
-    : WrappedReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -222,21 +218,21 @@ inline WrappedReader<Src>& WrappedReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void WrappedReader<Src>::Reset() {
-  WrappedReaderBase::Reset(kInitiallyClosed);
+inline void WrappedReader<Src>::Reset(Closed) {
+  WrappedReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void WrappedReader<Src>::Reset(const Src& src) {
-  WrappedReaderBase::Reset(kInitiallyOpen);
+  WrappedReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void WrappedReader<Src>::Reset(Src&& src) {
-  WrappedReaderBase::Reset(kInitiallyOpen);
+  WrappedReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -244,7 +240,7 @@ inline void WrappedReader<Src>::Reset(Src&& src) {
 template <typename Src>
 template <typename... SrcArgs>
 inline void WrappedReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  WrappedReaderBase::Reset(kInitiallyOpen);
+  WrappedReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

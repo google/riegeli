@@ -63,14 +63,14 @@ class FramedSnappyWriterBase : public PushableWriter {
   virtual const Writer* dest_writer() const = 0;
 
  protected:
-  FramedSnappyWriterBase() noexcept : PushableWriter(kInitiallyClosed) {}
+  explicit FramedSnappyWriterBase(Closed) noexcept : PushableWriter(kClosed) {}
 
   explicit FramedSnappyWriterBase(absl::optional<Position> size_hint);
 
   FramedSnappyWriterBase(FramedSnappyWriterBase&& that) noexcept;
   FramedSnappyWriterBase& operator=(FramedSnappyWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
@@ -118,7 +118,8 @@ template <typename Dest = Writer*>
 class FramedSnappyWriter : public FramedSnappyWriterBase {
  public:
   // Creates a closed `FramedSnappyWriter`.
-  FramedSnappyWriter() noexcept {}
+  explicit FramedSnappyWriter(Closed) noexcept
+      : FramedSnappyWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
   explicit FramedSnappyWriter(const Dest& dest, Options options = Options());
@@ -136,7 +137,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `FramedSnappyWriter`. This
   // avoids constructing a temporary `FramedSnappyWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -160,7 +161,7 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FramedSnappyWriter()->FramedSnappyWriter<DeleteCtad<>>;
+explicit FramedSnappyWriter(Closed)->FramedSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FramedSnappyWriter(
     const Dest& dest,
@@ -182,7 +183,7 @@ explicit FramedSnappyWriter(
 
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     absl::optional<Position> size_hint)
-    : PushableWriter(kInitiallyOpen), size_hint_(size_hint.value_or(0)) {}
+    : size_hint_(size_hint.value_or(0)) {}
 
 inline FramedSnappyWriterBase::FramedSnappyWriterBase(
     FramedSnappyWriterBase&& that) noexcept
@@ -202,13 +203,13 @@ inline FramedSnappyWriterBase& FramedSnappyWriterBase::operator=(
   return *this;
 }
 
-inline void FramedSnappyWriterBase::Reset() {
-  PushableWriter::Reset(kInitiallyClosed);
+inline void FramedSnappyWriterBase::Reset(Closed) {
+  PushableWriter::Reset(kClosed);
   size_hint_ = 0;
 }
 
 inline void FramedSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
-  PushableWriter::Reset(kInitiallyOpen);
+  PushableWriter::Reset();
   size_hint_ = size_hint.value_or(0);
 }
 
@@ -253,8 +254,8 @@ inline FramedSnappyWriter<Dest>& FramedSnappyWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void FramedSnappyWriter<Dest>::Reset() {
-  FramedSnappyWriterBase::Reset();
+inline void FramedSnappyWriter<Dest>::Reset(Closed) {
+  FramedSnappyWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

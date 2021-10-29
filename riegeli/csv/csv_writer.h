@@ -236,14 +236,13 @@ class CsvWriterBase : public Object {
   uint64_t record_index() const { return record_index_; }
 
  protected:
-  explicit CsvWriterBase(InitiallyClosed) noexcept;
-  explicit CsvWriterBase(InitiallyOpen) noexcept;
+  using Object::Object;
 
   CsvWriterBase(CsvWriterBase&& that) noexcept;
   CsvWriterBase& operator=(CsvWriterBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Writer* dest, Options&& options);
 
   // `CsvWriter` overrides `Object::DefaultAnnotateStatus()` to annotate the
@@ -318,7 +317,10 @@ template <typename Dest = Writer*>
 class CsvWriter : public CsvWriterBase {
  public:
   // Creates a closed `CsvWriter`.
-  CsvWriter() noexcept : CsvWriterBase(kInitiallyClosed) {}
+  explicit CsvWriter(Closed) noexcept : CsvWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  CsvWriter() noexcept : CsvWriter(kClosed) {}
 
   // Will write to the byte `Writer` provided by `dest`.
   explicit CsvWriter(const Dest& dest, Options options = Options());
@@ -336,7 +338,7 @@ class CsvWriter : public CsvWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `CsvWriter`. This avoids
   // constructing a temporary `CsvWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -359,7 +361,7 @@ class CsvWriter : public CsvWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-CsvWriter()->CsvWriter<DeleteCtad<>>;
+explicit CsvWriter(Closed)->CsvWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CsvWriter(const Dest& dest,
                    CsvWriterBase::Options options = CsvWriterBase::Options())
@@ -398,12 +400,6 @@ std::string WriteCsvRecordToString(
 
 // Implementation details follow.
 
-inline CsvWriterBase::CsvWriterBase(InitiallyClosed) noexcept
-    : Object(kInitiallyClosed) {}
-
-inline CsvWriterBase::CsvWriterBase(InitiallyOpen) noexcept
-    : Object(kInitiallyOpen) {}
-
 inline CsvWriterBase::CsvWriterBase(CsvWriterBase&& that) noexcept
     : Object(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
@@ -432,16 +428,16 @@ inline CsvWriterBase& CsvWriterBase::operator=(CsvWriterBase&& that) noexcept {
   return *this;
 }
 
-inline void CsvWriterBase::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void CsvWriterBase::Reset(Closed) {
+  Object::Reset(kClosed);
   standalone_record_ = false;
   has_header_ = false;
   header_.Reset();
   record_index_ = 0;
 }
 
-inline void CsvWriterBase::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void CsvWriterBase::Reset() {
+  Object::Reset();
   standalone_record_ = false;
   has_header_ = false;
   header_.Reset();
@@ -515,13 +511,13 @@ inline uint64_t CsvWriterBase::last_record_index() const {
 
 template <typename Dest>
 inline CsvWriter<Dest>::CsvWriter(const Dest& dest, Options options)
-    : CsvWriterBase(kInitiallyOpen), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline CsvWriter<Dest>::CsvWriter(Dest&& dest, Options options)
-    : CsvWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -529,7 +525,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline CsvWriter<Dest>::CsvWriter(std::tuple<DestArgs...> dest_args,
                                   Options options)
-    : CsvWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -550,21 +546,21 @@ inline CsvWriter<Dest>& CsvWriter<Dest>::operator=(CsvWriter&& that) noexcept {
 }
 
 template <typename Dest>
-inline void CsvWriter<Dest>::Reset() {
-  CsvWriterBase::Reset(kInitiallyClosed);
+inline void CsvWriter<Dest>::Reset(Closed) {
+  CsvWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void CsvWriter<Dest>::Reset(const Dest& dest, Options options) {
-  CsvWriterBase::Reset(kInitiallyOpen);
+  CsvWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline void CsvWriter<Dest>::Reset(Dest&& dest, Options options) {
-  CsvWriterBase::Reset(kInitiallyOpen);
+  CsvWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options));
 }
@@ -573,7 +569,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void CsvWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                    Options options) {
-  CsvWriterBase::Reset(kInitiallyOpen);
+  CsvWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options));
 }

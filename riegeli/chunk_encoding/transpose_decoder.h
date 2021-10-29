@@ -36,7 +36,7 @@ enum class CallbackType : uint8_t;
 class TransposeDecoder : public Object {
  public:
   // Creates a closed `TransposeDecoder`.
-  TransposeDecoder() noexcept : Object(kInitiallyClosed) {}
+  TransposeDecoder() noexcept : Object(kClosed) {}
 
   TransposeDecoder(const TransposeDecoder&) = delete;
   TransposeDecoder& operator=(const TransposeDecoder&) = delete;

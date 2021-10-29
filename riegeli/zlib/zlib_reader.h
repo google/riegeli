@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -197,7 +198,7 @@ class ZlibReaderBase : public BufferedReader {
   bool SupportsRewind() override;
 
  protected:
-  ZlibReaderBase() noexcept {}
+  explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZlibReaderBase(int window_bits, ZlibDictionary&& dictionary,
                           bool concatenate, size_t buffer_size,
@@ -206,7 +207,7 @@ class ZlibReaderBase : public BufferedReader {
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(int window_bits, ZlibDictionary&& dictionary, bool concatenate,
              size_t buffer_size, absl::optional<Position> size_hint);
   static int GetWindowBits(const Options& options);
@@ -268,7 +269,10 @@ template <typename Src = Reader*>
 class ZlibReader : public ZlibReaderBase {
  public:
   // Creates a closed `ZlibReader`.
-  ZlibReader() noexcept {}
+  explicit ZlibReader(Closed) noexcept : ZlibReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  ZlibReader() noexcept : ZlibReader(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit ZlibReader(const Src& src, Options options = Options());
@@ -286,7 +290,7 @@ class ZlibReader : public ZlibReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `ZlibReader`. This avoids
   // constructing a temporary `ZlibReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -311,7 +315,7 @@ class ZlibReader : public ZlibReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ZlibReader()->ZlibReader<DeleteCtad<>>;
+explicit ZlibReader(Closed)->ZlibReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ZlibReader(const Src& src,
                     ZlibReaderBase::Options options = ZlibReaderBase::Options())
@@ -364,8 +368,8 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   return *this;
 }
 
-inline void ZlibReaderBase::Reset() {
-  BufferedReader::Reset();
+inline void ZlibReaderBase::Reset(Closed) {
+  BufferedReader::Reset(kClosed);
   dictionary_.reset();
   window_bits_ = 0;
   concatenate_ = false;
@@ -444,8 +448,8 @@ inline ZlibReader<Src>& ZlibReader<Src>::operator=(ZlibReader&& that) noexcept {
 }
 
 template <typename Src>
-inline void ZlibReader<Src>::Reset() {
-  ZlibReaderBase::Reset();
+inline void ZlibReader<Src>::Reset(Closed) {
+  ZlibReaderBase::Reset(kClosed);
   src_.Reset();
 }
 

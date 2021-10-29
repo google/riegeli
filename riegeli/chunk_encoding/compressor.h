@@ -74,7 +74,7 @@ class Compressor : public Object {
   };
 
   // Creates a closed `Compressor`.
-  Compressor() noexcept : Object(kInitiallyClosed) {}
+  explicit Compressor(Closed) noexcept : Object(kClosed) {}
 
   // Creates an empty `Compressor`.
   explicit Compressor(CompressorOptions compressor_options,

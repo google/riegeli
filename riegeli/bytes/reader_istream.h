@@ -35,10 +35,9 @@ namespace internal {
 
 class ReaderStreambuf : public std::streambuf {
  public:
-  explicit ReaderStreambuf(ObjectState::InitiallyClosed) noexcept
-      : state_(ObjectState::kInitiallyClosed) {}
-  explicit ReaderStreambuf(ObjectState::InitiallyOpen) noexcept
-      : state_(ObjectState::kInitiallyOpen) {}
+  explicit ReaderStreambuf(Closed) noexcept : state_(kClosed) {}
+
+  ReaderStreambuf() noexcept {}
 
   ReaderStreambuf(ReaderStreambuf&& that) noexcept;
   ReaderStreambuf& operator=(ReaderStreambuf&& that) noexcept;
@@ -111,16 +110,16 @@ class ReaderIstreamBase : public std::istream {
   absl::Status status() const { return streambuf_.status(); }
 
  protected:
-  explicit ReaderIstreamBase(ObjectState::InitiallyClosed) noexcept
-      : std::istream(&streambuf_), streambuf_(ObjectState::kInitiallyClosed) {}
-  explicit ReaderIstreamBase(ObjectState::InitiallyOpen) noexcept
-      : std::istream(&streambuf_), streambuf_(ObjectState::kInitiallyOpen) {}
+  explicit ReaderIstreamBase(Closed) noexcept
+      : std::istream(&streambuf_), streambuf_(kClosed) {}
+
+  ReaderIstreamBase() noexcept : std::istream(&streambuf_) {}
 
   ReaderIstreamBase(ReaderIstreamBase&& that) noexcept;
   ReaderIstreamBase& operator=(ReaderIstreamBase&& that) noexcept;
 
-  void Reset(ObjectState::InitiallyClosed);
-  void Reset(ObjectState::InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src);
 
   internal::ReaderStreambuf streambuf_;
@@ -144,7 +143,7 @@ template <typename Src = Reader*>
 class ReaderIstream : public ReaderIstreamBase {
  public:
   // Creates a closed `ReaderIstream`.
-  ReaderIstream() noexcept : ReaderIstreamBase(ObjectState::kInitiallyClosed) {}
+  explicit ReaderIstream() noexcept : ReaderIstreamBase(kClosed) {}
 
   // Will read from the `Reader` provided by `src`.
   explicit ReaderIstream(const Src& src);
@@ -163,7 +162,7 @@ class ReaderIstream : public ReaderIstreamBase {
 
   // Makes `*this` equivalent to a newly constructed `ReaderIstream`. This
   // avoids constructing a temporary `ReaderIstream` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
@@ -187,7 +186,7 @@ class ReaderIstream : public ReaderIstreamBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ReaderIstream()->ReaderIstream<DeleteCtad<>>;
+explicit ReaderIstream(Closed)->ReaderIstream<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderIstream(const Src& src) -> ReaderIstream<std::decay_t<Src>>;
 template <typename Src>
@@ -268,13 +267,13 @@ inline ReaderIstreamBase& ReaderIstreamBase::operator=(
   return *this;
 }
 
-inline void ReaderIstreamBase::Reset(ObjectState::InitiallyClosed) {
-  streambuf_ = internal::ReaderStreambuf(ObjectState::kInitiallyClosed);
+inline void ReaderIstreamBase::Reset(Closed) {
+  streambuf_ = internal::ReaderStreambuf(kClosed);
   init(&streambuf_);
 }
 
-inline void ReaderIstreamBase::Reset(ObjectState::InitiallyOpen) {
-  streambuf_ = internal::ReaderStreambuf(ObjectState::kInitiallyOpen);
+inline void ReaderIstreamBase::Reset() {
+  streambuf_ = internal::ReaderStreambuf();
   init(&streambuf_);
 }
 
@@ -286,22 +285,19 @@ inline void ReaderIstreamBase::Initialize(Reader* src) {
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(const Src& src)
-    : ReaderIstreamBase(ObjectState::kInitiallyOpen), src_(src) {
+inline ReaderIstream<Src>::ReaderIstream(const Src& src) : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline ReaderIstream<Src>::ReaderIstream(Src&& src)
-    : ReaderIstreamBase(ObjectState::kInitiallyOpen), src_(std::move(src)) {
+inline ReaderIstream<Src>::ReaderIstream(Src&& src) : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline ReaderIstream<Src>::ReaderIstream(std::tuple<SrcArgs...> src_args)
-    : ReaderIstreamBase(ObjectState::kInitiallyOpen),
-      src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -327,16 +323,16 @@ inline ReaderIstream<Src>& ReaderIstream<Src>::operator=(
 }
 
 template <typename Src>
-inline void ReaderIstream<Src>::Reset() {
+inline void ReaderIstream<Src>::Reset(Closed) {
   close();
-  ReaderIstreamBase::Reset(ObjectState::kInitiallyClosed);
+  ReaderIstreamBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void ReaderIstream<Src>::Reset(const Src& src) {
   close();
-  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  ReaderIstreamBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
@@ -344,7 +340,7 @@ inline void ReaderIstream<Src>::Reset(const Src& src) {
 template <typename Src>
 inline void ReaderIstream<Src>::Reset(Src&& src) {
   close();
-  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  ReaderIstreamBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -353,7 +349,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void ReaderIstream<Src>::Reset(std::tuple<SrcArgs...> src_args) {
   close();
-  ReaderIstreamBase::Reset(ObjectState::kInitiallyOpen);
+  ReaderIstreamBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

@@ -117,14 +117,14 @@ class ChainWriterBase : public Writer {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  ChainWriterBase() noexcept : Writer(kInitiallyClosed) {}
+  explicit ChainWriterBase(Closed) noexcept : Writer(kClosed) {}
 
   explicit ChainWriterBase(const Options& options);
 
   ChainWriterBase(ChainWriterBase&& that) noexcept;
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(const Options& options);
   void Initialize(Chain* dest, bool append);
 
@@ -176,7 +176,7 @@ template <typename Dest = Chain*>
 class ChainWriter : public ChainWriterBase {
  public:
   // Creates a closed `ChainWriter`.
-  ChainWriter() noexcept {}
+  explicit ChainWriter(Closed) noexcept : ChainWriterBase(kClosed) {}
 
   // Will append to the `Chain` provided by `dest`.
   explicit ChainWriter(const Dest& dest, Options options = Options());
@@ -194,7 +194,7 @@ class ChainWriter : public ChainWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ChainWriter`. This avoids
   // constructing a temporary `ChainWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -219,7 +219,7 @@ class ChainWriter : public ChainWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ChainWriter()->ChainWriter<DeleteCtad<>>;
+explicit ChainWriter(Closed)->ChainWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainWriter(const Dest& dest, ChainWriterBase::Options options =
                                            ChainWriterBase::Options())
@@ -244,8 +244,7 @@ explicit ChainWriter(
 // Implementation details follow.
 
 inline ChainWriterBase::ChainWriterBase(const Options& options)
-    : Writer(kInitiallyOpen),
-      options_(Chain::Options()
+    : options_(Chain::Options()
                    .set_size_hint(SaturatingIntCast<size_t>(
                        options.size_hint().value_or(0)))
                    .set_min_block_size(options.min_block_size())
@@ -266,13 +265,13 @@ inline ChainWriterBase& ChainWriterBase::operator=(
   return *this;
 }
 
-inline void ChainWriterBase::Reset() {
-  Writer::Reset(kInitiallyClosed);
+inline void ChainWriterBase::Reset(Closed) {
+  Writer::Reset(kClosed);
   options_ = Chain::Options();
 }
 
 inline void ChainWriterBase::Reset(const Options& options) {
-  Writer::Reset(kInitiallyOpen);
+  Writer::Reset();
   options_ = Chain::Options()
                  .set_size_hint(
                      SaturatingIntCast<size_t>(options.size_hint().value_or(0)))
@@ -332,8 +331,8 @@ inline ChainWriter<Dest>& ChainWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ChainWriter<Dest>::Reset() {
-  ChainWriterBase::Reset();
+inline void ChainWriter<Dest>::Reset(Closed) {
+  ChainWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

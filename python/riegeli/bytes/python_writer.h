@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 
 namespace riegeli {
@@ -111,7 +112,7 @@ class PythonWriter : public BufferedWriter {
   };
 
   // Creates a closed `PythonWriter`.
-  PythonWriter() noexcept {}
+  explicit PythonWriter(Closed) noexcept : BufferedWriter(kClosed) {}
 
   // Will write to `dest`.
   explicit PythonWriter(PyObject* dest, Options options = Options());

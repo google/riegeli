@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/base.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_reader.h"
 
 namespace riegeli {
@@ -114,7 +115,7 @@ class PythonReader : public BufferedReader {
   };
 
   // Creates a closed `PythonReader`.
-  PythonReader() noexcept {}
+  explicit PythonReader(Closed) noexcept : BufferedReader(kClosed) {}
 
   // Will read from `src`.
   explicit PythonReader(PyObject* src, Options options = Options());

@@ -19,7 +19,7 @@
 
 #include <utility>
 
-#include "absl/base/optimization.h"
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -41,7 +41,10 @@ class BufferedWriter : public Writer {
 
  protected:
   // Creates a closed `BufferedWriter`.
-  BufferedWriter() noexcept : Writer(kInitiallyClosed) {}
+  explicit BufferedWriter(Closed) noexcept : Writer(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  BufferedWriter() noexcept : BufferedWriter(kClosed) {}
 
   // Creates a `BufferedWriter` with the given buffer size and size hint.
   //
@@ -62,7 +65,7 @@ class BufferedWriter : public Writer {
   // avoids constructing a temporary `BufferedWriter` and moving from it.
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedWriter::Reset()`.
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
@@ -143,9 +146,7 @@ class BufferedWriter : public Writer {
 
 inline BufferedWriter::BufferedWriter(
     size_t buffer_size, absl::optional<Position> size_hint) noexcept
-    : Writer(kInitiallyOpen),
-      buffer_size_(buffer_size),
-      size_hint_(size_hint.value_or(0)) {
+    : buffer_size_(buffer_size), size_hint_(size_hint.value_or(0)) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::BufferedWriter(size_t): "
          "zero buffer size";
@@ -170,8 +171,8 @@ inline BufferedWriter& BufferedWriter::operator=(
   return *this;
 }
 
-inline void BufferedWriter::Reset() {
-  Writer::Reset(kInitiallyClosed);
+inline void BufferedWriter::Reset(Closed) {
+  Writer::Reset(kClosed);
   buffer_size_ = 0;
   size_hint_ = 0;
   buffer_ = Buffer();
@@ -181,7 +182,7 @@ inline void BufferedWriter::Reset(size_t buffer_size,
                                   absl::optional<Position> size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedWriter::Reset(): zero buffer size";
-  Writer::Reset(kInitiallyOpen);
+  Writer::Reset();
   buffer_size_ = buffer_size;
   size_hint_ = size_hint.value_or(0);
 }

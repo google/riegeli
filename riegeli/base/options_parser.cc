@@ -32,14 +32,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
-#include "riegeli/base/object.h"
 
 namespace riegeli {
 
 ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
                          absl::string_view value)
-    : Object(kInitiallyOpen),
-      options_parser_(RIEGELI_ASSERT_NOTNULL(options_parser)),
+    : options_parser_(RIEGELI_ASSERT_NOTNULL(options_parser)),
       key_(key),
       value_(value) {}
 

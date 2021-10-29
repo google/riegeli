@@ -42,7 +42,7 @@ void SimpleDecoder::Done() {
 bool SimpleDecoder::Decode(Reader* src, uint64_t num_records,
                            uint64_t decoded_data_size,
                            std::vector<size_t>& limits) {
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   if (ABSL_PREDICT_FALSE(num_records > limits.max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
   }

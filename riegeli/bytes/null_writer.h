@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
@@ -31,17 +32,14 @@ namespace riegeli {
 // A `Writer` which discards all output.
 class NullWriter : public Writer {
  public:
-  // Tags for constructor parameters.
-  using Object::InitiallyClosed;
-  using Object::InitiallyOpen;
-  using Object::kInitiallyClosed;
-  using Object::kInitiallyOpen;
-
   // Creates a closed `NullWriter`.
-  explicit NullWriter(InitiallyClosed) noexcept : Writer(kInitiallyClosed) {}
+  explicit NullWriter(Closed) noexcept : Writer(kClosed) {}
 
   // Will discard all output.
-  explicit NullWriter(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+  NullWriter() noexcept {}
+
+  ABSL_DEPRECATED("Use default constructor instead")
+  explicit NullWriter(InitiallyOpen) noexcept : NullWriter() {}
 
   NullWriter(NullWriter&& that) noexcept;
   NullWriter& operator=(NullWriter&& that) noexcept;

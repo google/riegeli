@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
@@ -387,14 +388,15 @@ class RecordReaderBase : public Object {
  protected:
   enum class Recoverable { kNo, kRecoverChunkReader, kRecoverChunkDecoder };
 
-  explicit RecordReaderBase(InitiallyClosed) noexcept;
-  explicit RecordReaderBase(InitiallyOpen) noexcept;
+  explicit RecordReaderBase(Closed) noexcept;
+
+  RecordReaderBase() noexcept;
 
   RecordReaderBase(RecordReaderBase&& that) noexcept;
   RecordReaderBase& operator=(RecordReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(ChunkReader* src, Options&& options);
 
   void Done() override;
@@ -522,7 +524,10 @@ template <typename Src = Reader*>
 class RecordReader : public RecordReaderBase {
  public:
   // Creates a closed `RecordReader`.
-  RecordReader() noexcept : RecordReaderBase(kInitiallyClosed) {}
+  explicit RecordReader(Closed) noexcept : RecordReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  RecordReader() noexcept : RecordReader(kClosed) {}
 
   // Will read from the byte `Reader` or `ChunkReader` provided by `src`.
   explicit RecordReader(const Src& src, Options options = Options());
@@ -540,7 +545,7 @@ class RecordReader : public RecordReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `RecordReader`. This avoids
   // constructing a temporary `RecordReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -567,7 +572,7 @@ class RecordReader : public RecordReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-RecordReader()->RecordReader<DeleteCtad<>>;
+explicit RecordReader(Closed)->RecordReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit RecordReader(const Src& src, RecordReaderBase::Options options =
                                           RecordReaderBase::Options())
@@ -642,13 +647,13 @@ absl::optional<absl::partial_ordering> RecordReaderBase::Search(Test test) {
 
 template <typename Src>
 inline RecordReader<Src>::RecordReader(const Src& src, Options options)
-    : RecordReaderBase(kInitiallyOpen), src_(src) {
+    : src_(src) {
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline RecordReader<Src>::RecordReader(Src&& src, Options options)
-    : RecordReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -656,7 +661,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline RecordReader<Src>::RecordReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : RecordReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get(), std::move(options));
 }
 
@@ -678,21 +683,21 @@ inline RecordReader<Src>& RecordReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void RecordReader<Src>::Reset() {
-  RecordReaderBase::Reset(kInitiallyClosed);
+inline void RecordReader<Src>::Reset(Closed) {
+  RecordReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void RecordReader<Src>::Reset(const Src& src, Options options) {
-  RecordReaderBase::Reset(kInitiallyOpen);
+  RecordReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get(), std::move(options));
 }
 
 template <typename Src>
 inline void RecordReader<Src>::Reset(Src&& src, Options options) {
-  RecordReaderBase::Reset(kInitiallyOpen);
+  RecordReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get(), std::move(options));
 }
@@ -701,7 +706,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void RecordReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  RecordReaderBase::Reset(kInitiallyOpen);
+  RecordReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), std::move(options));
 }

@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/records/chunk_reader.h"
 
@@ -31,7 +32,7 @@ template <typename M>
 class Dependency<ChunkReader*, M,
                  std::enable_if_t<IsValidDependency<Reader*, M>::value>> {
  public:
-  Dependency() noexcept {}
+  Dependency() noexcept : chunk_reader_(kClosed) {}
 
   explicit Dependency(const M& manager) : chunk_reader_(manager) {}
   explicit Dependency(M&& manager) : chunk_reader_(std::move(manager)) {}

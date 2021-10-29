@@ -37,7 +37,6 @@ namespace riegeli {
 class JoiningReaderBase : public PullableReader {
  protected:
   using PullableReader::PullableReader;
-  using PullableReader::Reset;
 
   void Done() override;
 
@@ -155,13 +154,10 @@ class JoiningReaderBase : public PullableReader {
 template <typename Shard>
 class JoiningReader : public JoiningReaderBase {
  protected:
-  // Creates a closed `JoiningReader`.
-  explicit JoiningReader(InitiallyClosed) noexcept
-      : JoiningReaderBase(kInitiallyClosed) {}
+  using JoiningReaderBase::JoiningReaderBase;
 
-  // Creates an open `JoiningReader`.
-  explicit JoiningReader(InitiallyOpen) noexcept
-      : JoiningReaderBase(kInitiallyOpen) {}
+  ABSL_DEPRECATED("Use default constructor instead")
+  explicit JoiningReader(InitiallyOpen) noexcept : JoiningReader() {}
 
   JoiningReader(JoiningReader&& that) noexcept;
   JoiningReader& operator=(JoiningReader&& that) noexcept;
@@ -170,8 +166,8 @@ class JoiningReader : public JoiningReaderBase {
   // avoids constructing a temporary `JoiningReader` and moving from it.
   // Derived classes which override `Reset()` should include a call to
   // `JoiningReader::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   void Done() override;
 
@@ -237,14 +233,14 @@ inline JoiningReader<Shard>& JoiningReader<Shard>::operator=(
 }
 
 template <typename Shard>
-inline void JoiningReader<Shard>::Reset(InitiallyClosed) {
-  JoiningReaderBase::Reset(kInitiallyClosed);
+inline void JoiningReader<Shard>::Reset(Closed) {
+  JoiningReaderBase::Reset(kClosed);
   shard_.Reset();
 }
 
 template <typename Shard>
-inline void JoiningReader<Shard>::Reset(InitiallyOpen) {
-  JoiningReaderBase::Reset(kInitiallyOpen);
+inline void JoiningReader<Shard>::Reset() {
+  JoiningReaderBase::Reset();
   shard_.Reset();
 }
 

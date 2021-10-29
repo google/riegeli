@@ -31,19 +31,11 @@ namespace riegeli {
 // A `BackwardWriter` which discards all output.
 class NullBackwardWriter : public BackwardWriter {
  public:
-  // Tags for constructor parameters.
-  using Object::InitiallyClosed;
-  using Object::InitiallyOpen;
-  using Object::kInitiallyClosed;
-  using Object::kInitiallyOpen;
-
   // Creates a closed `NullBackwardWriter`.
-  explicit NullBackwardWriter(InitiallyClosed) noexcept
-      : BackwardWriter(kInitiallyClosed) {}
+  explicit NullBackwardWriter(Closed) noexcept : BackwardWriter(kClosed) {}
 
   // Will discard all output.
-  explicit NullBackwardWriter(InitiallyOpen) noexcept
-      : BackwardWriter(kInitiallyOpen) {}
+  NullBackwardWriter() noexcept {}
 
   NullBackwardWriter(NullBackwardWriter&& that) noexcept;
   NullBackwardWriter& operator=(NullBackwardWriter&& that) noexcept;

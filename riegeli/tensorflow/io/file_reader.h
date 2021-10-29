@@ -111,14 +111,14 @@ class FileReaderBase : public Reader {
   bool SupportsRandomAccess() override { return !filename_.empty(); }
 
  protected:
-  FileReaderBase() noexcept : Reader(kInitiallyClosed) {}
+  explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
   explicit FileReaderBase(size_t buffer_size);
 
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size);
   void Initialize(::tensorflow::RandomAccessFile* src, ::tensorflow::Env* env,
                   Position initial_pos);
@@ -209,7 +209,7 @@ template <typename Src = std::unique_ptr<::tensorflow::RandomAccessFile>>
 class FileReader : public FileReaderBase {
  public:
   // Creates a closed `FileReader`.
-  FileReader() noexcept {}
+  explicit FileReader(Closed) noexcept : FileReaderBase(kClosed) {}
 
   // Will read from the `::tensorflow::RandomAccessFile` provided by `src`.
   explicit FileReader(const Src& src, Options options = Options());
@@ -232,7 +232,7 @@ class FileReader : public FileReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `FileReader`. This avoids
   // constructing a temporary `FileReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -263,7 +263,7 @@ class FileReader : public FileReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FileReader()->FileReader<DeleteCtad<>>;
+explicit FileReader(Closed)->FileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FileReader(const Src& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
@@ -284,7 +284,7 @@ explicit FileReader(absl::string_view filename,
 // Implementation details follow.
 
 inline FileReaderBase::FileReaderBase(size_t buffer_size)
-    : Reader(kInitiallyOpen), buffer_size_(buffer_size) {}
+    : buffer_size_(buffer_size) {}
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(std::move(that)),
@@ -307,8 +307,8 @@ inline FileReaderBase& FileReaderBase::operator=(
   return *this;
 }
 
-inline void FileReaderBase::Reset() {
-  Reader::Reset(kInitiallyClosed);
+inline void FileReaderBase::Reset(Closed) {
+  Reader::Reset(kClosed);
   filename_ = std::string();
   file_system_ = nullptr;
   buffer_size_ = 0;
@@ -316,7 +316,7 @@ inline void FileReaderBase::Reset() {
 }
 
 inline void FileReaderBase::Reset(size_t buffer_size) {
-  Reader::Reset(kInitiallyOpen);
+  Reader::Reset();
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
   buffer_size_ = buffer_size;
@@ -353,14 +353,14 @@ inline FileReader<Src>::FileReader(std::tuple<SrcArgs...> src_args,
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(absl::string_view filename,
-                                   Options options) {
+inline FileReader<Src>::FileReader(absl::string_view filename, Options options)
+    : FileReaderBase(kClosed) {
   Initialize(filename, std::move(options));
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset() {
-  FileReaderBase::Reset();
+inline void FileReader<Src>::Reset(Closed) {
+  FileReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
@@ -390,7 +390,7 @@ inline void FileReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
 template <typename Src>
 inline void FileReader<Src>::Reset(absl::string_view filename,
                                    Options options) {
-  Reset();
+  Reset(kClosed);
   Initialize(filename, std::move(options));
 }
 

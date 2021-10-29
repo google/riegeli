@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -42,7 +43,10 @@ class BufferedReader : public Reader {
 
  protected:
   // Creates a closed `BufferedReader`.
-  BufferedReader() noexcept : Reader(kInitiallyClosed) {}
+  explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  BufferedReader() noexcept : BufferedReader(kClosed) {}
 
   // Creates a `BufferedReader` with the given buffer size and size hint.
   //
@@ -63,7 +67,7 @@ class BufferedReader : public Reader {
   // avoids constructing a temporary `BufferedReader` and moving from it.
   // Derived classes which redefine `Reset()` should include a call to
   // `BufferedReader::Reset()`.
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
@@ -149,9 +153,7 @@ class BufferedReader : public Reader {
 
 inline BufferedReader::BufferedReader(
     size_t buffer_size, absl::optional<Position> size_hint) noexcept
-    : Reader(kInitiallyOpen),
-      buffer_size_(buffer_size),
-      size_hint_(size_hint.value_or(0)) {
+    : buffer_size_(buffer_size), size_hint_(size_hint.value_or(0)) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::BufferedReader(size_t): "
          "zero buffer size";
@@ -176,8 +178,8 @@ inline BufferedReader& BufferedReader::operator=(
   return *this;
 }
 
-inline void BufferedReader::Reset() {
-  Reader::Reset(kInitiallyClosed);
+inline void BufferedReader::Reset(Closed) {
+  Reader::Reset(kClosed);
   buffer_size_ = 0;
   size_hint_ = 0;
   buffer_ = ChainBlock();
@@ -187,7 +189,7 @@ inline void BufferedReader::Reset(size_t buffer_size,
                                   absl::optional<Position> size_hint) {
   RIEGELI_ASSERT_GT(buffer_size, 0u)
       << "Failed precondition of BufferedReader::Reset(): zero buffer size";
-  Reader::Reset(kInitiallyOpen);
+  Reader::Reset();
   buffer_size_ = buffer_size;
   size_hint_ = size_hint.value_or(0);
   buffer_.Clear();

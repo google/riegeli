@@ -41,9 +41,7 @@ class StringReaderBase : public Reader {
   bool SupportsRandomAccess() override { return true; }
 
  protected:
-  explicit StringReaderBase(InitiallyClosed) noexcept
-      : Reader(kInitiallyClosed) {}
-  explicit StringReaderBase(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
+  using Reader::Reader;
 
   StringReaderBase(StringReaderBase&& that) noexcept;
   StringReaderBase& operator=(StringReaderBase&& that) noexcept;
@@ -80,7 +78,7 @@ template <typename Src = absl::string_view>
 class StringReader : public StringReaderBase {
  public:
   // Creates a closed `StringReader`.
-  StringReader() noexcept : StringReaderBase(kInitiallyClosed) {}
+  explicit StringReader(Closed) noexcept : StringReaderBase(kClosed) {}
 
   // Will read from the `std::string` or array provided by `src`.
   explicit StringReader(const Src& src);
@@ -97,7 +95,7 @@ class StringReader : public StringReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `StringReader`. This avoids
   // constructing a temporary `StringReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
@@ -119,7 +117,7 @@ class StringReader : public StringReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-StringReader()->StringReader<DeleteCtad<>>;
+explicit StringReader(Closed)->StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 StringReader(const Src& src) -> StringReader<std::conditional_t<
     std::is_convertible<const Src*, const std::string*>::value ||
@@ -154,21 +152,19 @@ inline void StringReaderBase::Initialize(absl::string_view src) {
 }
 
 template <typename Src>
-inline StringReader<Src>::StringReader(const Src& src)
-    : StringReaderBase(kInitiallyOpen), src_(src) {
+inline StringReader<Src>::StringReader(const Src& src) : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline StringReader<Src>::StringReader(Src&& src)
-    : StringReaderBase(kInitiallyOpen), src_(std::move(src)) {
+inline StringReader<Src>::StringReader(Src&& src) : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
-    : StringReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -191,21 +187,21 @@ inline StringReader<Src>& StringReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void StringReader<Src>::Reset() {
-  StringReaderBase::Reset(kInitiallyClosed);
+inline void StringReader<Src>::Reset(Closed) {
+  StringReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void StringReader<Src>::Reset(const Src& src) {
-  StringReaderBase::Reset(kInitiallyOpen);
+  StringReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void StringReader<Src>::Reset(Src&& src) {
-  StringReaderBase::Reset(kInitiallyOpen);
+  StringReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -213,7 +209,7 @@ inline void StringReader<Src>::Reset(Src&& src) {
 template <typename Src>
 template <typename... SrcArgs>
 inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  StringReaderBase::Reset(kInitiallyOpen);
+  StringReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

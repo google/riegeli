@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/records/chunk_writer.h"
 
@@ -31,7 +32,7 @@ template <typename M>
 class Dependency<ChunkWriter*, M,
                  std::enable_if_t<IsValidDependency<Writer*, M>::value>> {
  public:
-  Dependency() noexcept {}
+  Dependency() noexcept : chunk_writer_(kClosed) {}
 
   explicit Dependency(const M& manager) : chunk_writer_(manager) {}
   explicit Dependency(M&& manager) : chunk_writer_(std::move(manager)) {}

@@ -143,7 +143,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool SupportsTruncate() override;
 
  protected:
-  LimitingBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
+  explicit LimitingBackwardWriterBase(Closed) noexcept
+      : BackwardWriter(kClosed) {}
 
   explicit LimitingBackwardWriterBase(bool exact);
 
@@ -151,7 +152,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   LimitingBackwardWriterBase& operator=(
       LimitingBackwardWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(bool exact);
   void Initialize(BackwardWriter* dest, Options&& options);
 
@@ -216,7 +217,8 @@ template <typename Dest = BackwardWriter*>
 class LimitingBackwardWriter : public LimitingBackwardWriterBase {
  public:
   // Creates a closed `LimitingBackwardWriter`.
-  LimitingBackwardWriter() noexcept {}
+  explicit LimitingBackwardWriter(Closed) noexcept
+      : LimitingBackwardWriterBase(kClosed) {}
 
   // Will write to the original `BackwardWriter` provided by `dest`.
   explicit LimitingBackwardWriter(const Dest& dest,
@@ -236,7 +238,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `LimitingBackwardWriter`.
   // This avoids constructing a temporary `LimitingBackwardWriter` and moving
   // from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -262,7 +264,8 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-LimitingBackwardWriter()->LimitingBackwardWriter<DeleteCtad<>>;
+explicit LimitingBackwardWriter(Closed)
+    ->LimitingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingBackwardWriter(const Dest& dest,
                                 LimitingBackwardWriterBase::Options options =
@@ -283,7 +286,7 @@ explicit LimitingBackwardWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(bool exact)
-    : BackwardWriter(kInitiallyOpen), exact_(exact) {}
+    : exact_(exact) {}
 
 inline LimitingBackwardWriterBase::LimitingBackwardWriterBase(
     LimitingBackwardWriterBase&& that) noexcept
@@ -303,14 +306,14 @@ inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
   return *this;
 }
 
-inline void LimitingBackwardWriterBase::Reset() {
-  BackwardWriter::Reset(kInitiallyClosed);
+inline void LimitingBackwardWriterBase::Reset(Closed) {
+  BackwardWriter::Reset(kClosed);
   max_pos_ = std::numeric_limits<Position>::max();
   exact_ = false;
 }
 
 inline void LimitingBackwardWriterBase::Reset(bool exact) {
-  BackwardWriter::Reset(kInitiallyOpen);
+  BackwardWriter::Reset();
   // `max_pos_` will be set by `Initialize()`.
   exact_ = exact;
 }
@@ -422,9 +425,9 @@ inline LimitingBackwardWriter<Dest>& LimitingBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void LimitingBackwardWriter<Dest>::Reset() {
-  LimitingBackwardWriterBase::Reset();
-  dest_.Reset();
+inline void LimitingBackwardWriter<Dest>::Reset(Closed) {
+  LimitingBackwardWriterBase::Reset(kClosed);
+  dest_.Reset(kClosed);
 }
 
 template <typename Dest>

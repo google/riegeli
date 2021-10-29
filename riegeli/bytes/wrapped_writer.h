@@ -46,9 +46,7 @@ class WrappedWriterBase : public Writer {
   bool SupportsTruncate() override;
 
  protected:
-  explicit WrappedWriterBase(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit WrappedWriterBase(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+  using Writer::Writer;
 
   WrappedWriterBase(WrappedWriterBase&& that) noexcept;
   WrappedWriterBase& operator=(WrappedWriterBase&& that) noexcept;
@@ -103,7 +101,7 @@ template <typename Dest = Writer*>
 class WrappedWriter : public WrappedWriterBase {
  public:
   // Creates a closed `WrappedWriter`.
-  WrappedWriter() noexcept : WrappedWriterBase(kInitiallyClosed) {}
+  explicit WrappedWriter(Closed) noexcept : WrappedWriterBase(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`.
   explicit WrappedWriter(const Dest& dest);
@@ -120,7 +118,7 @@ class WrappedWriter : public WrappedWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `WrappedWriter`. This
   // avoids constructing a temporary `WrappedWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest);
   void Reset(Dest&& dest);
   template <typename... DestArgs>
@@ -146,7 +144,7 @@ class WrappedWriter : public WrappedWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-WrappedWriter()->WrappedWriter<DeleteCtad<>>;
+explicit WrappedWriter(Closed)->WrappedWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WrappedWriter(const Dest& dest) -> WrappedWriter<std::decay_t<Dest>>;
 template <typename Dest>
@@ -184,21 +182,20 @@ inline void WrappedWriterBase::MakeBuffer(Writer& dest) {
 }
 
 template <typename Dest>
-inline WrappedWriter<Dest>::WrappedWriter(const Dest& dest)
-    : WrappedWriterBase(kInitiallyOpen), dest_(dest) {
+inline WrappedWriter<Dest>::WrappedWriter(const Dest& dest) : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline WrappedWriter<Dest>::WrappedWriter(Dest&& dest)
-    : WrappedWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline WrappedWriter<Dest>::WrappedWriter(std::tuple<DestArgs...> dest_args)
-    : WrappedWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -221,21 +218,21 @@ inline WrappedWriter<Dest>& WrappedWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void WrappedWriter<Dest>::Reset() {
-  WrappedWriterBase::Reset(kInitiallyClosed);
-  dest_.Reset();
+inline void WrappedWriter<Dest>::Reset(Closed) {
+  WrappedWriterBase::Reset(kClosed);
+  dest_.Reset(kClosed);
 }
 
 template <typename Dest>
 inline void WrappedWriter<Dest>::Reset(const Dest& dest) {
-  WrappedWriterBase::Reset(kInitiallyOpen);
+  WrappedWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void WrappedWriter<Dest>::Reset(Dest&& dest) {
-  WrappedWriterBase::Reset(kInitiallyOpen);
+  WrappedWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -243,7 +240,7 @@ inline void WrappedWriter<Dest>::Reset(Dest&& dest) {
 template <typename Dest>
 template <typename... DestArgs>
 inline void WrappedWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
-  WrappedWriterBase::Reset(kInitiallyOpen);
+  WrappedWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

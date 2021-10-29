@@ -81,7 +81,7 @@ class RecordsMetadataDescriptors::ErrorCollector
 
 RecordsMetadataDescriptors::RecordsMetadataDescriptors(
     const RecordsMetadata& metadata)
-    : Object(kInitiallyOpen), record_type_name_(metadata.record_type_name()) {
+    : record_type_name_(metadata.record_type_name()) {
   if (record_type_name_.empty() || metadata.file_descriptor().empty()) return;
   pool_ = std::make_unique<google::protobuf::DescriptorPool>();
   ErrorCollector error_collector(this);
@@ -100,11 +100,9 @@ const google::protobuf::Descriptor* RecordsMetadataDescriptors::descriptor()
   return pool_->FindMessageTypeByName(record_type_name_);
 }
 
-RecordReaderBase::RecordReaderBase(InitiallyClosed) noexcept
-    : Object(kInitiallyClosed) {}
+RecordReaderBase::RecordReaderBase(Closed) noexcept : Object(kClosed) {}
 
-RecordReaderBase::RecordReaderBase(InitiallyOpen) noexcept
-    : Object(kInitiallyOpen) {}
+RecordReaderBase::RecordReaderBase() noexcept {}
 
 RecordReaderBase::RecordReaderBase(RecordReaderBase&& that) noexcept
     : Object(std::move(that)),
@@ -129,8 +127,8 @@ RecordReaderBase& RecordReaderBase::operator=(
   return *this;
 }
 
-void RecordReaderBase::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+void RecordReaderBase::Reset(Closed) {
+  Object::Reset(kClosed);
   chunk_begin_ = 0;
   chunk_decoder_.Reset();
   last_record_is_valid_ = false;
@@ -138,8 +136,8 @@ void RecordReaderBase::Reset(InitiallyClosed) {
   recovery_ = nullptr;
 }
 
-void RecordReaderBase::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+void RecordReaderBase::Reset() {
+  Object::Reset();
   chunk_begin_ = 0;
   chunk_decoder_.Clear();
   last_record_is_valid_ = false;

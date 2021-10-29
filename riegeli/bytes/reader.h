@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -358,9 +357,7 @@ class Reader : public Object {
   absl::optional<Position> Size();
 
  protected:
-  // Creates a `Reader` with the given initial state.
-  explicit Reader(InitiallyClosed) noexcept : Object(kInitiallyClosed) {}
-  explicit Reader(InitiallyOpen) noexcept : Object(kInitiallyOpen) {}
+  using Object::Object;
 
   // Moves the part of the object defined in this class.
   //
@@ -372,8 +369,8 @@ class Reader : public Object {
   // Makes `*this` equivalent to a newly constructed `Reader`. This avoids
   // constructing a temporary `Reader` and moving from it. Derived classes which
   // redefine `Reset()` should include a call to `Reader::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // `Reader` overrides `Object::Done()` to set buffer pointers to `nullptr`.
   // Derived classes which override it further should include a call to
@@ -503,16 +500,16 @@ inline Reader& Reader::operator=(Reader&& that) noexcept {
   return *this;
 }
 
-inline void Reader::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void Reader::Reset(Closed) {
+  Object::Reset(kClosed);
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
   limit_pos_ = 0;
 }
 
-inline void Reader::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void Reader::Reset() {
+  Object::Reset();
   start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;

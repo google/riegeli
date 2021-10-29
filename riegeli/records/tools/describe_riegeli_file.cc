@@ -36,6 +36,7 @@
 #include "google/protobuf/text_format.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -224,8 +225,8 @@ absl::Status DescribeTransposedChunk(
     // Based on `ChunkDecoder::Parse()`.
     src.Seek(0);
     TransposeDecoder transpose_decoder;
-    ChainBackwardWriter<Chain> chain_dest_writer;
-    NullBackwardWriter null_dest_writer(NullBackwardWriter::kInitiallyClosed);
+    ChainBackwardWriter<Chain> chain_dest_writer(kClosed);
+    NullBackwardWriter null_dest_writer(kClosed);
     BackwardWriter* dest_writer;
     if (show_records) {
       chain_dest_writer.Reset(std::forward_as_tuple(),
@@ -233,7 +234,7 @@ absl::Status DescribeTransposedChunk(
                                   chunk.header.decoded_data_size()));
       dest_writer = &chain_dest_writer;
     } else {
-      null_dest_writer.Reset(NullBackwardWriter::kInitiallyOpen);
+      null_dest_writer.Reset();
       dest_writer = &null_dest_writer;
     }
     std::vector<size_t> limits;

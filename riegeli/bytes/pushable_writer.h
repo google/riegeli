@@ -69,10 +69,7 @@ class PushableWriter : public Writer {
     size_t written_to_scratch_;
   };
 
-  // Creates a `PushableWriter` with the given initial state.
-  explicit PushableWriter(InitiallyClosed) noexcept
-      : Writer(kInitiallyClosed) {}
-  explicit PushableWriter(InitiallyOpen) noexcept : Writer(kInitiallyOpen) {}
+  using Writer::Writer;
 
   PushableWriter(PushableWriter&& that) noexcept;
   PushableWriter& operator=(PushableWriter&& that) noexcept;
@@ -81,8 +78,8 @@ class PushableWriter : public Writer {
   // avoids constructing a temporary `PushableWriter` and moving from it.
   // Derived classes which redefine `Reset()` should include a call to
   // `PushableWriter::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // Returns `true` if scratch is used, which means that buffer pointers are
   // temporarily unrelated to the destination. This is exposed for assertions.
@@ -201,13 +198,13 @@ inline PushableWriter& PushableWriter::operator=(
   return *this;
 }
 
-inline void PushableWriter::Reset(InitiallyClosed) {
-  Writer::Reset(kInitiallyClosed);
+inline void PushableWriter::Reset(Closed) {
+  Writer::Reset(kClosed);
   scratch_.reset();
 }
 
-inline void PushableWriter::Reset(InitiallyOpen) {
-  Writer::Reset(kInitiallyOpen);
+inline void PushableWriter::Reset() {
+  Writer::Reset();
   if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 

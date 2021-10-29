@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -539,14 +540,15 @@ class RecordWriterBase : public Object {
   Position EstimatedSize() const;
 
  protected:
-  explicit RecordWriterBase(InitiallyClosed) noexcept;
-  explicit RecordWriterBase(InitiallyOpen) noexcept;
+  explicit RecordWriterBase(Closed) noexcept;
+
+  RecordWriterBase() noexcept;
 
   RecordWriterBase(RecordWriterBase&& that) noexcept;
   RecordWriterBase& operator=(RecordWriterBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   virtual bool is_owning() const = 0;
 
@@ -607,7 +609,10 @@ template <typename Dest = Writer*>
 class RecordWriter : public RecordWriterBase {
  public:
   // Creates a closed `RecordWriter`.
-  RecordWriter() noexcept : RecordWriterBase(kInitiallyClosed) {}
+  explicit RecordWriter(Closed) noexcept : RecordWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  RecordWriter() noexcept : RecordWriter(kClosed) {}
 
   // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
   explicit RecordWriter(const Dest& dest, Options options = Options());
@@ -627,7 +632,9 @@ class RecordWriter : public RecordWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `RecordWriter`. This avoids
   // constructing a temporary `RecordWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
+  ABSL_DEPRECATED("Use Reset(kClosed) instead")
+  void Reset() { Reset(kClosed); }
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -653,7 +660,7 @@ class RecordWriter : public RecordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-RecordWriter()->RecordWriter<DeleteCtad<>>;
+explicit RecordWriter(Closed)->RecordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit RecordWriter(const Dest& dest, RecordWriterBase::Options options =
                                             RecordWriterBase::Options())
@@ -680,13 +687,13 @@ inline bool RecordWriterBase::WriteRecord(
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(const Dest& dest, Options options)
-    : RecordWriterBase(kInitiallyOpen), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline RecordWriter<Dest>::RecordWriter(Dest&& dest, Options options)
-    : RecordWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -694,7 +701,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline RecordWriter<Dest>::RecordWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : RecordWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), std::move(options));
 }
 
@@ -717,21 +724,21 @@ inline RecordWriter<Dest>& RecordWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void RecordWriter<Dest>::Reset() {
-  RecordWriterBase::Reset(kInitiallyClosed);
+inline void RecordWriter<Dest>::Reset(Closed) {
+  RecordWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void RecordWriter<Dest>::Reset(const Dest& dest, Options options) {
-  RecordWriterBase::Reset(kInitiallyOpen);
+  RecordWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get(), std::move(options));
 }
 
 template <typename Dest>
 inline void RecordWriter<Dest>::Reset(Dest&& dest, Options options) {
-  RecordWriterBase::Reset(kInitiallyOpen);
+  RecordWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), std::move(options));
 }
@@ -740,7 +747,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void RecordWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  RecordWriterBase::Reset(kInitiallyOpen);
+  RecordWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), std::move(options));
 }

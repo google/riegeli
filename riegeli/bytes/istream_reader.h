@@ -29,6 +29,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/stream_dependency.h"
 
@@ -88,14 +89,14 @@ class IstreamReaderBase : public BufferedReader {
   bool SupportsRandomAccess() override { return supports_random_access(); }
 
  protected:
-  IstreamReaderBase() noexcept {}
+  explicit IstreamReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit IstreamReaderBase(size_t buffer_size);
 
   IstreamReaderBase(IstreamReaderBase&& that) noexcept;
   IstreamReaderBase& operator=(IstreamReaderBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(size_t buffer_size);
   void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -146,7 +147,7 @@ template <typename Src = std::istream*>
 class IstreamReader : public IstreamReaderBase {
  public:
   // Creates a closed `IstreamReader`.
-  IstreamReader() noexcept {}
+  explicit IstreamReader(Closed) noexcept : IstreamReaderBase(kClosed) {}
 
   // Will read from the stream provided by `src`.
   explicit IstreamReader(const Src& src, Options options = Options());
@@ -163,7 +164,7 @@ class IstreamReader : public IstreamReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `IstreamReader`. This
   // avoids constructing a temporary `IstreamReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -186,7 +187,7 @@ class IstreamReader : public IstreamReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-IstreamReader()->IstreamReader<DeleteCtad<>>;
+explicit IstreamReader(Closed)->IstreamReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit IstreamReader(const Src& src, IstreamReaderBase::Options options =
                                            IstreamReaderBase::Options())
@@ -226,8 +227,8 @@ inline IstreamReaderBase& IstreamReaderBase::operator=(
   return *this;
 }
 
-inline void IstreamReaderBase::Reset() {
-  BufferedReader::Reset();
+inline void IstreamReaderBase::Reset(Closed) {
+  BufferedReader::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
 }
 
@@ -277,8 +278,8 @@ inline IstreamReader<Src>& IstreamReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void IstreamReader<Src>::Reset() {
-  IstreamReaderBase::Reset();
+inline void IstreamReader<Src>::Reset(Closed) {
+  IstreamReaderBase::Reset(kClosed);
   src_.Reset();
 }
 

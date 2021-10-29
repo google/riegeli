@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -42,16 +43,13 @@ class ChainReaderBase : public PullableReader {
   bool SupportsRandomAccess() override { return true; }
 
  protected:
-  explicit ChainReaderBase(InitiallyClosed) noexcept
-      : PullableReader(kInitiallyClosed) {}
-  explicit ChainReaderBase(InitiallyOpen) noexcept
-      : PullableReader(kInitiallyOpen) {}
+  using PullableReader::PullableReader;
 
   ChainReaderBase(ChainReaderBase&& that) noexcept;
   ChainReaderBase& operator=(ChainReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(const Chain* src);
 
   void Done() override;
@@ -92,7 +90,10 @@ template <typename Src = const Chain*>
 class ChainReader : public ChainReaderBase {
  public:
   // Creates a closed `ChainReader`.
-  ChainReader() noexcept : ChainReaderBase(kInitiallyClosed) {}
+  explicit ChainReader(Closed) noexcept : ChainReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  ChainReader() noexcept : ChainReader(kClosed) {}
 
   // Will read from the `Chain` provided by `src`.
   explicit ChainReader(const Src& src);
@@ -108,7 +109,7 @@ class ChainReader : public ChainReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `ChainReader`. This avoids
   // constructing a temporary `ChainReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src);
   void Reset(Src&& src);
   template <typename... SrcArgs>
@@ -129,7 +130,7 @@ class ChainReader : public ChainReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ChainReader()->ChainReader<DeleteCtad<>>;
+explicit ChainReader(Closed)->ChainReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ChainReader(const Src& src) -> ChainReader<std::decay_t<Src>>;
 template <typename Src>
@@ -156,13 +157,13 @@ inline ChainReaderBase& ChainReaderBase::operator=(
   return *this;
 }
 
-inline void ChainReaderBase::Reset(InitiallyClosed) {
-  PullableReader::Reset(kInitiallyClosed);
+inline void ChainReaderBase::Reset(Closed) {
+  PullableReader::Reset(kClosed);
   iter_ = Chain::BlockIterator();
 }
 
-inline void ChainReaderBase::Reset(InitiallyOpen) {
-  PullableReader::Reset(kInitiallyOpen);
+inline void ChainReaderBase::Reset() {
+  PullableReader::Reset();
   // `iter_` will be set by `Initialize()`.
 }
 
@@ -177,21 +178,19 @@ inline void ChainReaderBase::Initialize(const Chain* src) {
 }
 
 template <typename Src>
-inline ChainReader<Src>::ChainReader(const Src& src)
-    : ChainReaderBase(kInitiallyOpen), src_(src) {
+inline ChainReader<Src>::ChainReader(const Src& src) : src_(src) {
   Initialize(src_.get());
 }
 
 template <typename Src>
-inline ChainReader<Src>::ChainReader(Src&& src)
-    : ChainReaderBase(kInitiallyOpen), src_(std::move(src)) {
+inline ChainReader<Src>::ChainReader(Src&& src) : src_(std::move(src)) {
   Initialize(src_.get());
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline ChainReader<Src>::ChainReader(std::tuple<SrcArgs...> src_args)
-    : ChainReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
 
@@ -214,21 +213,21 @@ inline ChainReader<Src>& ChainReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void ChainReader<Src>::Reset() {
-  ChainReaderBase::Reset(kInitiallyClosed);
+inline void ChainReader<Src>::Reset(Closed) {
+  ChainReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void ChainReader<Src>::Reset(const Src& src) {
-  ChainReaderBase::Reset(kInitiallyOpen);
+  ChainReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get());
 }
 
 template <typename Src>
 inline void ChainReader<Src>::Reset(Src&& src) {
-  ChainReaderBase::Reset(kInitiallyOpen);
+  ChainReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());
 }
@@ -236,7 +235,7 @@ inline void ChainReader<Src>::Reset(Src&& src) {
 template <typename Src>
 template <typename... SrcArgs>
 inline void ChainReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
-  ChainReaderBase::Reset(kInitiallyOpen);
+  ChainReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
 }

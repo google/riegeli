@@ -22,30 +22,25 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "riegeli/base/base.h"
 
 namespace riegeli {
+
+// By convention, a constructor with a single parameter of type `Closed`
+// constructs the object as closed.
+struct Closed {};
+inline constexpr Closed kClosed{};
 
 // Internal representation of the basic state of class `Object` and similar
 // classes: whether the object is open or closed, and whether it is not failed
 // or failed (with an associated `absl::Status` for failure details).
 class ObjectState {
  public:
-  // By a common convention default-constructed objects are closed, and objects
-  // constructed with non-empty parameter lists are open.
-  //
-  // This convention is not applicable to classes with no natural constructor
-  // parameters. Instead, these classes have no default constructor, and
-  // constructors with a dummy parameter of type `InitiallyClosed` or
-  // `InitiallyOpen` disambiguate the intent.
-  struct InitiallyClosed {};
-  struct InitiallyOpen {};
+  // Creates a closed `ObjectState`.
+  explicit ObjectState(Closed) noexcept;
 
-  static constexpr InitiallyClosed kInitiallyClosed{};
-  static constexpr InitiallyOpen kInitiallyOpen{};
-
-  // Creates an `ObjectState` with the given initial state.
-  explicit ObjectState(InitiallyClosed) noexcept;
-  explicit ObjectState(InitiallyOpen) noexcept;
+  // Creates an open `ObjectState`.
+  ObjectState() noexcept;
 
   ObjectState(const ObjectState& that) = delete;
   ObjectState& operator=(const ObjectState& that) = delete;
@@ -57,8 +52,8 @@ class ObjectState {
 
   // Makes `*this` equivalent to a newly constructed `ObjectState`. This avoids
   // constructing a temporary `ObjectState` and moving from it.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // Returns `true` if the `ObjectState` is healthy, i.e. open and not failed.
   bool healthy() const;
@@ -156,6 +151,13 @@ class TypeId {
 // source `Object` is left closed.
 class Object {
  public:
+  struct ABSL_DEPRECATED("Use default constructor instead") InitiallyOpen {};
+  ABSL_DEPRECATED("Use default constructor instead")
+  static constexpr InitiallyOpen kInitiallyOpen{};
+
+  ABSL_DEPRECATED("Use kClosed instead")
+  static constexpr Closed kInitiallyClosed{};
+
   Object(const Object&) = delete;
   Object& operator=(const Object&) = delete;
 
@@ -262,17 +264,14 @@ class Object {
   virtual TypeId GetTypeId() const;
 
  protected:
-  using InitiallyClosed = ObjectState::InitiallyClosed;
-  using InitiallyOpen = ObjectState::InitiallyOpen;
+  // Creates a closed `Object`.
+  explicit Object(Closed) noexcept : state_(kClosed) {}
 
-  static constexpr const InitiallyClosed& kInitiallyClosed =
-      ObjectState::kInitiallyClosed;
-  static constexpr const InitiallyOpen& kInitiallyOpen =
-      ObjectState::kInitiallyOpen;
+  // Creates an open `Object`.
+  Object() noexcept {}
 
-  // Creates an `Object` with the given initial state.
-  explicit Object(InitiallyClosed) noexcept : state_(kInitiallyClosed) {}
-  explicit Object(InitiallyOpen) noexcept : state_(kInitiallyOpen) {}
+  ABSL_DEPRECATED("Use default constructor instead")
+  explicit Object(InitiallyOpen) noexcept : Object() {}
 
   // Moves the part of the object defined in the `Object` class.
   Object(Object&& that) noexcept = default;
@@ -281,8 +280,8 @@ class Object {
   // Makes `*this` equivalent to a newly constructed `Object`. This avoids
   // constructing a temporary `Object` and moving from it. Derived classes which
   // redefine `Reset()` should include a call to `Object::Reset()`.
-  void Reset(InitiallyClosed) { state_.Reset(kInitiallyClosed); }
-  void Reset(InitiallyOpen) { state_.Reset(kInitiallyOpen); }
+  void Reset(Closed) { state_.Reset(kClosed); }
+  void Reset() { state_.Reset(); }
 
   // Marks the `Object` as not failed, keeping its `is_open()` state unchanged.
   // This can be used if the `Object` supports recovery after some failures.
@@ -327,11 +326,10 @@ class Object {
 
 // Implementation details follow.
 
-inline ObjectState::ObjectState(InitiallyClosed) noexcept
+inline ObjectState::ObjectState(Closed) noexcept
     : status_ptr_(kClosedSuccessfully) {}
 
-inline ObjectState::ObjectState(InitiallyOpen) noexcept
-    : status_ptr_(kHealthy) {}
+inline ObjectState::ObjectState() noexcept : status_ptr_(kHealthy) {}
 
 inline ObjectState::ObjectState(ObjectState&& that) noexcept
     : status_ptr_(std::exchange(that.status_ptr_, kClosedSuccessfully)) {}
@@ -344,11 +342,11 @@ inline ObjectState& ObjectState::operator=(ObjectState&& that) noexcept {
 
 inline ObjectState::~ObjectState() { DeleteStatus(status_ptr_); }
 
-inline void ObjectState::Reset(InitiallyClosed) {
+inline void ObjectState::Reset(Closed) {
   DeleteStatus(std::exchange(status_ptr_, kClosedSuccessfully));
 }
 
-inline void ObjectState::Reset(InitiallyOpen) {
+inline void ObjectState::Reset() {
   DeleteStatus(std::exchange(status_ptr_, kHealthy));
 }
 

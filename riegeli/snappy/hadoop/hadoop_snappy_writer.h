@@ -63,14 +63,14 @@ class HadoopSnappyWriterBase : public PushableWriter {
   virtual const Writer* dest_writer() const = 0;
 
  protected:
-  HadoopSnappyWriterBase() noexcept : PushableWriter(kInitiallyClosed) {}
+  explicit HadoopSnappyWriterBase(Closed) noexcept : PushableWriter(kClosed) {}
 
   explicit HadoopSnappyWriterBase(absl::optional<Position> size_hint);
 
   HadoopSnappyWriterBase(HadoopSnappyWriterBase&& that) noexcept;
   HadoopSnappyWriterBase& operator=(HadoopSnappyWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
@@ -118,7 +118,8 @@ template <typename Dest = Writer*>
 class HadoopSnappyWriter : public HadoopSnappyWriterBase {
  public:
   // Creates a closed `HadoopSnappyWriter`.
-  HadoopSnappyWriter() noexcept {}
+  explicit HadoopSnappyWriter(Closed) noexcept
+      : HadoopSnappyWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
   explicit HadoopSnappyWriter(const Dest& dest, Options options = Options());
@@ -136,7 +137,7 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `HadoopSnappyWriter`. This
   // avoids constructing a temporary `HadoopSnappyWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -160,7 +161,7 @@ class HadoopSnappyWriter : public HadoopSnappyWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-HadoopSnappyWriter()->HadoopSnappyWriter<DeleteCtad<>>;
+explicit HadoopSnappyWriter(Closed)->HadoopSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit HadoopSnappyWriter(
     const Dest& dest,
@@ -182,7 +183,7 @@ explicit HadoopSnappyWriter(
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     absl::optional<Position> size_hint)
-    : PushableWriter(kInitiallyOpen), size_hint_(size_hint.value_or(0)) {}
+    : size_hint_(size_hint.value_or(0)) {}
 
 inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
     HadoopSnappyWriterBase&& that) noexcept
@@ -202,13 +203,13 @@ inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
   return *this;
 }
 
-inline void HadoopSnappyWriterBase::Reset() {
-  PushableWriter::Reset(kInitiallyClosed);
+inline void HadoopSnappyWriterBase::Reset(Closed) {
+  PushableWriter::Reset(kClosed);
   size_hint_ = 0;
 }
 
 inline void HadoopSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
-  PushableWriter::Reset(kInitiallyOpen);
+  PushableWriter::Reset();
   size_hint_ = size_hint.value_or(0);
 }
 
@@ -253,8 +254,8 @@ inline HadoopSnappyWriter<Dest>& HadoopSnappyWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void HadoopSnappyWriter<Dest>::Reset() {
-  HadoopSnappyWriterBase::Reset();
+inline void HadoopSnappyWriter<Dest>::Reset(Closed) {
+  HadoopSnappyWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

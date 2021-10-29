@@ -45,8 +45,7 @@ class TFRecordRecognizer : public Object {
 // Implementation details follow.
 
 inline TFRecordRecognizer::TFRecordRecognizer(Reader* byte_reader)
-    : Object(kInitiallyOpen),
-      byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)) {}
+    : byte_reader_(RIEGELI_ASSERT_NOTNULL(byte_reader)) {}
 
 }  // namespace riegeli
 

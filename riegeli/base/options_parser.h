@@ -140,7 +140,7 @@ class ValueParser : public Object {
 
 class OptionsParser : public Object {
  public:
-  OptionsParser() : Object(kInitiallyOpen) {}
+  OptionsParser() noexcept {}
 
   OptionsParser(const OptionsParser&) = delete;
   OptionsParser& operator=(const OptionsParser&) = delete;

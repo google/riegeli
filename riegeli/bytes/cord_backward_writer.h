@@ -119,14 +119,14 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  CordBackwardWriterBase() noexcept : BackwardWriter(kInitiallyClosed) {}
+  explicit CordBackwardWriterBase(Closed) noexcept : BackwardWriter(kClosed) {}
 
   explicit CordBackwardWriterBase(const Options& options);
 
   CordBackwardWriterBase(CordBackwardWriterBase&& that) noexcept;
   CordBackwardWriterBase& operator=(CordBackwardWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(const Options& options);
   void Initialize(absl::Cord* dest, bool prepend);
 
@@ -180,7 +180,8 @@ template <typename Dest = absl::Cord*>
 class CordBackwardWriter : public CordBackwardWriterBase {
  public:
   // Creates a closed `CordBackwardWriter`.
-  CordBackwardWriter() noexcept {}
+  explicit CordBackwardWriter(Closed) noexcept
+      : CordBackwardWriterBase(kClosed) {}
 
   // Will prepend to the `absl::Cord` provided by `dest`.
   explicit CordBackwardWriter(const Dest& dest, Options options = Options());
@@ -198,7 +199,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `CordBackwardWriter`. This
   // avoids constructing a temporary `CordBackwardWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -218,7 +219,7 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-CordBackwardWriter()->CordBackwardWriter<DeleteCtad<>>;
+explicit CordBackwardWriter(Closed)->CordBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordBackwardWriter(
     const Dest& dest,
@@ -245,8 +246,7 @@ explicit CordBackwardWriter(
 // Implementation details follow.
 
 inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
-    : BackwardWriter(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
+    : size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
       min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
@@ -281,15 +281,15 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
   return *this;
 }
 
-inline void CordBackwardWriterBase::Reset() {
-  BackwardWriter::Reset(kInitiallyClosed);
+inline void CordBackwardWriterBase::Reset(Closed) {
+  BackwardWriter::Reset(kClosed);
   size_hint_ = 0;
   min_block_size_ = kMinBufferSize;
   max_block_size_ = kMaxBufferSize;
 }
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
-  BackwardWriter::Reset(kInitiallyOpen);
+  BackwardWriter::Reset();
   size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
@@ -354,8 +354,8 @@ inline CordBackwardWriter<Dest>& CordBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void CordBackwardWriter<Dest>::Reset() {
-  CordBackwardWriterBase::Reset();
+inline void CordBackwardWriter<Dest>::Reset(Closed) {
+  CordBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

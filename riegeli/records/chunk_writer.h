@@ -38,12 +38,6 @@ namespace riegeli {
 // writes.
 class ChunkWriter : public Object {
  public:
-  explicit ChunkWriter(InitiallyClosed) : Object(kInitiallyClosed) {}
-  explicit ChunkWriter(InitiallyOpen) : Object(kInitiallyOpen) {}
-
-  ChunkWriter(ChunkWriter&& that) noexcept;
-  ChunkWriter& operator=(ChunkWriter&& that) noexcept;
-
   ~ChunkWriter() override;
 
   // Writes a chunk, pushing data to the destination as needed.
@@ -89,8 +83,13 @@ class ChunkWriter : public Object {
   Position pos() const { return pos_; }
 
  protected:
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  using Object::Object;
+
+  ChunkWriter(ChunkWriter&& that) noexcept;
+  ChunkWriter& operator=(ChunkWriter&& that) noexcept;
+
+  void Reset(Closed);
+  void Reset();
   void Initialize(Position pos) { pos_ = pos; }
   virtual bool FlushImpl(FlushType flush_type) = 0;
 
@@ -131,10 +130,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
   bool PadToBlockBoundary() override;
 
  protected:
-  explicit DefaultChunkWriterBase(InitiallyClosed)
-      : ChunkWriter(kInitiallyClosed) {}
-  explicit DefaultChunkWriterBase(InitiallyOpen)
-      : ChunkWriter(kInitiallyOpen) {}
+  using ChunkWriter::ChunkWriter;
 
   DefaultChunkWriterBase(DefaultChunkWriterBase&& that) noexcept;
   DefaultChunkWriterBase& operator=(DefaultChunkWriterBase&& that) noexcept;
@@ -165,7 +161,8 @@ template <typename Dest = Writer*>
 class DefaultChunkWriter : public DefaultChunkWriterBase {
  public:
   // Creates a closed `DefaultChunkWriter`.
-  DefaultChunkWriter() noexcept : DefaultChunkWriterBase(kInitiallyClosed) {}
+  explicit DefaultChunkWriter(Closed) noexcept
+      : DefaultChunkWriterBase(kClosed) {}
 
   // Will write to the byte `Writer` provided by `dest`.
   explicit DefaultChunkWriter(const Dest& dest, Options options = Options());
@@ -183,7 +180,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `DefaultChunkWriter`. This
   // avoids constructing a temporary `DefaultChunkWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -208,7 +205,7 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-DefaultChunkWriter()->DefaultChunkWriter<DeleteCtad<>>;
+explicit DefaultChunkWriter(Closed)->DefaultChunkWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit DefaultChunkWriter(
     const Dest& dest,
@@ -242,13 +239,13 @@ inline ChunkWriter& ChunkWriter::operator=(ChunkWriter&& that) noexcept {
   return *this;
 }
 
-inline void ChunkWriter::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+inline void ChunkWriter::Reset(Closed) {
+  Object::Reset(kClosed);
   pos_ = 0;
 }
 
-inline void ChunkWriter::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+inline void ChunkWriter::Reset() {
+  Object::Reset();
   pos_ = 0;
 }
 
@@ -269,14 +266,14 @@ inline DefaultChunkWriterBase& DefaultChunkWriterBase::operator=(
 template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(const Dest& dest,
                                                     Options options)
-    : DefaultChunkWriterBase(kInitiallyOpen), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(Dest&& dest,
                                                     Options options)
-    : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
@@ -284,7 +281,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline DefaultChunkWriter<Dest>::DefaultChunkWriter(
     std::tuple<DestArgs...> dest_args, Options options)
-    : DefaultChunkWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
@@ -307,21 +304,21 @@ inline DefaultChunkWriter<Dest>& DefaultChunkWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void DefaultChunkWriter<Dest>::Reset() {
-  DefaultChunkWriterBase::Reset(kInitiallyClosed);
+inline void DefaultChunkWriter<Dest>::Reset(Closed) {
+  DefaultChunkWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void DefaultChunkWriter<Dest>::Reset(const Dest& dest, Options options) {
-  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  DefaultChunkWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
 
 template <typename Dest>
 inline void DefaultChunkWriter<Dest>::Reset(Dest&& dest, Options options) {
-  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  DefaultChunkWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }
@@ -330,7 +327,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void DefaultChunkWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                             Options options) {
-  DefaultChunkWriterBase::Reset(kInitiallyOpen);
+  DefaultChunkWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.assumed_pos().value_or(dest_->pos()));
 }

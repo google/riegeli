@@ -65,15 +65,15 @@ class SnappyReaderBase : public ChainReader<Chain> {
   virtual const Reader* src_reader() const = 0;
 
  protected:
-  SnappyReaderBase(InitiallyClosed) noexcept {}
+  explicit SnappyReaderBase(Closed) noexcept : ChainReader(kClosed) {}
 
-  explicit SnappyReaderBase(InitiallyOpen);
+  SnappyReaderBase();
 
   SnappyReaderBase(SnappyReaderBase&& that) noexcept;
   SnappyReaderBase& operator=(SnappyReaderBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(Reader* src, absl::optional<Position> assumed_size);
 
   void Done() override;
@@ -110,7 +110,10 @@ template <typename Src = Reader*>
 class SnappyReader : public SnappyReaderBase {
  public:
   // Creates a closed `SnappyReader`.
-  SnappyReader() noexcept : SnappyReaderBase(kInitiallyClosed) {}
+  explicit SnappyReader(Closed) noexcept : SnappyReaderBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  SnappyReader() noexcept : SnappyReader(kClosed) {}
 
   // Will read from the compressed `Reader` provided by `src`.
   explicit SnappyReader(const Src& src, Options options = Options());
@@ -128,7 +131,7 @@ class SnappyReader : public SnappyReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `SnappyReader`. This avoids
   // constructing a temporary `SnappyReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>
@@ -153,7 +156,7 @@ class SnappyReader : public SnappyReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-SnappyReader()->SnappyReader<DeleteCtad<>>;
+explicit SnappyReader(Closed)->SnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit SnappyReader(const Src& src, SnappyReaderBase::Options options =
                                           SnappyReaderBase::Options())
@@ -259,7 +262,7 @@ absl::optional<size_t> SnappyUncompressedSize(Reader& src);
 
 // Implementation details follow.
 
-inline SnappyReaderBase::SnappyReaderBase(InitiallyOpen)
+inline SnappyReaderBase::SnappyReaderBase()
     // Empty `Chain` as the `ChainReader` source is a placeholder, it will be
     // set by `Initialize()`.
     : ChainReader(std::forward_as_tuple()) {}
@@ -273,9 +276,9 @@ inline SnappyReaderBase& SnappyReaderBase::operator=(
   return *this;
 }
 
-inline void SnappyReaderBase::Reset(InitiallyClosed) { ChainReader::Reset(); }
+inline void SnappyReaderBase::Reset(Closed) { ChainReader::Reset(kClosed); }
 
-inline void SnappyReaderBase::Reset(InitiallyOpen) {
+inline void SnappyReaderBase::Reset() {
   // Empty `Chain` as the `ChainReader` source is a placeholder, it will be set
   // by `Initialize()`.
   ChainReader::Reset(std::forward_as_tuple());
@@ -283,13 +286,13 @@ inline void SnappyReaderBase::Reset(InitiallyOpen) {
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(const Src& src, Options options)
-    : SnappyReaderBase(kInitiallyOpen), src_(src) {
+    : src_(src) {
   Initialize(src_.get(), options.assumed_size());
 }
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(Src&& src, Options options)
-    : SnappyReaderBase(kInitiallyOpen), src_(std::move(src)) {
+    : src_(std::move(src)) {
   Initialize(src_.get(), options.assumed_size());
 }
 
@@ -297,7 +300,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline SnappyReader<Src>::SnappyReader(std::tuple<SrcArgs...> src_args,
                                        Options options)
-    : SnappyReaderBase(kInitiallyOpen), src_(std::move(src_args)) {
+    : src_(std::move(src_args)) {
   Initialize(src_.get(), options.assumed_size());
 }
 
@@ -319,21 +322,21 @@ inline SnappyReader<Src>& SnappyReader<Src>::operator=(
 }
 
 template <typename Src>
-inline void SnappyReader<Src>::Reset() {
-  SnappyReaderBase::Reset(kInitiallyClosed);
+inline void SnappyReader<Src>::Reset(Closed) {
+  SnappyReaderBase::Reset(kClosed);
   src_.Reset();
 }
 
 template <typename Src>
 inline void SnappyReader<Src>::Reset(const Src& src, Options options) {
-  SnappyReaderBase::Reset(kInitiallyOpen);
+  SnappyReaderBase::Reset();
   src_.Reset(src);
   Initialize(src_.get(), options.assumed_size());
 }
 
 template <typename Src>
 inline void SnappyReader<Src>::Reset(Src&& src, Options options) {
-  SnappyReaderBase::Reset(kInitiallyOpen);
+  SnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get(), options.assumed_size());
 }
@@ -342,7 +345,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void SnappyReader<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      Options options) {
-  SnappyReaderBase::Reset(kInitiallyOpen);
+  SnappyReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get(), options.assumed_size());
 }

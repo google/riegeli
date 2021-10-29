@@ -151,8 +151,7 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
 class RecordWriterBase::Worker {
  public:
   explicit Worker(ChunkWriter* chunk_writer, Options&& options)
-      : state_(ObjectState::kInitiallyOpen),
-        options_(std::move(options)),
+      : options_(std::move(options)),
         chunk_writer_(RIEGELI_ASSERT_NOTNULL(chunk_writer)),
         chunk_encoder_(MakeChunkEncoder()) {
     if (ABSL_PREDICT_FALSE(!chunk_writer_->healthy())) Fail(*chunk_writer_);
@@ -759,22 +758,20 @@ Position RecordWriterBase::ParallelWorker::EstimatedSize() const {
   return pos_before_chunks_;
 }
 
-RecordWriterBase::RecordWriterBase(InitiallyClosed) noexcept
-    : Object(kInitiallyClosed) {}
+RecordWriterBase::RecordWriterBase(Closed) noexcept : Object(kClosed) {}
 
-RecordWriterBase::RecordWriterBase(InitiallyOpen) noexcept
-    : Object(kInitiallyOpen) {}
+RecordWriterBase::RecordWriterBase() noexcept {}
 
-void RecordWriterBase::Reset(InitiallyClosed) {
-  Object::Reset(kInitiallyClosed);
+void RecordWriterBase::Reset(Closed) {
+  Object::Reset(kClosed);
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
   last_record_is_valid_ = false;
   worker_.reset();
 }
 
-void RecordWriterBase::Reset(InitiallyOpen) {
-  Object::Reset(kInitiallyOpen);
+void RecordWriterBase::Reset() {
+  Object::Reset();
   desired_chunk_size_ = 0;
   chunk_size_so_far_ = 0;
   last_record_is_valid_ = false;

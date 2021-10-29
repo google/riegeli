@@ -20,6 +20,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
@@ -69,10 +70,10 @@ class PullableReader : public Reader {
     size_t read_from_scratch_;
   };
 
-  // Creates a `PullableReader` with the given initial state.
-  explicit PullableReader(InitiallyClosed) noexcept
-      : Reader(kInitiallyClosed) {}
-  explicit PullableReader(InitiallyOpen) noexcept : Reader(kInitiallyOpen) {}
+  using Reader::Reader;
+
+  ABSL_DEPRECATED("Use default constructor instead")
+  explicit PullableReader(InitiallyOpen) noexcept : PullableReader() {}
 
   PullableReader(PullableReader&& that) noexcept;
   PullableReader& operator=(PullableReader&& that) noexcept;
@@ -81,8 +82,8 @@ class PullableReader : public Reader {
   // avoids constructing a temporary `PullableReader` and moving from it.
   // Derived classes which redefine `Reset()` should include a call to
   // `PullableReader::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // Returns `true` if scratch is used, which means that buffer pointers are
   // temporarily unrelated to the source. This is exposed for assertions.
@@ -190,13 +191,13 @@ inline PullableReader& PullableReader::operator=(
   return *this;
 }
 
-inline void PullableReader::Reset(InitiallyClosed) {
-  Reader::Reset(kInitiallyClosed);
+inline void PullableReader::Reset(Closed) {
+  Reader::Reset(kClosed);
   scratch_.reset();
 }
 
-inline void PullableReader::Reset(InitiallyOpen) {
-  Reader::Reset(kInitiallyOpen);
+inline void PullableReader::Reset() {
+  Reader::Reset();
   if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 

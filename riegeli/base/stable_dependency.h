@@ -31,7 +31,7 @@ namespace riegeli {
 // used instead of `Dependency` if `Ptr` stability is required, e.g. if
 // background threads access the `Ptr`.
 //
-// Exception: a dummy `Manager` created by a default constructed
+// Exception: a dummy `Manager` created by a default-constructed
 // `StableDependency` may change its address when the `StableDependency` is
 // moved. The dummy `Manager` should not be used by the host object, so making
 // its address change is not a problem. Since the `Manager` is exposed, making
@@ -163,7 +163,7 @@ class StableDependency<P*, M,
 
   // Invariants:
   //   if `dep_ != nullptr` then `dummy_` is not constructed
-  //   if `dep_ == nullptr` then `dummy_` is default constructed
+  //   if `dep_ == nullptr` then `dummy_` is default-constructed
 };
 
 }  // namespace riegeli

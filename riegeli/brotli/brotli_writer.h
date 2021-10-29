@@ -32,6 +32,7 @@
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/brotli/brotli_allocator.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -253,7 +254,7 @@ class BrotliWriterBase : public BufferedWriter {
   virtual const Writer* dest_writer() const = 0;
 
  protected:
-  BrotliWriterBase() noexcept {}
+  explicit BrotliWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit BrotliWriterBase(Dictionaries&& dictionaries,
                             BrotliAllocator&& allocator, size_t buffer_size,
@@ -262,7 +263,7 @@ class BrotliWriterBase : public BufferedWriter {
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(Dictionaries&& dictionaries, BrotliAllocator&& allocator,
              size_t buffer_size, absl::optional<Position> size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
@@ -312,7 +313,7 @@ template <typename Dest = Writer*>
 class BrotliWriter : public BrotliWriterBase {
  public:
   // Creates a closed `BrotliWriter`.
-  BrotliWriter() noexcept {}
+  explicit BrotliWriter(Closed) noexcept : BrotliWriterBase(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
   explicit BrotliWriter(const Dest& dest, Options options = Options());
@@ -330,7 +331,7 @@ class BrotliWriter : public BrotliWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `BrotliWriter`. This avoids
   // constructing a temporary `BrotliWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -354,7 +355,7 @@ class BrotliWriter : public BrotliWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-BrotliWriter()->BrotliWriter<DeleteCtad<>>;
+explicit BrotliWriter(Closed)->BrotliWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit BrotliWriter(const Dest& dest, BrotliWriterBase::Options options =
                                             BrotliWriterBase::Options())
@@ -403,8 +404,8 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
   return *this;
 }
 
-inline void BrotliWriterBase::Reset() {
-  BufferedWriter::Reset();
+inline void BrotliWriterBase::Reset(Closed) {
+  BufferedWriter::Reset(kClosed);
   compressor_.reset();
   dictionaries_.clear();
   allocator_ = BrotliAllocator();
@@ -473,8 +474,8 @@ inline BrotliWriter<Dest>& BrotliWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void BrotliWriter<Dest>::Reset() {
-  BrotliWriterBase::Reset();
+inline void BrotliWriter<Dest>::Reset(Closed) {
+  BrotliWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

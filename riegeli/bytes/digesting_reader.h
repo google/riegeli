@@ -45,10 +45,7 @@ class DigestingReaderBase : public Reader {
   bool SupportsSize() override;
 
  protected:
-  explicit DigestingReaderBase(InitiallyClosed) noexcept
-      : Reader(kInitiallyClosed) {}
-  explicit DigestingReaderBase(InitiallyOpen) noexcept
-      : Reader(kInitiallyOpen) {}
+  using Reader::Reader;
 
   DigestingReaderBase(DigestingReaderBase&& that) noexcept;
   DigestingReaderBase& operator=(DigestingReaderBase&& that) noexcept;
@@ -76,7 +73,6 @@ class DigestingReaderBase : public Reader {
   // `start()` to hide data already digested. Fails `*this` if `src` failed.
   void MakeBuffer(Reader& src);
 
- private:
   // Invariants if `is_open()`:
   //   `start() == src_reader()->cursor()`
   //   `limit() == src_reader()->limit()`
@@ -129,7 +125,7 @@ class DigestingReader : public DigestingReaderBase {
   using DigestType = internal::DigestType<Digester>;
 
   // Creates a closed `DigestingReader`.
-  DigestingReader() noexcept : DigestingReaderBase(kInitiallyClosed) {}
+  explicit DigestingReader(Closed) noexcept : DigestingReaderBase(kClosed) {}
 
   // Will read from the original `Reader` provided by `src`. Constructs a
   // `Digester` from `digester_args`.
@@ -150,7 +146,7 @@ class DigestingReader : public DigestingReaderBase {
 
   // Makes `*this` equivalent to a newly constructed `DigestingReader`. This
   // avoids constructing a temporary `DigestingReader` and moving from it.
-  void Reset();
+  void Reset(Closed);
   template <typename... DigesterArgs>
   void Reset(const Src& src, DigesterArgs&&... digester_args);
   template <typename... DigesterArgs>
@@ -187,7 +183,7 @@ class DigestingReader : public DigestingReaderBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-DigestingReader()->DigestingReader<void, DeleteCtad<>>;
+explicit DigestingReader(Closed)->DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
 explicit DigestingReader(const Src& src, Digester&& digester)
     -> DigestingReader<std::decay_t<Digester>, std::decay_t<Src>>;
@@ -237,9 +233,7 @@ template <typename Digester, typename Src>
 template <typename... DigesterArgs>
 inline DigestingReader<Digester, Src>::DigestingReader(
     const Src& src, DigesterArgs&&... digester_args)
-    : DigestingReaderBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
-      src_(src) {
+    : digester_(std::forward<DigesterArgs>(digester_args)...), src_(src) {
   Initialize(src_.get());
 }
 
@@ -247,8 +241,7 @@ template <typename Digester, typename Src>
 template <typename... DigesterArgs>
 inline DigestingReader<Digester, Src>::DigestingReader(
     Src&& src, DigesterArgs&&... digester_args)
-    : DigestingReaderBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
+    : digester_(std::forward<DigesterArgs>(digester_args)...),
       src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -257,8 +250,7 @@ template <typename Digester, typename Src>
 template <typename... SrcArgs, typename... DigesterArgs>
 inline DigestingReader<Digester, Src>::DigestingReader(
     std::tuple<SrcArgs...> src_args, DigesterArgs&&... digester_args)
-    : DigestingReaderBase(kInitiallyOpen),
-      digester_(std::forward<DigesterArgs>(digester_args)...),
+    : digester_(std::forward<DigesterArgs>(digester_args)...),
       src_(std::move(src_args)) {
   Initialize(src_.get());
 }
@@ -285,8 +277,8 @@ DigestingReader<Digester, Src>::operator=(DigestingReader&& that) noexcept {
 }
 
 template <typename Digester, typename Src>
-inline void DigestingReader<Digester, Src>::Reset() {
-  DigestingReaderBase::Reset(kInitiallyClosed);
+inline void DigestingReader<Digester, Src>::Reset(Closed) {
+  DigestingReaderBase::Reset(kClosed);
   riegeli::Reset(digester_);
   src_.Reset();
 }
@@ -295,7 +287,7 @@ template <typename Digester, typename Src>
 template <typename... DigesterArgs>
 inline void DigestingReader<Digester, Src>::Reset(
     const Src& src, DigesterArgs&&... digester_args) {
-  DigestingReaderBase::Reset(kInitiallyOpen);
+  DigestingReaderBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   src_.Reset(src);
   Initialize(src_.get());
@@ -305,7 +297,7 @@ template <typename Digester, typename Src>
 template <typename... DigesterArgs>
 inline void DigestingReader<Digester, Src>::Reset(
     Src&& src, DigesterArgs&&... digester_args) {
-  DigestingReaderBase::Reset(kInitiallyOpen);
+  DigestingReaderBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   src_.Reset(std::move(src));
   Initialize(src_.get());
@@ -315,7 +307,7 @@ template <typename Digester, typename Src>
 template <typename... SrcArgs, typename... DigesterArgs>
 inline void DigestingReader<Digester, Src>::Reset(
     std::tuple<SrcArgs...> src_args, DigesterArgs&&... digester_args) {
-  DigestingReaderBase::Reset(kInitiallyOpen);
+  DigestingReaderBase::Reset();
   riegeli::Reset(digester_, std::forward<DigesterArgs>(digester_args)...);
   src_.Reset(std::move(src_args));
   Initialize(src_.get());

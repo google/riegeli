@@ -37,16 +37,13 @@ namespace riegeli {
 // Template parameter independent part of `SplittingWriter`.
 class SplittingWriterBase : public PushableWriter {
  protected:
-  explicit SplittingWriterBase(InitiallyClosed) noexcept
-      : PushableWriter(kInitiallyClosed) {}
-  explicit SplittingWriterBase(InitiallyOpen) noexcept
-      : PushableWriter(kInitiallyOpen) {}
+  using PushableWriter::PushableWriter;
 
   SplittingWriterBase(SplittingWriterBase&& that) noexcept;
   SplittingWriterBase& operator=(SplittingWriterBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   void DoneBehindScratch() override;
 
@@ -176,13 +173,10 @@ class SplittingWriterBase : public PushableWriter {
 template <typename Shard>
 class SplittingWriter : public SplittingWriterBase {
  protected:
-  // Creates a closed `SplittingWriter`.
-  explicit SplittingWriter(InitiallyClosed) noexcept
-      : SplittingWriterBase(kInitiallyClosed) {}
+  using SplittingWriterBase::SplittingWriterBase;
 
-  // Creates an open `SplittingWriter`.
-  explicit SplittingWriter(InitiallyOpen) noexcept
-      : SplittingWriterBase(kInitiallyOpen) {}
+  ABSL_DEPRECATED("Use default constructor instead")
+  explicit SplittingWriter(InitiallyOpen) noexcept : SplittingWriter() {}
 
   SplittingWriter(SplittingWriter&& that) noexcept;
   SplittingWriter& operator=(SplittingWriter&& that) noexcept;
@@ -191,8 +185,8 @@ class SplittingWriter : public SplittingWriterBase {
   // avoids constructing a temporary `SplittingWriter` and moving from it.
   // Derived classes which override `Reset()` should include a call to
   // `SplittingWriter::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   void Done() override;
 
@@ -227,13 +221,13 @@ inline SplittingWriterBase& SplittingWriterBase::operator=(
   return *this;
 }
 
-inline void SplittingWriterBase::Reset(InitiallyClosed) {
-  PushableWriter::Reset(kInitiallyClosed);
+inline void SplittingWriterBase::Reset(Closed) {
+  PushableWriter::Reset(kClosed);
   shard_pos_limit_ = 0;
 }
 
-inline void SplittingWriterBase::Reset(InitiallyOpen) {
-  PushableWriter::Reset(kInitiallyOpen);
+inline void SplittingWriterBase::Reset() {
+  PushableWriter::Reset();
   shard_pos_limit_ = 0;
 }
 
@@ -285,14 +279,14 @@ inline SplittingWriter<Shard>& SplittingWriter<Shard>::operator=(
 }
 
 template <typename Shard>
-inline void SplittingWriter<Shard>::Reset(InitiallyClosed) {
-  SplittingWriterBase::Reset(kInitiallyClosed);
+inline void SplittingWriter<Shard>::Reset(Closed) {
+  SplittingWriterBase::Reset(kClosed);
   shard_.Reset();
 }
 
 template <typename Shard>
-inline void SplittingWriter<Shard>::Reset(InitiallyOpen) {
-  SplittingWriterBase::Reset(kInitiallyOpen);
+inline void SplittingWriter<Shard>::Reset() {
+  SplittingWriterBase::Reset();
   shard_.Reset();
 }
 

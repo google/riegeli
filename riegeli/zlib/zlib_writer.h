@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -183,7 +184,7 @@ class ZlibWriterBase : public BufferedWriter {
   virtual const Writer* dest_writer() const = 0;
 
  protected:
-  ZlibWriterBase() noexcept {}
+  explicit ZlibWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit ZlibWriterBase(ZlibDictionary&& dictionary, size_t buffer_size,
                           absl::optional<Position> size_hint);
@@ -191,7 +192,7 @@ class ZlibWriterBase : public BufferedWriter {
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(ZlibDictionary&& dictionary, size_t buffer_size,
              absl::optional<Position> size_hint);
   static int GetWindowBits(const Options& options);
@@ -261,7 +262,10 @@ template <typename Dest = Writer*>
 class ZlibWriter : public ZlibWriterBase {
  public:
   // Creates a closed `ZlibWriter`.
-  ZlibWriter() noexcept {}
+  explicit ZlibWriter(Closed) noexcept : ZlibWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  ZlibWriter() noexcept : ZlibWriter(kClosed) {}
 
   // Will write to the compressed `Writer` provided by `dest`.
   explicit ZlibWriter(const Dest& dest, Options options = Options());
@@ -279,7 +283,7 @@ class ZlibWriter : public ZlibWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ZlibWriter`. This avoids
   // constructing a temporary `ZlibWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -303,7 +307,7 @@ class ZlibWriter : public ZlibWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ZlibWriter()->ZlibWriter<DeleteCtad<>>;
+explicit ZlibWriter(Closed)->ZlibWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ZlibWriter(const Dest& dest,
                     ZlibWriterBase::Options options = ZlibWriterBase::Options())
@@ -343,8 +347,8 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
   return *this;
 }
 
-inline void ZlibWriterBase::Reset() {
-  BufferedWriter::Reset();
+inline void ZlibWriterBase::Reset(Closed) {
+  BufferedWriter::Reset(kClosed);
   dictionary_.reset();
   compressor_.reset();
 }
@@ -407,8 +411,8 @@ inline ZlibWriter<Dest>& ZlibWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ZlibWriter<Dest>::Reset() {
-  ZlibWriterBase::Reset();
+inline void ZlibWriter<Dest>::Reset(Closed) {
+  ZlibWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

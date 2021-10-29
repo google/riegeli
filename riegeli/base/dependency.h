@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 
 namespace riegeli {
@@ -44,8 +45,9 @@ namespace riegeli {
 // whenever `Ptr` is returned, a pointer to a derived class may be returned):
 //
 // ```
-//   // Constructs a dummy Manager. This is used when the host object is closed
-//   // and does not need a dependent object.
+//   // Constructs a dummy Manager: constructed with kClosed if it supports
+//   // that, otherwise default-constructed; nullptr for pointers. This is used
+//   // when the host object is closed and does not need a dependent object.
 //   Dependency();
 //
 //   // Copies or moves a Manager. This is used to specify the initial value of
@@ -137,6 +139,12 @@ struct IsValidDependency<
 template <typename Manager>
 class DependencyBase {
  public:
+  template <typename T = Manager,
+            std::enable_if_t<std::is_constructible<T, Closed>::value, int> = 0>
+  DependencyBase() noexcept : manager_(kClosed) {}
+
+  template <typename T = Manager,
+            std::enable_if_t<!std::is_constructible<T, Closed>::value, int> = 0>
   DependencyBase() noexcept : manager_() {}
 
   explicit DependencyBase(const Manager& manager) : manager_(manager) {}
@@ -155,14 +163,25 @@ class DependencyBase {
     return *this;
   }
 
-  void Reset() { riegeli::Reset(manager_); }
+  template <typename T = Manager,
+            std::enable_if_t<std::is_constructible<T, Closed>::value, int> = 0>
+  void Reset() {
+    riegeli::Reset(manager_, kClosed);
+  }
+
+  template <typename T = Manager,
+            std::enable_if_t<!std::is_constructible<T, Closed>::value, int> = 0>
+  void Reset() {
+    riegeli::Reset(manager_);
+  }
 
   void Reset(const Manager& manager) { manager_ = manager; }
   void Reset(Manager&& manager) { manager_ = std::move(manager); }
 
   template <typename... ManagerArgs>
   void Reset(std::tuple<ManagerArgs...> manager_args) {
-    Reset(std::move(manager_args), std::index_sequence_for<ManagerArgs...>());
+    ResetInternal(std::move(manager_args),
+                  std::index_sequence_for<ManagerArgs...>());
   }
 
   Manager& manager() { return manager_; }
@@ -176,8 +195,8 @@ class DependencyBase {
             std::forward<ManagerArgs>(std::get<Indices>(manager_args))...) {}
 
   template <typename... ManagerArgs, size_t... Indices>
-  void Reset(std::tuple<ManagerArgs...>&& manager_args,
-             std::index_sequence<Indices...>) {
+  void ResetInternal(std::tuple<ManagerArgs...>&& manager_args,
+                     std::index_sequence<Indices...>) {
     riegeli::Reset(manager_, std::forward<ManagerArgs>(
                                  std::get<Indices>(manager_args))...);
   }

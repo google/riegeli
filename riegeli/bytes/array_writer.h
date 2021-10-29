@@ -48,16 +48,13 @@ class ArrayWriterBase : public PushableWriter {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  explicit ArrayWriterBase(InitiallyClosed) noexcept
-      : PushableWriter(kInitiallyClosed) {}
-  explicit ArrayWriterBase(InitiallyOpen) noexcept
-      : PushableWriter(kInitiallyOpen) {}
+  using PushableWriter::PushableWriter;
 
   ArrayWriterBase(ArrayWriterBase&& that) noexcept;
   ArrayWriterBase& operator=(ArrayWriterBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(absl::Span<char> dest);
 
   bool PushBehindScratch() override;
@@ -92,7 +89,7 @@ template <typename Dest = absl::Span<char>>
 class ArrayWriter : public ArrayWriterBase {
  public:
   // Creates a closed `ArrayWriter`.
-  ArrayWriter() noexcept : ArrayWriterBase(kInitiallyClosed) {}
+  explicit ArrayWriter(Closed) noexcept : ArrayWriterBase(kClosed) {}
 
   // Will write to the array provided by `dest`.
   explicit ArrayWriter(const Dest& dest);
@@ -109,7 +106,7 @@ class ArrayWriter : public ArrayWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ArrayWriter`. This avoids
   // constructing a temporary `ArrayWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest);
   void Reset(Dest&& dest);
   template <typename... DestArgs>
@@ -131,7 +128,7 @@ class ArrayWriter : public ArrayWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ArrayWriter()->ArrayWriter<DeleteCtad<>>;
+explicit ArrayWriter(Closed)->ArrayWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayWriter(const Dest& dest) -> ArrayWriter<std::conditional_t<
     !std::is_same<std::decay_t<Dest>, absl::Span<char>>::value &&
@@ -167,13 +164,13 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
   return *this;
 }
 
-inline void ArrayWriterBase::Reset(InitiallyClosed) {
-  PushableWriter::Reset(kInitiallyClosed);
+inline void ArrayWriterBase::Reset(Closed) {
+  PushableWriter::Reset(kClosed);
   written_ = absl::Span<char>();
 }
 
-inline void ArrayWriterBase::Reset(InitiallyOpen) {
-  PushableWriter::Reset(kInitiallyOpen);
+inline void ArrayWriterBase::Reset() {
+  PushableWriter::Reset();
   written_ = absl::Span<char>();
 }
 
@@ -182,21 +179,19 @@ inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {
 }
 
 template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(const Dest& dest)
-    : ArrayWriterBase(kInitiallyOpen), dest_(dest) {
+inline ArrayWriter<Dest>::ArrayWriter(const Dest& dest) : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline ArrayWriter<Dest>::ArrayWriter(Dest&& dest)
-    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+inline ArrayWriter<Dest>::ArrayWriter(Dest&& dest) : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 template <typename... DestArgs>
 inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
-    : ArrayWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -219,21 +214,21 @@ inline ArrayWriter<Dest>& ArrayWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ArrayWriter<Dest>::Reset() {
-  ArrayWriterBase::Reset(kInitiallyClosed);
+inline void ArrayWriter<Dest>::Reset(Closed) {
+  ArrayWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void ArrayWriter<Dest>::Reset(const Dest& dest) {
-  ArrayWriterBase::Reset(kInitiallyOpen);
+  ArrayWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ArrayWriter<Dest>::Reset(Dest&& dest) {
-  ArrayWriterBase::Reset(kInitiallyOpen);
+  ArrayWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -241,7 +236,7 @@ inline void ArrayWriter<Dest>::Reset(Dest&& dest) {
 template <typename Dest>
 template <typename... DestArgs>
 inline void ArrayWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
-  ArrayWriterBase::Reset(kInitiallyOpen);
+  ArrayWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }

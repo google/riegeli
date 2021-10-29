@@ -59,7 +59,7 @@ template <typename Src = Reader*>
 class Decompressor : public Object {
  public:
   // Creates a closed `Decompressor`.
-  Decompressor() noexcept : Object(kInitiallyClosed) {}
+  explicit Decompressor(Closed) noexcept : Object(kClosed) {}
 
   // Will read from the compressed stream provided by `src`.
   explicit Decompressor(const Src& src, CompressionType compression_type);
@@ -77,7 +77,7 @@ class Decompressor : public Object {
 
   // Makes `*this` equivalent to a newly constructed `Decompressor`. This avoids
   // constructing a temporary `Decompressor` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Src& src, CompressionType compression_type);
   void Reset(Src&& src, CompressionType compression_type);
   template <typename... SrcArgs>
@@ -118,23 +118,20 @@ class Decompressor : public Object {
 
 template <typename Src>
 inline Decompressor<Src>::Decompressor(const Src& src,
-                                       CompressionType compression_type)
-    : Object(kInitiallyOpen) {
+                                       CompressionType compression_type) {
   Initialize(src, compression_type);
 }
 
 template <typename Src>
 inline Decompressor<Src>::Decompressor(Src&& src,
-                                       CompressionType compression_type)
-    : Object(kInitiallyOpen) {
+                                       CompressionType compression_type) {
   Initialize(std::move(src), compression_type);
 }
 
 template <typename Src>
 template <typename... SrcArgs>
 inline Decompressor<Src>::Decompressor(std::tuple<SrcArgs...> src_args,
-                                       CompressionType compression_type)
-    : Object(kInitiallyOpen) {
+                                       CompressionType compression_type) {
   Initialize(std::move(src_args), compression_type);
 }
 
@@ -156,22 +153,22 @@ inline Decompressor<Src>& Decompressor<Src>::operator=(
 }
 
 template <typename Src>
-inline void Decompressor<Src>::Reset() {
-  Object::Reset(kInitiallyClosed);
+inline void Decompressor<Src>::Reset(Closed) {
+  Object::Reset(kClosed);
   reader_.reset();
 }
 
 template <typename Src>
 inline void Decompressor<Src>::Reset(const Src& src,
                                      CompressionType compression_type) {
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   Initialize(src, compression_type);
 }
 
 template <typename Src>
 inline void Decompressor<Src>::Reset(Src&& src,
                                      CompressionType compression_type) {
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   Initialize(std::move(src), compression_type);
 }
 
@@ -179,7 +176,7 @@ template <typename Src>
 template <typename... SrcArgs>
 inline void Decompressor<Src>::Reset(std::tuple<SrcArgs...> src_args,
                                      CompressionType compression_type) {
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   Initialize(std::move(src_args), compression_type);
 }
 

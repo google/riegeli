@@ -113,14 +113,14 @@ class FileWriterBase : public Writer {
   bool SupportsSize() override { return !filename_.empty(); }
 
  protected:
-  FileWriterBase() noexcept : Writer(kInitiallyClosed) {}
+  explicit FileWriterBase(Closed) noexcept : Writer(kClosed) {}
 
   explicit FileWriterBase(::tensorflow::Env* env, size_t buffer_size);
 
   FileWriterBase(FileWriterBase&& that) noexcept;
   FileWriterBase& operator=(FileWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(::tensorflow::Env* env, size_t buffer_size);
   void Initialize(::tensorflow::WritableFile* dest);
   bool InitializeFilename(::tensorflow::WritableFile* dest);
@@ -188,7 +188,7 @@ template <typename Dest = std::unique_ptr<::tensorflow::WritableFile>>
 class FileWriter : public FileWriterBase {
  public:
   // Creates a closed `FileWriter`.
-  FileWriter() noexcept {}
+  explicit FileWriter(Closed) noexcept : FileWriterBase(kClosed) {}
 
   // Will write to the `::tensorflow::WritableFile` provided by `dest`.
   explicit FileWriter(const Dest& dest, Options options = Options());
@@ -211,7 +211,7 @@ class FileWriter : public FileWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `FileWriter`. This avoids
   // constructing a temporary `FileWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -239,7 +239,7 @@ class FileWriter : public FileWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-FileWriter()->FileWriter<DeleteCtad<>>;
+explicit FileWriter(Closed)->FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FileWriter(const Dest& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
@@ -261,8 +261,7 @@ explicit FileWriter(absl::string_view filename,
 
 inline FileWriterBase::FileWriterBase(::tensorflow::Env* env,
                                       size_t buffer_size)
-    : Writer(kInitiallyOpen),
-      env_(env != nullptr ? env : ::tensorflow::Env::Default()),
+    : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
       buffer_size_(buffer_size) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
@@ -288,8 +287,8 @@ inline FileWriterBase& FileWriterBase::operator=(
   return *this;
 }
 
-inline void FileWriterBase::Reset() {
-  Writer::Reset(kInitiallyClosed);
+inline void FileWriterBase::Reset(Closed) {
+  Writer::Reset(kClosed);
   filename_ = std::string();
   env_ = nullptr;
   file_system_ = nullptr;
@@ -298,7 +297,7 @@ inline void FileWriterBase::Reset() {
 }
 
 inline void FileWriterBase::Reset(::tensorflow::Env* env, size_t buffer_size) {
-  Writer::Reset(kInitiallyOpen);
+  Writer::Reset();
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
@@ -335,8 +334,8 @@ inline FileWriter<Dest>::FileWriter(std::tuple<DestArgs...> dest_args,
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(absl::string_view filename,
-                                    Options options) {
+inline FileWriter<Dest>::FileWriter(absl::string_view filename, Options options)
+    : FileWriterBase(kClosed) {
   Initialize(filename, std::move(options));
 }
 
@@ -358,8 +357,8 @@ inline FileWriter<Dest>& FileWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Reset() {
-  FileWriterBase::Reset();
+inline void FileWriter<Dest>::Reset(Closed) {
+  FileWriterBase::Reset(kClosed);
   dest_.Reset();
   Initialize(dest_.get());
 }
@@ -390,7 +389,7 @@ inline void FileWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
 template <typename Dest>
 inline void FileWriter<Dest>::Reset(absl::string_view filename,
                                     Options options) {
-  Reset();
+  Reset(kClosed);
   Initialize(filename, std::move(options));
 }
 

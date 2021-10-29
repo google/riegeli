@@ -69,11 +69,7 @@ class PushableBackwardWriter : public BackwardWriter {
     size_t written_to_scratch_;
   };
 
-  // Creates a `PushableBackwardWriter` with the given initial state.
-  explicit PushableBackwardWriter(InitiallyClosed) noexcept
-      : BackwardWriter(kInitiallyClosed) {}
-  explicit PushableBackwardWriter(InitiallyOpen) noexcept
-      : BackwardWriter(kInitiallyOpen) {}
+  using BackwardWriter::BackwardWriter;
 
   PushableBackwardWriter(PushableBackwardWriter&& that) noexcept;
   PushableBackwardWriter& operator=(PushableBackwardWriter&& that) noexcept;
@@ -82,8 +78,8 @@ class PushableBackwardWriter : public BackwardWriter {
   // This avoids constructing a temporary `PushableBackwardWriter` and moving
   // from it. Derived classes which redefine `Reset()` should include a call to
   // `PushableBackwardWriter::Reset()`.
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
 
   // Returns `true` if scratch is used, which means that buffer pointers are
   // temporarily unrelated to the destination. This is exposed for assertions.
@@ -199,13 +195,13 @@ inline PushableBackwardWriter& PushableBackwardWriter::operator=(
   return *this;
 }
 
-inline void PushableBackwardWriter::Reset(InitiallyClosed) {
-  BackwardWriter::Reset(kInitiallyClosed);
+inline void PushableBackwardWriter::Reset(Closed) {
+  BackwardWriter::Reset(kClosed);
   scratch_.reset();
 }
 
-inline void PushableBackwardWriter::Reset(InitiallyOpen) {
-  BackwardWriter::Reset(kInitiallyOpen);
+inline void PushableBackwardWriter::Reset() {
+  BackwardWriter::Reset();
   if (ABSL_PREDICT_FALSE(scratch_used())) scratch_->buffer.Clear();
 }
 

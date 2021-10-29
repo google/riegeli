@@ -119,14 +119,14 @@ class CordWriterBase : public Writer {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  CordWriterBase() noexcept : Writer(kInitiallyClosed) {}
+  explicit CordWriterBase(Closed) noexcept : Writer(kClosed) {}
 
   explicit CordWriterBase(const Options& options);
 
   CordWriterBase(CordWriterBase&& that) noexcept;
   CordWriterBase& operator=(CordWriterBase&& that) noexcept;
 
-  void Reset();
+  void Reset(Closed);
   void Reset(const Options& options);
   void Initialize(absl::Cord* dest, bool append);
 
@@ -182,7 +182,10 @@ template <typename Dest = absl::Cord*>
 class CordWriter : public CordWriterBase {
  public:
   // Creates a closed `CordWriter`.
-  CordWriter() noexcept {}
+  explicit CordWriter(Closed) noexcept : CordWriterBase(kClosed) {}
+
+  ABSL_DEPRECATED("Use kClosed constructor instead")
+  CordWriter() noexcept : CordWriter(kClosed) {}
 
   // Will append to the `absl::Cord` provided by `dest`.
   explicit CordWriter(const Dest& dest, Options options = Options());
@@ -200,7 +203,7 @@ class CordWriter : public CordWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `CordWriter`. This avoids
   // constructing a temporary `CordWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -220,7 +223,7 @@ class CordWriter : public CordWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-CordWriter()->CordWriter<DeleteCtad<>>;
+explicit CordWriter(Closed)->CordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordWriter(const Dest& dest,
                     CordWriterBase::Options options = CordWriterBase::Options())
@@ -244,8 +247,7 @@ explicit CordWriter(std::tuple<DestArgs...> dest_args,
 // Implementation details follow.
 
 inline CordWriterBase::CordWriterBase(const Options& options)
-    : Writer(kInitiallyOpen),
-      size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
+    : size_hint_(SaturatingIntCast<size_t>(options.size_hint().value_or(0))),
       min_block_size_(options.min_block_size()),
       max_block_size_(options.max_block_size()) {}
 
@@ -279,15 +281,15 @@ inline CordWriterBase& CordWriterBase::operator=(
   return *this;
 }
 
-inline void CordWriterBase::Reset() {
-  Writer::Reset(kInitiallyClosed);
+inline void CordWriterBase::Reset(Closed) {
+  Writer::Reset(kClosed);
   size_hint_ = 0;
   min_block_size_ = kMinBufferSize;
   max_block_size_ = kMaxBufferSize;
 }
 
 inline void CordWriterBase::Reset(const Options& options) {
-  Writer::Reset(kInitiallyOpen);
+  Writer::Reset();
   size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
@@ -349,8 +351,8 @@ inline CordWriter<Dest>& CordWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void CordWriter<Dest>::Reset() {
-  CordWriterBase::Reset();
+inline void CordWriter<Dest>::Reset(Closed) {
+  CordWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 

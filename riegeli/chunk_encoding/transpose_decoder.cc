@@ -72,7 +72,7 @@ struct DataBucket {
   std::vector<size_t> buffer_sizes;
   // Decompressor for the remaining data, valid if some but not all buffers are
   // already decompressed, otherwise closed.
-  internal::Decompressor<ChainReader<>> decompressor;
+  internal::Decompressor<ChainReader<>> decompressor{kClosed};
   // A prefix of decompressed data buffers, lazily extended.
   std::vector<ChainReader<Chain>> buffers;
 };
@@ -378,7 +378,7 @@ struct TransposeDecoder::Context {
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
-  internal::Decompressor<> transitions;
+  internal::Decompressor<> transitions{kClosed};
 
   enum class IncludeType : uint8_t {
     // Field is included.
@@ -415,7 +415,7 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
   RIEGELI_ASSERT_EQ(dest.pos(), 0u)
       << "Failed precondition of TransposeDecoder::Reset(): "
          "non-zero destination position";
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   if (ABSL_PREDICT_FALSE(num_records > limits.max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many records"));
   }

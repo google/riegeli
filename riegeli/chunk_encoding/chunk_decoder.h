@@ -158,8 +158,7 @@ class ChunkDecoder : public Object {
 // Implementation details follow.
 
 inline ChunkDecoder::ChunkDecoder(Options options)
-    : Object(kInitiallyOpen),
-      field_projection_(std::move(options.field_projection())),
+    : field_projection_(std::move(options.field_projection())),
       values_reader_(std::forward_as_tuple()) {}
 
 inline ChunkDecoder::ChunkDecoder(ChunkDecoder&& that) noexcept
@@ -190,7 +189,7 @@ inline void ChunkDecoder::Reset(Options options) {
 }
 
 inline void ChunkDecoder::Clear() {
-  Object::Reset(kInitiallyOpen);
+  Object::Reset();
   limits_.clear();
   values_reader_.Reset(std::forward_as_tuple());
   index_ = 0;

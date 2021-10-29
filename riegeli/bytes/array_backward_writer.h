@@ -46,16 +46,13 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
   bool SupportsTruncate() override { return true; }
 
  protected:
-  explicit ArrayBackwardWriterBase(InitiallyClosed) noexcept
-      : PushableBackwardWriter(kInitiallyClosed) {}
-  explicit ArrayBackwardWriterBase(InitiallyOpen) noexcept
-      : PushableBackwardWriter(kInitiallyOpen) {}
+  using PushableBackwardWriter::PushableBackwardWriter;
 
   ArrayBackwardWriterBase(ArrayBackwardWriterBase&& that) noexcept;
   ArrayBackwardWriterBase& operator=(ArrayBackwardWriterBase&& that) noexcept;
 
-  void Reset(InitiallyClosed);
-  void Reset(InitiallyOpen);
+  void Reset(Closed);
+  void Reset();
   void Initialize(absl::Span<char> dest);
 
   bool PushBehindScratch() override;
@@ -90,7 +87,8 @@ template <typename Dest = absl::Span<char>>
 class ArrayBackwardWriter : public ArrayBackwardWriterBase {
  public:
   // Creates a closed `ArrayBackwardWriter`.
-  ArrayBackwardWriter() noexcept : ArrayBackwardWriterBase(kInitiallyClosed) {}
+  explicit ArrayBackwardWriter(Closed) noexcept
+      : ArrayBackwardWriterBase(kClosed) {}
 
   // Will write to the array provided by `dest`.
   explicit ArrayBackwardWriter(const Dest& dest);
@@ -107,7 +105,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
   // Makes `*this` equivalent to a newly constructed `ArrayBackwardWriter`. This
   // avoids constructing a temporary `ArrayBackwardWriter` and moving from it.
-  void Reset();
+  void Reset(Closed);
   void Reset(const Dest& dest);
   void Reset(Dest&& dest);
   template <typename... DestArgs>
@@ -129,7 +127,7 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
 
 // Support CTAD.
 #if __cpp_deduction_guides
-ArrayBackwardWriter()->ArrayBackwardWriter<DeleteCtad<>>;
+explicit ArrayBackwardWriter(Closed)->ArrayBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(const Dest& dest)
     -> ArrayBackwardWriter<std::conditional_t<
@@ -168,13 +166,13 @@ inline ArrayBackwardWriterBase& ArrayBackwardWriterBase::operator=(
   return *this;
 }
 
-inline void ArrayBackwardWriterBase::Reset(InitiallyClosed) {
-  PushableBackwardWriter::Reset(kInitiallyClosed);
+inline void ArrayBackwardWriterBase::Reset(Closed) {
+  PushableBackwardWriter::Reset(kClosed);
   written_ = absl::Span<char>();
 }
 
-inline void ArrayBackwardWriterBase::Reset(InitiallyOpen) {
-  PushableBackwardWriter::Reset(kInitiallyOpen);
+inline void ArrayBackwardWriterBase::Reset() {
+  PushableBackwardWriter::Reset();
   written_ = absl::Span<char>();
 }
 
@@ -184,13 +182,13 @@ inline void ArrayBackwardWriterBase::Initialize(absl::Span<char> dest) {
 
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(const Dest& dest)
-    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(dest) {
+    : dest_(dest) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Dest&& dest)
-    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest)) {
+    : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
@@ -198,7 +196,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
     std::tuple<DestArgs...> dest_args)
-    : ArrayBackwardWriterBase(kInitiallyOpen), dest_(std::move(dest_args)) {
+    : dest_(std::move(dest_args)) {
   Initialize(dest_.get());
 }
 
@@ -222,21 +220,21 @@ inline ArrayBackwardWriter<Dest>& ArrayBackwardWriter<Dest>::operator=(
 }
 
 template <typename Dest>
-inline void ArrayBackwardWriter<Dest>::Reset() {
-  ArrayBackwardWriterBase::Reset(kInitiallyClosed);
+inline void ArrayBackwardWriter<Dest>::Reset(Closed) {
+  ArrayBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
 }
 
 template <typename Dest>
 inline void ArrayBackwardWriter<Dest>::Reset(const Dest& dest) {
-  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  ArrayBackwardWriterBase::Reset();
   dest_.Reset(dest);
   Initialize(dest_.get());
 }
 
 template <typename Dest>
 inline void ArrayBackwardWriter<Dest>::Reset(Dest&& dest) {
-  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  ArrayBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
@@ -245,7 +243,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void ArrayBackwardWriter<Dest>::Reset(
     std::tuple<DestArgs...> dest_args) {
-  ArrayBackwardWriterBase::Reset(kInitiallyOpen);
+  ArrayBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
 }
