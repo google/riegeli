@@ -197,6 +197,14 @@ class Writer : public Object {
   // `pos()` is unchanged by a successful `Close()`.
   Position pos() const;
 
+  // Returns the position corresponding to `start()`,
+  // i.e. `pos() - start_to_cursor()`.
+  Position start_pos() const { return start_pos_; }
+
+  // Returns the position corresponding to `limit()`,
+  // i.e. `pos() + available()`.
+  Position limit_pos() const;
+
   // Returns `true` if this Writer supports `Seek()` and `Size()`.
   virtual bool SupportsRandomAccess() { return false; }
 
@@ -327,12 +335,6 @@ class Writer : public Object {
   //
   // By default does nothing and returns `healthy()`.
   virtual bool FlushImpl(FlushType flush_type);
-
-  // Destination position corresponding to `start()`.
-  Position start_pos() const { return start_pos_; }
-
-  // Destination position corresponding to `limit()`.
-  Position limit_pos() const;
 
   // Increments the value of `start_pos()`.
   void move_start_pos(Position length);

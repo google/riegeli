@@ -229,7 +229,7 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
 
 inline void DigestingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.cursor(), src.available());
-  set_limit_pos(src.pos() + src.available());
+  set_limit_pos(src.limit_pos());
   if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);
 }
 

@@ -287,6 +287,14 @@ class Reader : public Object {
   // `pos()` is unchanged by `Close()`.
   Position pos() const;
 
+  // Returns the position corresponding to `start()`,
+  // i.e. `pos() - start_to_cursor()`.
+  Position start_pos() const;
+
+  // Returns the position corresponding to `limit()`,
+  // i.e. `pos() + available()`.
+  Position limit_pos() const { return limit_pos_; }
+
   // Returns `true` if this `Reader` supports efficient `Seek()`, `Skip()`, and
   // `Size()`.
   //
@@ -440,12 +448,6 @@ class Reader : public Object {
   //
   // By default does nothing and returns `healthy()`.
   virtual bool SyncImpl(SyncType sync_type);
-
-  // Source position corresponding to `start()`.
-  Position start_pos() const;
-
-  // Source position corresponding to `limit()`.
-  Position limit_pos() const { return limit_pos_; }
 
   // Increments the value of `limit_pos()`.
   void move_limit_pos(Position length);

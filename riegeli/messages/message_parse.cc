@@ -59,7 +59,7 @@ absl::Status ParseFromReaderImpl(Reader& src,
   if (src.available() <= kMaxBytesToCopy && src.SupportsSize()) {
     const absl::optional<Position> size = src.Size();
     if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
-    if (src.pos() + src.available() == *size) {
+    if (src.limit_pos() == *size) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
       const bool ok =

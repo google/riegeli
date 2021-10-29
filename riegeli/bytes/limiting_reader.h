@@ -454,7 +454,7 @@ inline void LimitingReaderBase::SyncBuffer(Reader& src) {
 
 inline void LimitingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
-  set_limit_pos(src.pos() + src.available());
+  set_limit_pos(src.limit_pos());
   if (limit_pos() > max_pos_) {
     set_buffer(start(),
                start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
