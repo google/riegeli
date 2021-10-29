@@ -282,7 +282,7 @@ bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {

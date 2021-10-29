@@ -48,7 +48,7 @@ bool CordReaderBase::PullBehindScratch() {
   const absl::Cord& src = *src_cord();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
       << "CordReader source changed unexpectedly";
-  absl::Cord::Advance(&*iter_, read_from_buffer());
+  absl::Cord::Advance(&*iter_, start_to_cursor());
   if (ABSL_PREDICT_FALSE(*iter_ == src.char_end())) {
     set_buffer();
     return false;
@@ -242,7 +242,7 @@ inline void CordReaderBase::SyncBuffer() {
       << "Failed precondition of CordReaderBase::SyncBuffer(): "
          "no Cord iterator";
   set_limit_pos(pos());
-  absl::Cord::Advance(&*iter_, read_from_buffer());
+  absl::Cord::Advance(&*iter_, start_to_cursor());
   set_buffer();
 }
 

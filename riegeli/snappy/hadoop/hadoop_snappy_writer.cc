@@ -66,7 +66,7 @@ bool HadoopSnappyWriterBase::PushBehindScratch() {
 }
 
 inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
-  const size_t uncompressed_length = written_to_buffer();
+  const size_t uncompressed_length = start_to_cursor();
   RIEGELI_ASSERT_LE(uncompressed_length, snappy::kBlockSize)
       << "Failed invariant of HadoopSnappyWriterBase: buffer too large";
   if (uncompressed_length == 0) return true;

@@ -79,7 +79,7 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   const size_t available_length = available();
-  size_t cursor_index = read_from_buffer();
+  size_t cursor_index = start_to_cursor();
   const size_t buffer_length =
       BufferLength(min_length, buffer_size_, size_hint_, pos());
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(
@@ -112,7 +112,7 @@ bool BufferedReader::SeekBehindBuffer(Position new_pos) {
   RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
@@ -125,7 +125,7 @@ bool BufferedReader::SeekBehindBuffer(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
   } while (new_pos > limit_pos());
   const Position available_length = limit_pos() - new_pos;
-  RIEGELI_ASSERT_LE(available_length, buffer_size())
+  RIEGELI_ASSERT_LE(available_length, start_to_limit())
       << "Reader::PullSlow() skipped some data";
   set_cursor(limit() - available_length);
   return true;
@@ -167,7 +167,7 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
       enough_read = false;
       break;
     }
-    size_t cursor_index = read_from_buffer();
+    size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
         BufferLength(0, buffer_size_, size_hint_, limit_pos());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
@@ -216,7 +216,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
       enough_read = false;
       break;
     }
-    size_t cursor_index = read_from_buffer();
+    size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
         BufferLength(0, buffer_size_, size_hint_, limit_pos());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
@@ -262,7 +262,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
       enough_read = false;
       break;
     }
-    size_t cursor_index = read_from_buffer();
+    size_t cursor_index = start_to_cursor();
     const size_t buffer_length =
         BufferLength(0, buffer_size_, size_hint_, limit_pos());
     absl::Span<char> flat_buffer = buffer_.AppendBuffer(
@@ -345,7 +345,7 @@ void BufferedReader::ReadHintSlow(size_t length) {
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   const size_t available_length = available();
-  size_t cursor_index = read_from_buffer();
+  size_t cursor_index = start_to_cursor();
   const size_t buffer_length =
       BufferLength(length, buffer_size_, size_hint_, pos());
   absl::Span<char> flat_buffer = buffer_.AppendBuffer(

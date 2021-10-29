@@ -250,7 +250,7 @@ inline void SplittingWriterBase::SyncBuffer(Writer& shard) {
       << "Failed precondition of SplittingWriterBase::SyncBuffer(): "
          "shard is closed";
   shard.set_cursor(cursor());
-  move_start_pos(written_to_buffer());
+  move_start_pos(start_to_cursor());
   set_buffer();
 }
 

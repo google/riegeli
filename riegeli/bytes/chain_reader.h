@@ -71,7 +71,7 @@ class ChainReaderBase : public PullableReader {
   // Invariants if `is_open()` and scratch is not used:
   //   `start() ==
   //       (iter_ == src_chain()->blocks().cend() ? nullptr : iter_->data())`
-  //   `buffer_size() ==
+  //   `start_to_limit() ==
   //       (iter_ == src_chain()->blocks().cend() ? 0 : iter_->size())`
   //   `start_pos()` is the position of `iter_` in `*src_chain()`
 };
@@ -248,7 +248,7 @@ inline void ChainReader<Src>::MoveSrc(ChainReader&& that) {
   } else {
     BehindScratch behind_scratch(this);
     const size_t block_index = iter_.block_index();
-    const size_t cursor_index = read_from_buffer();
+    const size_t cursor_index = start_to_cursor();
     src_ = std::move(that.src_);
     if (iter_.chain() != nullptr) {
       iter_ = Chain::BlockIterator(src_.get(), block_index);

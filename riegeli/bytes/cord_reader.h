@@ -90,7 +90,7 @@ class CordReaderBase : public PullableReader {
   //   `start() == (*iter_ == src_cord()->char_end()
   //                    ? nullptr
   //                    : absl::Cord::ChunkRemaining(*iter_).data())`
-  //   `buffer_size() == (*iter_ == src_cord()->char_end()
+  //   `start_to_limit() == (*iter_ == src_cord()->char_end()
   //                          ? 0
   //                          : absl::Cord::ChunkRemaining(*iter_).size())`
   //   `start_pos()` is the position of `*iter_` in `*src_cord()`
@@ -276,7 +276,7 @@ inline void CordReader<Src>::MoveSrc(CordReader&& that) {
   } else {
     BehindScratch behind_scratch(this);
     const size_t position = IntCast<size_t>(start_pos());
-    const size_t cursor_index = read_from_buffer();
+    const size_t cursor_index = start_to_cursor();
     src_ = std::move(that.src_);
     if (that.iter_ == absl::nullopt) {
       iter_ = absl::nullopt;

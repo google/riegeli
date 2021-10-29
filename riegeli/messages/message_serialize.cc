@@ -122,7 +122,7 @@ void WriterOutputStream::BackUp(int length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
          "negative length";
-  RIEGELI_ASSERT_LE(IntCast<size_t>(length), dest_->written_to_buffer())
+  RIEGELI_ASSERT_LE(IntCast<size_t>(length), dest_->start_to_cursor())
       << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
          "length larger than the amount of buffered data";
   dest_->set_cursor(dest_->cursor() - length);

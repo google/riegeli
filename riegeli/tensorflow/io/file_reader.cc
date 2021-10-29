@@ -158,7 +158,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       flat_buffer.remove_prefix(available());
     }
   } else {
-    cursor_index = read_from_buffer();
+    cursor_index = start_to_cursor();
     flat_buffer = buffer_.AppendBuffer(
         0, buffer_length - available_length,
         SaturatingAdd(buffer_length, buffer_length) - available_length);
@@ -302,7 +302,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
           buffer_.AppendBuffer(buffer_size_, buffer_size_,
                                SaturatingAdd(buffer_size_, buffer_size_));
     } else {
-      cursor_index = read_from_buffer();
+      cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
           0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
       if (flat_buffer.empty()) {
@@ -358,7 +358,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
           buffer_.AppendBuffer(buffer_size_, buffer_size_,
                                SaturatingAdd(buffer_size_, buffer_size_));
     } else {
-      cursor_index = read_from_buffer();
+      cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
           0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
       if (flat_buffer.empty()) {
@@ -415,7 +415,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
           buffer_.AppendBuffer(buffer_size_, buffer_size_,
                                SaturatingAdd(buffer_size_, buffer_size_));
     } else {
-      cursor_index = read_from_buffer();
+      cursor_index = start_to_cursor();
       flat_buffer = buffer_.AppendBuffer(
           0, buffer_size_, SaturatingAdd(buffer_size_, buffer_size_));
       if (flat_buffer.empty()) {

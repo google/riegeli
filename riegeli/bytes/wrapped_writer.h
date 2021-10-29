@@ -177,8 +177,8 @@ inline void WrappedWriterBase::SyncBuffer(Writer& dest) {
 }
 
 inline void WrappedWriterBase::MakeBuffer(Writer& dest) {
-  set_buffer(dest.start(), dest.buffer_size(), dest.written_to_buffer());
-  set_start_pos(dest.pos() - dest.written_to_buffer());
+  set_buffer(dest.start(), dest.start_to_limit(), dest.start_to_cursor());
+  set_start_pos(dest.pos() - dest.start_to_cursor());
   if (ABSL_PREDICT_FALSE(!dest.healthy())) FailWithoutAnnotation(dest);
 }
 

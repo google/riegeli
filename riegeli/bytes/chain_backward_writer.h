@@ -369,7 +369,7 @@ inline void ChainBackwardWriter<Dest>::MoveDest(ChainBackwardWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    const size_t cursor_index = written_to_buffer();
+    const size_t cursor_index = start_to_cursor();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {
       set_buffer(const_cast<char*>(dest_->blocks().front().data()),

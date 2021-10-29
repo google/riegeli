@@ -104,14 +104,20 @@ class Writer : public Object {
 
   // Returns the buffer size, between `start()` and `limit()`.
   //
-  // Invariant: if `!healthy()` then `buffer_size() == 0`
-  size_t buffer_size() const { return PtrDistance(start_, limit_); }
+  // Invariant: if `!healthy()` then `start_to_limit() == 0`
+  size_t start_to_limit() const { return PtrDistance(start_, limit_); }
+
+  ABSL_DEPRECATED("Use start_to_limit() instead")
+  size_t buffer_size() const { return start_to_limit(); }
 
   // Returns the amount of data written to the buffer, between `start()` and
   // `cursor()`.
   //
-  // Invariant: if `!healthy()` then `written_to_buffer() == 0`
-  size_t written_to_buffer() const { return PtrDistance(start_, cursor_); }
+  // Invariant: if `!healthy()` then `start_to_cursor() == 0`
+  size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
+
+  ABSL_DEPRECATED("Use start_to_cursor() instead")
+  size_t written_to_buffer() const { return start_to_cursor(); }
 
   // Writes a single byte to the buffer or the destination.
   //
@@ -256,7 +262,7 @@ class Writer : public Object {
   // Derived classes which override it further should include a call to
   // `Writer::OnFail()`.
   //
-  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
+  // `pos()` decreases by `start_to_cursor()` to indicate that any buffered
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
 
@@ -277,15 +283,15 @@ class Writer : public Object {
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Sets the values of:
-  //  * `start()` - to `start`
-  //  * `cursor()` - to `start + written_to_buffer`
-  //  * `limit()` - to `start + buffer_size`
+  //  * `start()`  - to `start`
+  //  * `cursor()` - to `start + start_to_cursor`
+  //  * `limit()`  - to `start + start_to_limit`
   //
   // Preconditions:
-  //   [`start`..`start + buffer_size`) is a valid byte range
-  //   `written_to_buffer <= buffer_size`
-  void set_buffer(char* start = nullptr, size_t buffer_size = 0,
-                  size_t written_to_buffer = 0);
+  //   [`start`..`start + start_to_limit`) is a valid byte range
+  //   `start_to_cursor <= start_to_limit`
+  void set_buffer(char* start = nullptr, size_t start_to_limit = 0,
+                  size_t start_to_cursor = 0);
 
   // Implementation of the slow part of `Write()`.
   //
@@ -357,7 +363,7 @@ class Writer : public Object {
   // Destination position corresponding to `start_`.
   //
   // Invariant:
-  //   `start_pos_ <= std::numeric_limits<Position>::max() - buffer_size()`
+  //   `start_pos_ <= std::numeric_limits<Position>::max() - start_to_limit()`
   Position start_pos_ = 0;
 };
 
@@ -429,13 +435,13 @@ inline void Writer::set_cursor(char* cursor) {
   cursor_ = cursor;
 }
 
-inline void Writer::set_buffer(char* start, size_t buffer_size,
-                               size_t written_to_buffer) {
-  RIEGELI_ASSERT_LE(written_to_buffer, buffer_size)
+inline void Writer::set_buffer(char* start, size_t start_to_limit,
+                               size_t start_to_cursor) {
+  RIEGELI_ASSERT_LE(start_to_cursor, start_to_limit)
       << "Failed precondition of Writer::set_buffer(): length out of range";
   start_ = start;
-  cursor_ = start + written_to_buffer;
-  limit_ = start + buffer_size;
+  cursor_ = start + start_to_cursor;
+  limit_ = start + start_to_limit;
 }
 
 inline bool Writer::WriteChar(char data) {
@@ -542,16 +548,16 @@ inline bool Writer::Flush(FlushType flush_type) {
 
 inline Position Writer::pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - buffer_size())
+                    std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of Writer: position of buffer limit overflow";
-  return start_pos_ + written_to_buffer();
+  return start_pos_ + start_to_cursor();
 }
 
 inline Position Writer::limit_pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - buffer_size())
+                    std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of Writer: position of buffer limit overflow";
-  return start_pos_ + buffer_size();
+  return start_pos_ + start_to_limit();
 }
 
 inline void Writer::move_start_pos(Position length) {

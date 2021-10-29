@@ -114,7 +114,7 @@ class StringWriterBase : public Writer {
 
   // Invariants if `healthy()`:
   //   `start() == &(*dest_string())[0]`
-  //   `buffer_size() == dest_string()->size()`
+  //   `start_to_limit() == dest_string()->size()`
   //   `start_pos() == 0`
 };
 
@@ -305,7 +305,7 @@ inline void StringWriter<Dest>::MoveDest(StringWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    const size_t cursor_index = written_to_buffer();
+    const size_t cursor_index = start_to_cursor();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {
       set_buffer(&(*dest_)[0], dest_->size(), cursor_index);

@@ -171,8 +171,8 @@ class PushableWriter : public Writer {
   struct Scratch {
     ChainBlock buffer;
     char* original_start = nullptr;
-    size_t original_buffer_size = 0;
-    size_t original_written_to_buffer = 0;
+    size_t original_start_to_limit = 0;
+    size_t original_start_to_cursor = 0;
   };
 
   bool SyncScratch();
@@ -181,7 +181,7 @@ class PushableWriter : public Writer {
 
   // Invariants if `scratch_used()`:
   //   `start() == scratch_->buffer.data()`
-  //   `buffer_size() == scratch_->buffer.size()`
+  //   `start_to_limit() == scratch_->buffer.size()`
 };
 
 // Implementation details follow.

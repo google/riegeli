@@ -162,7 +162,7 @@ void ReaderInputStream::BackUp(int length) {
   RIEGELI_ASSERT_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::BackUp(): "
          "negative length";
-  RIEGELI_ASSERT_LE(IntCast<size_t>(length), src_->read_from_buffer())
+  RIEGELI_ASSERT_LE(IntCast<size_t>(length), src_->start_to_cursor())
       << "Failed precondition of ZeroCopyInputStream::BackUp(): "
          "length larger than the amount of buffered data";
   src_->set_cursor(src_->cursor() - length);

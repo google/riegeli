@@ -188,7 +188,7 @@ class FileReaderBase : public Reader {
 
   // Invariants if `!buffer_.empty()`:
   //   `start() == buffer_.data()`
-  //   `buffer_size() == buffer_.size()`
+  //   `start_to_limit() == buffer_.size()`
 };
 
 // A `Reader` which reads from a `::tensorflow::RandomAccessFile`. It supports

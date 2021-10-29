@@ -105,7 +105,7 @@ class BufferedReader : public Reader {
   //
   // Preconditions:
   //   like the corresponding `Reader` function
-  //   `buffer_size() == 0`
+  //   `start_to_limit() == 0`
   virtual bool SeekBehindBuffer(Position new_pos);
 
   void Done() override;
@@ -142,7 +142,7 @@ class BufferedReader : public Reader {
 
   // Invariants:
   //   if `!buffer_.empty()` then `start() == buffer_.data()`
-  //   `buffer_size() == buffer_.size()`
+  //   `start_to_limit() == buffer_.size()`
 };
 
 // Implementation details follow.

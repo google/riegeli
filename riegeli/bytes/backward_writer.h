@@ -91,14 +91,14 @@ class BackwardWriter : public Object {
 
   // Returns the buffer size, between `start()` and `limit()`.
   //
-  // Invariant: if `!healthy()` then `buffer_size() == 0`
-  size_t buffer_size() const { return PtrDistance(limit_, start_); }
+  // Invariant: if `!healthy()` then `start_to_limit() == 0`
+  size_t start_to_limit() const { return PtrDistance(limit_, start_); }
 
   // Returns the amount of data written to the buffer, between `start()` and
   // `cursor()`.
   //
-  // Invariant: if `!healthy()` then `written_to_buffer() == 0`
-  size_t written_to_buffer() const { return PtrDistance(cursor_, start_); }
+  // Invariant: if `!healthy()` then `start_to_cursor() == 0`
+  size_t start_to_cursor() const { return PtrDistance(cursor_, start_); }
 
   // Writes a single byte to the buffer or the destination.
   //
@@ -225,7 +225,7 @@ class BackwardWriter : public Object {
   // `nullptr`. Derived classes which override it further should include a call
   // to `BackwardWriter::OnFail()`.
   //
-  // `pos()` decreases by `written_to_buffer()` to indicate that any buffered
+  // `pos()` decreases by `start_to_cursor()` to indicate that any buffered
   // data have been lost.
   ABSL_ATTRIBUTE_COLD void OnFail() override;
 
@@ -246,15 +246,15 @@ class BackwardWriter : public Object {
   virtual bool PushSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Sets the values of:
-  //  * `start()` - to `limit + buffer_size`
-  //  * `cursor()` - to `start() - written_to_buffer`
-  //  * `limit()` - to `limit`
+  //  * `start()`  - to `limit + start_to_limit`
+  //  * `cursor()` - to `start() - start_to_cursor`
+  //  * `limit()`  - to `limit`
   //
   // Preconditions:
-  //   [`limit`..`limit + buffer_size`) is a valid byte range
-  //   `written_to_buffer <= buffer_size`
-  void set_buffer(char* limit = nullptr, size_t buffer_size = 0,
-                  size_t written_to_buffer = 0);
+  //   [`limit`..`limit + start_to_limit`) is a valid byte range
+  //   `start_to_cursor <= start_to_limit`
+  void set_buffer(char* limit = nullptr, size_t start_to_limit = 0,
+                  size_t start_to_cursor = 0);
 
   // Implementation of the slow part of `Write()`.
   //
@@ -316,7 +316,7 @@ class BackwardWriter : public Object {
   // Destination position corresponding to `start_`.
   //
   // Invariant:
-  //   `start_pos_ <= std::numeric_limits<Position>::max() - buffer_size()`
+  //   `start_pos_ <= std::numeric_limits<Position>::max() - start_to_limit()`
   Position start_pos_ = 0;
 };
 
@@ -392,13 +392,13 @@ inline void BackwardWriter::set_cursor(char* cursor) {
   cursor_ = cursor;
 }
 
-inline void BackwardWriter::set_buffer(char* limit, size_t buffer_size,
-                                       size_t written_to_buffer) {
-  RIEGELI_ASSERT_LE(written_to_buffer, buffer_size)
+inline void BackwardWriter::set_buffer(char* limit, size_t start_to_limit,
+                                       size_t start_to_cursor) {
+  RIEGELI_ASSERT_LE(start_to_cursor, start_to_limit)
       << "Failed precondition of BackwardWriter::set_buffer(): "
          "length out of range";
-  start_ = limit + buffer_size;
-  cursor_ = start_ - written_to_buffer;
+  start_ = limit + start_to_limit;
+  cursor_ = start_ - start_to_cursor;
   limit_ = limit;
 }
 
@@ -506,18 +506,18 @@ inline bool BackwardWriter::Flush(FlushType flush_type) {
 
 inline Position BackwardWriter::pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - buffer_size())
+                    std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of BackwardWriter: "
          "position of buffer limit overflow";
-  return start_pos_ + written_to_buffer();
+  return start_pos_ + start_to_cursor();
 }
 
 inline Position BackwardWriter::limit_pos() const {
   RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - buffer_size())
+                    std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of BackwardWriter: "
          "position of buffer limit overflow";
-  return start_pos_ + buffer_size();
+  return start_pos_ + start_to_limit();
 }
 
 inline void BackwardWriter::move_start_pos(Position length) {

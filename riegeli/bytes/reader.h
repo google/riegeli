@@ -117,11 +117,17 @@ class Reader : public Object {
   size_t available() const { return PtrDistance(cursor_, limit_); }
 
   // Returns the buffer size, between `start()` and `limit()`.
-  size_t buffer_size() const { return PtrDistance(start_, limit_); }
+  size_t start_to_limit() const { return PtrDistance(start_, limit_); }
+
+  ABSL_DEPRECATED("Use start_to_limit() instead")
+  size_t buffer_size() const { return start_to_limit(); }
 
   // Returns the amount of data read from the buffer, between `start()` and
   // `cursor()`.
-  size_t read_from_buffer() const { return PtrDistance(start_, cursor_); }
+  size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
+
+  ABSL_DEPRECATED("Use start_to_cursor() instead")
+  size_t read_from_buffer() const { return start_to_cursor(); }
 
   // Reads a single byte from the buffer or the source.
   //
@@ -382,15 +388,15 @@ class Reader : public Object {
   virtual bool PullSlow(size_t min_length, size_t recommended_length) = 0;
 
   // Sets the values of:
-  //  * `start()` - to `start`
-  //  * `cursor()` - to `start + read_from_buffer`
-  //  * `limit()` - to `start + buffer_size`
+  //  * `start()`  - to `start`
+  //  * `cursor()` - to `start + start_to_cursor`
+  //  * `limit()`  - to `start + start_to_limit`
   //
   // Preconditions:
-  //   [`start`..`start + buffer_size`) is a valid byte range
-  //   `read_from_buffer <= buffer_size`
-  void set_buffer(const char* start = nullptr, size_t buffer_size = 0,
-                  size_t read_from_buffer = 0);
+  //   [`start`..`start + start_to_limit`) is a valid byte range
+  //   `start_to_cursor <= start_to_limit`
+  void set_buffer(const char* start = nullptr, size_t start_to_limit = 0,
+                  size_t start_to_cursor = 0);
 
   // Implementations of the slow part of `Read()`, `ReadAndAppend()`, and
   // `Copy()`.
@@ -469,7 +475,7 @@ class Reader : public Object {
 
   // Source position corresponding to `limit_`.
   //
-  // Invariant: `limit_pos_ >= buffer_size()`
+  // Invariant: `limit_pos_ >= start_to_limit()`
   Position limit_pos_ = 0;
 };
 
@@ -546,13 +552,13 @@ inline void Reader::set_cursor(const char* cursor) {
   cursor_ = cursor;
 }
 
-inline void Reader::set_buffer(const char* start, size_t buffer_size,
-                               size_t read_from_buffer) {
-  RIEGELI_ASSERT_LE(read_from_buffer, buffer_size)
+inline void Reader::set_buffer(const char* start, size_t start_to_limit,
+                               size_t start_to_cursor) {
+  RIEGELI_ASSERT_LE(start_to_cursor, start_to_limit)
       << "Failed precondition of Reader::set_buffer(): length out of range";
   start_ = start;
-  cursor_ = start + read_from_buffer;
-  limit_ = start + buffer_size;
+  cursor_ = start + start_to_cursor;
+  limit_ = start + start_to_limit;
 }
 
 inline bool Reader::ReadChar(char& dest) {
@@ -667,15 +673,15 @@ inline void Reader::ReadHint(size_t length) {
 inline bool Reader::Sync(SyncType sync_type) { return SyncImpl(sync_type); }
 
 inline Position Reader::pos() const {
-  RIEGELI_ASSERT_GE(limit_pos_, buffer_size())
+  RIEGELI_ASSERT_GE(limit_pos_, start_to_limit())
       << "Failed invariant of Reader: negative position of buffer start";
   return limit_pos_ - available();
 }
 
 inline Position Reader::start_pos() const {
-  RIEGELI_ASSERT_GE(limit_pos_, buffer_size())
+  RIEGELI_ASSERT_GE(limit_pos_, start_to_limit())
       << "Failed invariant of Reader: negative position of buffer start";
-  return limit_pos_ - buffer_size();
+  return limit_pos_ - start_to_limit();
 }
 
 inline void Reader::move_limit_pos(Position length) {

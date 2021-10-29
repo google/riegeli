@@ -331,7 +331,7 @@ inline void SnappyWriterBase::Initialize(Writer* dest) {
 }
 
 inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase&& that) {
-  const size_t cursor_index = written_to_buffer();
+  const size_t cursor_index = start_to_cursor();
   uncompressed_ = std::move(that.uncompressed_);
   if (start() != nullptr) {
     const size_t buffer_size =

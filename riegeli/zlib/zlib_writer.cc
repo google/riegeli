@@ -91,7 +91,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
 }
 
 void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
@@ -215,7 +215,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

@@ -88,7 +88,7 @@ class FramedSnappyWriterBase : public PushableWriter {
   //
   // Precondition: `healthy()`
   //
-  // Postcondition: `written_to_buffer() == 0`
+  // Postcondition: `start_to_cursor() == 0`
   bool PushInternal(Writer& dest);
 
   Position size_hint_ = 0;
@@ -97,7 +97,7 @@ class FramedSnappyWriterBase : public PushableWriter {
 
   // Invariants if scratch is not used:
   //   `start() == nullptr` or `start() == uncompressed_.data()`
-  //   `buffer_size() <= snappy::kBlockSize`
+  //   `start_to_limit() <= snappy::kBlockSize`
 };
 
 // A `Writer` which compresses data with framed Snappy format before passing it

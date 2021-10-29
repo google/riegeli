@@ -231,8 +231,8 @@ inline void DigestingWriterBase::SyncBuffer(Writer& dest) {
   RIEGELI_ASSERT(start() == dest.cursor())
       << "Failed invariant of DigestingWriterBase: "
          "cursor of the original Writer changed unexpectedly";
-  if (written_to_buffer() > 0) {
-    DigesterWrite(absl::string_view(start(), written_to_buffer()));
+  if (start_to_cursor() > 0) {
+    DigesterWrite(absl::string_view(start(), start_to_cursor()));
   }
   dest.set_cursor(cursor());
 }
@@ -356,8 +356,8 @@ void DigestingWriter<Digester, Dest>::Done() {
 template <typename Digester, typename Dest>
 inline typename DigestingWriter<Digester, Dest>::DigestType
 DigestingWriter<Digester, Dest>::Digest() {
-  if (written_to_buffer() > 0) {
-    DigesterWrite(absl::string_view(start(), written_to_buffer()));
+  if (start_to_cursor() > 0) {
+    DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_start_pos(pos());
     set_buffer(cursor(), available());
   }

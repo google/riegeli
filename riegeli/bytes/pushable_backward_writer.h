@@ -168,8 +168,8 @@ class PushableBackwardWriter : public BackwardWriter {
   struct Scratch {
     ChainBlock buffer;
     char* original_limit = nullptr;
-    size_t original_buffer_size = 0;
-    size_t original_written_to_buffer = 0;
+    size_t original_start_to_limit = 0;
+    size_t original_start_to_cursor = 0;
   };
 
   bool SyncScratch();
@@ -178,7 +178,7 @@ class PushableBackwardWriter : public BackwardWriter {
 
   // Invariants if `scratch_used()`:
   //   `limit() == scratch_->buffer.data()`
-  //   `buffer_size() == scratch_->buffer.data()`
+  //   `start_to_limit() == scratch_->buffer.data()`
 };
 
 // Implementation details follow.

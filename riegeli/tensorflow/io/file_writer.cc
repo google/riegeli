@@ -116,7 +116,7 @@ void FileWriterBase::DefaultAnnotateStatus() {
 }
 
 bool FileWriterBase::SyncBuffer() {
-  const absl::string_view data(start(), written_to_buffer());
+  const absl::string_view data(start(), start_to_cursor());
   set_buffer();
   if (data.empty()) return true;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

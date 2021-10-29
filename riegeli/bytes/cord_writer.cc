@@ -52,7 +52,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   RIEGELI_ASSERT_EQ(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (start() == short_buffer_) {
-    const size_t buffered_length = written_to_buffer();
+    const size_t buffered_length = start_to_cursor();
     if (ABSL_PREDICT_FALSE(
             min_length > std::numeric_limits<size_t>::max() - buffered_length ||
             buffered_length + min_length >
@@ -218,12 +218,11 @@ bool CordWriterBase::TruncateImpl(Position new_size) {
 
 inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
   set_start_pos(pos());
-  if (written_to_buffer() <= MaxBytesToCopyToCord(dest) ||
+  if (start_to_cursor() <= MaxBytesToCopyToCord(dest) ||
       start() == short_buffer_) {
-    dest.Append(absl::string_view(start(), written_to_buffer()));
+    dest.Append(absl::string_view(start(), start_to_cursor()));
   } else {
-    dest.Append(
-        buffer_.ToCord(absl::string_view(start(), written_to_buffer())));
+    dest.Append(buffer_.ToCord(absl::string_view(start(), start_to_cursor())));
   }
   set_buffer();
 }

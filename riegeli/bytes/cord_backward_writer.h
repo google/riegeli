@@ -261,7 +261,7 @@ inline CordBackwardWriterBase::CordBackwardWriterBase(
       buffer_(std::move(that.buffer_)) {
   if (limit() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, buffer_size(), written_to_buffer());
+    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
   }
 }
 
@@ -276,7 +276,7 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
   buffer_ = std::move(that.buffer_);
   if (limit() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
-    set_buffer(short_buffer_, buffer_size(), written_to_buffer());
+    set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
   }
   return *this;
 }

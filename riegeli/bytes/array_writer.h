@@ -249,7 +249,7 @@ inline void ArrayWriter<Dest>::MoveDest(ArrayWriter&& that) {
     dest_ = std::move(that.dest_);
   } else {
     BehindScratch behind_scratch(this);
-    const size_t cursor_index = written_to_buffer();
+    const size_t cursor_index = start_to_cursor();
     const size_t written_size = written_.size();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {

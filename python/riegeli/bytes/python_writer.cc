@@ -210,7 +210,7 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
 }
 
 bool PythonWriter::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
@@ -247,7 +247,7 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT(supports_random_access_)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "buffer not empty";
   PythonLock::AssertHeld();
@@ -289,7 +289,7 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
 }
 
 absl::optional<Position> PythonWriter::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
@@ -316,7 +316,7 @@ absl::optional<Position> PythonWriter::SizeBehindBuffer() {
 }
 
 bool PythonWriter::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

@@ -424,8 +424,9 @@ inline void LimitingReaderBase::set_max_pos(Position max_pos) {
          "position already exceeds its limit";
   max_pos_ = max_pos;
   if (limit_pos() > max_pos_) {
-    set_buffer(start(), buffer_size() - IntCast<size_t>(limit_pos() - max_pos_),
-               read_from_buffer());
+    set_buffer(start(),
+               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
+               start_to_cursor());
     set_limit_pos(max_pos_);
   }
 }
@@ -452,11 +453,12 @@ inline void LimitingReaderBase::SyncBuffer(Reader& src) {
 }
 
 inline void LimitingReaderBase::MakeBuffer(Reader& src) {
-  set_buffer(src.start(), src.buffer_size(), src.read_from_buffer());
+  set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.pos() + src.available());
   if (limit_pos() > max_pos_) {
-    set_buffer(start(), buffer_size() - IntCast<size_t>(limit_pos() - max_pos_),
-               read_from_buffer());
+    set_buffer(start(),
+               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
+               start_to_cursor());
     set_limit_pos(max_pos_);
   }
   if (ABSL_PREDICT_FALSE(!src.healthy())) FailWithoutAnnotation(src);

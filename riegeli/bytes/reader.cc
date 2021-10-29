@@ -476,7 +476,7 @@ bool Reader::SeekSlow(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
   } while (new_pos > limit_pos());
   const Position available_length = limit_pos() - new_pos;
-  RIEGELI_ASSERT_LE(available_length, buffer_size())
+  RIEGELI_ASSERT_LE(available_length, start_to_limit())
       << "Reader::PullSlow() skipped some data";
   set_cursor(limit() - available_length);
   return true;

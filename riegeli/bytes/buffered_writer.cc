@@ -31,14 +31,14 @@
 namespace riegeli {
 
 void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
          "buffer not empty";
   FlushBehindBuffer(src, FlushType::kFromObject);
 }
 
 void BufferedWriter::Done() {
-  const absl::string_view src(start(), written_to_buffer());
+  const absl::string_view src(start(), start_to_cursor());
   set_buffer();
   DoneBehindBuffer(src);
   Writer::Done();
@@ -46,7 +46,7 @@ void BufferedWriter::Done() {
 }
 
 bool BufferedWriter::SyncBuffer() {
-  const absl::string_view data(start(), written_to_buffer());
+  const absl::string_view data(start(), start_to_cursor());
   set_buffer();
   if (data.empty()) return true;
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -58,7 +58,7 @@ inline size_t BufferedWriter::LengthToWriteDirectly() const {
   // partially full, this ensures that at least every other write has length at
   // least `buffer_size_`.
   if (pos() < size_hint_ &&
-      (written_to_buffer() == 0 || limit_pos() < size_hint_)) {
+      (start_to_cursor() == 0 || limit_pos() < size_hint_)) {
     // Write directly also if `size_hint_` is reached, as long as the number of
     // writes is not increased.
     return UnsignedMin(buffer_size_, size_hint_ - pos());
@@ -88,7 +88,7 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
 
 bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer():"
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -97,14 +97,14 @@ bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
 }
 
 bool BufferedWriter::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer():"
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
 absl::optional<Position> BufferedWriter::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer():"
          "buffer not empty";
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
@@ -112,7 +112,7 @@ absl::optional<Position> BufferedWriter::SizeBehindBuffer() {
 }
 
 bool BufferedWriter::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer():"
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
@@ -144,7 +144,7 @@ bool BufferedWriter::WriteZerosSlow(Position length) {
 }
 
 bool BufferedWriter::FlushImpl(FlushType flush_type) {
-  const absl::string_view src(start(), written_to_buffer());
+  const absl::string_view src(start(), start_to_cursor());
   set_buffer();
   return FlushBehindBuffer(src, flush_type);
 }

@@ -35,7 +35,7 @@ bool ArrayBackwardWriterBase::FlushBehindScratch(FlushType flush_type) {
       << "Failed precondition of PushableBackwardWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  written_ = absl::Span<char>(cursor(), written_to_buffer());
+  written_ = absl::Span<char>(cursor(), start_to_cursor());
   return true;
 }
 
@@ -45,7 +45,7 @@ bool ArrayBackwardWriterBase::TruncateBehindScratch(Position new_size) {
          "PushableBackwardWriter::TruncateBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  if (ABSL_PREDICT_FALSE(new_size > written_to_buffer())) return false;
+  if (ABSL_PREDICT_FALSE(new_size > start_to_cursor())) return false;
   set_cursor(start() - new_size);
   return true;
 }

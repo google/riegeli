@@ -221,8 +221,8 @@ inline void DigestingReaderBase::SyncBuffer(Reader& src) {
   RIEGELI_ASSERT(start() == src.cursor())
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
-  if (read_from_buffer() > 0) {
-    DigesterWrite(absl::string_view(start(), read_from_buffer()));
+  if (start_to_cursor() > 0) {
+    DigesterWrite(absl::string_view(start(), start_to_cursor()));
   }
   src.set_cursor(cursor());
 }
@@ -337,8 +337,8 @@ inline void DigestingReader<Digester, Src>::MoveSrc(DigestingReader&& that) {
 template <typename Digester, typename Src>
 inline typename DigestingReader<Digester, Src>::DigestType
 DigestingReader<Digester, Src>::Digest() {
-  if (read_from_buffer() > 0) {
-    DigesterWrite(absl::string_view(start(), read_from_buffer()));
+  if (start_to_cursor() > 0) {
+    DigesterWrite(absl::string_view(start(), start_to_cursor()));
     set_buffer(cursor(), available());
   }
   return internal::DigesterDigest(digester_);

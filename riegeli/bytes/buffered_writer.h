@@ -79,7 +79,7 @@ class BufferedWriter : public Writer {
   // default writes data to the destination. Can be overridden if writing
   // coupled with closing can be implemented better.
   //
-  // Precondition: `buffer_size() == 0`
+  // Precondition: `start_to_limit() == 0`
   virtual void DoneBehindBuffer(absl::string_view src);
 
   // Writes data to the destination, to the physical destination position which
@@ -98,7 +98,7 @@ class BufferedWriter : public Writer {
   // By default writes data to the destination. Can be overridden if writing
   // coupled with flushing can be implemented better.
   //
-  // Precondition: `buffer_size() == 0`
+  // Precondition: `start_to_limit() == 0`
   virtual bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
 
   // Implementation of `SeekImpl()`, `Size()`, and `Truncate()`, called while no
@@ -109,7 +109,7 @@ class BufferedWriter : public Writer {
   //
   // Preconditions:
   //   like the corresponding `Writer` functions
-  //   `buffer_size() == 0`
+  //   `start_to_limit() == 0`
   virtual bool SeekBehindBuffer(Position new_pos);
   virtual absl::optional<Position> SizeBehindBuffer();
   virtual bool TruncateBehindBuffer(Position new_size);

@@ -211,7 +211,7 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::SeekInternal(): "
          "buffer not empty";
   if (!has_independent_pos_) {
@@ -225,7 +225,7 @@ inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
 }
 
 bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
@@ -246,7 +246,7 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
@@ -260,7 +260,7 @@ absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
 }
 
 bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;

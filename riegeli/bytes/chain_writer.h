@@ -363,7 +363,7 @@ inline void ChainWriter<Dest>::MoveDest(ChainWriter&& that) {
   if (dest_.kIsStable()) {
     dest_ = std::move(that.dest_);
   } else {
-    const size_t cursor_index = written_to_buffer();
+    const size_t cursor_index = start_to_cursor();
     dest_ = std::move(that.dest_);
     if (start() != nullptr) {
       const size_t buffer_size = dest_->size() - IntCast<size_t>(start_pos());

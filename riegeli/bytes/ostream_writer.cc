@@ -147,7 +147,7 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
 }
 
 bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!supports_random_access())) {
@@ -181,7 +181,7 @@ bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
 }
 
 absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(buffer_size(), 0u)
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
