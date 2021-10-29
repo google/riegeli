@@ -191,11 +191,11 @@ absl::optional<int> FieldNumberFromPython(PyObject* object) {
 }
 
 absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
-  riegeli::FieldProjection field_projection;
+  FieldProjection field_projection;
   const PythonPtr field_iter(PyObject_GetIter(object));
   if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return absl::nullopt;
   while (const PythonPtr field_object{PyIter_Next(field_iter.get())}) {
-    riegeli::Field field;
+    Field field;
     const PythonPtr field_number_iter(PyObject_GetIter(field_object.get()));
     if (ABSL_PREDICT_FALSE(field_number_iter == nullptr)) return absl::nullopt;
     while (const PythonPtr field_number_object{

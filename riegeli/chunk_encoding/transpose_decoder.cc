@@ -427,7 +427,7 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
   Context context;
   if (ABSL_PREDICT_FALSE(!Parse(context, src, field_projection))) return false;
   LimitingBackwardWriter<> limiting_dest(
-      &dest, riegeli::LimitingBackwardWriterBase::Options()
+      &dest, LimitingBackwardWriterBase::Options()
                  .set_max_length(decoded_data_size)
                  .set_exact(field_projection.includes_all()));
   if (ABSL_PREDICT_FALSE(
@@ -1121,7 +1121,7 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
 
   if (internal::IsImplicit(node->callback_type)) ++num_iters;
   for (;;) {
-    switch (static_cast<riegeli::internal::CallbackType>(
+    switch (static_cast<internal::CallbackType>(
         static_cast<uint8_t>(node->callback_type) &
         ~static_cast<uint8_t>(internal::CallbackType::kImplicit))) {
       case internal::CallbackType::kSelectCallback:

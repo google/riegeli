@@ -64,9 +64,9 @@ class StandardStreams {
 };
 
 StandardStreams::StandardStreams()
-    : std_in_(std::make_unique<FdReader<riegeli::UnownedFd>>(STDIN_FILENO)),
-      std_out_(std::make_unique<FdWriter<riegeli::UnownedFd>>(STDOUT_FILENO)),
-      std_err_(std::make_unique<FdWriter<riegeli::UnownedFd>>(STDERR_FILENO)) {
+    : std_in_(std::make_unique<FdReader<UnownedFd>>(STDIN_FILENO)),
+      std_out_(std::make_unique<FdWriter<UnownedFd>>(STDOUT_FILENO)),
+      std_err_(std::make_unique<FdWriter<UnownedFd>>(STDERR_FILENO)) {
   static StandardStreams* singleton;
   singleton = this;
   std::atexit(+[] { singleton->FlushAll(); });

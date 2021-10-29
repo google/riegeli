@@ -212,7 +212,7 @@ bool ReadLine(Reader& src, absl::Cord& dest, ReadLineOptions options) {
   return ReadLineInternal(src, dest, options);
 }
 
-void SkipBOM(riegeli::Reader& src) {
+void SkipBOM(Reader& src) {
   if (src.pos() != 0) return;
   src.Pull(3);
   if (src.available() >= 3 && src.cursor()[0] == static_cast<char>(0xef) &&

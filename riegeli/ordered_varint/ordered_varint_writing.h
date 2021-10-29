@@ -63,8 +63,8 @@ size_t LengthOrderedVarint64(uint64_t data);
 
 namespace internal {
 
-bool WriteOrderedVarint32Slow(uint32_t data, riegeli::Writer& dest);
-bool WriteOrderedVarint64Slow(uint64_t data, riegeli::Writer& dest);
+bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest);
+bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest);
 
 }  // namespace internal
 

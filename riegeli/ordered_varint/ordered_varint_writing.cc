@@ -24,7 +24,7 @@
 namespace riegeli {
 namespace internal {
 
-bool WriteOrderedVarint32Slow(uint32_t data, riegeli::Writer& dest) {
+bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest) {
   RIEGELI_ASSERT_GE(data, uint32_t{1} << 7)
       << "Failed precondition of WriteOrderedVarint32Slow(): data too small";
   if (data < uint32_t{1} << (2 * 7)) {
@@ -54,7 +54,7 @@ bool WriteOrderedVarint32Slow(uint32_t data, riegeli::Writer& dest) {
   }
 }
 
-bool WriteOrderedVarint64Slow(uint64_t data, riegeli::Writer& dest) {
+bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest) {
   RIEGELI_ASSERT_GE(data, uint64_t{1} << 7)
       << "Failed precondition of WriteOrderedVarint64Slow(): data too small";
   if (data < uint64_t{1} << (2 * 7)) {

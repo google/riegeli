@@ -80,7 +80,7 @@ inline void WriteDebugQuotedIfNeeded(absl::string_view src, Writer& writer) {
 
 inline std::string DebugQuotedIfNeeded(absl::string_view src) {
   std::string dest;
-  riegeli::StringWriter<> writer(&dest);
+  StringWriter<> writer(&dest);
   WriteDebugQuotedIfNeeded(src, writer);
   writer.Close();
   return dest;
@@ -125,7 +125,7 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
   }
   if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
     payload_.reset();
-    riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+    StringWriter<std::string> message(std::forward_as_tuple());
     message.Write("Duplicate field name(s): ");
     for (std::vector<absl::string_view>::const_iterator iter =
              duplicate_names.cbegin();
@@ -177,7 +177,7 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
         << "It should not have been needed to ensure that an empty CsvHeader "
            "has payload_ == nullptr because a duplicate field name is possible "
            "only if some fields were already present";
-    riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+    StringWriter<std::string> message(std::forward_as_tuple());
     message.Write("Duplicate field name: ");
     WriteDebugQuotedIfNeeded(name, message);
     message.Close();
@@ -225,7 +225,7 @@ inline void CsvHeader::EnsureUniqueOwner() {
 
 std::string CsvHeader::DebugString() const {
   std::string result;
-  riegeli::StringWriter<> writer(&result);
+  StringWriter<> writer(&result);
   for (iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
     WriteDebugQuotedIfNeeded(*iter, writer);
@@ -350,7 +350,7 @@ absl::Status CsvRecord::TryMerge(
 
 absl::Status CsvRecord::FailMerge(
     const std::vector<std::string>& unknown_fields) const {
-  riegeli::StringWriter<std::string> message(std::forward_as_tuple());
+  StringWriter<std::string> message(std::forward_as_tuple());
   message.Write("Unknown field name(s): ");
   for (std::vector<std::string>::const_iterator iter = unknown_fields.cbegin();
        iter != unknown_fields.cend(); ++iter) {
@@ -368,7 +368,7 @@ std::string CsvRecord::DebugString() const {
       << "Failed invariant of CsvRecord: "
          "mismatched length of CSV header and fields";
   std::string result;
-  riegeli::StringWriter<> writer(&result);
+  StringWriter<> writer(&result);
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {
     if (iter != cbegin()) writer.WriteChar(',');
     WriteDebugQuotedIfNeeded(iter->first, writer);
