@@ -331,6 +331,25 @@ cc_library(
 )
 
 cc_library(
+    name = "reader_factory",
+    srcs = ["reader_factory.cc"],
+    hdrs = ["reader_factory.h"],
+    deps = [
+        ":pullable_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "array_writer",
     srcs = [
         "array_writer.cc",
