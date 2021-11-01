@@ -131,6 +131,13 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
     }
 #endif
 
+    ::tensorflow::Status InputDatasets(
+        std::vector<const ::tensorflow::data::DatasetBase*>* inputs)
+        const override {
+      inputs->clear();
+      return ::tensorflow::Status::OK();
+    }
+
    protected:
     ::tensorflow::Status AsGraphDefInternal(
         ::tensorflow::data::SerializationContext* ctx,
