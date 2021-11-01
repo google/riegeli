@@ -31,13 +31,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if __cplusplus < 201703
-constexpr Position LimitingReaderBase::kNoSizeLimit;
-#endif
-
 void LimitingReaderBase::Done() {
   if (ABSL_PREDICT_TRUE(healthy())) {
     Reader& src = *src_reader();

@@ -29,7 +29,7 @@ namespace riegeli {
 // By convention, a constructor with a single parameter of type `Closed`
 // constructs the object as closed.
 struct Closed {};
-inline constexpr Closed kClosed{};
+RIEGELI_INTERNAL_INLINE_CONSTEXPR(Closed, kClosed, Closed());
 
 // Internal representation of the basic state of class `Object` and similar
 // classes: whether the object is open or closed, and whether it is not failed
