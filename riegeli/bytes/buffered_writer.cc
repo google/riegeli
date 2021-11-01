@@ -26,13 +26,14 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   FlushBehindBuffer(src, FlushType::kFromObject);
 }
@@ -89,7 +90,7 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
 bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::FlushBehindBuffer():"
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   if (src.empty()) return true;
@@ -101,14 +102,14 @@ bool BufferedWriter::SeekBehindBuffer(Position new_pos) {
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::SeekBehindBuffer():"
+      << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
 absl::optional<Position> BufferedWriter::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::SizeBehindBuffer():"
+      << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
   return absl::nullopt;
@@ -116,9 +117,17 @@ absl::optional<Position> BufferedWriter::SizeBehindBuffer() {
 
 bool BufferedWriter::TruncateBehindBuffer(Position new_size) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::TruncateBehindBuffer():"
+      << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
+}
+
+Reader* BufferedWriter::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  Fail(absl::UnimplementedError("Writer::ReadMode() not supported"));
+  return nullptr;
 }
 
 bool BufferedWriter::WriteSlow(absl::string_view src) {
@@ -168,6 +177,11 @@ absl::optional<Position> BufferedWriter::SizeImpl() {
 bool BufferedWriter::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   return TruncateBehindBuffer(new_size);
+}
+
+Reader* BufferedWriter::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return nullptr;
+  return ReadModeBehindBuffer(initial_pos);
 }
 
 }  // namespace riegeli

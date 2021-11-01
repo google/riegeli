@@ -29,10 +29,12 @@ cc_library(
     srcs = ["file_writer.cc"],
     hdrs = ["file_writer.h"],
     deps = [
+        ":file_reader",
         "//riegeli/base",
         "//riegeli/base:buffer",
         "//riegeli/base:chain",
         "//riegeli/base:status",
+        "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

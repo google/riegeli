@@ -31,9 +31,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/stream_dependency.h"
 
 namespace riegeli {
+
+template <typename Src>
+class IstreamReader;
 
 // Template parameter independent part of `OstreamWriter`.
 class OstreamWriterBase : public BufferedWriter {
@@ -88,6 +92,7 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool SupportsRandomAccess() override { return supports_random_access(); }
   bool SupportsTruncate() override { return false; }
+  bool SupportsReadMode() override { return src_stream() != nullptr; }
 
  protected:
   explicit OstreamWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -100,12 +105,18 @@ class OstreamWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(size_t buffer_size);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  void Initialize(std::ostream*, absl::optional<Position> assumed_pos);
+  void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos);
+
+  // Returns the stream pointer as `std::istream*` if the static type of the
+  // destination derives from `std::istream`, otherwise returns `nullptr`.
+  virtual std::istream* src_stream() = 0;
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
+  Reader* ReadModeBehindBuffer(Position initial_pos) override;
+  bool WriteModeImpl() override;
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
@@ -113,13 +124,11 @@ class OstreamWriterBase : public BufferedWriter {
 
   bool supports_random_access();
 
-  // Whether random access is supported, as detected by calling
-  // `std::ostream::tellp()` (during initialization) and `std::ostream::seekp()`
-  // to the end and back (lazily).
-  //
   // Invariant:
-  //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`
+  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
+
+  AssociatedReader<IstreamReader<std::istream*>> associated_reader_;
 
   // Invariant: `start_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -130,6 +139,9 @@ class OstreamWriterBase : public BufferedWriter {
 // `Options::assumed_pos() == absl::nullopt` and the stream supports random
 // access (this is checked by calling `std::ostream::tellp()` and
 // `std::ostream::seekp()` to the end and back).
+//
+// `OstreamWriter` supports `ReadMode()` if the static type of the stream
+// derives also from `std::istream`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the stream being written to. `Dest` must support
@@ -180,6 +192,8 @@ class OstreamWriter : public OstreamWriterBase {
   const std::ostream* dest_stream() const override { return dest_.get(); }
 
  protected:
+  std::istream* src_stream() override;
+
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
 
@@ -219,7 +233,8 @@ inline OstreamWriterBase::OstreamWriterBase(OstreamWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      supports_random_access_(that.supports_random_access_) {}
+      supports_random_access_(that.supports_random_access_),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline OstreamWriterBase& OstreamWriterBase::operator=(
     OstreamWriterBase&& that) noexcept {
@@ -227,17 +242,20 @@ inline OstreamWriterBase& OstreamWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   supports_random_access_ = that.supports_random_access_;
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void OstreamWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
+  associated_reader_.Reset();
 }
 
 inline void OstreamWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
   supports_random_access_ = LazyBoolState::kFalse;
+  associated_reader_.Reset();
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
@@ -307,6 +325,11 @@ inline void OstreamWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
   OstreamWriterBase::Reset(options.buffer_size());
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get(), options.assumed_pos());
+}
+
+template <typename Dest>
+inline std::istream* OstreamWriter<Dest>::src_stream() {
+  return internal::DetectIstream(dest_.get());
 }
 
 template <typename Dest>

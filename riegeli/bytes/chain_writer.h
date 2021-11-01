@@ -28,9 +28,13 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+template <typename Src>
+class ChainReader;
 
 // Template parameter independent part of `ChainWriter`.
 class ChainWriterBase : public Writer {
@@ -115,6 +119,7 @@ class ChainWriterBase : public Writer {
 
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
+  bool SupportsReadMode() override { return true; }
 
  protected:
   explicit ChainWriterBase(Closed) noexcept : Writer(kClosed) {}
@@ -139,6 +144,7 @@ class ChainWriterBase : public Writer {
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains
@@ -151,6 +157,8 @@ class ChainWriterBase : public Writer {
 
   Chain::Options options_;
 
+  AssociatedReader<ChainReader<const Chain*>> associated_reader_;
+
   // Invariants if `healthy()`:
   //   `limit() == nullptr || limit() == dest_chain()->blocks().back().data() +
   //                                     dest_chain()->blocks().back().size()`
@@ -158,6 +166,8 @@ class ChainWriterBase : public Writer {
 };
 
 // A `Writer` which appends to a `Chain`.
+//
+// It supports `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Chain` being written to. `Dest` must support
@@ -254,7 +264,8 @@ inline ChainWriterBase::ChainWriterBase(ChainWriterBase&& that) noexcept
     : Writer(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      options_(that.options_) {}
+      options_(that.options_),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ChainWriterBase& ChainWriterBase::operator=(
     ChainWriterBase&& that) noexcept {
@@ -262,12 +273,14 @@ inline ChainWriterBase& ChainWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   options_ = that.options_;
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void ChainWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   options_ = Chain::Options();
+  associated_reader_.Reset();
 }
 
 inline void ChainWriterBase::Reset(const Options& options) {
@@ -277,6 +290,7 @@ inline void ChainWriterBase::Reset(const Options& options) {
                      SaturatingIntCast<size_t>(options.size_hint().value_or(0)))
                  .set_min_block_size(options.min_block_size())
                  .set_max_block_size(options.max_block_size());
+  associated_reader_.Reset();
 }
 
 inline void ChainWriterBase::Initialize(Chain* dest, bool append) {

@@ -28,6 +28,8 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/errno_mapping.h"
+#include "riegeli/bytes/istream_reader.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -66,6 +68,7 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
 }
 
 void OstreamWriterBase::Done() {
+  OstreamWriterBase::WriteModeImpl();
   BufferedWriter::Done();
   // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
   // to `LazyBoolState::kFalse`, because trying to resolve it later might access
@@ -73,6 +76,7 @@ void OstreamWriterBase::Done() {
   if (supports_random_access_ == LazyBoolState::kUnknown) {
     supports_random_access_ = LazyBoolState::kFalse;
   }
+  associated_reader_.Reset();
 }
 
 bool OstreamWriterBase::FailOperation(absl::string_view operation) {
@@ -210,6 +214,39 @@ absl::optional<Position> OstreamWriterBase::SizeBehindBuffer() {
     return absl::nullopt;
   }
   return IntCast<Position>(stream_size);
+}
+
+Reader* OstreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  std::istream* const src = src_stream();
+  if (ABSL_PREDICT_FALSE(src == nullptr)) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedWriter::ReadModeImpl(initial_pos);
+  }
+  IstreamReader<>* const reader = associated_reader_.ResetReader(
+      src, IstreamReaderBase::Options().set_buffer_size(buffer_size()));
+  reader->Seek(initial_pos);
+  return reader;
+}
+
+bool OstreamWriterBase::WriteModeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  IstreamReader<>* const reader = associated_reader_.reader();
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) return true;
+  if (ABSL_PREDICT_FALSE(!reader->not_failed())) {
+    return FailWithoutAnnotation(*reader);
+  }
+  std::ostream& dest = *dest_stream();
+  errno = 0;
+  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) {
+    return FailOperation("ostream::seekp()");
+  }
+  return true;
 }
 
 }  // namespace riegeli

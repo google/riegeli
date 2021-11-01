@@ -30,9 +30,13 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+template <typename Src>
+class CordReader;
 
 // Template parameter independent part of `CordWriter`.
 class CordWriterBase : public Writer {
@@ -117,6 +121,7 @@ class CordWriterBase : public Writer {
 
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
+  bool SupportsReadMode() override { return true; }
 
  protected:
   explicit CordWriterBase(Closed) noexcept : Writer(kClosed) {}
@@ -141,6 +146,7 @@ class CordWriterBase : public Writer {
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   static constexpr size_t kShortBufferSize = 64;
@@ -156,6 +162,8 @@ class CordWriterBase : public Writer {
   Buffer buffer_;
   char short_buffer_[kShortBufferSize];
 
+  AssociatedReader<CordReader<const absl::Cord*>> associated_reader_;
+
   // Invariants:
   //   `start() == nullptr` or `start() == buffer_.data()`
   //       or `start() == short_buffer_`
@@ -163,6 +171,8 @@ class CordWriterBase : public Writer {
 };
 
 // A `Writer` which appends to an `absl::Cord`.
+//
+// It supports `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `absl::Cord` being written to. `Dest` must support
@@ -258,7 +268,8 @@ inline CordWriterBase::CordWriterBase(CordWriterBase&& that) noexcept
       size_hint_(that.size_hint_),
       min_block_size_(that.min_block_size_),
       max_block_size_(that.max_block_size_),
-      buffer_(std::move(that.buffer_)) {
+      buffer_(std::move(that.buffer_)),
+      associated_reader_(std::move(that.associated_reader_)) {
   if (start() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
     set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
@@ -274,6 +285,7 @@ inline CordWriterBase& CordWriterBase::operator=(
   min_block_size_ = that.min_block_size_;
   max_block_size_ = that.max_block_size_;
   buffer_ = std::move(that.buffer_);
+  associated_reader_ = std::move(that.associated_reader_);
   if (start() == that.short_buffer_) {
     std::memcpy(short_buffer_, that.short_buffer_, kShortBufferSize);
     set_buffer(short_buffer_, start_to_limit(), start_to_cursor());
@@ -286,6 +298,7 @@ inline void CordWriterBase::Reset(Closed) {
   size_hint_ = 0;
   min_block_size_ = kMinBufferSize;
   max_block_size_ = kMaxBufferSize;
+  associated_reader_.Reset();
 }
 
 inline void CordWriterBase::Reset(const Options& options) {
@@ -293,6 +306,7 @@ inline void CordWriterBase::Reset(const Options& options) {
   size_hint_ = SaturatingIntCast<size_t>(options.size_hint().value_or(0));
   min_block_size_ = options.min_block_size();
   max_block_size_ = options.max_block_size();
+  associated_reader_.Reset();
 }
 
 inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {

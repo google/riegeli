@@ -25,6 +25,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -69,6 +70,9 @@ class BufferedWriter : public Writer {
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
+  // Returns the buffer size option passed to the constructor.
+  size_t buffer_size() const { return buffer_size_; }
+
   // `BufferedWriter::{Done,FlushImpl}()` call `{Done,Flush}BehindBuffer()` to
   // write the last piece of data and close/flush the destination.
   //
@@ -104,8 +108,8 @@ class BufferedWriter : public Writer {
   // Precondition: `start_to_limit() == 0`
   virtual bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
 
-  // Implementation of `SeekSlow()`, `Size()`, and `Truncate()`, called while no
-  // data are buffered.
+  // Implementation of `SeekSlow()`, `SizeImpl()`, `TruncateImpl()`, and
+  // `ReadModeImpl()`, called while no data are buffered.
   //
   // By default they are implemented analogously to the corresponding `Writer`
   // functions.
@@ -116,6 +120,7 @@ class BufferedWriter : public Writer {
   virtual bool SeekBehindBuffer(Position new_pos);
   virtual absl::optional<Position> SizeBehindBuffer();
   virtual bool TruncateBehindBuffer(Position new_size);
+  virtual Reader* ReadModeBehindBuffer(Position initial_pos);
 
   void Done() override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
@@ -126,6 +131,7 @@ class BufferedWriter : public Writer {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   bool SyncBuffer();

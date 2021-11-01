@@ -25,6 +25,8 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -32,6 +34,7 @@ namespace riegeli {
 void StringWriterBase::Done() {
   StringWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
+  associated_reader_.Reset();
 }
 
 bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
@@ -154,6 +157,15 @@ bool StringWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(new_size > start_to_cursor())) return false;
   set_cursor(start() + new_size);
   return true;
+}
+
+Reader* StringWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  std::string& dest = *dest_string();
+  SyncBuffer(dest);
+  StringReader<>* const reader = associated_reader_.ResetReader(dest);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 inline void StringWriterBase::SyncBuffer(std::string& dest) {

@@ -27,6 +27,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -130,8 +131,8 @@ class PushableWriter : public Writer {
   bool ForcePushUsingScratch();
 
   // Implementation of `WriteSlow()`, `WriteZerosSlow()`, `FlushImpl()`,
-  // `SeekSlow()`, `SizeImpl()`, and `TruncateImpl()`, called while scratch is
-  // not used.
+  // `SeekSlow()`, `SizeImpl()`, `TruncateImpl()`, and `ReadModeImpl()`,
+  // called while scratch is not used.
   //
   // By default they are implemented analogously to the corresponding `Writer`
   // functions.
@@ -149,6 +150,7 @@ class PushableWriter : public Writer {
   virtual bool SeekBehindScratch(Position new_pos);
   virtual absl::optional<Position> SizeBehindScratch();
   virtual bool TruncateBehindScratch(Position new_size);
+  virtual Reader* ReadModeBehindScratch(Position initial_pos);
 
   void Done() override;
   void OnFail() override;
@@ -163,6 +165,7 @@ class PushableWriter : public Writer {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   struct Scratch {

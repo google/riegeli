@@ -32,7 +32,9 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/tensorflow/io/file_reader.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -199,7 +201,9 @@ bool FileWriterBase::FlushImpl(FlushType flush_type) {
 
 absl::optional<Position> FileWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(filename_.empty())) {
-    return Writer::SizeImpl();  // Fail.
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return Writer::SizeImpl();
   }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ::tensorflow::uint64 file_size;
@@ -212,6 +216,21 @@ absl::optional<Position> FileWriterBase::SizeImpl() {
     }
   }
   return Position{file_size};
+}
+
+Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(filename_.empty())) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return Writer::ReadModeImpl(initial_pos);
+  }
+  if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;
+  return associated_reader_.ResetReader(filename_,
+                                        FileReaderBase::Options()
+                                            .set_env(env_)
+                                            .set_initial_pos(initial_pos)
+                                            .set_buffer_size(buffer_size_));
 }
 
 }  // namespace tensorflow

@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -32,6 +33,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -247,6 +249,45 @@ class Writer : public Object {
   // `Truncate()` is supported if `SupportsTruncate()` is `true`.
   bool Truncate(Position new_size);
 
+  // Returns `true` if this `Writer` supports `ReadMode()` and `WriteMode()`.
+  virtual bool SupportsReadMode() { return false; }
+
+  // Switches from writing to reading.
+  //
+  // Returns a `Reader` which reads from the current contents of the destination
+  // of this `Writer`, starting from `initial_pos`.
+  //
+  // If the source ends before `initial_pos`, the position of the new `Reader`
+  // is set to the end. The resulting `Reader` supports `Seek()`.
+  //
+  // While the returned `Reader` is in use, this `Writer` must not be used
+  // and the destination of this `Writer` must not be changed. Afterwards,
+  // the only valid calls are `WriteMode()`, `ReadMode()`, and `Close()`.
+  //
+  // The returned `Reader` is owned by this `Writer`. The `Reader` does not own
+  // its source, even if this `Writer` owns its destination.
+  //
+  // Returns `nullptr` on failure (`!healthy()`).
+  //
+  // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
+  Reader* ReadMode(Position initial_pos);
+
+  // Switches from reading to writing.
+  //
+  // The current position of this `Writer` stays the same as it was when
+  // `ReadMode()` was called.
+  //
+  // `WriteMode()` must be called to continue using this `Writer` after
+  // `ReadMode()` was called. `WriteMode()` may also be called at any other
+  // time.
+  //
+  // Return values:
+  //  * `true`  - success (`healthy()`)
+  //  * `false` - failure (`!healthy()`)
+  //
+  // `WriteMode()` is supported if `SupportsReadMode()` is `true`.
+  bool WriteMode();
+
  protected:
   using Object::Object;
 
@@ -363,6 +404,16 @@ class Writer : public Object {
   // By default fails.
   virtual bool TruncateImpl(Position new_size);
 
+  // Implementation of `ReadMode()`.
+  //
+  // By default fails.
+  virtual Reader* ReadModeImpl(Position initial_pos);
+
+  // Implementation of `WriteMode()`.
+  //
+  // By default does nothing and returns `true`.
+  virtual bool WriteModeImpl() { return true; }
+
  private:
   char* start_ = nullptr;
   char* cursor_ = nullptr;
@@ -373,6 +424,35 @@ class Writer : public Object {
   // Invariant:
   //   `start_pos_ <= std::numeric_limits<Position>::max() - start_to_limit()`
   Position start_pos_ = 0;
+};
+
+// Helps to implement `ReadMode()`. Stores a lazily created `Reader` of the
+// given type.
+//
+// The `ReaderClass` type does not have to be complete, except in a context when
+// `ResetReader()` is called. This allows to have only a forward declaration of
+// `ReaderClass` in the header which defines the containing `Writer` class.
+template <typename ReaderClass>
+class AssociatedReader {
+ public:
+  AssociatedReader() noexcept {}
+
+  AssociatedReader(AssociatedReader&& that) noexcept;
+  AssociatedReader& operator=(AssociatedReader&& that) noexcept;
+
+  // Destroys the contained `Reader`.
+  void Reset();
+
+  // Creates or resets the `ReaderClass` with the given arguments of the
+  // constructor or `Reset()`. `ReaderClass` must be complete.
+  template <typename... Args>
+  ReaderClass* ResetReader(Args&&... args);
+
+  // Returns the `ReaderClass` pointer, or `nullptr` if it was not created yet.
+  ReaderClass* reader() const;
+
+ private:
+  std::unique_ptr<Reader> reader_;
 };
 
 // Implementation details follow.
@@ -588,6 +668,45 @@ inline absl::optional<Position> Writer::Size() { return SizeImpl(); }
 
 inline bool Writer::Truncate(Position new_size) {
   return TruncateImpl(new_size);
+}
+
+inline Reader* Writer::ReadMode(Position initial_pos) {
+  return ReadModeImpl(initial_pos);
+}
+
+inline bool Writer::WriteMode() { return WriteModeImpl(); }
+
+template <typename ReaderClass>
+inline AssociatedReader<ReaderClass>::AssociatedReader(
+    AssociatedReader&& that) noexcept
+    : reader_(std::move(that.reader_)) {}
+
+template <typename ReaderClass>
+inline AssociatedReader<ReaderClass>& AssociatedReader<ReaderClass>::operator=(
+    AssociatedReader&& that) noexcept {
+  reader_ = std::move(that.reader_);
+  return *this;
+}
+
+template <typename ReaderClass>
+inline void AssociatedReader<ReaderClass>::Reset() {
+  reader_.reset();
+}
+
+template <typename ReaderClass>
+template <typename... Args>
+inline ReaderClass* AssociatedReader<ReaderClass>::ResetReader(Args&&... args) {
+  if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
+    reader_ = std::make_unique<ReaderClass>(std::forward<Args>(args)...);
+  } else {
+    reader()->Reset(std::forward<Args>(args)...);
+  }
+  return reader();
+}
+
+template <typename ReaderClass>
+inline ReaderClass* AssociatedReader<ReaderClass>::reader() const {
+  return static_cast<ReaderClass*>(reader_.get());
 }
 
 }  // namespace riegeli

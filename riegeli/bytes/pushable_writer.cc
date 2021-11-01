@@ -28,13 +28,14 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 void PushableWriter::DoneBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::DoneBehindScratch():"
+      << "Failed precondition of PushableWriter::DoneBehindScratch(): "
          "scratch used";
   FlushBehindScratch(FlushType::kFromObject);
 }
@@ -272,6 +273,14 @@ bool PushableWriter::TruncateBehindScratch(Position new_size) {
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
 }
 
+Reader* PushableWriter::ReadModeBehindScratch(Position initial_pos) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
+         "scratch used";
+  Fail(absl::UnimplementedError("Writer::ReadMode() not supported"));
+  return nullptr;
+}
+
 bool PushableWriter::WriteSlow(absl::string_view src) {
   RIEGELI_ASSERT_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
@@ -408,6 +417,13 @@ bool PushableWriter::TruncateImpl(Position new_size) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
   }
   return TruncateBehindScratch(new_size);
+}
+
+Reader* PushableWriter::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return nullptr;
+  }
+  return ReadModeBehindScratch(initial_pos);
 }
 
 void PushableWriter::BehindScratch::Enter() {

@@ -44,6 +44,8 @@
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -80,9 +82,9 @@ inline void FdWriterBase::InitializePos(
     int dest, absl::optional<Position> assumed_pos,
     absl::optional<Position> independent_pos) {
   int flags = 0;
-  if (assumed_pos == absl::nullopt && independent_pos == absl::nullopt) {
-    // Flags are needed only if `assumed_pos == absl::nullopt` and
-    // `independent_pos == absl::nullopt`. Avoid `fcntl()` otherwise.
+  if (assumed_pos == absl::nullopt) {
+    // Flags are needed only if `assumed_pos == absl::nullopt`. Avoid `fcntl()`
+    // otherwise.
     flags = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(flags < 0)) {
       FailOperation("fcntl()");
@@ -105,6 +107,9 @@ void FdWriterBase::InitializePos(int dest, int flags,
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "has_independent_pos_ not reset";
+  RIEGELI_ASSERT(!supports_read_mode_)
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "supports_read_mode_ not reset";
   if (assumed_pos != absl::nullopt) {
     if (ABSL_PREDICT_FALSE(*assumed_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
@@ -115,6 +120,7 @@ void FdWriterBase::InitializePos(int dest, int flags,
   } else if (independent_pos != absl::nullopt) {
     supports_random_access_ = true;
     has_independent_pos_ = true;
+    supports_read_mode_ = (flags & O_ACCMODE) == O_RDWR;
     if (ABSL_PREDICT_FALSE(*independent_pos >
                            Position{std::numeric_limits<off_t>::max()})) {
       FailOverflow();
@@ -134,7 +140,14 @@ void FdWriterBase::InitializePos(int dest, int flags,
     }
     set_start_pos(IntCast<Position>(file_pos));
     supports_random_access_ = true;
+    supports_read_mode_ = (flags & O_ACCMODE) == O_RDWR;
   }
+}
+
+void FdWriterBase::Done() {
+  FdWriterBase::WriteModeImpl();
+  BufferedWriter::Done();
+  associated_reader_.Reset();
 }
 
 bool FdWriterBase::FailOperation(absl::string_view operation) {
@@ -286,6 +299,39 @@ again:
     return FailOperation("ftruncate()");
   }
   return SeekInternal(dest, new_size);
+}
+
+Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!supports_read_mode_)) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return Writer::ReadModeImpl(initial_pos);
+  }
+  const int dest = dest_fd();
+  FdReader<UnownedFd>* const reader = associated_reader_.ResetReader(
+      dest, FdReaderBase::Options()
+                .set_assumed_filename(filename())
+                .set_independent_pos(has_independent_pos_
+                                         ? absl::make_optional(initial_pos)
+                                         : absl::nullopt)
+                .set_buffer_size(buffer_size()));
+  if (!has_independent_pos_) reader->Seek(initial_pos);
+  return reader;
+}
+
+bool FdWriterBase::WriteModeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  FdReader<UnownedFd>* const reader = associated_reader_.reader();
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) return true;
+  if (ABSL_PREDICT_FALSE(!reader->not_failed())) {
+    return FailWithoutAnnotation(*reader);
+  }
+  const int dest = dest_fd();
+  return SeekInternal(dest, start_pos());
 }
 
 }  // namespace riegeli

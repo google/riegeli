@@ -33,8 +33,12 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
+
+template <typename Src>
+class FdReader;
 
 // Template parameter independent part of `FdWriter`.
 class FdWriterBase : public BufferedWriter {
@@ -164,6 +168,7 @@ class FdWriterBase : public BufferedWriter {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
+  bool SupportsReadMode() override { return supports_read_mode_; }
 
  protected:
   explicit FdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
@@ -185,12 +190,15 @@ class FdWriterBase : public BufferedWriter {
                      absl::optional<Position> independent_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
+  void Done() override;
   void DefaultAnnotateStatus() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
+  Reader* ReadModeBehindBuffer(Position initial_pos) override;
+  bool WriteModeImpl() override;
 
  private:
   bool SeekInternal(int dest, Position new_pos);
@@ -198,6 +206,9 @@ class FdWriterBase : public BufferedWriter {
   std::string filename_;
   bool supports_random_access_ = false;
   bool has_independent_pos_ = false;
+  bool supports_read_mode_ = false;
+
+  AssociatedReader<FdReader<UnownedFd>> associated_reader_;
 
   // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -207,20 +218,28 @@ class FdWriterBase : public BufferedWriter {
 // The fd must support:
 //  * `fcntl()`     - for the constructor from fd,
 //                    if `Options::assumed_pos() == absl::nullopt`
-//                    and `Options::independent_pos() == absl::nullopt`
 //  * `close()`     - if the fd is owned
 //  * `write()`     - if `Options::independent_pos() == absl::nullopt`
 //  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
-//  * `lseek()`     - for `Seek()`, `Size()`, or `Truncate()`
+//  * `lseek()`     - for `Seek()`, `Size()`, or `Truncate()`,
 //                    if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
 //  * `ftruncate()` - for `Truncate()`
+//  * `read()`      - for `ReadMode()`
+//                    if `Options::independent_pos() == absl::nullopt`
+//                    (fd must be opened with `O_RDWR`)
+//  * `pread()`     - for `ReadMode()`
+//                    if `Options::independent_pos() != absl::nullopt`
+//                    (fd must be opened with `O_RDWR`)
 //
 // `FdWriter` supports random access if
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
 // this is checked by calling `lseek()`).
+//
+// `FdWriter` supports `ReadMode()` if it supports random access and the fd was
+// opened with `O_RDWR`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the fd being written to. `Dest` must support
@@ -332,7 +351,9 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
       // part was moved.
       filename_(std::move(that.filename_)),
       supports_random_access_(that.supports_random_access_),
-      has_independent_pos_(that.has_independent_pos_) {}
+      has_independent_pos_(that.has_independent_pos_),
+      supports_read_mode_(that.supports_read_mode_),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
@@ -341,6 +362,8 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   filename_ = std::move(that.filename_);
   supports_random_access_ = that.supports_random_access_;
   has_independent_pos_ = that.has_independent_pos_;
+  supports_read_mode_ = that.supports_read_mode_;
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
@@ -349,6 +372,8 @@ inline void FdWriterBase::Reset(Closed) {
   filename_ = std::string();
   supports_random_access_ = false;
   has_independent_pos_ = false;
+  supports_read_mode_ = false;
+  associated_reader_.Reset();
 }
 
 inline void FdWriterBase::Reset(size_t buffer_size) {
@@ -356,6 +381,8 @@ inline void FdWriterBase::Reset(size_t buffer_size) {
   // `filename_` was set by `OpenFd()` or will be set by `Initialize()`.
   supports_random_access_ = false;
   has_independent_pos_ = false;
+  supports_read_mode_ = false;
+  associated_reader_.Reset();
 }
 
 template <typename Dest>

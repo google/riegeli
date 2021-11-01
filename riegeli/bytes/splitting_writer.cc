@@ -145,7 +145,7 @@ bool SplittingWriterBase::PushBehindScratch() {
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::PushBehindScratch():"
+      << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)

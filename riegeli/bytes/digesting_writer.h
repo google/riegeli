@@ -32,6 +32,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/bytes/digesting_common.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -45,6 +46,7 @@ class DigestingWriterBase : public Writer {
 
   bool PrefersCopying() const override;
   bool SupportsSize() override;
+  bool SupportsReadMode() override;
 
  protected:
   using Writer::Writer;
@@ -64,6 +66,8 @@ class DigestingWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
   absl::optional<Position> SizeImpl();
+  Reader* ReadModeImpl(Position initial_pos) override;
+  bool WriteModeImpl() override;
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).

@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -41,6 +42,9 @@
 
 namespace riegeli {
 namespace tensorflow {
+
+template <typename Src>
+class FileReader;
 
 // Template parameter independent part of `FileWriter`.
 class FileWriterBase : public Writer {
@@ -111,6 +115,7 @@ class FileWriterBase : public Writer {
   const std::string& filename() const { return filename_; }
 
   bool SupportsSize() override { return !filename_.empty(); }
+  bool SupportsReadMode() override { return !filename_.empty(); }
 
  protected:
   explicit FileWriterBase(Closed) noexcept : Writer(kClosed) {}
@@ -137,6 +142,7 @@ class FileWriterBase : public Writer {
   bool WriteSlow(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   bool SyncBuffer();
@@ -166,9 +172,15 @@ class FileWriterBase : public Writer {
   size_t buffer_size_ = 0;
   // Buffered data to be written.
   Buffer buffer_;
+
+  AssociatedReader<FileReader<std::unique_ptr<::tensorflow::RandomAccessFile>>>
+      associated_reader_;
 };
 
 // A `Writer` which writes to a `::tensorflow::WritableFile`.
+//
+// It supports `ReadMode()` if if the `::tensorflow::WritableFile` supports
+// `::tensorflow::WritableFile::Name()` and the name is not empty.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `::tensorflow::WritableFile` being written to. `Dest`
@@ -272,7 +284,8 @@ inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
       env_(that.env_),
       file_system_(that.file_system_),
       buffer_size_(that.buffer_size_),
-      buffer_(std::move(that.buffer_)) {}
+      buffer_(std::move(that.buffer_)),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
@@ -282,8 +295,9 @@ inline FileWriterBase& FileWriterBase::operator=(
   filename_ = std::move(that.filename_);
   env_ = that.env_;
   file_system_ = that.file_system_;
-  buffer_size_ = that.buffer_size_;
+  env_ = that.env_, buffer_size_ = that.buffer_size_;
   buffer_ = std::move(that.buffer_);
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
@@ -294,6 +308,7 @@ inline void FileWriterBase::Reset(Closed) {
   file_system_ = nullptr;
   buffer_size_ = 0;
   buffer_ = Buffer();
+  associated_reader_.Reset();
 }
 
 inline void FileWriterBase::Reset(::tensorflow::Env* env, size_t buffer_size) {
@@ -302,6 +317,7 @@ inline void FileWriterBase::Reset(::tensorflow::Env* env, size_t buffer_size) {
   // `filename_` and `file_system_` will be or were set by
   // `InitializeFilename()`.
   buffer_size_ = buffer_size;
+  associated_reader_.Reset();
 }
 
 inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {

@@ -4,13 +4,12 @@ licenses(["notice"])
 
 cc_library(
     name = "writer",
-    srcs = ["writer.cc"],
     hdrs = ["writer.h"],
     deps = [
+        ":reader_and_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:optional",
@@ -19,9 +18,9 @@ cc_library(
 
 cc_library(
     name = "backward_writer",
-    srcs = ["backward_writer.cc"],
     hdrs = ["backward_writer.h"],
     deps = [
+        ":reader_and_writer",
         "//riegeli/base",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
@@ -33,11 +32,33 @@ cc_library(
 
 cc_library(
     name = "reader",
-    srcs = ["reader.cc"],
     hdrs = ["reader.h"],
     deps = [
-        ":backward_writer",
-        ":writer",
+        ":reader_and_writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "reader_and_writer",
+    srcs = [
+        "backward_writer.cc",
+        "reader.cc",
+        "writer.cc",
+    ],
+    hdrs = [
+        "backward_writer.h",
+        "reader.h",
+        "writer.h",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
         "//riegeli/base",
         "//riegeli/base:buffer",
         "//riegeli/base:chain",
@@ -55,6 +76,7 @@ cc_library(
     srcs = ["pushable_writer.cc"],
     hdrs = ["pushable_writer.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -107,6 +129,7 @@ cc_library(
     srcs = ["buffered_writer.cc"],
     hdrs = ["buffered_writer.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:buffer",
@@ -141,6 +164,7 @@ cc_library(
     srcs = ["wrapped_writer.cc"],
     hdrs = ["wrapped_writer.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -189,6 +213,7 @@ cc_library(
     ],
     hdrs = ["digesting_writer.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -223,6 +248,7 @@ cc_library(
     srcs = ["limiting_writer.cc"],
     hdrs = ["limiting_writer.h"],
     deps = [
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -358,6 +384,8 @@ cc_library(
     hdrs = ["array_writer.h"],
     deps = [
         ":pushable_writer",
+        ":reader",
+        ":string_reader",
         "//riegeli/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
@@ -385,6 +413,8 @@ cc_library(
     srcs = ["string_writer.cc"],
     hdrs = ["string_writer.h"],
     deps = [
+        ":reader",
+        ":string_reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -417,6 +447,8 @@ cc_library(
     srcs = ["chain_writer.cc"],
     hdrs = ["chain_writer.h"],
     deps = [
+        ":chain_reader",
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -465,6 +497,8 @@ cc_library(
     srcs = ["cord_writer.cc"],
     hdrs = ["cord_writer.h"],
     deps = [
+        ":cord_reader",
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:buffer",
@@ -517,6 +551,8 @@ cc_library(
     deps = [
         ":buffered_writer",
         ":fd_dependency",
+        ":fd_reader",
+        ":reader",
         "//riegeli/base",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",
@@ -581,6 +617,8 @@ cc_library(
     hdrs = ["ostream_writer.h"],
     deps = [
         ":buffered_writer",
+        ":istream_reader",
+        ":reader",
         "//riegeli/base",
         "//riegeli/base:status",
         "@com_google_absl//absl/base:core_headers",

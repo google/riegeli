@@ -24,11 +24,13 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
 void WrappedWriterBase::Done() {
+  WrappedWriterBase::WriteModeImpl();
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
@@ -153,6 +155,34 @@ bool WrappedWriterBase::TruncateImpl(Position new_size) {
   const bool ok = dest.Truncate(new_size);
   MakeBuffer(dest);
   return ok;
+}
+
+bool WrappedWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsReadMode();
+}
+
+Reader* WrappedWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Writer& dest = *dest_writer();
+  // To make `WriteMode()` idempotent, ensure that in read mode buffer pointers
+  // are `nullptr`.
+  if (ABSL_PREDICT_TRUE(cursor() != nullptr)) {
+    SyncBuffer(dest);
+    set_start_pos(pos());
+    set_buffer();
+  }
+  Reader* const reader = dest.ReadMode(initial_pos);
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) Fail(dest);
+  return reader;
+}
+
+bool WrappedWriterBase::WriteModeImpl() {
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  Writer& dest = *dest_writer();
+  if (ABSL_PREDICT_FALSE(!dest.WriteMode())) return Fail(dest);
+  if (ABSL_PREDICT_TRUE(cursor() == nullptr)) MakeBuffer(dest);
+  return true;
 }
 
 }  // namespace riegeli

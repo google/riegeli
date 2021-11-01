@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -136,6 +137,11 @@ absl::optional<Position> Writer::SizeImpl() {
 
 bool Writer::TruncateImpl(Position new_size) {
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
+}
+
+Reader* Writer::ReadModeImpl(Position initial_pos) {
+  Fail(absl::UnimplementedError("Writer::ReadMode() not supported"));
+  return nullptr;
 }
 
 }  // namespace riegeli

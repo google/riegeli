@@ -45,6 +45,13 @@ inline void CloseStream(Stream& stream) {
   stream.close();
 }
 
+template <typename T>
+inline std::istream* DetectIstream(T* stream) {
+  return nullptr;
+}
+
+inline std::istream* DetectIstream(std::istream* stream) { return stream; }
+
 }  // namespace internal
 }  // namespace riegeli
 

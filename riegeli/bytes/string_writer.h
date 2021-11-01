@@ -29,9 +29,13 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+template <typename Src>
+class StringReader;
 
 // Template parameter independent part of `StringWriter`.
 class StringWriterBase : public Writer {
@@ -82,6 +86,7 @@ class StringWriterBase : public Writer {
   bool PrefersCopying() const override { return true; }
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
+  bool SupportsReadMode() override { return true; }
 
  protected:
   using Writer::Writer;
@@ -89,6 +94,8 @@ class StringWriterBase : public Writer {
   StringWriterBase(StringWriterBase&& that) noexcept;
   StringWriterBase& operator=(StringWriterBase&& that) noexcept;
 
+  void Reset(Closed);
+  void Reset();
   void Initialize(std::string* dest, bool append,
                   absl::optional<Position> size_hint);
 
@@ -102,6 +109,7 @@ class StringWriterBase : public Writer {
   bool FlushImpl(FlushType flush_type) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // Discards uninitialized space from the end of `dest`, so that it contains
@@ -112,6 +120,8 @@ class StringWriterBase : public Writer {
   // reallocation.
   void MakeBuffer(std::string& dest);
 
+  AssociatedReader<StringReader<absl::string_view>> associated_reader_;
+
   // Invariants if `healthy()`:
   //   `start() == &(*dest_string())[0]`
   //   `start_to_limit() == dest_string()->size()`
@@ -119,6 +129,8 @@ class StringWriterBase : public Writer {
 };
 
 // A `Writer` which appends to a `std::string`, resizing it as necessary.
+//
+// It supports `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `std::string` being written to. `Dest` must support
@@ -208,12 +220,28 @@ explicit StringWriter(
 // Implementation details follow.
 
 inline StringWriterBase::StringWriterBase(StringWriterBase&& that) noexcept
-    : Writer(std::move(that)) {}
+    : Writer(std::move(that)),
+      // Using `that` after it was moved is correct because only the base class
+      // part was moved.
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline StringWriterBase& StringWriterBase::operator=(
     StringWriterBase&& that) noexcept {
   Writer::operator=(std::move(that));
+  // Using `that` after it was moved is correct because only the base class
+  // part was moved.
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
+}
+
+inline void StringWriterBase::Reset(Closed) {
+  Writer::Reset(kClosed);
+  associated_reader_.Reset();
+}
+
+inline void StringWriterBase::Reset() {
+  Writer::Reset();
+  associated_reader_.Reset();
 }
 
 inline void StringWriterBase::Initialize(std::string* dest, bool append,

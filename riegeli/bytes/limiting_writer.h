@@ -31,6 +31,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -144,6 +145,7 @@ class LimitingWriterBase : public Writer {
   bool SupportsRandomAccess() override;
   bool SupportsSize() override;
   bool SupportsTruncate() override;
+  bool SupportsReadMode() override;
 
  protected:
   explicit LimitingWriterBase(Closed) noexcept : Writer(kClosed) {}
@@ -169,6 +171,8 @@ class LimitingWriterBase : public Writer {
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
+  bool WriteModeImpl() override;
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.

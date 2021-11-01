@@ -25,6 +25,8 @@
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -32,6 +34,7 @@ namespace riegeli {
 void ChainWriterBase::Done() {
   ChainWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
+  associated_reader_.Reset();
 }
 
 bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
@@ -174,6 +177,15 @@ bool ChainWriterBase::TruncateImpl(Position new_size) {
   dest.RemoveSuffix(dest.size() - IntCast<size_t>(new_size));
   set_buffer();
   return true;
+}
+
+Reader* ChainWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Chain& dest = *dest_chain();
+  SyncBuffer(dest);
+  ChainReader<>* const reader = associated_reader_.ResetReader(&dest);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 inline void ChainWriterBase::SyncBuffer(Chain& dest) {

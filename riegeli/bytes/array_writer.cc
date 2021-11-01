@@ -18,8 +18,15 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/base.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/string_reader.h"
 
 namespace riegeli {
+
+void ArrayWriterBase::Done() {
+  PushableWriter::Done();
+  associated_reader_.Reset();
+}
 
 bool ArrayWriterBase::PushBehindScratch() {
   RIEGELI_ASSERT_EQ(available(), 0u)
@@ -56,6 +63,17 @@ bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
   if (ABSL_PREDICT_FALSE(new_size > start_to_cursor())) return false;
   set_cursor(start() + new_size);
   return true;
+}
+
+Reader* ArrayWriterBase::ReadModeBehindScratch(Position initial_pos) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  StringReader<>* const reader = associated_reader_.ResetReader(
+      absl::string_view(start(), start_to_cursor()));
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

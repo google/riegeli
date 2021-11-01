@@ -34,7 +34,7 @@ namespace riegeli {
 
 void PushableBackwardWriter::DoneBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableBackwardWriter::DoneBehindScratch():"
+      << "Failed precondition of PushableBackwardWriter::DoneBehindScratch(): "
          "scratch used";
   FlushBehindScratch(FlushType::kFromObject);
 }

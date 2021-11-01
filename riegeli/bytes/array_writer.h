@@ -27,9 +27,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/pushable_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/span_dependency.h"
 
 namespace riegeli {
+
+template <typename Src>
+class StringReader;
 
 // Template parameter independent part of `ArrayWriter`.
 class ArrayWriterBase : public PushableWriter {
@@ -46,6 +50,7 @@ class ArrayWriterBase : public PushableWriter {
   bool PrefersCopying() const override { return true; }
   bool SupportsSize() override { return true; }
   bool SupportsTruncate() override { return true; }
+  bool SupportsReadMode() override { return true; }
 
  protected:
   using PushableWriter::PushableWriter;
@@ -57,18 +62,24 @@ class ArrayWriterBase : public PushableWriter {
   void Reset();
   void Initialize(absl::Span<char> dest);
 
+  void Done() override;
   bool PushBehindScratch() override;
   bool FlushBehindScratch(FlushType flush_type) override;
   absl::optional<Position> SizeBehindScratch() override;
   bool TruncateBehindScratch(Position new_size) override;
+  Reader* ReadModeBehindScratch(Position initial_pos) override;
 
   // Written data. Valid only after `Close()` or `Flush()`.
   absl::Span<char> written_;
+
+  AssociatedReader<StringReader<absl::string_view>> associated_reader_;
 
   // Invariant: `start_pos() == 0`
 };
 
 // A `Writer` which writes to a preallocated array with a known size limit.
+//
+// It supports `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the array being written to. `Dest` must support
@@ -153,7 +164,8 @@ inline ArrayWriterBase::ArrayWriterBase(ArrayWriterBase&& that) noexcept
     : PushableWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      written_(that.written_) {}
+      written_(that.written_),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ArrayWriterBase& ArrayWriterBase::operator=(
     ArrayWriterBase&& that) noexcept {
@@ -161,17 +173,20 @@ inline ArrayWriterBase& ArrayWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   written_ = that.written_;
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void ArrayWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
   written_ = absl::Span<char>();
+  associated_reader_.Reset();
 }
 
 inline void ArrayWriterBase::Reset() {
   PushableWriter::Reset();
   written_ = absl::Span<char>();
+  associated_reader_.Reset();
 }
 
 inline void ArrayWriterBase::Initialize(absl::Span<char> dest) {

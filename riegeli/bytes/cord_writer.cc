@@ -28,6 +28,8 @@
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/memory.h"
+#include "riegeli/bytes/cord_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -42,6 +44,7 @@ constexpr size_t CordWriterBase::kShortBufferSize;
 void CordWriterBase::Done() {
   CordWriterBase::FlushImpl(FlushType::kFromObject);
   Writer::Done();
+  associated_reader_.Reset();
 }
 
 bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
@@ -220,6 +223,15 @@ bool CordWriterBase::TruncateImpl(Position new_size) {
   dest.RemoveSuffix(dest.size() - IntCast<size_t>(new_size));
   set_cursor(start());
   return true;
+}
+
+Reader* CordWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  absl::Cord& dest = *dest_cord();
+  SyncBuffer(dest);
+  CordReader<>* const reader = associated_reader_.ResetReader(&dest);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
