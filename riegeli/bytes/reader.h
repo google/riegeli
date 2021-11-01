@@ -118,15 +118,9 @@ class Reader : public Object {
   // Returns the buffer size, between `start()` and `limit()`.
   size_t start_to_limit() const { return PtrDistance(start_, limit_); }
 
-  ABSL_DEPRECATED("Use start_to_limit() instead")
-  size_t buffer_size() const { return start_to_limit(); }
-
   // Returns the amount of data read from the buffer, between `start()` and
   // `cursor()`.
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
-
-  ABSL_DEPRECATED("Use start_to_cursor() instead")
-  size_t read_from_buffer() const { return start_to_cursor(); }
 
   // Reads a single byte from the buffer or the source.
   //

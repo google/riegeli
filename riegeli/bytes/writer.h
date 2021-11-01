@@ -106,17 +106,11 @@ class Writer : public Object {
   // Invariant: if `!healthy()` then `start_to_limit() == 0`
   size_t start_to_limit() const { return PtrDistance(start_, limit_); }
 
-  ABSL_DEPRECATED("Use start_to_limit() instead")
-  size_t buffer_size() const { return start_to_limit(); }
-
   // Returns the amount of data written to the buffer, between `start()` and
   // `cursor()`.
   //
   // Invariant: if `!healthy()` then `start_to_cursor() == 0`
   size_t start_to_cursor() const { return PtrDistance(start_, cursor_); }
-
-  ABSL_DEPRECATED("Use start_to_cursor() instead")
-  size_t written_to_buffer() const { return start_to_cursor(); }
 
   // Writes a single byte to the buffer or the destination.
   //
