@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
@@ -160,6 +161,20 @@ absl::optional<Position> WrappedReaderBase::SizeImpl() {
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
   return size;
+}
+
+bool WrappedReaderBase::SupportsNewReader() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsNewReader();
+}
+
+std::unique_ptr<Reader> WrappedReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Reader& src = *src_reader();
+  SyncBuffer(src);
+  std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
+  MakeBuffer(src);
+  return reader;
 }
 
 }  // namespace riegeli

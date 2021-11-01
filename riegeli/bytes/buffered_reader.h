@@ -71,8 +71,14 @@ class BufferedReader : public Reader {
   void Reset(size_t buffer_size,
              absl::optional<Position> size_hint = absl::nullopt);
 
+  // Returns the buffer size option passed to the constructor.
+  size_t buffer_size() const { return buffer_size_; }
+
   // Changes the size hint after construction.
   void set_size_hint(absl::optional<Position> size_hint);
+
+  // Returns the current size hint, or 0 if it was unset.
+  Position size_hint() const { return size_hint_; }
 
   // `BufferedReader::{Done,SyncImpl}()` seek the source back to the current
   // position if not all buffered data were read. This is feasible only if

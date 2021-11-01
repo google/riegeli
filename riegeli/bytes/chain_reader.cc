@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -27,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -243,6 +245,14 @@ absl::optional<Position> ChainReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   const Chain& src = *iter_.chain();
   return src.size();
+}
+
+std::unique_ptr<Reader> ChainReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  const Chain& src = *iter_.chain();
+  std::unique_ptr<Reader> reader = std::make_unique<ChainReader<>>(&src);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

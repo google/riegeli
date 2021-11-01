@@ -126,7 +126,6 @@ cc_library(
         ":reader",
         ":writer",
         "//riegeli/base",
-        "//riegeli/base:buffer",
         "//riegeli/base:chain",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -431,6 +430,7 @@ cc_library(
     deps = [
         ":backward_writer",
         ":pullable_reader",
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -480,6 +480,7 @@ cc_library(
     deps = [
         ":backward_writer",
         ":pullable_reader",
+        ":reader",
         ":writer",
         "//riegeli/base",
         "//riegeli/base:chain",
@@ -514,6 +515,7 @@ cc_library(
         ":buffered_reader",
         ":chain_reader",
         ":fd_dependency",
+        ":reader",
         "//riegeli/base",
         "//riegeli/base:chain",
         "//riegeli/base:memory_estimator",

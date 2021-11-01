@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -43,6 +44,7 @@ class DigestingReaderBase : public Reader {
   virtual const Reader* src_reader() const = 0;
 
   bool SupportsSize() override;
+  bool SupportsNewReader() override;
 
  protected:
   using Reader::Reader;
@@ -64,6 +66,7 @@ class DigestingReaderBase : public Reader {
   bool ReadSlow(size_t length, absl::Cord& dest) override;
   void ReadHintSlow(size_t length) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Sets cursor of `src` to cursor of `*this`, digesting what has been read
   // from the buffer (until `cursor()`).

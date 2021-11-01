@@ -45,8 +45,7 @@
 namespace riegeli {
 namespace tensorflow {
 
-bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
-                                        ::tensorflow::Env* env) {
+bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
   absl::string_view filename;
   {
     const ::tensorflow::Status status = src->Name(&filename);
@@ -57,7 +56,7 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src,
       return true;
     }
   }
-  return InitializeFilename(filename, env);
+  return InitializeFilename(filename, env_);
 }
 
 bool FileReaderBase::InitializeFilename(absl::string_view filename,
@@ -65,7 +64,6 @@ bool FileReaderBase::InitializeFilename(absl::string_view filename,
   // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
   // `filename_ = filename`
   filename_.assign(filename.data(), filename.size());
-  if (env == nullptr) env = ::tensorflow::Env::Default();
   {
     const ::tensorflow::Status status =
         env->GetFileSystemForFile(filename_, &file_system_);
@@ -518,7 +516,11 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
 }
 
 absl::optional<Position> FileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(filename_.empty())) return Reader::SizeImpl();
+  if (ABSL_PREDICT_FALSE(filename_.empty())) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return Reader::SizeImpl();
+  }
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   ::tensorflow::uint64 file_size;
   {
@@ -530,6 +532,21 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     }
   }
   return Position{file_size};
+}
+
+std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(filename_.empty())) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return Reader::NewReaderImpl(initial_pos);
+  }
+  ::tensorflow::RandomAccessFile* const src = src_file();
+  return std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
+      src, FileReaderBase::Options()
+               .set_env(env_)
+               .set_initial_pos(initial_pos)
+               .set_buffer_size(buffer_size_));
 }
 
 }  // namespace tensorflow

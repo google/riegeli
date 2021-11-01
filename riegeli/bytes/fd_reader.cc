@@ -262,6 +262,21 @@ absl::optional<Position> FdReaderBase::SizeImpl() {
   return IntCast<Position>(stat_info.st_size);
 }
 
+std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  if (ABSL_PREDICT_FALSE(!supports_random_access_)) {
+    // Delegate to base class version which fails, to avoid duplicating the
+    // failure message here.
+    return BufferedReader::NewReaderImpl(initial_pos);
+  }
+  const int src = src_fd();
+  return std::make_unique<FdReader<UnownedFd>>(
+      src, FdReaderBase::Options()
+               .set_assumed_filename(filename())
+               .set_independent_pos(initial_pos)
+               .set_buffer_size(buffer_size()));
+}
+
 void FdMMapReaderBase::Initialize(
     int src, absl::optional<std::string>&& assumed_filename,
     absl::optional<Position> independent_pos) {
@@ -328,6 +343,17 @@ void FdMMapReaderBase::InitializePos(int src,
   }
 }
 
+void FdMMapReaderBase::InitializeWithExistingData(int src,
+                                                  absl::string_view filename,
+                                                  Position independent_pos,
+                                                  const Chain& data) {
+  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
+  // `filename_ = filename`.
+  filename_.assign(filename.data(), filename.size());
+  ChainReader::Reset(data);
+  move_cursor(independent_pos);
+}
+
 void FdMMapReaderBase::Done() {
   FdMMapReaderBase::SyncImpl(SyncType::kFromObject);
   ChainReader::Done();
@@ -360,6 +386,16 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
     }
   }
   return true;
+}
+
+std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  const int src = src_fd();
+  std::unique_ptr<FdMMapReader<UnownedFd>> reader =
+      std::make_unique<FdMMapReader<UnownedFd>>(kClosed);
+  reader->InitializeWithExistingData(src, filename(), initial_pos,
+                                     ChainReader::src());
+  return reader;
 }
 
 }  // namespace riegeli

@@ -195,6 +195,9 @@ class BrotliReaderBase : public PullableReader {
       absl::string_view data_;
     };
 
+    explicit Dictionaries(std::vector<Dictionary> dictionaries)
+        : dictionaries_(std::move(dictionaries)) {}
+
     std::vector<Dictionary> dictionaries_;
   };
 
@@ -258,6 +261,7 @@ class BrotliReaderBase : public PullableReader {
   bool truncated() const { return truncated_; }
 
   bool SupportsRewind() override;
+  bool SupportsNewReader() override;
 
  protected:
   explicit BrotliReaderBase(Closed) noexcept : PullableReader(kClosed) {}
@@ -280,6 +284,7 @@ class BrotliReaderBase : public PullableReader {
   ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool PullBehindScratch() override;
   bool SeekBehindScratch(Position new_pos) override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   struct BrotliDecoderStateDeleter {
@@ -417,7 +422,7 @@ inline void BrotliReaderBase::Reset(Closed) {
   truncated_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
-  dictionaries_.clear();
+  dictionaries_ = std::vector<Dictionaries::Dictionary>();
   allocator_ = BrotliAllocator();
 }
 

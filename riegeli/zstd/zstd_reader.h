@@ -267,6 +267,7 @@ class ZstdReaderBase : public BufferedReader {
 
   bool SupportsRewind() override;
   bool SupportsSize() override { return uncompressed_size_ != absl::nullopt; }
+  bool SupportsNewReader() override;
 
  protected:
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -293,6 +294,7 @@ class ZstdReaderBase : public BufferedReader {
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   struct ZSTD_DCtxDeleter {

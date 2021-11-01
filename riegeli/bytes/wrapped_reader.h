@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -44,6 +45,7 @@ class WrappedReaderBase : public Reader {
   bool SupportsRandomAccess() override;
   bool SupportsRewind() override;
   bool SupportsSize() override;
+  bool SupportsNewReader() override;
 
  protected:
   using Reader::Reader;
@@ -65,6 +67,7 @@ class WrappedReaderBase : public Reader {
   void ReadHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);

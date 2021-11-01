@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -131,6 +132,21 @@ absl::optional<Position> DigestingReaderBase::SizeImpl() {
   const absl::optional<Position> size = src.Size();
   MakeBuffer(src);
   return size;
+}
+
+bool DigestingReaderBase::SupportsNewReader() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsNewReader();
+}
+
+std::unique_ptr<Reader> DigestingReaderBase::NewReaderImpl(
+    Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Reader& src = *src_reader();
+  SyncBuffer(src);
+  std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
+  MakeBuffer(src);
+  return reader;
 }
 
 inline void DigestingReaderBase::DigesterWrite(const Chain& src) {

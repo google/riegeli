@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -301,7 +302,7 @@ class Reader : public Object {
   // Even if `SupportsRewind()` is `true`, `Seek()` can be inefficient if
   // `SupportsRandomAccess()` is `false`.
   //
-  // Invariant: if `SupportsRandomAccess()` then `SupportsRewind()`.
+  // Invariant: if `SupportsRandomAccess()` then `SupportsRewind()`
   virtual bool SupportsRewind() { return SupportsRandomAccess(); }
 
   // Sets the current position for subsequent operations.
@@ -349,6 +350,27 @@ class Reader : public Object {
   // `Size()` is supported if `SupportsRandomAccess()` or `SupportsSize()` is
   // `true`.
   absl::optional<Position> Size();
+
+  // Returns `true` if this `Reader` supports `NewReader()`.
+  virtual bool SupportsNewReader() { return false; }
+
+  // Returns a `Reader` which reads from the same source, but has an independent
+  // current position, starting from `initial_pos`. It can be used concurrently
+  // with this `Reader` and other siblings.
+  //
+  // If the source ends before `initial_pos`, the position of the new `Reader`
+  // is set to the end. The resulting `Reader` supports `Seek()` and
+  // `NewReader()`.
+  //
+  // The source of this `Reader` must not be changed until the new `Reader` is
+  // closed or no longer used.
+  //
+  // The new `Reader` does not own the source, even if the this `Reader` does.
+  //
+  // Returns `nullptr` on failure (`!healthy()`).
+  //
+  // `NewReader()` is supported if `SupportsNewReader()` is `true`.
+  std::unique_ptr<Reader> NewReader(Position initial_pos);
 
  protected:
   using Object::Object;
@@ -458,6 +480,8 @@ class Reader : public Object {
   //
   // By default fails.
   virtual absl::optional<Position> SizeImpl();
+
+  virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailMaxLengthExceeded(Position max_length);

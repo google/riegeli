@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -196,6 +197,7 @@ class ZlibReaderBase : public BufferedReader {
   }
 
   bool SupportsRewind() override;
+  bool SupportsNewReader() override;
 
  protected:
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -222,6 +224,7 @@ class ZlibReaderBase : public BufferedReader {
   bool PullSlow(size_t min_length, size_t recommended_length) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   struct ZStreamDeleter {

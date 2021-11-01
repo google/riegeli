@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <memory>
 #include <string>
 
 #include "absl/base/optimization.h"
@@ -171,6 +172,28 @@ bool HadoopSnappyReaderBase::SeekBehindScratch(Position new_pos) {
     if (new_pos == 0) return true;
   }
   return PullableReader::SeekBehindScratch(new_pos);
+}
+
+bool HadoopSnappyReaderBase::SupportsNewReader() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsNewReader();
+}
+
+std::unique_ptr<Reader> HadoopSnappyReaderBase::NewReaderImpl(
+    Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Reader& src = *src_reader();
+  std::unique_ptr<Reader> compressed_reader =
+      src.NewReader(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(src);
+    return nullptr;
+  }
+  std::unique_ptr<Reader> reader =
+      std::make_unique<HadoopSnappyReader<std::unique_ptr<Reader>>>(
+          std::move(compressed_reader));
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

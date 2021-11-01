@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -31,6 +32,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -42,6 +44,7 @@ class CordReaderBase : public PullableReader {
   virtual const absl::Cord* src_cord() const = 0;
 
   bool SupportsRandomAccess() override { return true; }
+  bool SupportsNewReader() override { return true; }
 
  protected:
   using PullableReader::PullableReader;
@@ -63,6 +66,7 @@ class CordReaderBase : public PullableReader {
   bool CopyBehindScratch(size_t length, BackwardWriter& dest) override;
   bool SeekBehindScratch(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Invariant:
   //   if `!is_open()` or
@@ -94,7 +98,9 @@ class CordReaderBase : public PullableReader {
   //   `start_pos()` is the position of `*iter_` in `*src_cord()`
 };
 
-// A `Reader` which reads from an `absl::Cord`. It supports random access.
+// A `Reader` which reads from an `absl::Cord`.
+//
+// It supports random access and `NewReader()`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the `absl::Cord` being read from. `Src` must support

@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <stddef.h>
 
+#include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -34,6 +35,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_dependency.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -151,6 +153,7 @@ class FdReaderBase : public BufferedReader {
   const std::string& filename() const { return filename_; }
 
   bool SupportsRandomAccess() override { return supports_random_access_; }
+  bool SupportsNewReader() override { return supports_random_access_; }
 
  protected:
   explicit FdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
@@ -174,6 +177,7 @@ class FdReaderBase : public BufferedReader {
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   bool SeekInternal(int dest, Position new_pos);
@@ -260,6 +264,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   const std::string& filename() const { return filename_; }
 
   void DefaultAnnotateStatus() override;
+  bool SupportsNewReader() override { return true; }
 
  protected:
   explicit FdMMapReaderBase(Closed) noexcept : ChainReader(kClosed) {}
@@ -275,10 +280,13 @@ class FdMMapReaderBase : public ChainReader<Chain> {
                   absl::optional<Position> independent_pos);
   int OpenFd(absl::string_view filename, int flags);
   void InitializePos(int src, absl::optional<Position> independent_pos);
+  void InitializeWithExistingData(int src, absl::string_view filename,
+                                  Position independent_pos, const Chain& data);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
   bool SyncImpl(SyncType sync_type) override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   std::string filename_;
@@ -290,7 +298,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // The fd must support:
 //  * `close()` - if the fd is owned
 //  * `read()`  - if `Options::independent_pos() == absl::nullopt`
-//  * `pread()` - if `Options::independent_pos() != absl::nullopt`
+//  * `pread()` - if `Options::independent_pos() != absl::nullopt`,
+//                or for `NewReader()`
 //  * `lseek()` - for `Seek()` or `Size()`
 //                if `Options::independent_pos() == absl::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
@@ -299,6 +308,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 // `Options::assumed_pos() == absl::nullopt` and the fd supports random access
 // (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
 // this is checked by calling `lseek()`).
+//
+// `FdReader` supports `NewReader()` if it supports random access.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -397,13 +408,15 @@ explicit FdReader(absl::string_view filename, int flags,
 #endif
 
 // A `Reader` which reads from a file descriptor by mapping the whole file to
-// memory. It supports random access.
+// memory.
 //
 // The fd must support:
 //  * `close()` - if the fd is owned
 //  * `fstat()`
 //  * `mmap()`
 //  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
+//
+// `FdMMapReader` supports random access and `NewReader()`.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -466,8 +479,13 @@ class FdMMapReader : public FdMMapReaderBase {
   void Done() override;
 
  private:
+  friend class FdMMapReaderBase;  // For `InitializeWithExistingData()`.
+
   using FdMMapReaderBase::Initialize;
   void Initialize(absl::string_view filename, int flags, Options&& options);
+  using FdMMapReaderBase::InitializeWithExistingData;
+  void InitializeWithExistingData(int src, absl::string_view filename,
+                                  Position independent_pos, const Chain& data);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<int, Src> src_;
@@ -774,6 +792,17 @@ void FdMMapReader<Src>::Initialize(absl::string_view filename, int flags,
   FdMMapReaderBase::Reset(options.independent_pos() != absl::nullopt);
   src_.Reset(std::forward_as_tuple(src));
   InitializePos(src_.get(), options.independent_pos());
+}
+
+template <typename Src>
+void FdMMapReader<Src>::InitializeWithExistingData(int src,
+                                                   absl::string_view filename,
+                                                   Position independent_pos,
+                                                   const Chain& data) {
+  FdMMapReaderBase::Reset(true);
+  src_.Reset(std::forward_as_tuple(src));
+  FdMMapReaderBase::InitializeWithExistingData(src, filename, independent_pos,
+                                               data);
 }
 
 template <typename Src>

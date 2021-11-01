@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -485,6 +486,15 @@ bool Reader::SeekSlow(Position new_pos) {
 absl::optional<Position> Reader::SizeImpl() {
   Fail(absl::UnimplementedError("Reader::Size() not supported"));
   return absl::nullopt;
+}
+
+std::unique_ptr<Reader> Reader::NewReader(Position initial_pos) {
+  return NewReaderImpl(initial_pos);
+}
+
+std::unique_ptr<Reader> Reader::NewReaderImpl(Position initial_pos) {
+  Fail(absl::UnimplementedError("Reader::NewReader() not supported"));
+  return nullptr;
 }
 
 }  // namespace riegeli

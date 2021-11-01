@@ -111,12 +111,8 @@ class IstreamReaderBase : public BufferedReader {
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
-  // Whether random access is supported, as detected by calling
-  // `std::istream::tellg()` (during initialization) and `std::istream::seekg()`
-  // to the end and back (lazily).
-  //
   // Invariant:
-  //   if `supports_random_access_ == LazyBoolState::kUnknown` then `is_open()`
+  //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   // Invariant: `limit_pos() <= std::numeric_limits<std::streamoff>::max()`

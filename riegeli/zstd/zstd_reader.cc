@@ -314,6 +314,31 @@ absl::optional<Position> ZstdReaderBase::SizeImpl() {
   return *uncompressed_size_;
 }
 
+bool ZstdReaderBase::SupportsNewReader() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsNewReader();
+}
+
+std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Reader& src = *src_reader();
+  std::unique_ptr<Reader> compressed_reader =
+      src.NewReader(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(src);
+    return nullptr;
+  }
+  std::unique_ptr<Reader> reader =
+      std::make_unique<ZstdReader<std::unique_ptr<Reader>>>(
+          std::move(compressed_reader), ZstdReaderBase::Options()
+                                            .set_growing_source(growing_source_)
+                                            .set_dictionary(dictionary_)
+                                            .set_size_hint(size_hint())
+                                            .set_buffer_size(buffer_size()));
+  reader->Seek(initial_pos);
+  return reader;
+}
+
 absl::optional<Position> ZstdUncompressedSize(Reader& src) {
   src.Pull(18 /* `ZSTD_FRAMEHEADERSIZE_MAX` */);
   unsigned long long uncompressed_size =

@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -168,6 +169,7 @@ class LimitingReaderBase : public Reader {
   bool SupportsRandomAccess() override;
   bool SupportsRewind() override;
   bool SupportsSize() override;
+  bool SupportsNewReader() override;
 
  protected:
   explicit LimitingReaderBase(Closed) noexcept : Reader(kClosed) {}
@@ -193,6 +195,7 @@ class LimitingReaderBase : public Reader {
   void ReadHintSlow(size_t length) override;
   bool SeekSlow(Position new_pos) override;
   absl::optional<Position> SizeImpl() override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);

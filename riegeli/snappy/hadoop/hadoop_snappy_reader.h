@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -43,6 +44,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   virtual const Reader* src_reader() const = 0;
 
   bool SupportsRewind() override;
+  bool SupportsNewReader() override;
 
  protected:
   using PullableReader::PullableReader;
@@ -62,6 +64,7 @@ class HadoopSnappyReaderBase : public PullableReader {
   ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool PullBehindScratch() override;
   bool SeekBehindScratch(Position new_pos) override;
+  std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);

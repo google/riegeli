@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -27,6 +28,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/pullable_reader.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -244,6 +246,14 @@ inline void CordReaderBase::SyncBuffer() {
   set_limit_pos(pos());
   absl::Cord::Advance(&*iter_, start_to_cursor());
   set_buffer();
+}
+
+std::unique_ptr<Reader> CordReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  const absl::Cord& src = *src_cord();
+  std::unique_ptr<Reader> reader = std::make_unique<CordReader<>>(&src);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

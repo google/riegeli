@@ -16,9 +16,12 @@
 
 #include <stddef.h>
 
+#include <memory>
+
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
+#include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
@@ -44,6 +47,14 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
 absl::optional<Position> StringReaderBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!healthy())) return absl::nullopt;
   return limit_pos();
+}
+
+std::unique_ptr<Reader> StringReaderBase::NewReaderImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  const absl::string_view src(start(), start_to_limit());
+  std::unique_ptr<Reader> reader = std::make_unique<StringReader<>>(src);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

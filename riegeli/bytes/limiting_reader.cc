@@ -17,6 +17,8 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
@@ -224,6 +226,25 @@ absl::optional<Position> LimitingReaderBase::SizeImpl() {
   MakeBuffer(src);
   if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
   return UnsignedMin(*size, max_pos_);
+}
+
+bool LimitingReaderBase::SupportsNewReader() {
+  Reader* const src = src_reader();
+  return src != nullptr && src->SupportsNewReader();
+}
+
+std::unique_ptr<Reader> LimitingReaderBase::NewReaderImpl(
+    Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  Reader& src = *src_reader();
+  SyncBuffer(src);
+  std::unique_ptr<Reader> reader =
+      src.NewReader(UnsignedMin(initial_pos, max_pos_));
+  MakeBuffer(src);
+  if (ABSL_PREDICT_FALSE(reader == nullptr)) return nullptr;
+  return std::make_unique<LimitingReader<std::unique_ptr<Reader>>>(
+      std::move(reader),
+      LimitingReaderBase::Options().set_max_pos(max_pos_).set_exact(exact_));
 }
 
 }  // namespace riegeli
