@@ -39,7 +39,6 @@ namespace riegeli {
 // namespace scope is required. Since C++17 these definitions are deprecated:
 // http://en.cppreference.com/w/cpp/language/static
 #if __cplusplus < 201703
-constexpr size_t BrotliWriterBase::Dictionaries::kMaxDictionaries;
 constexpr int BrotliWriterBase::Options::kMinCompressionLevel;
 constexpr int BrotliWriterBase::Options::kMaxCompressionLevel;
 constexpr int BrotliWriterBase::Options::kDefaultCompressionLevel;

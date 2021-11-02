@@ -36,9 +36,6 @@ namespace riegeli {
 // Template parameter independent part of `BrotliReader`.
 class BrotliReaderBase : public PullableReader {
  public:
-  // TODO: Remove the alias when callers are migrated.
-  using Dictionaries = BrotliDictionary;
-
   class Options {
    public:
     Options() noexcept {}
@@ -63,23 +60,6 @@ class BrotliReaderBase : public PullableReader {
     }
     BrotliDictionary& dictionary() { return dictionary_; }
     const BrotliDictionary& dictionary() const { return dictionary_; }
-
-    ABSL_DEPRECATED("Use set_dictionary() instead")
-    Options& set_dictionaries(const BrotliDictionary& dictionary) & {
-      return set_dictionary(dictionary);
-    }
-    ABSL_DEPRECATED("Use set_dictionary() instead")
-    Options& set_dictionaries(BrotliDictionary&& dictionary) & {
-      return set_dictionary(std::move(dictionary));
-    }
-    ABSL_DEPRECATED("Use set_dictionary() instead")
-    Options&& set_dictionaries(const BrotliDictionary& dictionary) && {
-      return std::move(set_dictionary(dictionary));
-    }
-    ABSL_DEPRECATED("Use set_dictionary() instead")
-    Options&& set_dictionaries(BrotliDictionary&& dictionary) && {
-      return std::move(set_dictionary(std::move(dictionary)));
-    }
 
     // Memory allocator used by the Brotli engine.
     //
