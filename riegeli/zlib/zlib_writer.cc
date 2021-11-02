@@ -102,6 +102,7 @@ void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
 void ZlibWriterBase::Done() {
   BufferedWriter::Done();
   compressor_.reset();
+  dictionary_ = ZlibDictionary();
 }
 
 bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {

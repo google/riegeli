@@ -17,17 +17,13 @@
 
 #include <stddef.h>
 
-#include <memory>
-#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
@@ -35,6 +31,7 @@
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/zstd/zstd_dictionary.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -42,148 +39,6 @@ namespace riegeli {
 // Template parameter independent part of `ZstdWriter`.
 class ZstdWriterBase : public BufferedWriter {
  public:
-  // Interpretation of dictionary data.
-  enum class ContentType {
-    // If dictionary data begin with `ZSTD_MAGIC_DICTIONARY`, then like
-    // `kSerialized`, otherwise like `kRaw`.
-    kAuto = 0,
-    // Dictionary data should contain sequences that are commonly seen in the
-    // data being compressed.
-    kRaw = 1,
-    // Shared with the dictBuilder library.
-    kSerialized = 2,
-  };
-
-  // Stores an optional Zstd dictionary for compression.
-  //
-  // An empty dictionary is equivalent to no dictionary.
-  //
-  // A `Dictionary` object can own the dictionary data, or can hold a pointer
-  // to unowned dictionary data which must not be changed until the last
-  // `ZstdWriter` using this dictionary is closed or no longer used.
-  // A `Dictionary` object also holds prepared structures derived from
-  // dictionary data. If the same dictionary is needed for multiple compression
-  // sessions, the `Dictionary` object can be reused.
-  //
-  // The prepared dictionary depends on the compression level. At most one
-  // prepared dictionary is cached, corresponding to the last compression level
-  // used.
-  //
-  // Copying a `Dictionary` object is cheap, sharing the actual dictionary.
-  class Dictionary {
-   public:
-    Dictionary() noexcept {}
-
-    Dictionary(const Dictionary& that);
-    Dictionary& operator=(const Dictionary& that);
-
-    Dictionary(Dictionary&& that) noexcept;
-    Dictionary& operator=(Dictionary&& that) noexcept;
-
-    // Sets interpretation of dictionary data.
-    //
-    // Default: `ContentType::kAuto`.
-    Dictionary& set_content_type(ContentType content_type) & {
-      content_type_ = content_type;
-      InvalidateShared();
-      return *this;
-    }
-    Dictionary&& set_content_type(ContentType content_type) && {
-      return std::move(set_content_type(content_type));
-    }
-    ContentType content_type() const { return content_type_; }
-
-    // Sets parameters to defaults.
-    Dictionary& reset() & {
-      content_type_ = ContentType::kAuto;
-      owned_data_.reset();
-      data_ = absl::string_view();
-      InvalidateShared();
-      return *this;
-    }
-    Dictionary&& reset() && { return std::move(reset()); }
-
-    // Sets a dictionary.
-    //
-    // `std::string&&` is accepted with a template to avoid implicit conversions
-    // to `std::string` which can be ambiguous against `absl::string_view`
-    // (e.g. `const char*`).
-    Dictionary& set_data(absl::string_view data) & {
-      owned_data_ = std::make_shared<const std::string>(data);
-      data_ = *owned_data_;
-      InvalidateShared();
-      return *this;
-    }
-    template <typename Src,
-              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-    Dictionary& set_data(Src&& data) & {
-      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-      // necessary: `Src` is always `std::string`, never an lvalue reference.
-      owned_data_ = std::make_shared<const std::string>(std::move(data));
-      data_ = *owned_data_;
-      InvalidateShared();
-      return *this;
-    }
-    Dictionary&& set_data(absl::string_view data) && {
-      return std::move(set_data(data));
-    }
-    template <typename Src,
-              std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-    Dictionary&& set_data(Src&& data) && {
-      // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-      // necessary: `Src` is always `std::string`, never an lvalue reference.
-      return std::move(set_data(std::move(data)));
-    }
-
-    // Like `set_data()`, but does not take ownership of `data`, which must not
-    // be changed until the last `ZstdWriter` using this dictionary is closed or
-    // no longer used.
-    Dictionary& set_data_unowned(absl::string_view data) & {
-      owned_data_.reset();
-      data_ = data;
-      InvalidateShared();
-      return *this;
-    }
-    Dictionary&& set_data_unowned(absl::string_view data) && {
-      return std::move(set_data_unowned(data));
-    }
-
-    // Returns `true` if no dictionary is present.
-    bool empty() const { return data_.empty(); }
-
-    // Returns the dictionary data.
-    absl::string_view data() const { return data_; }
-
-   private:
-    friend class ZstdWriterBase;
-
-    struct Shared;
-
-    // Ensures that `shared_` is present.
-    std::shared_ptr<Shared> EnsureShared() const;
-
-    // Clears `shared_`.
-    void InvalidateShared();
-
-    // Returns the dictionary in the prepared form, or `nullptr` if
-    // `ZSTD_createCDict_advanced()` failed.
-    std::shared_ptr<const ZSTD_CDict> PrepareDictionary(
-        int compression_level) const;
-
-    ContentType content_type_ = ContentType::kAuto;
-    std::shared_ptr<const std::string> owned_data_;
-    absl::string_view data_;
-
-    mutable absl::Mutex mutex_;
-    // If multiple `Dictionary` objects are known to use the same dictionary,
-    // `shared_` is present and shared between them, to avoid preparing the
-    // dictionary from the same data multiple times.
-    //
-    // `shared_` is guarded by `mutex_` for const access. It is not guarded
-    // for non-const access which is assumed to be exclusive.
-    mutable std::shared_ptr<Shared> shared_;
-  };
-
   class Options {
    public:
     Options() noexcept {}
@@ -249,23 +104,23 @@ class ZstdWriterBase : public BufferedWriter {
 
     // Zstd dictionary. The same dictionary must be used for decompression.
     //
-    // Default: `Dictionary()`.
-    Options& set_dictionary(const Dictionary& dictionary) & {
+    // Default: `ZstdDictionary()`.
+    Options& set_dictionary(const ZstdDictionary& dictionary) & {
       dictionary_ = dictionary;
       return *this;
     }
-    Options& set_dictionary(Dictionary&& dictionary) & {
+    Options& set_dictionary(ZstdDictionary&& dictionary) & {
       dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionary(const Dictionary& dictionary) && {
+    Options&& set_dictionary(const ZstdDictionary& dictionary) && {
       return std::move(set_dictionary(dictionary));
     }
-    Options&& set_dictionary(Dictionary&& dictionary) && {
+    Options&& set_dictionary(ZstdDictionary&& dictionary) && {
       return std::move(set_dictionary(std::move(dictionary)));
     }
-    Dictionary& dictionary() { return dictionary_; }
-    const Dictionary& dictionary() const { return dictionary_; }
+    ZstdDictionary& dictionary() { return dictionary_; }
+    const ZstdDictionary& dictionary() const { return dictionary_; }
 
     // If `true`, computes checksum of uncompressed data and stores it in the
     // compressed stream. This lets decompression verify the checksum.
@@ -369,7 +224,7 @@ class ZstdWriterBase : public BufferedWriter {
    private:
     int compression_level_ = kDefaultCompressionLevel;
     absl::optional<int> window_log_;
-    Dictionary dictionary_;
+    ZstdDictionary dictionary_;
     bool store_checksum_ = false;
     absl::optional<Position> pledged_size_;
     absl::optional<Position> size_hint_;
@@ -384,7 +239,7 @@ class ZstdWriterBase : public BufferedWriter {
  protected:
   explicit ZstdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit ZstdWriterBase(Dictionary&& dictionary, size_t buffer_size,
+  explicit ZstdWriterBase(ZstdDictionary&& dictionary, size_t buffer_size,
                           absl::optional<Position> pledged_size,
                           absl::optional<Position> size_hint,
                           bool reserve_max_size);
@@ -393,7 +248,7 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(Dictionary&& dictionary, size_t buffer_size,
+  void Reset(ZstdDictionary&& dictionary, size_t buffer_size,
              absl::optional<Position> pledged_size,
              absl::optional<Position> size_hint, bool reserve_max_size);
   void Initialize(Writer* dest, int compression_level,
@@ -418,8 +273,7 @@ class ZstdWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src, Writer& dest,
                      ZSTD_EndDirective end_op);
 
-  Dictionary dictionary_;
-  std::shared_ptr<const ZSTD_CDict> prepared_dictionary_;
+  ZstdDictionary dictionary_;
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
   // If `healthy()` but `compressor_ == nullptr` then `*pledged_size_` has been
@@ -504,39 +358,7 @@ explicit ZstdWriter(std::tuple<DestArgs...> dest_args,
 
 // Implementation details follow.
 
-inline ZstdWriterBase::Dictionary::Dictionary(const Dictionary& that)
-    : content_type_(that.content_type_),
-      owned_data_(that.owned_data_),
-      data_(that.data_),
-      shared_(that.empty() ? nullptr : that.EnsureShared()) {}
-
-inline ZstdWriterBase::Dictionary& ZstdWriterBase::Dictionary::operator=(
-    const Dictionary& that) {
-  content_type_ = that.content_type_;
-  owned_data_ = that.owned_data_;
-  data_ = that.data_;
-  shared_ = that.empty() ? nullptr : that.EnsureShared();
-  return *this;
-}
-
-inline ZstdWriterBase::Dictionary::Dictionary(Dictionary&& that) noexcept
-    : content_type_(that.content_type_),
-      owned_data_(std::move(that.owned_data_)),
-      data_(std::exchange(that.data_, absl::string_view())),
-      shared_(std::move(that.shared_)) {}
-
-inline ZstdWriterBase::Dictionary&
-ZstdWriterBase::Dictionary::Dictionary::operator=(Dictionary&& that) noexcept {
-  content_type_ = that.content_type_;
-  owned_data_ = std::move(that.owned_data_);
-  data_ = std::exchange(that.data_, absl::string_view());
-  shared_ = std::move(that.shared_);
-  return *this;
-}
-
-inline void ZstdWriterBase::Dictionary::InvalidateShared() { shared_.reset(); }
-
-inline ZstdWriterBase::ZstdWriterBase(Dictionary&& dictionary,
+inline ZstdWriterBase::ZstdWriterBase(ZstdDictionary&& dictionary,
                                       size_t buffer_size,
                                       absl::optional<Position> pledged_size,
                                       absl::optional<Position> size_hint,
@@ -551,7 +373,6 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       dictionary_(std::move(that.dictionary_)),
-      prepared_dictionary_(std::move(that.prepared_dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
       compressor_(std::move(that.compressor_)) {}
@@ -562,7 +383,6 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   dictionary_ = std::move(that.dictionary_);
-  prepared_dictionary_ = std::move(that.prepared_dictionary_);
   pledged_size_ = std::move(that.pledged_size_);
   reserve_max_size_ = that.reserve_max_size_;
   compressor_ = std::move(that.compressor_);
@@ -571,23 +391,22 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
 
 inline void ZstdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  dictionary_.reset();
-  prepared_dictionary_.reset();
   pledged_size_ = absl::nullopt;
   reserve_max_size_ = false;
   compressor_.reset();
+  dictionary_ = ZstdDictionary();
 }
 
-inline void ZstdWriterBase::Reset(Dictionary&& dictionary, size_t buffer_size,
+inline void ZstdWriterBase::Reset(ZstdDictionary&& dictionary,
+                                  size_t buffer_size,
                                   absl::optional<Position> pledged_size,
                                   absl::optional<Position> size_hint,
                                   bool reserve_max_size) {
   BufferedWriter::Reset(buffer_size, size_hint);
-  dictionary_ = std::move(dictionary);
-  prepared_dictionary_.reset();
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;
   compressor_.reset();
+  dictionary_ = ZstdDictionary();
 }
 
 template <typename Dest>

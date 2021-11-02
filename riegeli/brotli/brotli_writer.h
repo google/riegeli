@@ -21,19 +21,17 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "brotli/encode.h"
-#include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/brotli/brotli_allocator.h"
+#include "riegeli/brotli/brotli_dictionary.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -42,72 +40,8 @@ namespace riegeli {
 // Template parameter independent part of `BrotliWriter`.
 class BrotliWriterBase : public BufferedWriter {
  public:
-  // Stores Shared Brotli dictionaries for compression.
-  //
-  // A `Dictionaries` object holds prepared structures derived from dictionary
-  // data. If the same sequence of dictionaries is needed for multiple
-  // compression sessions, the `Dictionaries` object should be reused to avoid
-  // preparing them again.
-  //
-  // Copying a `Dictionaries` object is cheap, sharing the actual dictionaries.
-  class Dictionaries {
-   public:
-    static constexpr size_t kMaxDictionaries = SHARED_BROTLI_MAX_COMPOUND_DICTS;
-
-    Dictionaries() noexcept {}
-
-    // Clears all dictionaries.
-    Dictionaries& clear() & {
-      failed_ = false;
-      dictionaries_.clear();
-      return *this;
-    }
-    Dictionaries&& clear() && { return std::move(clear()); }
-
-    // Adds a raw dictionary (data which should contain sequences that are
-    // commonly seen in the data being compressed). Up to `kMaxDictionaries` can
-    // be added.
-    Dictionaries& add_raw(absl::string_view data) &;
-    Dictionaries&& add_raw(absl::string_view data) && {
-      return std::move(add_raw(data));
-    }
-
-    // Sets a serialized dictionary (prepared by shared_brotli_encode_dictionary
-    // tool).
-    Dictionaries& set_serialized(absl::string_view data) &;
-    Dictionaries&& set_serialized(absl::string_view data) && {
-      return std::move(set_serialized(data));
-    }
-
-    // Interoperability with the native Brotli engine: adds a dictionary
-    // represented by `BrotliEncoderPreparedDictionary` pointer.
-    Dictionaries& add_native(
-        std::shared_ptr<const BrotliEncoderPreparedDictionary> dictionary) & {
-      dictionaries_.push_back(std::move(dictionary));
-      return *this;
-    }
-    Dictionaries&& add_native(
-        std::shared_ptr<const BrotliEncoderPreparedDictionary> dictionary) && {
-      return std::move(add_native(std::move(dictionary)));
-    }
-
-    // Returns `true` if no dictionaries are present.
-    bool empty() const { return dictionaries_.empty(); }
-
-    // Interoperability with the native Brotli engine: provides access to
-    // dictionaries represented by `BrotliEncoderPreparedDictionary` pointers.
-    const std::vector<std::shared_ptr<const BrotliEncoderPreparedDictionary>>&
-    get_native() const {
-      return dictionaries_;
-    }
-
-   private:
-    friend class BrotliWriterBase;
-
-    bool failed_ = false;
-    std::vector<std::shared_ptr<const BrotliEncoderPreparedDictionary>>
-        dictionaries_;
-  };
+  // TODO: Remove the alias when callers are migrated.
+  using Dictionaries = BrotliDictionary;
 
   class Options {
    public:
@@ -164,26 +98,43 @@ class BrotliWriterBase : public BufferedWriter {
     }
     int window_log() const { return window_log_; }
 
-    // Shared Brotli dictionaries. The same sequence of dictionaries must be
-    // used for decompression.
+    // Shared Brotli dictionary. The same dictionary must have been used for
+    // compression.
     //
-    // Default: `Dictionaries()`.
-    Options& set_dictionaries(const Dictionaries& dictionaries) & {
-      dictionaries_ = dictionaries;
+    // Default: `BrotliDictionary()`.
+    Options& set_dictionary(const BrotliDictionary& dictionary) & {
+      dictionary_ = dictionary;
       return *this;
     }
-    Options& set_dictionaries(Dictionaries&& dictionaries) & {
-      dictionaries_ = std::move(dictionaries);
+    Options& set_dictionary(BrotliDictionary&& dictionary) & {
+      dictionary_ = std::move(dictionary);
       return *this;
     }
-    Options&& set_dictionaries(const Dictionaries& dictionaries) && {
-      return std::move(set_dictionaries(dictionaries));
+    Options&& set_dictionary(const BrotliDictionary& dictionary) && {
+      return std::move(set_dictionary(dictionary));
     }
-    Options&& set_dictionaries(Dictionaries&& dictionaries) && {
-      return std::move(set_dictionaries(std::move(dictionaries)));
+    Options&& set_dictionary(BrotliDictionary&& dictionary) && {
+      return std::move(set_dictionary(std::move(dictionary)));
     }
-    Dictionaries& dictionaries() { return dictionaries_; }
-    const Dictionaries& dictionaries() const { return dictionaries_; }
+    BrotliDictionary& dictionary() { return dictionary_; }
+    const BrotliDictionary& dictionary() const { return dictionary_; }
+
+    ABSL_DEPRECATED("Use set_dictionary() instead")
+    Options& set_dictionaries(const BrotliDictionary& dictionary) & {
+      return set_dictionary(dictionary);
+    }
+    ABSL_DEPRECATED("Use set_dictionary() instead")
+    Options& set_dictionaries(BrotliDictionary&& dictionary) & {
+      return set_dictionary(std::move(dictionary));
+    }
+    ABSL_DEPRECATED("Use set_dictionary() instead")
+    Options&& set_dictionaries(const BrotliDictionary& dictionary) && {
+      return std::move(set_dictionary(dictionary));
+    }
+    ABSL_DEPRECATED("Use set_dictionary() instead")
+    Options&& set_dictionaries(BrotliDictionary&& dictionary) && {
+      return std::move(set_dictionary(std::move(dictionary)));
+    }
 
     // Memory allocator used by the Brotli engine.
     //
@@ -243,7 +194,7 @@ class BrotliWriterBase : public BufferedWriter {
    private:
     int compression_level_ = kDefaultCompressionLevel;
     int window_log_ = kDefaultWindowLog;
-    Dictionaries dictionaries_;
+    BrotliDictionary dictionary_;
     BrotliAllocator allocator_;
     absl::optional<Position> size_hint_;
     size_t buffer_size_ = kDefaultBufferSize;
@@ -256,7 +207,7 @@ class BrotliWriterBase : public BufferedWriter {
  protected:
   explicit BrotliWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit BrotliWriterBase(Dictionaries&& dictionaries,
+  explicit BrotliWriterBase(BrotliDictionary&& dictionary,
                             BrotliAllocator&& allocator, size_t buffer_size,
                             absl::optional<Position> size_hint);
 
@@ -264,7 +215,7 @@ class BrotliWriterBase : public BufferedWriter {
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(Dictionaries&& dictionaries, BrotliAllocator&& allocator,
+  void Reset(BrotliDictionary&& dictionary, BrotliAllocator&& allocator,
              size_t buffer_size, absl::optional<Position> size_hint);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   absl::optional<Position> size_hint);
@@ -289,8 +240,7 @@ class BrotliWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src, Writer& dest,
                      BrotliEncoderOperation op);
 
-  std::vector<std::shared_ptr<const BrotliEncoderPreparedDictionary>>
-      dictionaries_;
+  BrotliDictionary dictionary_;
   BrotliAllocator allocator_;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
 };
@@ -373,23 +323,19 @@ explicit BrotliWriter(
 
 // Implementation details follow.
 
-inline BrotliWriterBase::BrotliWriterBase(Dictionaries&& dictionaries,
+inline BrotliWriterBase::BrotliWriterBase(BrotliDictionary&& dictionary,
                                           BrotliAllocator&& allocator,
                                           size_t buffer_size,
                                           absl::optional<Position> size_hint)
     : BufferedWriter(buffer_size, size_hint),
-      dictionaries_(std::move(dictionaries.dictionaries_)),
-      allocator_(std::move(allocator)) {
-  if (ABSL_PREDICT_FALSE(dictionaries.failed_)) {
-    Fail(absl::InternalError("BrotliEncoderPrepareDictionary() failed"));
-  }
-}
+      dictionary_(std::move(dictionary)),
+      allocator_(std::move(allocator)) {}
 
 inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
     : BufferedWriter(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      dictionaries_(std::move(that.dictionaries_)),
+      dictionary_(std::move(that.dictionary_)),
       allocator_(std::move(that.allocator_)),
       compressor_(std::move(that.compressor_)) {}
 
@@ -398,7 +344,7 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
   BufferedWriter::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  dictionaries_ = std::move(that.dictionaries_);
+  dictionary_ = std::move(that.dictionary_);
   allocator_ = std::move(that.allocator_);
   compressor_ = std::move(that.compressor_);
   return *this;
@@ -407,26 +353,23 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
 inline void BrotliWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   compressor_.reset();
-  dictionaries_.clear();
+  dictionary_ = BrotliDictionary();
   allocator_ = BrotliAllocator();
 }
 
-inline void BrotliWriterBase::Reset(Dictionaries&& dictionaries,
+inline void BrotliWriterBase::Reset(BrotliDictionary&& dictionary,
                                     BrotliAllocator&& allocator,
                                     size_t buffer_size,
                                     absl::optional<Position> size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
   compressor_.reset();
-  dictionaries_ = std::move(dictionaries.dictionaries_);
+  dictionary_ = std::move(dictionary);
   allocator_ = std::move(allocator);
-  if (ABSL_PREDICT_FALSE(dictionaries.failed_)) {
-    Fail(absl::InternalError("BrotliEncoderPrepareDictionary() failed"));
-  }
 }
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
-    : BrotliWriterBase(std::move(options.dictionaries()),
+    : BrotliWriterBase(std::move(options.dictionary()),
                        std::move(options.allocator()), options.buffer_size(),
                        options.size_hint()),
       dest_(dest) {
@@ -436,7 +379,7 @@ inline BrotliWriter<Dest>::BrotliWriter(const Dest& dest, Options options)
 
 template <typename Dest>
 inline BrotliWriter<Dest>::BrotliWriter(Dest&& dest, Options options)
-    : BrotliWriterBase(std::move(options.dictionaries()),
+    : BrotliWriterBase(std::move(options.dictionary()),
                        std::move(options.allocator()), options.buffer_size(),
                        options.size_hint()),
       dest_(std::move(dest)) {
@@ -448,7 +391,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline BrotliWriter<Dest>::BrotliWriter(std::tuple<DestArgs...> dest_args,
                                         Options options)
-    : BrotliWriterBase(std::move(options.dictionaries()),
+    : BrotliWriterBase(std::move(options.dictionary()),
                        std::move(options.allocator()), options.buffer_size(),
                        options.size_hint()),
       dest_(std::move(dest_args)) {
@@ -481,7 +424,7 @@ inline void BrotliWriter<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
-  BrotliWriterBase::Reset(std::move(options.dictionaries()),
+  BrotliWriterBase::Reset(std::move(options.dictionary()),
                           std::move(options.allocator()), options.buffer_size(),
                           options.size_hint());
   dest_.Reset(dest);
@@ -491,7 +434,7 @@ inline void BrotliWriter<Dest>::Reset(const Dest& dest, Options options) {
 
 template <typename Dest>
 inline void BrotliWriter<Dest>::Reset(Dest&& dest, Options options) {
-  BrotliWriterBase::Reset(std::move(options.dictionaries()),
+  BrotliWriterBase::Reset(std::move(options.dictionary()),
                           std::move(options.allocator()), options.buffer_size(),
                           options.size_hint());
   dest_.Reset(std::move(dest));
@@ -503,7 +446,7 @@ template <typename Dest>
 template <typename... DestArgs>
 inline void BrotliWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args,
                                       Options options) {
-  BrotliWriterBase::Reset(std::move(options.dictionaries()),
+  BrotliWriterBase::Reset(std::move(options.dictionary()),
                           std::move(options.allocator()), options.buffer_size(),
                           options.size_hint());
   dest_.Reset(std::move(dest_args));

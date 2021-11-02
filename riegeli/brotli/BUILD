@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["brotli_writer.h"],
     deps = [
         ":brotli_allocator",
+        ":brotli_dictionary",
         "//riegeli/base",
         "//riegeli/base:status",
         "//riegeli/bytes:buffered_writer",
@@ -16,7 +17,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-        "@org_brotli//:brotlicommon",
         "@org_brotli//:brotlienc",
     ],
 )
@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["brotli_reader.h"],
     deps = [
         ":brotli_allocator",
+        ":brotli_dictionary",
         "//riegeli/base",
         "//riegeli/base:status",
         "//riegeli/bytes:pullable_reader",
@@ -36,6 +37,22 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@org_brotli//:brotlicommon",
         "@org_brotli//:brotlidec",
+    ],
+)
+
+cc_library(
+    name = "brotli_dictionary",
+    srcs = ["brotli_dictionary.cc"],
+    hdrs = ["brotli_dictionary.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
+        "@org_brotli//:brotlicommon",
+        "@org_brotli//:brotlienc",
     ],
 )
 

@@ -18,12 +18,14 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -83,6 +85,7 @@ void ZlibReaderBase::Done() {
   }
   BufferedReader::Done();
   decompressor_.reset();
+  dictionary_ = ZlibDictionary();
 }
 
 inline bool ZlibReaderBase::FailOperation(absl::StatusCode code,

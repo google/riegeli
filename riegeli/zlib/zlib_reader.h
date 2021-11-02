@@ -373,26 +373,26 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
 
 inline void ZlibReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
-  dictionary_.reset();
   window_bits_ = 0;
   concatenate_ = false;
   truncated_ = false;
   stream_had_data_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
+  dictionary_ = ZlibDictionary();
 }
 
 inline void ZlibReaderBase::Reset(int window_bits, ZlibDictionary&& dictionary,
                                   bool concatenate, size_t buffer_size,
                                   absl::optional<Position> size_hint) {
   BufferedReader::Reset(buffer_size, size_hint);
-  dictionary_ = std::move(dictionary);
   window_bits_ = window_bits;
   concatenate_ = concatenate;
   truncated_ = false;
   stream_had_data_ = false;
   initial_compressed_pos_ = 0;
   decompressor_.reset();
+  dictionary_ = std::move(dictionary);
 }
 
 inline int ZlibReaderBase::GetWindowBits(const Options& options) {

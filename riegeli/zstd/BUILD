@@ -7,6 +7,7 @@ cc_library(
     srcs = ["zstd_writer.cc"],
     hdrs = ["zstd_writer.h"],
     deps = [
+        ":zstd_dictionary",
         "//riegeli/base",
         "//riegeli/base:recycling_pool",
         "//riegeli/base:status",
@@ -15,7 +16,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
         "@net_zstd//:zstdlib",
     ],
@@ -26,6 +26,7 @@ cc_library(
     srcs = ["zstd_reader.cc"],
     hdrs = ["zstd_reader.h"],
     deps = [
+        ":zstd_dictionary",
         "//riegeli/base",
         "//riegeli/base:recycling_pool",
         "//riegeli/base:status",
@@ -34,8 +35,21 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
+        "@net_zstd//:zstdlib",
+    ],
+)
+
+cc_library(
+    name = "zstd_dictionary",
+    srcs = ["zstd_dictionary.cc"],
+    hdrs = ["zstd_dictionary.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//riegeli/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
         "@net_zstd//:zstdlib",
     ],
 )

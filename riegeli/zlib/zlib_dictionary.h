@@ -26,7 +26,7 @@ namespace riegeli {
 
 // Stores an optional Zlib dictionary for compression and decompression.
 //
-// An empty dictionary is equivalent to no dictionary.
+// An empty dictionary is equivalent to having no dictionary.
 //
 // A `ZlibDictionary` object can own the dictionary data, or can hold a pointer
 // to unowned dictionary data which must not be changed until the last
@@ -37,15 +37,12 @@ namespace riegeli {
 // Copying a `ZlibDictionary` object is cheap, sharing the actual dictionary.
 class ZlibDictionary {
  public:
+  // Creates an empty `ZlibDictionary`.
   ZlibDictionary() noexcept {}
 
-  // Sets no dictionary.
-  ZlibDictionary& reset() & {
-    owned_data_.reset();
-    data_ = absl::string_view();
-    return *this;
-  }
-  ZlibDictionary&& reset() && { return std::move(reset()); }
+  // Resets the `ZlibDictionary` to the empty state.
+  ZlibDictionary& Reset() &;
+  ZlibDictionary&& Reset() && { return std::move(Reset()); }
 
   // Sets a dictionary (data which should contain sequences that are commonly
   // seen in the data being compressed).
@@ -53,20 +50,10 @@ class ZlibDictionary {
   // `std::string&&` is accepted with a template to avoid implicit conversions
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
-  ZlibDictionary& set_data(absl::string_view data) & {
-    owned_data_ = std::make_shared<const std::string>(data);
-    data_ = *owned_data_;
-    return *this;
-  }
+  ZlibDictionary& set_data(absl::string_view data) &;
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
-  ZlibDictionary& set_data(Src&& data) & {
-    // `std::move(data)` is correct and `std::forward<Src>(data)` is not
-    // necessary: `Src` is always `std::string`, never an lvalue reference.
-    owned_data_ = std::make_shared<const std::string>(std::move(data));
-    data_ = *owned_data_;
-    return *this;
-  }
+  ZlibDictionary& set_data(Src&& data) &;
   ZlibDictionary&& set_data(absl::string_view data) && {
     return std::move(set_data(data));
   }
@@ -81,11 +68,7 @@ class ZlibDictionary {
   // Like `set_data()`, but does not take ownership of `data`, which must not be
   // changed until the last `ZlibWriter` and `ZlibReader` using this dictionary
   // is closed or no longer used.
-  ZlibDictionary& set_data_unowned(absl::string_view data) & {
-    owned_data_.reset();
-    data_ = data;
-    return *this;
-  }
+  ZlibDictionary& set_data_unowned(absl::string_view data) &;
   ZlibDictionary&& set_data_unowned(absl::string_view data) && {
     return std::move(set_data_unowned(data));
   }
@@ -100,6 +83,37 @@ class ZlibDictionary {
   std::shared_ptr<const std::string> owned_data_;
   absl::string_view data_;
 };
+
+// Implementation details follow.
+
+inline ZlibDictionary& ZlibDictionary::Reset() & {
+  owned_data_.reset();
+  data_ = absl::string_view();
+  return *this;
+}
+
+inline ZlibDictionary& ZlibDictionary::set_data(absl::string_view data) & {
+  owned_data_ = std::make_shared<const std::string>(data);
+  data_ = *owned_data_;
+  return *this;
+}
+
+template <typename Src,
+          std::enable_if_t<std::is_same<Src, std::string>::value, int>>
+inline ZlibDictionary& ZlibDictionary::set_data(Src&& data) & {
+  // `std::move(data)` is correct and `std::forward<Src>(data)` is not
+  // necessary: `Src` is always `std::string`, never an lvalue reference.
+  owned_data_ = std::make_shared<const std::string>(std::move(data));
+  data_ = *owned_data_;
+  return *this;
+}
+
+inline ZlibDictionary& ZlibDictionary::set_data_unowned(
+    absl::string_view data) & {
+  owned_data_.reset();
+  data_ = data;
+  return *this;
+}
 
 }  // namespace riegeli
 

@@ -20,13 +20,14 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <vector>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "brotli/decode.h"
+#include "brotli/shared_dictionary.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -66,10 +67,18 @@ inline void BrotliReaderBase::InitializeDecompressor() {
         "BrotliDecoderSetParameter(BROTLI_DECODER_PARAM_LARGE_WINDOW) failed"));
     return;
   }
-  for (const Dictionaries::Dictionary& dictionary : dictionaries_) {
+  for (const std::shared_ptr<const BrotliDictionary::Chunk>& chunk :
+       dictionary_.chunks()) {
+    if (ABSL_PREDICT_FALSE(chunk->type() == BrotliDictionary::Type::kNative)) {
+      Fail(absl::InvalidArgumentError(
+          "A native Brotli dictionary chunk cannot be used for decompression"));
+      return;
+    }
     if (ABSL_PREDICT_FALSE(!BrotliDecoderAttachDictionary(
-            decompressor_.get(), dictionary.type(), dictionary.data().size(),
-            reinterpret_cast<const uint8_t*>(dictionary.data().data())))) {
+            decompressor_.get(),
+            static_cast<BrotliSharedDictionaryType>(chunk->type()),
+            chunk->data().size(),
+            reinterpret_cast<const uint8_t*>(chunk->data().data())))) {
       Fail(absl::InternalError("BrotliDecoderAttachDictionary() failed"));
       return;
     }
@@ -85,7 +94,8 @@ void BrotliReaderBase::Done() {
   }
   PullableReader::Done();
   decompressor_.reset();
-  dictionaries_ = std::vector<Dictionaries::Dictionary>();
+  allocator_ = BrotliAllocator();
+  dictionary_ = BrotliDictionary();
 }
 
 void BrotliReaderBase::DefaultAnnotateStatus() {
@@ -211,10 +221,9 @@ std::unique_ptr<Reader> BrotliReaderBase::NewReaderImpl(Position initial_pos) {
   }
   std::unique_ptr<Reader> reader =
       std::make_unique<BrotliReader<std::unique_ptr<Reader>>>(
-          std::move(compressed_reader),
-          BrotliReaderBase::Options()
-              .set_dictionaries(Dictionaries(dictionaries_))
-              .set_allocator(allocator_));
+          std::move(compressed_reader), BrotliReaderBase::Options()
+                                            .set_dictionary(dictionary_)
+                                            .set_allocator(allocator_));
   reader->Seek(initial_pos);
   return reader;
 }

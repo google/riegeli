@@ -14,9 +14,6 @@
 
 // Enables the experimental zstd API:
 //  * `ZSTD_d_stableOutBuffer`
-//  * `ZSTD_createDDict_advanced()`
-//  * `ZSTD_dictLoadMethod_e`
-//  * `ZSTD_dictContentType_e`
 #define ZSTD_STATIC_LINKING_ONLY
 
 #include "riegeli/zstd/zstd_reader.h"
@@ -29,11 +26,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/recycling_pool.h"
@@ -43,57 +37,6 @@
 #include "zstd.h"
 
 namespace riegeli {
-
-// Constants are defined as integer literals in zstd_reader.h and asserted here
-// to avoid depending on `ZSTD_STATIC_LINKING_ONLY` in zstd_reader.h.
-static_assert(
-    static_cast<ZSTD_dictContentType_e>(ZstdReaderBase::ContentType::kAuto) ==
-            ZSTD_dct_auto &&
-        static_cast<ZSTD_dictContentType_e>(
-            ZstdReaderBase::ContentType::kRaw) == ZSTD_dct_rawContent &&
-        static_cast<ZSTD_dictContentType_e>(
-            ZstdReaderBase::ContentType::kSerialized) == ZSTD_dct_fullDict,
-    "Enum values of ZstdReaderBase::ContentType disagree with ZSTD_dct "
-    "constants");
-
-namespace {
-
-struct ZSTD_DDictDeleter {
-  void operator()(ZSTD_DDict* ptr) const { ZSTD_freeDDict(ptr); }
-};
-
-}  // namespace
-
-struct ZstdReaderBase::Dictionary::Shared {
-  absl::Mutex mutex;
-  bool present ABSL_GUARDED_BY(mutex) = false;
-  std::shared_ptr<const ZSTD_DDict> prepared_dictionary ABSL_GUARDED_BY(mutex);
-};
-
-std::shared_ptr<ZstdReaderBase::Dictionary::Shared>
-ZstdReaderBase::Dictionary::EnsureShared() const {
-  absl::MutexLock lock(&mutex_);
-  if (shared_ == nullptr) shared_ = std::make_shared<Shared>();
-  return shared_;
-}
-
-inline std::shared_ptr<const ZSTD_DDict>
-ZstdReaderBase::Dictionary::PrepareDictionary() const {
-  const std::shared_ptr<Shared> shared = EnsureShared();
-  {
-    absl::MutexLock lock(&shared->mutex);
-    if (shared->present) return shared->prepared_dictionary;
-  }
-  std::unique_ptr<ZSTD_DDict, ZSTD_DDictDeleter> prepared_dictionary(
-      ZSTD_createDDict_advanced(
-          data().data(), data().size(), ZSTD_dlm_byRef,
-          static_cast<ZSTD_dictContentType_e>(content_type()),
-          ZSTD_defaultCMem));
-  absl::MutexLock lock(&shared->mutex);
-  shared->present = true;
-  shared->prepared_dictionary = std::move(prepared_dictionary);
-  return shared->prepared_dictionary;
-}
 
 void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT(src != nullptr)
@@ -147,13 +90,14 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
     }
   }
   if (!dictionary_.empty()) {
-    prepared_dictionary_ = dictionary_.PrepareDictionary();
-    if (ABSL_PREDICT_FALSE(prepared_dictionary_ == nullptr)) {
+    const std::shared_ptr<const ZSTD_DDict> prepared =
+        dictionary_.PrepareDecompressionDictionary();
+    if (ABSL_PREDICT_FALSE(prepared == nullptr)) {
       Fail(absl::InternalError("ZSTD_createDDict_advanced() failed"));
       return;
     }
     const size_t result =
-        ZSTD_DCtx_refDDict(decompressor_.get(), prepared_dictionary_.get());
+        ZSTD_DCtx_refDDict(decompressor_.get(), prepared.get());
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(absl::StrCat("ZSTD_DCtx_refDDict() failed: ",
                                             ZSTD_getErrorName(result))));
@@ -179,6 +123,7 @@ void ZstdReaderBase::Done() {
   }
   BufferedReader::Done();
   decompressor_.reset();
+  dictionary_ = ZstdDictionary();
 }
 
 void ZstdReaderBase::DefaultAnnotateStatus() {

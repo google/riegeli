@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -349,16 +348,16 @@ inline ZlibWriterBase& ZlibWriterBase::operator=(
 
 inline void ZlibWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  dictionary_.reset();
   compressor_.reset();
+  dictionary_ = ZlibDictionary();
 }
 
 inline void ZlibWriterBase::Reset(ZlibDictionary&& dictionary,
                                   size_t buffer_size,
                                   absl::optional<Position> size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
-  dictionary_ = std::move(dictionary);
   compressor_.reset();
+  dictionary_ = std::move(dictionary);
 }
 
 inline int ZlibWriterBase::GetWindowBits(const Options& options) {
