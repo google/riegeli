@@ -194,9 +194,6 @@ class CordWriter : public CordWriterBase {
   // Creates a closed `CordWriter`.
   explicit CordWriter(Closed) noexcept : CordWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  CordWriter() noexcept : CordWriter(kClosed) {}
-
   // Will append to the `absl::Cord` provided by `dest`.
   explicit CordWriter(const Dest& dest, Options options = Options());
   explicit CordWriter(Dest&& dest, Options options = Options());

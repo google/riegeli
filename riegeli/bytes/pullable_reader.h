@@ -20,7 +20,6 @@
 #include <memory>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/base.h"
@@ -41,9 +40,6 @@ class PullableReader : public Reader {
   class BehindScratch;
 
   using Reader::Reader;
-
-  ABSL_DEPRECATED("Use default constructor instead")
-  explicit PullableReader(InitiallyOpen) noexcept : PullableReader() {}
 
   PullableReader(PullableReader&& that) noexcept;
   PullableReader& operator=(PullableReader&& that) noexcept;

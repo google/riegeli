@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -44,9 +43,6 @@ class BufferedReader : public Reader {
  protected:
   // Creates a closed `BufferedReader`.
   explicit BufferedReader(Closed) noexcept : Reader(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  BufferedReader() noexcept : BufferedReader(kClosed) {}
 
   // Creates a `BufferedReader` with the given buffer size and size hint.
   //

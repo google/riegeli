@@ -319,9 +319,6 @@ class CsvWriter : public CsvWriterBase {
   // Creates a closed `CsvWriter`.
   explicit CsvWriter(Closed) noexcept : CsvWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  CsvWriter() noexcept : CsvWriter(kClosed) {}
-
   // Will write to the byte `Writer` provided by `dest`.
   explicit CsvWriter(const Dest& dest, Options options = Options());
   explicit CsvWriter(Dest&& dest, Options options = Options());

@@ -256,9 +256,6 @@ class LimitingReader : public LimitingReaderBase {
   // Creates a closed `LimitingReader`.
   explicit LimitingReader(Closed) noexcept : LimitingReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  LimitingReader() noexcept : LimitingReader(kClosed) {}
-
   // Will read from the original `Reader` provided by `src`.
   explicit LimitingReader(const Src& src, Options options = Options());
   explicit LimitingReader(Src&& src, Options options = Options());
@@ -276,8 +273,6 @@ class LimitingReader : public LimitingReaderBase {
   // Makes `*this` equivalent to a newly constructed `LimitingReader`. This
   // avoids constructing a temporary `LimitingReader` and moving from it.
   void Reset(Closed);
-  ABSL_DEPRECATED("Use Reset(kClosed) instead")
-  void Reset() { Reset(kClosed); }
   void Reset(const Src& src, Options options = Options());
   void Reset(Src&& src, Options options = Options());
   template <typename... SrcArgs>

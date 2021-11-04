@@ -201,9 +201,6 @@ class ZstdReader : public ZstdReaderBase {
   // Creates a closed `ZstdReader`.
   explicit ZstdReader(Closed) noexcept : ZstdReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  ZstdReader() noexcept : ZstdReader(kClosed) {}
-
   // Will read from the compressed `Reader` provided by `src`.
   explicit ZstdReader(const Src& src, Options options = Options());
   explicit ZstdReader(Src&& src, Options options = Options());

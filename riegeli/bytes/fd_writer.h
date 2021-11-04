@@ -262,9 +262,6 @@ class FdWriter : public FdWriterBase {
   // Creates a closed `FdWriter`.
   explicit FdWriter(Closed) noexcept : FdWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  FdWriter() noexcept : FdWriter(kClosed) {}
-
   // Will write to the fd provided by `dest`.
   explicit FdWriter(const Dest& dest, Options options = Options());
   explicit FdWriter(Dest&& dest, Options options = Options());

@@ -303,8 +303,6 @@ class Writer : public Object {
   // redefine `Reset()` should include a call to `Writer::Reset()`.
   void Reset(Closed);
   void Reset();
-  ABSL_DEPRECATED("Use Reset() with no arguments instead")
-  void Reset(InitiallyOpen) { Reset(); }
 
   // `Writer` overrides `Object::Done()` to set buffer pointers to `nullptr`.
   // Derived classes which override it further should include a call to

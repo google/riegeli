@@ -156,9 +156,6 @@ class JoiningReader : public JoiningReaderBase {
  protected:
   using JoiningReaderBase::JoiningReaderBase;
 
-  ABSL_DEPRECATED("Use default constructor instead")
-  explicit JoiningReader(InitiallyOpen) noexcept : JoiningReader() {}
-
   JoiningReader(JoiningReader&& that) noexcept;
   JoiningReader& operator=(JoiningReader&& that) noexcept;
 

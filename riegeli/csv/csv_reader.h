@@ -438,9 +438,6 @@ class CsvReader : public CsvReaderBase {
   // Creates a closed `CsvReader`.
   explicit CsvReader(Closed) noexcept : CsvReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  CsvReader() noexcept : CsvReader(kClosed) {}
-
   // Will read from the byte `Reader` provided by `src`.
   explicit CsvReader(const Src& src, Options options = Options());
   explicit CsvReader(Src&& src, Options options = Options());

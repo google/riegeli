@@ -274,9 +274,6 @@ class ZlibReader : public ZlibReaderBase {
   // Creates a closed `ZlibReader`.
   explicit ZlibReader(Closed) noexcept : ZlibReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  ZlibReader() noexcept : ZlibReader(kClosed) {}
-
   // Will read from the compressed `Reader` provided by `src`.
   explicit ZlibReader(const Src& src, Options options = Options());
   explicit ZlibReader(Src&& src, Options options = Options());

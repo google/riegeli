@@ -140,9 +140,6 @@ class SnappyWriter : public SnappyWriterBase {
   // Creates a closed `SnappyWriter`.
   explicit SnappyWriter(Closed) noexcept : SnappyWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  SnappyWriter() noexcept : SnappyWriter(kClosed) {}
-
   // Will write to the compressed `Writer` provided by `dest`.
   explicit SnappyWriter(const Dest& dest, Options options = Options());
   explicit SnappyWriter(Dest&& dest, Options options = Options());

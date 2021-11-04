@@ -152,9 +152,6 @@ class StringWriter : public StringWriterBase {
   // Creates a closed `StringWriter`.
   explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  StringWriter() noexcept : StringWriter(kClosed) {}
-
   // Will append to the `std::string` provided by `dest`.
   explicit StringWriter(const Dest& dest, Options options = Options());
   explicit StringWriter(Dest&& dest, Options options = Options());

@@ -332,9 +332,6 @@ class FdReader : public FdReaderBase {
   // Creates a closed `FdReader`.
   explicit FdReader(Closed) noexcept : FdReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  FdReader() noexcept : FdReader(kClosed) {}
-
   // Will read from the fd provided by `src`.
   explicit FdReader(const Src& src, Options options = Options());
   explicit FdReader(Src&& src, Options options = Options());

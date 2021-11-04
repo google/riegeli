@@ -24,7 +24,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -611,9 +610,6 @@ class RecordWriter : public RecordWriterBase {
   // Creates a closed `RecordWriter`.
   explicit RecordWriter(Closed) noexcept : RecordWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  RecordWriter() noexcept : RecordWriter(kClosed) {}
-
   // Will write to the byte `Writer` or `ChunkWriter` provided by `dest`.
   explicit RecordWriter(const Dest& dest, Options options = Options());
   explicit RecordWriter(Dest&& dest, Options options = Options());
@@ -633,8 +629,6 @@ class RecordWriter : public RecordWriterBase {
   // Makes `*this` equivalent to a newly constructed `RecordWriter`. This avoids
   // constructing a temporary `RecordWriter` and moving from it.
   void Reset(Closed);
-  ABSL_DEPRECATED("Use Reset(kClosed) instead")
-  void Reset() { Reset(kClosed); }
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>

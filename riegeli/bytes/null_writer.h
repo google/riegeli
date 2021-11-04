@@ -38,9 +38,6 @@ class NullWriter : public Writer {
   // Will discard all output.
   NullWriter() noexcept {}
 
-  ABSL_DEPRECATED("Use default constructor instead")
-  explicit NullWriter(InitiallyOpen) noexcept : NullWriter() {}
-
   NullWriter(NullWriter&& that) noexcept;
   NullWriter& operator=(NullWriter&& that) noexcept;
 

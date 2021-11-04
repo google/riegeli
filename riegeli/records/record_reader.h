@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
@@ -525,9 +524,6 @@ class RecordReader : public RecordReaderBase {
  public:
   // Creates a closed `RecordReader`.
   explicit RecordReader(Closed) noexcept : RecordReaderBase(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  RecordReader() noexcept : RecordReader(kClosed) {}
 
   // Will read from the byte `Reader` or `ChunkReader` provided by `src`.
   explicit RecordReader(const Src& src, Options options = Options());

@@ -112,9 +112,6 @@ class SnappyReader : public SnappyReaderBase {
   // Creates a closed `SnappyReader`.
   explicit SnappyReader(Closed) noexcept : SnappyReaderBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  SnappyReader() noexcept : SnappyReader(kClosed) {}
-
   // Will read from the compressed `Reader` provided by `src`.
   explicit SnappyReader(const Src& src, Options options = Options());
   explicit SnappyReader(Src&& src, Options options = Options());

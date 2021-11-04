@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -97,9 +96,6 @@ class ChainReader : public ChainReaderBase {
  public:
   // Creates a closed `ChainReader`.
   explicit ChainReader(Closed) noexcept : ChainReaderBase(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  ChainReader() noexcept : ChainReader(kClosed) {}
 
   // Will read from the `Chain` provided by `src`.
   explicit ChainReader(const Src& src);

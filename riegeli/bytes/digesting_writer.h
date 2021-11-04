@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -144,9 +143,6 @@ class DigestingWriter : public DigestingWriterBase {
 
   // Creates a closed `DigestingWriter`.
   explicit DigestingWriter(Closed) noexcept : DigestingWriterBase(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  DigestingWriter() noexcept : DigestingWriter(kClosed) {}
 
   // Will write to the original `Writer` provided by `dest`. Constructs a
   // `Digester` from `digester_args`.

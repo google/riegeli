@@ -175,9 +175,6 @@ class SplittingWriter : public SplittingWriterBase {
  protected:
   using SplittingWriterBase::SplittingWriterBase;
 
-  ABSL_DEPRECATED("Use default constructor instead")
-  explicit SplittingWriter(InitiallyOpen) noexcept : SplittingWriter() {}
-
   SplittingWriter(SplittingWriter&& that) noexcept;
   SplittingWriter& operator=(SplittingWriter&& that) noexcept;
 

@@ -263,9 +263,6 @@ class ZlibWriter : public ZlibWriterBase {
   // Creates a closed `ZlibWriter`.
   explicit ZlibWriter(Closed) noexcept : ZlibWriterBase(kClosed) {}
 
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  ZlibWriter() noexcept : ZlibWriter(kClosed) {}
-
   // Will write to the compressed `Writer` provided by `dest`.
   explicit ZlibWriter(const Dest& dest, Options options = Options());
   explicit ZlibWriter(Dest&& dest, Options options = Options());

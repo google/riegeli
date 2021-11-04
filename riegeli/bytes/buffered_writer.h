@@ -19,7 +19,6 @@
 
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
@@ -43,9 +42,6 @@ class BufferedWriter : public Writer {
  protected:
   // Creates a closed `BufferedWriter`.
   explicit BufferedWriter(Closed) noexcept : Writer(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  BufferedWriter() noexcept : BufferedWriter(kClosed) {}
 
   // Creates a `BufferedWriter` with the given buffer size and size hint.
   //

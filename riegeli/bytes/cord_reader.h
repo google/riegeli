@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
@@ -117,9 +116,6 @@ class CordReader : public CordReaderBase {
  public:
   // Creates a closed `CordReader`.
   explicit CordReader(Closed) noexcept : CordReaderBase(kClosed) {}
-
-  ABSL_DEPRECATED("Use kClosed constructor instead")
-  CordReader() noexcept : CordReader(kClosed) {}
 
   // Will read from the `absl::Cord` provided by `src`.
   explicit CordReader(const Src& src);

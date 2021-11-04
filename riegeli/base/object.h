@@ -151,13 +151,6 @@ class TypeId {
 // source `Object` is left closed.
 class Object {
  public:
-  struct ABSL_DEPRECATED("Use default constructor instead") InitiallyOpen {};
-  ABSL_DEPRECATED("Use default constructor instead")
-  static constexpr InitiallyOpen kInitiallyOpen{};
-
-  ABSL_DEPRECATED("Use kClosed instead")
-  static constexpr Closed kInitiallyClosed{};
-
   Object(const Object&) = delete;
   Object& operator=(const Object&) = delete;
 
@@ -269,9 +262,6 @@ class Object {
 
   // Creates an open `Object`.
   Object() noexcept {}
-
-  ABSL_DEPRECATED("Use default constructor instead")
-  explicit Object(InitiallyOpen) noexcept : Object() {}
 
   // Moves the part of the object defined in the `Object` class.
   Object(Object&& that) noexcept = default;
