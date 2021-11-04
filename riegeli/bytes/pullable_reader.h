@@ -37,38 +37,8 @@ namespace riegeli {
 //
 // `PullableReader` accumulates pulled data in a scratch buffer if needed.
 class PullableReader : public Reader {
- private:
-  struct Scratch;
-
  protected:
-  // Helps to implement move constructor or move assignment if scratch is used.
-  //
-  // Moving the source should be in scope of a `BehindScratch` local variable,
-  // unless source buffer pointers are known to remain unchanged during a move
-  // or their change does not need to be reflected elsewhere.
-  //
-  // This temporarily reveals the relationship between the source and the buffer
-  // pointers, in case it was hidden behind scratch usage. In a `BehindScratch`
-  // scope, scratch is not used, and buffer pointers may be changed. The current
-  // position reflects what has been read from the source and must not be
-  // changed.
-  class BehindScratch {
-   public:
-    explicit BehindScratch(PullableReader* context);
-
-    BehindScratch(const BehindScratch&) = delete;
-    BehindScratch& operator=(const BehindScratch&) = delete;
-
-    ~BehindScratch();
-
-   private:
-    void Enter();
-    void Leave();
-
-    PullableReader* context_;
-    std::unique_ptr<Scratch> scratch_;
-    size_t read_from_scratch_;
-  };
+  class BehindScratch;
 
   using Reader::Reader;
 
@@ -172,6 +142,34 @@ class PullableReader : public Reader {
   // Invariants if `scratch_used()`:
   //   `start() == scratch_->buffer.data()`
   //   `start_to_limit() == scratch_->buffer.size()`
+};
+
+// Helps to implement move constructor or move assignment if scratch is used.
+//
+// Moving the source should be in scope of a `BehindScratch` local variable,
+// unless source buffer pointers are known to remain unchanged during a move
+// or their change does not need to be reflected elsewhere.
+//
+// This temporarily reveals the relationship between the source and the buffer
+// pointers, in case it was hidden behind scratch usage. In a `BehindScratch`
+// scope, scratch is not used, and buffer pointers may be changed. The current
+// position reflects what has been read from the source and must not be changed.
+class PullableReader::BehindScratch {
+ public:
+  explicit BehindScratch(PullableReader* context);
+
+  BehindScratch(const BehindScratch&) = delete;
+  BehindScratch& operator=(const BehindScratch&) = delete;
+
+  ~BehindScratch();
+
+ private:
+  void Enter();
+  void Leave();
+
+  PullableReader* context_;
+  std::unique_ptr<Scratch> scratch_;
+  size_t read_from_scratch_;
 };
 
 // Implementation details follow.

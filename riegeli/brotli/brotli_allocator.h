@@ -61,13 +61,7 @@ class BrotliAllocator {
   friend void* internal::RiegeliBrotliAllocFunc(void* opaque, size_t size);
   friend void internal::RiegeliBrotliFreeFunc(void* opaque, void* ptr);
 
-  class Interface {
-   public:
-    virtual ~Interface();
-
-    virtual void* Alloc(size_t size) const = 0;
-    virtual void Free(void* ptr) const = 0;
-  };
+  class Interface;
 
   template <typename AllocFunctor, typename FreeFunctor>
   class Implementation;
@@ -76,6 +70,14 @@ class BrotliAllocator {
 };
 
 // Implementation details follow.
+
+class BrotliAllocator::Interface {
+ public:
+  virtual ~Interface();
+
+  virtual void* Alloc(size_t size) const = 0;
+  virtual void Free(void* ptr) const = 0;
+};
 
 template <typename AllocFunctor, typename FreeFunctor>
 class BrotliAllocator::Implementation : public Interface {

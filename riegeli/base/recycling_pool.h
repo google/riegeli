@@ -46,26 +46,7 @@ template <typename T, typename Deleter = std::default_delete<T>>
 class RecyclingPool {
  public:
   // A deleter which puts the object back into the pool.
-  class Recycler : private Deleter {
-   public:
-    Recycler() {}
-
-    explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
-        : Deleter(std::move(deleter)), pool_(pool) {
-      RIEGELI_ASSERT(pool_ != nullptr)
-          << "Failed precondition of Recycler: null RecyclingPool pointer";
-    }
-
-    void operator()(T* ptr) const;
-
-    Deleter& original_deleter() { return *this; }
-    const Deleter& original_deleter() const { return *this; }
-
-   private:
-    RecyclingPool* pool_ = nullptr;
-    // TODO: Use `[[no_unique_address]]` when available instead of
-    // relying on empty base optimization.
-  };
+  class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
   // deleting it. If a particular object is not suitable for recycling, the
@@ -134,27 +115,7 @@ template <typename T, typename Key, typename Deleter = std::default_delete<T>>
 class KeyedRecyclingPool {
  public:
   // A deleter which puts the object back into the pool.
-  class Recycler : private Deleter {
-   public:
-    Recycler() {}
-
-    explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
-        : Deleter(std::move(deleter)), pool_(pool), key_(std::move(key)) {
-      RIEGELI_ASSERT(pool_ != nullptr)
-          << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
-    }
-
-    void operator()(T* ptr) const;
-
-    Deleter& original_deleter() { return *this; }
-    const Deleter& original_deleter() const { return *this; }
-
-   private:
-    KeyedRecyclingPool* pool_ = nullptr;
-    Key key_;
-    // TODO: Use `[[no_unique_address]]` when available instead of
-    // relying on empty base optimization.
-  };
+  class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
   // deleting it. If a particular object is not suitable for recycling, the
@@ -236,6 +197,28 @@ class KeyedRecyclingPool {
 // Implementation details follow.
 
 template <typename T, typename Deleter>
+class RecyclingPool<T, Deleter>::Recycler : private Deleter {
+ public:
+  Recycler() {}
+
+  explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
+      : Deleter(std::move(deleter)), pool_(pool) {
+    RIEGELI_ASSERT(pool_ != nullptr)
+        << "Failed precondition of Recycler: null RecyclingPool pointer";
+  }
+
+  void operator()(T* ptr) const;
+
+  Deleter& original_deleter() { return *this; }
+  const Deleter& original_deleter() const { return *this; }
+
+ private:
+  RecyclingPool* pool_ = nullptr;
+  // TODO: Use `[[no_unique_address]]` when available instead of
+  // relying on empty base optimization.
+};
+
+template <typename T, typename Deleter>
 inline void RecyclingPool<T, Deleter>::Recycler::operator()(T* ptr) const {
   RIEGELI_ASSERT(pool_ != nullptr)
       << "Failed precondition of RecyclingPool::Recycler: "
@@ -291,6 +274,29 @@ void RecyclingPool<T, Deleter>::Put(std::unique_ptr<T, Deleter> object) {
   }
   // Destroy `evicted` after releasing `mutex_`.
 }
+
+template <typename T, typename Key, typename Deleter>
+class KeyedRecyclingPool<T, Key, Deleter>::Recycler : private Deleter {
+ public:
+  Recycler() {}
+
+  explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
+      : Deleter(std::move(deleter)), pool_(pool), key_(std::move(key)) {
+    RIEGELI_ASSERT(pool_ != nullptr)
+        << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
+  }
+
+  void operator()(T* ptr) const;
+
+  Deleter& original_deleter() { return *this; }
+  const Deleter& original_deleter() const { return *this; }
+
+ private:
+  KeyedRecyclingPool* pool_ = nullptr;
+  Key key_;
+  // TODO: Use `[[no_unique_address]]` when available instead of
+  // relying on empty base optimization.
+};
 
 template <typename T, typename Key, typename Deleter>
 inline void KeyedRecyclingPool<T, Key, Deleter>::Recycler::operator()(

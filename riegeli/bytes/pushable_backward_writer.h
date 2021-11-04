@@ -36,38 +36,8 @@ namespace riegeli {
 // `PushableBackwardWriter` accumulates data to be pushed in a scratch buffer if
 // needed.
 class PushableBackwardWriter : public BackwardWriter {
- private:
-  struct Scratch;
-
  protected:
-  // Helps to implement move constructor or move assignment if scratch is used.
-  //
-  // Moving the destination should be in scope of a `BehindScratch` local
-  // variable, unless destination buffer pointers are known to remain unchanged
-  // during a move or their change does not need to be reflected elsewhere.
-  //
-  // This temporarily reveals the relationship between the destination and the
-  // buffer pointers, in case it was hidden behind scratch usage. In a
-  // `BehindScratch` scope, scratch is not used, and buffer pointers may be
-  // changed. The current position reflects what has been written to the
-  // destination and must not be changed.
-  class BehindScratch {
-   public:
-    explicit BehindScratch(PushableBackwardWriter* context);
-
-    BehindScratch(const BehindScratch&) = delete;
-    BehindScratch& operator=(const BehindScratch&) = delete;
-
-    ~BehindScratch();
-
-   private:
-    void Enter();
-    void Leave();
-
-    PushableBackwardWriter* context_;
-    std::unique_ptr<Scratch> scratch_;
-    size_t written_to_scratch_;
-  };
+  class BehindScratch;
 
   using BackwardWriter::BackwardWriter;
 
@@ -175,6 +145,35 @@ class PushableBackwardWriter : public BackwardWriter {
   // Invariants if `scratch_used()`:
   //   `limit() == scratch_->buffer.data()`
   //   `start_to_limit() == scratch_->buffer.data()`
+};
+
+// Helps to implement move constructor or move assignment if scratch is used.
+//
+// Moving the destination should be in scope of a `BehindScratch` local
+// variable, unless destination buffer pointers are known to remain unchanged
+// during a move or their change does not need to be reflected elsewhere.
+//
+// This temporarily reveals the relationship between the destination and the
+// buffer pointers, in case it was hidden behind scratch usage. In a
+// `BehindScratch` scope, scratch is not used, and buffer pointers may be
+// changed. The current position reflects what has been written to the
+// destination and must not be changed.
+class PushableBackwardWriter::BehindScratch {
+ public:
+  explicit BehindScratch(PushableBackwardWriter* context);
+
+  BehindScratch(const BehindScratch&) = delete;
+  BehindScratch& operator=(const BehindScratch&) = delete;
+
+  ~BehindScratch();
+
+ private:
+  void Enter();
+  void Leave();
+
+  PushableBackwardWriter* context_;
+  std::unique_ptr<Scratch> scratch_;
+  size_t written_to_scratch_;
 };
 
 // Implementation details follow.
