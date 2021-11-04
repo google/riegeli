@@ -112,6 +112,12 @@ class ArrayWriter : public ArrayWriterBase {
   template <typename... DestArgs>
   explicit ArrayWriter(std::tuple<DestArgs...> dest_args);
 
+  // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
+  // only if `Dest` is `absl::Span<char>`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  explicit ArrayWriter(char* dest, size_t size);
+
   ArrayWriter(ArrayWriter&& that) noexcept;
   ArrayWriter& operator=(ArrayWriter&& that) noexcept;
 
@@ -122,6 +128,9 @@ class ArrayWriter : public ArrayWriterBase {
   void Reset(Dest&& dest);
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by `Close()`.
@@ -156,6 +165,7 @@ explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
 template <typename... DestArgs>
 explicit ArrayWriter(std::tuple<DestArgs...> dest_args)
     -> ArrayWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit ArrayWriter(char* dest, size_t size)->ArrayWriter<absl::Span<char>>;
 #endif
 
 // Implementation details follow.
@@ -211,6 +221,12 @@ inline ArrayWriter<Dest>::ArrayWriter(std::tuple<DestArgs...> dest_args)
 }
 
 template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+inline ArrayWriter<Dest>::ArrayWriter(char* dest, size_t size)
+    : ArrayWriter(absl::MakeSpan(dest, size)) {}
+
+template <typename Dest>
 inline ArrayWriter<Dest>::ArrayWriter(ArrayWriter&& that) noexcept
     : ArrayWriterBase(std::move(that)) {
   // Using `that` after it was moved is correct because only the base class part
@@ -254,6 +270,13 @@ inline void ArrayWriter<Dest>::Reset(std::tuple<DestArgs...> dest_args) {
   ArrayWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+inline void ArrayWriter<Dest>::Reset(char* dest, size_t size) {
+  Reset(absl::MakeSpan(dest, size));
 }
 
 template <typename Dest>

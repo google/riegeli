@@ -122,6 +122,7 @@ class BackwardWriter : public Object {
   template <typename Src,
             std::enable_if_t<std::is_same<Src, std::string>::value, int> = 0>
   bool Write(Src&& src);
+  bool Write(const char* src, size_t length);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
@@ -435,6 +436,10 @@ inline bool BackwardWriter::Write(Src&& src) {
     // necessary: `Src` is always `std::string`, never an lvalue reference.
     return WriteSlow(Chain(std::move(src)));
   }
+}
+
+inline bool BackwardWriter::Write(const char* src, size_t length) {
+  return Write(absl::string_view(src, length));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {

@@ -51,11 +51,11 @@ inline void WriteDebugQuoted(absl::string_view src, Writer& writer,
   // found in the range [`next_to_check`..`limit`), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
              next_to_check, '"', PtrDistance(next_to_check, limit)))) {
-    writer.Write(absl::string_view(start, PtrDistance(start, next_quote + 1)));
+    writer.Write(start, PtrDistance(start, next_quote + 1));
     start = next_quote;
     next_to_check = next_quote + 1;
   }
-  writer.Write(absl::string_view(start, PtrDistance(start, limit)));
+  writer.Write(start, PtrDistance(start, limit));
   writer.WriteChar('"');
 }
 

@@ -71,7 +71,7 @@ bool PushableWriter::SyncScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Moving should have left the source ChainBlock cleared";
   if (length_to_write <= kMaxBytesToCopy || PrefersCopying()) {
-    const bool ok = Write(absl::string_view(buffer.data(), length_to_write));
+    const bool ok = Write(buffer.data(), length_to_write);
     // Restore buffer allocation.
     buffer.Clear();
     scratch_->buffer = std::move(buffer);

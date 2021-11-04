@@ -98,15 +98,14 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
   // found in the range [`next_to_check`..`limit`), write them twice.
   while (const char* const next_quote = static_cast<const char*>(std::memchr(
              next_to_check, *quote_, PtrDistance(next_to_check, limit)))) {
-    if (ABSL_PREDICT_FALSE(!dest.Write(
-            absl::string_view(start, PtrDistance(start, next_quote + 1))))) {
+    if (ABSL_PREDICT_FALSE(
+            !dest.Write(start, PtrDistance(start, next_quote + 1)))) {
       return Fail(dest);
     }
     start = next_quote;
     next_to_check = next_quote + 1;
   }
-  if (ABSL_PREDICT_FALSE(
-          !dest.Write(absl::string_view(start, PtrDistance(start, limit))))) {
+  if (ABSL_PREDICT_FALSE(!dest.Write(start, PtrDistance(start, limit)))) {
     return Fail(dest);
   }
   if (ABSL_PREDICT_FALSE(!dest.WriteChar(*quote_))) return Fail(dest);

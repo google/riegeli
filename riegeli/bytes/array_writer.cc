@@ -70,8 +70,8 @@ Reader* ArrayWriterBase::ReadModeBehindScratch(Position initial_pos) {
       << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
-  StringReader<>* const reader = associated_reader_.ResetReader(
-      absl::string_view(start(), start_to_cursor()));
+  StringReader<>* const reader =
+      associated_reader_.ResetReader(start(), start_to_cursor());
   reader->Seek(initial_pos);
   return reader;
 }

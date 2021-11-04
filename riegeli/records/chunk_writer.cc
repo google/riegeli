@@ -19,7 +19,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/chain.h"
@@ -55,8 +54,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   // Matches `FutureRecordPosition::FutureChunkBegin::Resolve()`.
   Writer& dest = *dest_writer();
-  StringReader<> header_reader(
-      absl::string_view(chunk.header.bytes(), chunk.header.size()));
+  StringReader<> header_reader(chunk.header.bytes(), chunk.header.size());
   ChainReader<> data_reader(&chunk.data);
   const Position chunk_begin = pos_;
   const Position chunk_end = internal::ChunkEnd(chunk.header, chunk_begin);
@@ -90,8 +88,8 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
     if (internal::IsBlockBoundary(pos_)) {
       internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
                                          IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(!dest.Write(
-              absl::string_view(block_header.bytes(), block_header.size())))) {
+      if (ABSL_PREDICT_FALSE(
+              !dest.Write(block_header.bytes(), block_header.size()))) {
         return Fail(dest);
       }
       pos_ += block_header.size();
@@ -115,8 +113,8 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
     if (internal::IsBlockBoundary(pos_)) {
       internal::BlockHeader block_header(IntCast<uint64_t>(pos_ - chunk_begin),
                                          IntCast<uint64_t>(chunk_end - pos_));
-      if (ABSL_PREDICT_FALSE(!dest.Write(
-              absl::string_view(block_header.bytes(), block_header.size())))) {
+      if (ABSL_PREDICT_FALSE(
+              !dest.Write(block_header.bytes(), block_header.size()))) {
         return Fail(dest);
       }
       pos_ += block_header.size();

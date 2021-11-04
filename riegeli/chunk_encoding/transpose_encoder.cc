@@ -358,8 +358,8 @@ inline bool TransposeEncoder::AddMessage(LimitingReaderBase& record,
           // Clear high bit of each byte.
           for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
-          if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
-                  reinterpret_cast<const char*>(value), *value_length)))) {
+          if (ABSL_PREDICT_FALSE(!buffer->Write(
+                  reinterpret_cast<const char*>(value), *value_length))) {
             return Fail(*buffer);
           }
         }

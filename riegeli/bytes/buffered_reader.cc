@@ -273,7 +273,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
         length -= available();
         bool write_ok;
         if (dest.PrefersCopying()) {
-          write_ok = dest.Write(absl::string_view(cursor(), available()));
+          write_ok = dest.Write(cursor(), available());
         } else {
           Chain data;
           buffer_.AppendSubstrTo(absl::string_view(cursor(), available()), data,
@@ -306,8 +306,7 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
   bool write_ok = true;
   if (length > 0) {
     if (dest.PrefersCopying()) {
-      write_ok =
-          dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)));
+      write_ok = dest.Write(cursor(), IntCast<size_t>(length));
     } else {
       Chain data;
       buffer_.AppendSubstrTo(

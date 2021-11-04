@@ -94,6 +94,13 @@ class StringReader : public StringReaderBase {
   template <typename... SrcArgs>
   explicit StringReader(std::tuple<SrcArgs...> src_args);
 
+  // Will read from `absl::string_view(src, size)`. This constructor is present
+  // only if `Src` is `absl::string_view`.
+  template <
+      typename T = Src,
+      std::enable_if_t<std::is_same<T, absl::string_view>::value, int> = 0>
+  explicit StringReader(const char* src, size_t size);
+
   StringReader(StringReader&& that) noexcept;
   StringReader& operator=(StringReader&& that) noexcept;
 
@@ -104,6 +111,10 @@ class StringReader : public StringReaderBase {
   void Reset(Src&& src);
   template <typename... SrcArgs>
   void Reset(std::tuple<SrcArgs...> src_args);
+  template <
+      typename T = Src,
+      std::enable_if_t<std::is_same<T, absl::string_view>::value, int> = 0>
+  void Reset(const char* src, size_t size);
 
   // Returns the object providing and possibly owning the `std::string` or array
   // being read from. Unchanged by `Close()`.
@@ -123,20 +134,22 @@ class StringReader : public StringReaderBase {
 #if __cpp_deduction_guides
 explicit StringReader(Closed)->StringReader<DeleteCtad<Closed>>;
 template <typename Src>
-StringReader(const Src& src) -> StringReader<std::conditional_t<
+explicit StringReader(const Src& src) -> StringReader<std::conditional_t<
     std::is_convertible<const Src*, const std::string*>::value ||
         std::is_convertible<const Src&, const char*>::value,
     absl::string_view, std::decay_t<Src>>>;
 template <typename Src>
-StringReader(Src&& src) -> StringReader<
+explicit StringReader(Src&& src) -> StringReader<
     std::conditional_t<(std::is_lvalue_reference<Src>::value &&
                         std::is_convertible<std::remove_reference_t<Src>*,
                                             const std::string*>::value) ||
                            std::is_convertible<Src&&, const char*>::value,
                        absl::string_view, std::decay_t<Src>>>;
 template <typename... SrcArgs>
-StringReader(std::tuple<SrcArgs...> src_args)
+explicit StringReader(std::tuple<SrcArgs...> src_args)
     -> StringReader<DeleteCtad<std::tuple<SrcArgs...>>>;
+explicit StringReader(const char* src, size_t size)
+    ->StringReader<absl::string_view>;
 #endif
 
 // Implementation details follow.
@@ -171,6 +184,12 @@ inline StringReader<Src>::StringReader(std::tuple<SrcArgs...> src_args)
     : src_(std::move(src_args)) {
   Initialize(src_.get());
 }
+
+template <typename Src>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::string_view>::value, int>>
+inline StringReader<Src>::StringReader(const char* src, size_t size)
+    : StringReader(absl::string_view(src, size)) {}
 
 template <typename Src>
 inline StringReader<Src>::StringReader(StringReader&& that) noexcept
@@ -216,6 +235,13 @@ inline void StringReader<Src>::Reset(std::tuple<SrcArgs...> src_args) {
   StringReaderBase::Reset();
   src_.Reset(std::move(src_args));
   Initialize(src_.get());
+}
+
+template <typename Src>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::string_view>::value, int>>
+inline void StringReader<Src>::Reset(const char* src, size_t size) {
+  Reset(absl::string_view(src, size));
 }
 
 template <typename Src>

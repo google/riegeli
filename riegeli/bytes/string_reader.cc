@@ -51,8 +51,8 @@ absl::optional<Position> StringReaderBase::SizeImpl() {
 
 std::unique_ptr<Reader> StringReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
-  const absl::string_view src(start(), start_to_limit());
-  std::unique_ptr<Reader> reader = std::make_unique<StringReader<>>(src);
+  std::unique_ptr<Reader> reader =
+      std::make_unique<StringReader<>>(start(), start_to_limit());
   reader->Seek(initial_pos);
   return reader;
 }

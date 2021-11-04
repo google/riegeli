@@ -1010,12 +1010,11 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
 }
 
 // Copy tag from `*node` to `dest`.
-#define COPY_TAG_CALLBACK(tag_length)                               \
-  do {                                                              \
-    if (ABSL_PREDICT_FALSE(!dest.Write(                             \
-            absl::string_view(node->tag_data.data, tag_length)))) { \
-      return Fail(dest);                                            \
-    }                                                               \
+#define COPY_TAG_CALLBACK(tag_length)                                       \
+  do {                                                                      \
+    if (ABSL_PREDICT_FALSE(!dest.Write(node->tag_data.data, tag_length))) { \
+      return Fail(dest);                                                    \
+    }                                                                       \
   } while (false)
 
 // Decode varint value from `*node` to `dest`.
@@ -1091,8 +1090,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
           absl::InvalidArgumentError("Reading string field failed"));          \
       return Fail(*node->buffer);                                              \
     }                                                                          \
-    if (ABSL_PREDICT_FALSE(!dest.Write(                                        \
-            absl::string_view(node->tag_data.data, tag_length)))) {            \
+    if (ABSL_PREDICT_FALSE(!dest.Write(node->tag_data.data, tag_length))) {    \
       return Fail(dest);                                                       \
     }                                                                          \
   } while (false)
@@ -1164,8 +1162,8 @@ inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                 !WriteVarint32(IntCast<uint32_t>(length), dest))) {
           return Fail(dest);
         }
-        if (ABSL_PREDICT_FALSE(!dest.Write(
-                absl::string_view(elem.tag_data.data, elem.tag_data.size)))) {
+        if (ABSL_PREDICT_FALSE(
+                !dest.Write(elem.tag_data.data, elem.tag_data.size))) {
           return Fail(dest);
         }
         submessage_stack.pop_back();

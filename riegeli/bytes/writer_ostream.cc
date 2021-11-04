@@ -76,8 +76,7 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
   if (ABSL_PREDICT_FALSE(!healthy())) return 0;
   BufferSync buffer_sync(this);
   const Position pos_before = dest_->pos();
-  if (ABSL_PREDICT_FALSE(
-          !dest_->Write(absl::string_view(src, IntCast<size_t>(length))))) {
+  if (ABSL_PREDICT_FALSE(!dest_->Write(src, IntCast<size_t>(length)))) {
     Fail();
     RIEGELI_ASSERT_GE(dest_->pos(), pos_before)
         << "Writer::Write(absl::string_view) decreased pos()";

@@ -403,8 +403,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
       // Do not extend `buffer_` if available data are outside of `buffer_`,
       // because available data would be lost.
       length -= available();
-      if (ABSL_PREDICT_FALSE(
-              !dest.Write(absl::string_view(cursor(), available())))) {
+      if (ABSL_PREDICT_FALSE(!dest.Write(cursor(), available()))) {
         move_cursor(available());
         return false;
       }
@@ -423,7 +422,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
           length -= available();
           bool write_ok;
           if (dest.PrefersCopying()) {
-            write_ok = dest.Write(absl::string_view(cursor(), available()));
+            write_ok = dest.Write(cursor(), available());
           } else {
             Chain data;
             buffer_.AppendSubstrTo(absl::string_view(cursor(), available()),
@@ -449,8 +448,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   bool write_ok = true;
   if (length > 0) {
     if (buffer_.empty() || dest.PrefersCopying()) {
-      write_ok =
-          dest.Write(absl::string_view(cursor(), IntCast<size_t>(length)));
+      write_ok = dest.Write(cursor(), IntCast<size_t>(length));
     } else {
       Chain data;
       buffer_.AppendSubstrTo(

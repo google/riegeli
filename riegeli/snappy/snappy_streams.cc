@@ -43,7 +43,7 @@ void WriterSnappySink::Append(const char* src, size_t length) {
            "appending the result of GetAppendBuffer() with length too large";
     dest_->move_cursor(length);
   } else {
-    dest_->Write(absl::string_view(src, length));
+    dest_->Write(src, length);
   }
 }
 

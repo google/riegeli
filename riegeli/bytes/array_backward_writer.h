@@ -94,6 +94,12 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   explicit ArrayBackwardWriter(const Dest& dest);
   explicit ArrayBackwardWriter(Dest&& dest);
 
+  // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
+  // only if `Dest` is `absl::Span<char>`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  explicit ArrayBackwardWriter(char* dest, size_t size);
+
   ArrayBackwardWriter(ArrayBackwardWriter&& that) noexcept;
   ArrayBackwardWriter& operator=(ArrayBackwardWriter&& that) noexcept;
 
@@ -110,6 +116,9 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   void Reset(Dest&& dest);
   template <typename... DestArgs>
   void Reset(std::tuple<DestArgs...> dest_args);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int> = 0>
+  void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
   // to. Unchanged by `Close()`.
@@ -146,6 +155,8 @@ explicit ArrayBackwardWriter(Dest&& dest)
 template <typename... DestArgs>
 explicit ArrayBackwardWriter(std::tuple<DestArgs...> dest_args)
     -> ArrayBackwardWriter<DeleteCtad<std::tuple<DestArgs...>>>;
+explicit ArrayBackwardWriter(char* dest, size_t size)
+    ->ArrayBackwardWriter<absl::Span<char>>;
 #endif
 
 // Implementation details follow.
@@ -201,6 +212,12 @@ inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
 }
 
 template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(char* dest, size_t size)
+    : ArrayBackwardWriter(absl::MakeSpan(dest, size)) {}
+
+template <typename Dest>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(
     ArrayBackwardWriter&& that) noexcept
     : ArrayBackwardWriterBase(std::move(that)) {
@@ -246,6 +263,13 @@ inline void ArrayBackwardWriter<Dest>::Reset(
   ArrayBackwardWriterBase::Reset();
   dest_.Reset(std::move(dest_args));
   Initialize(dest_.get());
+}
+
+template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, absl::Span<char>>::value, int>>
+inline void ArrayBackwardWriter<Dest>::Reset(char* dest, size_t size) {
+  Reset(absl::MakeSpan(dest, size));
 }
 
 template <typename Dest>
