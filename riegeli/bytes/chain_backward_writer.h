@@ -162,10 +162,12 @@ class ChainBackwardWriterBase : public BackwardWriter {
 // `Dependency<Chain*, Dest>`, e.g. `Chain*` (not owned, default),
 // `Chain` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument, except that CTAD is deleted if the first
-// constructor argument is a `Chain&` or `const Chain&` (to avoid writing to an
-// unintentionally separate copy of an existing object). This requires C++17.
+// By relying on CTAD the template argument can be deduced as `Chain` if there
+// are no constructor arguments or the only argument is `Options`, otherwise as
+// the value type of the first constructor argument, except that CTAD is deleted
+// if the first constructor argument is a `Chain&` or `const Chain&` (to avoid
+// writing to an unintentionally separate copy of an existing object). This
+// requires C++17.
 //
 // The `Chain` must not be accessed until the `ChainBackwardWriter` is closed or
 // no longer used.
@@ -175,6 +177,12 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // Creates a closed `ChainBackwardWriter`.
   explicit ChainBackwardWriter(Closed) noexcept
       : ChainBackwardWriterBase(kClosed) {}
+
+  // Will append to an owned `Chain` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `Chain`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, Chain>::value, int> = 0>
+  explicit ChainBackwardWriter(Options options = Options());
 
   // Will prepend to the `Chain` provided by `dest`.
   explicit ChainBackwardWriter(const Dest& dest, Options options = Options());
@@ -193,6 +201,9 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `ChainBackwardWriter`. This
   // avoids constructing a temporary `ChainBackwardWriter` and moving from it.
   void Reset(Closed);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, Chain>::value, int> = 0>
+  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -218,6 +229,9 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit ChainBackwardWriter(Closed)->ChainBackwardWriter<DeleteCtad<Closed>>;
+explicit ChainBackwardWriter(ChainBackwardWriterBase::Options options =
+                                 ChainBackwardWriterBase::Options())
+    ->ChainBackwardWriter<Chain>;
 template <typename Dest>
 explicit ChainBackwardWriter(const Dest& dest,
                              ChainBackwardWriterBase::Options options =
@@ -294,6 +308,11 @@ inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
 }
 
 template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, Chain>::value, int>>
+inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Options options)
+    : ChainBackwardWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(const Dest& dest,
                                                       Options options)
     : ChainBackwardWriterBase(options), dest_(dest) {
@@ -338,6 +357,12 @@ template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Closed) {
   ChainBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
+}
+
+template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, Chain>::value, int>>
+inline void ChainBackwardWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

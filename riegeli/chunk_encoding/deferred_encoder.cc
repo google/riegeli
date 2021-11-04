@@ -41,7 +41,7 @@ namespace riegeli {
 void DeferredEncoder::Clear() {
   ChunkEncoder::Clear();
   base_encoder_->Clear();
-  records_writer_.Reset(std::forward_as_tuple());
+  records_writer_.Reset();
   limits_.clear();
 }
 

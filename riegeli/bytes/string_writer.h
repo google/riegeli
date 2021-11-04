@@ -137,11 +137,12 @@ class StringWriterBase : public Writer {
 // `Dependency<std::string*, Dest>`, e.g. `std::string*` (not owned, default),
 // `std::string` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument, except that CTAD is deleted if the first
-// constructor argument is a `std::string&` or `const std::string&` (to avoid
-// writing to an unintentionally separate copy of an existing object). This
-// requires C++17.
+// By relying on CTAD the template argument can be deduced as `std::string`
+// if there are no constructor arguments or the only argument is `Options`,
+// otherwise as the value type of the first constructor argument, except that
+// CTAD is deleted if the first constructor argument is a `std::string&` or
+// `const std::string&` (to avoid writing to an unintentionally separate copy of
+// an existing object). This requires C++17.
 //
 // The `std::string` must not be accessed until the `StringWriter` is closed or
 // no longer used, except that it is allowed to read the `std::string`
@@ -151,6 +152,12 @@ class StringWriter : public StringWriterBase {
  public:
   // Creates a closed `StringWriter`.
   explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
+
+  // Will append to an owned `std::string` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `std::string`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
+  explicit StringWriter(Options options = Options());
 
   // Will append to the `std::string` provided by `dest`.
   explicit StringWriter(const Dest& dest, Options options = Options());
@@ -169,6 +176,9 @@ class StringWriter : public StringWriterBase {
   // Makes `*this` equivalent to a newly constructed `StringWriter`. This avoids
   // constructing a temporary `StringWriter` and moving from it.
   void Reset(Closed);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
+  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -193,6 +203,9 @@ class StringWriter : public StringWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit StringWriter(Closed)->StringWriter<DeleteCtad<Closed>>;
+explicit StringWriter(
+    StringWriterBase::Options options = StringWriterBase::Options())
+    ->StringWriter<std::string>;
 template <typename Dest>
 explicit StringWriter(const Dest& dest, StringWriterBase::Options options =
                                             StringWriterBase::Options())
@@ -262,6 +275,12 @@ inline void StringWriterBase::MakeBuffer(std::string& dest) {
 }
 
 template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, std::string>::value, int>>
+inline StringWriter<Dest>::StringWriter(Options options)
+    : StringWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline StringWriter<Dest>::StringWriter(const Dest& dest, Options options)
     : dest_(dest) {
   Initialize(dest_.get(), options.append(), options.size_hint());
@@ -303,6 +322,13 @@ template <typename Dest>
 inline void StringWriter<Dest>::Reset(Closed) {
   StringWriterBase::Reset(kClosed);
   dest_.Reset();
+}
+
+template <typename Dest>
+template <typename T,
+          std::enable_if_t<std::is_same<T, std::string>::value, int>>
+inline void StringWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

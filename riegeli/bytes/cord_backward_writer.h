@@ -168,11 +168,12 @@ class CordBackwardWriterBase : public BackwardWriter {
 // `Dependency<absl::Cord*, Dest>`, e.g. `absl::Cord*` (not owned, default),
 // `absl::Cord` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument, except that CTAD is deleted if the first
-// constructor argument is an `absl::Cord&` or `const absl::Cord&` (to avoid
-// writing to an unintentionally separate copy of an existing object). This
-// requires C++17.
+// By relying on CTAD the template argument can be deduced as `absl::Cord`
+// if there are no constructor arguments or the only argument is `Options`,
+// otherwise as the value type of the first constructor argument, except that
+// CTAD is deleted if the first constructor argument is an `absl::Cord&` or
+// `const absl::Cord&` (to avoid writing to an unintentionally separate copy of
+// an existing object). This requires C++17.
 //
 // The `absl::Cord` must not be accessed until the `CordBackwardWriter` is
 // closed or no longer used.
@@ -182,6 +183,12 @@ class CordBackwardWriter : public CordBackwardWriterBase {
   // Creates a closed `CordBackwardWriter`.
   explicit CordBackwardWriter(Closed) noexcept
       : CordBackwardWriterBase(kClosed) {}
+
+  // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `absl::Cord`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  explicit CordBackwardWriter(Options options = Options());
 
   // Will prepend to the `absl::Cord` provided by `dest`.
   explicit CordBackwardWriter(const Dest& dest, Options options = Options());
@@ -200,6 +207,9 @@ class CordBackwardWriter : public CordBackwardWriterBase {
   // Makes `*this` equivalent to a newly constructed `CordBackwardWriter`. This
   // avoids constructing a temporary `CordBackwardWriter` and moving from it.
   void Reset(Closed);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -220,6 +230,9 @@ class CordBackwardWriter : public CordBackwardWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CordBackwardWriter(Closed)->CordBackwardWriter<DeleteCtad<Closed>>;
+explicit CordBackwardWriter(
+    CordBackwardWriterBase::Options options = CordBackwardWriterBase::Options())
+    ->CordBackwardWriter<absl::Cord>;
 template <typename Dest>
 explicit CordBackwardWriter(
     const Dest& dest,
@@ -314,6 +327,11 @@ inline void CordBackwardWriterBase::Initialize(absl::Cord* dest, bool prepend) {
 }
 
 template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+inline CordBackwardWriter<Dest>::CordBackwardWriter(Options options)
+    : CordBackwardWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(const Dest& dest,
                                                     Options options)
     : CordBackwardWriterBase(options), dest_(dest) {
@@ -357,6 +375,12 @@ template <typename Dest>
 inline void CordBackwardWriter<Dest>::Reset(Closed) {
   CordBackwardWriterBase::Reset(kClosed);
   dest_.Reset();
+}
+
+template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+inline void CordBackwardWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

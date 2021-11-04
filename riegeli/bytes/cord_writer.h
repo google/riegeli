@@ -179,11 +179,12 @@ class CordWriterBase : public Writer {
 // `Dependency<absl::Cord*, Dest>`, e.g. `absl::Cord*` (not owned, default),
 // `absl::Cord` (owned).
 //
-// By relying on CTAD the template argument can be deduced as the value type of
-// the first constructor argument, except that CTAD is deleted if the first
-// constructor argument is an `absl::Cord&` or `const absl::Cord&` (to avoid
-// writing to an unintentionally separate copy of an existing object). This
-// requires C++17.
+// By relying on CTAD the template argument can be deduced as `absl::Cord`
+// if there are no constructor arguments or the only argument is `Options`,
+// otherwise as the value type of the first constructor argument, except that
+// CTAD is deleted if the first constructor argument is an `absl::Cord&` or
+// `const absl::Cord&` (to avoid writing to an unintentionally separate copy of
+// an existing object). This requires C++17.
 //
 // The `absl::Cord` must not be accessed until the `CordWriter` is closed or no
 // longer used, except that it is allowed to read the `absl::Cord` immediately
@@ -193,6 +194,12 @@ class CordWriter : public CordWriterBase {
  public:
   // Creates a closed `CordWriter`.
   explicit CordWriter(Closed) noexcept : CordWriterBase(kClosed) {}
+
+  // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
+  // This constructor is present only if `Dest` is `absl::Cord`.
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  explicit CordWriter(Options options = Options());
 
   // Will append to the `absl::Cord` provided by `dest`.
   explicit CordWriter(const Dest& dest, Options options = Options());
@@ -211,6 +218,9 @@ class CordWriter : public CordWriterBase {
   // Makes `*this` equivalent to a newly constructed `CordWriter`. This avoids
   // constructing a temporary `CordWriter` and moving from it.
   void Reset(Closed);
+  template <typename T = Dest,
+            std::enable_if_t<std::is_same<T, absl::Cord>::value, int> = 0>
+  void Reset(Options options = Options());
   void Reset(const Dest& dest, Options options = Options());
   void Reset(Dest&& dest, Options options = Options());
   template <typename... DestArgs>
@@ -231,6 +241,8 @@ class CordWriter : public CordWriterBase {
 // Support CTAD.
 #if __cpp_deduction_guides
 explicit CordWriter(Closed)->CordWriter<DeleteCtad<Closed>>;
+explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
+    ->CordWriter<absl::Cord>;
 template <typename Dest>
 explicit CordWriter(const Dest& dest,
                     CordWriterBase::Options options = CordWriterBase::Options())
@@ -325,6 +337,11 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
 }
 
 template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+inline CordWriter<Dest>::CordWriter(Options options)
+    : CordWriter(std::forward_as_tuple(), std::move(options)) {}
+
+template <typename Dest>
 inline CordWriter<Dest>::CordWriter(const Dest& dest, Options options)
     : CordWriterBase(options), dest_(dest) {
   Initialize(dest_.get(), options.append());
@@ -365,6 +382,12 @@ template <typename Dest>
 inline void CordWriter<Dest>::Reset(Closed) {
   CordWriterBase::Reset(kClosed);
   dest_.Reset();
+}
+
+template <typename Dest>
+template <typename T, std::enable_if_t<std::is_same<T, absl::Cord>::value, int>>
+inline void CordWriter<Dest>::Reset(Options options) {
+  Reset(std::forward_as_tuple(), std::move(options));
 }
 
 template <typename Dest>

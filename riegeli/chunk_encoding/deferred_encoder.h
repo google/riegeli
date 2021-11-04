@@ -80,8 +80,7 @@ class DeferredEncoder : public ChunkEncoder {
 
 inline DeferredEncoder::DeferredEncoder(
     std::unique_ptr<ChunkEncoder> base_encoder)
-    : base_encoder_(std::move(base_encoder)),
-      records_writer_(std::forward_as_tuple()) {}
+    : base_encoder_(std::move(base_encoder)) {}
 
 }  // namespace riegeli
 

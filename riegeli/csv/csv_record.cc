@@ -125,7 +125,7 @@ absl::Status CsvHeader::TryReset(std::vector<std::string>&& names) {
   }
   if (ABSL_PREDICT_FALSE(!duplicate_names.empty())) {
     payload_.reset();
-    StringWriter<std::string> message(std::forward_as_tuple());
+    StringWriter<std::string> message;
     message.Write("Duplicate field name(s): ");
     for (std::vector<absl::string_view>::const_iterator iter =
              duplicate_names.cbegin();
@@ -177,7 +177,7 @@ absl::Status CsvHeader::TryAdd(Name&& name) {
         << "It should not have been needed to ensure that an empty CsvHeader "
            "has payload_ == nullptr because a duplicate field name is possible "
            "only if some fields were already present";
-    StringWriter<std::string> message(std::forward_as_tuple());
+    StringWriter<std::string> message;
     message.Write("Duplicate field name: ");
     WriteDebugQuotedIfNeeded(name, message);
     message.Close();
@@ -350,7 +350,7 @@ absl::Status CsvRecord::TryMerge(
 
 absl::Status CsvRecord::FailMerge(
     const std::vector<std::string>& unknown_fields) const {
-  StringWriter<std::string> message(std::forward_as_tuple());
+  StringWriter<std::string> message;
   message.Write("Unknown field name(s): ");
   for (std::vector<std::string>::const_iterator iter = unknown_fields.cbegin();
        iter != unknown_fields.cend(); ++iter) {

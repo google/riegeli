@@ -184,8 +184,7 @@ TransposeEncoder::TransposeEncoder(CompressorOptions options,
     : compressor_options_(std::move(options)),
       bucket_size_(options.compression_type() == CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()
-                       : bucket_size),
-      nonproto_lengths_writer_(std::forward_as_tuple()) {}
+                       : bucket_size) {}
 
 TransposeEncoder::~TransposeEncoder() {}
 
@@ -196,7 +195,7 @@ void TransposeEncoder::Clear() {
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   group_stack_.clear();
   message_nodes_.clear();
-  nonproto_lengths_writer_.Reset(std::forward_as_tuple());
+  nonproto_lengths_writer_.Reset();
   next_message_id_ = internal::MessageId::kRoot + 1;
 }
 
@@ -1319,8 +1318,8 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
   const std::vector<StateInfo> state_machine =
       CreateStateMachine(max_transition, min_count_for_state);
 
-  ChainWriter<Chain> header_writer(std::forward_as_tuple());
-  ChainWriter<Chain> data_writer(std::forward_as_tuple());
+  ChainWriter<Chain> header_writer;
+  ChainWriter<Chain> data_writer;
   if (ABSL_PREDICT_FALSE(!WriteStatesAndData(max_transition, state_machine,
                                              header_writer, data_writer))) {
     return false;
