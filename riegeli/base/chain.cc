@@ -650,7 +650,8 @@ inline void Chain::RawBlock::PrependTo(absl::Cord& dest) {
 size_t Chain::BlockIterator::CharIndexInChainInternal() const {
   if (ptr_ == kBeginShortData) {
     return 0;
-  } else if (ptr_ == kEndShortData) {
+  } else if (ptr_ == kEndShortData ||
+             ptr_ == BlockPtrPtr::from_ptr(chain_->end_)) {
     return chain_->size();
   } else if (chain_->has_here()) {
     switch (block_index()) {
