@@ -51,6 +51,8 @@ RIEGELI_INTERNAL_INLINE_CONSTEXPR(absl::string_view, kCloseFunctionName,
 }  // namespace internal
 
 // Owns a file descriptor (-1 means none).
+//
+// `OwnedFd` is implicitly convertible from `int`.
 class OwnedFd {
  public:
   // Creates an `OwnedFd` which does not own a fd.
@@ -74,9 +76,27 @@ class OwnedFd {
   int fd_ = -1;
 };
 
-// An unowned file descriptor is represented simply by `int`, but it is clearer
-// to write `FdReader<UnownedFd>` or `FdWriter<UnownedFd>`.
-using UnownedFd = int;
+// Refers to a file descriptor but does not own it (a negative value means
+// none).
+//
+// `UnownedFd` is implicitly convertible from `int`.
+class UnownedFd {
+ public:
+  // Creates an `UnownedFd` which does not refer to a fd.
+  UnownedFd() noexcept {}
+
+  // Creates an `UnownedFd` which refers to `fd` if `fd >= 0`.
+  /*implicit*/ UnownedFd(int fd) noexcept : fd_(fd) {}
+
+  UnownedFd(const UnownedFd& that) noexcept = default;
+  UnownedFd& operator=(const UnownedFd& that) noexcept = default;
+
+  // Returns the owned file descriptor, or a negative value if none.
+  int get() const { return fd_; }
+
+ private:
+  int fd_ = -1;
+};
 
 // Specializations of `Dependency<int, Manager>`.
 
@@ -93,37 +113,11 @@ class Dependency<int, OwnedFd> : public DependencyBase<OwnedFd> {
 };
 
 template <>
-class Dependency<int, UnownedFd> {
+class Dependency<int, UnownedFd> : public DependencyBase<UnownedFd> {
  public:
-  // `DependencyBase` is not used because the default value is -1, not `int()`.
+  using DependencyBase<UnownedFd>::DependencyBase;
 
-  Dependency() noexcept {}
-
-  explicit Dependency(int fd) : fd_(fd) {}
-
-  template <typename FdArg>
-  explicit Dependency(std::tuple<FdArg> fd_args)
-      : fd_(std::forward<FdArg>(std::get<0>(fd_args))) {}
-
-  Dependency(Dependency&& that) noexcept : fd_(that.fd_) {}
-  Dependency& operator=(Dependency&& that) noexcept {
-    fd_ = that.fd_;
-    return *this;
-  }
-
-  void Reset() { fd_ = -1; }
-
-  void Reset(int fd) { fd_ = fd; }
-
-  template <typename FdArg>
-  void Reset(std::tuple<FdArg> fd_args) {
-    fd_ = std::forward<FdArg>(std::get<0>(fd_args));
-  }
-
-  int& manager() { return fd_; }
-  const int& manager() const { return fd_; }
-
-  int get() const { return fd_; }
+  int get() const { return this->manager().get(); }
   int Release() {
     RIEGELI_ASSERT_UNREACHABLE()
         << "Dependency<int, UnownedFd>::Release() called "
@@ -132,9 +126,6 @@ class Dependency<int, UnownedFd> {
 
   bool is_owning() const { return false; }
   static constexpr bool kIsStable() { return true; }
-
- private:
-  int fd_ = -1;
 };
 
 // Implementation details follow.
