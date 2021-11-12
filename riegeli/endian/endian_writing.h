@@ -21,6 +21,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
+#include "riegeli/base/base.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_internal.h"
@@ -35,15 +36,39 @@ namespace riegeli {
 bool WriteLittleEndian16(uint16_t data, Writer& dest);
 bool WriteLittleEndian32(uint32_t data, Writer& dest);
 bool WriteLittleEndian64(uint64_t data, Writer& dest);
+bool WriteLittleEndianSigned16(int16_t data, Writer& dest);
+bool WriteLittleEndianSigned32(int32_t data, Writer& dest);
+bool WriteLittleEndianSigned64(int64_t data, Writer& dest);
 bool WriteBigEndian16(uint16_t data, Writer& dest);
 bool WriteBigEndian32(uint32_t data, Writer& dest);
 bool WriteBigEndian64(uint64_t data, Writer& dest);
+bool WriteBigEndianSigned16(int16_t data, Writer& dest);
+bool WriteBigEndianSigned32(int32_t data, Writer& dest);
+bool WriteBigEndianSigned64(int64_t data, Writer& dest);
 bool WriteLittleEndian16(uint16_t data, BackwardWriter& dest);
 bool WriteLittleEndian32(uint32_t data, BackwardWriter& dest);
 bool WriteLittleEndian64(uint64_t data, BackwardWriter& dest);
+bool WriteLittleEndianSigned16(int16_t data, BackwardWriter& dest);
+bool WriteLittleEndianSigned32(int32_t data, BackwardWriter& dest);
+bool WriteLittleEndianSigned64(int64_t data, BackwardWriter& dest);
 bool WriteBigEndian16(uint16_t data, BackwardWriter& dest);
 bool WriteBigEndian32(uint32_t data, BackwardWriter& dest);
 bool WriteBigEndian64(uint64_t data, BackwardWriter& dest);
+bool WriteBigEndianSigned16(int16_t data, BackwardWriter& dest);
+bool WriteBigEndianSigned32(int32_t data, BackwardWriter& dest);
+bool WriteBigEndianSigned64(int64_t data, BackwardWriter& dest);
+
+// Writes a number in a fixed width Little/Big Endian encoding. The width of
+// the encoding is determined by the template argument, which must be one of:
+// `{u,}int{8,16,32,64}_t`.
+//
+// Return values:
+//  * `true`  - success (`dest.healthy()`)
+//  * `false` - failure (`!dest.healthy()`)
+template <typename T>
+bool WriteLittleEndian(internal::type_identity_t<T> data, Writer& dest);
+template <typename T>
+bool WriteBigEndian(internal::type_identity_t<T> data, Writer& dest);
 
 // Writes an array of numbers in a fixed width Little/Big Endian encoding.
 //
@@ -55,9 +80,31 @@ bool WriteBigEndian64(uint64_t data, BackwardWriter& dest);
 bool WriteLittleEndian16s(absl::Span<const uint16_t> data, Writer& dest);
 bool WriteLittleEndian32s(absl::Span<const uint32_t> data, Writer& dest);
 bool WriteLittleEndian64s(absl::Span<const uint64_t> data, Writer& dest);
+bool WriteLittleEndianSigned16s(absl::Span<const int16_t> data, Writer& dest);
+bool WriteLittleEndianSigned32s(absl::Span<const int32_t> data, Writer& dest);
+bool WriteLittleEndianSigned64s(absl::Span<const int64_t> data, Writer& dest);
 bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest);
 bool WriteBigEndian32s(absl::Span<const uint32_t> data, Writer& dest);
 bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest);
+bool WriteBigEndianSigned16s(absl::Span<const int16_t> data, Writer& dest);
+bool WriteBigEndianSigned32s(absl::Span<const int32_t> data, Writer& dest);
+bool WriteBigEndianSigned64s(absl::Span<const int64_t> data, Writer& dest);
+
+// Writes an array of numbers in a fixed width Little/Big Endian encoding.
+// The width of the encoding is determined by the template argument, which
+// must be one of: `{u,}int{8,16,32,64}_t`.
+//
+// This is faster than writing them individually for native endianness.
+//
+// Return values:
+//  * `true`  - success (`dest.healthy()`)
+//  * `false` - failure (`!dest.healthy()`)
+template <typename T>
+bool WriteLittleEndians(absl::Span<const internal::type_identity_t<T>> data,
+                        Writer& dest);
+template <typename T>
+bool WriteBigEndians(absl::Span<const internal::type_identity_t<T>> data,
+                     Writer& dest);
 
 // Writes a number in a fixed width Little/Big Endian encoding to an array.
 //
@@ -105,6 +152,18 @@ inline bool WriteLittleEndian64(uint64_t data, Writer& dest) {
   return true;
 }
 
+inline bool WriteLittleEndianSigned16(int16_t data, Writer& dest) {
+  return WriteLittleEndian16(static_cast<uint16_t>(data), dest);
+}
+
+inline bool WriteLittleEndianSigned32(int32_t data, Writer& dest) {
+  return WriteLittleEndian32(static_cast<uint32_t>(data), dest);
+}
+
+inline bool WriteLittleEndianSigned64(int64_t data, Writer& dest) {
+  return WriteLittleEndian64(static_cast<uint64_t>(data), dest);
+}
+
 inline bool WriteBigEndian16(uint16_t data, Writer& dest) {
   if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
   WriteBigEndian16(data, dest.cursor());
@@ -124,6 +183,18 @@ inline bool WriteBigEndian64(uint64_t data, Writer& dest) {
   WriteBigEndian64(data, dest.cursor());
   dest.move_cursor(sizeof(uint64_t));
   return true;
+}
+
+inline bool WriteBigEndianSigned16(int16_t data, Writer& dest) {
+  return WriteBigEndian16(static_cast<uint16_t>(data), dest);
+}
+
+inline bool WriteBigEndianSigned32(int32_t data, Writer& dest) {
+  return WriteBigEndian32(static_cast<uint32_t>(data), dest);
+}
+
+inline bool WriteBigEndianSigned64(int64_t data, Writer& dest) {
+  return WriteBigEndian64(static_cast<uint64_t>(data), dest);
 }
 
 inline bool WriteLittleEndian16(uint16_t data, BackwardWriter& dest) {
@@ -146,6 +217,18 @@ inline bool WriteLittleEndian64(uint64_t data, BackwardWriter& dest) {
   return true;
 }
 
+inline bool WriteLittleEndianSigned16(int16_t data, BackwardWriter& dest) {
+  return WriteLittleEndian16(static_cast<uint16_t>(data), dest);
+}
+
+inline bool WriteLittleEndianSigned32(int32_t data, BackwardWriter& dest) {
+  return WriteLittleEndian32(static_cast<uint32_t>(data), dest);
+}
+
+inline bool WriteLittleEndianSigned64(int64_t data, BackwardWriter& dest) {
+  return WriteLittleEndian64(static_cast<uint64_t>(data), dest);
+}
+
 inline bool WriteBigEndian16(uint16_t data, BackwardWriter& dest) {
   if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
   dest.move_cursor(sizeof(uint16_t));
@@ -165,6 +248,84 @@ inline bool WriteBigEndian64(uint64_t data, BackwardWriter& dest) {
   dest.move_cursor(sizeof(uint64_t));
   WriteBigEndian64(data, dest.cursor());
   return true;
+}
+
+inline bool WriteBigEndianSigned16(int16_t data, BackwardWriter& dest) {
+  return WriteBigEndian16(static_cast<uint16_t>(data), dest);
+}
+
+inline bool WriteBigEndianSigned32(int32_t data, BackwardWriter& dest) {
+  return WriteBigEndian32(static_cast<uint32_t>(data), dest);
+}
+
+inline bool WriteBigEndianSigned64(int64_t data, BackwardWriter& dest) {
+  return WriteBigEndian64(static_cast<uint64_t>(data), dest);
+}
+
+template <>
+inline bool WriteLittleEndian<uint8_t>(uint8_t data, Writer& dest) {
+  return dest.WriteByte(data);
+}
+template <>
+inline bool WriteLittleEndian<uint16_t>(uint16_t data, Writer& dest) {
+  return WriteLittleEndian16(data, dest);
+}
+template <>
+inline bool WriteLittleEndian<uint32_t>(uint32_t data, Writer& dest) {
+  return WriteLittleEndian32(data, dest);
+}
+template <>
+inline bool WriteLittleEndian<uint64_t>(uint64_t data, Writer& dest) {
+  return WriteLittleEndian64(data, dest);
+}
+template <>
+inline bool WriteLittleEndian<int8_t>(int8_t data, Writer& dest) {
+  return dest.WriteByte(static_cast<uint8_t>(data));
+}
+template <>
+inline bool WriteLittleEndian<int16_t>(int16_t data, Writer& dest) {
+  return WriteLittleEndianSigned16(data, dest);
+}
+template <>
+inline bool WriteLittleEndian<int32_t>(int32_t data, Writer& dest) {
+  return WriteLittleEndianSigned32(data, dest);
+}
+template <>
+inline bool WriteLittleEndian<int64_t>(int64_t data, Writer& dest) {
+  return WriteLittleEndianSigned64(data, dest);
+}
+
+template <>
+inline bool WriteBigEndian<uint8_t>(uint8_t data, Writer& dest) {
+  return dest.WriteByte(data);
+}
+template <>
+inline bool WriteBigEndian<uint16_t>(uint16_t data, Writer& dest) {
+  return WriteBigEndian16(data, dest);
+}
+template <>
+inline bool WriteBigEndian<uint32_t>(uint32_t data, Writer& dest) {
+  return WriteBigEndian32(data, dest);
+}
+template <>
+inline bool WriteBigEndian<uint64_t>(uint64_t data, Writer& dest) {
+  return WriteBigEndian64(data, dest);
+}
+template <>
+inline bool WriteBigEndian<int8_t>(int8_t data, Writer& dest) {
+  return dest.WriteByte(static_cast<uint8_t>(data));
+}
+template <>
+inline bool WriteBigEndian<int16_t>(int16_t data, Writer& dest) {
+  return WriteBigEndianSigned16(data, dest);
+}
+template <>
+inline bool WriteBigEndian<int32_t>(int32_t data, Writer& dest) {
+  return WriteBigEndianSigned32(data, dest);
+}
+template <>
+inline bool WriteBigEndian<int64_t>(int64_t data, Writer& dest) {
+  return WriteBigEndianSigned64(data, dest);
 }
 
 inline bool WriteLittleEndian16s(absl::Span<const uint16_t> data,
@@ -206,6 +367,51 @@ inline bool WriteLittleEndian64s(absl::Span<const uint64_t> data,
   }
 }
 
+inline bool WriteLittleEndianSigned16s(absl::Span<const int16_t> data,
+                                       Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int16_t));
+  } else {
+    for (const int16_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned16(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+inline bool WriteLittleEndianSigned32s(absl::Span<const int32_t> data,
+                                       Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int32_t));
+  } else {
+    for (const int32_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned32(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+inline bool WriteLittleEndianSigned64s(absl::Span<const int64_t> data,
+                                       Writer& dest) {
+  if (internal::IsLittleEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int64_t));
+  } else {
+    for (const int64_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteLittleEndianSigned64(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
 inline bool WriteBigEndian16s(absl::Span<const uint16_t> data, Writer& dest) {
   if (internal::IsBigEndian()) {
     return dest.Write(reinterpret_cast<const char*>(data.data()),
@@ -240,6 +446,133 @@ inline bool WriteBigEndian64s(absl::Span<const uint64_t> data, Writer& dest) {
     }
     return true;
   }
+}
+
+inline bool WriteBigEndianSigned16s(absl::Span<const int16_t> data,
+                                    Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int16_t));
+  } else {
+    for (const int16_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned16(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+inline bool WriteBigEndianSigned32s(absl::Span<const int32_t> data,
+                                    Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int32_t));
+  } else {
+    for (const int32_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned32(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+inline bool WriteBigEndianSigned64s(absl::Span<const int64_t> data,
+                                    Writer& dest) {
+  if (internal::IsBigEndian()) {
+    return dest.Write(reinterpret_cast<const char*>(data.data()),
+                      data.size() * sizeof(int64_t));
+  } else {
+    for (const int64_t value : data) {
+      if (ABSL_PREDICT_FALSE(!WriteBigEndianSigned64(value, dest))) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+template <>
+inline bool WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
+                                        Writer& dest) {
+  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+template <>
+inline bool WriteLittleEndians<uint16_t>(absl::Span<const uint16_t> data,
+                                         Writer& dest) {
+  return WriteLittleEndian16s(data, dest);
+}
+template <>
+inline bool WriteLittleEndians<uint32_t>(absl::Span<const uint32_t> data,
+                                         Writer& dest) {
+  return WriteLittleEndian32s(data, dest);
+}
+template <>
+inline bool WriteLittleEndians<uint64_t>(absl::Span<const uint64_t> data,
+                                         Writer& dest) {
+  return WriteLittleEndian64s(data, dest);
+}
+template <>
+inline bool WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
+                                       Writer& dest) {
+  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+template <>
+inline bool WriteLittleEndians<int16_t>(absl::Span<const int16_t> data,
+                                        Writer& dest) {
+  return WriteLittleEndianSigned16s(data, dest);
+}
+template <>
+inline bool WriteLittleEndians<int32_t>(absl::Span<const int32_t> data,
+                                        Writer& dest) {
+  return WriteLittleEndianSigned32s(data, dest);
+}
+template <>
+inline bool WriteLittleEndians<int64_t>(absl::Span<const int64_t> data,
+                                        Writer& dest) {
+  return WriteLittleEndianSigned64s(data, dest);
+}
+
+template <>
+inline bool WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
+                                     Writer& dest) {
+  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+template <>
+inline bool WriteBigEndians<uint16_t>(absl::Span<const uint16_t> data,
+                                      Writer& dest) {
+  return WriteBigEndian16s(data, dest);
+}
+template <>
+inline bool WriteBigEndians<uint32_t>(absl::Span<const uint32_t> data,
+                                      Writer& dest) {
+  return WriteBigEndian32s(data, dest);
+}
+template <>
+inline bool WriteBigEndians<uint64_t>(absl::Span<const uint64_t> data,
+                                      Writer& dest) {
+  return WriteBigEndian64s(data, dest);
+}
+template <>
+inline bool WriteBigEndians<int8_t>(absl::Span<const int8_t> data,
+                                    Writer& dest) {
+  return dest.Write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+template <>
+inline bool WriteBigEndians<int16_t>(absl::Span<const int16_t> data,
+                                     Writer& dest) {
+  return WriteBigEndianSigned16s(data, dest);
+}
+template <>
+inline bool WriteBigEndians<int32_t>(absl::Span<const int32_t> data,
+                                     Writer& dest) {
+  return WriteBigEndianSigned32s(data, dest);
+}
+template <>
+inline bool WriteBigEndians<int64_t>(absl::Span<const int64_t> data,
+                                     Writer& dest) {
+  return WriteBigEndianSigned64s(data, dest);
 }
 
 namespace internal {
