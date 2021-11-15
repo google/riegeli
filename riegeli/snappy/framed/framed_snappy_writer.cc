@@ -27,8 +27,10 @@
 #include "crc32c/crc32c.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
+#include "riegeli/snappy/framed/framed_snappy_reader.h"
 #include "snappy.h"
 
 namespace riegeli {
@@ -45,6 +47,11 @@ inline uint32_t MaskChecksum(uint32_t x) {
 void FramedSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of FramedSnappyWriter: null Writer pointer";
+  if (ABSL_PREDICT_FALSE(!dest->healthy())) {
+    Fail(*dest);
+    return;
+  }
+  initial_compressed_pos_ = dest->pos();
   if (dest->pos() == 0) {
     // Stream identifier.
     if (ABSL_PREDICT_FALSE(!dest->Write("\xff\x06\x00\x00"
@@ -52,9 +59,13 @@ void FramedSnappyWriterBase::Initialize(Writer* dest) {
                                         10))) {
       Fail(*dest);
     }
-  } else {
-    if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
   }
+}
+
+void FramedSnappyWriterBase::Done() {
+  PushableWriter::Done();
+  uncompressed_ = Buffer();
+  associated_reader_.Reset();
 }
 
 void FramedSnappyWriterBase::DefaultAnnotateStatus() {
@@ -69,7 +80,7 @@ bool FramedSnappyWriterBase::PushBehindScratch() {
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of PushableWriter::PushBehindScratch():"
+      << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
@@ -131,6 +142,31 @@ bool FramedSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return PushInternal(dest);
+}
+
+bool FramedSnappyWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsReadMode();
+}
+
+Reader* FramedSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!FramedSnappyWriterBase::FlushBehindScratch(
+          FlushType::kFromObject))) {
+    return nullptr;
+  }
+  Writer& dest = *dest_writer();
+  Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(dest);
+    return nullptr;
+  }
+  FramedSnappyReader<>* const reader =
+      associated_reader_.ResetReader(compressed_reader);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

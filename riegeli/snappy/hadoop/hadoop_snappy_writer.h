@@ -28,9 +28,13 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/pushable_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+template <typename Src>
+class HadoopSnappyReader;
 
 // Template parameter independent part of `HadoopSnappyWriter`.
 class HadoopSnappyWriterBase : public PushableWriter {
@@ -62,6 +66,8 @@ class HadoopSnappyWriterBase : public PushableWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  bool SupportsReadMode() override;
+
  protected:
   explicit HadoopSnappyWriterBase(Closed) noexcept : PushableWriter(kClosed) {}
 
@@ -74,6 +80,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Reset(absl::optional<Position> size_hint);
   void Initialize(Writer* dest);
 
+  void Done() override;
   // `HadoopSnappyWriterBase` overrides `Writer::DefaultAnnotateStatus()` to
   // annotate the status with the current position, clarifying that this is the
   // uncompressed position. A status propagated from `*dest_writer()` might
@@ -81,6 +88,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool PushBehindScratch() override;
   bool FlushBehindScratch(FlushType flush_type);
+  Reader* ReadModeBehindScratch(Position initial_pos) override;
 
  private:
   // Compresses buffered data, but unlike `PushSlow()`, does not ensure that a
@@ -92,8 +100,11 @@ class HadoopSnappyWriterBase : public PushableWriter {
   bool PushInternal(Writer& dest);
 
   Position size_hint_ = 0;
+  Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
+
+  AssociatedReader<HadoopSnappyReader<Reader*>> associated_reader_;
 
   // Invariants if scratch is not used:
   //   `start() == nullptr` or `start() == uncompressed_.data()`
@@ -191,7 +202,9 @@ inline HadoopSnappyWriterBase::HadoopSnappyWriterBase(
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       size_hint_(that.size_hint_),
-      uncompressed_(std::move(that.uncompressed_)) {}
+      initial_compressed_pos_(that.initial_compressed_pos_),
+      uncompressed_(std::move(that.uncompressed_)),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
     HadoopSnappyWriterBase&& that) noexcept {
@@ -199,18 +212,25 @@ inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   size_hint_ = that.size_hint_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void HadoopSnappyWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
   size_hint_ = 0;
+  initial_compressed_pos_ = 0;
+  uncompressed_ = Buffer();
+  associated_reader_.Reset();
 }
 
 inline void HadoopSnappyWriterBase::Reset(absl::optional<Position> size_hint) {
   PushableWriter::Reset();
   size_hint_ = size_hint.value_or(0);
+  initial_compressed_pos_ = 0;
+  associated_reader_.Reset();
 }
 
 template <typename Dest>

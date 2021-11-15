@@ -282,11 +282,11 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
       std::make_unique<ZlibReader<std::unique_ptr<Reader>>>(
           std::move(compressed_reader),
           ZlibReaderBase::Options()
-              .set_window_log(window_bits_ < 0
-                                  ? absl::make_optional(-window_bits_)
-                              : (window_bits_ & 15) == 0
+              .set_window_log((window_bits_ & 15) == 0
                                   ? absl::nullopt
-                                  : absl::make_optional(window_bits_ & 15))
+                                  : absl::make_optional(
+                                        window_bits_ < 0 ? -window_bits_
+                                                         : window_bits_ & 15))
               .set_header(window_bits_ < 0
                               ? Header::kRaw
                               : static_cast<Header>(window_bits_ & ~15))

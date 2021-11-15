@@ -30,11 +30,15 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zstd/zstd_dictionary.h"
 #include "zstd.h"
 
 namespace riegeli {
+
+template <typename Src>
+class ZstdReader;
 
 // Template parameter independent part of `ZstdWriter`.
 class ZstdWriterBase : public BufferedWriter {
@@ -236,6 +240,8 @@ class ZstdWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  bool SupportsReadMode() override;
+
  protected:
   explicit ZstdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
@@ -264,6 +270,7 @@ class ZstdWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
+  Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
   struct ZSTD_CCtxDeleter {
@@ -276,9 +283,12 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdDictionary dictionary_;
   absl::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
+  Position initial_compressed_pos_ = 0;
   // If `healthy()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
+
+  AssociatedReader<ZstdReader<Reader*>> associated_reader_;
 };
 
 // A `Writer` which compresses data with Zstd before passing it to another
@@ -375,7 +385,9 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       dictionary_(std::move(that.dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
-      compressor_(std::move(that.compressor_)) {}
+      initial_compressed_pos_(that.initial_compressed_pos_),
+      compressor_(std::move(that.compressor_)),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline ZstdWriterBase& ZstdWriterBase::operator=(
     ZstdWriterBase&& that) noexcept {
@@ -385,7 +397,9 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   dictionary_ = std::move(that.dictionary_);
   pledged_size_ = std::move(that.pledged_size_);
   reserve_max_size_ = that.reserve_max_size_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   compressor_ = std::move(that.compressor_);
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
@@ -393,8 +407,10 @@ inline void ZstdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   pledged_size_ = absl::nullopt;
   reserve_max_size_ = false;
+  initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = ZstdDictionary();
+  associated_reader_.Reset();
 }
 
 inline void ZstdWriterBase::Reset(ZstdDictionary&& dictionary,
@@ -405,8 +421,10 @@ inline void ZstdWriterBase::Reset(ZstdDictionary&& dictionary,
   BufferedWriter::Reset(buffer_size, size_hint);
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;
+  initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = ZstdDictionary();
+  associated_reader_.Reset();
 }
 
 template <typename Dest>

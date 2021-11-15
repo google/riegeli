@@ -57,6 +57,7 @@ void SnappyWriterBase::Done() {
     }
   }
   uncompressed_ = Chain();
+  associated_reader_.Reset();
 }
 
 void SnappyWriterBase::DefaultAnnotateStatus() {
@@ -189,6 +190,14 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
   move_start_pos(src.size());
   uncompressed_.Append(std::move(src), options_);
   return true;
+}
+
+Reader* SnappyWriterBase::ReadModeImpl(Position initial_pos) {
+  if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
+  SyncBuffer();
+  ChainReader<>* const reader = associated_reader_.ResetReader(&uncompressed_);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 inline size_t SnappyWriterBase::MinBytesToShare() const {

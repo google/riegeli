@@ -10,10 +10,12 @@ cc_library(
     ],
     hdrs = ["zlib_writer.h"],
     deps = [
+        ":zlib_reader",
         "//riegeli/base",
         "//riegeli/base:recycling_pool",
         "//riegeli/base:status",
         "//riegeli/bytes:buffered_writer",
+        "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

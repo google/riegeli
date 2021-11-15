@@ -30,6 +30,7 @@
 #include "riegeli/base/base.h"
 #include "riegeli/base/port.h"
 #include "riegeli/base/status.h"
+#include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -67,6 +68,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(*dest);
     return;
   }
+  initial_compressed_pos_ = dest->pos();
   compressor_.reset(BrotliEncoderCreateInstance(
       allocator_.alloc_func(), allocator_.free_func(), allocator_.opaque()));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
@@ -135,7 +137,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
 
 void BrotliWriterBase::DoneBehindBuffer(absl::string_view src) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Writer& dest = *dest_writer();
@@ -147,6 +149,7 @@ void BrotliWriterBase::Done() {
   compressor_.reset();
   dictionary_ = BrotliDictionary();
   allocator_ = BrotliAllocator();
+  associated_reader_.Reset();
 }
 
 void BrotliWriterBase::DefaultAnnotateStatus() {
@@ -203,11 +206,45 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 bool BrotliWriterBase::FlushBehindBuffer(absl::string_view src,
                                          FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::FlushBehindBuffer():"
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, BROTLI_OPERATION_FLUSH);
+}
+
+bool BrotliWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  if (dest != nullptr && dest->SupportsReadMode()) {
+    for (const std::shared_ptr<const BrotliDictionary::Chunk>& chunk :
+         dictionary_.chunks()) {
+      if (chunk->type() == BrotliDictionary::Type::kNative) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+Reader* BrotliWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!BrotliWriterBase::FlushBehindBuffer(
+          absl::string_view(), FlushType::kFromObject))) {
+    return nullptr;
+  }
+  Writer& dest = *dest_writer();
+  Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(dest);
+    return nullptr;
+  }
+  BrotliReader<>* const reader = associated_reader_.ResetReader(
+      compressed_reader, BrotliReaderBase::Options()
+                             .set_dictionary(dictionary_)
+                             .set_allocator(allocator_));
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

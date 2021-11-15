@@ -35,6 +35,9 @@
 
 namespace riegeli {
 
+template <typename Src>
+class ChainReader;
+
 // Template parameter independent part of `SnappyWriter`.
 class SnappyWriterBase : public Writer {
  public:
@@ -65,6 +68,8 @@ class SnappyWriterBase : public Writer {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  bool SupportsReadMode() override { return true; }
+
  protected:
   explicit SnappyWriterBase(Closed) noexcept : Writer(kClosed) {}
 
@@ -90,6 +95,7 @@ class SnappyWriterBase : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteZerosSlow(Position length) override;
+  Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
   // `snappy::kBlockSize`
@@ -114,6 +120,8 @@ class SnappyWriterBase : public Writer {
   // ensure that each 64KB block of `uncompressed_` is contiguous (unless that
   // would require earlier memory copies).
   Chain uncompressed_;
+
+  AssociatedReader<ChainReader<const Chain*>> associated_reader_;
 };
 
 // A `Writer` which compresses data with Snappy before passing it to another
@@ -293,7 +301,8 @@ inline SnappyWriterBase::SnappyWriterBase(SnappyWriterBase&& that) noexcept
     : Writer(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      options_(that.options_) {
+      options_(that.options_),
+      associated_reader_(std::move(that.associated_reader_)) {
   MoveUncompressed(std::move(that));
 }
 
@@ -303,6 +312,7 @@ inline SnappyWriterBase& SnappyWriterBase::operator=(
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
   options_ = that.options_;
+  associated_reader_ = std::move(that.associated_reader_);
   MoveUncompressed(std::move(that));
   return *this;
 }
@@ -311,6 +321,7 @@ inline void SnappyWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
   options_ = Chain::Options();
   uncompressed_ = Chain();
+  associated_reader_.Reset();
 }
 
 inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
@@ -321,6 +332,7 @@ inline void SnappyWriterBase::Reset(absl::optional<Position> size_hint) {
           .set_min_block_size(kBlockSize)
           .set_max_block_size(kBlockSize);
   uncompressed_.Clear();
+  associated_reader_.Reset();
 }
 
 inline void SnappyWriterBase::Initialize(Writer* dest) {

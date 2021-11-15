@@ -9,9 +9,11 @@ cc_library(
     deps = [
         ":brotli_allocator",
         ":brotli_dictionary",
+        ":brotli_reader",
         "//riegeli/base",
         "//riegeli/base:status",
         "//riegeli/bytes:buffered_writer",
+        "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

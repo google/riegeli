@@ -25,8 +25,10 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/base.h"
 #include "riegeli/base/buffer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
+#include "riegeli/snappy/hadoop/hadoop_snappy_reader.h"
 #include "snappy.h"
 
 namespace riegeli {
@@ -35,6 +37,12 @@ void HadoopSnappyWriterBase::Initialize(Writer* dest) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of HadoopSnappyWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) Fail(*dest);
+}
+
+void HadoopSnappyWriterBase::Done() {
+  PushableWriter::Done();
+  uncompressed_ = Buffer();
+  associated_reader_.Reset();
 }
 
 void HadoopSnappyWriterBase::DefaultAnnotateStatus() {
@@ -97,6 +105,31 @@ bool HadoopSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return PushInternal(dest);
+}
+
+bool HadoopSnappyWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsReadMode();
+}
+
+Reader* HadoopSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!HadoopSnappyWriterBase::FlushBehindScratch(
+          FlushType::kFromObject))) {
+    return nullptr;
+  }
+  Writer& dest = *dest_writer();
+  Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(dest);
+    return nullptr;
+  }
+  HadoopSnappyReader<>* const reader =
+      associated_reader_.ResetReader(compressed_reader);
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

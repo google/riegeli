@@ -240,7 +240,6 @@ class ZlibReaderBase : public BufferedReader {
                                          absl::string_view operation,
                                          int zlib_code);
 
-  ZlibDictionary dictionary_;
   int window_bits_ = 0;
   bool concatenate_ = false;
   // If `true`, the source is truncated (without a clean end of the compressed
@@ -251,6 +250,7 @@ class ZlibReaderBase : public BufferedReader {
   // If `concatenate_` and `!stream_had_data_`, an end of the source is
   // legitimate, it does not imply that the source is truncated.
   bool stream_had_data_ = false;
+  ZlibDictionary dictionary_;
   Position initial_compressed_pos_ = 0;
   RecyclingPool<z_stream, ZStreamDeleter>::Handle decompressor_;
 };
@@ -337,19 +337,19 @@ inline ZlibReaderBase::ZlibReaderBase(int window_bits,
                                       bool concatenate, size_t buffer_size,
                                       absl::optional<Position> size_hint)
     : BufferedReader(buffer_size, size_hint),
-      dictionary_(std::move(dictionary)),
       window_bits_(window_bits),
-      concatenate_(concatenate) {}
+      concatenate_(concatenate),
+      dictionary_(std::move(dictionary)) {}
 
 inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(std::move(that)),
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
-      dictionary_(std::move(that.dictionary_)),
       window_bits_(that.window_bits_),
       concatenate_(that.concatenate_),
       truncated_(that.truncated_),
       stream_had_data_(that.stream_had_data_),
+      dictionary_(std::move(that.dictionary_)),
       initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
@@ -358,11 +358,11 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   BufferedReader::operator=(std::move(that));
   // Using `that` after it was moved is correct because only the base class part
   // was moved.
-  dictionary_ = std::move(that.dictionary_);
   window_bits_ = that.window_bits_;
   concatenate_ = that.concatenate_;
   truncated_ = that.truncated_;
   stream_had_data_ = that.stream_had_data_;
+  dictionary_ = std::move(that.dictionary_);
   initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;

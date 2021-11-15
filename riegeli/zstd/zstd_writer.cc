@@ -33,7 +33,9 @@
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/zstd/zstd_reader.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -59,6 +61,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     Fail(*dest);
     return;
   }
+  initial_compressed_pos_ = dest->pos();
   compressor_ = RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global().Get(
       [] {
         return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(ZSTD_createCCtx());
@@ -141,7 +144,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
 
 void ZstdWriterBase::DoneBehindBuffer(absl::string_view src) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Writer& dest = *dest_writer();
@@ -152,6 +155,7 @@ void ZstdWriterBase::Done() {
   BufferedWriter::Done();
   compressor_.reset();
   dictionary_ = ZstdDictionary();
+  associated_reader_.Reset();
 }
 
 void ZstdWriterBase::DefaultAnnotateStatus() {
@@ -239,11 +243,39 @@ bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 bool ZstdWriterBase::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::FlushBehindBuffer():"
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, ZSTD_e_flush);
+}
+
+bool ZstdWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsReadMode();
+}
+
+Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!ZstdWriterBase::FlushBehindBuffer(
+          absl::string_view(), FlushType::kFromObject))) {
+    return nullptr;
+  }
+  Writer& dest = *dest_writer();
+  Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(dest);
+    return nullptr;
+  }
+  ZstdReader<>* const reader = associated_reader_.ResetReader(
+      compressed_reader, ZstdReaderBase::Options()
+                             .set_dictionary(dictionary_)
+                             .set_size_hint(pos())
+                             .set_buffer_size(buffer_size()));
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli

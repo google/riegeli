@@ -33,9 +33,13 @@
 #include "riegeli/brotli/brotli_allocator.h"
 #include "riegeli/brotli/brotli_dictionary.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+template <typename Src>
+class BrotliReader;
 
 // Template parameter independent part of `BrotliWriter`.
 class BrotliWriterBase : public BufferedWriter {
@@ -184,6 +188,8 @@ class BrotliWriterBase : public BufferedWriter {
   virtual Writer* dest_writer() = 0;
   virtual const Writer* dest_writer() const = 0;
 
+  bool SupportsReadMode() override;
+
  protected:
   explicit BrotliWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
@@ -209,6 +215,7 @@ class BrotliWriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD void DefaultAnnotateStatus() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type);
+  Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
   struct BrotliEncoderStateDeleter {
@@ -222,7 +229,10 @@ class BrotliWriterBase : public BufferedWriter {
 
   BrotliDictionary dictionary_;
   BrotliAllocator allocator_;
+  Position initial_compressed_pos_ = 0;
   std::unique_ptr<BrotliEncoderState, BrotliEncoderStateDeleter> compressor_;
+
+  AssociatedReader<BrotliReader<Reader*>> associated_reader_;
 };
 
 // A `Writer` which compresses data with Brotli before passing it to another
@@ -317,7 +327,9 @@ inline BrotliWriterBase::BrotliWriterBase(BrotliWriterBase&& that) noexcept
       // part was moved.
       dictionary_(std::move(that.dictionary_)),
       allocator_(std::move(that.allocator_)),
-      compressor_(std::move(that.compressor_)) {}
+      initial_compressed_pos_(that.initial_compressed_pos_),
+      compressor_(std::move(that.compressor_)),
+      associated_reader_(std::move(that.associated_reader_)) {}
 
 inline BrotliWriterBase& BrotliWriterBase::operator=(
     BrotliWriterBase&& that) noexcept {
@@ -326,15 +338,19 @@ inline BrotliWriterBase& BrotliWriterBase::operator=(
   // was moved.
   dictionary_ = std::move(that.dictionary_);
   allocator_ = std::move(that.allocator_);
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   compressor_ = std::move(that.compressor_);
+  associated_reader_ = std::move(that.associated_reader_);
   return *this;
 }
 
 inline void BrotliWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
+  initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = BrotliDictionary();
   allocator_ = BrotliAllocator();
+  associated_reader_.Reset();
 }
 
 inline void BrotliWriterBase::Reset(BrotliDictionary&& dictionary,
@@ -342,9 +358,11 @@ inline void BrotliWriterBase::Reset(BrotliDictionary&& dictionary,
                                     size_t buffer_size,
                                     absl::optional<Position> size_hint) {
   BufferedWriter::Reset(buffer_size, size_hint);
+  initial_compressed_pos_ = 0;
   compressor_.reset();
   dictionary_ = std::move(dictionary);
   allocator_ = std::move(allocator);
+  associated_reader_.Reset();
 }
 
 template <typename Dest>

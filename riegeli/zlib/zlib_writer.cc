@@ -28,7 +28,9 @@
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/buffered_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/zlib/zlib_reader.h"
 #include "zconf.h"
 #include "zlib.h"
 
@@ -47,26 +49,26 @@ constexpr int ZlibWriterBase::Options::kDefaultWindowLog;
 constexpr ZlibWriterBase::Header ZlibWriterBase::Options::kDefaultHeader;
 #endif
 
-void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
-                                int window_bits) {
+void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
   RIEGELI_ASSERT(dest != nullptr)
       << "Failed precondition of ZlibWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->healthy())) {
     Fail(*dest);
     return;
   }
+  initial_compressed_pos_ = dest->pos();
   // Do not reduce `window_log` based on `size_hint`. An unexpected reduction
   // of `window_log` would break concatenation of compressed streams, because
   // Zlib decompressor rejects `window_log` in a subsequent header greater than
   // in the first header.
   compressor_ =
       KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global().Get(
-          ZStreamKey{compression_level, window_bits},
+          ZStreamKey{compression_level, window_bits_},
           [&] {
             std::unique_ptr<z_stream, ZStreamDeleter> ptr(new z_stream());
             const int zlib_code =
                 deflateInit2(ptr.get(), compression_level, Z_DEFLATED,
-                             window_bits, 8, Z_DEFAULT_STRATEGY);
+                             window_bits_, 8, Z_DEFAULT_STRATEGY);
             if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
               FailOperation("deflateInit2()", zlib_code);
             }
@@ -92,7 +94,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level,
 
 void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return;
   Writer& dest = *dest_writer();
@@ -103,6 +105,7 @@ void ZlibWriterBase::Done() {
   BufferedWriter::Done();
   compressor_.reset();
   dictionary_ = ZlibDictionary();
+  associated_reader_.Reset();
 }
 
 bool ZlibWriterBase::FailOperation(absl::string_view operation, int zlib_code) {
@@ -217,11 +220,44 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
-      << "Failed precondition of BufferedWriter::DoneBehindBuffer():"
+      << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!healthy())) return false;
   Writer& dest = *dest_writer();
   return WriteInternal(src, dest, Z_SYNC_FLUSH);
+}
+
+bool ZlibWriterBase::SupportsReadMode() {
+  Writer* const dest = dest_writer();
+  return dest != nullptr && dest->SupportsReadMode();
+}
+
+Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!ZlibWriterBase::FlushBehindBuffer(
+          absl::string_view(), FlushType::kFromObject))) {
+    return nullptr;
+  }
+  Writer& dest = *dest_writer();
+  Reader* const compressed_reader = dest.ReadMode(initial_compressed_pos_);
+  if (ABSL_PREDICT_FALSE(compressed_reader == nullptr)) {
+    Fail(dest);
+    return nullptr;
+  }
+  ZlibReader<>* const reader = associated_reader_.ResetReader(
+      compressed_reader,
+      ZlibReaderBase::Options()
+          .set_window_log(window_bits_ < 0 ? -window_bits_ : window_bits_ & 15)
+          .set_header(window_bits_ < 0 ? ZlibReaderBase::Header::kRaw
+                                       : static_cast<ZlibReaderBase::Header>(
+                                             window_bits_ & ~15))
+          .set_dictionary(dictionary_)
+          .set_size_hint(pos())
+          .set_buffer_size(buffer_size()));
+  reader->Seek(initial_pos);
+  return reader;
 }
 
 }  // namespace riegeli
