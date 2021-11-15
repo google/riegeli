@@ -30,7 +30,6 @@
 namespace riegeli {
 
 void DigestingWriterBase::Done() {
-  DigestingWriterBase::WriteModeImpl();
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
@@ -137,24 +136,10 @@ bool DigestingWriterBase::SupportsReadMode() {
 Reader* DigestingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   Writer& dest = *dest_writer();
-  // To make `WriteMode()` idempotent, ensure that in read mode buffer pointers
-  // are `nullptr`.
-  if (ABSL_PREDICT_TRUE(cursor() != nullptr)) {
-    SyncBuffer(dest);
-    set_start_pos(pos());
-    set_buffer();
-  }
+  SyncBuffer(dest);
   Reader* const reader = dest.ReadMode(initial_pos);
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) Fail(dest);
+  MakeBuffer(dest);
   return reader;
-}
-
-bool DigestingWriterBase::WriteModeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!dest.WriteMode())) return Fail(dest);
-  if (ABSL_PREDICT_TRUE(cursor() == nullptr)) MakeBuffer(dest);
-  return true;
 }
 
 inline void DigestingWriterBase::DigesterWrite(const Chain& src) {

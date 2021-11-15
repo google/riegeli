@@ -68,7 +68,6 @@ void OstreamWriterBase::Initialize(std::ostream* dest,
 }
 
 void OstreamWriterBase::Done() {
-  OstreamWriterBase::WriteModeImpl();
   BufferedWriter::Done();
   // If `supports_random_access_` is still `LazyBoolState::kUnknown`, change it
   // to `LazyBoolState::kFalse`, because trying to resolve it later might access
@@ -124,12 +123,26 @@ bool OstreamWriterBase::supports_random_access() {
   return supported;
 }
 
+inline bool OstreamWriterBase::WriteMode() {
+  if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
+  read_mode_ = false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  std::ostream& dest = *dest_stream();
+  errno = 0;
+  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
+  if (ABSL_PREDICT_FALSE(dest.fail())) {
+    return FailOperation("ostream::seekp()");
+  }
+  return true;
+}
+
 bool OstreamWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   std::ostream& dest = *dest_stream();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<std::streamoff>::max()} -
@@ -148,6 +161,15 @@ bool OstreamWriterBase::WriteInternal(absl::string_view src) {
     src.remove_prefix(length_to_write);
   } while (!src.empty());
   return true;
+}
+
+bool OstreamWriterBase::FlushBehindBuffer(absl::string_view src,
+                                          FlushType flush_type) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
+  return BufferedWriter::FlushBehindBuffer(src, flush_type);
 }
 
 bool OstreamWriterBase::SeekBehindBuffer(Position new_pos) {
@@ -229,24 +251,9 @@ Reader* OstreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
   }
   IstreamReader<>* const reader = associated_reader_.ResetReader(
       src, IstreamReaderBase::Options().set_buffer_size(buffer_size()));
+  read_mode_ = true;
   reader->Seek(initial_pos);
   return reader;
-}
-
-bool OstreamWriterBase::WriteModeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  IstreamReader<>* const reader = associated_reader_.reader();
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) return true;
-  if (ABSL_PREDICT_FALSE(!reader->not_failed())) {
-    return FailWithoutAnnotation(*reader);
-  }
-  std::ostream& dest = *dest_stream();
-  errno = 0;
-  dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
-  if (ABSL_PREDICT_FALSE(dest.fail())) {
-    return FailOperation("ostream::seekp()");
-  }
-  return true;
 }
 
 }  // namespace riegeli

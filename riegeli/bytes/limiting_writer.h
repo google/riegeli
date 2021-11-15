@@ -172,7 +172,6 @@ class LimitingWriterBase : public Writer {
   absl::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
-  bool WriteModeImpl() override;
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
   // exceeded.

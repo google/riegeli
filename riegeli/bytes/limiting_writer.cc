@@ -33,7 +33,6 @@
 namespace riegeli {
 
 void LimitingWriterBase::Done() {
-  LimitingWriterBase::WriteModeImpl();
   if (ABSL_PREDICT_TRUE(healthy())) {
     Writer& dest = *dest_writer();
     SyncBuffer(dest);
@@ -198,24 +197,10 @@ bool LimitingWriterBase::SupportsReadMode() {
 Reader* LimitingWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!healthy())) return nullptr;
   Writer& dest = *dest_writer();
-  // To make `WriteMode()` idempotent, ensure that in read mode buffer pointers
-  // are `nullptr`.
-  if (ABSL_PREDICT_TRUE(cursor() != nullptr)) {
-    if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return nullptr;
-    set_start_pos(pos());
-    set_buffer();
-  }
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return nullptr;
   Reader* const reader = dest.ReadMode(initial_pos);
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) Fail(dest);
+  MakeBuffer(dest);
   return reader;
-}
-
-bool LimitingWriterBase::WriteModeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  Writer& dest = *dest_writer();
-  if (ABSL_PREDICT_FALSE(!dest.WriteMode())) return Fail(dest);
-  if (ABSL_PREDICT_TRUE(cursor() == nullptr)) MakeBuffer(dest);
-  return true;
 }
 
 }  // namespace riegeli

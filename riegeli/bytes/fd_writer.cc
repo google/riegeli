@@ -145,7 +145,6 @@ void FdWriterBase::InitializePos(int dest, int flags,
 }
 
 void FdWriterBase::Done() {
-  FdWriterBase::WriteModeImpl();
   BufferedWriter::Done();
   associated_reader_.Reset();
 }
@@ -167,12 +166,21 @@ void FdWriterBase::DefaultAnnotateStatus() {
   BufferedWriter::DefaultAnnotateStatus();
 }
 
+inline bool FdWriterBase::WriteMode() {
+  if (ABSL_PREDICT_TRUE(!read_mode_)) return true;
+  read_mode_ = false;
+  if (ABSL_PREDICT_FALSE(!healthy())) return false;
+  const int dest = dest_fd();
+  return SeekInternal(dest, start_pos());
+}
+
 bool FdWriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
   RIEGELI_ASSERT(healthy())
       << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
+  if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   const int dest = dest_fd();
   if (ABSL_PREDICT_FALSE(src.size() >
                          Position{std::numeric_limits<off_t>::max()} -
@@ -223,10 +231,21 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
       << "Unknown flush type: " << static_cast<int>(flush_type);
 }
 
+bool FdWriterBase::FlushBehindBuffer(absl::string_view src,
+                                     FlushType flush_type) {
+  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+      << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
+         "buffer not empty";
+  if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
+  return BufferedWriter::FlushBehindBuffer(src, flush_type);
+}
+
 inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::SeekInternal(): "
          "buffer not empty";
+  RIEGELI_ASSERT(healthy())
+      << "Failed precondition of FdWriterBase::SeekInternal(): " << status();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(lseek(dest, IntCast<off_t>(new_pos), SEEK_SET) <
                            0)) {
@@ -319,19 +338,9 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
                                          ? absl::make_optional(initial_pos)
                                          : absl::nullopt)
                 .set_buffer_size(buffer_size()));
+  read_mode_ = true;
   if (!has_independent_pos_) reader->Seek(initial_pos);
   return reader;
-}
-
-bool FdWriterBase::WriteModeImpl() {
-  if (ABSL_PREDICT_FALSE(!healthy())) return false;
-  FdReader<UnownedFd>* const reader = associated_reader_.reader();
-  if (ABSL_PREDICT_FALSE(reader == nullptr)) return true;
-  if (ABSL_PREDICT_FALSE(!reader->not_failed())) {
-    return FailWithoutAnnotation(*reader);
-  }
-  const int dest = dest_fd();
-  return SeekInternal(dest, start_pos());
 }
 
 }  // namespace riegeli

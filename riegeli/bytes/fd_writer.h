@@ -194,13 +194,14 @@ class FdWriterBase : public BufferedWriter {
   void DefaultAnnotateStatus() override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
+  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
-  bool WriteModeImpl() override;
 
  private:
+  bool WriteMode();
   bool SeekInternal(int dest, Position new_pos);
 
   std::string filename_;
@@ -209,6 +210,7 @@ class FdWriterBase : public BufferedWriter {
   bool supports_read_mode_ = false;
 
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
+  bool read_mode_ = false;
 
   // Invariant: `start_pos() <= std::numeric_limits<off_t>::max()`
 };
@@ -350,7 +352,8 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
       supports_random_access_(that.supports_random_access_),
       has_independent_pos_(that.has_independent_pos_),
       supports_read_mode_(that.supports_read_mode_),
-      associated_reader_(std::move(that.associated_reader_)) {}
+      associated_reader_(std::move(that.associated_reader_)),
+      read_mode_(that.read_mode_) {}
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(std::move(that));
@@ -361,6 +364,7 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   has_independent_pos_ = that.has_independent_pos_;
   supports_read_mode_ = that.supports_read_mode_;
   associated_reader_ = std::move(that.associated_reader_);
+  read_mode_ = that.read_mode_;
   return *this;
 }
 
@@ -371,6 +375,7 @@ inline void FdWriterBase::Reset(Closed) {
   has_independent_pos_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();
+  read_mode_ = false;
 }
 
 inline void FdWriterBase::Reset(size_t buffer_size) {
@@ -380,6 +385,7 @@ inline void FdWriterBase::Reset(size_t buffer_size) {
   has_independent_pos_ = false;
   supports_read_mode_ = false;
   associated_reader_.Reset();
+  read_mode_ = false;
 }
 
 template <typename Dest>

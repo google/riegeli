@@ -250,7 +250,7 @@ class Writer : public Object {
   // `Truncate()` is supported if `SupportsTruncate()` is `true`.
   bool Truncate(Position new_size);
 
-  // Returns `true` if this `Writer` supports `ReadMode()` and `WriteMode()`.
+  // Returns `true` if this `Writer` supports `ReadMode()`.
   virtual bool SupportsReadMode() { return false; }
 
   // Switches from writing to reading.
@@ -261,9 +261,8 @@ class Writer : public Object {
   // If the source ends before `initial_pos`, the position of the new `Reader`
   // is set to the end. The resulting `Reader` supports `Seek()`.
   //
-  // While the returned `Reader` is in use, this `Writer` must not be used
-  // and the destination of this `Writer` must not be changed. Afterwards,
-  // the only valid calls are `WriteMode()`, `ReadMode()`, and `Close()`.
+  // When this `Writer` is used again, its position is the same as before
+  // `ReadMode()` was called, and the `Reader` becomes invalid.
   //
   // The returned `Reader` is owned by this `Writer`. The `Reader` does not own
   // its source, even if this `Writer` owns its destination.
@@ -272,22 +271,6 @@ class Writer : public Object {
   //
   // `ReadMode()` is supported if `SupportsReadMode()` is `true`.
   Reader* ReadMode(Position initial_pos);
-
-  // Switches from reading to writing.
-  //
-  // The current position of this `Writer` stays the same as it was when
-  // `ReadMode()` was called.
-  //
-  // `WriteMode()` must be called to continue using this `Writer` after
-  // `ReadMode()` was called. `WriteMode()` may also be called at any other
-  // time.
-  //
-  // Return values:
-  //  * `true`  - success (`healthy()`)
-  //  * `false` - failure (`!healthy()`)
-  //
-  // `WriteMode()` is supported if `SupportsReadMode()` is `true`.
-  bool WriteMode();
 
  protected:
   using Object::Object;
@@ -407,11 +390,6 @@ class Writer : public Object {
   //
   // By default fails.
   virtual Reader* ReadModeImpl(Position initial_pos);
-
-  // Implementation of `WriteMode()`.
-  //
-  // By default does nothing and returns `true`.
-  virtual bool WriteModeImpl() { return true; }
 
  private:
   char* start_ = nullptr;
@@ -676,8 +654,6 @@ inline bool Writer::Truncate(Position new_size) {
 inline Reader* Writer::ReadMode(Position initial_pos) {
   return ReadModeImpl(initial_pos);
 }
-
-inline bool Writer::WriteMode() { return WriteModeImpl(); }
 
 template <typename ReaderClass>
 inline AssociatedReader<ReaderClass>::AssociatedReader(

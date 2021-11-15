@@ -66,7 +66,6 @@ class DigestingWriterBase : public Writer {
   bool WriteZerosSlow(Position length) override;
   absl::optional<Position> SizeImpl();
   Reader* ReadModeImpl(Position initial_pos) override;
-  bool WriteModeImpl() override;
 
   // Sets cursor of `dest` to cursor of `*this`, digesting what has been written
   // to the buffer (until `cursor()`).

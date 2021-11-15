@@ -113,22 +113,24 @@ class OstreamWriterBase : public BufferedWriter {
 
   void Done() override;
   bool WriteInternal(absl::string_view src) override;
+  bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
   absl::optional<Position> SizeBehindBuffer() override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
-  bool WriteModeImpl() override;
 
  private:
   // Encodes a `bool` or a marker that the value is not fully resolved yet.
   enum class LazyBoolState { kFalse, kTrue, kUnknown };
 
   bool supports_random_access();
+  bool WriteMode();
 
   // Invariant:
   //   if `is_open()` then `supports_random_access_ != LazyBoolState::kUnknown`
   LazyBoolState supports_random_access_ = LazyBoolState::kFalse;
 
   AssociatedReader<IstreamReader<std::istream*>> associated_reader_;
+  bool read_mode_ = false;
 
   // Invariant: `start_pos() <= std::numeric_limits<std::streamoff>::max()`
 };
@@ -234,7 +236,8 @@ inline OstreamWriterBase::OstreamWriterBase(OstreamWriterBase&& that) noexcept
       // Using `that` after it was moved is correct because only the base class
       // part was moved.
       supports_random_access_(that.supports_random_access_),
-      associated_reader_(std::move(that.associated_reader_)) {}
+      associated_reader_(std::move(that.associated_reader_)),
+      read_mode_(that.read_mode_) {}
 
 inline OstreamWriterBase& OstreamWriterBase::operator=(
     OstreamWriterBase&& that) noexcept {
@@ -243,6 +246,7 @@ inline OstreamWriterBase& OstreamWriterBase::operator=(
   // was moved.
   supports_random_access_ = that.supports_random_access_;
   associated_reader_ = std::move(that.associated_reader_);
+  read_mode_ = that.read_mode_;
   return *this;
 }
 
@@ -250,12 +254,14 @@ inline void OstreamWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   supports_random_access_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
+  read_mode_ = false;
 }
 
 inline void OstreamWriterBase::Reset(size_t buffer_size) {
   BufferedWriter::Reset(buffer_size);
   supports_random_access_ = LazyBoolState::kFalse;
   associated_reader_.Reset();
+  read_mode_ = false;
   // Clear `errno` so that `Initialize()` can attribute failures to opening the
   // stream.
   errno = 0;
