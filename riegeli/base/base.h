@@ -656,9 +656,9 @@ inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
 //  * At most `max(max_length, min_length)`.
 //  * If `current_size < size_hint`, prefer `size_hint - current_size`.
 //  * If `current_size >= size_hint`, prefer `recommended_length`.
-inline size_t BufferLength(size_t min_length, size_t max_length,
-                           Position size_hint, Position current_size,
-                           Position recommended_length) {
+inline size_t BufferLength(size_t min_length, Position recommended_length,
+                           size_t max_length, Position size_hint,
+                           Position current_size) {
   if (current_size < size_hint) recommended_length = size_hint - current_size;
   return UnsignedMax(UnsignedMin(recommended_length, max_length), min_length);
 }

@@ -65,9 +65,9 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     }
     buffer_.Reset(BufferLength(
         UnsignedMax(buffered_length + min_length, kShortBufferSize),
-        max_block_size_, size_hint_, start_pos(),
         UnsignedMax(SaturatingAdd(buffered_length, recommended_length),
-                    start_pos(), min_block_size_)));
+                    start_pos(), min_block_size_),
+        max_block_size_, size_hint_, start_pos()));
     std::memcpy(buffer_.data(), short_buffer_, kShortBufferSize);
     set_buffer(buffer_.data(),
                UnsignedMin(buffer_.capacity(),
@@ -81,8 +81,9 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       return FailOverflow();
     }
     buffer_.Reset(BufferLength(
-        min_length, max_block_size_, size_hint_, start_pos(),
-        UnsignedMax(recommended_length, start_pos(), min_block_size_)));
+        min_length,
+        UnsignedMax(recommended_length, start_pos(), min_block_size_),
+        max_block_size_, size_hint_, start_pos()));
     set_buffer(buffer_.data(),
                UnsignedMin(buffer_.capacity(),
                            std::numeric_limits<size_t>::max() - dest.size()));

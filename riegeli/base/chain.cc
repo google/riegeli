@@ -1402,11 +1402,11 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
       << "Chain block capacity overflow";
   return replaced_length +
          BufferLength(min_length,
-                      SaturatingSub(options.max_block_size(), replaced_length),
-                      options.size_hint(), size_,
                       UnsignedMax(recommended_length, size_,
                                   SaturatingSub(options.min_block_size(),
-                                                replaced_length)));
+                                                replaced_length)),
+                      SaturatingSub(options.max_block_size(), replaced_length),
+                      options.size_hint(), size_);
 }
 
 absl::Span<char> Chain::AppendBuffer(size_t min_length,
@@ -2539,11 +2539,12 @@ inline size_t ChainBlock::NewBlockCapacity(size_t space_before, size_t old_size,
       << "Failed precondition of ChainBlock::NewBlockCapacity(): "
          "ChainBlock size overflow";
   return space_before + old_size +
-         BufferLength(min_length, kMaxSize - old_size - space_before,
-                      options.size_hint(), old_size,
+         BufferLength(min_length,
                       UnsignedMax(recommended_length,
                                   SaturatingSub(options.min_block_size(),
-                                                space_before + old_size)));
+                                                space_before + old_size)),
+                      kMaxSize - old_size - space_before, options.size_hint(),
+                      old_size);
 }
 
 absl::Span<char> ChainBlock::AppendBuffer(size_t min_length,
