@@ -223,7 +223,7 @@ inline WrappedWriter<Dest>& WrappedWriter<Dest>::operator=(
 template <typename Dest>
 inline void WrappedWriter<Dest>::Reset(Closed) {
   WrappedWriterBase::Reset(kClosed);
-  dest_.Reset(kClosed);
+  dest_.Reset();
 }
 
 template <typename Dest>

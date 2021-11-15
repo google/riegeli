@@ -427,7 +427,7 @@ inline LimitingWriter<Dest>& LimitingWriter<Dest>::operator=(
 template <typename Dest>
 inline void LimitingWriter<Dest>::Reset(Closed) {
   LimitingWriterBase::Reset(kClosed);
-  dest_.Reset(kClosed);
+  dest_.Reset();
 }
 
 template <typename Dest>
