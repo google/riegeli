@@ -43,8 +43,8 @@ void PullableReader::DoneBehindScratch() {
 }
 
 void PullableReader::Done() {
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    if (available() > 0 && !SupportsRandomAccess()) {
+  if (ABSL_PREDICT_FALSE(scratch_used()) && !ScratchEnds()) {
+    if (!SupportsRandomAccess()) {
       // Seeking back is not feasible.
       Reader::Done();
       scratch_.reset();
@@ -500,8 +500,8 @@ void PullableReader::ReadHintSlow(size_t length) {
 }
 
 bool PullableReader::SyncImpl(SyncType sync_type) {
-  if (ABSL_PREDICT_FALSE(scratch_used())) {
-    if (available() > 0 && !SupportsRandomAccess()) {
+  if (ABSL_PREDICT_FALSE(scratch_used()) && !ScratchEnds()) {
+    if (!SupportsRandomAccess()) {
       // Seeking back is not feasible.
       return healthy();
     }
