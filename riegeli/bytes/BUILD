@@ -291,6 +291,40 @@ cc_library(
 )
 
 cc_library(
+    name = "prefix_limiting_writer",
+    srcs = ["prefix_limiting_writer.cc"],
+    hdrs = ["prefix_limiting_writer.h"],
+    deps = [
+        ":prefix_limiting_reader",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "prefix_limiting_reader",
+    srcs = ["prefix_limiting_reader.cc"],
+    hdrs = ["prefix_limiting_reader.h"],
+    deps = [
+        ":backward_writer",
+        ":reader",
+        ":writer",
+        "//riegeli/base",
+        "//riegeli/base:chain",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
     name = "null_writer",
     srcs = ["null_writer.cc"],
     hdrs = ["null_writer.h"],
