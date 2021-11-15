@@ -459,7 +459,7 @@ class Chain {
     Empty empty;
     // If `begin_ == end_`, `size_` characters.
     //
-    // If also `has_here()`, then there are 0 pointers in here so `short_data`
+    // If also `has_here()`, then there are 0 pointers in `here` so `short_data`
     // can safely contain `size_` characters. If also `has_allocated()`, then
     // `size_ == 0`, and `EnsureHasHere()` must be called before writing to
     // `short_data`.
@@ -857,7 +857,7 @@ class ChainBlock {
   // `max_length`.
   //
   // If `min_length == 0`, returns whatever space was already allocated
-  // (possibly an empty buffer). without invalidating existing pointers. If the
+  // (possibly an empty buffer) without invalidating existing pointers. If the
   // `ChainBlock` was empty then the empty contents can be moved.
   //
   // If `recommended_length < min_length`, `recommended_length` is assumed to be
@@ -910,9 +910,10 @@ class ChainBlock {
 
   explicit ChainBlock(RawBlock* block) : block_(block) {}
 
-  // Decides about the capacity of a new block to be appended/prepended.
-  size_t NewBlockCapacity(size_t old_size, size_t min_length,
-                          size_t recommended_length,
+  // Decides about the capacity of a new block to replace the existing block for
+  // appending/prepending of new space.
+  size_t NewBlockCapacity(size_t space_before, size_t old_size,
+                          size_t min_length, size_t recommended_length,
                           const Options& options) const;
 
   void RemoveSuffixSlow(size_t length, const Options& options);
@@ -1071,6 +1072,8 @@ class Chain::RawBlock {
   template <typename T, typename... Args, size_t... Indices>
   void ConstructExternal(std::tuple<Args...>&& args,
                          std::index_sequence<Indices...>);
+
+  bool is_mutable() const { return is_internal() && has_unique_owner(); }
 
   bool has_unique_owner() const;
 
@@ -1408,7 +1411,7 @@ inline T* Chain::RawBlock::checked_external_object_with_unique_owner() {
 }
 
 inline bool Chain::RawBlock::TryClear() {
-  if (is_internal() && has_unique_owner()) {
+  if (is_mutable()) {
     data_.remove_suffix(size());
     return true;
   }
@@ -1419,7 +1422,7 @@ inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
       << "Failed precondition of Chain::RawBlock::TryRemoveSuffix(): "
       << "length to remove greater than current size";
-  if (is_internal() && has_unique_owner()) {
+  if (is_mutable()) {
     data_.remove_suffix(length);
     return true;
   }
@@ -1430,7 +1433,7 @@ inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
       << "Failed precondition of Chain::RawBlock::TryRemovePrefix(): "
       << "length to remove greater than current size";
-  if (is_internal() && has_unique_owner()) {
+  if (is_mutable()) {
     data_.remove_prefix(length);
     return true;
   }
