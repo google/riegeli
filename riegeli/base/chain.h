@@ -565,12 +565,20 @@ class Chain {
   template <Ownership ownership, typename ChainRef>
   void PrependChain(ChainRef&& src, const Options& options);
 
-  // This template is explicitly instantiated.
-  template <Ownership ownership>
-  void AppendBlock(RawBlock* block, const Options& options);
-  // This template is explicitly instantiated.
-  template <Ownership ownership>
-  void PrependBlock(RawBlock* block, const Options& options);
+  // This template is defined and used only in chain.cc.
+  template <typename ChainBlockRef>
+  void AppendChainBlock(ChainBlockRef&& src, const Options& options);
+  // This template is defined and used only in chain.cc.
+  template <typename ChainBlockRef>
+  void PrependChainBlock(ChainBlockRef&& src, const Options& options);
+
+  // If `ref_block` is present, it should be a functor equivalent to
+  // `[&] { return block->Ref(); }`, but it can achieve that by stealing
+  // a reference to `block` from elsewhere instead.
+  void AppendRawBlock(RawBlock* block, const Options& options);
+  template <typename RefBlock>
+  void AppendRawBlock(RawBlock* block, const Options& options,
+                      RefBlock ref_block);
 
   // This template is defined and used only in chain.cc.
   template <typename CordRef>
@@ -909,6 +917,9 @@ class ChainBlock {
   using RawBlock = Chain::RawBlock;
 
   explicit ChainBlock(RawBlock* block) : block_(block) {}
+
+  RawBlock* RefBlock() const&;
+  RawBlock* RefBlock() &&;
 
   // Decides about the capacity of a new block to replace the existing block for
   // appending/prepending of new space.
@@ -2005,39 +2016,6 @@ inline absl::Span<char> Chain::PrependFixedBuffer(size_t length,
 
 extern template void Chain::Append(std::string&& src, const Options& options);
 extern template void Chain::Prepend(std::string&& src, const Options& options);
-
-inline void Chain::Append(const ChainBlock& src, const Options& options) {
-  if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kShare>(src.block_.get(), options);
-  }
-}
-
-inline void Chain::Prepend(const ChainBlock& src, const Options& options) {
-  if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kShare>(src.block_.get(), options);
-  }
-}
-
-inline void Chain::Append(ChainBlock&& src, const Options& options) {
-  if (src.block_ != nullptr) {
-    AppendBlock<Ownership::kSteal>(src.block_.release(), options);
-  }
-}
-
-inline void Chain::Prepend(ChainBlock&& src, const Options& options) {
-  if (src.block_ != nullptr) {
-    PrependBlock<Ownership::kSteal>(src.block_.release(), options);
-  }
-}
-
-extern template void Chain::AppendBlock<Chain::Ownership::kShare>(
-    RawBlock* block, const Options& options);
-extern template void Chain::AppendBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, const Options& options);
-extern template void Chain::PrependBlock<Chain::Ownership::kShare>(
-    RawBlock* block, const Options& options);
-extern template void Chain::PrependBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, const Options& options);
 
 inline bool operator==(const Chain& a, const Chain& b) {
   return a.size() == b.size() && a.Compare(b) == 0;

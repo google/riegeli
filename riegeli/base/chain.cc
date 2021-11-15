@@ -543,7 +543,7 @@ inline void Chain::RawBlock::AppendTo(Chain& dest, const Options& options) {
   RIEGELI_ASSERT_LE(size(), std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::RawBlock::AppendTo(Chain&): "
          "Chain size overflow";
-  dest.AppendBlock<Ownership::kShare>(this, options);
+  dest.AppendRawBlock(this, options);
 }
 
 template <Chain::Ownership ownership>
@@ -590,7 +590,7 @@ inline void Chain::RawBlock::AppendSubstrTo(absl::string_view substr,
       dest.Append(substr, options);
       return;
     }
-    dest.AppendBlock<Ownership::kShare>(this, options);
+    dest.AppendRawBlock(this, options);
     return;
   }
   if (substr.size() <= kMaxBytesToCopy || wasteful()) {
@@ -1766,7 +1766,7 @@ void Chain::Append(absl::Cord&& src, const Options& options) {
 }
 
 template <typename CordRef>
-void Chain::AppendCord(CordRef&& src, const Options& options) {
+inline void Chain::AppendCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Cord): "
          "Chain size overflow";
@@ -1962,6 +1962,192 @@ inline void Chain::PrependChain(ChainRef&& src, const Options& options) {
   src.DropStolenBlocks(std::integral_constant<Ownership, ownership>());
 }
 
+void Chain::Append(const ChainBlock& src, const Options& options) {
+  return AppendChainBlock(src, options);
+}
+
+void Chain::Append(ChainBlock&& src, const Options& options) {
+  return AppendChainBlock(std::move(src), options);
+}
+
+template <typename ChainBlockRef>
+inline void Chain::AppendChainBlock(ChainBlockRef&& src,
+                                    const Options& options) {
+  RIEGELI_ASSERT_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::AppendBlock(): "
+         "Chain size overflow";
+  if (src.empty()) return;
+  RawBlock* const block = src.block_.get();
+  return AppendRawBlock(block, options, [&] {
+    return std::forward<ChainBlockRef>(src).RefBlock();
+  });
+}
+
+inline void Chain::AppendRawBlock(RawBlock* block, const Options& options) {
+  return AppendRawBlock(block, options, [&] { return block->Ref(); });
+}
+
+template <typename RefBlock>
+inline void Chain::AppendRawBlock(RawBlock* block, const Options& options,
+                                  RefBlock ref_block) {
+  if (begin_ == end_) {
+    if (!short_data().empty()) {
+      if (block->tiny()) {
+        // The block must be rewritten. Merge short data with it to a new block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+            << "Sum of sizes of short data and a tiny block exceeds "
+               "RawBlock::kMaxCapacity";
+        const size_t capacity = NewBlockCapacity(
+            size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
+            options);
+        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+        merged->Append(absl::string_view(*block));
+        PushBack(merged);
+        size_ += block->size();
+        return;
+      }
+      // Copy short data to a real block.
+      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+      PushBack(real);
+    }
+  } else {
+    RawBlock* const last = back();
+    if (last->tiny() && block->tiny()) {
+      // Boundary blocks must be merged.
+      if (last->can_append(block->size())) {
+        // Boundary blocks can be appended in place; this is always cheaper than
+        // merging them to a new block.
+        last->Append(absl::string_view(*block));
+      } else {
+        // Boundary blocks cannot be appended in place. Merge them to a new
+        // block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - last->size())
+            << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
+        RawBlock* const merged = RawBlock::NewInternal(
+            NewBlockCapacity(last->size(), block->size(), 0, options));
+        merged->Append(absl::string_view(*last));
+        merged->Append(absl::string_view(*block));
+        last->Unref();
+        SetBack(merged);
+      }
+      size_ += block->size();
+      return;
+    }
+    if (last->empty()) {
+      // The last block is empty and must be removed.
+      last->Unref();
+      SetBack(ref_block());
+      size_ += block->size();
+      return;
+    }
+    if (last->wasteful()) {
+      // The last block must reduce waste.
+      if (last->can_append(block->size()) &&
+          block->size() <= kAllocationCost + last->size()) {
+        // Appending in place is possible and is cheaper than rewriting the last
+        // block.
+        last->Append(absl::string_view(*block));
+        size_ += block->size();
+        return;
+      }
+      // Appending in place is not possible, or rewriting the last block is
+      // cheaper.
+      SetBack(last->Copy<Ownership::kSteal>());
+    }
+  }
+  PushBack(ref_block());
+  size_ += block->size();
+}
+
+void Chain::Prepend(const ChainBlock& src, const Options& options) {
+  return PrependChainBlock(src, options);
+}
+
+void Chain::Prepend(ChainBlock&& src, const Options& options) {
+  return PrependChainBlock(std::move(src), options);
+}
+
+template <typename ChainBlockRef>
+void Chain::PrependChainBlock(ChainBlockRef&& src, const Options& options) {
+  RIEGELI_ASSERT_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+      << "Failed precondition of Chain::PrependBlock(): "
+         "Chain size overflow";
+  if (src.empty()) return;
+  RawBlock* const block = src.block_.get();
+  if (begin_ == end_) {
+    if (!short_data().empty()) {
+      if (block->tiny()) {
+        // The block must be rewritten. Merge short data with it to a new block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+            << "Sum of sizes of short data and a tiny block exceeds "
+               "RawBlock::kMaxCapacity";
+        const size_t capacity =
+            NewBlockCapacity(size_, block->size(), 0, options);
+        RawBlock* const merged = RawBlock::NewInternal(capacity);
+        merged->Prepend(short_data());
+        merged->Prepend(absl::string_view(*block));
+        PushFront(merged);
+        size_ += block->size();
+        return;
+      }
+      // Copy short data to a real block.
+      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
+      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
+      PushFront(real);
+    }
+  } else {
+    RawBlock* const first = front();
+    if (first->tiny() && block->tiny()) {
+      // Boundary blocks must be merged.
+      if (first->can_prepend(block->size())) {
+        // Boundary blocks can be prepended in place; this is always cheaper
+        // than merging them to a new block.
+        first->Prepend(absl::string_view(*block));
+        RefreshFront();
+      } else {
+        // Boundary blocks cannot be prepended in place. Merge them to a new
+        // block.
+        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - first->size())
+            << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
+        RawBlock* const merged = RawBlock::NewInternal(
+            NewBlockCapacity(first->size(), block->size(), 0, options));
+        merged->Prepend(absl::string_view(*first));
+        merged->Prepend(absl::string_view(*block));
+        first->Unref();
+        SetFront(merged);
+      }
+      size_ += block->size();
+      return;
+    }
+    if (first->empty()) {
+      // The first block is empty and must be removed.
+      first->Unref();
+      SetFront(std::forward<ChainBlockRef>(src).RefBlock());
+      size_ += block->size();
+      return;
+    }
+    if (first->wasteful()) {
+      // The first block must reduce waste.
+      if (first->can_prepend(block->size()) &&
+          block->size() <= kAllocationCost + first->size()) {
+        // Prepending in place is possible and is cheaper than rewriting the
+        // first block.
+        first->Prepend(absl::string_view(*block));
+        RefreshFront();
+        size_ += block->size();
+        return;
+      }
+      // Prepending in place is not possible, or rewriting the first block is
+      // cheaper.
+      SetFrontSameSize(first->Copy<Ownership::kSteal>());
+    }
+  }
+  PushFront(std::forward<ChainBlockRef>(src).RefBlock());
+  size_ += block->size();
+}
+
 void Chain::Prepend(const absl::Cord& src, const Options& options) {
   return PrependCord(src, options);
 }
@@ -1971,7 +2157,7 @@ void Chain::Prepend(absl::Cord&& src, const Options& options) {
 }
 
 template <typename CordRef>
-void Chain::PrependCord(CordRef&& src, const Options& options) {
+inline void Chain::PrependCord(CordRef&& src, const Options& options) {
   RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Cord): "
          "Chain size overflow";
@@ -2013,184 +2199,6 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
     Append(copied_fragment, options);
   }
 }
-
-template <Chain::Ownership ownership>
-void Chain::AppendBlock(RawBlock* block, const Options& options) {
-  RIEGELI_ASSERT_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::AppendBlock(): "
-         "Chain size overflow";
-  if (block->empty()) {
-    block->Unref<ownership>();
-    return;
-  }
-  if (begin_ == end_) {
-    if (!short_data().empty()) {
-      if (block->tiny()) {
-        // The block must be rewritten. Merge short data with it to a new block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
-            << "Sum of sizes of short data and a tiny block exceeds "
-               "RawBlock::kMaxCapacity";
-        const size_t capacity = NewBlockCapacity(
-            size_, UnsignedMax(block->size(), kMaxShortDataSize - size_), 0,
-            options);
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(absl::string_view(*block));
-        PushBack(merged);
-        size_ += block->size();
-        block->Unref<ownership>();
-        return;
-      }
-      // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
-      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushBack(real);
-    }
-  } else {
-    RawBlock* const last = back();
-    if (last->tiny() && block->tiny()) {
-      // Boundary blocks must be merged.
-      if (last->can_append(block->size())) {
-        // Boundary blocks can be appended in place; this is always cheaper than
-        // merging them to a new block.
-        last->Append(absl::string_view(*block));
-      } else {
-        // Boundary blocks cannot be appended in place. Merge them to a new
-        // block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - last->size())
-            << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
-        RawBlock* const merged = RawBlock::NewInternal(
-            NewBlockCapacity(last->size(), block->size(), 0, options));
-        merged->Append(absl::string_view(*last));
-        merged->Append(absl::string_view(*block));
-        last->Unref();
-        SetBack(merged);
-      }
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (last->empty()) {
-      // The last block is empty and must be removed.
-      last->Unref();
-      SetBack(block->Ref());
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (last->wasteful()) {
-      // The last block must reduce waste.
-      if (last->can_append(block->size()) &&
-          block->size() <= kAllocationCost + last->size()) {
-        // Appending in place is possible and is cheaper than rewriting the last
-        // block.
-        last->Append(absl::string_view(*block));
-        size_ += block->size();
-        block->Unref<ownership>();
-        return;
-      }
-      // Appending in place is not possible, or rewriting the last block is
-      // cheaper.
-      SetBack(last->Copy<Ownership::kSteal>());
-    }
-  }
-  PushBack(block->Ref<ownership>());
-  size_ += block->size();
-}
-
-template <Chain::Ownership ownership>
-void Chain::PrependBlock(RawBlock* block, const Options& options) {
-  RIEGELI_ASSERT_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
-      << "Failed precondition of Chain::PrependBlock(): "
-         "Chain size overflow";
-  if (block->empty()) {
-    block->Unref<ownership>();
-    return;
-  }
-  if (begin_ == end_) {
-    if (!short_data().empty()) {
-      if (block->tiny()) {
-        // The block must be rewritten. Merge short data with it to a new block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
-            << "Sum of sizes of short data and a tiny block exceeds "
-               "RawBlock::kMaxCapacity";
-        const size_t capacity =
-            NewBlockCapacity(size_, block->size(), 0, options);
-        RawBlock* const merged = RawBlock::NewInternal(capacity);
-        merged->Prepend(short_data());
-        merged->Prepend(absl::string_view(*block));
-        PushFront(merged);
-        size_ += block->size();
-        block->Unref<ownership>();
-        return;
-      }
-      // Copy short data to a real block.
-      RawBlock* const real = RawBlock::NewInternal(kMaxShortDataSize);
-      real->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-      PushFront(real);
-    }
-  } else {
-    RawBlock* const first = front();
-    if (first->tiny() && block->tiny()) {
-      // Boundary blocks must be merged.
-      if (first->can_prepend(block->size())) {
-        // Boundary blocks can be prepended in place; this is always cheaper
-        // than merging them to a new block.
-        first->Prepend(absl::string_view(*block));
-        RefreshFront();
-      } else {
-        // Boundary blocks cannot be prepended in place. Merge them to a new
-        // block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - first->size())
-            << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
-        RawBlock* const merged = RawBlock::NewInternal(
-            NewBlockCapacity(first->size(), block->size(), 0, options));
-        merged->Prepend(absl::string_view(*first));
-        merged->Prepend(absl::string_view(*block));
-        first->Unref();
-        SetFront(merged);
-      }
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (first->empty()) {
-      // The first block is empty and must be removed.
-      first->Unref();
-      SetFront(block->Ref());
-      size_ += block->size();
-      block->Unref<ownership>();
-      return;
-    }
-    if (first->wasteful()) {
-      // The first block must reduce waste.
-      if (first->can_prepend(block->size()) &&
-          block->size() <= kAllocationCost + first->size()) {
-        // Prepending in place is possible and is cheaper than rewriting the
-        // first block.
-        first->Prepend(absl::string_view(*block));
-        RefreshFront();
-        size_ += block->size();
-        block->Unref<ownership>();
-        return;
-      }
-      // Prepending in place is not possible, or rewriting the first block is
-      // cheaper.
-      SetFrontSameSize(first->Copy<Ownership::kSteal>());
-    }
-  }
-  PushFront(block->Ref<ownership>());
-  size_ += block->size();
-}
-
-template void Chain::AppendBlock<Chain::Ownership::kShare>(
-    RawBlock* block, const Options& options);
-template void Chain::AppendBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, const Options& options);
-template void Chain::PrependBlock<Chain::Ownership::kShare>(
-    RawBlock* block, const Options& options);
-template void Chain::PrependBlock<Chain::Ownership::kSteal>(
-    RawBlock* block, const Options& options);
 
 void Chain::RemoveSuffix(size_t length, const Options& options) {
   if (length == 0) return;
@@ -2510,6 +2518,10 @@ void Chain::VerifyInvariants() const {
   }
 #endif
 }
+
+inline Chain::RawBlock* ChainBlock::RefBlock() const& { return block_->Ref(); }
+
+inline Chain::RawBlock* ChainBlock::RefBlock() && { return block_.release(); }
 
 size_t ChainBlock::EstimateMemory() const {
   MemoryEstimator memory_estimator;
